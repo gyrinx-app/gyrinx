@@ -1,0 +1,36 @@
+{% comment %}
+<c-n26.changelog> — what changed lately, newest first.
+
+    <c-n26.changelog heading="What's new" href="/changelog/">
+        <c-n26.changelog.entry title="Vehicles" date="6 Aug"
+                               href="/changelog/vehicles/">Hire a Trazior…</c-n26.changelog.entry>
+    </c-n26.changelog>
+
+A list, not a feed: nothing here loads more, and the point of it on a dashboard is
+that a reader can see at a glance whether anything has happened since last time.
+Four or five entries and a way through to the rest.
+
+The heading carries the link to the full list rather than a "See all" row at the
+bottom. A row at the bottom is the one thing in a list that does not behave like
+the rest of the list — press it expecting an entry and you get an index.
+
+  heading — what the section is called. "What's new" by default.
+  href — the full changelog. Without one the heading is plain text.
+  empty — what to say when there is nothing.
+{% endcomment %}
+<c-vars heading="What's new" href="" class="" />
+
+<section class="flex flex-col gap-2 {{ class }}">
+    <div class="flex items-baseline justify-between gap-2">
+        <h2 class="text-lg font-semibold text-ink-900 dark:text-ink-100">{{ heading }}</h2>
+        {% if href %}
+            <c-n26.link href="{{ href }}" tone="muted" class="text-sm">All updates</c-n26.link>
+        {% endif %}
+    </div>
+
+    {% if slot.strip %}
+        <div class="divide-y divide-box-border border-y border-box-border">{{ slot }}</div>
+    {% elif empty %}
+        <p class="py-4 text-sm text-muted">{{ empty }}</p>
+    {% endif %}
+</section>

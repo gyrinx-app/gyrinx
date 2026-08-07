@@ -1,0 +1,100 @@
+{# title: The whole chrome #}
+{# layout: full #}
+{# note: What the three are for. The announcement sits above the nav because it is about the site rather than the page; the nav and the footer share the announcement's container, so the logo at the top lines up with the logo at the bottom. Everything between them is the application. #}
+{% load static %}
+<div class="overflow-hidden rounded-box border border-box-border">
+    <c-n26.site.announcement tone="info" cta_text="Read the notes" cta_url="#">
+        Campaigns are live, and every gang can now join one.
+    </c-n26.site.announcement>
+    <c-n26.site.nav title="Gyrinx" href="#">
+        <c-slot name="logo">
+            <img src="{% static 'n26/gyrinx-logo.svg' %}"
+                 alt=""
+                 width="24"
+                 height="24"
+                 class="size-6">
+        </c-slot>
+        <c-ui.navbar.item href="#" :current="True">
+            Home
+        </c-ui.navbar.item>
+        <c-ui.navbar.item href="#">
+            Lists &amp; Gangs
+        </c-ui.navbar.item>
+        <c-ui.navbar.item href="#">
+            Campaigns
+        </c-ui.navbar.item>
+        <c-ui.navbar.item href="#">
+            Customisation
+        </c-ui.navbar.item>
+        <c-ui.navbar.item href="#">
+            Help
+        </c-ui.navbar.item>
+        <c-slot name="actions">
+            <c-ui.mode-toggle storage_key="n26-theme" default="system" size="sm" />
+            <c-ui.button href="#" variant="default" size="sm">
+                <span class="flex items-center gap-1.5">
+                    <c-n26.icon name="cog-6-tooth" class="size-4" />
+                    tom
+                </span>
+            </c-ui.button>
+        </c-slot>
+    </c-n26.site.nav>
+    <div class="n26-site-container py-10">
+        <h2 class="text-xl font-semibold text-ink-900 dark:text-ink-100">The Ashen Choir</h2>
+        <p class="mt-1 text-muted">Escher · 1,245¢ · eight fighters</p>
+    </div>
+    <c-n26.site.footer class="mt-0">
+        <c-n26.site.footer.column>
+            <c-slot name="lead">
+                <a href="#" class="n26-site-brand focus-ring">
+                    <img src="{% static 'n26/gyrinx-logo.svg' %}"
+                         alt=""
+                         width="24"
+                         height="24"
+                         class="size-6">
+                    <span>Gyrinx</span>
+                </a>
+            </c-slot>
+            <li>Designed and built in the UK.</li>
+            <li>
+                <c-n26.link href="#" tone="muted">
+                    Support Gyrinx
+                </c-n26.link>
+            </li>
+            <li class="flex items-center gap-3 pt-1">
+                <c-n26.link href="#" tone="muted">
+                    <c-n26.icon name="github" class="size-5" label="GitHub" />
+                </c-n26.link>
+                <c-n26.link href="#" tone="muted">
+                    <c-n26.icon name="discord" class="size-5" label="Discord" />
+                </c-n26.link>
+            </li>
+        </c-n26.site.footer.column>
+        <c-n26.site.footer.column heading="Help & Documentation">
+            <li>
+                <c-n26.link href="#" tone="muted">
+                    Getting started
+                </c-n26.link>
+            </li>
+            <li>
+                <c-n26.link href="#" tone="muted">
+                    Building a gang
+                </c-n26.link>
+            </li>
+            <li>
+                <c-n26.link href="#" tone="muted">
+                    Running a campaign
+                </c-n26.link>
+            </li>
+        </c-n26.site.footer.column>
+        <c-n26.site.footer.column heading="Support Gyrinx on Patreon">
+            <c-slot name="content">
+                <a href="#" class="n26-img-tilt block focus-ring rounded-box">
+                    <img src="{% static 'n26/support-card.svg' %}"
+                         alt="Support Gyrinx on Patreon"
+                         class="w-full rounded-box border border-box-border">
+                </a>
+            </c-slot>
+        </c-n26.site.footer.column>
+    </c-n26.site.footer>
+</div>

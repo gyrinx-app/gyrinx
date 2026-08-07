@@ -1,0 +1,14 @@
+{# title: Sizes and colours #}
+{# note: color="current" inherits the surrounding text colour — that's the one you want inside a button. #}
+<c-ui.spinner size="xs" />
+<c-ui.spinner size="sm" />
+<c-ui.spinner size="md" />
+<c-ui.spinner size="lg" />
+<c-ui.spinner size="xl" />
+<c-ui.spinner color="ink" />
+<c-ui.button variant="primary">
+    <span class="flex items-center justify-center gap-2">
+        <c-ui.spinner size="xs" color="current" />
+        Loading
+    </span>
+</c-ui.button>

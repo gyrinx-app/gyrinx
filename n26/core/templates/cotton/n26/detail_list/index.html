@@ -1,0 +1,35 @@
+{% comment %}
+<c-n26.detail-list> — labelled values, dense, each value a control.
+
+    <c-n26.detail-list>
+        <c-n26.detail-list.row label="House list" value="Escher" />
+        <c-n26.detail-list.row label="Skill trees">
+            Ferocity, Brawn, Cunning
+        </c-n26.detail-list.row>
+    </c-n26.detail-list>
+
+A gang has a dozen small standing facts — its house list, its ranked skill trees,
+its counters — and every one of them is something you can change. That is the shape
+this exists for: a label, and a value that is also the way to edit it.
+
+Built along the same lines as <c-n26.action-links>: the rhythm belongs to the
+container, not the call site, so adding a row or hiding one behind a permission
+check cannot leave a gap or a stray separator behind. Unlike action-links there is
+no dot between items — these are not a run of one kind of thing, they are pairs,
+and a separator between a pair and the next pair reads as being inside the pair.
+
+  --- the layout ---
+
+Rows are a flex wrap, not a grid and not a two-column table, so a row takes only
+the width its value needs and several short pairs share a line. A grid would align
+every value to the widest label on the sheet, which on "Skill trees" versus
+"Founding" is most of a phone's width spent on nothing.
+
+The label is the quiet half. It is a fixed piece of vocabulary a reader learns
+once; the value is what they came to read and what they press.
+
+  class — extra classes on the container.
+{% endcomment %}
+<c-vars class="" />
+
+<dl {{ attrs }} class="flex flex-wrap items-center gap-x-4 gap-y-1 {{ class }}">{{ slot }}</dl>

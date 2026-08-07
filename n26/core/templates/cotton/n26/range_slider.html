@@ -1,0 +1,102 @@
+{% comment %}
+<c-n26.range-slider> — a slider with one thumb or two.
+
+    {# one: a ceiling #}
+    <div x-data="{ cap: 80 }">
+        <c-n26.range-slider model="cap" min="0" max="200" step="5" />
+    </div>
+
+    {# two: a floor and a ceiling #}
+    <div x-data="{ lo: 20, hi: 80 }">
+        <c-n26.range-slider model_min="lo" model_max="hi" min="0" max="200" step="5" />
+    </div>
+
+Ours rather than c-ui.range, for a reason worth writing down. The kit's slider
+binds with x-modelable, which carries a *drag* outward to the caller's variable
+but does not carry a programmatic change back in: set the model from a Clear
+button and the input's thumb moves while the filled part of the track — drawn
+from a copy of the number the component keeps privately — stays where it was.
+A filter bar has Clear, presets and a URL to restore from, so it needs a control
+it can drive, not only one a finger can.
+
+Which is the whole design here: **there is no private copy**. The caller's
+variables are the only state. The inputs render from them and write straight
+back, so there is nothing to keep in step and no direction that can go stale.
+An earlier version did keep its own lo/hi and reconcile them with an x-effect,
+and that reconciliation raced the drag — it read the old published value, decided
+the thumb had drifted, and put it back, which looked exactly like a slider that
+would not move.
+
+Real <input type="range"> elements, not a div with drag handlers: a range input
+is keyboard-operable, announced as a slider, and respects the step, all of which
+a reimplementation would have to earn back. For two thumbs they overlap exactly
+and only the thumbs take pointer events, so a press lands on whichever is
+nearest. See .n26-range-slider in app.css.
+
+The two ends clamp against each other rather than swapping places. Swapping
+keeps a fast drag moving, but it hands the pointer a different thumb halfway
+through — you grab the floor, and past the ceiling you are suddenly dragging the
+ceiling. Stopping is the duller behaviour and the one that matches what the
+hand is doing.
+
+  model — one Alpine expression: the value. Ignored if the pair is given.
+  model_min, model_max — two expressions, for the two-thumb form.
+  min, max, step — the track's range.
+{% endcomment %}
+<c-vars
+    model=""
+    model_min=""
+    model_max=""
+    min="0"
+    max="100"
+    step="1"
+    class=""
+/>
+
+{% comment %}
+Only the geometry lives here — the ends of the track, and the two percentages
+the fill is drawn between. Both read the caller's variables, so the bar and the
+thumbs cannot disagree: they are the same number rendered twice.
+{% endcomment %}
+<div {{ attrs }}
+     class="n26-range-slider {{ class }}"
+     x-data="{
+        floor: {{ min }},
+        ceiling: {{ max }},
+        get span() { return this.ceiling - this.floor || 1 },
+        get lowPct() {
+            return ({% if model_min and model_max %}{{ model_min }}{% else %}this.floor{% endif %} - this.floor) / this.span * 100;
+        },
+        get highPct() {
+            return ({% if model_min and model_max %}{{ model_max }}{% else %}{{ model }}{% endif %} - this.floor) / this.span * 100;
+        },
+     }">
+
+    <div class="n26-range-slider-track"></div>
+    <div class="n26-range-slider-fill"
+         :style="`left: ${lowPct}%; right: ${100 - highPct}%`"></div>
+
+    {% comment %}
+    :value rather than x-model, deliberately. x-model owns the element and would
+    write the raw dragged number back before the clamp could look at it; binding
+    the value and handling input directly means the caller's variable is set
+    once, already clamped, and the input re-renders from it — so a thumb pushed
+    past its partner visibly stops instead of overshooting and springing back.
+    {% endcomment %}
+    {% if model_min and model_max %}
+        <input type="range" aria-label="Minimum"
+               min="{{ min }}" max="{{ max }}" step="{{ step }}"
+               :value="{{ model_min }}"
+               @input="{{ model_min }} = Math.min(Number($event.target.value), {{ model_max }})">
+
+        <input type="range" aria-label="Maximum"
+               min="{{ min }}" max="{{ max }}" step="{{ step }}"
+               :value="{{ model_max }}"
+               @input="{{ model_max }} = Math.max(Number($event.target.value), {{ model_min }})">
+    {% else %}
+        <input type="range" aria-label="Value"
+               min="{{ min }}" max="{{ max }}" step="{{ step }}"
+               :value="{{ model }}"
+               @input="{{ model }} = Number($event.target.value)">
+    {% endif %}
+</div>

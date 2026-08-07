@@ -1,0 +1,51 @@
+{% comment %}
+The mixed specimen: a title block, cards, a forced page break, then the table.
+
+Two things worth having a specimen for. One is <c-n26.print.break> doing its
+job — the reference table starting on a fresh sheet rather than sharing the
+bottom of the last page of cards, which is tidier on paper and worse to use.
+
+The other is content that is not in the grid at all. A sheet is an ordinary
+block flow: entries, headings and tables can sit straight on it, and only the
+things that must not be cut need to be cards. Getting that wrong in the other
+direction — wrapping everything in cards so nothing ever breaks — is how a
+document ends up with a page and a half of white space in it.
+{% endcomment %}
+<div class="n26-print-titleblock">
+    <div class="n26-print-title">The Ashen Choir</div>
+    <div class="n26-print-subtitle">Escher · {{ rows|length }} fighters · printed for the table</div>
+</div>
+<c-n26.print.grid columns="{{ options.columns }}" gutter="{{ gutter_css }}">
+    {% for row in rows %}
+        <c-n26.print.card title="{{ row.card.name }}"
+                          badge="{{ row.card.rating }}¢"
+                          height="{{ card_height_css }}"
+                          fit="1">
+            <c-slot name="foot">
+                <c-n26.print.field label="Notes" height="9mm" label_width="11mm" />
+            </c-slot>
+            {% comment %} The book's two-row layout: a row pair per group, Type and XP filling the rest. {% endcomment %}
+            <c-n26.print.statline :statline="row.card.statline"
+                                  type_line="{{ row.card.type_line }}"
+                                  xp="{{ row.card.xp_display }}"
+                                  class="n26-print-bleed" />
+            <c-n26.print.columns class="n26-print-mt">
+                {% for column in row.columns %}
+                    <c-n26.print.column>
+                        {% for group in column %}
+                            <c-n26.print.entry label="{{ group.label }}">
+                                {{ group.text }}
+                            </c-n26.print.entry>
+                        {% endfor %}
+                    </c-n26.print.column>
+                {% endfor %}
+            </c-n26.print.columns>
+        </c-n26.print.card>
+    {% endfor %}
+</c-n26.print.grid>
+<c-n26.print.break />
+<div class="n26-print-titleblock">
+    <div class="n26-print-title">Trading post</div>
+    <div class="n26-print-subtitle">Everything available, and somewhere to tick off what you bought</div>
+</div>
+{% include "designsystem/print/_table.html" %}

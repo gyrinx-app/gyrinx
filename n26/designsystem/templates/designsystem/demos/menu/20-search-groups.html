@@ -1,0 +1,23 @@
+{# title: Search, groups and descriptions #}
+{# note: The search box is sticky and gets focus when the menu opens. Adding c-ui.menu.content explicitly is what lets you put the search inside it. #}
+{# layout: col #}
+<c-ui.menu name="weapon" placeholder="Choose a weapon" value="lasgun">
+    <c-slot name="content">
+        <c-ui.menu.content>
+            <c-ui.menu.search placeholder="Filter weapons…" />
+            <c-ui.menu.group label="Basic">
+                <c-ui.menu.item value="lasgun"
+                                label="Lasgun"
+                                description="Rapid fire (1), 24&quot; long range" />
+                <c-ui.menu.item value="autogun" label="Autogun" description="Rapid fire (1), cheap" />
+            </c-ui.menu.group>
+            <c-ui.menu.group label="Special">
+                <c-ui.menu.item value="flamer" label="Flamer" description="Template, unwieldy" />
+                <c-ui.menu.item value="grenade"
+                                label="Grenade launcher"
+                                description="Blast (3&quot;)"
+                                :disabled="True" />
+            </c-ui.menu.group>
+        </c-ui.menu.content>
+    </c-slot>
+</c-ui.menu>

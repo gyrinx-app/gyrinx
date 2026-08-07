@@ -1,0 +1,48 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en-gb">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="description" content="A full-width preview of one n26 view.">
+        <title>{{ component.slug }} — view — n26</title>
+        {% comment %}
+    The mode before first paint, and the typeface, both of which this page was
+    missing — so every view previewed here rendered in the system stack and in
+    light mode whatever the gallery was set to. A preview whose font is not the
+    product's font is a preview of the wrong thing.
+
+    Same storage_key as the gallery and the app shell, so switching mode anywhere
+    switches it here too.
+        {% endcomment %}
+        <c-ui.mode-toggle.head storage_key="n26-theme" default="system" />
+        <link rel="dns-prefetch" href="https://use.typekit.net">
+        <link rel="preconnect" href="https://use.typekit.net" crossorigin>
+        <link rel="stylesheet" href="https://use.typekit.net/rso6ezl.css">
+        <link rel="stylesheet" href="{% static 'designsystem/app.css' %}">
+    </head>
+    <body class="min-h-screen bg-[var(--color-bg)] text-ink-800 dark:text-ink-200">
+        {% comment %}
+A view on its own, with none of the gallery around it.
+
+The reason this exists rather than trusting the component page: the gallery has a
+sidebar, a heading set in a long monospace tag name, and a code block, and at
+390px those decide the page's width before the view gets a say. A screenshot of
+the component page at phone width is a screenshot of the gallery's chrome
+overflowing, which tells you nothing about whether the screen under test fits.
+
+So: same stylesheet, same demo, no chrome. What renders here is what a phone
+would get.
+        {% endcomment %}
+        {% comment %}
+Padding and nothing else. Measure belongs to the view: a hire form wants a
+readable column and a gang sheet wants three cards abreast, and a shell that
+picked one for both would be answering a question it cannot see.
+        {% endcomment %}
+        <div class="px-4 py-6">{% include demo_template %}</div>
+        <script defer src="{% static 'django_cotton_ui/cotton-ui.min.js' %}"></script>
+        <script defer src="{% static 'designsystem/vendor/alpine-collapse.min.js' %}"></script>
+        <script defer src="{% static 'designsystem/vendor/alpine-focus.min.js' %}"></script>
+        <script defer src="{% static 'designsystem/vendor/alpine.min.js' %}"></script>
+    </body>
+</html>

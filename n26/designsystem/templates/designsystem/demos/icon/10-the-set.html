@@ -1,0 +1,13 @@
+{# title: Every icon we have #}
+{# note: The whole registry, rendered from it rather than written out — so adding an icon to core/icons.py puts it on this page. A dotted underline marks the four drawings that are ours rather than Heroicons'. #}
+{# layout: full #}
+{% load icons %}
+<div class="grid grid-cols-[repeat(auto-fill,minmax(9.5rem,1fr))] gap-2">
+    {% for name in icon_names %}
+        <div class="flex flex-col items-center gap-2 rounded-box border border-box-border px-2 py-4">
+            <c-n26.icon :name="name" class="size-6" />
+            <code class="text-center text-xs text-ink-900 dark:text-ink-100 {% if name|is_local_icon %}underline decoration-dotted underline-offset-4{% endif %}"
+                  {% if name|is_local_icon %}title="Our own drawing, not the upstream Heroicons path"{% endif %}>{{ name }}</code>
+        </div>
+    {% endfor %}
+</div>

@@ -1,0 +1,67 @@
+{% load designsystem %}
+{% comment %} Props for one component, read out of its installed template. `api` may be None
+   if a template moved between package versions — say so rather than render nothing.
+{% endcomment %}
+{% if api %}
+    {% if api.doc %}
+        <div class="mb-4 rounded-box border border-box-border bg-ink-500/5 p-4 text-sm">
+            <div class="mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted">From the component's own source</div>
+            <p class="whitespace-pre-line text-muted">{{ api.doc }}</p>
+        </div>
+    {% endif %}
+    {% if api.props %}
+        <div class="overflow-x-auto rounded-box border border-box-border">
+            <table class="w-full text-left text-sm">
+                <thead class="border-b border-box-border bg-ink-500/5 text-xs uppercase tracking-wider text-muted">
+                    <tr>
+                        <th class="px-4 py-2 font-semibold">Prop</th>
+                        <th class="px-4 py-2 font-semibold">Default</th>
+                        <th class="px-4 py-2 font-semibold">Accepts</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-[var(--color-box-border)]">
+                    {% for prop in api.props %}
+                        {% if not prop.choices %}
+                            <tr>
+                                <td class="whitespace-nowrap px-4 py-2 align-top font-mono text-xs">
+                                    {% if prop.dynamic %}<span class="text-muted">:</span>{% endif %}{{ prop.name }}
+                                </td>
+                                <td class="px-4 py-2 align-top font-mono text-xs text-muted">
+                                    {% if prop.is_flag %}—{% else %}{{ prop.default|truncatechars:70 }}{% endif %}
+                                </td>
+                                <td class="px-4 py-2 align-top text-xs text-muted">
+                                    {% with choices=api.enums|get:prop.name %}
+                                        {% if choices %}
+                                            <span class="flex flex-wrap gap-1">
+                                                {% for choice in choices %}<code class="rounded bg-ink-500/10 px-1.5 py-0.5">{{ choice }}</code>{% endfor %}
+                                            </span>
+                                        {% elif prop.default == 'True' or prop.default == 'False' %}
+                                            boolean
+                                        {% elif prop.dynamic %}
+                                            expression
+                                        {% else %}
+                                            string
+                                        {% endif %}
+                                    {% endwith %}
+                                </td>
+                            </tr>
+                        {% endif %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if api.slots %}
+            <p class="mt-3 text-sm text-muted">
+                Named slots:
+                {% for slot in api.slots %}<code class="rounded bg-ink-500/10 px-1.5 py-0.5 text-xs">{{ slot }}</code>{% if not forloop.last %} {% endif %}{% endfor %}
+            </p>
+        {% endif %}
+    {% else %}
+        <p class="text-sm text-muted">
+            No declared props — every attribute passes straight through to the root element,
+            and <code class="rounded bg-ink-500/10 px-1 text-xs">class</code> merges with the defaults.
+        </p>
+    {% endif %}
+{% else %}
+    <p class="text-sm text-muted">Couldn't read this component's template from the installed package.</p>
+{% endif %}

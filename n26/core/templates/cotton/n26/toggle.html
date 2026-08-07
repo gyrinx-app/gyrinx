@@ -1,0 +1,57 @@
+{% comment %}
+<c-n26.toggle> — a switch with its label beside it, for toolbars.
+
+    <c-n26.toggle name="mine" label="Your lists only" :checked="True" />
+
+The kit gives a switch two label positions and neither suits a filter bar:
+`c-ui.switch label="…"` stacks the label above the control, and `:inline` uses
+the field's toggle layout, which pushes the switch to the far right of a
+full-width row. This puts the two side by side and keeps the pair as wide as its
+content.
+
+It is a wrapping <label>, which is doing real work rather than decoration. The
+kit's switch renders a visually-hidden checkbox bound with x-model, so label
+activation flips that checkbox and Alpine follows — clicking the text toggles the
+switch with no JavaScript added here. The switch's own factory then finds the
+label through $refs.input.labels and uses it as the accessible name, which it
+cannot do when the text is an unassociated sibling.
+
+Clicking the switch itself does not double-toggle: a label does not forward
+activation to its control when the click lands on interactive content inside it,
+and the switch is a <button>.
+
+  label — the text. A default slot works too, for markup.
+  name, value, :checked, :disabled, size — passed to c-ui.switch. size defaults
+    to sm, a notch under the kit's default: a toggle lives in the row beneath a
+    search bar, refining what the search returned rather than competing with it.
+{% endcomment %}
+<c-vars
+    label=""
+    name=""
+    value="on"
+    :checked="False"
+    :disabled="False"
+    size="sm"
+    class=""
+/>
+
+<label {{ attrs }}
+       class="inline-flex select-none items-center gap-2 text-sm
+              {% if disabled %}cursor-not-allowed opacity-50{% else %}cursor-pointer{% endif %} {{ class }}">
+    {% comment %}
+    label="" and class="" are shadowing, not padding. A c-var declared without a
+    default — as switch declares `label` — is never bound into the child's scope,
+    so the lookup falls through to the parent context and finds *this* component's
+    label. Left alone, the switch would then render its own field wrapper and the
+    text would appear twice. Pass an empty value and the child sees its own.
+    {% endcomment %}
+    <c-ui.switch
+        label=""
+        class=""
+        name="{{ name }}"
+        value="{{ value }}"
+        size="{{ size }}"
+        :checked="checked"
+        :disabled="disabled" />
+    <span>{% if slot.strip %}{{ slot }}{% else %}{{ label }}{% endif %}</span>
+</label>

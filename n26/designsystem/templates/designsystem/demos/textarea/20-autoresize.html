@@ -1,0 +1,10 @@
+{# title: Auto-resizing #}
+{# note: With :autoresize the height prop becomes a floor and the box grows as you type. Try adding a few lines. #}
+{# layout: col #}
+<c-ui.textarea label="Notes"
+               name="notes"
+               :autoresize="True"
+               height="xs"
+               description="Grows as you type.">
+    Start typing and this box will grow to fit.
+</c-ui.textarea>

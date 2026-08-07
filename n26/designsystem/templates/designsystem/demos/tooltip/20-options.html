@@ -1,0 +1,26 @@
+{# title: Delay, no arrow, pinned open #}
+{# note: :delay is hover intent — it stops tooltips flashing as the pointer crosses a toolbar. :open pins one open, which is handy while you're styling it. #}
+<c-ui.tooltip :delay="400">
+    <c-ui.button>
+        Slow (400ms)
+    </c-ui.button>
+    <c-slot name="content">
+        Waited for you to settle
+    </c-slot>
+</c-ui.tooltip>
+<c-ui.tooltip :arrow="False" size="sm">
+    <c-ui.button>
+        No arrow
+    </c-ui.button>
+    <c-slot name="content">
+        Small, arrowless
+    </c-slot>
+</c-ui.tooltip>
+<c-ui.tooltip :open="True" position="bottom">
+    <c-ui.button variant="primary">
+        Pinned open
+    </c-ui.button>
+    <c-slot name="content">
+        Always visible
+    </c-slot>
+</c-ui.tooltip>

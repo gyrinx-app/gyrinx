@@ -1,0 +1,33 @@
+{# title: Custom trigger, groups and shortcuts #}
+{# note: The trigger slot replaces the default button entirely. kbd renders a shortcut hint, and groups label clusters of items. #}
+<c-ui.dropdown align="start" min_width="14rem">
+    <c-slot name="trigger">
+        <c-ui.button variant="primary">
+            <span class="flex items-center justify-center gap-1.5">
+                Account
+                <c-n26.icon name="chevron-down" class="size-4" stroke_width="2" />
+            </span>
+        </c-ui.button>
+    </c-slot>
+    <c-ui.dropdown.group label="Signed in as tom">
+        <c-ui.dropdown.item kbd="⌘P">
+            Profile
+        </c-ui.dropdown.item>
+        <c-ui.dropdown.item kbd="⌘,">
+            Settings
+        </c-ui.dropdown.item>
+    </c-ui.dropdown.group>
+    <c-ui.dropdown.separator />
+    <c-ui.dropdown.group label="Team">
+        <c-ui.dropdown.item href="#">
+            Members
+        </c-ui.dropdown.item>
+        <c-ui.dropdown.item :disabled="True">
+            Billing (no access)
+        </c-ui.dropdown.item>
+    </c-ui.dropdown.group>
+    <c-ui.dropdown.separator />
+    <c-ui.dropdown.item variant="danger" kbd="⇧⌘Q">
+        Sign out
+    </c-ui.dropdown.item>
+</c-ui.dropdown>

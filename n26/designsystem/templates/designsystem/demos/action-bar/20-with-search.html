@@ -1,0 +1,11 @@
+{# title: With a search bar #}
+{# note: Search on its own row above the filters, which is the usual arrangement when the query matters more than the facets. #}
+{# layout: full #}
+<div class="space-y-4">
+    <c-n26.search-bar name="q" placeholder="Search lists" class="max-w-xl" />
+    <c-n26.action-bar :divided="True">
+        <c-n26.filter-menu label="House" name="house" :options="houses" />
+        <c-n26.filter-menu label="Status" name="status" :options="statuses" />
+        <c-n26.toggle name="mine" label="Your lists only" />
+    </c-n26.action-bar>
+</div>

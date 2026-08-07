@@ -1,0 +1,15 @@
+{# title: Apply and cancel #}
+{# note: OK dispatches choice-apply with {name, value}. Cancel puts back whatever was chosen when the panel opened. #}
+{# layout: col #}
+<div x-data="{ applied: null }" class="space-y-3">
+    <c-n26.choice-menu label="Sort"
+                       name="sort"
+                       :options="sorts"
+                       :selected="'recent'"
+                       @choice-apply="applied = $event.detail" />
+    <p class="text-sm text-muted">
+        Last applied:
+        <code class="rounded bg-ink-500/10 px-1.5 py-0.5 text-xs"
+              x-text="applied ? applied.name + ' → ' + applied.value : 'nothing yet'">nothing yet</code>
+    </p>
+</div>

@@ -1,0 +1,56 @@
+{% comment %}
+The cards specimen: a fighter card per grid cell, composed entirely from the
+print family. This is the reference composition — if the components can build
+this, they can build the thing they were extracted from.
+
+Statline and weapons are <c-n26.print.table>s inside a card, where the header
+never repeats because a card never fragments; the table is here for its
+column-fixing and its rules, not its pagination. The detail block is
+<c-n26.print.columns>, filled by n26.printing.balance_columns rather than by
+CSS multicol, which is the whole point of that component.
+{% endcomment %}
+<c-n26.print.grid columns="{{ options.columns }}" gutter="{{ gutter_css }}">
+    {% for row in rows %}
+        <c-n26.print.card title="{{ row.card.name }}"
+                          badge="{{ row.card.rating }}¢"
+                          height="{{ card_height_css }}"
+                          fit="1">
+            <c-slot name="foot">
+                {% comment %}
+                The worksheet half. On a fixed-height card these sit on the
+                bottom edge whatever is above them, so a sparse card and a full
+                one still have their write-in boxes in the same place — which is
+                what makes a stack of them usable at a table.
+                {% endcomment %}
+                {% comment %}
+                The XP box is empty now that the statline states the value, in
+                the place the book states it. Same reasoning <c-n26.model-card>
+                gives for having no XP badge of its own — printing 61/79 twice
+                on one card, eight millimetres apart, reads as a mistake. What
+                is left is what paper is for: somewhere to tally what was earned
+                this game.
+                {% endcomment %}
+                <c-n26.print.field label="XP" height="4mm" label_width="11mm" />
+                <c-n26.print.field label="Notes" height="9mm" label_width="11mm" />
+            </c-slot>
+            {% comment %} The book's two-row layout: a row pair per group, Type and XP filling the rest. {% endcomment %}
+            <c-n26.print.statline :statline="row.card.statline"
+                                  type_line="{{ row.card.type_line }}"
+                                  xp="{{ row.card.xp_display }}"
+                                  class="n26-print-bleed" />
+            {% include "designsystem/print/_weapons.html" with card=row.card %}
+            {% comment %} Skills, gear and choices, split into balanced columns in Python. {% endcomment %}
+            <c-n26.print.columns class="n26-print-mt">
+                {% for column in row.columns %}
+                    <c-n26.print.column>
+                        {% for group in column %}
+                            <c-n26.print.entry label="{{ group.label }}">
+                                {{ group.text }}
+                            </c-n26.print.entry>
+                        {% endfor %}
+                    </c-n26.print.column>
+                {% endfor %}
+            </c-n26.print.columns>
+        </c-n26.print.card>
+    {% endfor %}
+</c-n26.print.grid>

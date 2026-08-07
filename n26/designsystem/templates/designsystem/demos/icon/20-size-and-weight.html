@@ -1,0 +1,21 @@
+{# title: Size, weight and colour #}
+{# note: Size comes from a class, colour from the text around it — currentColor, so there is no colour prop to get wrong. Stroke weight is a prop because it is a function of size: the same 1.7 that looks right at size-6 goes thin and grey at size-3. #}
+{# layout: col #}
+<div class="flex items-end gap-4">
+    <c-n26.icon name="truck" class="size-8" stroke_width="1.5" />
+    <c-n26.icon name="truck" class="size-6" />
+    <c-n26.icon name="truck" class="size-5" />
+    <c-n26.icon name="truck" class="size-4" stroke_width="2" />
+    <c-n26.icon name="truck" class="size-3" stroke_width="2.5" />
+</div>
+<div class="flex items-center gap-4">
+    <span class="text-accent">
+        <c-n26.icon name="star" class="size-6" />
+    </span>
+    <span class="text-muted">
+        <c-n26.icon name="star" class="size-6" />
+    </span>
+    <span class="text-red-600 dark:text-red-400">
+        <c-n26.icon name="star" class="size-6" />
+    </span>
+</div>

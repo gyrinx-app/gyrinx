@@ -1,0 +1,9 @@
+{# title: Basic group #}
+{# note: Same rule as checkboxes — the radios live inside the group, and the selected value is set on the group with :value. Arrow keys move between options. #}
+{# layout: col #}
+<c-ui.radio.group label="Fighter class" name="class" :value="ganger">
+    <c-ui.radio value="leader" label="Leader" description="One per gang." />
+    <c-ui.radio value="champion" label="Champion" />
+    <c-ui.radio value="ganger" label="Ganger" />
+    <c-ui.radio value="juve" label="Juve" />
+</c-ui.radio.group>

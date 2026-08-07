@@ -1,0 +1,63 @@
+{# title: Three columns #}
+{# layout: full #}
+{# note: Columns rather than a list of links, because a footer is where the odd one out lives: two tidy columns and a third holding a picture. heading is a word, the lead slot is a title that is markup, and the content slot replaces the list entirely. #}
+{% load static %}
+<c-n26.site.footer>
+    <c-n26.site.footer.column>
+        <c-slot name="lead">
+            <a href="#" class="n26-site-brand focus-ring">
+                <img src="{% static 'n26/gyrinx-logo.svg' %}"
+                     alt=""
+                     width="24"
+                     height="24"
+                     class="size-6">
+                <span>Gyrinx</span>
+            </a>
+        </c-slot>
+        <li>Designed and built in the UK.</li>
+        <li>
+            <c-n26.link href="#" tone="muted">
+                Support Gyrinx
+            </c-n26.link>
+        </li>
+        <li class="flex items-center gap-3 pt-1">
+            <c-n26.link href="#" tone="muted">
+                <c-n26.icon name="github" class="size-5" label="GitHub" />
+            </c-n26.link>
+            <c-n26.link href="#" tone="muted">
+                <c-n26.icon name="discord" class="size-5" label="Discord" />
+            </c-n26.link>
+        </li>
+    </c-n26.site.footer.column>
+    <c-n26.site.footer.column heading="Help & Documentation">
+        <li>
+            <c-n26.link href="#" tone="muted">
+                Getting started
+            </c-n26.link>
+        </li>
+        <li>
+            <c-n26.link href="#" tone="muted">
+                Building a gang
+            </c-n26.link>
+        </li>
+        <li>
+            <c-n26.link href="#" tone="muted">
+                Running a campaign
+            </c-n26.link>
+        </li>
+        <li>
+            <c-n26.link href="#" tone="muted">
+                Printing cards
+            </c-n26.link>
+        </li>
+    </c-n26.site.footer.column>
+    <c-n26.site.footer.column heading="Support Gyrinx on Patreon">
+        <c-slot name="content">
+            <a href="#" class="n26-img-tilt block focus-ring rounded-box">
+                <img src="{% static 'n26/support-card.svg' %}"
+                     alt="Support Gyrinx on Patreon"
+                     class="w-full rounded-box border border-box-border">
+            </a>
+        </c-slot>
+    </c-n26.site.footer.column>
+</c-n26.site.footer>

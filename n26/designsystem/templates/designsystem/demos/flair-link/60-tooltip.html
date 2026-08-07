@@ -1,0 +1,13 @@
+{# title: With a real tooltip #}
+{# note: label gives the badge its accessible name and a native title tooltip, which needs no JavaScript. When you want the styled one, compose with c-ui.tooltip — the flair is the trigger. #}
+{# layout: col #}
+<div>
+    <c-ui.tooltip>
+        <c-n26.flair-link text="tom" href="/design/" label="Gyrinx staff">
+            <c-n26.flair.staff />
+        </c-n26.flair-link>
+        <c-slot name="content">
+            Gyrinx staff
+        </c-slot>
+    </c-ui.tooltip>
+</div>

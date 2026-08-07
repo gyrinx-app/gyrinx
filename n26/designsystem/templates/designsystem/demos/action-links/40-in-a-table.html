@@ -1,0 +1,35 @@
+{# title: Per-row actions #}
+{# note: Where these turn up most: the last column of a table, small and quiet. Sized in em, so they shrink with the row's text without a size prop. #}
+{# layout: full #}
+<c-ui.table>
+    <thead>
+        <tr>
+            <th>Fighter</th>
+            <th>Cost</th>
+            <th class="text-right">Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in lists|slice:":3" %}
+            <tr>
+                <td>{{ row.name }}</td>
+                <td>{{ row.rating }}</td>
+                <td>
+                    <div class="flex justify-end text-sm">
+                        <c-n26.action-links>
+                            <c-n26.action-link href="/design/">
+                                Edit
+                            </c-n26.action-link>
+                            <c-n26.action-link href="/design/">
+                                Duplicate
+                            </c-n26.action-link>
+                            <c-n26.action-link href="/design/" tone="danger">
+                                Delete
+                            </c-n26.action-link>
+                        </c-n26.action-links>
+                    </div>
+                </td>
+            </tr>
+        {% endfor %}
+    </tbody>
+</c-ui.table>

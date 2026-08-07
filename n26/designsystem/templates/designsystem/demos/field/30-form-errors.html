@@ -1,0 +1,6 @@
+{# title: Errors from a Django form #}
+{# note: Pass the bound form and the field name and it renders that field's errors. Note the quirk: error, form and name must all be set for anything to show — the error string's own content is then ignored in favour of the form's. #}
+{# layout: col #}
+<c-ui.field label="Email" error="x" :form="signup_form" name="email">
+    <c-ui.input name="email" value="not-an-email" />
+</c-ui.field>

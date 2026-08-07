@@ -1,0 +1,17 @@
+{# title: Underline tabs #}
+{# note: These are real links for page-level navigation. If you want to switch panels in place, use c-ui.tabs instead. #}
+{# layout: full #}
+<c-ui.nav>
+    <c-ui.nav.item href="#" :current="True">
+        Roster
+    </c-ui.nav.item>
+    <c-ui.nav.item href="#">
+        Equipment
+    </c-ui.nav.item>
+    <c-ui.nav.item href="#" badge="3" badge_color="red">
+        Injuries
+    </c-ui.nav.item>
+    <c-ui.nav.item href="#" badge="New" badge_color="green" badge_variant="pill">
+        History
+    </c-ui.nav.item>
+</c-ui.nav>

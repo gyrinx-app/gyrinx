@@ -1,0 +1,143 @@
+{% comment %}
+<c-n26.search-bar> — a search field with its submit button beside it.
+
+    <c-n26.search-bar action="/lists/" name="q" placeholder="Search lists" />
+
+The field and its icon are one joined control, and that much is new: the kit has no
+input group, so a flex row owns the border, radius and focus ring, and the field is
+a plain <input> stripped of its own — c-ui.input would put a second border inside
+this one — carrying the same token classes so it themes identically.
+
+The submit button is *not* part of that group. Joined and filled it fought the
+group's border; joined and outlined it drew a second box a pixel inside it. Both
+were symptoms of the same thing — a primary action does not want to be a segment
+of the control it acts on — so it sits outside as an ordinary primary button, and
+the component no longer needs to strip its rounding or its borders to fit.
+
+The whole thing is a <form>, so it works with no JavaScript at all; hand it an
+`action` and it submits as a GET.
+
+:live is the other half of that. The field binds to an Alpine expression and the
+list narrows as you type, so the answer is already on screen before anything is
+submitted. It also gains a clear button, which a submitting search does not need
+— you can see your query in the URL — and a live one very much does.
+
+*The submit button stays either way.* It used to be dropped on a live search, on
+the argument that there was nothing left to submit. That was right about the
+mechanics and wrong about the pattern: a search bar is a field and a button, and
+one that quietly loses its button on some pages teaches a reader that this is a
+different kind of control when it is the same one. The button also carries the
+form on a page where JavaScript has not run, which is the case the live version
+otherwise has no answer for.
+
+So a live search is still a form. Given an `action` it submits as a GET like any
+other and the server answers; without one there is nowhere to go, and pressing
+Search commits a query that is already committed — so the submit is prevented
+rather than reloading the page to no effect.
+
+  action, method — form target. Default GET to the current URL.
+  name — query parameter. Default "q".
+  value — current query, for rendering a submitted search back.
+  placeholder, button_label.
+  :live — filter in place instead of submitting. Needs `model`.
+  model — an Alpine expression to bind the field to, resolved in the
+    surrounding scope: model="query" inside a component holding `query`.
+  :nested — this sits inside another <form>. Renders a <div> instead, and makes
+    the button type="button". Required, not cosmetic: see below.
+{% endcomment %}
+<c-vars
+    action=""
+    method="get"
+    name="q"
+    value=""
+    placeholder="Search"
+    button_label="Search"
+    :live="False"
+    model=""
+    :nested="False"
+    class=""
+/>
+
+{% comment %}
+A form, unless it is inside one.
+
+HTML has no nested forms, and a browser does not complain — it drops the inner
+tag and reparents its children, so the field and the button stop being a flex row
+and stack. That is what happened on the hire screen, and it read as a wrapping
+bug rather than as invalid markup, because there was nothing in the DOM left to
+point at: `document.querySelectorAll('form')` returned one element and the
+`role="search"` was simply gone.
+
+So `nested` renders a <div> and turns the submit into a plain button. It has to
+turn it off — a type="submit" inside somebody else's form submits *their* form,
+which on the hire screen would hire whichever fighter the browser picked first.
+
+Live filtering is unaffected either way: the field binds to Alpine and the list
+narrows as you type, which is the only behaviour a nested search bar has.
+
+Not nested, it is a form either way. Live and with an action that is progressive
+enhancement — GET without JavaScript, filtering in place with it. Live and
+without one there is nowhere to submit to, so the submit is prevented: reloading
+the page to show the same rows would be worse than doing nothing.
+{% endcomment %}
+<{% if nested %}div{% else %}form{% endif %}
+      {% if not nested %}action="{{ action }}" method="{{ method }}"{% endif %}
+      {% if live and not action and not nested %}@submit.prevent{% endif %}
+      role="search" {{ attrs }}
+      class="flex items-center gap-2 {{ class }}">
+
+    {% comment %}
+    The focus ring belongs to the field group alone. On the form it would also
+    light up when the submit button is focused, which says the wrong thing.
+    {% endcomment %}
+    <div class="flex min-w-0 flex-1 items-stretch overflow-hidden rounded-control
+                border border-box-border bg-[var(--color-input-bg)]
+                shadow-[var(--shadow-input)]
+                focus-within:ring-[length:var(--focus-ring-width)]
+                focus-within:ring-[var(--focus-ring-color)]">
+
+        <span class="grid shrink-0 place-items-center border-r border-box-border bg-ink-500/5 px-3 text-muted"
+              aria-hidden="true">
+            <c-n26.icon name="magnifying-glass" class="size-4" stroke_width="1.5" />
+        </span>
+
+        <label class="sr-only" for="search-{{ name }}">{{ placeholder }}</label>
+        <input
+            id="search-{{ name }}"
+            x-ref="field"
+            type="search"
+            name="{{ name }}"
+            value="{{ value }}"
+            placeholder="{{ placeholder }}"
+            autocomplete="off"
+            {% if live %}x-model="{{ model }}"{% endif %}
+            class="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm text-ink-900 outline-none
+                   placeholder:text-ink-400 dark:text-ink-100 dark:placeholder:text-ink-500">
+
+        {% if live %}
+            {% comment %}
+            Inside the field's border rather than beside it, because it acts on
+            the field's contents rather than on the search. type="search" draws
+            its own clear button in some browsers and not others; this one is
+            always there and always looks the same.
+            {% endcomment %}
+            <button type="button" x-show="{{ model }}" x-cloak
+                    @click="{{ model }} = ''; $refs.field.focus()"
+                    aria-label="Clear search"
+                    class="grid shrink-0 place-items-center px-3 text-muted
+                           hover:text-ink-900 focus-ring dark:hover:text-ink-100">
+                <c-n26.icon name="x-mark" class="size-4" stroke_width="2" />
+            </button>
+        {% endif %}
+    </div>
+
+    {% comment %}
+    type="button" when nested. A submit inside somebody else's form submits
+    theirs — on the hire screen that would post the hire form and buy whichever
+    fighter the browser reached first.
+    {% endcomment %}
+    <c-ui.button type="{% if nested %}button{% else %}submit{% endif %}"
+                 variant="primary" class="shrink-0">
+        {{ button_label }}
+    </c-ui.button>
+</{% if nested %}div{% else %}form{% endif %}>

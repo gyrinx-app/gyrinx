@@ -1,0 +1,88 @@
+{% comment %}
+<c-n26.detail-list.row> — one labelled value you can press to change.
+
+    {# the value as plain text #}
+    <c-n26.detail-list.row label="House list" value="Escher" />
+
+    {# a value holding a list, all inside the one control #}
+    <c-n26.detail-list.row label="Skill trees">
+        Ferocity, Brawn, Cunning
+    </c-n26.detail-list.row>
+
+    {# pressing it opens a form #}
+    <c-n26.detail-list.row label="House list" value="Escher">
+        <c-slot name="dialog_header"><h2 class="text-lg font-semibold">House list</h2></c-slot>
+        <c-slot name="dialog">…a form…</c-slot>
+        <c-slot name="dialog_footer"><c-ui.button size="sm">Save</c-ui.button></c-slot>
+    </c-n26.detail-list.row>
+
+    {# nothing to change: no control at all #}
+    <c-n26.detail-list.row label="Founding" value="Cycle 3" :editable="False" />
+
+The value is one control however much it holds. A list of three skill trees is
+still one answer to one question — "which trees does this gang have" — so it is one
+thing to press, and the dialog it opens is where the three become three. Three
+buttons would say there were three questions.
+
+xs, and the smallest button the kit draws. There are a dozen of these above the
+fold on a gang sheet, and at sm they stop being a dense list and start being a
+toolbar.
+
+  --- default rather than ghost ---
+
+The control carries a border. A ghost button here would be a value that only looks
+pressable once you are already pointing at it, which on a phone means never — and
+the whole premise is that every one of these is editable. The border is the
+affordance; the label beside it stays plain text precisely so the contrast reads.
+
+  label — the term. A fixed piece of vocabulary, not a sentence.
+  value — the value, when it is a simple string. Ignored if the default slot has
+    content, so a value holding markup uses the slot instead.
+
+    Tested with `slot.strip`, not `slot`. A row written across several lines with
+    only named slots inside it still has a default slot: the newlines between
+    them. Django counts a whitespace string as truthy, so the plain test picks the
+    blank over the value and renders an empty button — which looks like a styling
+    bug and is not one.
+  :editable — False draws the value as text with no control. For a fact that is
+    settled: when it was founded, what it started as.
+  href — make the control a link to an edit page instead of a dialog trigger.
+  dialog — a form to open on press: the dialog's body.
+  dialog_header, dialog_footer — the dialog's heading and its buttons. Named here
+    rather than nested inside `dialog`, because Cotton reads a component's slots
+    from the tags written as its children at compile time — a <c-slot> arriving
+    inside interpolated content is just markup by then, and c-ui.dialog would
+    render it into its body along with everything else.
+{% endcomment %}
+<c-vars label="" value="" :editable="True" href="" class="" />
+
+<div class="flex items-baseline gap-1.5 {{ class }}">
+    <dt class="whitespace-nowrap text-xs text-muted">{{ label }}</dt>
+    <dd class="text-xs">
+        {% if not editable %}
+            {% comment %}
+            Same size and the same line as a control, so a settled fact sits level
+            with the ones you can change rather than looking like a row that failed
+            to render. Padded to the button's own inset for that reason.
+            {% endcomment %}
+            <span class="inline-block px-2 py-1 text-ink-900 dark:text-ink-100">{% if slot.strip %}{{ slot }}{% else %}{{ value }}{% endif %}</span>
+        {% elif dialog %}
+            {% comment %}
+            The dialog wraps the trigger, so the button has to be inside it — which
+            is why this is a slot on the row rather than something a caller puts
+            beside it. c-ui.dialog renders its trigger in an inline-block wrapper,
+            so the row's baseline still works.
+            {% endcomment %}
+            <c-ui.dialog size="sm">
+                <c-slot name="trigger">
+                    <c-ui.button size="xs" variant="default">{% if slot.strip %}{{ slot }}{% else %}{{ value }}{% endif %}</c-ui.button>
+                </c-slot>
+                {% if dialog_header %}<c-slot name="header">{{ dialog_header }}</c-slot>{% endif %}
+                {{ dialog }}
+                {% if dialog_footer %}<c-slot name="footer">{{ dialog_footer }}</c-slot>{% endif %}
+            </c-ui.dialog>
+        {% else %}
+            <c-ui.button size="xs" variant="default" href="{{ href }}">{% if slot.strip %}{{ slot }}{% else %}{{ value }}{% endif %}</c-ui.button>
+        {% endif %}
+    </dd>
+</div>

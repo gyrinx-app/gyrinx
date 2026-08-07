@@ -1,0 +1,147 @@
+{# title: A gang, whole #}
+{# note: The whole screen: who owns it, what it is called and what kind, what it is worth, its standing facts, what you can do to it, the stash, then the fighters. Everything above the cards is a header — every row of it is a row of fighters you cannot see. Narrow the window: the cards go from three columns to one, and Delete stays behind a second press at every width. #}
+{# layout: full #}
+<c-n26.view.gang-sheet :sheet="gang"
+                       owner="{{ gang_owner }}"
+                       owner_href="#"
+                       owner_flair_label="Gyrinx staff"
+                       type_flair_label="Goliath"
+                       gangs_href="#">
+    {% comment %}
+    The artwork is the caller's, which is what flair-link is built for: it sizes
+    whatever it is given in em and lets it inherit the text colour, so the view
+    never has to know which house or which standing it is drawing.
+    {% endcomment %}
+    <c-slot name="owner_flair">
+        <c-n26.flair.staff />
+    </c-slot>
+    <c-slot name="type_flair">
+        <c-n26.flair.house />
+    </c-slot>
+    <c-slot name="details">
+        <c-n26.detail-list>
+            {% for choice in gang.choices %}
+                <c-n26.detail-list.row label="{{ choice.kind_label }}"
+                                       value="{% if choice.chosen %}{{ choice.chosen }}{% else %}Choose{% endif %}">
+                    <c-slot name="dialog_header">
+                        <h2 class="text-base font-semibold">{{ choice.kind_label }}</h2>
+                    </c-slot>
+                    <c-slot name="dialog">
+                        <p class="text-sm text-muted">The picker for this choice would sit here.</p>
+                    </c-slot>
+                    <c-slot name="dialog_footer">
+                        <c-ui.button size="sm" variant="primary">
+                            Save
+                        </c-ui.button>
+                    </c-slot>
+                </c-n26.detail-list.row>
+            {% endfor %}
+            {% for counter in gang.counters %}
+                <c-n26.detail-list.row label="{{ counter.name }}" value="{{ counter.value }}" />
+            {% endfor %}
+        </c-n26.detail-list>
+    </c-slot>
+    <c-slot name="actions">
+        <c-ui.button size="sm" variant="primary" href="#">
+            Hire fighter
+        </c-ui.button>
+        <c-ui.button size="sm" variant="primary" href="#">
+            Hire vehicle
+        </c-ui.button>
+    </c-slot>
+    <c-slot name="secondary_actions">
+        {% comment %}
+        Print and the overflow joined into one control, which is what the group is
+        for — the split "⋮ ▾" on the end of a toolbar is the case its own
+        documentation names. Joined, the two read as one place to look for "things
+        you can do to this gang that are not hiring".
+
+        Delete lives behind the press rather than beside Hire. The dropdown is not
+        decoration: it is the second deliberate action an irreversible thing should
+        cost, and it keeps a destructive control out of thumb range of a safe one.
+        {% endcomment %}
+        <c-n26.button-group>
+            <c-ui.button size="sm" variant="default" href="#">
+                Print
+            </c-ui.button>
+            <c-ui.dropdown>
+                <c-slot name="trigger">
+                    {% comment %}
+                    The glyphs say two different things: the ellipsis is "there is
+                    more here", the chevron is "and it opens downward". Both in one
+                    n26-icon-only span, because a size-4 icon is 16px where a line
+                    of text is 20 — the group's stretch rule happens to hide that,
+                    which is exactly why it is worth setting rather than relying on.
+
+                    aria-label because there is no text: "More" is what a screen
+                    reader needs and what the icon means.
+                    {% endcomment %}
+                    <c-ui.button size="sm" variant="default" aria-label="More actions">
+                        <span class="n26-icon-only gap-0.5">
+                            <c-n26.icon name="ellipsis-vertical" class="size-4" />
+                            <c-n26.icon name="chevron-down" class="size-3" stroke_width="2.5" />
+                        </span>
+                    </c-ui.button>
+                </c-slot>
+                {% comment %}
+                c-ui.dropdown.item, not c-ui.menu.item. They look identical and are
+                not: menu.item calls selectOption(), which belongs to the combobox
+                machinery and is not in a dropdown's scope, so clicking one throws
+                "selectOption is not defined" and the panel never closes.
+                {% endcomment %}
+                <c-ui.dropdown.item variant="danger" href="#">
+                    Delete gang
+                </c-ui.dropdown.item>
+            </c-ui.dropdown>
+        </c-n26.button-group>
+    </c-slot>
+    <c-slot name="stash_empty">
+        Nothing in the stash yet.
+    </c-slot>
+    <c-slot name="members">
+        {% comment %}
+        choose_href turns an open choice into a real link. Without it the card still
+        reads — c-n26.link renders a span — which is what the print sheet wants and
+        what the component's own demos show; a live screen has somewhere to send you.
+        {% endcomment %}
+        {% for member in gang_members %}
+            <c-n26.model-card :card="member" choose_href="#">
+                <c-slot name="actions">
+                    {% comment %}
+                    Equip is the one you came for and the only per-model act that
+                    is not destructive, so it is the primary and it is on its own.
+
+                    Not joined into a c-n26.button-group with the overflow, which
+                    is what the gang's Print and ⋮ do: those two are peers and read
+                    as one control with two halves. A primary joined to a default
+                    would say the halves are equal when one of them is the point.
+
+                    Cards and Delete share the dropdown because neither is
+                    frequent and one is irreversible — the second press a
+                    destructive act should cost, which is the same reasoning as
+                    Delete gang above.
+                    {% endcomment %}
+                    <c-ui.button size="xs" variant="primary" href="#">
+                        Equip
+                    </c-ui.button>
+                    <c-ui.dropdown>
+                        <c-slot name="trigger">
+                            <c-ui.button size="xs" variant="default" aria-label="More actions">
+                                <span class="n26-icon-only gap-0.5">
+                                    <c-n26.icon name="ellipsis-vertical" class="size-3.5" />
+                                    <c-n26.icon name="chevron-down" class="size-3" stroke_width="2.5" />
+                                </span>
+                            </c-ui.button>
+                        </c-slot>
+                        <c-ui.dropdown.item href="#">
+                            Cards
+                        </c-ui.dropdown.item>
+                        <c-ui.dropdown.item variant="danger" href="#">
+                            Delete
+                        </c-ui.dropdown.item>
+                    </c-ui.dropdown>
+                </c-slot>
+            </c-n26.model-card>
+        {% endfor %}
+    </c-slot>
+</c-n26.view.gang-sheet>

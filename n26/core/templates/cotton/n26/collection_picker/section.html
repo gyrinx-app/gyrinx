@@ -1,0 +1,75 @@
+{% comment %}
+<c-n26.collection-picker.section> — one collapsible tier of the list.
+
+    <c-n26.collection-picker.section name="Weapons" :open="True">
+        <c-n26.collection-picker.category name="Pistols">
+            <c-n26.collection-picker.item name="Autopistol" :cost="10" />
+        </c-n26.collection-picker.category>
+    </c-n26.collection-picker.section>
+
+The coarse tier, and the only thing that collapses. Sections are a collection's
+own tiers — content, per library.CollectionSection, whose whole point is that the
+tiers are the collection's schema rather than a convention restated per item. So
+this draws them and decides nothing about what they are.
+
+It hides itself when nothing under it matches, counting through the category
+filter as well as the search: a section whose every category has been filtered
+away is a header with nothing inside, which is most of a phone screen wasted.
+
+Items may sit straight inside one, with no category in between. Then the
+section's name is what they register as their category, so a one-level list is
+this component used on its own rather than a second component to learn.
+
+  name — the tier's name. Also the string an item registers against when there
+    is no category between them.
+  :open — start expanded. Usually true for the first section only.
+{% endcomment %}
+<c-vars name="" :open="False" />
+
+{% comment %}
+`categoryName: null` is declared here, not only in the category, so an item can
+read it unconditionally. Alpine resolves up the scope chain, so without a default
+an item outside a category would be reaching for a name that exists nowhere — and
+`categoryName || sectionName` is a plainer thing to write than a typeof guard.
+{% endcomment %}
+<div x-data="{ open: {{ open|lower }}, sectionName: {{ name|json_dumps }}, categoryName: null }"
+     x-show="countInSection(sectionName) > 0 && sectionIsActive(sectionName)"
+     @collection-picker-toggle.window="open = $event.detail.open"
+     x-cloak
+     :class="tabbed ? '' : 'border-b border-box-border'">
+
+    {% comment %}
+    A search forces the panel open without touching `open`, so clearing the
+    search returns each section to whatever the reader had chosen. That is also
+    why the chevron reads the same expression rather than `open`: it has to
+    describe what the panel is doing now, not what it will do later.
+    {% endcomment %}
+    {% comment %}
+    Hidden under `tabs`: the tab strip is the disclosure, and a header that also
+    collapses would be a second control for the same section — press the tab to
+    see it, then press its header to hide it again.
+    {% endcomment %}
+    <button type="button" @click="open = !open" x-show="!tabbed"
+            :aria-expanded="open || query.length > 0 ? 'true' : 'false'"
+            class="flex min-h-11 w-full items-center gap-2 px-1 py-2 text-left focus-ring
+                   hover:bg-ink-500/5">
+        <span class="n26-cp-gutter text-muted transition-transform duration-200"
+              :class="{ 'rotate-180': open || query.length > 0 }">
+            <c-n26.icon name="chevron-down" class="size-4" stroke_width="2" />
+        </span>
+
+        <span class="min-w-0 flex-1 truncate font-semibold text-ink-900 dark:text-ink-100">{{ name }}</span>
+
+        {% comment %}
+        The count is the reason to open or skip a section, so it goes at the far
+        end where the eye lands after the name — and it is the *matching* count,
+        not the total, so filtering visibly empties sections out.
+        {% endcomment %}
+        <span class="shrink-0 rounded-full bg-ink-500/10 px-2 py-0.5 text-xs tabular-nums text-ink-900 dark:text-ink-100"
+              x-text="countInSection(sectionName)"></span>
+    </button>
+
+    <div x-show="tabbed || open || query.length > 0" x-collapse>
+        <div class="pb-2">{{ slot }}</div>
+    </div>
+</div>

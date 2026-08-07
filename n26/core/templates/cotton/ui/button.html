@@ -1,0 +1,113 @@
+{% comment %}
+OVERRIDE of django_cotton_ui's cotton/ui/button.html. Identical to the shipped
+template except for one added variant, `success`, in both maps.
+
+  --- why the library needs it ---
+
+House rule: the button that actually creates something is green. Create a gang,
+found a campaign, add a fighter — the control that brings a thing into existence
+is marked differently from the control that merely goes somewhere or saves an
+edit, so a reader can find the committing action on a form without reading the
+words on the buttons.
+
+It is the counterpart to `danger`, and the pair is the whole reason this is a
+variant rather than a class at the call site. Green and red mean "this makes
+something" and "this destroys something"; a screen that reached for bg-green-600
+directly would get the colour and none of the meaning, and nothing would stop the
+next screen picking a different green.
+
+  --- the shades ---
+
+green-700 solid rather than green-600, which is what a straight read of `danger`
+(bg-red-500) would suggest. White on green-600 is about 3.1:1, under the 4.5
+these buttons want at their size; green-700 clears it. Dark mode lifts to
+green-600, where the surround is dark and the same shade would sink into it.
+
+`danger` has no dark-mode pair and probably should — not fixed here, because
+changing an existing variant's colours is a separate decision from adding one.
+
+  --- keeping the shadow ---
+
+app.css gives solid buttons their inset shadow by matching background utilities
+by name (`:is(.bg-accent, .bg-red-500, .bg-ink-100)`), because layer order beats
+specificity and there is no prop to reach. `.bg-green-700` is on that list too;
+adding a variant here without adding it there produces a button that is subtly
+flatter than every other button, which is the kind of difference nobody spots
+and everybody feels.
+
+  --- upstream ---
+
+No test watches this one. The error and label overrides beside it are shims for
+an upstream bug and should be deleted when the kit fixes it; this is an addition
+the kit does not have and is not going to grow on our behalf. If a future kit
+ships its own `success`, this file should be re-reconciled by hand — check the
+shipped variants against these before deleting anything.
+{% endcomment %}
+<c-vars
+    variant="default"
+    size="md"
+    href=""
+    :variants="{
+        'default': 'bg-white text-ink-800 border border-ink-200 dark:bg-ink-400/30 dark:text-ink-300 dark:border-ink-300/20 shadow',
+        'primary': 'bg-accent text-accent-foreground hover:bg-accent-content border border-transparent',
+        'success': 'bg-green-700 text-white hover:bg-green-800 dark:bg-green-600 dark:hover:bg-green-500 border border-transparent',
+        'subtle': 'bg-ink-100 text-ink-600 dark:bg-ink-300/10 dark:text-ink-300 border border-transparent',
+        'danger': 'bg-red-500 text-white hover:bg-red-600 border border-transparent',
+        'ghost': 'bg-transparent text-ink-800 dark:text-white hover:bg-ink-100 dark:hover:bg-ink-800 border border-transparent',
+        'text': 'bg-transparent text-accent hover:text-accent-content hover:underline border border-transparent',
+    }"
+    :outlined_variants="{
+        'default': 'border border-ink-200 text-ink-800 hover:bg-ink-100 dark:border-ink-700 dark:text-ink-300 dark:hover:bg-ink-800',
+        'primary': 'border border-accent text-accent hover:bg-accent/10',
+        'success': 'border border-green-700 text-green-700 hover:bg-green-700/10 dark:border-green-500 dark:text-green-500 dark:hover:bg-green-500/10',
+        'subtle': 'border border-ink-200 text-ink-800 hover:bg-ink-100 dark:border-ink-700 dark:text-ink-300 dark:hover:bg-ink-800',
+        'danger': 'border border-red-500 text-red-500 hover:bg-red-500/10',
+        'ghost': 'border border-ink-400 text-ink-600 hover:bg-ink-100 dark:border-ink-600 dark:text-ink-400 dark:hover:bg-ink-800',
+        'text': 'text-accent hover:text-accent-content hover:underline',
+    }"
+    :size_classes="{
+        'xs': 'text-xs py-1 px-2',
+        'sm': 'text-sm py-1.5 px-3',
+        'md': 'text-sm py-2 px-4',
+        'lg': 'text-base py-2.5 px-4',
+        'xl': 'text-lg py-3 px-5',
+        '2xl': 'text-xl py-3.5 px-6'
+    }"
+    :outlined="False"
+    class
+/>
+
+{% comment %}
+Renders a <button> by default, or an <a> styled as a button when `href` is set
+(for link actions like CTAs, avoiding an invalid button-inside-anchor).
+{% endcomment %}
+{% if href %}
+<a
+    {{ attrs }}
+    href="{{ href }}"
+    class="
+    {% if outlined %}{{ outlined_variants|get_item:variant }}{% else %}{{ variants|get_item:variant }}{% endif %}
+    inline-block no-underline cursor-pointer whitespace-nowrap rounded-button
+    {{ size_classes|get_item:size }}
+    {% if variant == 'text' %}!px-0{% endif %}
+    font-medium transition text-center
+    focus-ring
+    active:opacity-100
+    {{ class }}">
+    {{ slot }}
+</a>
+{% else %}
+<button {{ attrs }} type="button" class="
+    {% if outlined %}{{ outlined_variants|get_item:variant }}{% else %}{{ variants|get_item:variant }}{% endif %}
+    cursor-pointer whitespace-nowrap rounded-button
+    {{ size_classes|get_item:size }}
+    {% if variant == 'text' %}!px-0{% endif %}
+    font-medium transition text-center
+    focus-ring
+    active:opacity-100
+    disabled:opacity-75
+    disabled:cursor-not-allowed
+    {{ class }}">
+    {{ slot }}
+</button>
+{% endif %}

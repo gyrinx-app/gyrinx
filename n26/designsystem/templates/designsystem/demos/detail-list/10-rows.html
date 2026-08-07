@@ -1,0 +1,34 @@
+{# title: Facts you can change #}
+{# note: A label and a value that is also the way to edit it. The skill trees are three answers to one question, so they are one control — press it and the three become three. Territory is unresolved, which is information and not an error. Type is settled, so it gets no control at all. #}
+<c-n26.detail-list>
+    {% comment %}
+    A settled fact, for the :editable="False" case: what kind of gang this is was
+    decided when it was founded and is not a thing you press. It reads level with
+    the rows you can change rather than looking like one that failed to render.
+    {% endcomment %}
+    <c-n26.detail-list.row label="Type" value="{{ gang.gang_type }}" :editable="False" />
+    {% for choice in gang.choices %}
+        {% comment %}
+        A ChoiceLine's kind_label is the question and `chosen` is the answer,
+        however many things the answer names. Unresolved reads as a prompt rather
+        than as an error, because n26.render is explicit that a renderer informs.
+        {% endcomment %}
+        <c-n26.detail-list.row label="{{ choice.kind_label }}"
+                               value="{% if choice.chosen %}{{ choice.chosen }}{% else %}Choose{% endif %}">
+            <c-slot name="dialog_header">
+                <h2 class="text-base font-semibold">{{ choice.kind_label }}</h2>
+            </c-slot>
+            <c-slot name="dialog">
+                <p class="text-sm text-muted">The picker for this choice would sit here.</p>
+            </c-slot>
+            <c-slot name="dialog_footer">
+                <c-ui.button size="sm" variant="primary">
+                    Save
+                </c-ui.button>
+            </c-slot>
+        </c-n26.detail-list.row>
+    {% endfor %}
+    {% for counter in gang.counters %}
+        <c-n26.detail-list.row label="{{ counter.name }}" value="{{ counter.value }}" />
+    {% endfor %}
+</c-n26.detail-list>

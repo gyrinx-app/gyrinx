@@ -19,9 +19,9 @@ repos:
       # and repo-root invocations (scripts/fmt.sh) but NOT the explicit file
       # paths pre-commit passes, so the exclusion is repeated here.
       - id: djlint-reformat-django
-        exclude: ^gyrinx/templates/cotton/
+        exclude: ^(gyrinx|n26/core)/templates/cotton/
       - id: djlint-django
-        exclude: ^gyrinx/templates/cotton/
+        exclude: ^(gyrinx|n26/core)/templates/cotton/
 
   - repo: https://github.com/kynan/nbstripout
     rev: 0.9.1
@@ -122,13 +122,16 @@ repos:
         # the closing tag and collapses to a rendered space between adjacent
         # inline elements -- e.g. the dice-result badges butted together in
         # core/campaign/campaign_action_outcome.html:22.
-        exclude: ^gyrinx/templates/cotton/
+        exclude: ^(gyrinx|n26/core)/templates/cotton/
       - id: fix-byte-order-marker
       - id: forbid-new-submodules
       - id: forbid-submodules
       - id: mixed-line-ending
       - id: name-tests-test
         args: [--django]
+        # The n26 edition's test-support modules (its shared fixtures and the
+        # example-suite action vocabulary) live beside the tests they serve.
+        exclude: ^n26/tests/(fixtures\.py|sandbox/actions\.py)$
       # - id: no-commit-to-branch
       - id: sort-simple-yaml
       - id: trailing-whitespace

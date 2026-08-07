@@ -1,0 +1,37 @@
+{% comment %}
+<c-n26.assignable-lines> — a run of assignables, marking the ones nobody bought.
+
+    <c-n26.assignable-lines :lines="card.skills" />
+    <c-n26.assignable-lines :lines="profile.traits" />
+
+Takes n26.render.AssignableLine, which is a name and a Provenance. Every
+assignable a card shows carries one — that is the rule the render layer keeps —
+so one component can draw skills, gear and weapon traits alike, and there is no
+list on a card that has to be joined by hand.
+
+A computed line is re-derived on read: nobody bought it, and it will appear and
+vanish as whatever grants it changes. That is worth marking, and the mark is a
+dotted underline naming the source — the same treatment a modified characteristic
+gets in <c-n26.statline.cells>, because it is the same statement. A card should
+have one way of saying "this is not simply printed here".
+
+Deliberately not a badge. Granted skills are ordinary — a Leader has several —
+and badging each one makes the common case look like an exception.
+
+The source is a title attribute rather than a c-ui.tooltip, which is the one
+place this differs from the statline. A tooltip is an Alpine component wrapped in
+an inline-block, and a comma-separated run of them puts a layout box between
+every word and its comma — "Gang Hierarchy , Group Activation". A dozen of them
+on one card is also a lot of machinery for a line of text. The statline can
+afford one per modified cell; a list cannot afford one per item.
+
+Empty renders an em dash, not a muted "None": the card has no second-class text.
+
+A line's rating is drawn when it has one, which is how the gang's stash shares this
+component rather than reimplementing the mark. n26.render.AssignableLine has no
+rating, so nothing on a card changes; n26.render.StashLine is the same shape plus
+what the thing is pinned at, and a stash is read with the prices on it.
+
+  :lines — a list of n26.render.AssignableLine, or anything with the same shape: a
+    name, a provenance, and optionally a rating.
+{% endcomment %}<c-vars :lines="None" />{% if lines %}{% for line in lines %}{% if line.provenance.computed %}<span class="underline decoration-dotted underline-offset-2" title="{% if line.provenance.source %}From {{ line.provenance.source }}{% if line.provenance.source_kind %} ({{ line.provenance.source_kind }}){% endif %}{% else %}Granted, not printed{% endif %}">{{ line.name }}</span>{% else %}{{ line.name }}{% endif %}{% if line.rating %} <span class="tabular-nums">{{ line.rating }}¢</span>{% endif %}{% if not forloop.last %}, {% endif %}{% endfor %}{% else %}&mdash;{% endif %}

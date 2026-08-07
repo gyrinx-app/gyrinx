@@ -310,6 +310,19 @@ wheels = [
 ]
 
 [[package]]
+name = "django-cotton-ui"
+version = "0.3.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "django" },
+    { name = "django-cotton" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/94/d8/0ca995941a12df896c83a58aefc6614a040e4a8fe87d533227236a5c6558/django_cotton_ui-0.3.2.tar.gz", hash = "sha256:71a82c7940b9581299fbe741420c24f2a7ac91f84f2c28ad42de361cd89c6516", size = 173126, upload-time = "2026-07-07T12:57:22.715Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d2/61/1de040c48796f16afdaae9ab4fd5c6683b819c02a06f77563dcfb0e9fdb6/django_cotton_ui-0.3.2-py3-none-any.whl", hash = "sha256:0a05d6f733553929389071786a9524335782c7f9d3e1ca8fe4234cdf80488bf2", size = 214320, upload-time = "2026-07-07T12:57:23.837Z" },
+]
+
+[[package]]
 name = "django-csp"
 version = "4.0"
 source = { registry = "https://pypi.org/simple" }
@@ -849,6 +862,7 @@ dependencies = [
     { name = "django" },
     { name = "django-allauth" },
     { name = "django-cotton" },
+    { name = "django-cotton-ui" },
     { name = "django-csp" },
     { name = "django-debug-toolbar" },
     { name = "django-extensions" },
@@ -884,6 +898,7 @@ dependencies = [
     { name = "pyasn1" },
     { name = "pydantic" },
     { name = "pydot" },
+    { name = "pygments" },
     { name = "pynacl" },
     { name = "pyparsing" },
     { name = "pytest" },
@@ -891,6 +906,7 @@ dependencies = [
     { name = "pytest-watcher" },
     { name = "pytest-xdist" },
     { name = "python-dotenv" },
+    { name = "python-ulid" },
     { name = "qrcode" },
     { name = "referencing" },
     { name = "requests" },
@@ -919,6 +935,7 @@ requires-dist = [
     { name = "django", specifier = "==6.0.7" },
     { name = "django-allauth", specifier = "==65.18.0" },
     { name = "django-cotton", specifier = "==2.7.2" },
+    { name = "django-cotton-ui", specifier = "==0.3.2" },
     { name = "django-csp", specifier = "==4.0" },
     { name = "django-debug-toolbar", specifier = "==7.0.0" },
     { name = "django-extensions", specifier = "==4.1" },
@@ -954,6 +971,7 @@ requires-dist = [
     { name = "pyasn1", specifier = "==0.6.4" },
     { name = "pydantic", specifier = "==2.13.4" },
     { name = "pydot", specifier = "==4.0.1" },
+    { name = "pygments", specifier = "==2.20.0" },
     { name = "pynacl", specifier = "==1.6.2" },
     { name = "pyparsing", specifier = "==3.3.2" },
     { name = "pytest", specifier = "==9.1.1" },
@@ -961,6 +979,7 @@ requires-dist = [
     { name = "pytest-watcher", specifier = "==0.6.3" },
     { name = "pytest-xdist", specifier = "==3.8.0" },
     { name = "python-dotenv", specifier = "==1.2.2" },
+    { name = "python-ulid", specifier = "==4.0.1" },
     { name = "qrcode", specifier = "==8.2" },
     { name = "referencing", specifier = "==0.37.0" },
     { name = "requests", specifier = "==2.34.2" },
@@ -1814,6 +1833,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/82/ed/0301aeeac3e5353ef3d94b6ec08bbcabd04a72018415dcb29e588514bba8/python_dotenv-1.2.2.tar.gz", hash = "sha256:2c371a91fbd7ba082c2c1dc1f8bf89ca22564a087c2c287cd9b662adde799cf3", size = 50135, upload-time = "2026-03-01T16:00:26.196Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/0b/d7/1959b9648791274998a9c3526f6d0ec8fd2233e4d4acce81bbae76b44b2a/python_dotenv-1.2.2-py3-none-any.whl", hash = "sha256:1d8214789a24de455a8b8bd8ae6fe3c6b69a5e3d64aa8a8e5d68e694bbcb285a", size = 22101, upload-time = "2026-03-01T16:00:25.09Z" },
+]
+
+[[package]]
+name = "python-ulid"
+version = "4.0.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/d6/41/65079023c81491a21799c0120bce5925366b6913596bf797806f19973290/python_ulid-4.0.1.tar.gz", hash = "sha256:bbeec02556190bb9dc3401faa7268696acbfbe7b6db9908c155dc3548629f20c", size = 101683, upload-time = "2026-07-20T15:21:41.256Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b4/15/8b39b36f55b6618ec4ca9b55134dcfd9c04cecbc72709f5d8e6bdebed9cd/python_ulid-4.0.1-py3-none-any.whl", hash = "sha256:6f1d69ceb97e99fe542df8476ebcd7a668284bf53ee14b3106bcc6a341a95ed9", size = 14609, upload-time = "2026-07-20T15:21:40.214Z" },
 ]
 
 [[package]]

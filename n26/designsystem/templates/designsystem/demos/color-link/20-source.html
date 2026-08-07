@@ -1,0 +1,33 @@
+{# note: One prop takes either. A hex is frozen on purpose — someone chose it. A theme name resolves through var(), so it follows a theme change: open the paintbrush and change the accent, and only the first of these moves. #}
+{# title: Theme colour or hex #}
+{# layout: col #}
+<div>
+    <c-n26.color-link color="accent" href="/design/">
+        accent — follows the theme
+    </c-n26.color-link>
+</div>
+<div>
+    <c-n26.color-link color="muted" href="/design/">
+        muted — also a token
+    </c-n26.color-link>
+</div>
+<div>
+    <c-n26.color-link color="emerald" href="/design/">
+        emerald — the 500 step
+    </c-n26.color-link>
+</div>
+<div>
+    <c-n26.color-link color="emerald" shade="800" href="/design/">
+        emerald, shade 800
+    </c-n26.color-link>
+</div>
+<div>
+    <c-n26.color-link color="#90101a" href="/design/">
+        #90101a — a literal
+    </c-n26.color-link>
+</div>
+<div>
+    <c-n26.color-link color="oklch(70% 0.18 320)" href="/design/">
+        oklch(…) — any CSS colour
+    </c-n26.color-link>
+</div>

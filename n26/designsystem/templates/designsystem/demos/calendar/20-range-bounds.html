@@ -1,0 +1,10 @@
+{# title: Range mode with bounds #}
+{# note: min_date and max_date fence the selectable window; :max caps how many days a range may span. Hidden inputs — and so form submission — only appear once you pass a name. #}
+{# layout: full #}
+<c-ui.calendar mode="range"
+               :full="True"
+               fromName="from"
+               toName="to"
+               min_date="2026-08-01"
+               max_date="2026-09-30"
+               :max="14" />

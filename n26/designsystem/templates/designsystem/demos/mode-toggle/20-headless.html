@@ -1,0 +1,18 @@
+{# note: variant="headless" gives you the scope and no markup: read mode and isDark, call set() and toggle(). Use it when the design calls for something the built-in variants don't cover. #}
+{# title: Headless #}
+<c-ui.mode-toggle storage_key="n26-theme" default="system" variant="headless">
+    <div class="flex items-center gap-2">
+        <c-ui.button size="sm" @click="set('light')" :outlined="True">
+            Light
+        </c-ui.button>
+        <c-ui.button size="sm" @click="set('dark')" :outlined="True">
+            Dark
+        </c-ui.button>
+        <c-ui.button size="sm" @click="set('system')" :outlined="True">
+            System
+        </c-ui.button>
+        <span class="text-sm text-muted">
+            mode: <code class="rounded bg-ink-500/10 px-1.5 py-0.5 text-xs" x-text="mode"></code>
+        </span>
+    </div>
+</c-ui.mode-toggle>

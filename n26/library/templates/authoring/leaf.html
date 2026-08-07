@@ -1,0 +1,40 @@
+{% extends "authoring/base.html" %}
+{% block title %}{{ verbose_name_plural|capfirst }}{% endblock %}
+{% block content %}
+    <h1>New {{ verbose_name }}</h1>
+    {% if kind_help %}
+        <div class="kind-help">
+            {% for paragraph in kind_help %}<p>{{ paragraph|safe }}</p>{% endfor %}
+        </div>
+    {% endif %}
+    <form method="post">
+        {% csrf_token %}
+        {{ form.as_div }}
+        {% if suggestion_form %}
+            <fieldset class="suggestions">
+                <legend>Comes with — blank to skip</legend>
+                {{ suggestion_form.as_div }}
+            </fieldset>
+        {% endif %}
+        <button type="submit">Create {{ verbose_name }}</button>
+    </form>
+    <h2>{{ verbose_name_plural|capfirst }} <span class="count">({{ count }})</span></h2>
+    {% if rows %}
+        <table>
+            <tbody>
+                {% for row in rows %}
+                    <tr>
+                        <td>
+                            {% if has_detail %}
+                                <a href="{% url 'authoring-detail' kind row.pk %}">{{ row.label }}</a>
+                {% else %}{{ row.label }}{% endif %}
+                    </td>
+                    <td class="count">{{ row.notes|join:" · " }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p class="count">None yet.</p>
+    {% endif %}
+{% endblock %}

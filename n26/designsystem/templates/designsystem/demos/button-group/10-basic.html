@@ -1,0 +1,21 @@
+{# title: Joined buttons #}
+{# note: The group owns the outer radius and its children give up theirs, so touching borders read as one line. Focus and hover lift the active child, so its ring is not clipped by its neighbour — tab through them. #}
+<c-n26.button-group>
+    <c-ui.button>
+        Day
+    </c-ui.button>
+    <c-ui.button>
+        Week
+    </c-ui.button>
+    <c-ui.button>
+        Month
+    </c-ui.button>
+</c-n26.button-group>
+<c-n26.button-group>
+    <c-ui.button variant="primary">
+        Save
+    </c-ui.button>
+    <c-ui.button variant="primary">
+        Save and close
+    </c-ui.button>
+</c-n26.button-group>

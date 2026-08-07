@@ -1,0 +1,38 @@
+{# title: Hiring a fighter #}
+{# note: Three levels of disclosure. A section collapses; a category is a heading inside it; a row is a name, a price and Hire — enough to buy a Ganger without ever opening it. Press a name to pop the row open and read the card you would actually get, plus the other ways to get it. The slots readout is the rulebook's composition limit: it counts, marks the rows, and lets you hire anyway. #}
+{# layout: full #}
+<c-n26.profile-picker :categories="hire_categories"
+                      cost_floor="{{ hire_price_floor }}"
+                      cost_ceiling="{{ hire_price_ceiling }}">
+    <c-slot name="filters">
+        <c-n26.search-bar :live="True" model="query" placeholder="Search the gang list" />
+        <div class="flex flex-wrap items-center gap-2">
+            <c-n26.filter-menu label="Category" name="category" :options="hire_category_options" />
+            {% comment %}
+            Both ends, because the question here is "what can I afford with what
+            is left", which needs a ceiling — and "what is worth having at the
+            bottom", which needs a floor.
+            {% endcomment %}
+            <c-n26.range-menu label="Price"
+                              model_min="minCost"
+                              model_max="maxCost"
+                              min="{{ hire_price_floor }}"
+                              max="{{ hire_price_ceiling }}"
+                              step="5"
+                              suffix="¢"
+                              at_max_label="Any" />
+        </div>
+    </c-slot>
+    {% for section_row in hire_section_rows %}
+        <c-n26.collection-picker.section name="{{ section_row.section.name }}" :open="section_row.first">
+            {% for category in section_row.section.categories %}
+                <c-n26.collection-picker.category name="{{ category.name }}">
+                    {% for entry in category.entries %}
+                        <c-n26.profile-picker.row :entry="entry"
+                                                  limited="{% if section_row.section.name != 'Gang List' or category.name == 'Champions' %}1{% endif %}" />
+                    {% endfor %}
+                </c-n26.collection-picker.category>
+            {% endfor %}
+        </c-n26.collection-picker.section>
+    {% endfor %}
+</c-n26.profile-picker>

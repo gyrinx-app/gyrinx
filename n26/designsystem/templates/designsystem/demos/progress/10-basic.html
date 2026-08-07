@@ -1,0 +1,8 @@
+{# title: Values, sizes and colours #}
+{# note: No JavaScript — set :value between 0 and 100. bar_class overrides the colour entirely when the palette hasn't got what you need. #}
+{# layout: col #}
+<c-ui.progress :value="15" :show_value="True" />
+<c-ui.progress :value="55" color="green" :show_value="True" />
+<c-ui.progress :value="90" color="red" size="lg" :show_value="True" />
+<c-ui.progress :value="40" size="xs" />
+<c-ui.progress :value="70" :accent="False" />

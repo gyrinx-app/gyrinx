@@ -1,0 +1,19 @@
+{# title: Helper text #}
+{# note: No props of its own — every attribute passes through, and class merges with the muted defaults rather than replacing them. #}
+{# layout: col #}
+<div>
+    <c-ui.label>
+        Visibility
+    </c-ui.label>
+    <c-ui.select name="visibility">
+        <c-ui.select.option value="private" :selected="True">
+            Private
+        </c-ui.select.option>
+        <c-ui.select.option value="public">
+            Public
+        </c-ui.select.option>
+    </c-ui.select>
+    <c-ui.description>
+        Public packs appear in the shared library and can be subscribed to.
+    </c-ui.description>
+</div>

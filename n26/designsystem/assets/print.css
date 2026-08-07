@@ -1,0 +1,1057 @@
+/* Printing.
+ *
+ * A separate file because paper is a different medium with different rules,
+ * and mixing it into app.css would invite screen habits into a place they do
+ * not work. Everything here is prefixed .n26-print-.
+ *
+ * ---------------------------------------------------------------------------
+ * The one thing to understand before changing anything
+ * ---------------------------------------------------------------------------
+ *
+ * A page break is a *fragmentation* operation, and only some layout modes take
+ * part in it. Block flow does. Flexbox and grid, in WebKit, do not — a flex or
+ * grid item is laid out as a unit and the page fold is applied over the top of
+ * it, so `break-inside: avoid` on a flex child is not honoured, it is silently
+ * ignored, and a card gets sliced in half across two sheets of paper. This is
+ * the single biggest source of broken print output on iOS.
+ *
+ * So the grid here is not `display: grid`. It is a block container holding
+ * inline-blocks, and that choice is load-bearing:
+ *
+ *   - An inline-block is an *atomic inline*. Not "hard to break" — indivisible.
+ *     It is one unbreakable box on a line, and a line box that does not fit the
+ *     remaining page moves to the next page whole, taking every card on it.
+ *     The cards stay intact because nothing in the model can cut them, not
+ *     because we asked a browser nicely and it agreed.
+ *   - `break-inside: avoid` is still set, as belt and braces for engines that
+ *     fragment atomic inlines anyway, and the legacy `page-break-inside` alias
+ *     with it, because WebKit honours the old name.
+ *
+ * Everything else below is downstream of that decision.
+ *
+ * ---------------------------------------------------------------------------
+ * Unlayered, deliberately
+ * ---------------------------------------------------------------------------
+ *
+ * Tailwind puts utilities in @layer utilities, and layer order beats
+ * specificity outright — a rule in @layer components loses to a utility however
+ * specific it is. A print rule that must win over a `p-4` picked up from a
+ * screen layout therefore cannot live in a layer. Same reasoning as
+ * .n26-button-group in app.css; see the note there.
+ */
+
+/* ===========================================================================
+ * Sheet — the paper.
+ *
+ * Owns the page geometry and publishes it as custom properties, so the grid,
+ * the cards and the on-screen page guides all measure from one set of numbers
+ * and cannot drift apart. v1 hardcoded a `width: 204mm` on the sheet that had
+ * to be kept in step by hand with `@page { margin: 3mm }` — two numbers, one
+ * fact, and nothing to catch it when only one of them changed.
+ *
+ * Page dimensions live here rather than being computed in the template because
+ * a stylesheet can express "A4 turned on its side" as one rule, and a Django
+ * template can only express it as arithmetic it cannot do.
+ * =========================================================================== */
+
+.n26-print-sheet {
+    --print-page-w: 210mm;
+    --print-page-h: 297mm;
+    --print-margin: 6mm;
+    --print-content-w: calc(var(--print-page-w) - 2 * var(--print-margin));
+    --print-content-h: calc(var(--print-page-h) - 2 * var(--print-margin));
+
+    /* Ink on paper. Explicitly not the app's theme tokens: those follow light
+     * and dark mode, and there is no dark mode on a sheet of paper — a reader
+     * who prints while the gallery is in dark mode should not get a black
+     * rectangle. Custom properties rather than literals so a caller can still
+     * retheme a card deliberately. */
+    --print-ink: #111;
+    --print-rule: rgb(17 17 17 / 0.75);
+    --print-rule-soft: rgb(17 17 17 / 0.3);
+    --print-paper: #fff;
+    --print-label: #7a2d29;
+
+    /* The masthead band across the top of a card: v1's nameplate, a black
+     * torn-paper bar on transparency.
+     *
+     * No background colour behind it. The image *is* the black, and the torn
+     * edges are transparent — paint a rectangle underneath and the tearing
+     * disappears into it, which is the whole reason the artwork exists.
+     *
+     * The url is relative to the compiled stylesheet, which lands beside this
+     * directory in designsystem/static/designsystem/. */
+    --print-masthead-image: url("./print/nameplate.png");
+    --print-masthead-ink: #fff;
+    --print-masthead-sub: rgb(255 255 255 / 0.78);
+    --print-masthead-disc: #fff;
+
+    box-sizing: border-box;
+    width: var(--print-content-w);
+    margin-inline: auto;
+    color: var(--print-ink);
+    background: var(--print-paper);
+
+    /* The type anchor for everything on the sheet. Sizes below are in em from
+     * here (or from a card's own anchor), for two reasons: it keeps the whole
+     * sheet proportional to one number, and it is what makes shrink-to-fit
+     * possible at all. Sizing children in mm and then reducing the parent's
+     * font-size does exactly nothing, which is a quiet way to lose an
+     * afternoon. */
+    font-size: 2.8mm;
+    line-height: 1.2;
+
+    /* iOS Safari inflates text inside fixed-width blocks ("text autosizing"),
+     * which overflows regions measured in mm and wrecks a card's layout on a
+     * phone. Pin it so mm type renders at the size it was set.
+     *
+     * The -webkit- prefix is the one that does the work on iOS and must stay.
+     * v1 records that `stylelint --fix` once stripped it, leaving two identical
+     * unprefixed declarations and silently undoing the fix. */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+
+    /* Backgrounds and fills are content here — a section band or a write-in box
+     * that does not print is a missing feature, not a saved drop of ink. */
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+}
+
+.n26-print-sheet * {
+    box-sizing: border-box;
+}
+
+/* The page sizes, and the same three turned on their side.
+ *
+ * Declared here rather than worked out in the template because "A4 in
+ * landscape" is one rule in CSS and arithmetic Django cannot do. The @page
+ * rule the sheet component emits names the same size and orientation, so the
+ * paper and the box drawn on it come from one pair of props.
+ *
+ * These numbers are also in designsystem/printlab.py, which needs them for the
+ * lab's readout — the one thing a stylesheet cannot supply. A test parses this
+ * file and asserts the two still agree, because the first version of this
+ * component shipped without these rules at all: every size and orientation
+ * silently kept A4-portrait geometry, and the sheet laid itself out 198mm wide
+ * on a 297mm landscape page. Nothing on screen looked wrong. It took a PDF. */
+.n26-print-sheet[data-page="a4"] {
+    --print-page-w: 210mm;
+    --print-page-h: 297mm;
+}
+.n26-print-sheet[data-page="a5"] {
+    --print-page-w: 148mm;
+    --print-page-h: 210mm;
+}
+.n26-print-sheet[data-page="letter"] {
+    --print-page-w: 215.9mm;
+    --print-page-h: 279.4mm;
+}
+
+.n26-print-sheet[data-page="a4"][data-orientation="landscape"] {
+    --print-page-w: 297mm;
+    --print-page-h: 210mm;
+}
+.n26-print-sheet[data-page="a5"][data-orientation="landscape"] {
+    --print-page-w: 210mm;
+    --print-page-h: 148mm;
+}
+.n26-print-sheet[data-page="letter"][data-orientation="landscape"] {
+    --print-page-w: 279.4mm;
+    --print-page-h: 215.9mm;
+}
+
+/* Screen only: a sheet narrower than the viewport is centred, but a sheet wider
+ * than it has to go somewhere. Scroll the sheet rather than the page, and
+ * left-align so the leading edge stays reachable — centring pushes it off the
+ * side you cannot scroll to.
+ *
+ * Guarded to screen with intent. An overflow container establishes a new
+ * formatting context and can suppress fragmentation inside it, which would undo
+ * everything above. This must never reach paper. */
+@media screen {
+    .n26-print-sheet-scroll {
+        max-width: 100%;
+        overflow-x: auto;
+    }
+}
+
+/* Page-fold guides: a dashed line every content-height down the sheet, so the
+ * lab shows where the paper will actually be cut before anything is printed.
+ * A guide, not a guarantee — it assumes the flow starts at the top of page one,
+ * which is true for a plain sheet and not for one with forced breaks in it. */
+.n26-print-sheet.is-paged {
+    background-image: repeating-linear-gradient(
+        to bottom,
+        transparent 0 calc(var(--print-content-h) - 1px),
+        rgb(180 60 60 / 0.55) calc(var(--print-content-h) - 1px)
+            var(--print-content-h)
+    );
+}
+
+/* Millimetre grid, for lining regions up while tuning a fixed-size card. */
+.n26-print-sheet.is-gridded {
+    background-image:
+        repeating-linear-gradient(
+            to right,
+            rgb(0 120 255 / 0.25) 0 0.1mm,
+            transparent 0.1mm 10mm
+        ),
+        repeating-linear-gradient(
+            to bottom,
+            rgb(0 120 255 / 0.25) 0 0.1mm,
+            transparent 0.1mm 10mm
+        );
+}
+
+.n26-print-sheet.is-paged.is-gridded {
+    background-image:
+        repeating-linear-gradient(
+            to bottom,
+            transparent 0 calc(var(--print-content-h) - 1px),
+            rgb(180 60 60 / 0.55) calc(var(--print-content-h) - 1px)
+                var(--print-content-h)
+        ),
+        repeating-linear-gradient(
+            to right,
+            rgb(0 120 255 / 0.25) 0 0.1mm,
+            transparent 0.1mm 10mm
+        ),
+        repeating-linear-gradient(
+            to bottom,
+            rgb(0 120 255 / 0.25) 0 0.1mm,
+            transparent 0.1mm 10mm
+        );
+}
+
+/* ===========================================================================
+ * Grid — tiles items N-up without ever cutting one in half.
+ *
+ * Block container, inline-block children. See the note at the top of the file
+ * for why this is not `display: grid`, which is the thing you will reach for
+ * first and the thing that slices cards on iOS.
+ * =========================================================================== */
+
+.n26-print-grid {
+    --print-cols: 2;
+    --print-gutter: 4mm;
+
+    /* The cell width is derived from the page, not chosen. Ask for three
+     * columns and you get three columns that fit; there is no combination of
+     * props that overflows the paper, because the only free variables are the
+     * column count and the gutter.
+     *
+     * Published as a custom property so .n26-print-card can default to it —
+     * a card is cell-width unless it says otherwise. */
+    --print-cell-w: calc(
+        (
+                var(--print-content-w) - (var(--print-cols) - 1) *
+                    var(--print-gutter)
+            ) /
+            var(--print-cols)
+    );
+
+    display: block;
+    width: var(--print-content-w);
+
+    /* Collapse the whitespace between inline-block children. Without this the
+     * newline between two cards in the template is a space wide enough to push
+     * the second card onto its own row — the layout silently falls to 1-up and
+     * looks like a broken width calculation. Each card resets both properties
+     * for its own content. */
+    font-size: 0;
+    line-height: 0;
+}
+
+.n26-print-grid > * {
+    /* Atomic inline: the whole reason this works. */
+    display: inline-block;
+    vertical-align: top;
+
+    /* Gutter as a margin rather than a gap, because a block container has no
+     * gap. The trailing margin on the last item of each row is removed below —
+     * left on, a row of N items measures N x (cell + gutter), which is one
+     * gutter wider than the page, and every row wraps a column early. */
+    margin: 0 var(--print-gutter) var(--print-gutter) 0;
+
+    break-inside: avoid;
+    page-break-inside: avoid;
+}
+
+/* Drop the trailing gutter at the end of each row so the row measures exactly
+ * the content width.
+ *
+ * Written out per column count because nth-child takes a literal, not a custom
+ * property. One to six covers anything that fits on A4 and still reads; a
+ * seventh column would want a different page, not a different rule.
+ *
+ * This counts *elements*, so every child of a grid must be an item. A child
+ * hidden with display:none still takes its turn in the count and would move the
+ * reset onto the wrong card. */
+.n26-print-grid[data-print-cols="1"] > * {
+    margin-right: 0;
+}
+.n26-print-grid[data-print-cols="2"] > :nth-child(2n) {
+    margin-right: 0;
+}
+.n26-print-grid[data-print-cols="3"] > :nth-child(3n) {
+    margin-right: 0;
+}
+.n26-print-grid[data-print-cols="4"] > :nth-child(4n) {
+    margin-right: 0;
+}
+.n26-print-grid[data-print-cols="5"] > :nth-child(5n) {
+    margin-right: 0;
+}
+.n26-print-grid[data-print-cols="6"] > :nth-child(6n) {
+    margin-right: 0;
+}
+
+/* ===========================================================================
+ * Card — one unit that arrives on paper whole.
+ * =========================================================================== */
+
+.n26-print-card {
+    /* Cell width when inside a grid, full width when standing alone. The
+     * fallback is what lets the same card be tiled or used on its own. */
+    width: var(--print-cell-w, 100%);
+
+    /* Restore what the grid zeroed. A card sets its own type; the grid only
+     * killed the inter-item whitespace. */
+    font-size: 2.6mm;
+    line-height: 1.15;
+
+    position: relative;
+    display: inline-block;
+    vertical-align: top;
+    overflow: hidden;
+    color: var(--print-ink);
+    background: var(--print-paper);
+    border: 0.35mm solid var(--print-ink);
+    border-radius: 2mm;
+    padding: var(--print-card-pad, 3mm);
+
+    break-inside: avoid;
+    page-break-inside: avoid;
+
+    /* A card is often the outermost thing a caller styles, and it may be used
+     * outside a sheet — repeat the two declarations that must not be missed. */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+}
+
+/* A fixed-height card is a column: content flows from the top, and anything the
+ * caller pins to the bottom stays there however little there is above it. */
+.n26-print-card.is-fixed {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: stretch;
+}
+
+/* Fills the slack in a fixed-height card, so a footer after it sits on the
+ * bottom edge rather than following the content up the card. */
+.n26-print-card-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+}
+
+/* A column too, so a child can be told to take the leftover height — which is
+ * what <c-n26.print.columns fill> needs before <c-n26.print.column spread> can
+ * mean anything. Children still stack and size to their content by default, so
+ * this changes nothing for a card that does not ask. */
+.n26-print-card.is-fixed > .n26-print-card-body {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+
+    /* Widened by exactly the padding it then puts back, so its content sits
+     * where it did and only its *box* grows. That matters because `overflow`
+     * clips at the padding box: with no padding here the clip edge was the text
+     * column itself, and a .n26-print-bleed child reaching for the card's edge
+     * had its first characters shaved off — "WEAPON" printed as "APON". The
+     * vertical clipping this rule exists for is untouched. */
+    margin-inline: calc(-1 * var(--print-card-pad, 3mm));
+    padding-inline: var(--print-card-pad, 3mm);
+}
+
+.n26-print-card-foot {
+    flex: 0 0 auto;
+}
+
+/* A card's title band. Not required — a caller can put anything in a card — but
+ * every printed card so far has wanted a name and a number opposite it.
+ *
+ * Its rule runs the full width of the card, like the stat tables under it. The
+ * alternative — a masthead rule stopping 3mm short of borders that the block
+ * below it reaches — reads as an alignment mistake rather than as a choice.
+ *
+ * Same trick as .n26-print-card-body: widen the box by the card's padding and
+ * immediately put that padding back, so the border grows and the words do not
+ * move. Nothing clips here, because a card's own `overflow` clips at its
+ * padding box and that is exactly where this now stops. */
+/* A masthead, not a heading with a rule under it.
+ *
+ * It bleeds to three edges — left, right and top — so the band is the top of the
+ * card rather than something sitting inside it. Same trick the body uses: widen
+ * the box by the card's padding and put that padding straight back, so the
+ * background grows and the words do not move.
+ *
+ * The band is v1's nameplate: a black torn-paper bar on transparency, squashed
+ * to the height of the strip. It is a background-image and not a colour, so the
+ * torn edges show the card through them — which is the entire point of the
+ * artwork and the reason there is no fill behind it.
+ *
+ * align-items: center, where the old head used baseline. A disc has no baseline
+ * worth sharing with a line of text — sitting it on one puts it low in the band
+ * and off-centre against its own bottom edge. */
+.n26-print-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 2mm;
+    margin-inline: calc(-1 * var(--print-card-pad, 3mm));
+    /* Not the whole way to the top edge. A hair of card above the band — one
+     * millimetre of the card's own three — keeps the torn top edge readable as a
+     * tear rather than as the place the card stops, and stops the black running
+     * into the border. Left and right still bleed fully: those edges are cut by
+     * the card's border, and a gap there would read as a misaligned strip. */
+    margin-top: calc(-1 * var(--print-card-pad, 3mm) + 1mm);
+    margin-bottom: 1.5mm;
+    /* Tight. The band is the least informative thing on the card — a name, a
+     * number — and it was taking an eighth of the height on a sheet where height
+     * is the scarce thing. The artwork squashes with it, because it is sized
+     * 100% 100%: making the strip shorter compresses the texture rather than
+     * cropping it, which is the whole reason for that sizing. */
+    padding: 0.7mm var(--print-card-pad, 3mm);
+    background-image: var(--print-masthead-image, none);
+    background-position: center;
+    background-repeat: no-repeat;
+    /* 100% 100%, not cover. The nameplate is a wide bar squashed to a band a few
+     * millimetres tall; cover would scale it to fill and crop the torn edges off
+     * the top and bottom, which are the only part of it doing any work. v1
+     * squishes it the same way and says so. */
+    background-size: 100% 100%;
+    color: var(--print-masthead-ink);
+}
+
+/* Holds the title and subtitle against the badge. min-width: 0 as a print class
+ * rather than Tailwind's min-w-0, because this file is unlayered and would beat
+ * the utility — print markup is styled from here, deliberately and throughout. */
+.n26-print-card-headings {
+    min-width: 0;
+}
+
+.n26-print-card-title {
+    min-width: 0;
+    font-size: 1.35em;
+    font-weight: 700;
+    line-height: 1.1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Lighter than the title but still on a dark ground, so this is a tint of the
+ * masthead's own ink rather than --print-rule, which is a dark grey chosen to
+ * sit on white and would all but vanish here. */
+.n26-print-card-sub {
+    font-size: 0.88em;
+    font-weight: 400;
+    line-height: 1.15;
+    color: var(--print-masthead-sub);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* The price as a disc, punched out of the band.
+ *
+ * A fixed diameter rather than padding round the text: a circle whose width
+ * follows its contents is an oval the moment the number reaches three digits,
+ * and every card in a grid would have a slightly different one. aspect-ratio
+ * with a min-width keeps it round and lets 1200¢ widen it into a stadium rather
+ * than overflow — a shape that is deliberately not a circle reads better than a
+ * circle with its digits cut off.
+ *
+ * The colour is --print-label, the same dark red the small-caps headings use.
+ * The disc is the one place on the card where that colour is the figure rather
+ * than the label, which is why it earns being the loudest thing in the band. */
+.n26-print-card-badge {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* The disc sets the floor for the band's height, so shrinking one without
+     * the other does nothing. 8mm still reads as a circle with a price in it at
+     * arm's length, which is the distance a card is read from. */
+    min-width: 8mm;
+    aspect-ratio: 1;
+    padding-inline: 1.2mm;
+    border-radius: 100vmax;
+    background: var(--print-masthead-disc);
+    color: var(--print-label);
+    font-size: 1.05em;
+    font-weight: 700;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+/* ===========================================================================
+ * Label — the small caps heading used by entries, fields and section headers.
+ * =========================================================================== */
+
+.n26-print-label {
+    color: var(--print-label);
+    font-weight: 700;
+    font-size: 0.85em;
+    line-height: 1.1;
+    letter-spacing: 0.01em;
+    text-transform: uppercase;
+}
+
+/* ===========================================================================
+ * Columns — side by side, and never CSS multi-column.
+ *
+ * WebKit does not support a multi-column container nested inside another
+ * fragmentation context. When printing, the page *is* a fragmentation context,
+ * so iOS Safari collapses a `columns: 2` block to a single full-width column
+ * and the layout you designed exists only on your desktop. v1 hit this and
+ * moved the split into Python; n26.printing.balance_columns is that split,
+ * ported here, and these are the two boxes it fills.
+ *
+ * Flex is safe *here* and nowhere near a page fold: these columns are meant to
+ * sit inside a card, which is atomic and never fragments, so the flex layout is
+ * resolved entirely within one page. Put a tall .n26-print-columns straight on
+ * a sheet and it will be sliced without regard for its contents — the same trap
+ * the top of this file describes.
+ * =========================================================================== */
+
+/* Take the height left in the card rather than sizing to content. Only useful
+ * inside a fixed-height card, and only really useful with `spread` on the
+ * columns — without a definite height to divide, spreading has nothing to do. */
+.n26-print-columns.is-fill {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.n26-print-columns {
+    --print-columns-gap: 3mm;
+    display: flex;
+    flex-direction: row;
+    /* Stretch, so a column can push something to its own bottom edge. Sizing to
+     * content instead makes justify-content inside a column a no-op. */
+    align-items: stretch;
+    gap: var(--print-columns-gap);
+    min-width: 0;
+}
+
+/* Space the children down the full height rather than stacking at the top —
+ * for a worksheet column, where the point is to use the paper. Needs the
+ * column to be stretched to the block's height, which align-items above does. */
+.n26-print-column.is-spread {
+    justify-content: space-between;
+}
+
+.n26-print-column {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+/* ===========================================================================
+ * Entry — one labelled thing inside a column.
+ *
+ * Two shapes, because printed matter uses both: a label beside its value for
+ * short comma-joined lists, where a stacked label would waste a line each time;
+ * and a label above its value for prose, which reads badly in a narrow column
+ * next to a heading.
+ * =========================================================================== */
+
+/* inline-flex, not flex, and the `width: 100%` that goes with it.
+ *
+ * An atomic inline-level box is *monolithic* per CSS Fragmentation: no engine
+ * is permitted to split one. `display: flex` + `break-inside: avoid` is a
+ * request, and WebKit ignores it — v1 watched a long entry get sliced mid-list
+ * on iOS 26 with the second half painted over the top of the next one, and, in
+ * a height-constrained box, watched the trailing entry vanish from the page
+ * altogether. The prefixed `-webkit-column-break-inside: avoid` did not fix it.
+ * This does, because it stops asking.
+ *
+ * `width: 100%` keeps each entry on its own line, so a run of them still reads
+ * as a stack rather than flowing together.
+ *
+ * Inside a .n26-print-column the entry becomes a flex item and is blockified
+ * straight back to `flex`, losing the guarantee — which is fine, and is why
+ * the columns are documented as card-only: a card is atomic, so there is no
+ * fragmentation in there to survive. The inline-flex earns its keep when an
+ * entry is used directly on a sheet, where the page fold is real. */
+.n26-print-entry {
+    display: inline-flex;
+    width: 100%;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 1.5mm;
+    min-width: 0;
+    margin-bottom: 1mm;
+    break-inside: avoid;
+    page-break-inside: avoid;
+}
+
+/* Wrap the label to its narrowest — one word per line — so a long label like
+ * "Legendary Names" gives its value as much width as possible instead of
+ * reserving a column for itself. */
+.n26-print-entry > .n26-print-entry-label {
+    flex: 0 1 auto;
+    width: min-content;
+    overflow-wrap: break-word;
+}
+
+/* A fixed label column instead, for runs of entries whose values should all
+ * start at the same x. */
+.n26-print-entry.is-aligned > .n26-print-entry-label {
+    flex: 0 0 var(--print-label-w, 14mm);
+    width: auto;
+}
+
+.n26-print-entry-value {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 0.92em;
+    line-height: 1.2;
+}
+
+.n26-print-entry.is-stacked {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.6mm;
+}
+
+.n26-print-entry.is-stacked > .n26-print-entry-label {
+    width: auto;
+}
+
+/* ===========================================================================
+ * Field — a box to write in by hand.
+ *
+ * Printed play aids are half reference and half worksheet. Whatever is already
+ * known is printed inside the box; the rest of it is space for a pencil.
+ * =========================================================================== */
+
+/* Monolithic for the same reason as .n26-print-entry above — a write-in box cut
+ * in half by the page fold is worse than a paragraph cut in half, because half
+ * a box still looks like a box you are meant to write in. */
+.n26-print-field {
+    display: inline-flex;
+    width: 100%;
+    flex-direction: row;
+    align-items: stretch;
+    gap: 1.5mm;
+    min-width: 0;
+    margin-bottom: 0.8mm;
+    break-inside: avoid;
+    page-break-inside: avoid;
+}
+
+.n26-print-field > .n26-print-field-label {
+    flex: 0 0 var(--print-label-w, 14mm);
+    align-self: flex-start;
+    padding-top: 0.6mm;
+}
+
+.n26-print-field-box {
+    flex: 1 1 auto;
+    min-width: 0;
+    align-self: stretch;
+    min-height: var(--print-field-h, 6mm);
+    padding: 0.5mm 1mm;
+    font-size: 0.88em;
+    line-height: 1.2;
+    overflow: hidden;
+    border: 0.25mm solid var(--print-rule-soft);
+    border-radius: 0.6mm;
+    /* A visible tint rather than a plain outline, so the box reads as somewhere
+     * to write on a textured or tinted card. It prints because the sheet sets
+     * print-color-adjust: exact — and it is a translucent *layer*, not element
+     * opacity, which browsers drop when printing. */
+    background: rgb(255 255 255 / 0.55);
+}
+
+.n26-print-field.is-stacked {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.6mm;
+}
+
+.n26-print-field.is-stacked > .n26-print-field-label {
+    flex: 0 0 auto;
+    padding-top: 0;
+}
+
+/* ===========================================================================
+ * Table — a long one, crossing pages without losing its head.
+ * =========================================================================== */
+
+.n26-print-table {
+    width: 100%;
+    border-collapse: collapse;
+    /* Fixed layout so column widths come from the header and stay put. Auto
+     * layout re-measures per fragment, so a table split over two pages can come
+     * out with different column widths on each — the same data, visibly
+     * misaligned across the fold. */
+    table-layout: fixed;
+    font-size: 0.96em;
+    line-height: 1.15;
+}
+
+.n26-print-table.is-auto {
+    table-layout: auto;
+}
+
+/* The reason thead exists in the markup rather than being a first row: a real
+ * table-header-group repeats at the top of every page the table reaches. A
+ * header written as an ordinary <tr> appears once, on page one, and every later
+ * page is a wall of unlabelled numbers. */
+.n26-print-table thead {
+    display: table-header-group;
+}
+
+.n26-print-table tfoot {
+    display: table-footer-group;
+}
+
+/* Keep a row whole. A table *should* break between rows — that is the point of
+ * a long table — just never through the middle of one. */
+.n26-print-table tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+}
+
+.n26-print-table :is(th, td) {
+    padding: 0.6mm 1mm;
+    text-align: left;
+    vertical-align: top;
+}
+
+.n26-print-table thead th {
+    color: var(--print-label);
+    font-weight: 700;
+    font-size: 0.85em;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    border-bottom: 0.3mm solid var(--print-rule);
+}
+
+.n26-print-table tbody td {
+    border-bottom: 0.2mm solid var(--print-rule-soft);
+}
+
+.n26-print-table .is-centered {
+    text-align: center;
+}
+
+.n26-print-table .is-numeric {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+/* A vertical rule opening a group of columns, for the statline-style tables
+ * where columns come in meaningful runs.
+ *
+ * Deliberately the same weight and tone as the row rules above — these separate
+ * columns within one block of statistics, which is the same job the row rules
+ * do between rows, so drawing them heavier gave the grid a grain it did not
+ * earn. The rules that bound the block, and the one under a header, stay
+ * heavier: those mark where the block starts and stops. */
+.n26-print-table .is-group {
+    border-left: 0.2mm solid var(--print-rule-soft);
+}
+
+/* A row finished by the next one — a weapon's stats above its traits, or a
+ * weapon's name above its profiles. Suppressing the rule is what makes the pair
+ * read as one entry instead of two. */
+.n26-print-table tbody tr.is-continued > td {
+    border-bottom: 0;
+}
+
+/* One group of rows per weapon, ruled off from the next and unruled inside.
+ *
+ * A weapon is one entry however many lines it takes: a name, two ammo profiles,
+ * their traits, an accessory. Ruling between those lines drew the parts of one
+ * thing as five things, and the reader has to reassemble them to see where a
+ * weapon starts. Only the boundary between weapons is a boundary.
+ *
+ * A <tbody> per weapon rather than a class on the last row of each. HTML allows
+ * as many as you like, the grouping is exactly what a tbody means, and the
+ * alternative is a template working out which row is last through two nested
+ * loops and three conditionals — which is the kind of arithmetic that is right
+ * until someone adds a row type.
+ *
+ * Scoped to .is-grouped so the flat tables — the worksheet, the long table
+ * specimen — keep their per-row rules, where every row genuinely is an entry. */
+.n26-print-table.is-grouped tbody td {
+    border-bottom: 0;
+}
+
+.n26-print-table.is-grouped tbody + tbody > tr:first-child > td {
+    border-top: 0.2mm solid var(--print-rule-soft);
+}
+
+/* Traits under their profile's stats. Smaller and lighter than the numbers
+ * above them: they qualify the row rather than being another value in it.
+ *
+ * Qualified by the table so it outranks `.n26-print-table :is(th, td)`, whose
+ * padding it needs to override — :is() takes the specificity of its most
+ * specific argument, so that selector is a class plus an element and a bare
+ * class here would lose to it. */
+.n26-print-table td.n26-print-traits {
+    font-size: 0.85em;
+    line-height: 1.15;
+    padding-top: 0;
+    padding-bottom: 0.9mm;
+    color: var(--print-rule);
+}
+
+/* A price beside a name. Never broken across a line — "(30" on one line and
+ * "¢)" on the next is a misprint, not a wrap. */
+.n26-print-cost {
+    white-space: nowrap;
+}
+
+/* Two spacing helpers, in the sheet's own units.
+ *
+ * Tailwind's scale is in rem, which is a screen measure — an `mt-1` between two
+ * blocks on a card is 4px whatever the card is, so it grows and shrinks against
+ * a layout measured in millimetres. Anything positioning print content should
+ * be expressed in print units, and these are the two that came up more than
+ * once. (They would lose to a utility anyway: this file is unlayered.) */
+.n26-print-mt {
+    margin-top: 1.5mm;
+}
+
+/* A sub-profile's name — an ammo type under its weapon.
+ *
+ * Italic and nothing else. It used to carry a 2mm indent as well, which cost
+ * more than it bought: the name column is about 33mm, and two of those
+ * millimetres were enough to push "(+10¢)" onto a second line and make the row
+ * taller than the weapon above it. The em dash the name already starts with
+ * says "this belongs to the line above" perfectly well without spending width
+ * on saying it twice. */
+.n26-print-subname {
+    font-style: italic;
+}
+
+/* A small empty box in a table cell. On paper the useful answer to "do you have
+ * one of these" is somewhere to record that you now do. */
+.n26-print-tick {
+    display: inline-block;
+    width: 2.6mm;
+    height: 2.6mm;
+    border: 0.25mm solid var(--print-rule-soft);
+    border-radius: 0.4mm;
+    background: rgb(255 255 255 / 0.55);
+}
+
+/* A heading over a section of a sheet — above a grid, or a table. Not part of
+ * any card, because it belongs to the document rather than to a thing on it. */
+.n26-print-titleblock {
+    margin-bottom: 2mm;
+    padding-bottom: 1mm;
+    border-bottom: 0.4mm solid var(--print-ink);
+}
+
+.n26-print-title {
+    font-size: 1.8em;
+    font-weight: 700;
+    line-height: 1.1;
+}
+
+.n26-print-subtitle {
+    font-size: 0.9em;
+    color: var(--print-rule);
+}
+
+/* ===========================================================================
+ * Statline — characteristics in the book's two-row layout.
+ *
+ * Its own table rather than a .n26-print-table, because the two want opposite
+ * things. A data table rules every row and left-aligns its text; a statline is
+ * a centred grid read in both directions, ruled only between groups. Sharing
+ * one class would mean undoing half of it.
+ *
+ * table-layout: fixed is what actually makes the layout work. The first row
+ * fixes the column widths and every later row lands on the same grid, so Ld
+ * sits exactly under M — which is the point of the arrangement, and would be
+ * left to chance under auto layout.
+ * =========================================================================== */
+
+.n26-print-statline {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    font-size: 0.96em;
+    line-height: 1.1;
+    /* Closes the block underneath, so the weapon table can sit straight on it
+     * with nothing between them and the two read as one run of statistics
+     * rather than as two tables that happen to be near each other. Collapsed
+     * borders mean this and the last row's rule are the same line, not two. */
+    border-bottom: 0.3mm solid var(--print-rule);
+}
+
+.n26-print-statline :is(th, td) {
+    padding: 0.5mm 0.4mm;
+    text-align: center;
+    vertical-align: middle;
+}
+
+.n26-print-statline th {
+    color: var(--print-label);
+    font-weight: 700;
+    font-size: 0.8em;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+.n26-print-statline td {
+    font-weight: 600;
+}
+
+/* The rule between one group's pair of rows and the next group's. Not under the
+ * last, which would draw a line across the bottom of the block for nothing. */
+.n26-print-statline .is-pairend > :is(th, td) {
+    border-bottom: 0.3mm solid var(--print-rule);
+}
+
+/* Opens the trailing Type / XP cells, which are a different kind of thing from
+ * the characteristics beside them and should read as such. Matched to the
+ * weapon table's rules below it, so the two tables — which abut, and read as one
+ * block — are ruled in one voice. */
+.n26-print-statline .is-group {
+    border-left: 0.2mm solid var(--print-rule-soft);
+}
+
+/* The psychology stats, from is_highlighted on the stat — content, not a
+ * decision here. Prints because the sheet sets print-color-adjust: exact. */
+.n26-print-statline .is-hl {
+    background: rgb(17 17 17 / 0.07);
+}
+
+/* A type line is prose in a grid of numbers, so it is not bolded with them. */
+.n26-print-statline .is-typeline {
+    font-weight: 400;
+}
+
+/* Advanced rather than printed. The screen card says which advancement did it,
+ * in a tooltip; paper has nowhere to put that, so this only marks the value as
+ * one to look up. Better than printing it as though the profile said so. */
+.n26-print-statline .is-modified {
+    text-decoration: underline dotted;
+    text-underline-offset: 0.4mm;
+}
+
+/* Edge to edge inside a card, ignoring the padding the rest of it keeps.
+ *
+ * A statline squeezed into 91mm of a 97mm card is paying 6mm — better than 6% of
+ * its width — for a margin no one reads. The rules and tints reaching the card's
+ * own border also make the stat block read as a band across the card, which is
+ * how the printed originals set it.
+ *
+ * The same fallback as the padding it cancels, so the two cannot disagree: give
+ * a card `pad` and the bleed follows it. Declared after .n26-print-table and
+ * .n26-print-statline because both set `width: 100%` at this specificity, and
+ * at equal specificity the later rule is the one that wins.
+ */
+.n26-print-bleed {
+    width: calc(100% + 2 * var(--print-card-pad, 3mm));
+    margin-inline: calc(-1 * var(--print-card-pad, 3mm));
+}
+
+/* …but a bled table keeps the card's text column.
+ *
+ * The bleed is for the rules and the tints: those should reach the card's edge,
+ * which is what makes the stat block read as a band across it. The words should
+ * not. A weapon name starting 1mm from the border while the title above it and
+ * the skills below it start at 3mm does not read as a deliberate full-width
+ * table, it reads as a misprint.
+ *
+ * So the outermost cells are inset by the same padding the bleed just cancelled,
+ * which puts every line on the card into one column while leaving the borders
+ * and backgrounds where they were — a cell's background paints under its
+ * padding, so the tint still runs to the card's edge with the text sitting 3mm
+ * inside it.
+ *
+ * Only cells, so the helper stays usable on anything else. Specificity is a
+ * class, an element and a pseudo-class against the tables' class-and-element,
+ * so this wins without needing to be ordered against them. */
+.n26-print-bleed :is(th, td):first-child {
+    padding-left: var(--print-card-pad, 3mm);
+}
+
+.n26-print-bleed :is(th, td):last-child {
+    padding-right: var(--print-card-pad, 3mm);
+}
+
+/* ===========================================================================
+ * Break — end the page here.
+ * =========================================================================== */
+
+.n26-print-break {
+    display: block;
+    height: 0;
+    break-after: page;
+    page-break-after: always;
+}
+
+/* ===========================================================================
+ * @media print — what changes when it is actually paper.
+ *
+ * Less than you might expect, and that is the intention: the sheet is laid out
+ * at its true physical size on screen too, so the preview is the artefact
+ * rather than an impression of it. v1 laid the screen out with flexbox and
+ * printed with inline-blocks — two different layout algorithms for one design,
+ * which is exactly how "it looked fine in the preview" happens.
+ * =========================================================================== */
+
+@media print {
+    html,
+    body {
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #fff !important;
+    }
+
+    /* Anything that exists to drive the preview. */
+    .n26-print-hide {
+        display: none !important;
+    }
+
+    /* Guides are for the screen; neither should ever cost ink. */
+    .n26-print-sheet.is-paged,
+    .n26-print-sheet.is-gridded,
+    .n26-print-sheet.is-paged.is-gridded {
+        background-image: none !important;
+    }
+
+    .n26-print-sheet {
+        /* The margin comes from @page now, so the sheet is flush inside it.
+         * Width stays pinned to the content width rather than going `auto`: on
+         * iOS the print layout viewport is derived from the on-screen device
+         * width, so `auto` collapses an A4 sheet to phone width and tiles one
+         * card per row. A fixed width in mm tiles deterministically and lets
+         * the browser scale the sheet to the paper. */
+        width: var(--print-content-w) !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #fff !important;
+    }
+
+    /* Screen-only scrolling, undone. An overflow container can suppress
+     * fragmentation inside it, which would put the page fold back through the
+     * middle of a card. */
+    .n26-print-sheet-scroll {
+        max-width: none !important;
+        overflow: visible !important;
+    }
+}

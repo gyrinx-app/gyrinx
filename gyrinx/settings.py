@@ -153,11 +153,21 @@ INSTALLED_APPS = [
     # processor — including `notifications`, which issues an uncached COUNT.
     # Measured: 20 components = 21 queries with it on, 1 with it off.
     "django_cotton",
+    # Cotton UI components (<c-forms.field> and friends), used by the n26
+    # edition. Must come after django_cotton, whose loader it relies on.
+    "django_cotton_ui",
     # Disable Django's static file handling in favour of WhiteNoise in dev
     "whitenoise.runserver_nostatic",
     "django.contrib.staticfiles",
     "n23.core",
     "n23.content",
+    # The n26 edition: player-side core, the content library, and its
+    # design system. Labels are pinned in each apps.py (n26, library,
+    # designsystem) — the n26.core module deliberately does NOT take the
+    # label "core", which n23 owns.
+    "n26.core",
+    "n26.library",
+    "n26.designsystem",
     "gyrinx.accounts",
     "gyrinx.site",
     "gyrinx.analytics",
@@ -393,7 +403,7 @@ STORAGES = {
 
 # Top-level packages whose loggers are "ours": the platform shell plus each
 # edition package. Consumed by the LOGGING config below and by settings_prod.
-APP_LOGGER_ROOTS = ("gyrinx", "n23")
+APP_LOGGER_ROOTS = ("gyrinx", "n23", "n26")
 
 LOGGING = {
     "version": 1,
@@ -562,3 +572,8 @@ TASKS = {
 
 # Environment for task topic naming (dev/staging/prod)
 TASKS_ENVIRONMENT = os.getenv("TASKS_ENVIRONMENT", "dev")
+
+
+# n26: the pack new content lands in when none is specified.
+DEFAULT_CONTENT_PACK_SLUG = os.environ.get("DEFAULT_CONTENT_PACK_SLUG", "n26")
+DEFAULT_CONTENT_PACK_NAME = os.environ.get("DEFAULT_CONTENT_PACK_NAME", "N26")

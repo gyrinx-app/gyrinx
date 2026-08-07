@@ -1,0 +1,17 @@
+{# title: Custom separator #}
+{# note: Supply the slot once and Alpine clones it between every pair of items. #}
+{# layout: col #}
+<c-ui.breadcrumbs>
+    <c-slot name="separator">
+        <c-n26.icon name="chevron-right" class="size-3.5 text-muted" stroke_width="2" />
+    </c-slot>
+    <c-ui.breadcrumbs.item href="#">
+        Library
+    </c-ui.breadcrumbs.item>
+    <c-ui.breadcrumbs.item href="#">
+        Weapons
+    </c-ui.breadcrumbs.item>
+    <c-ui.breadcrumbs.item :current="True">
+        Lasgun
+    </c-ui.breadcrumbs.item>
+</c-ui.breadcrumbs>

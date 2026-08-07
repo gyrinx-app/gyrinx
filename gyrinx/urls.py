@@ -56,6 +56,7 @@ urlpatterns = (
     + [
         path("robots.txt", views.robots_txt, name="robots_txt"),
         path("", include("n23.core.urls")),
+        path("n26/", include("n26.urls")),
         path("api/", include("gyrinx.api.urls")),
         path("tasks/", include("gyrinx.tasks.urls")),
         path("accounts/", include("allauth.urls")),

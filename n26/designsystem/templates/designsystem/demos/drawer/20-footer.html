@@ -1,0 +1,33 @@
+{# title: With a footer #}
+{# note: size picks from a scale; max_size takes a raw CSS length when none of them fit. #}
+<c-ui.drawer title="Edit fighter"
+             description="Changes apply immediately."
+             size="lg">
+    <c-ui.button variant="primary" @click="drawerOpen = true">
+        Edit fighter
+    </c-ui.button>
+    <c-slot name="content">
+        <div class="space-y-4">
+            <c-ui.input label="Name" name="name" value="Kaine" />
+            <c-ui.select label="Class" name="class">
+                <c-ui.select.option value="leader" :selected="True">
+                    Leader
+                </c-ui.select.option>
+                <c-ui.select.option value="champion">
+                    Champion
+                </c-ui.select.option>
+            </c-ui.select>
+            <c-ui.textarea label="Notes" name="notes" height="sm" />
+        </div>
+    </c-slot>
+    <c-slot name="footer">
+        <div class="flex justify-end gap-2">
+            <c-ui.button @click="drawerOpen = false">
+                Cancel
+            </c-ui.button>
+            <c-ui.button variant="primary">
+                Save
+            </c-ui.button>
+        </div>
+    </c-slot>
+</c-ui.drawer>

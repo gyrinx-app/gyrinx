@@ -1,0 +1,10 @@
+{# title: Basic group #}
+{# note: The boxes only work inside the group — they read their state from it. Note that what's initially ticked is set on the group with :values, not on the box. #}
+{# layout: col #}
+<c-ui.checkbox.group label="Notify me about" name="notify" :values="['injuries']">
+    <c-ui.checkbox value="injuries"
+                   label="Lasting injuries"
+                   description="When a fighter goes into recovery." />
+    <c-ui.checkbox value="advances" label="Advancements" />
+    <c-ui.checkbox value="territory" label="Territory changes" />
+</c-ui.checkbox.group>

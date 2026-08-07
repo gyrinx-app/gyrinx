@@ -1,0 +1,11 @@
+{# title: Free text and a cap #}
+{# note: :writable lets people invent values that weren't in the list; :max_tags stops them at a limit. #}
+{# layout: col #}
+<c-ui.combobox label="Tags"
+               name="tags"
+               description="Type anything and press enter. Three maximum."
+               :options="['campaign', 'homebrew', 'errata']"
+               :writable="True"
+               :searchable="True"
+               :max_tags="3"
+               placeholder="Add a tag…" />

@@ -1,0 +1,34 @@
+{# title: Positions #}
+{# note: The default slot is the trigger and the content slot is the bubble. It teleports to <body>, so it escapes any overflow clipping, and flips when it won't fit. #}
+<c-ui.tooltip position="top">
+    <c-ui.button>
+        Top
+    </c-ui.button>
+    <c-slot name="content">
+        Above the trigger
+    </c-slot>
+</c-ui.tooltip>
+<c-ui.tooltip position="bottom">
+    <c-ui.button>
+        Bottom
+    </c-ui.button>
+    <c-slot name="content">
+        Below the trigger
+    </c-slot>
+</c-ui.tooltip>
+<c-ui.tooltip position="left">
+    <c-ui.button>
+        Left
+    </c-ui.button>
+    <c-slot name="content">
+        To the left
+    </c-slot>
+</c-ui.tooltip>
+<c-ui.tooltip position="right">
+    <c-ui.button>
+        Right
+    </c-ui.button>
+    <c-slot name="content">
+        To the right
+    </c-slot>
+</c-ui.tooltip>

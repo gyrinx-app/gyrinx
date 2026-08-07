@@ -1,0 +1,230 @@
+{% extends "designsystem/base.html" %}
+{% block title %}Print lab{% endblock %}
+{% block mobile_title %}Print lab{% endblock %}
+{% block content %}
+    {% comment %}
+The harness. Everything is a GET parameter and the form is a plain GET form, so
+the address bar always holds the current state — which means a configuration
+that shows a bug can be pasted into a message, opened on a phone, or handed to a
+script, without anybody having to describe which checkboxes to tick.
+    {% endcomment %}
+    <div class="mb-8">
+        <h1 class="text-2xl font-semibold text-ink-900 dark:text-ink-100">Print lab</h1>
+        <p class="mt-2 max-w-2xl text-muted">
+            The <code class="text-sm">&lt;c-n26.print.*&gt;</code> components against real paper geometry.
+            Printing is the one part of the system you cannot check by looking at it, and
+            its worst failures — a card sliced across the fold, a two-column block
+            collapsed to one — happen on engines other than the one you are in. So:
+            change something, look at the preview, then print it to PDF and look at
+            that too.
+        </p>
+    </div>
+    <div class="grid gap-6 lg:grid-cols-[20rem_minmax(0,1fr)]">
+        {# ------------------------------------------------------------- controls #}
+        <div class="space-y-4">
+            <form method="get"
+                  class="space-y-4 rounded-box border border-box-border bg-surface p-4">
+                <div>
+                    <label for="specimen"
+                           class="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted">Specimen</label>
+                    <select id="specimen"
+                            name="specimen"
+                            class="w-full rounded-control border border-box-border bg-input-bg px-2 py-1.5 text-sm focus-ring">
+                        {% for key, label in specimens %}
+                            <option value="{{ key }}" {% if options.specimen == key %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label for="page"
+                               class="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted">Page</label>
+                        <select id="page"
+                                name="page"
+                                class="w-full rounded-control border border-box-border bg-input-bg px-2 py-1.5 text-sm focus-ring">
+                            {% for key, label in pages %}
+                                <option value="{{ key }}" {% if options.page == key %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label for="orientation"
+                               class="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted">Orientation</label>
+                        <select id="orientation"
+                                name="orientation"
+                                class="w-full rounded-control border border-box-border bg-input-bg px-2 py-1.5 text-sm focus-ring">
+                            {% for key, label in orientations %}
+                                <option value="{{ key }}"
+                                        {% if options.orientation == key %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label for="margin"
+                               class="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted">Margin (mm)</label>
+                        <input type="number"
+                               id="margin"
+                               name="margin"
+                               value="{{ options.margin_mm|floatformat:'-2' }}"
+                               step="0.5"
+                               min="0"
+                               max="40"
+                               class="w-full rounded-control border border-box-border bg-input-bg px-2 py-1.5 text-sm tabular-nums focus-ring">
+                    </div>
+                    <div>
+                        <label for="gutter"
+                               class="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted">Gutter (mm)</label>
+                        <input type="number"
+                               id="gutter"
+                               name="gutter"
+                               value="{{ options.gutter_mm|floatformat:'-2' }}"
+                               step="0.5"
+                               min="0"
+                               max="20"
+                               class="w-full rounded-control border border-box-border bg-input-bg px-2 py-1.5 text-sm tabular-nums focus-ring">
+                    </div>
+                    <div>
+                        <label for="columns"
+                               class="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted">Columns</label>
+                        <input type="number"
+                               id="columns"
+                               name="columns"
+                               value="{{ options.columns }}"
+                               step="1"
+                               min="1"
+                               max="6"
+                               class="w-full rounded-control border border-box-border bg-input-bg px-2 py-1.5 text-sm tabular-nums focus-ring">
+                    </div>
+                    <div>
+                        <label for="count"
+                               class="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted">Items</label>
+                        <input type="number"
+                               id="count"
+                               name="count"
+                               value="{{ options.count }}"
+                               step="1"
+                               min="1"
+                               max="60"
+                               class="w-full rounded-control border border-box-border bg-input-bg px-2 py-1.5 text-sm tabular-nums focus-ring">
+                    </div>
+                </div>
+                <div>
+                    <label for="cardh"
+                           class="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted">Card height (mm) — 0 for auto</label>
+                    <input type="number"
+                           id="cardh"
+                           name="cardh"
+                           value="{{ options.card_h_mm|floatformat:'-2' }}"
+                           step="1"
+                           min="0"
+                           max="400"
+                           class="w-full rounded-control border border-box-border bg-input-bg px-2 py-1.5 text-sm tabular-nums focus-ring">
+                </div>
+                <div class="space-y-2 border-t border-box-border pt-3 text-sm">
+                    <label class="flex items-center gap-2">
+                        <input type="checkbox"
+                               name="paged"
+                               value="1"
+                               {% if options.paged %}checked{% endif %}
+                               class="rounded border-box-border focus-ring">
+                        <span>Page-fold guides</span>
+                    </label>
+                    <label class="flex items-center gap-2">
+                        <input type="checkbox"
+                               name="grid"
+                               value="1"
+                               {% if options.grid %}checked{% endif %}
+                               class="rounded border-box-border focus-ring">
+                        <span>10mm alignment grid</span>
+                    </label>
+                    <label class="flex items-center gap-2">
+                        <input type="checkbox"
+                               name="fit"
+                               value="1"
+                               {% if options.fit %}checked{% endif %}
+                               class="rounded border-box-border focus-ring">
+                        <span>Shrink overflowing text to fit</span>
+                    </label>
+                </div>
+                <c-ui.button type="submit" variant="primary" class="w-full">
+                    Update preview
+                </c-ui.button>
+            </form>
+            {% comment %}
+        The geometry, worked out. This is the readout the lab exists for: the
+        cell width is a number nobody can compute by looking at a preview, and
+        "how many fit on a page" is the question every print change is really
+        asking.
+            {% endcomment %}
+            <div class="rounded-box border border-box-border bg-surface p-4 text-sm">
+                <div class="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Geometry</div>
+                <dl class="space-y-1">
+                    <div class="flex justify-between gap-3">
+                        <dt class="text-muted">Paper</dt>
+                        <dd class="tabular-nums">
+                            {{ options.page_mm.0|floatformat:'-1' }} × {{ options.page_mm.1|floatformat:'-1' }} mm
+                        </dd>
+                    </div>
+                    <div class="flex justify-between gap-3">
+                        <dt class="text-muted">Printable</dt>
+                        <dd class="tabular-nums">
+                            {{ options.content_w_mm|floatformat:'-1' }} × {{ options.content_h_mm|floatformat:'-1' }} mm
+                        </dd>
+                    </div>
+                    <div class="flex justify-between gap-3">
+                        <dt class="text-muted">Cell width</dt>
+                        <dd class="tabular-nums">
+                            {{ options.cell_w_mm|floatformat:'-2' }} mm
+                        </dd>
+                    </div>
+                    <div class="flex justify-between gap-3">
+                        <dt class="text-muted">Per page</dt>
+                        <dd class="tabular-nums">
+                            {% if options.per_page %}{{ options.per_page }} ({{ options.columns }} × {{ options.rows_per_page }}){% else %}—{% endif %}
+                        </dd>
+                    </div>
+                </dl>
+            </div>
+            <div class="rounded-box border border-box-border bg-surface p-4 text-sm">
+                <div class="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Print it</div>
+                <div class="flex flex-col gap-1.5">
+                    <c-n26.link href="{{ sheet_url }}" target="_blank" rel="noopener">
+                        Open the sheet on its own →
+                    </c-n26.link>
+                    <c-n26.link href="{{ sheet_url }}&amp;print=1" target="_blank" rel="noopener">
+                        Open and print →
+                    </c-n26.link>
+                </div>
+                <p class="mt-3 text-xs text-muted">
+                    Print at 100% scale with margins set to none — the sheet already
+                    carries its own, from <code>@page</code>. Anything else and the
+                    millimetres stop being millimetres.
+                </p>
+            </div>
+        </div>
+        {# -------------------------------------------------------------- preview #}
+        <div class="min-w-0">
+            {% comment %}
+        An iframe, not an include. The sheet has to be its own document for the
+        same reason it has its own URL: @page is document-level, and a sheet
+        rendered inside the gallery would be pinned to the gallery's page rather
+        than to its own. The preview is the artefact, loaded the way a printer
+        would load it.
+            {% endcomment %}
+            {# djlint:off H021 — print column widths live on the cells; print engines read them there #}
+            <div class="overflow-hidden rounded-box border border-box-border"
+                 style="background: #565257">
+                <iframe title="Print preview"
+                        src="{{ sheet_url }}"
+                        class="block h-[80vh] w-full border-0"></iframe>
+            </div>
+            <p class="mt-2 text-xs text-muted">
+                The preview renders the sheet at its true physical size, so what you
+                see is the artefact rather than an impression of it. On a narrow
+                screen it scrolls sideways instead of shrinking, deliberately.
+            </p>
+        </div>
+    </div>
+{% endblock %}

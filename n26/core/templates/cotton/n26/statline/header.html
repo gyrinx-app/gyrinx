@@ -1,0 +1,26 @@
+{% comment %}
+<c-n26.statline.header> — the <th> cells for a set of characteristics.
+
+    <tr><c-n26.statline.header :cells="card.statline.cells" /></tr>
+    <tr><c-n26.statline.header :cells="group" /></tr>
+
+Takes a flat list of StatCells, not a whole Statline, so it can render either the
+lot or one group at a time — which is what the rulebook's two-row layout needs.
+Group boundaries survive either way because is_first_of_group is on the cell.
+
+Emits cells rather than a row, so the same header serves the fighter's strip, the
+weapon table with a name column in front of it, and the book layout's second row
+with Type and XP after it.
+
+The divider is suppressed on the first cell rendered: a group that starts a row
+should not begin with a rule down its left-hand side.
+
+full_name goes on title rather than into a c-ui.tooltip — a card carries a dozen of
+these and a gang sheet hundreds. It earns its keep on the weapon columns, where S
+and L each appear twice and only the title says which is range and which accuracy.
+
+  :cells — a list of n26.render.StatCell.
+  leading / trailing — extra <th> either side.
+{% endcomment %}
+<c-vars :cells="None" />
+{% if leading %}{{ leading }}{% endif %}{% for cell in cells %}<th scope="col" title="{{ cell.full_name }}" class="whitespace-nowrap px-2 py-1.5 text-center text-xs font-semibold text-ink-900 dark:text-ink-100 {% if cell.first_of_group and not forloop.first %}border-l border-box-border{% endif %} {% if cell.highlighted %}bg-ink-500/10{% endif %}">{{ cell.short_name }}</th>{% endfor %}{% if trailing %}{{ trailing }}{% endif %}

@@ -1,0 +1,73 @@
+{% extends "n26/layouts/base.html" %}
+{% comment %}
+The home page, in the shell it will actually live in.
+
+Two jobs at once, on purpose. A base template nothing inherits from is markup
+nobody has ever compiled, so the shell needs something extending it; and a view
+only shown on its own is a view nobody has seen next to a nav and a footer. Doing
+both here means the banner, the nav, the message, the dashboard and the footer are
+all in one screen, which is the only place their spacing can actually be judged.
+
+Everything on it is a library component: <c-n26.view.dashboard> for the page,
+<c-n26.gang-table> and <c-n26.changelog> inside it, <c-n26.prose> for the note at
+the bottom.
+{% endcomment %}
+{% block head_title %}Home{% endblock head_title %}
+{% block nav_items %}
+    {% include 'designsystem/shell/_nav.html' with here='home' %}
+{% endblock %}
+{% block content %}
+    <c-n26.view.dashboard username="{{ dashboard_username }}"
+                          new_gang_href="{% url 'designsystem:shell_new_gang' %}"
+                          new_campaign_href="#">
+        <c-slot name="gangs">
+            <c-n26.gang-table :type_options="dashboard_types" noun="gangs">
+                <c-slot name="empty">
+                    No gangs match that. Try a shorter search.
+                </c-slot>
+                {% for gang in dashboard_gangs %}
+                    {% comment %}
+                    Every row goes to the same gang sheet. There is one sample
+                    gang and five rows, so a real id would be a fiction; what the
+                    link proves is that a row opens a page in this shell, which is
+                    the thing worth seeing.
+                    {% endcomment %}
+                    <c-n26.gang-table.row name="{{ gang.name }}"
+                                          type="{{ gang.gang_type }}"
+                                          :sheet="gang"
+                                          href="{% url 'designsystem:shell_gang' %}"
+                                          print_href="{% url 'designsystem:print_lab' %}" />
+                {% endfor %}
+            </c-n26.gang-table>
+        </c-slot>
+        <c-slot name="changelog">
+            <c-n26.changelog href="#">
+                {% for entry in dashboard_changelog %}
+                    <c-n26.changelog.entry title="{{ entry.title }}" date="{{ entry.date }}" href="#">
+                        {{ entry.text }}
+                    </c-n26.changelog.entry>
+                {% endfor %}
+            </c-n26.changelog>
+        </c-slot>
+    </c-n26.view.dashboard>
+{% endblock content %}
+{% block extra_body %}
+    {% comment %}
+    Below the content and outside its container, which is what extra_body is for —
+    and saying so here is the cheapest way to prove the block lands where the
+    shell's documentation claims.
+    {% endcomment %}
+    <div class="n26-site-container pb-6">
+        <c-n26.prose>
+            <p class="text-sm text-muted">
+                Everything above this line is <code>n26/layouts/base.html</code>
+                and the page it is wrapping. The blocks are v1's, unchanged:
+                <code>head_title</code>, <code>stylesheet</code>, <code>body</code>,
+                <code>content</code>, <code>extra_body</code> and
+                <code>extra_script</code>, plus <code>favicon</code> and
+                <code>footer</code>, which v1 hard-codes and this one lets a page
+                replace. This paragraph is in <code>extra_body</code>.
+            </p>
+        </c-n26.prose>
+    </div>
+{% endblock extra_body %}

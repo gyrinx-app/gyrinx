@@ -1,0 +1,116 @@
+{% comment %}
+<c-n26.form-page> — the wrapper every form screen shares.
+
+    <c-n26.form-page action="/gangs/new/" title="Create a gang"
+                     lead="A gang is a name and a type." submit_label="Create gang">
+        <c-slot name="breadcrumb">…c-ui.breadcrumbs…</c-slot>
+        <c-n26.form-section title="General">…</c-n26.form-section>
+    </c-n26.form-page>
+
+There is one of these, and every form uses it. It exists because there were two:
+create-gang was max-w-2xl with space-y-8 and hire was max-w-3xl with space-y-4,
+which is not a decision anybody made — it is two screens written a week apart.
+Two wrappers means two measures, two rhythms and two ideas of where the heading
+sits, and a reader moving between them sees a different application.
+
+So the measure, the vertical rhythm, the header and the footer live here, and a
+form view supplies its fields and nothing else about the frame.
+
+  --- what it fixes ---
+
+max-w-3xl and left-aligned. A cap rather than a width, so a narrow window
+shrinks the fields rather than scrolling them, and left because everything else
+on the page — nav, breadcrumb, heading — is anchored there.
+
+space-y-8 between sections, space-y-5 within one (c-n26.form-section's own), so
+the gap between groups is visibly larger than the gap between fields. That is
+what makes a group read as a group without a box around it.
+
+  --- the footer is optional ---
+
+`submit_label` draws the primary action above a rule at the end. A form whose
+submit lives somewhere else leaves it out and gets no footer at all — the hire
+screen does, because every Hire button in its list is a submit and a Create at
+the bottom would be a second answer to a question already answered.
+
+Green, because the library's rule is that the button which brings a thing into
+existence is `success`. Override with `submit_variant` for a form that saves
+rather than creates.
+
+  action, method — where and how it posts. GET for a search form.
+  form — the Django form, for its non-field errors. Fields read it themselves
+    through c-ui.field; this is only the __all__ lookup.
+  title — the page's h1.
+  lead — the line under it. What a reader needs before starting; not a
+    restatement of the fields.
+  breadcrumb — the trail above the title.
+  submit_label — the primary action's wording. Without one there is no footer.
+  submit_variant — that button's variant. `success` by default.
+  actions — a footer of your own, for the rare form needing more than one
+    control. Replaces the generated button.
+  slot — the fields, normally as <c-n26.form-section>s. Goes inside the <form>,
+    so a csrf token can go here too.
+{% endcomment %}
+{% comment %}
+`form` is declared even though only the non-field errors read it. An undeclared
+attribute falls through to {{ attrs }} and would be written onto the <form> tag —
+and a Django form's str() is the whole form rendered as HTML, so it would
+terminate the attribute and dump a second copy of the form into the page. That is
+the same bug the c-ui.error override exists for, and declaring the prop is what
+keeps it out of attrs.
+{% endcomment %}
+<c-vars
+    action=""
+    method="post"
+    title=""
+    lead=""
+    :form="None"
+    submit_label=""
+    submit_variant="success"
+    class=""
+/>
+
+{% comment %}
+Left-aligned, not centred. A form is read top to bottom down one column and the
+page around it — nav, breadcrumb, the h1 — is anchored left; a centred column
+puts the fields somewhere the eye has to find rather than where it already is.
+
+max-w-3xl is the cap, and it is a cap rather than a width: below it the form is
+simply the width of its container, so narrowing the window shrinks the fields
+instead of scrolling them. Nothing inside sets its own measure, which is what
+makes that true — the one thing that did, the picker's list, was overflowing this
+column until it stopped.
+{% endcomment %}
+<form method="{{ method }}" action="{{ action }}" {{ attrs }}
+      class="max-w-3xl space-y-8 {{ class }}">
+    {% comment %}
+    No csrf token of its own: a component has no request, and one that quietly
+    omitted a token would be worse than one that never claimed to. The page
+    embedding this puts {% csrf_token %} in the slot.
+    {% endcomment %}
+
+    <c-n26.page-header title="{{ title }}" lead="{{ lead }}">
+        {% if breadcrumb %}<c-slot name="breadcrumb">{{ breadcrumb }}</c-slot>{% endif %}
+    </c-n26.page-header>
+
+    {% comment %}
+    Errors about the submission rather than about any one input, above
+    everything: there is nowhere else to put them that does not attach them to a
+    field they are not about. Only drawn when a form was passed.
+    {% endcomment %}
+    {% if form %}<c-ui.error :form="form" name="__all__" />{% endif %}
+
+    {{ slot }}
+
+    {% comment %}
+    A rule, so the form has a visible end rather than trailing off, and the
+    action right-aligned where the eye finishes the last field.
+    {% endcomment %}
+    {% if actions or submit_label %}
+        <div class="flex justify-end gap-2 border-t border-box-border pt-6">
+            {% if actions %}{{ actions }}{% else %}
+                <c-ui.button type="submit" variant="{{ submit_variant }}">{{ submit_label }}</c-ui.button>
+            {% endif %}
+        </div>
+    {% endif %}
+</form>

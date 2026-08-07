@@ -1,0 +1,154 @@
+{% extends "designsystem/base.html" %}
+{% load designsystem %}
+{% block title %}Tokens{% endblock %}
+{% block mobile_title %}Tokens{% endblock %}
+{% block content %}
+    <div class="mx-auto max-w-4xl" x-data="tokenTable()">
+        <header class="mb-8">
+            <h1 class="text-3xl font-semibold sm:text-4xl">Tokens</h1>
+            <p class="mt-3 max-w-2xl text-lg text-muted">
+                Every custom property the kit reads, with the value it currently resolves to and the
+                Tailwind utility it generates. Values are read from this page as you look at them, so
+                switching mode or applying a theme updates the whole table.
+            </p>
+            <p class="mt-3 text-sm text-muted">
+                Currently showing <span class="font-medium text-accent" x-text="isDark ? 'dark' : 'light'">light</span> mode.
+            </p>
+        </header>
+        <div class="space-y-10">
+            {% for bucket in buckets %}
+                <section>
+                    <h2 class="text-xl font-semibold">{{ bucket.name }}</h2>
+                    <p class="mb-4 mt-1 max-w-3xl text-sm text-muted">{{ bucket.blurb }}</p>
+                    <div class="overflow-x-auto rounded-box border border-box-border">
+                        <table class="w-full text-left text-sm">
+                            <thead class="border-b border-box-border bg-ink-500/5 text-xs uppercase tracking-wider text-muted">
+                                <tr>
+                                    <th class="py-2 pl-4 font-semibold" colspan="2">Token</th>
+                                    <th class="px-4 py-2 font-semibold">Resolves to</th>
+                                    <th class="px-4 py-2 font-semibold">Purpose</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-[var(--color-box-border)]">
+                                {% for token in bucket.tokens %}
+                                    <tr>
+                                        <td class="w-12 py-2.5 pl-4">
+                                            {% if token.kind == 'color' %}
+                                                <span class="block size-6 rounded border border-box-border"
+                                                      style="background: var({{ token.name }})"></span>
+                                            {% elif token.kind == 'font' %}
+                                                <span class="block text-lg leading-6"
+                                                      style="font-family: var({{ token.name }})">Ag</span>
+                                            {% elif token.kind == 'shadow' %}
+                                                <span class="block size-6 rounded bg-surface"
+                                                      style="box-shadow: var({{ token.name }})"></span>
+                                            {% else %}
+                                                <span class="block size-6 border-2 border-accent"
+                                                      style="border-radius: var({{ token.name }})"></span>
+                                            {% endif %}
+                                        </td>
+                                        <td class="whitespace-nowrap py-2.5 pr-4 font-mono text-xs">{{ token.name }}</td>
+                                        <td class="max-w-[16rem] truncate px-4 py-2.5 font-mono text-xs text-muted"
+                                            x-text="value('{{ token.name }}')"
+                                            :title="value('{{ token.name }}')">…</td>
+                                        <td class="px-4 py-2.5 text-xs text-muted">{{ token.purpose }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            {% endfor %}
+        </div>
+        <section class="mt-14">
+            <h2 class="text-xl font-semibold">Type specimen</h2>
+            <p class="mb-4 mt-1 max-w-3xl text-sm text-muted">
+                Mynor is a single variable face covering 300 to 900, so every weight below is
+                the same file — asking for
+                <code class="rounded bg-ink-500/10 px-1.5 py-0.5 text-xs">font-medium</code>
+                costs nothing extra to download.
+                <span x-show="!loaded" x-cloak class="text-accent">Falling back to the system stack.</span>
+            </p>
+            <div class="overflow-hidden rounded-box border border-box-border">
+                <div class="divide-y divide-[var(--color-box-border)]">
+                    {% for weight, label in weights %}
+                        <div class="flex items-baseline gap-4 px-4 py-3">
+                            <span class="w-28 shrink-0 font-mono text-xs text-muted">{{ weight }} {{ label }}</span>
+                            <span class="truncate text-2xl" style="font-weight: {{ weight }}">Ash Wastes Nomads</span>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="mt-4 overflow-hidden rounded-box border border-box-border">
+                <div class="divide-y divide-[var(--color-box-border)]">
+                    {% for cls, label in sizes %}
+                        <div class="flex items-baseline gap-4 px-4 py-3">
+                            <span class="w-28 shrink-0 font-mono text-xs text-muted">{{ cls }}</span>
+                            <span class="{{ cls }}">{{ label }}</span>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </section>
+        <section class="mt-14 rounded-box border border-box-border bg-surface p-6">
+            <h2 class="text-lg font-semibold">Utilities these generate</h2>
+            <p class="mt-2 text-sm leading-relaxed text-muted">
+                Tokens declared in Tailwind's <code class="rounded bg-ink-500/10 px-1.5 py-0.5 text-xs">@theme</code>
+                block also produce utility classes, which is why you can write them straight into
+                markup. Opacity modifiers work as usual —
+                <code class="rounded bg-ink-500/10 px-1.5 py-0.5 text-xs">bg-accent/10</code>.
+            </p>
+            <div class="mt-4 flex flex-wrap gap-2 text-xs">
+                {% for utility in "text-muted,text-accent,bg-accent,bg-surface,bg-input-bg,bg-accent-muted,border-box-border,rounded-control,rounded-box,rounded-button,focus-ring,text-ink-500"|split:"," %}
+                    <code class="rounded-control bg-ink-500/10 px-2 py-1">{{ utility }}</code>
+                {% endfor %}
+            </div>
+            <p class="mt-4 text-sm leading-relaxed text-muted">
+                Note the exception:
+                <code class="rounded bg-ink-500/10 px-1.5 py-0.5 text-xs">--color-bg</code> and
+                <code class="rounded bg-ink-500/10 px-1.5 py-0.5 text-xs">--surface-level</code> are
+                declared on <code class="rounded bg-ink-500/10 px-1.5 py-0.5 text-xs">:root</code>
+                rather than in <code class="rounded bg-ink-500/10 px-1.5 py-0.5 text-xs">@theme</code>,
+                so there is no <code class="rounded bg-ink-500/10 px-1.5 py-0.5 text-xs">bg-bg</code>
+                utility — reach for the variable directly if you need it.
+            </p>
+        </section>
+    </div>
+{% endblock %}
+{% block scripts %}
+    <script>
+document.addEventListener('alpine:init', () => {
+    Alpine.data('tokenTable', () => ({
+        tick: 0,
+        isDark: document.documentElement.classList.contains('dark'),
+
+        // Mynor comes off the network, so say plainly when the specimen below is
+        // really the fallback stack rather than the typeface.
+        loaded: true,
+
+        init() {
+            document.fonts.ready.then(() => {
+                this.loaded = document.fonts.check('1em "mynor-variable"');
+            });
+
+            this._observer = new MutationObserver(() => {
+                this.isDark = document.documentElement.classList.contains('dark');
+                this.tick++;
+            });
+            this._observer.observe(document.documentElement, {
+                attributes: true,
+                attributeFilter: ['class', 'style'],
+            });
+        },
+
+        destroy() { this._observer?.disconnect(); },
+
+        value(name) {
+            this.tick;  // dependency, so the cell re-renders on theme changes
+            return getComputedStyle(document.documentElement)
+                .getPropertyValue(name).trim() || '—';
+        },
+    }));
+});
+    </script>
+{% endblock %}

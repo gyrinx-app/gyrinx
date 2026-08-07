@@ -1,0 +1,9 @@
+{# title: In a filter bar #}
+{# note: What it is for: several toggles sitting on the same centre line as dropdown triggers. #}
+{# layout: full #}
+<c-n26.action-bar>
+    <c-n26.filter-menu label="House" name="house" :options="houses" />
+    <c-n26.toggle name="mine" label="Your lists only" :checked="True" />
+    <c-n26.toggle name="archived" label="Archived" />
+    <c-n26.toggle name="campaign" label="In a campaign" />
+</c-n26.action-bar>

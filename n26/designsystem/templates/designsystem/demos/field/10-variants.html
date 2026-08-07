@@ -1,0 +1,11 @@
+{# title: Layout variants #}
+{# note: block stacks label over control, inline puts them on one row, and toggle pushes the control to the far right — which is what the settings-row look is made of. #}
+{# layout: col #}
+<c-ui.field label="Project name" description="Shown in the sidebar and in URLs.">
+    <c-ui.input name="project" placeholder="n26" />
+</c-ui.field>
+<c-ui.field variant="toggle"
+            label="Email notifications"
+            description="Digest of activity, once a day.">
+    <c-ui.switch name="notify" />
+</c-ui.field>

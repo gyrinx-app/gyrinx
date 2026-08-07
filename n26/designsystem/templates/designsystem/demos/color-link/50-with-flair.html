@@ -1,0 +1,16 @@
+{# title: Alongside flair-link #}
+{# note: The two siblings: a swatch in front from color-link, a badge behind from flair-link. Both hang off c-n26.link's leading and trailing slots, so both stay clear of the underline. #}
+{# layout: col #}
+<div>
+    <c-n26.color-link color="#8d9900" href="/design/" underline="always">
+        Colour in front
+    </c-n26.color-link>
+</div>
+<div>
+    <c-n26.flair-link text="Badge behind"
+                      href="/design/"
+                      underline="always"
+                      label="Gyrinx staff">
+        <c-n26.flair.staff />
+    </c-n26.flair-link>
+</div>

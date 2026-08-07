@@ -15,6 +15,7 @@ dependencies = [
     "Django==6.0.7",
     "django-allauth==65.18.0",
     "django-cotton==2.7.2",
+    "django-cotton-ui==0.3.2",
     "django-csp==4.0",
     "django-debug-toolbar==7.0.0",
     "django-extensions==4.1",
@@ -52,6 +53,8 @@ dependencies = [
     "playwright==1.61.0",
     "pre-commit==4.6.0",
     "psycopg[binary,pool]==3.3.4",
+    "pygments==2.20.0",
+    "python-ulid==4.0.1",
     "pyasn1==0.6.4",
     "pydantic==2.13.4",
     "pydot==4.0.1",
@@ -203,7 +206,7 @@ custom_html = "c-[\\w.-]+"
 # excluded for the same path in .pre-commit-config.yaml.
 # Golden HTML snapshots are RENDERED OUTPUT, not templates. djlint --reformat
 # rewrites them (verified: "16 files would be updated"), which would silently
-extend_exclude = "gyrinx/templates/cotton"
+extend_exclude = "gyrinx/templates/cotton,n26/core/templates/cotton"
 
 [tool.bandit]
 exclude_dirs = [

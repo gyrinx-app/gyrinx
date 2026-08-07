@@ -1,0 +1,139 @@
+{% comment %}
+<c-n26.range-menu> — a bound on a number, as a slider in a dropdown.
+
+    {# one thumb: a ceiling #}
+    <c-n26.range-menu label="Price" model="maxCost"
+                      min="0" max="200" step="5"
+                      prefix="≤ " suffix="¢" at_max_label="Any" />
+
+    {# two thumbs: a floor and a ceiling #}
+    <c-n26.range-menu label="Price" model_min="minCost" model_max="maxCost"
+                      min="0" max="200" step="5"
+                      suffix="¢" at_max_label="Any" />
+
+The third of the menu family, after <c-n26.filter-menu> (many of a set) and
+<c-n26.choice-menu> (one of a set). This is the numeric one: a range you narrow.
+
+A slider is the wrong shape for a toolbar — it wants width, and a row of them
+pushes everything else off a phone — but it is the right shape for "how much",
+because the useful gesture is drag-until-the-list-looks-right rather than type
+a number. Putting it behind a trigger keeps both: the control gets its width
+when open, and the bar keeps a button-sized thing that reads at a glance.
+
+Which is what the trigger is for. It states the bound rather than the label
+alone — "Cost ≤ 80¢", or "Cost 20–80¢" with two thumbs — so a filter bar can be
+read without opening anything. at_max_label replaces that with a word when the
+slider excludes nothing, because a bound that filters nothing should not look
+like a filter.
+
+No OK or Cancel, unlike filter-menu. The value applies as it moves: you are
+watching the list respond, so a confirm step would ask you to approve something
+you have already seen happen. Nothing to snapshot, either.
+
+  label — trigger text.
+  model — one Alpine expression, for the one-thumb form: a ceiling.
+  model_min, model_max — two expressions, for the two-thumb form. Setting both
+    switches this to two thumbs; `model` is then ignored.
+  min, max, step — the slider's range.
+  prefix, suffix — wrap the value in the trigger. "≤ " and "¢" give "≤ 80¢".
+    Two thumbs read "20–80¢", so a prefix is usually left off there.
+  at_min_label, at_max_label — words to show instead of the number at each end,
+    for the cases where the number does not say what it means ("Any", not
+    "≤ 200¢"; "Common only", not "≤ R0").
+  align, position, min_width — passed through to the dropdown.
+{% endcomment %}
+<c-vars
+    label="Range"
+    model=""
+    model_min=""
+    model_max=""
+    min="0"
+    max="100"
+    step="1"
+    prefix=""
+    suffix=""
+    at_min_label=""
+    at_max_label=""
+    align="start"
+    position="bottom"
+    min_width="16rem"
+/>
+
+<div class="inline-block" {{ attrs }}>
+    <c-ui.dropdown align="{{ align }}" position="{{ position }}" min_width="{{ min_width }}">
+        <c-slot name="trigger">
+            {% comment %}
+            sm, a notch under the kit's default. This sits in the row beneath
+            a search bar, refining what the search returned — the search is
+            the control a reader reaches for, and a row of full-size buttons
+            under a full-size field reads as two bars of chrome before the
+            list gets a pixel.
+            {% endcomment %}
+            <c-ui.button size="sm" variant="primary">
+                <span class="flex items-center justify-center gap-1.5">
+                    {{ label }}
+                    {% comment %}
+                    Spans rather than one expression, because the end labels are
+                    template text and building the string inside the binding
+                    would mean quoting Django output into JavaScript.
+
+                    Exactly one shows. Which conditions are needed is known here
+                    — an end label either exists or it does not — so Django
+                    writes them and Alpine only evaluates them.
+                    {% endcomment %}
+                    <span class="tabular-nums opacity-80">
+                        {% if model_min and model_max %}
+                            {% if at_max_label %}<span x-show="{{ model_min }} <= {{ min }} && {{ model_max }} >= {{ max }}" x-cloak>{{ at_max_label }}</span>{% endif %}
+                            <span{% if at_max_label %} x-show="!({{ model_min }} <= {{ min }} && {{ model_max }} >= {{ max }})" x-cloak{% endif %}>{{ prefix }}<span x-text="{{ model_min }}"></span>&ndash;<span x-text="{{ model_max }}"></span>{{ suffix }}</span>
+                        {% else %}
+                            {% if at_min_label %}<span x-show="{{ model }} <= {{ min }}" x-cloak>{{ at_min_label }}</span>{% endif %}
+                            {% if at_max_label %}<span x-show="{{ model }} >= {{ max }}" x-cloak>{{ at_max_label }}</span>{% endif %}
+                            <span{% if at_min_label and at_max_label %} x-show="{{ model }} > {{ min }} && {{ model }} < {{ max }}" x-cloak
+                                 {% elif at_min_label %} x-show="{{ model }} > {{ min }}" x-cloak
+                                 {% elif at_max_label %} x-show="{{ model }} < {{ max }}" x-cloak{% endif %}>{{ prefix }}<span x-text="{{ model }}"></span>{{ suffix }}</span>
+                        {% endif %}
+                    </span>
+                    <c-n26.icon name="chevron-down" class="size-4" stroke_width="2" />
+                </span>
+            </c-ui.button>
+        </c-slot>
+
+        <div class="p-4">
+            <div class="mb-3 flex items-baseline justify-between gap-4 text-sm">
+                <span class="font-medium text-ink-900 dark:text-ink-100">{{ label }}</span>
+                <span class="tabular-nums text-ink-900 dark:text-ink-100">
+                    {% if model_min and model_max %}
+                        {{ prefix }}<span x-text="{{ model_min }}"></span>&ndash;<span x-text="{{ model_max }}"></span>{{ suffix }}
+                    {% else %}
+                        {{ prefix }}<span x-text="{{ model }}"></span>{{ suffix }}
+                    {% endif %}
+                </span>
+            </div>
+
+            {% comment %}
+            Both forms are c-n26.range-slider rather than c-ui.range for the one
+            thumb — see that component for why. Short version: a Clear button
+            has to be able to move the slider, and the kit's cannot be moved
+            from outside. It takes no starting value because it holds no state:
+            it renders the caller's variables, so it is already wherever they
+            are.
+            {% endcomment %}
+            <c-n26.range-slider
+                {% if model_min and model_max %}
+                    model_min="{{ model_min }}" model_max="{{ model_max }}"
+                {% else %}
+                    model="{{ model }}"
+                {% endif %}
+                min="{{ min }}" max="{{ max }}" step="{{ step }}" />
+
+            {% comment %}
+            The two ends written out under the track. A slider with no scale is a
+            guess — you cannot tell 80 out of 200 from 80 out of 100 by looking.
+            {% endcomment %}
+            <div class="mt-1 flex justify-between text-xs text-muted">
+                <span>{{ at_min_label|default:min }}</span>
+                <span>{{ at_max_label|default:max }}</span>
+            </div>
+        </div>
+    </c-ui.dropdown>
+</div>

@@ -1,0 +1,37 @@
+{% comment %}
+The worksheet specimen: blank cards, to be filled in with a pencil.
+
+The half of printed matter that has no data behind it at all, and the reason
+<c-n26.print.field> exists as its own component rather than as an empty entry.
+It is also the case that tests <c-n26.print.column spread>: with no content to
+size to, the boxes have to be spread down the card deliberately, or they bunch
+at the top and leave the bottom third of the paper unused.
+{% endcomment %}
+<c-n26.print.grid columns="{{ options.columns }}" gutter="{{ gutter_css }}">
+    {% for _ in blanks %}
+        <c-n26.print.card height="{{ card_height_css }}">
+            <c-slot name="foot">
+                <c-n26.print.field label="XP" height="4mm" label_width="11mm" />
+                <c-n26.print.field label="Notes" height="9mm" label_width="11mm" />
+            </c-slot>
+            {% comment %}
+            Name across the top as a field rather than as the card's title:
+            there is nothing to print, and a head band with no text in it is
+            just a rule.
+            {% endcomment %}
+            <c-n26.print.field label="Name" height="7mm" label_width="11mm" />
+            <c-n26.print.columns fill class="n26-print-mt">
+                <c-n26.print.column spread>
+                    {% for label in worksheet_left %}
+                        <c-n26.print.field label="{{ label }}" height="7mm" label_width="11mm" />
+                    {% endfor %}
+                </c-n26.print.column>
+                <c-n26.print.column spread>
+                    {% for label in worksheet_right %}
+                        <c-n26.print.field label="{{ label }}" height="7mm" label_width="11mm" />
+                    {% endfor %}
+                </c-n26.print.column>
+            </c-n26.print.columns>
+        </c-n26.print.card>
+    {% endfor %}
+</c-n26.print.grid>

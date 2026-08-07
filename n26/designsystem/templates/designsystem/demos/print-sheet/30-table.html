@@ -1,0 +1,40 @@
+{# title: A table that crosses pages #}
+{# layout: full #}
+{# note: The header is a real thead, so it repeats at the top of every page the table reaches — written as an ordinary first row it appears once and every later page is unlabelled numbers. Rows carry break-inside: avoid, which tables honour, being block containers rather than flex items. Column widths are fixed so a table split across the fold does not come out differently aligned on each side. #}
+<c-n26.print.sheet page="a5" margin="6mm" owns_page="" scroll="1">
+    <c-n26.print.table>
+        <c-slot name="head">
+            <tr>
+                {# djlint:off H021 — print column widths live on the cells; print engines read them there #}
+                <th style="width: 46%">Item</th>
+                <th style="width: 24%" class="is-group">Category</th>
+                <th style="width: 15%" class="is-group is-numeric">Cost</th>
+                <th style="width: 15%" class="is-numeric">Rarity</th>
+            </tr>
+        </c-slot>
+        <tr>
+            <td>Autopistol</td>
+            <td class="is-group">Pistols</td>
+            <td class="is-group is-numeric">10¢</td>
+            <td class="is-numeric">Common</td>
+        </tr>
+        <tr>
+            <td>Needle pistol</td>
+            <td class="is-group">Pistols</td>
+            <td class="is-group is-numeric">30¢</td>
+            <td class="is-numeric">R9</td>
+        </tr>
+        <tr>
+            <td>Meltagun</td>
+            <td class="is-group">Special weapons</td>
+            <td class="is-group is-numeric">135¢</td>
+            <td class="is-numeric">R11</td>
+        </tr>
+        <tr>
+            <td>Mesh armour</td>
+            <td class="is-group">Armour</td>
+            <td class="is-group is-numeric">15¢</td>
+            <td class="is-numeric">Common</td>
+        </tr>
+    </c-n26.print.table>
+</c-n26.print.sheet>

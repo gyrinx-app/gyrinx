@@ -1,0 +1,33 @@
+{# title: On a tinted strip #}
+{# note: :surface for a secondary bar — one sitting inside a card or under a heading rather than at the top of a page. The dots come from action-links, not from the bar. #}
+{# layout: full #}
+<div class="space-y-4">
+    <c-n26.action-bar :surface="True">
+        <c-n26.action-links>
+            <c-n26.action-link href="/design/">
+                Log action
+            </c-n26.action-link>
+            <c-n26.action-link href="/design/">
+                View all
+            </c-n26.action-link>
+        </c-n26.action-links>
+    </c-n26.action-bar>
+    <c-n26.action-bar :surface="True">
+        <c-n26.action-links>
+            <c-n26.action-link href="/design/">
+                Attributes
+            </c-n26.action-link>
+            <c-n26.action-link href="/design/">
+                Resources
+            </c-n26.action-link>
+            <c-n26.action-link href="/design/">
+                Add gangs
+            </c-n26.action-link>
+        </c-n26.action-links>
+        <c-slot name="trailing">
+            <c-ui.button size="sm" variant="text">
+                Manage
+            </c-ui.button>
+        </c-slot>
+    </c-n26.action-bar>
+</div>

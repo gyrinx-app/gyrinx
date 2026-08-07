@@ -1,0 +1,13 @@
+{# title: Addons #}
+{# note: Addons are absolutely positioned and pointer-events-none, so they're for decoration — icons, units, currency. A button needs to go beside the field, not inside it. #}
+{# layout: col #}
+<c-ui.input name="search" placeholder="Search components…">
+    <c-slot name="left_addon">
+        <c-n26.icon name="magnifying-glass" class="size-4 text-muted" stroke_width="1.5" />
+    </c-slot>
+</c-ui.input>
+<c-ui.input name="price" value="1250" label="Credits">
+    <c-slot name="right_addon">
+        <span class="text-sm text-muted">cr</span>
+    </c-slot>
+</c-ui.input>

@@ -1,0 +1,35 @@
+{# title: Inline with text #}
+{# note: An icon beside a word has to sit on the word's optical centre, which is not where an inline-flex box lands by default — see .n26-icon-inline in app.css. Wrapping in that class sizes the icon in em and centres it on the cap height, so it follows the text's size and typeface with nothing to tune. #}
+{# layout: col #}
+<p class="text-ink-900 dark:text-ink-100">
+    Ammo rolls are made
+    <span class="n26-icon-inline">
+        <c-n26.icon name="check" stroke_width="2" />
+    </span>
+    after every attack, and a jam
+    <span class="n26-icon-inline">
+        <c-n26.icon name="arrow-uturn-left" />
+    </span>
+    ends the activation.
+</p>
+<p class="text-xs text-ink-900 dark:text-ink-100">
+    The same markup in small print —
+    <span class="n26-icon-inline">
+        <c-n26.icon name="check" stroke_width="2" />
+    </span>
+    still centred, because the size is in em.
+</p>
+<c-n26.action-links>
+    <c-n26.action-link href="/design/">
+        <c-slot name="icon">
+            <c-n26.icon name="pencil" />
+        </c-slot>
+        Edit fighter
+    </c-n26.action-link>
+    <c-n26.action-link href="/design/">
+        <c-slot name="icon">
+            <c-n26.icon name="plus" stroke_width="2" />
+        </c-slot>
+        Add gang
+    </c-n26.action-link>
+</c-n26.action-links>

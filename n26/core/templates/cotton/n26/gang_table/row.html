@@ -1,0 +1,94 @@
+{% comment %}
+<c-n26.gang-table.row> — one gang: what it is called, what it is, what it is worth.
+
+    <c-n26.gang-table.row name="The Ashen Choir" type="Escher (HoB)"
+                          :sheet="sheet" href="/gangs/1/" print_href="/gangs/1/print/" />
+
+The whole row opens the gang, and the buttons on it still work. Exactly one real
+<a> is in the markup — on the name — and .n26-row-link stretches its ::after over
+the row. Wrapping the row in an anchor instead would put two buttons inside a
+link, which no browser handles the same way and no screen reader can announce; a
+click handler on a div would lose the URL, middle-click and keyboard focus.
+
+So: the row is `relative` for the stretch to fill, and the actions are `relative`
+so they paint above it. That is the whole trick, and it is why those two classes
+are on the markup rather than in the CSS rule — which parts of a row stay
+pressable is the row's decision, not the stylesheet's.
+
+  --- the layout ---
+
+One column on a phone, four at md. The name and type lead, the wealth strip sits
+under them on a phone and beside them at width, and the actions go last on a
+phone and right at width. Nothing is dropped: what a gang is worth is the reason
+you came to the list.
+
+  name — the gang's. The link, and the accessible name for the whole row.
+  type — its gang type, under the name.
+  :sheet — a n26.render.GangSheet, for <c-n26.wealth>.
+  href — where the row goes. The edit screen, since that is what a row is for.
+  print_href — the print button's destination. Omitted, no print button.
+{% endcomment %}
+<c-vars name="" type="" :sheet="None" href="" print_href="" class="" />
+
+<div x-data="{ facets: {
+        type: {{ type|json_dumps }},
+        search: {{ name|add:' '|add:type|lower|json_dumps }},
+     } }"
+     x-init="register(facets)"
+     x-show="matches(facets)"
+     x-cloak
+     {% comment %}
+     Fixed tracks once the list is wide enough, not auto. Every row is its own grid — a grid's columns
+     only align within one element — so `auto` sizes each row to its own content
+     and the wealth strips come out a few pixels apart down the page, which reads
+     as a wobble rather than as a column. Naming the widths is what makes five
+     separate grids look like one table.
+
+     The alternative, one grid on the container with the rows as display:contents,
+     costs the row its box: no hover, and nothing for the stretched link to fill.
+     {% endcomment %}
+     class="relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 px-1 py-3
+            hover:bg-ink-500/5 @2xl:grid-cols-[minmax(0,1fr)_17rem_9rem] {{ class }}">
+
+    <div class="col-start-1 row-start-1 min-w-0">
+        <a href="{{ href }}"
+           class="n26-row-link rounded-control text-base font-semibold text-ink-900 focus-ring dark:text-ink-100">
+            {{ name }}
+        </a>
+        <p class="text-sm text-muted">{{ type }}</p>
+    </div>
+
+    {% comment %}
+    Under the name when the list is narrow, beside it when it is wide. Left-aligned either way, so it
+    starts where the name starts rather than floating at the far edge of a row
+    whose other content is on the left.
+    {% endcomment %}
+    <c-n26.wealth :sheet="sheet"
+                  class="col-start-1 row-start-2 justify-self-start @2xl:col-start-2 @2xl:row-start-1" />
+
+    {% comment %}
+    relative, so the buttons sit above the stretched link rather than under it —
+    without this the row swallows every press and Print becomes unreachable.
+
+    Both the same variant. Print was quieter on the argument that the row already
+    edits — but stacked narrow, a bordered button above a bare word reads as
+    one button and one thing that failed to render, and they are peers: Edit is
+    the one the row duplicates, Print is the one it does not.
+    {% endcomment %}
+    {% comment %}
+    Right edge at both widths, stacked when the list is narrow and side by side
+    when it is wide. Spanning
+    both rows so they stay centred against the name and the figures together
+    rather than pinning to one of them — and on the right because that is where a
+    thumb is, and because a row whose actions move left as the screen narrows
+    makes the reader look for them twice.
+    {% endcomment %}
+    <div class="relative col-start-2 row-start-1 row-span-2 flex shrink-0 flex-col
+                items-stretch gap-2 justify-self-end
+                @2xl:col-start-3 @2xl:row-span-1 @2xl:flex-row @2xl:items-center">
+        <c-ui.button size="sm" variant="default" href="{{ href }}">Edit</c-ui.button>
+        {% if print_href %}
+            <c-ui.button size="sm" variant="default" href="{{ print_href }}">Print</c-ui.button>
+        {% endif %}
+    </div>
+</div>

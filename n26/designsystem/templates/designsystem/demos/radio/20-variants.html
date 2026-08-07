@@ -1,0 +1,21 @@
+{# title: Segmented, pill and cards #}
+{# note: The radio group offers a pill variant the checkbox group doesn't. #}
+{# layout: col #}
+<c-ui.radio.group label="Segmented" name="r1" variant="segmented" value="med">
+    <c-ui.radio value="low" label="Low" />
+    <c-ui.radio value="med" label="Medium" />
+    <c-ui.radio value="high" label="High" />
+</c-ui.radio.group>
+<c-ui.radio.group label="Pill" name="r2" variant="pill" value="all">
+    <c-ui.radio value="all" label="All" />
+    <c-ui.radio value="mine" label="Mine" />
+    <c-ui.radio value="archived" label="Archived" />
+</c-ui.radio.group>
+<c-ui.radio.group label="Cards" name="r3" variant="cards" value="open">
+    <c-ui.radio value="open"
+                label="Open campaign"
+                description="Anyone with the link can join." />
+    <c-ui.radio value="invite"
+                label="Invite only"
+                description="You approve each member." />
+</c-ui.radio.group>

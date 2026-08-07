@@ -1,0 +1,35 @@
+{% comment %}
+<c-n26.print.entry> — one labelled thing in a column.
+
+    <c-n26.print.entry label="Skills">Gang Hierarchy, Spring Up</c-n26.print.entry>
+    <c-n26.print.entry label="Lore" stacked>{{ prose }}</c-n26.print.entry>
+    <c-n26.print.entry label="XP" aligned>61/79</c-n26.print.entry>
+
+Two shapes, because printed matter genuinely uses both. Beside, for the short
+comma-joined lists that make up most of a reference card, where stacking would
+spend a line on every heading. Above, for prose, which reads badly squeezed into
+whatever width a heading left it.
+
+The beside form wraps its label to its narrowest — one word per line — so a long
+label like "Legendary Names" costs two short lines rather than reserving a wide
+column and starving the value. `aligned` is the opposite trade: a fixed label
+column, for a run of entries whose values should start at the same x.
+
+The entry is monolithic: an atomic inline-level box, which no fragmentation
+engine is permitted to split. See print.css for why that beats asking with
+break-inside, and for the one case where it is blockified back to an ordinary
+flex row.
+
+  label — the heading. Omit it and the value stands alone, still on its own line.
+  stacked — label above the value.
+  aligned — fixed-width label column instead of a shrink-to-fit one.
+  label_width — that column's width. Only meaningful with `aligned`.
+{% endcomment %}
+<c-vars label="" stacked="" aligned="" label_width="" class="" />
+
+<div {{ attrs }}
+     class="n26-print-entry{% if stacked %} is-stacked{% endif %}{% if aligned %} is-aligned{% endif %} {{ class }}"
+     {% if label_width %}style="--print-label-w: {{ label_width }}"{% endif %}>
+    {% if label %}<div class="n26-print-label n26-print-entry-label">{{ label }}</div>{% endif %}
+    <div class="n26-print-entry-value">{{ slot }}</div>
+</div>

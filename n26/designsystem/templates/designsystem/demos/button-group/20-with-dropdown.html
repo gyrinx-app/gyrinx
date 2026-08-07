@@ -1,0 +1,25 @@
+{# title: With a dropdown on the end #}
+{# note: A dropdown's trigger joins the run like any other button, which is how you get the split caret at the end of a toolbar. #}
+<c-n26.button-group>
+    <c-ui.button>
+        <span class="flex items-center justify-center gap-1.5">
+            <c-n26.icon name="pencil" class="size-4" />
+            Edit
+        </span>
+    </c-ui.button>
+    <c-ui.dropdown align="end">
+        <c-slot name="trigger">
+            <c-ui.button aria-label="More edit actions">
+                <span class="n26-icon-only">
+                    <c-n26.icon name="chevron-down" class="size-3" stroke_width="2.5" />
+                </span>
+            </c-ui.button>
+        </c-slot>
+        <c-ui.dropdown.item>
+            Rename
+        </c-ui.dropdown.item>
+        <c-ui.dropdown.item>
+            Duplicate
+        </c-ui.dropdown.item>
+    </c-ui.dropdown>
+</c-n26.button-group>

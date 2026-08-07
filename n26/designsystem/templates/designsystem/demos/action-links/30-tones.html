@@ -1,0 +1,22 @@
+{# title: Tones #}
+{# note: danger is on action-link rather than on c-n26.link because red is not a theme token the way accent and muted are — and a destructive action sitting in a row of ordinary ones is the case that comes up. #}
+{# layout: col #}
+<c-n26.action-links>
+    <c-n26.action-link href="/design/">
+        Accent, the default
+    </c-n26.action-link>
+    <c-n26.action-link href="/design/" tone="muted">
+        Muted
+    </c-n26.action-link>
+    <c-n26.action-link href="/design/" tone="danger">
+        Delete
+    </c-n26.action-link>
+</c-n26.action-links>
+<c-n26.action-links>
+    <c-n26.action-link href="/design/" underline="always">
+        Always underlined
+    </c-n26.action-link>
+    <c-n26.action-link href="/design/" underline="always" tone="danger">
+        And red
+    </c-n26.action-link>
+</c-n26.action-links>

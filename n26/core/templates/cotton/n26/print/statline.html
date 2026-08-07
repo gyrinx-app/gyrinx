@@ -1,0 +1,74 @@
+{% comment %}
+<c-n26.print.statline> — a set of characteristics on paper, in the book's layout.
+
+    <c-n26.print.statline :statline="card.statline"
+                          type_line="Fighter (Leader)" xp="61/79" />
+
+The paper counterpart of <c-n26.statline layout="book">, rendering the same
+Statline the same way: a row pair per group, so M–Sv sits above Ld–Int exactly
+as the rulebook prints it, and the second row's leftover columns spent on the
+type line and XP rather than left empty.
+
+Where the row breaks is content, not a decision here — it comes from
+is_first_of_group on the stat, and the tint from is_highlighted, so a pack that
+regroups a statline regroups this. The widest group sets the column count and
+every later row lands on the same grid, which is the whole reason for the
+layout: Ld under M, and the eye reads down as well as across.
+
+Two rows rather than one matters more on paper than on screen. Thirteen columns
+across a 97mm card gives each stat about 7mm, and the headings start colliding
+with the values; over two rows they get twice that, and a card that has to be
+readable at arm's length on a table gets legible. On screen the single strip can
+scroll, which is why <c-n26.statline> keeps both and this keeps one — there is
+no scrolling on paper, so the layout that needs it is not an option.
+
+A modified characteristic is marked with a dotted underline, as on screen. It
+cannot say what changed it — the screen card's tooltip has nowhere to go — but a
+printed card that shows an advanced value as though it were the profile's own is
+worse than one that says "look this up".
+
+  :statline — a n26.render.Statline.
+  type_line, xp — the trailing cells on the last row. Omit both and the last
+    group simply ends where it ends.
+{% endcomment %}
+{% load arith %}
+<c-vars :statline="None" type_line="" xp="" class="" />
+
+<table {{ attrs }} class="n26-print-statline {{ class }}">
+    {% comment %}
+    Header rows inside tbody, not thead: the layout interleaves headings with
+    values, and a document may have only one thead and only at the top. Nothing
+    is lost — a statline lives inside a card, which never fragments, so there is
+    no page for a repeating header to repeat onto.
+    {% endcomment %}
+    <tbody>
+        {% for group in statline.groups %}
+            {% comment %}
+            forloop.last is captured here because the cell loops below shadow it,
+            and it is the *group* loop that says which row carries Type and XP.
+            {% endcomment %}
+            {% with last=forloop.last wide=statline.groups.0|length narrow=group|length %}
+                {% with span=wide|sub:narrow|sub:1|at_least:1 %}
+                    <tr>
+                        {% for cell in group %}
+                            <th scope="col" class="{% if cell.highlighted %}is-hl{% endif %}">{{ cell.short_name }}</th>
+                        {% endfor %}
+                        {% if last and type_line %}
+                            <th scope="col" colspan="{{ span }}" class="is-group">Type</th>
+                            <th scope="col" class="is-group">XP</th>
+                        {% endif %}
+                    </tr>
+                    <tr class="{% if not last %}is-pairend{% endif %}">
+                        {% for cell in group %}
+                            <td class="{% if cell.highlighted %}is-hl{% endif %}">{% if cell.modified %}<span class="is-modified">{{ cell.value }}</span>{% else %}{{ cell.value }}{% endif %}</td>
+                        {% endfor %}
+                        {% if last and type_line %}
+                            <td colspan="{{ span }}" class="is-group is-typeline">{{ type_line }}</td>
+                            <td class="is-group">{{ xp }}</td>
+                        {% endif %}
+                    </tr>
+                {% endwith %}
+            {% endwith %}
+        {% endfor %}
+    </tbody>
+</table>

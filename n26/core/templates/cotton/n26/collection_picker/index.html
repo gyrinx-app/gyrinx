@@ -1,0 +1,320 @@
+{% comment %}
+<c-n26.collection-picker> — a long categorised list you filter at the top and act on inline.
+
+    <c-n26.collection-picker :categories="names" cost_ceiling="200" tp_ceiling="12">
+        <c-slot name="filters">
+            <c-n26.range-menu label="Price" model_min="minCost" model_max="maxCost" … />
+        </c-slot>
+        <c-n26.collection-picker.section name="Weapons">
+            <c-n26.collection-picker.category name="Pistols">
+                <c-n26.collection-picker.item name="Autopistol" :cost="10" :trade_points="0">
+                    <c-slot name="actions"><c-ui.button size="sm">Add</c-ui.button></c-slot>
+                    <c-slot name="details">…the whole thing, on demand…</c-slot>
+                </c-n26.collection-picker.item>
+            </c-n26.collection-picker.category>
+        </c-n26.collection-picker.section>
+    </c-n26.collection-picker>
+
+Two tiers, because that is what a collection has: sections hold
+categories hold rows, exactly as n26.browse.CollectionView does. The section
+collapses and the category is a heading inside it — two nested collapses would be
+one too many to thumb through, and the fine structure is what you want visible
+once the coarse one is open. A one-level list is the same thing with the category
+left out; items sitting straight in a section take its name as their own.
+
+Built for a phone first, which decides most of what follows. The filter bar is
+sticky, because a filter you have to scroll back up to reach is one you use
+once. Categories collapse, because thirty items is a lot of thumb. And every
+control narrows the list *as you touch it* — no Apply, no reload — so the loop
+is filter, look, adjust, rather than filter, wait, discover, go back.
+
+  --- how it filters ---
+
+One list of facets on this component, not per group. Items register themselves
+on init — name, category, cost, trade points, exclusivity, searchable text — so the counts, the
+"showing" readout and each group's own visibility are all the same array read
+three ways, and no total is stored anywhere to fall out of date.
+
+matches() is the only predicate. A group asks it how many of its items pass and
+hides itself at zero; an item asks it about itself. That means an empty category
+disappears rather than sitting there as a header with nothing under it, which on
+a phone is most of a screen wasted.
+
+A search forces every group open — findable beats tidy, and a match hidden in a
+collapsed category may as well not be a match. Closing the search puts each
+group back exactly as the reader left it, because `open` was never overwritten.
+
+  --- what it does not own ---
+
+The controls. They go in the `filters` slot and drive this component's state by
+name: `query`, `categories`, `minCost`, `maxCost`, `maxTradePoints` and
+`includeExclusive` are in scope for
+anything rendered there, so a call site picks the controls the data deserves
+rather than accepting a fixed bar. c-n26.range-menu and c-n26.toggle write to
+them directly — and read back from them, which is what lets Clear filters move
+a slider rather than just the number behind it. c-n26.filter-menu has its own
+Alpine scope and cannot, so it reports via the `filter-apply` event it already
+dispatches, and listens for `filter-reset` to be told.
+
+  :categories — every category name, in order. The starting selection is all of
+    them, and the category filter narrows it.
+  :sections — every section name, in order. Required for the tab strip, and
+    the strip is the default: without them the picker falls back to the stacked
+    form rather than rendering an empty list.
+  tabs — draw the sections as a tab strip and show one at a time, instead of
+    stacking them as collapsibles. One layer of disclosure rather than two.
+  cost_floor, cost_ceiling, tp_ceiling — the ends of each numeric filter,
+    which are also its "no filter" positions. A control that can be reset has
+    to know where "off" is, and only the caller knows what the data spans.
+  filters — the control bar. Rendered inside this component's Alpine scope.
+  empty — what to show when nothing matches.
+{% endcomment %}
+<c-vars
+    :categories="[]"
+    :sections="[]"
+    {% comment %}
+    Tabs by default (Tom, 2026-08-07). Two stacked collapsibles made you press
+    twice to reach the second section — once to shut the first, once to open it —
+    and the tab strip leaves the category as the only thing that collapses, which
+    is the level where having two open at once is actually useful.
+
+    Pass tabs="" for the stacked form, which suits a collection with more
+    sections than fit a strip: a tab hides everything it is not, and that cost
+    grows with the number of them.
+    {% endcomment %}
+    tabs="1"
+    cost_floor="0"
+    cost_ceiling="9999"
+    tp_ceiling="99"
+    noun="items"
+    class=""
+/>
+
+<div {{ attrs }} class="{{ class }}"
+     x-data="{
+        items: [],
+        query: '',
+        categories: {{ categories|json_dumps }},
+        allCategories: {{ categories|json_dumps }},
+        sections: {{ sections|json_dumps }},
+        wantsTabs: {{ tabs|yesno:"true,false" }},
+        // Tabs need something to put in the strip. With no sections the chosen
+        // one is empty, nothing matches it, and the whole list disappears --
+        // which is what happened the moment tabs became the default and the
+        // first caller that had never needed to pass sections rendered blank.
+        // A default that breaks a caller who does not know about a second prop
+        // is not a default, so this falls back to the stack instead.
+        //
+        // No quote characters in here, either: this whole object is the value of
+        // a double-quoted HTML attribute, so one would end the attribute and
+        // print the rest of the state machine onto the page. It did.
+        get tabbed() { return this.wantsTabs && this.sections.length > 0 },
+        chosenSection: {{ sections.0|default:""|json_dumps }},
+        minCost: {{ cost_floor }},
+        maxCost: {{ cost_ceiling }},
+        maxTradePoints: {{ tp_ceiling }},
+        includeExclusive: true,
+
+        register(facets) { this.items.push(facets) },
+
+        matches(facets) {
+            if (this.query && !facets.search.includes(this.query.trim().toLowerCase())) return false;
+            if (facets.cost < this.minCost || facets.cost > this.maxCost) return false;
+            {% comment %}
+            Exclusive items answer no numeric question. "E" is not a rarity, it
+            is "equipment list only", so it sits in no trade-points range —
+            which means narrowing that slider at all has to drop them, not
+            compare them against it. n26.browse.narrow draws the same line
+            ("Filtering by trade_points drops Exclusive items"), and the two
+            agreeing is the point: the same catalogue filtered on the server and
+            filtered in the hand should not show different things.
+            {% endcomment %}
+            if (facets.exclusive) {
+                if (!this.includeExclusive) return false;
+                if (this.maxTradePoints < {{ tp_ceiling }}) return false;
+            } else if (facets.tradePoints > this.maxTradePoints) {
+                return false;
+            }
+            return true;
+        },
+
+        categoryOn(name) { return this.categories.includes(name) },
+        countIn(name) { return this.items.filter(i => i.category === name && this.matches(i)).length },
+        {% comment %}
+        A section counts what is visible under it, category filter included —
+        otherwise a section whose every category has been filtered away would sit
+        there as a header with nothing inside, which is the thing countIn already
+        prevents one level down.
+        {% endcomment %}
+        {% comment %}
+        Which section is on screen is derived, never stored alongside the
+        filters. Filtering can empty the section a reader picked, and the two
+        ways to handle that are to correct the stored choice — an effect that
+        races the thing that caused it, which <c-n26.range-slider> has a long
+        note about — or to not store a conclusion at all. So `chosenSection` is
+        only what was last pressed, and what is *shown* is that if it still has
+        anything, else the first section that does.
+
+        Which also means the reader's choice survives a filter that empties it:
+        widen the filter again and their tab comes back, because nothing
+        overwrote it.
+        {% endcomment %}
+        get liveSections() { return this.sections.filter(s => this.countInSection(s) > 0) },
+        get visibleSection() {
+            const live = this.liveSections;
+            return live.includes(this.chosenSection) ? this.chosenSection : (live[0] || null);
+        },
+        sectionIsActive(name) { return !this.tabbed || this.visibleSection === name },
+
+        countInSection(name) {
+            return this.items.filter(i =>
+                i.section === name && this.categoryOn(i.category) && this.matches(i)
+            ).length;
+        },
+        get shown() { return this.items.filter(i => this.categoryOn(i.category) && this.matches(i)).length },
+        get total() { return this.items.length },
+        get filtering() {
+            return this.query !== ''
+                || this.categories.length !== this.allCategories.length
+                || this.minCost > {{ cost_floor }}
+                || this.maxCost < {{ cost_ceiling }}
+                || this.maxTradePoints < {{ tp_ceiling }}
+                || !this.includeExclusive;
+        },
+
+        reset() {
+            this.query = '';
+            this.minCost = {{ cost_floor }};
+            this.maxCost = {{ cost_ceiling }};
+            this.maxTradePoints = {{ tp_ceiling }};
+            this.includeExclusive = true;
+            this.categories = this.allCategories.slice();
+            {% comment %}
+            The category menu keeps its own selection, so telling this component
+            is not enough — filter-menu listens for filter-reset by name, which
+            is the mirror of the filter-apply it already sends.
+            {% endcomment %}
+            this.$dispatch('filter-reset', { name: 'category' });
+        },
+
+        toggleAll(open) { this.$dispatch('collection-picker-toggle', { open: open }) },
+     }"
+     @filter-apply.window="if ($event.detail.name === 'category') categories = $event.detail.values">
+
+    {% comment %}
+    Sticky, and the one place a z-index is needed: the dropdown panels a filter
+    opens are inside this bar, so it has to sit above the rows it scrolls over
+    without trapping its own overlays underneath them.
+
+    The background is opaque on purpose. A translucent bar looks better standing
+    still and turns to mush the moment tabular rows slide under it.
+
+    How far down it sticks is the page's business, not this component's: a page
+    with its own fixed header needs the bar to start below it, and a page
+    without one wants zero. So it reads --n26-sticky-top and defaults to 0,
+    which means a call site sets that variable once rather than every sticky
+    thing on the page guessing. Inline, because a `top` utility passed through
+    `class` would tie with this one and let stylesheet order decide.
+    {% endcomment %}
+    <div class="sticky z-20 -mx-1 space-y-2 bg-[var(--color-bg)] px-1 pb-3 pt-1"
+         style="top: var(--n26-sticky-top, 0px)">
+        {{ filters }}
+
+        <div class="flex min-h-6 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-900 dark:text-ink-100">
+            {% comment %}
+            The count is the feedback loop. Sliders and toggles change the list
+            below the fold as often as above it, so a number that moves as you
+            drag is what tells you the control did anything at all.
+            {% endcomment %}
+            <span>
+                <span class="font-semibold tabular-nums" x-text="shown"></span>
+                <span x-show="shown !== total" x-cloak> of <span class="tabular-nums" x-text="total"></span></span>
+                {{ noun }}
+            </span>
+
+            <span x-show="filtering" x-cloak class="flex items-center gap-3">
+                <button type="button" @click="reset()"
+                        class="rounded text-accent hover:underline focus-ring">Clear filters</button>
+            </span>
+
+            <span class="ml-auto flex items-center gap-3">
+                <button type="button" @click="toggleAll(true)"
+                        class="rounded text-accent hover:underline focus-ring">Expand all</button>
+                <button type="button" @click="toggleAll(false)"
+                        class="rounded text-accent hover:underline focus-ring">Collapse all</button>
+            </span>
+        </div>
+    </div>
+
+    {% comment %}
+    Tabs instead of a stack of collapsibles, when the sections are few and named
+    and a reader wants one at a time. One layer of disclosure rather than two:
+    the tab strip replaces the outer collapse entirely, so opening a category is
+    the only thing left to do.
+
+    Worth it when the sections are a small fixed set — Gang List, Brutes,
+    Hangers-on — and worse when they are many or unevenly full, because a tab
+    hides everything it is not.
+
+    A tab with nothing behind it is hidden rather than disabled: an empty tab is
+    not a choice a reader can act on, and leaving it there to be pressed and do
+    nothing is a worse answer than removing it while the filter holds.
+    {% endcomment %}
+    {% if tabs %}
+        {% comment %}
+        The rule under the strip is drawn by the tabs themselves, not by the
+        strip. A parent border plus a thicker child border pulled over it with a
+        negative margin is the usual recipe, and it leaves the active indicator
+        standing one pixel proud of the rail either side of it — which is a
+        double line, and looked like one.
+
+        Here every item carries the same 2px bottom border and the flex row makes
+        them all the same height, so every border lands on the same pixels: one
+        continuous rule, accent under the active tab and box-border everywhere
+        else. The trailing span is what carries it across the width the tabs do
+        not fill.
+        {% endcomment %}
+        <div role="tablist" class="flex flex-wrap gap-x-1">
+            <template x-for="name in sections" :key="name">
+                <button type="button" role="tab"
+                        x-show="countInSection(name) > 0"
+                        x-cloak
+                        :aria-selected="visibleSection === name ? 'true' : 'false'"
+                        @click="chosenSection = name"
+                        class="flex min-h-11 items-center gap-2 border-b-2 px-3 text-sm focus-ring"
+                        :class="visibleSection === name
+                            ? 'border-accent font-semibold text-ink-900 dark:text-ink-100'
+                            : 'border-box-border text-muted hover:text-ink-900 dark:hover:text-ink-100'">
+                    <span x-text="name"></span>
+                    <span class="rounded-full bg-ink-500/10 px-1.5 py-0.5 text-xs tabular-nums"
+                          x-text="countInSection(name)"></span>
+                </button>
+            </template>
+            <span aria-hidden="true" class="min-w-0 flex-1 border-b-2 border-box-border"></span>
+        </div>
+    {% endif %}
+
+    {% comment %}
+    The rule between groups belongs to each group, not to this container as a
+    divide-y. Tailwind's divider keys off the [hidden] attribute, and x-show sets
+    display:none instead — so every hidden category would leave its separator
+    behind and the list would grow stray lines as you filtered.
+
+    The rule *above* the first group is this container's border-top — except
+    under `tabs`, where the strip has already drawn one. Two lines a few pixels
+    apart is what the tab strip's own margin plus this border were producing, and
+    it reads as a mistake rather than as two deliberate rules. Whichever thing is
+    directly above the list owns the line between them.
+    {% endcomment %}
+    <div class="{% if not tabs %}border-t border-box-border{% endif %}">
+        {{ slot }}
+    </div>
+
+    <div x-show="shown === 0" x-cloak class="px-1 py-10 text-center text-sm text-ink-900 dark:text-ink-100">
+        {% if empty %}{{ empty }}{% else %}
+            Nothing matches those filters.
+            <button type="button" @click="reset()"
+                    class="rounded text-accent hover:underline focus-ring">Clear them</button>
+        {% endif %}
+    </div>
+</div>

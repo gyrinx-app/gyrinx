@@ -1,0 +1,11 @@
+{# title: With and without a header #}
+{# note: Setting title, subheading or the header slot switches the card to its two-part layout with a divider. With none of them you get a single padded box. #}
+{# layout: full #}
+<div class="grid gap-4 sm:grid-cols-2">
+    <c-ui.card title="Escher" subheading="Gang · 1,240 credits">
+        <p class="text-sm text-muted">Six fighters, two in recovery. Next battle Thursday.</p>
+    </c-ui.card>
+    <c-ui.card>
+        <p class="text-sm text-muted">No header — just a padded surface.</p>
+    </c-ui.card>
+</div>

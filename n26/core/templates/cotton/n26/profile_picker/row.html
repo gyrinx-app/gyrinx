@@ -1,0 +1,194 @@
+{% comment %}
+<c-n26.profile-picker.row> — one fighter you could hire, configured in place.
+
+    <c-n26.profile-picker.row :entry="entry" limited="1" value="ganger" />
+
+You hire a fighter, not a piece of wargear. So there is exactly one Hire on this
+row, and everything under it is configuration for that one hire: a needle pistol
+is not a thing you buy from this screen, it is a way the Gang Queen you are
+buying can be built.
+
+That makes the options form controls, and which control is not a style choice —
+n26.hire hands us the answer. A group's `choose` is "one" or "any", which is
+radios or checkboxes, and the data layer has already marked the default of every
+one-of group. We render what it says rather than deciding again here.
+
+The price on the row is the price of the configuration currently on screen, and
+it moves as the controls move. A fixed price beside controls that change it is
+worse than no price: it is a number that quietly stops being true.
+
+  --- how the total is worked out ---
+
+Each input carries the total for its own option, and the sum is the base plus
+every checked input's distance from it. That works because of what n26.hire
+builds: each option's card is that option taken *against an otherwise-default
+selection*, so `total_price - base_price` is one option's contribution, and the
+default of a one-of group contributes zero by construction.
+
+Read off the DOM rather than from a table of prices mirrored into Alpine. The
+numbers are already on the page, next to the inputs that decide whether they
+count, and a second copy in JavaScript is a second thing to keep in step. It is
+recomputed on the bubbled `change` rather than derived, because a getter that
+reads the DOM is not reactive — nothing tells Alpine to look again.
+
+This is a preview, not a quote. Options price additively here; anything with an
+interaction gets its real number from the server when the hire is made, the same
+way overspend is the operation's job rather than the form's.
+
+  :entry — a n26.hire.HireEntry.
+  limited — mark this row as counting against the composition limit. The mark is
+    a note, not a gate: refusing is the operation's job, and the rulebook's limit
+    is a thing to correct in the Post-cycle rather than a thing to prevent.
+  value — what this profile submits as, which turns Hire into a submit button for
+    the surrounding form and scopes this row's field names. Without it the row is
+    still a working set of controls, for a call site to wire up itself.
+  field — the name Hire submits under. "profile" by default.
+{% endcomment %}
+<c-vars :entry="None" limited="" value="" field="profile" class="" />
+
+{% comment %}
+Every field on the row is scoped by the profile, because one form holds the whole
+list: without it, the second fighter's radios would join the first fighter's
+group and picking one would silently unpick the other. The server reads the
+scope belonging to the profile that was actually submitted and ignores the rest.
+The composed name is a sketch — a real app has an id here.
+{% endcomment %}
+{% with scope=value|default:entry.name|slugify %}
+<c-n26.collection-picker.item
+    name="{{ entry.name }}"
+    :cost="entry.base_price"
+    keywords="{{ entry.profile_type }}"
+    state="total: {{ entry.base_price }}, base: {{ entry.base_price }},
+           retotal($el) {
+               this.total = [...$el.querySelectorAll('input[data-total]:checked')]
+                   .reduce((sum, input) => sum + (Number(input.dataset.total) - this.base), this.base);
+           }"
+    class="{{ class }}">
+
+    {% comment %}
+    A single-option profile still gets a disclosure, because the card behind it
+    is the point — "inspect before you buy" is not a thing only fighters with
+    choices deserve.
+    {% endcomment %}
+    {% comment %}
+    The mark is the one thing on the row that changes whether a reader should
+    press the button beside it, so it stays at every width — hiding it on the
+    screen most people will use would be hiding it. The slot is passed only when
+    there is a mark, so unmarked rows do not carry an empty span between the name
+    and the price.
+    {% endcomment %}
+    {% if limited %}
+        <c-slot name="meta">
+            <span class="text-xs text-muted"
+                  title="Counts against the Champion, Brute and Hanger-on limit">limited</span>
+        </c-slot>
+    {% endif %}
+
+    {% comment %}
+    The live total, in the same column a fixed price would occupy. tabular-nums
+    so the digits do not jitter as it changes — a number that shifts sideways
+    while you read it draws attention to the wrong thing.
+    {% endcomment %}
+    <c-slot name="price">
+        <span class="tabular-nums" x-text="total + '¢'">{{ entry.base_price }}¢</span>
+    </c-slot>
+
+    {% comment %}
+    A submit button when the row knows what it submits as, and a plain one
+    otherwise. `type` passes through the kit's {{ attrs }}, which it renders
+    *before* its own hardcoded type="button" — and HTML takes the first of a
+    duplicate pair, so this wins. Verified rather than assumed; it is the kind of
+    thing that would silently do nothing.
+
+    The condition is inside the quoted value rather than wrapping the whole
+    attribute. Cotton parses a component's attribute list itself, before Django
+    ever sees the template, and keeping template tags out of the list entirely is
+    the reliable way to stay out of its way.
+    {% endcomment %}
+    {% comment %}
+    Green: this is the button that brings a fighter into existence, and the
+    library marks the committing action apart from one that navigates or saves.
+    It is also this form's only submit, so the colour and the consequence are the
+    same thing here.
+    {% endcomment %}
+    <c-slot name="actions">
+        <c-ui.button size="sm" variant="success"
+                     type="{% if value %}submit{% else %}button{% endif %}"
+                     name="{{ field }}" value="{{ value }}">Hire</c-ui.button>
+    </c-slot>
+
+    {% if entry.offers_a_choice %}
+        <c-slot name="rows">
+            {% comment %}
+            One change listener for the whole block rather than one per input:
+            `change` bubbles, and forty rows of individually-bound handlers is
+            forty times the work for the same answer.
+            {% endcomment %}
+            <div @change="retotal($el)">
+                {% for group in entry.groups %}
+                    {% comment %}
+                    A group with one option is not a choice. The default axis of a
+                    fighter who can only be hired one way is exactly that, and
+                    drawing a lone radio next to "As standard" asks a reader to
+                    consider something they cannot change.
+                    {% endcomment %}
+                    {% if group.options|length > 1 or group.name %}
+                        {% comment %}
+                        Named groups get a header saying which question this is
+                        and how many answers it takes. The default axis gets none:
+                        it has no name to print, and the fighter's own row is
+                        directly above it saying what is being configured.
+                        {% endcomment %}
+                        {% if group.name %}
+                            <div class="flex min-h-8 items-center gap-2 pt-1">
+                                <span class="text-xs font-semibold uppercase tracking-wide text-muted">{{ group.name }}</span>
+                                <span class="text-xs text-muted">{% if group.choose == "one" %}choose one{% else %}choose any{% endif %}</span>
+                            </div>
+                        {% endif %}
+
+                        {% for option in group.options %}
+                            {% comment %}
+                            The whole line is the label, so the hit target is the
+                            row rather than a control the width of a fingertip —
+                            this list is read on a phone.
+
+                            The surcharge follows the name rather than sitting in
+                            the price column on the right. It cannot line up with
+                            the total above it — that column is followed by a
+                            Hire button and this line is not — and a number an
+                            inch out from the one it modifies reads as a mistake.
+                            It is also a different kind of number: "+30¢" is what
+                            this option adds, and the only figure anyone is
+                            charged is the fighter's total on the row.
+                            {% endcomment %}
+                            <label class="flex min-h-9 cursor-pointer items-center gap-2 rounded-control py-0.5 hover:bg-ink-500/5">
+                                <input type="{% if group.choose == 'one' %}radio{% else %}checkbox{% endif %}"
+                                       name="{{ scope }}:{{ forloop.parentloop.counter0 }}"
+                                       value="{{ forloop.counter0 }}"
+                                       data-total="{{ option.total_price }}"
+                                       {% if option.is_default %}checked{% endif %}
+                                       class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
+                                <span class="min-w-0 text-sm text-ink-900 dark:text-ink-100 sm:truncate">{{ option.name }}</span>
+                                {% if option.price %}
+                                    <span class="shrink-0 text-xs text-muted">+{{ option.price }}¢</span>
+                                {% endif %}
+                            </label>
+                        {% endfor %}
+                    {% endif %}
+                {% endfor %}
+            </div>
+        </c-slot>
+    {% endif %}
+
+    {% comment %}
+    The default option's card, and only ever that one. Which card to show when
+    there are several is a real question, and this is the honest answer: the one
+    a fighter starts as before anything under it is touched. Following the
+    controls would mean a card per combination, which is the explosion n26.hire
+    groups options to avoid.
+    {% endcomment %}
+    <c-slot name="details">
+        <c-n26.model-card :card="entry.default_option.card" />
+    </c-slot>
+</c-n26.collection-picker.item>
+{% endwith %}

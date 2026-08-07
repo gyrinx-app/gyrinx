@@ -1,0 +1,24 @@
+{# title: Only the text is underlined #}
+{# note: The point of the component. Underlining the <a> would draw a rule under the badge too; the decoration is on an inner span instead. Hover the first one, and compare with always. #}
+{# layout: col #}
+<div>
+    <c-n26.flair-link text="Underline on hover" href="/design/" label="Gyrinx staff">
+        <c-n26.flair.staff />
+    </c-n26.flair-link>
+</div>
+<div>
+    <c-n26.flair-link text="Always underlined"
+                      href="/design/"
+                      underline="always"
+                      label="Gyrinx staff">
+        <c-n26.flair.staff />
+    </c-n26.flair-link>
+</div>
+<div>
+    <c-n26.flair-link text="Never underlined"
+                      href="/design/"
+                      underline="none"
+                      label="Gyrinx staff">
+        <c-n26.flair.staff />
+    </c-n26.flair-link>
+</div>

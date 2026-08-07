@@ -1,0 +1,336 @@
+"""Spec-generated forms and the modifier composer.
+
+Step 2 of design/authoring-build-plan.md. The tests hold the form layer
+to the same standard as the specs beneath it:
+
+* a valid composer submit produces **exactly the example object's
+  rows** — "Brawler leader: combat primary", all three, auto-named
+  with the modifier's own sentence;
+* refusals are **words at form level**: a section of the wrong
+  collection, an effect that cannot apply to a scope — never a
+  database constraint error after rows exist;
+* ``keep_reusable`` leaves the modifier unattached, and
+  ``attach_modifiers_to`` hangs it on carriers later;
+* the union picker creates name-only leaves inline, with the copyright
+  guardrail as its help.
+
+Form data everywhere is what a real POST would carry — prefixed panes
+(``who-``, ``what-``), a management-formed ``conditions-`` formset —
+because the preview endpoint (step 3) will take exactly this shape.
+"""
+
+import inspect
+
+import pytest
+
+from n26.library.forms import (
+    EFFECT_MODELS,
+    NAME_ONLY_HELP,
+    SCOPE_PRODUCES,
+    ModifierComposerForm,
+    condition_formset_for,
+    generate_form,
+)
+from n26.library.specs import specs
+from n26.tests.sandbox.actions import (
+    create_archetype,
+    create_category,
+    create_collection,
+    create_subtype,
+    create_trait,
+    section_of,
+)
+
+pytestmark = pytest.mark.django_db
+
+
+def no_conditions():
+    return {
+        "conditions-TOTAL_FORMS": "0",
+        "conditions-INITIAL_FORMS": "0",
+    }
+
+
+def one_condition(kind, **fields):
+    return {
+        "conditions-TOTAL_FORMS": "1",
+        "conditions-INITIAL_FORMS": "0",
+        "conditions-0-kind": kind,
+        **{f"conditions-0-{name}": value for name, value in fields.items()},
+    }
+
+
+@pytest.fixture
+def skills_and_powers(default_pack):
+    collection = create_collection("Skills & Powers")
+    return collection, {
+        "primary": section_of(collection, "Primary", 0),
+        "secondary": section_of(collection, "Secondary", 1),
+    }
+
+
+class TestTheTablesDontDrift:
+    """The form layer's two lookup tables, checked against the model
+    layer and the registry they mirror — never trusted."""
+
+    def test_scope_produces_matches_possible_kinds(self, default_pack):
+        from n26.library.models.modifier import _possible_kinds
+        from n26.library.specs import specs as registry
+
+        for verb_name, expected in SCOPE_PRODUCES.items():
+            scope = registry()[verb_name].compile({})  # every scope compiles bare
+            (target,) = _possible_kinds(scope)
+            assert target.kind == expected, verb_name
+
+    def test_every_effect_verb_has_a_model(self):
+        effect_verbs = {name for name in specs() if name.startswith(("ef_", "op_"))}
+        assert set(EFFECT_MODELS) == effect_verbs
+
+
+class TestGeneratedForms:
+    def test_requiredness_reads_off_the_verbs_signature(self):
+        form_class = generate_form(specs()["ef_requires_companions"])
+        form = form_class()
+        assert form.fields["for_each"].required  # no default on the verb
+        assert form.fields["at_least"].required
+        form_class = generate_form(specs()["ef_offers_choice"])
+        form = form_class()
+        assert form.fields["model"].required
+        assert not form.fields["from_section"].required  # defaults to None
+        assert not form.fields["label"].required
+
+    def test_help_is_the_model_fields_words(self):
+        form = generate_form(specs()["ef_offers_choice"])()
+        from n26.library.models import OffersChoice
+
+        assert form.fields["from_section"].help_text == str(
+            OffersChoice._meta.get_field("from_section").help_text
+        )
+
+    def test_a_valid_form_compiles_to_the_verb_call(self, skills_and_powers):
+        collection, tiers = skills_and_powers
+        create_category("Skills", "Combat")
+        form = generate_form(specs()["ef_places_choice"])(
+            {"section": str(tiers["primary"].pk)}
+        )
+        assert form.is_valid(), form.errors
+        effect = form.compile()
+        assert str(effect) == "puts the chosen set under Primary (Skills & Powers)"
+
+    def test_the_wrong_collections_section_refuses_in_words(self, skills_and_powers):
+        """The plan's example error, verbatim in shape: the section
+        belongs to another collection than the one being worked in."""
+        collection, tiers = skills_and_powers
+        archetypes = create_collection("Archetypes")
+        pick = section_of(archetypes, "Pick", 0)
+        form = generate_form(specs()["ef_places_choice"])(
+            {"section": str(pick.pk)}, collection=collection
+        )
+        assert not form.is_valid()
+        assert form.errors["section"] == [
+            "That section belongs to Archetypes, not Skills & Powers."
+        ]
+
+    def test_the_condition_formset_requires_the_chosen_kinds_fields(self, default_pack):
+        formset = condition_formset_for(
+            specs()["targets_model"], one_condition("has_subtypes")
+        )
+        assert not formset.is_valid()
+        assert formset.errors[0]["subtypes"] == [
+            "A has_subtypes condition needs subtypes."
+        ]
+
+
+class TestTheUnionPicker:
+    def test_picking_an_existing_thing(self, default_pack):
+        mounted = create_subtype("Mounted")
+        form = generate_form(specs()["ef_adds"])(
+            {"thing_kind": "subtype", "thing_subtype": str(mounted.pk)}
+        )
+        assert form.is_valid(), form.errors
+        assert str(form.compile()) == "adds Mounted"
+
+    def test_naming_a_new_rule_creates_it_at_compile(self, default_pack):
+        """The create-inline, with the copyright guardrail as its help."""
+        from n26.library.models import Rule
+
+        form_class = generate_form(specs()["ef_adds"])
+        assert form_class().fields["thing_new_rule"].help_text == NAME_ONLY_HELP
+
+        form = form_class(
+            {"thing_kind": "rule", "thing_new_rule": "Cult of Personality"}
+        )
+        assert form.is_valid(), form.errors
+        assert not Rule.objects.filter(name="Cult of Personality").exists()
+        effect = form.compile()
+        assert str(effect) == "adds Cult of Personality"
+        assert Rule.objects.filter(name="Cult of Personality").exists()
+
+    def test_neither_picked_nor_named_refuses_in_words(self, default_pack):
+        form = generate_form(specs()["ef_adds"])({"thing_kind": "rule"})
+        assert not form.is_valid()
+        assert form.errors["thing_rule"] == ["Pick or name a rule."]
+
+    def test_both_picked_and_named_refuses_in_words(self, default_pack):
+        from n26.tests.sandbox.actions import create_rule
+
+        existing = create_rule("Overheat!")
+        form = generate_form(specs()["ef_adds"])(
+            {
+                "thing_kind": "rule",
+                "thing_rule": str(existing.pk),
+                "thing_new_rule": "Overheats More!",
+            }
+        )
+        assert not form.is_valid()
+        assert form.errors["thing_rule"] == [
+            "Pick an existing rule or name a new one, not both."
+        ]
+
+    def test_the_labels_never_show_the_field_stem(self, default_pack):
+        """The names carry the spec field's stem so several unions can
+        share a form; the words never do — Django's generated labels
+        would read "Thing new subtype"."""
+        form = generate_form(specs()["add_built_in"])()
+        assert form.fields["thing_kind"].label == "Kind"
+        assert form.fields["thing_subtype"].label == "Subtype"
+        assert form.fields["thing_weapon_profile"].label == "Weapon profile"
+        assert form.fields["thing_new_subtype"].label == "New subtype"
+        # The kind dropdown speaks the same way, keeping raw values.
+        assert ("weapon_profile", "weapon profile") in form.fields["thing_kind"].choices
+
+    def test_every_control_says_which_kind_it_belongs_to(self, default_pack):
+        """The markers base.html's script reads to show only the chosen
+        kind's picker. Hints, not structure: strip the script and every
+        control shows, and the form still works."""
+        form = generate_form(specs()["add_built_in"])()
+        assert "data-union-kind" in str(form["thing_kind"])
+        assert 'data-union-member="collection"' in str(form["thing_collection"])
+        assert 'data-union-member="weapon_profile"' in str(form["thing_weapon_profile"])
+        assert 'data-union-member="rule"' in str(form["thing_new_rule"])
+
+
+class TestTheComposer:
+    def brawler_leader_data(self, leader, combat_category, primary):
+        """The submit that is the plan's worked example."""
+        return {
+            "scope_kind": "targets_model",
+            "effect_kind": "ef_places",
+            **one_condition("has_subtypes", subtypes=[str(leader.pk)]),
+            "what-category": str(combat_category.pk),
+            "what-section": str(primary.pk),
+        }
+
+    def test_a_valid_submit_is_exactly_the_example_objects_rows(
+        self, skills_and_powers
+    ):
+        """Brawler leader: combat primary — WHO, WHAT and glue, one
+        submit, auto-named with the modifier's own sentence."""
+        from n26.library.models import HasSubtypes, Modifier
+
+        collection, tiers = skills_and_powers
+        leader = create_subtype("Outcast Leader")
+        combat = create_category("Skills", "Combat")
+        brawler = create_archetype("Brawler")
+
+        form = ModifierComposerForm(
+            self.brawler_leader_data(leader, combat, tiers["primary"]),
+            attach_to=brawler,
+        )
+        assert form.is_valid(), form.errors
+        row = form.save()
+
+        assert str(row.scope) == "Outcast Leader models"
+        assert str(row.effect) == "puts Combat under Primary (Skills & Powers)"
+        assert row.name == (
+            "Outcast Leader models: puts Combat under Primary (Skills & Powers)"
+        )
+        assert list(brawler.modifiers.all()) == [row]
+        (condition,) = HasSubtypes.objects.filter(scope=row.scope)
+        assert list(condition.subtypes.all()) == [leader]
+        assert Modifier.objects.count() == 1
+
+    def test_a_given_name_beats_the_auto_sentence(self, skills_and_powers):
+        collection, tiers = skills_and_powers
+        leader = create_subtype("Outcast Leader")
+        combat = create_category("Skills", "Combat")
+        brawler = create_archetype("Brawler")
+
+        data = self.brawler_leader_data(leader, combat, tiers["primary"])
+        data["name"] = "Brawler leader: combat primary"
+        form = ModifierComposerForm(data, attach_to=brawler)
+        assert form.is_valid(), form.errors
+        assert form.save().name == "Brawler leader: combat primary"
+
+    def test_incompatible_who_and_what_is_a_form_error_in_words(self, default_pack):
+        """A trait aimed at a model — the models' own refusal, surfaced
+        before any row exists."""
+        from n26.library.models import Modifier, TargetsMiniature
+
+        backstab = create_trait("Backstab")
+        form = ModifierComposerForm(
+            {
+                "scope_kind": "targets_model",
+                "effect_kind": "ef_adds",
+                **no_conditions(),
+                "what-thing_kind": "trait",
+                "what-thing_trait": str(backstab.pk),
+            }
+        )
+        assert not form.is_valid()
+        (error,) = form.non_field_errors()
+        assert "cannot apply" in error
+        assert Modifier.objects.count() == 0
+        assert TargetsMiniature.objects.count() == 0  # nothing written
+
+    def test_keep_reusable_leaves_it_unattached_for_later(self, skills_and_powers):
+        from n26.library.authoring import attach_modifiers_to
+
+        collection, tiers = skills_and_powers
+        leader = create_subtype("Outcast Leader")
+        combat = create_category("Skills", "Combat")
+        brawler = create_archetype("Brawler")
+        crusher = create_archetype("Bone Crusher")
+
+        data = self.brawler_leader_data(leader, combat, tiers["primary"])
+        data["keep_reusable"] = "on"
+        form = ModifierComposerForm(data, attach_to=brawler)
+        assert form.is_valid(), form.errors
+        row = form.save()
+
+        assert not brawler.modifiers.exists()
+        attach_modifiers_to(brawler, [row])
+        attach_modifiers_to(crusher, [row])
+        assert list(brawler.modifiers.all()) == [row]
+        assert list(crusher.modifiers.all()) == [row]
+
+    def test_pane_errors_surface_on_the_composer(self, default_pack):
+        """A missing WHAT field is said as words on the one form the
+        admin is looking at."""
+        form = ModifierComposerForm(
+            {
+                "scope_kind": "targets_model",
+                "effect_kind": "ef_places",
+                **no_conditions(),
+                # what-category and what-section both missing
+            }
+        )
+        assert not form.is_valid()
+        assert any("what category" in error for error in form.non_field_errors())
+
+
+class TestEverySpecGeneratesAForm:
+    """The step's own discovering sweep: no spec may be form-hostile."""
+
+    @pytest.mark.parametrize("name", sorted(specs()), ids=str)
+    def test_the_form_class_builds_and_instantiates(self, name):
+        form = generate_form(specs()[name])()
+        signature = inspect.signature(specs()[name].verb)
+        # Every flat form field is a real verb parameter or a union part.
+        for field_name in form.fields:
+            root = field_name.split("_")[0] if "_" in field_name else field_name
+            assert (
+                field_name in signature.parameters
+                or any(field_name.startswith(f"{p}_") for p in signature.parameters)
+                or root in signature.parameters
+            )

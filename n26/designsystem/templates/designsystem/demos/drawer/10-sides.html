@@ -1,0 +1,34 @@
+{# title: Every edge #}
+{# note: The default slot is the trigger, not the body — the root is display:contents, so your button sits in the layout as if the drawer weren't there. Open it by setting drawerOpen. #}
+<c-ui.drawer title="From the right" description="The default side." side="right">
+    <c-ui.button @click="drawerOpen = true">
+        Right
+    </c-ui.button>
+    <c-slot name="content">
+        <p class="text-sm text-muted">Slides in from the right.</p>
+    </c-slot>
+</c-ui.drawer>
+<c-ui.drawer title="From the left" side="left">
+    <c-ui.button @click="drawerOpen = true">
+        Left
+    </c-ui.button>
+    <c-slot name="content">
+        <p class="text-sm text-muted">Good for navigation.</p>
+    </c-slot>
+</c-ui.drawer>
+<c-ui.drawer title="From the top" side="top">
+    <c-ui.button @click="drawerOpen = true">
+        Top
+    </c-ui.button>
+    <c-slot name="content">
+        <p class="text-sm text-muted">Good for search.</p>
+    </c-slot>
+</c-ui.drawer>
+<c-ui.drawer title="From the bottom" side="bottom">
+    <c-ui.button @click="drawerOpen = true">
+        Bottom
+    </c-ui.button>
+    <c-slot name="content">
+        <p class="text-sm text-muted">The phone-style sheet.</p>
+    </c-slot>
+</c-ui.drawer>

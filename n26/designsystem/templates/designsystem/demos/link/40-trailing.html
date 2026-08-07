@@ -1,0 +1,13 @@
+{# title: The trailing slot #}
+{# note: Content here sits inside the link but outside the underline. It is what c-n26.flair-link uses for its badge, and it works for anything else that should not be underlined. #}
+{# layout: col #}
+<p>
+    <c-n26.link href="https://django-cotton.com/ui" underline="always">
+        django-cotton-ui
+        <c-slot name="trailing">
+            <c-n26.icon name="arrow-top-right-on-square"
+                        class="ml-0.5 inline size-[0.85em] align-[-0.05em]"
+                        stroke_width="2" />
+        </c-slot>
+    </c-n26.link>
+</p>

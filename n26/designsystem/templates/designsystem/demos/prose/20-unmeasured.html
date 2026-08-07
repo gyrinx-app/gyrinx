@@ -1,0 +1,7 @@
+{# title: Inside something that already has a width #}
+{# note: :measure="False" where a card, a column or a dialog already constrains the line length. A second cap would only leave a ragged gap on the right. #}
+<c-ui.card class="max-w-md">
+    <c-n26.prose :measure="False">
+        <p>A description saved against a piece of content, drawn inside the card that already decides how wide it is.</p>
+    </c-n26.prose>
+</c-ui.card>

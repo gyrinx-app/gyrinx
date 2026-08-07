@@ -1,0 +1,48 @@
+{# title: A whole browse screen #}
+{# note: The point of the exercise — search, filters, toggles, a table and pagination composed into the screen they are actually for. Everything here is a component from this gallery. #}
+{# layout: full #}
+<div class="space-y-4">
+    <c-n26.search-bar name="q" placeholder="Search lists" />
+    <c-n26.action-bar :divided="True">
+        <c-n26.filter-menu label="House" name="house" :options="houses" />
+        <c-n26.filter-menu label="Status" name="status" :options="statuses" />
+        <c-n26.choice-menu label="Sort" name="sort" :options="sorts" :selected="'recent'" />
+        <c-n26.toggle name="mine" label="Your lists only" :checked="True" />
+        <c-slot name="trailing">
+            <c-ui.button size="sm" variant="primary">
+                New list
+            </c-ui.button>
+        </c-slot>
+    </c-n26.action-bar>
+    <c-ui.card padding="none">
+        <c-ui.table>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>House</th>
+                    <th>Rating</th>
+                    <th>Status</th>
+                    <th>Last edit</th>
+                    <th class="text-right">Stars</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in lists %}
+                    <tr>
+                        <td class="font-medium">{{ row.name }}</td>
+                        <td class="text-muted">{{ row.house }}</td>
+                        <td>{{ row.rating }}</td>
+                        <td>
+                            <c-ui.badge color="{{ row.tone }}">
+                                {{ row.status }}
+                            </c-ui.badge>
+                        </td>
+                        <td class="text-muted">{{ row.edited }}</td>
+                        <td class="text-right text-muted">★ {{ row.stars }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </c-ui.table>
+    </c-ui.card>
+    <c-ui.pagination :page_obj="page_obj" />
+</div>

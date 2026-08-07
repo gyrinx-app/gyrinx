@@ -1,0 +1,23 @@
+{# title: Sizes, icons and links #}
+{# note: icon_leading and icon_trailing are slots. With href the badge becomes an <a>. #}
+<c-ui.badge size="xs" color="sky">
+    xs
+</c-ui.badge>
+<c-ui.badge size="sm" color="sky">
+    sm
+</c-ui.badge>
+<c-ui.badge size="md" color="sky">
+    md
+</c-ui.badge>
+<c-ui.badge size="lg" color="sky">
+    lg
+</c-ui.badge>
+<c-ui.badge color="green">
+    <c-slot name="icon_leading">
+        <c-n26.icon name="check" class="size-3" stroke_width="2.5" />
+    </c-slot>
+    Verified
+</c-ui.badge>
+<c-ui.badge href="#" color="blue">
+    Linked badge
+</c-ui.badge>

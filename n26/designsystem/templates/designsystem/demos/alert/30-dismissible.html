@@ -1,0 +1,9 @@
+{# title: Dismissible and bare #}
+{# note: :dismissible is the only part that needs Alpine — a static alert is pure markup. #}
+{# layout: col #}
+<c-ui.alert variant="info" title="You can close this" :dismissible="True">
+    Dismissing is local to the page; nothing is remembered.
+</c-ui.alert>
+<c-ui.alert variant="warning" :icon="False">
+    No icon, no title — just the message.
+</c-ui.alert>

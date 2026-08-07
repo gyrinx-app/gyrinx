@@ -1,0 +1,34 @@
+{% comment %}
+<c-n26.print.field> — somewhere to write by hand.
+
+    <c-n26.print.field label="Notes" height="10mm" />
+    <c-n26.print.field label="Injuries">{{ injuries|join:", " }}</c-n26.print.field>
+
+Printed play aids are half reference and half worksheet, and this is the
+worksheet half. Whatever is already known goes in the box; the rest of the box
+is space for a pencil. That is why it has a height rather than sizing to its
+content — a field that shrinks to fit the two words you know is a field you
+cannot use for the third.
+
+The box is tinted rather than merely outlined, so it reads as somewhere to write
+even on a card with a background. That tint is a translucent *colour*, not
+element opacity: browsers drop opacity when printing and keep an rgba fill, and
+it survives the printer's background-stripping because the sheet sets
+print-color-adjust: exact.
+
+Monolithic, like <c-n26.print.entry> — half a write-in box is worse than half a
+paragraph, because it still looks like a box you are meant to write in.
+
+  label — the heading beside (or above) the box.
+  height — the box's minimum height. It grows if the printed content needs more.
+  stacked — label above the box, for a full-width field.
+  label_width — the label column's width in the beside form.
+{% endcomment %}
+<c-vars label="" height="" stacked="" label_width="" class="" />
+
+<div {{ attrs }}
+     class="n26-print-field{% if stacked %} is-stacked{% endif %} {{ class }}"
+     style="{% if height %}--print-field-h: {{ height }};{% endif %}{% if label_width %}--print-label-w: {{ label_width }};{% endif %}">
+    {% if label %}<div class="n26-print-label n26-print-field-label">{{ label }}</div>{% endif %}
+    <div class="n26-print-field-box">{{ slot }}</div>
+</div>
