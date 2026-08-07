@@ -359,7 +359,7 @@ class CampaignAssetTypeForm(forms.ModelForm):
                 raise forms.ValidationError("Property keys must be unique")
             return schema
         except json.JSONDecodeError as e:
-            raise forms.ValidationError(f"Invalid JSON: {e}")
+            raise forms.ValidationError(f"Invalid JSON: {e}") from e
 
     def clean_sub_asset_schema_json(self):
         """Validate and parse the sub-asset schema JSON"""
@@ -401,7 +401,7 @@ class CampaignAssetTypeForm(forms.ModelForm):
 
             return schema
         except json.JSONDecodeError as e:
-            raise forms.ValidationError(f"Invalid JSON: {e}")
+            raise forms.ValidationError(f"Invalid JSON: {e}") from e
 
     def save(self, commit=True):
         instance = super().save(commit=False)
@@ -539,7 +539,7 @@ class CampaignAssetForm(forms.ModelForm):
                 raise forms.ValidationError("Extra properties must be an object")
             return props
         except json.JSONDecodeError as e:
-            raise forms.ValidationError(f"Invalid JSON: {e}")
+            raise forms.ValidationError(f"Invalid JSON: {e}") from e
 
     def save(self, commit=True):
         instance = super().save(commit=False)

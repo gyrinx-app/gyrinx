@@ -3,6 +3,7 @@ import uuid
 import pytest
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
+from django.db import IntegrityError
 
 from n23.content.models import (
     ContentEquipment,
@@ -116,7 +117,7 @@ def test_pack_item_unique_constraint(pack, house):
         object_id=fighter.pk,
         owner=pack.owner,
     )
-    with pytest.raises(Exception):
+    with pytest.raises(IntegrityError):
         CustomContentPackItem.objects.create(
             pack=pack,
             content_type=ct,

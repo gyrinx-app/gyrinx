@@ -281,7 +281,7 @@ def mark_fighter_captured(request, id, fighter_id):
             )
 
             # Show messages for removed equipment
-            for assignment_id, equipment_cost in result.equipment_removed:
+            for _assignment_id, equipment_cost in result.equipment_removed:
                 messages.info(
                     request,
                     f"Linked equipment removed due to capture ({equipment_cost}¢).",

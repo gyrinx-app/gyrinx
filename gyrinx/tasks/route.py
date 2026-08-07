@@ -52,7 +52,7 @@ def validate_timezone(timezone: str) -> None:
         raise ValueError(
             f"Invalid timezone: '{timezone}'. "
             f"Must be a valid IANA timezone (e.g., 'UTC', 'Europe/London', 'America/New_York')"
-        )
+        ) from None
 
 
 @dataclass

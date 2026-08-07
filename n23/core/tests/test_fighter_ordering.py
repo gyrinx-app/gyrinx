@@ -204,8 +204,8 @@ def test_fighter_ordering_follows_category_order():
 
     # Extract all fighter IDs in order
     fighter_ids_in_order = []
-    for group_name, group_choices in choices[1:]:  # Skip empty option
-        for fighter_id, fighter_label in group_choices:
+    for _group_name, group_choices in choices[1:]:  # Skip empty option
+        for fighter_id, _fighter_label in group_choices:
             fighter_ids_in_order.append(fighter_id)
 
     # Expected category order within Test House: LEADER, CHAMPION, PROSPECT, SPECIALIST, GANGER, JUVE
@@ -283,8 +283,8 @@ def test_stash_fighters_are_filtered_out():
     # Get all fighter IDs from the form
     all_fighter_ids = []
     choices = form.fields["content_fighter"].widget.choices
-    for group_name, group_choices in choices[1:]:  # Skip empty option
-        for fighter_id, fighter_label in group_choices:
+    for _group_name, group_choices in choices[1:]:  # Skip empty option
+        for fighter_id, _fighter_label in group_choices:
             all_fighter_ids.append(fighter_id)
 
     # Verify regular fighter is present but stash fighter is not

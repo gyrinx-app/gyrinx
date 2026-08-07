@@ -1,5 +1,6 @@
 import pytest
 from django.core.exceptions import ValidationError
+from django.db import IntegrityError
 from django.urls import reverse
 
 from n23.core.models.campaign import (
@@ -123,7 +124,7 @@ def test_unique_type_name_per_campaign(campaign):
         owner=campaign.owner,
     )
 
-    with pytest.raises(Exception):
+    with pytest.raises(IntegrityError):
         CampaignAttributeType.objects.create(
             campaign=campaign,
             name="Faction",
@@ -145,7 +146,7 @@ def test_unique_value_name_per_type(campaign):
         owner=campaign.owner,
     )
 
-    with pytest.raises(Exception):
+    with pytest.raises(IntegrityError):
         CampaignAttributeValue.objects.create(
             attribute_type=attr_type,
             name="Order",

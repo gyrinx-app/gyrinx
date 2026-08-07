@@ -93,7 +93,7 @@ def test_no_template_tags_in_component_attribute_position():
     slot instead.
     """
     bad = []
-    for path, name, tag, body, line in call_sites():
+    for path, name, _tag, body, line in call_sites():
         if name == "vars":
             continue
         outside = strip_quoted(body)
@@ -120,7 +120,7 @@ def test_dynamic_props_are_bare_variable_paths():
     `disabled="{% if not can_roll %}1{% endif %}"` / `url="{{ a|default:b }}"`.
     """
     bad = []
-    for path, name, tag, body, line in call_sites():
+    for path, name, _tag, body, line in call_sites():
         # <c-vars :map="{...}"> declares a dict DEFAULT (the documented variant-map
         # pattern). That is a literal, not a call-site expression.
         if name == "vars":
@@ -178,7 +178,7 @@ def test_dynamic_props_only_on_declared_props():
     """
     props = declared_props()
     bad = []
-    for path, name, tag, body, line in call_sites():
+    for path, name, _tag, body, line in call_sites():
         if name == "vars" or name not in props:
             continue
         for m in ATTR_RE.finditer(body):
@@ -275,7 +275,7 @@ def test_literal_btn_variants_are_in_the_design_system_set():
     SiteBanner.colour is constrained at the model layer instead.
     """
     bad = []
-    for path, name, tag, body, line in call_sites():
+    for path, name, _tag, body, line in call_sites():
         if name != "btn":
             continue
         for m in ATTR_RE.finditer(body):

@@ -122,7 +122,7 @@ def group_available_assignments(
     for assign in assigns:
         if filter_assigned:
             # For psyker powers, kind() is a method
-            kind = assign.kind() if hasattr(assign.kind, "__call__") else assign.kind
+            kind = assign.kind() if callable(assign.kind) else assign.kind
             if kind in ["default", "assigned"]:
                 continue
         group_value = getattr(assign, group_attr)

@@ -138,7 +138,7 @@ class Command(BaseCommand):
         try:
             service = json.loads(result.stdout)
         except json.JSONDecodeError as e:
-            raise CommandError(f"Failed to parse Cloud Run service config: {e}")
+            raise CommandError(f"Failed to parse Cloud Run service config: {e}") from e
 
         # Extract env vars from the container spec
         containers = (
@@ -170,7 +170,7 @@ class Command(BaseCommand):
         try:
             db_config = json.loads(db_config_raw)
         except json.JSONDecodeError as e:
-            raise CommandError(f"Failed to parse DB_CONFIG: {e}")
+            raise CommandError(f"Failed to parse DB_CONFIG: {e}") from e
 
         db_user = db_config.get("user")
         db_password = db_config.get("password")

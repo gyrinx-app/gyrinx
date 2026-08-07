@@ -65,7 +65,7 @@ def test_advancement_type_form_with_fighter_statline(
     set_fighter_statline(
         fighter_template,
         vehicle_type,
-        {stat.id: value for stat, value in zip(type_stats, stat_values)},
+        {stat.id: value for stat, value in zip(type_stats, stat_values, strict=True)},
     )
 
     # Create a list and fighter

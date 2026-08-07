@@ -120,7 +120,7 @@ def main():
             if violations:
                 files_with_violations += 1
                 print(f"\n{path}")
-                for line_num, line, message, severity in violations:
+                for line_num, _line, message, severity in violations:
                     marker = "ERROR" if severity == "error" else "WARN "
                     print(f"  {marker} L{line_num}: {message}")
                     if severity == "error":

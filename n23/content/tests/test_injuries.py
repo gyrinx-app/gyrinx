@@ -1,4 +1,5 @@
 import pytest
+from django.db import IntegrityError
 
 from n23.content.models import (
     ContentInjury,
@@ -116,7 +117,7 @@ def test_injury_unique_name():
     )
 
     # Try to create another with the same name
-    with pytest.raises(Exception):  # IntegrityError
+    with pytest.raises(IntegrityError):
         ContentInjury.objects.create(
             name="Critical Injury",
             phase=ContentInjuryDefaultOutcome.RECOVERY,

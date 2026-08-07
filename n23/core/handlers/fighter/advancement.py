@@ -197,7 +197,9 @@ def handle_fighter_advancement(
         try:
             campaign_action = CampaignAction.objects.get(id=campaign_action_id)
         except CampaignAction.DoesNotExist:
-            raise ValidationError(f"Campaign action {campaign_action_id} not found")
+            raise ValidationError(
+                f"Campaign action {campaign_action_id} not found"
+            ) from None
         advancement.campaign_action = campaign_action
         campaign_action.outcome = outcome
         campaign_action.save()

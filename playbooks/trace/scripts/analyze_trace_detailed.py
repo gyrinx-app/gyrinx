@@ -108,7 +108,7 @@ def analyze_children_of_operation(spans, children, op_name):
         if descendants:
             # Group by name
             by_name = defaultdict(list)
-            for desc, depth in descendants:
+            for desc, _depth in descendants:
                 by_name[desc["name"]].append(desc["duration_ms"])
 
             print("Child operations breakdown:")

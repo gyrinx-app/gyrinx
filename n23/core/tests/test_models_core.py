@@ -1,5 +1,6 @@
 import pytest
 from django.core.exceptions import ValidationError
+from django.db import IntegrityError
 
 from n23.content.models import (
     ContentEquipment,
@@ -79,7 +80,7 @@ def test_fighter_name_min_length(user, content_house, content_fighter):
 @pytest.mark.django_db
 def test_list_fighter_requires_content_fighter(content_house):
     lst = List.objects.create(name="Test List", content_house=content_house)
-    with pytest.raises(Exception):
+    with pytest.raises(IntegrityError):
         ListFighter.objects.create(name="Test Fighter", list=lst)
 
 
@@ -1400,7 +1401,7 @@ def test_weapon_equipment_match(
     lst = make_list("Test List")
     fighter = make_list_fighter(lst, content_fighter)
 
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         fighter.assign(fork, weapon_profiles=[spoon_profile])
 
 
@@ -1480,7 +1481,7 @@ def test_invalid_equipment_upgrade(
 
     assign.upgrades_field.add(u2)
 
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         assign.full_clean()
 
 

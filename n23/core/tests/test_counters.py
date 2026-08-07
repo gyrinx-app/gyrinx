@@ -2,6 +2,7 @@
 
 import pytest
 from django.core.exceptions import ValidationError
+from django.db import IntegrityError
 from django.urls import reverse
 
 from n23.content.models import (
@@ -103,7 +104,7 @@ def test_content_roll_table_row_unique_sort_order(content_roll_table):
         name="Row A",
         sort_order=0,
     )
-    with pytest.raises(Exception):
+    with pytest.raises(IntegrityError):
         ContentRollTableRow.objects.create(
             table=content_roll_table,
             roll_value="2",
@@ -160,7 +161,7 @@ def test_list_fighter_counter_unique_constraint(
         value=1,
         owner=user,
     )
-    with pytest.raises(Exception):
+    with pytest.raises(IntegrityError):
         ListFighterCounter.objects.create(
             fighter=fighter,
             counter=content_counter,

@@ -280,7 +280,7 @@ def add_heading_links(html):
     soup = BeautifulSoup(html, "html.parser")
 
     # Find all heading tags h1-h6 using a regex.
-    for n, heading in enumerate(soup.find_all(re.compile(r"^h[1-6]$"))):
+    for _n, heading in enumerate(soup.find_all(re.compile(r"^h[1-6]$"))):
         slug = slugify(heading.get_text())
         heading["id"] = slug
         # Create a new anchor tag with the href attribute set to "#slug"

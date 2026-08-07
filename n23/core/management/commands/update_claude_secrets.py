@@ -106,7 +106,8 @@ class Command(BaseCommand):
             error_msg = str(e)
             if "sk-ant-" in error_msg:
                 error_msg = "Error occurred (details hidden for security)"
-            raise CommandError(f"Failed to update secrets: {error_msg}")
+            # from None, not from e: the message above is scrubbed of secrets and chaining would put the unscrubbed original back in the traceback.
+            raise CommandError(f"Failed to update secrets: {error_msg}") from None
 
     def _get_keychain_credentials(self) -> str | None:
         """Retrieve credentials from Mac keychain"""
@@ -216,7 +217,10 @@ class Command(BaseCommand):
                 error_msg = str(e)
                 if "sk-ant-" in error_msg:
                     error_msg = "Update failed (details hidden for security)"
-                raise Exception(f"Failed to update {secret_name}: {error_msg}")
+                # from None, not from e: see above — chaining would leak the scrubbed value.
+                raise Exception(
+                    f"Failed to update {secret_name}: {error_msg}"
+                ) from None
 
     def _sanitize_secret(self, secret: str) -> str:
         """Sanitize a secret for display, showing only first and last few characters"""

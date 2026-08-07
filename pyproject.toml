@@ -141,10 +141,31 @@ target-version = "py314"
 # the import-ordering drift that needed hand-fixing repeatedly during the
 # platform/edition split.
 #
-# `B` (bugbear) and `DJ` (flake8-django) are the rest of n26's set and are NOT
-# enabled yet: 90 findings between them, almost none auto-fixable, and DJ001
-# (nullable string fields) wants a judgement per model rather than a bulk edit.
-select = ["E4", "E7", "E9", "F", "I", "UP"]
+# `B` (bugbear) and `DJ` (flake8-django) complete the set n26 enforces, so the
+# two codebases now agree on lint before the merge.
+select = ["E4", "E7", "E9", "F", "I", "UP", "B", "DJ"]
+
+# Three DJ rules are exempted rather than fixed. Each was measured first, and
+# in each case the change costs more than the rule is worth here.
+ignore = [
+    # Nullable string fields. Fixing properly is not an annotation change, it is
+    # a data migration: production holds ~186k NULLs in core_event.session_id,
+    # ~586k in core_event.field and ~17k in core_listaction.subject_app. Running
+    # that over the two largest tables in the database, to remove a second way of
+    # spelling "empty" that nothing is currently confused by, is not a good trade.
+    "DJ001",
+    # `fields = "__all__"` on ModelForms. All eight are in the Django admin, which
+    # sits behind a superuser check and 2FA — the mass-assignment risk this guards
+    # against is about untrusted input. Explicit field lists would also mean every
+    # new model field silently fails to appear in the admin until someone adds it
+    # by hand, which is a poor trap to set in a content-authoring tool.
+    "DJ007",
+    # Model body ordering. Purely cosmetic — no behavioural effect whatsoever —
+    # and satisfying it means hoisting comment-rich `Meta` blocks (one carries the
+    # §4.1 pin invariant) above methods in the hottest model files. Churn without
+    # benefit. Mechanical to revisit if the ordering ever actually bothers anyone.
+    "DJ012",
+]
 
 [tool.ruff.format]
 # 0.16 began formatting Python inside Markdown code fences. Every file it wanted

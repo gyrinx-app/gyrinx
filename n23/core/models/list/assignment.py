@@ -1133,6 +1133,9 @@ class ListFighterEquipmentAssignmentProfile(models.Model):
         verbose_name = "weapon profile row"
         verbose_name_plural = "weapon profile rows"
 
+    def __str__(self):
+        return f"{self.listfighterequipmentassignment} → {self.contentweaponprofile}"
+
 
 class ListFighterEquipmentAssignmentAccessory(models.Model):
     """Through row linking an assignment to a weapon accessory.
@@ -1198,6 +1201,9 @@ class ListFighterEquipmentAssignmentAccessory(models.Model):
         unique_together = [["listfighterequipmentassignment", "contentweaponaccessory"]]
         verbose_name = "weapon accessory row"
         verbose_name_plural = "weapon accessory rows"
+
+    def __str__(self):
+        return f"{self.listfighterequipmentassignment} → {self.contentweaponaccessory}"
 
 
 class ListFighterEquipmentAssignmentUpgrade(models.Model):
@@ -1281,3 +1287,6 @@ class ListFighterEquipmentAssignmentUpgrade(models.Model):
         ]
         verbose_name = "equipment upgrade row"
         verbose_name_plural = "equipment upgrade rows"
+
+    def __str__(self):
+        return f"{self.listfighterequipmentassignment} → {self.contentequipmentupgrade}"

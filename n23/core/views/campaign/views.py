@@ -355,7 +355,7 @@ class CampaignDetailView(generic.DetailView):
             # Sort groups: named groups by value name, "Unassigned" at the end.
             # Gangs within a group keep the order set by the chosen sort.
             grouped_lists = []
-            for (name, colour, pk), lists in sorted(
+            for (name, colour, _pk), lists in sorted(
                 group_value_lists.items(),
                 key=lambda x: (x[0][2] is None, x[0][0]),
             ):

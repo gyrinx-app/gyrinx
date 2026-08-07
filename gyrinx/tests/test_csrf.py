@@ -45,7 +45,7 @@ def test_csrf_failure_redirects_with_message(client: Client):
     request.session = client.session
 
     # Set up messages framework for the request
-    setattr(request, "_messages", FallbackStorage(request))
+    request._messages = FallbackStorage(request)
 
     # Call the CSRF failure view directly
     response = csrf_failure(request, reason="CSRF token missing or incorrect")
@@ -73,7 +73,7 @@ def test_csrf_failure_redirects_to_home_without_referer(client: Client):
     request.session = client.session
 
     # Set up messages framework for the request
-    setattr(request, "_messages", FallbackStorage(request))
+    request._messages = FallbackStorage(request)
 
     response = csrf_failure(request, reason="CSRF token missing")
 
@@ -109,7 +109,7 @@ def test_csrf_failure_with_malicious_referer(client: Client):
     request.session = client.session
 
     # Set up messages framework for the request
-    setattr(request, "_messages", FallbackStorage(request))
+    request._messages = FallbackStorage(request)
 
     response = csrf_failure(request, reason="CSRF token missing")
 

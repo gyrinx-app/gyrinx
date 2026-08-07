@@ -63,9 +63,9 @@ def test_admin_clone_equipment_preserves_weapon_profile_traits():
     request = factory.get("/admin/")
     request.user = user
     # Add message storage to avoid error
-    setattr(request, "session", "session")
+    request.session = "session"
     messages = FallbackStorage(request)
-    setattr(request, "_messages", messages)
+    request._messages = messages
 
     # Execute the clone action
     queryset = ContentEquipment.objects.filter(id=lasgun.id)

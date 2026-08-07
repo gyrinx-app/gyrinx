@@ -164,7 +164,9 @@ def handle_roll_flow(
                 id=campaign_action_id, list=lst
             )
         except CampaignAction.DoesNotExist:
-            raise ValidationError(f"Campaign action {campaign_action_id} not found")
+            raise ValidationError(
+                f"Campaign action {campaign_action_id} not found"
+            ) from None
         campaign_action.outcome = outcome
         campaign_action.save()
     elif lst.campaign:
