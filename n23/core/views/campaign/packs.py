@@ -215,7 +215,7 @@ def campaign_pack_set_required(request, id, pack_id):
                 campaign=campaign, pack=pack
             )
         except CampaignContentPack.DoesNotExist:
-            raise Http404
+            raise Http404 from None
 
         if required and not link.required:
             non_compliant = list(

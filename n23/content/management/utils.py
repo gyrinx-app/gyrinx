@@ -118,7 +118,9 @@ def by_label(enum: type[models.Choices], label: str) -> str:
             name for name, choice_label in enum.choices if choice_label == label
         )
     except StopIteration:
-        raise ValueError(f"Label '{label}' not found in choices: {enum.choices}")
+        raise ValueError(
+            f"Label '{label}' not found in choices: {enum.choices}"
+        ) from None
 
 
 def stable_uuid(v):

@@ -21,8 +21,8 @@ def _admin_request():
     request.user = User.objects.create_superuser("admin", "admin@test.com", "password")
     # RequestFactory has no middleware; attach session + message storage so the
     # action's messages.* calls don't blow up.
-    setattr(request, "session", {})
-    setattr(request, "_messages", FallbackStorage(request))
+    request.session = {}
+    request._messages = FallbackStorage(request)
     return request
 
 

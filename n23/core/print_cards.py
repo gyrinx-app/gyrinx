@@ -680,7 +680,7 @@ _CREW_NAMES = ["BS", "Ld", "Cl", "Wil", "Int"]
 
 def _humanoid_stats(values) -> list[StatCell]:
     cells = []
-    for name, val in zip(_HUMANOID_NAMES, values):
+    for name, val in zip(_HUMANOID_NAMES, values, strict=False):
         cells.append(
             StatCell(
                 name=name,
@@ -694,7 +694,7 @@ def _humanoid_stats(values) -> list[StatCell]:
 
 def _vehicle_stats(values) -> list[StatCell]:
     cells = []
-    for name, val in zip(_VEHICLE_NAMES, values):
+    for name, val in zip(_VEHICLE_NAMES, values, strict=False):
         cells.append(
             StatCell(name=name, value=val, first_of_group=(name in ("M", "HP")))
         )
@@ -704,7 +704,7 @@ def _vehicle_stats(values) -> list[StatCell]:
 def _crew_stats(values) -> list[StatCell]:
     return [
         StatCell(name=n, value=v, highlight=True, first_of_group=(n == "BS"))
-        for n, v in zip(_CREW_NAMES, values)
+        for n, v in zip(_CREW_NAMES, values, strict=False)
     ]
 
 

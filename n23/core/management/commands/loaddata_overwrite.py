@@ -38,9 +38,9 @@ class Command(BaseCommand):
             with open(fixture_file) as f:
                 fixture_data = json.load(f)
         except FileNotFoundError:
-            raise CommandError(f"Fixture file '{fixture_file}' not found")
+            raise CommandError(f"Fixture file '{fixture_file}' not found") from None
         except json.JSONDecodeError as e:
-            raise CommandError(f"Invalid JSON in fixture file: {e}")
+            raise CommandError(f"Invalid JSON in fixture file: {e}") from e
 
         if dry_run:
             self.stdout.write("DRY RUN - No changes will be made")

@@ -1,5 +1,6 @@
 import pytest
 from django.contrib.auth import get_user_model
+from django.db import IntegrityError
 from django.urls import reverse
 
 from n23.content.models import ContentHouse
@@ -128,7 +129,7 @@ def test_unique_invitation_per_campaign_list(campaign, test_list, campaign_owner
         campaign=campaign, list=test_list, owner=campaign_owner
     )
 
-    with pytest.raises(Exception):  # IntegrityError
+    with pytest.raises(IntegrityError):
         CampaignInvitation.objects.create(
             campaign=campaign, list=test_list, owner=campaign_owner
         )

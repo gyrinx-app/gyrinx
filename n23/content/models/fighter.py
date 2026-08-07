@@ -116,12 +116,12 @@ class ContentFighterQuerySet(ContentQuerySet):
     def available_for_house(
         self,
         house,
-        include=[],
-        exclude=[
+        include=(),
+        exclude=(
             FighterCategoryChoices.EXOTIC_BEAST,
             FighterCategoryChoices.VEHICLE,
             FighterCategoryChoices.STASH,
-        ],
+        ),
     ):
         """
         Returns fighters available for a specific house.

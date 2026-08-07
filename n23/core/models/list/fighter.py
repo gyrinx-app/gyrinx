@@ -1403,7 +1403,7 @@ class ListFighter(AppBase):
         asks for the sources of every stat in turn, so a rebuild here would run
         a dozen times per fighter on the gang page.
         """
-        self._mods  # populates _mod_pairs as a side effect
+        self._mods  # noqa: B018 - touched for its side effect: populates _mod_pairs
         return self._mod_pairs
 
     @cached_property

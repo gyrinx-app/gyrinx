@@ -342,7 +342,7 @@ def test_uninjured_fighter_never_resolves_treatments(
     fighter = make_list_fighter(list_with_campaign, "Healthy Fighter")
     fighter = _assign(fighter, bionic_eye)
 
-    fighter._mods
+    fighter._mods  # noqa: B018 - touched to force the cached_property to populate
 
     assert "_injury_treatments" not in fighter.__dict__
 

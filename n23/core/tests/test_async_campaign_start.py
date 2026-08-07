@@ -421,8 +421,8 @@ def test_admin_reenqueue_campaign_clone_action(user, make_campaign, make_list):
 
     request = RequestFactory().post("/admin/core/list/")
     request.user = user
-    setattr(request, "session", {})
-    setattr(request, "_messages", FallbackStorage(request))
+    request.session = {}
+    request._messages = FallbackStorage(request)
 
     # enqueue runs the task inline under the ImmediateBackend, so the stub completes.
     reenqueue_campaign_clone(None, request, List.objects.filter(pk=stub.pk))

@@ -4,6 +4,7 @@ Tests for ListFighterStatOverride model and stat editing functionality.
 
 import pytest
 from django.contrib.auth import get_user_model
+from django.db import IntegrityError
 from django.urls import reverse
 
 from n23.content.models import (
@@ -143,7 +144,10 @@ def vehicle_statline(db, content_fighter, vehicle_statline_type, vehicle_stats):
     return set_fighter_statline(
         content_fighter,
         vehicle_statline_type,
-        {stat_def.id: value for stat_def, value in zip(vehicle_stats, stat_values)},
+        {
+            stat_def.id: value
+            for stat_def, value in zip(vehicle_stats, stat_values, strict=True)
+        },
     )
 
 
@@ -224,7 +228,7 @@ def test_stat_override_unique_constraint(list_fighter, vehicle_stats, user):
     )
 
     # Try to create duplicate - should fail
-    with pytest.raises(Exception):  # Will be IntegrityError
+    with pytest.raises(IntegrityError):
         ListFighterStatOverride.objects.create(
             list_fighter=list_fighter,
             content_stat=vehicle_stats[0],

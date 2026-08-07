@@ -1,5 +1,6 @@
 import pytest
 from django.core.exceptions import ValidationError
+from django.db import IntegrityError
 
 from n23.content.models import (
     ContentFighter,
@@ -76,7 +77,7 @@ def test_content_statline_stat_model():
     )
 
     # Test unique together constraint
-    with pytest.raises(Exception):  # IntegrityError
+    with pytest.raises(IntegrityError):
         ContentStatlineStat.objects.create(
             statline=statline,
             statline_type_stat=movement_stat,
@@ -144,7 +145,7 @@ def test_content_fighter_statline_method():
     set_fighter_statline(
         fighter,
         vehicle_type,
-        {stat.id: value for stat, value in zip(type_stats, stat_values)},
+        {stat.id: value for stat, value in zip(type_stats, stat_values, strict=True)},
     )
 
     # Test the statline method
