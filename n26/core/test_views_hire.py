@@ -13,6 +13,7 @@ from django.contrib.auth.models import User
 from django.urls import reverse
 from django.utils.text import slugify
 
+from n26.core.browse import UNCATEGORISED
 from n26.core.models import ChosenProfileOption, Gang, Miniature
 from n26.library.models import DefaultAssignmentSet, OptionGroup
 
@@ -395,13 +396,18 @@ def test_an_option_index_that_does_not_exist_is_refused(
     assert not Miniature.objects.filter(membership__gang=gang).exists()
 
 
-def test_mixed_sections_fall_back_to_untabbed(
+def test_a_homeless_profile_gets_a_tab_of_its_own(
     client, tester, gang, ganger, make_profile
 ):
-    """Tabs are the picker's whole navigation once on, and only named
-    sections can be tabs — so content where some profiles have a home
-    and some do not must not tab, or the homeless shelf is served in
-    the HTML and unreachable in the UI."""
+    """One profile the content gave no category must not cost every other
+    section its tab.
+
+    Tabs are the picker's whole navigation once on, and a section missing
+    from the strip can never be the active one — its rows are served in
+    the HTML with no way to reach them. The homeless shelf is therefore
+    named rather than the strip being switched off, and both claims are
+    pinned here: the strip is drawn, and every shelf is on it.
+    """
     from n26.library.models import Category, Section
 
     section = Section.objects.create(name="Gang List", position=0)
@@ -413,7 +419,19 @@ def test_mixed_sections_fall_back_to_untabbed(
 
     client.force_login(tester)
     response = client.get(hire_url(gang))
-    assert response.context["sections"] == []
+    assert response.context["sections"] == ["Gang List", UNCATEGORISED]
+
+    # Reachability, the thing the strip can silently cost: every shelf
+    # drawn must have a tab, and every row must register under a name the
+    # category filter starts with on.
+    drawn = {row["section"]["name"] for row in response.context["section_rows"]}
+    assert drawn <= set(response.context["sections"])
+    registration_names = {
+        category["name"] or row["section"]["name"]
+        for row in response.context["section_rows"]
+        for category in row["section"]["categories"]
+    }
+    assert registration_names <= set(response.context["categories"])
 
 
 def test_the_gang_list_tab_comes_before_the_supplementary_one(

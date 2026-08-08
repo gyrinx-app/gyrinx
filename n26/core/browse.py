@@ -19,6 +19,14 @@ from dataclasses import dataclass, field
 from n26.core.notes import WARNING, Note
 from n26.library.models import price_of
 
+# What a shelf of homeless items is called on screen. The grouping itself
+# leaves the heading empty, because "no category" is what the content
+# actually says; a picker that draws its sections as tabs needs a word to
+# put on the tab, and an unnamed shelf would be one nobody could reach.
+# Naming it here keeps the hire list and the trading post calling it the
+# same thing.
+UNCATEGORISED = "Uncategorised"
+
 
 @dataclass(frozen=True)
 class Terms:

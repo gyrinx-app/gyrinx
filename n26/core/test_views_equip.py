@@ -10,6 +10,7 @@ import pytest
 from django.contrib.auth.models import User
 from django.urls import reverse
 
+from n26.core.browse import UNCATEGORISED
 from n26.core.models import Assignment, Gang
 from n26.core.operations import operation
 from n26.library.authoring import create_collection, create_wargear
@@ -188,9 +189,12 @@ def test_every_registration_name_is_a_known_category(
     assert registration_names <= set(response.context["categories"])
 
 
-def test_mixed_sections_fall_back_to_untabbed(client, tester, fighter, house_list):
-    """Same rule as the hire page: tabs only when every section is named,
-    or the homeless shelf is served but unreachable."""
+def test_a_homeless_line_gets_a_tab_of_its_own(client, tester, fighter, house_list):
+    """Same rule as the hire page: one line the content gave no category
+    must not cost every other section its tab, so the homeless shelf is
+    named and takes a tab like any other. A section missing from the
+    strip can never be the active one, and its rows would be served with
+    no way to reach them — so every shelf drawn is checked against it."""
     from n26.library.models import Category, Section, Wargear
 
     section = Section.objects.create(name="Armoury", position=0)
@@ -202,7 +206,16 @@ def test_mixed_sections_fall_back_to_untabbed(client, tester, fighter, house_lis
 
     client.force_login(tester)
     response = client.get(equip_url(fighter, house_list))
-    assert response.context["sections"] == []
+    assert response.context["sections"] == ["Armoury", UNCATEGORISED]
+
+    drawn = {section["name"] for section in response.context["section_rows"]}
+    assert drawn <= set(response.context["sections"])
+    registration_names = {
+        category["name"] or section["name"]
+        for section in response.context["section_rows"]
+        for category in section["categories"]
+    }
+    assert registration_names <= set(response.context["categories"])
 
 
 @pytest.fixture

@@ -6,6 +6,7 @@ from django.http import Http404
 from django.shortcuts import redirect, render
 from django.utils.text import slugify
 
+from n26.core.browse import UNCATEGORISED
 from n26.core.views.permissions import _own_miniature_or_404
 
 
@@ -168,7 +169,15 @@ def equip(request, pk):
     trade_points = [
         line.trade_points for line in lines if line.trade_points is not None
     ]
-    sections = view.sections if view is not None else []
+    # Each shelf paired with the name it goes by on screen. The grouping
+    # leaves a homeless line's section unnamed, which is the truth about
+    # the content; the picker draws its sections as tabs, and a tab needs
+    # a word on it. Paired once so the strip, the registration names and
+    # the heading cannot disagree — see the hire view, which does the same.
+    shelves = [
+        (section.name or UNCATEGORISED, section)
+        for section in (view.sections if view is not None else [])
+    ]
     return render(
         request,
         "n26/equip.html",
@@ -182,7 +191,7 @@ def equip(request, pk):
             # composes an identity the server would then have to guess at.
             "section_rows": [
                 {
-                    "name": section.name,
+                    "name": name,
                     "first": index == 0,
                     "categories": [
                         {
@@ -192,15 +201,15 @@ def equip(request, pk):
                         for category in section.categories
                     ],
                 }
-                for index, section in enumerate(sections)
+                for index, (name, section) in enumerate(shelves)
             ],
-            # Registration names, "" included — see the hire view: a row
-            # in an unnamed category registers under its section's name,
-            # and a list that omits one hides those rows client-side.
+            # Registration names — see the hire view: a row in an unnamed
+            # category registers under its section's name, and a list that
+            # omits one hides those rows client-side.
             "categories": list(
                 dict.fromkeys(
-                    category.name or section.name
-                    for section in sections
+                    category.name or name
+                    for name, section in shelves
                     for category in section.categories
                 )
             ),
@@ -208,19 +217,17 @@ def equip(request, pk):
                 {"value": name, "label": name}
                 for name in dict.fromkeys(
                     category.name
-                    for section in sections
+                    for _, section in shelves
                     for category in section.categories
                     if category.name
                 )
             ],
-            # All-or-nothing, as on the hire page: tabs are the whole
-            # navigation once on, and an unnamed section can never be the
-            # active tab — mixed content would hide it.
-            "sections": (
-                [section.name for section in sections]
-                if sections and all(section.name for section in sections)
-                else []
-            ),
+            # One tab per shelf, as on the hire page. A section missing
+            # from this list can never be the active tab and its rows
+            # become unreachable, so every shelf is named above and every
+            # shelf appears here — deduplicated, because the strip keys
+            # its tabs by name and a repeated key draws neither.
+            "sections": list(dict.fromkeys(name for name, _ in shelves)),
             "cost_floor": min((line.credits for line in lines), default=0),
             "cost_ceiling": max((line.credits for line in lines), default=0),
             "tp_ceiling": max(trade_points, default=0),

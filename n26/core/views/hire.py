@@ -32,6 +32,7 @@ from django.http import Http404
 from django.shortcuts import redirect, render
 from django.utils.text import slugify
 
+from n26.core.browse import UNCATEGORISED
 from n26.core.views.permissions import _own_gang_or_404
 
 
@@ -218,7 +219,16 @@ def hire_fighter(request, pk):
                 _picks(request.GET, profile, build_hire_entry(profile)),
             )
 
-    section_rows = shelve_hire_list(build_hire_list(gang.gang_type))
+    # The shelving leaves a homeless profile's section unnamed, which is
+    # the truth about the content. Naming it is this page's business: the
+    # picker draws its sections as tabs, a tab needs a word on it, and one
+    # nameless shelf would otherwise cost every section its tab. Named
+    # here, once, so the tab strip, the registration names below and the
+    # heading in the template cannot disagree about what it is called.
+    section_rows = [
+        {**section_row, "name": section_row["name"] or UNCATEGORISED}
+        for section_row in shelve_hire_list(build_hire_list(gang.gang_type))
+    ]
     entries = [
         entry
         for section_row in section_rows
@@ -237,21 +247,21 @@ def hire_fighter(request, pk):
                 {"section": section_row, "first": index == 0}
                 for index, section_row in enumerate(section_rows)
             ],
-            # Tabs only when *every* section is named. The tab strip is
-            # the picker's whole navigation once it is on: a section
-            # whose name is not in this list can never be the active tab,
-            # so mixed content — some profiles homed, some not — would
-            # serve the unnamed shelf in the HTML and make it unreachable.
-            # All-or-nothing keeps every row reachable either way.
-            "sections": (
-                [row["name"] for row in section_rows]
-                if section_rows and all(row["name"] for row in section_rows)
-                else []
-            ),
+            # The tab strip, one tab per section. This list is also the
+            # picker's whole navigation once tabs are on: a section whose
+            # name is missing here can never be the active tab, and its
+            # rows would be served in the HTML with no way to reach them.
+            # Every shelf is named above, so every shelf gets a tab.
+            #
+            # Deduplicated because the strip keys its tabs by name. Two
+            # shelves that share a name then answer to one tab, which
+            # shows both of them — where a repeated key would draw
+            # neither, and both shelves would be lost.
+            "sections": list(dict.fromkeys(row["name"] for row in section_rows)),
             # The picker's all-on category state. These are *registration*
             # names — an item in an unnamed category registers under its
-            # section's name (possibly ""), and a list that omits that name
-            # silently hides every such row: categoryOn("") is the filter.
+            # section's name, and a list that omits that name silently
+            # hides every such row: categoryOn(name) is the filter.
             "categories": list(
                 dict.fromkeys(
                     category["name"] or section_row["name"]
