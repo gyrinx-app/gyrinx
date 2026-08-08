@@ -191,7 +191,17 @@ there: the Gangs link in that same list is the whole roster.
                 {% if heading.strip %}
                     <span class="min-w-0 truncate text-ink-600 dark:text-ink-400">{{ heading }}</span>
                 {% endif %}
-                {% if switcher.strip %}<span class="shrink-0">{{ switcher }}</span>{% endif %}
+                {% comment %}
+                A switcher draws its destinations again, flat, for a reader
+                whose browser ran no script — and a flat panel inside a row
+                fixed at 14 units tall spills over the page beneath it. Hidden
+                here, and only here: the page that lists all of them is a press
+                away in the strip under this bar, which is the same distance
+                the drawer keeps the reader's gangs at.
+                {% endcomment %}
+                {% if switcher.strip %}
+                    <span class="shrink-0 [&_noscript]:hidden">{{ switcher }}</span>
+                {% endif %}
             </span>
         {% endif %}
 
