@@ -127,7 +127,10 @@ Sets each decide for themselves what happens to a member the sheet no
 longer names, and the deciding question is whether the set is somewhere
 hand-authored content lives: traits, a list's lines and a fighter's
 skill grid are replaced; built-in kit and restrictions are only added
-to, with a note saying what was kept.
+to, with a note saying what was kept. The one exception inside a
+built-ins set is the fighter's equipment list, which is access rather
+than kit and comes one at a time — naming a list replaces whichever the
+set held (`REPLACED_BUILT_INS`). A blank cell still replaces nothing.
 
 ## Comments
 

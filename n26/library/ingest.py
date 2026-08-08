@@ -33,7 +33,10 @@ Three standing rules are load-bearing here:
 * **Built-ins are free.** Items named in a profile's default assignment
   attach at price 0 and never take a price from an equipment list,
   even on an exact name match (§5a — the Techmite's power fist is not
-  the one on the Ironhead list).
+  the one on the Ironhead list). The same set is how a fighter reaches
+  an equipment list at all: access is a built-in like any other, and
+  its being free is what keeps shopping rights out of a fighter's
+  rating.
 * **Ingest stands on standard content.** The statline shapes, profile
   types, XP counter and skill tiers a plan resolves against come from
   ``n26.library.standard_content`` — created from the foundations page, never
@@ -58,7 +61,8 @@ Three standing rules are load-bearing here:
 * **Equipment lists** — a named collection per ``Title``, one entry per
   line, at this list's price where it differs from the catalogue's.
 * **All Profiles** — the fighters, each with the heading and category
-  it is hired under.
+  it is hired under, and an ``Equipment List`` column naming the list
+  it buys from.
 
 They join on an ``ID`` column printing ``Name (Profile) (Category ←
 Section)``, which :class:`ItemId` parses. Resolution goes through that,
@@ -937,6 +941,24 @@ def _plan_profiles(plan, rows):
                 continue
             members.append((resolved, {}))
 
+        # A fighter reaches an equipment list by holding it among its
+        # built-ins, which is why the column lands here rather than
+        # anywhere else: access is a thing the fighter comes with.
+        shops_at = _clean(row.get(EQUIPMENT_LIST_COLUMN) or "")
+        if shops_at:
+            listed = _resolve_equipment_list(plan, shops_at)
+            if listed is None:
+                plan.problem(
+                    source,
+                    f"{name!r} has {shops_at!r} in the {EQUIPMENT_LIST_COLUMN} "
+                    f"column, and no equipment list of that title is defined "
+                    f"or in the pack — imported without it, so the fighter "
+                    f"buys from nothing (lists resolve, never create)",
+                    severity="note",
+                )
+            else:
+                members.append((listed, {}))
+
         # Two gangs printing the same fighter name is normal, and the
         # qualifier is how the library holds both — author-facing
         # only, the card prints the name alone. The sheet may name the
@@ -1097,6 +1119,12 @@ def _resolve_item(plan, name):
 #: the column exists so the sheet can grow others without a new file.
 EQUIPMENT_LIST_COLLECTION = "Equipment List"
 
+#: The ``All Profiles`` column naming the list a fighter buys from. It
+#: holds a ``Title`` from the equipment-lists sheet — "Escher" — because
+#: that is the word an author has in front of them; the whole collection
+#: name is understood as well.
+EQUIPMENT_LIST_COLUMN = "Equipment List"
+
 
 def _collection_name(title):
     """The collection a ``Title`` names — "Ash Waste Nomads Equipment List".
@@ -1107,6 +1135,36 @@ def _collection_name(title):
     word apart in every dropdown.
     """
     return f"{_clean(title)} {EQUIPMENT_LIST_COLLECTION}"
+
+
+def _resolve_equipment_list(plan, title):
+    """The equipment list a fighter's ``Equipment List`` cell names.
+
+    A title is put together with the kind exactly as the equipment-lists
+    sheet's own rows are, so a fighter and the list it shops at cannot
+    come to mean different collections. A cell spelling the whole name
+    out is then taken as written, which makes both readings of the
+    column land on one row; each attempt is an exact match on a folded
+    name, so neither is a guess.
+
+    Resolve, never create: an equipment list is defined on its own
+    sheet, and a title carried by none of them is a miss.
+    """
+    from n26.library.models.collection import Collection
+
+    for name in (_collection_name(title), _clean(title)):
+        key = f"Collection:{_norm(name)}"
+        if plan.get(key):
+            return key
+        if existing := _exists(plan, Collection, name__iexact=name):
+            return plan.add(
+                "Collection",
+                existing.name,
+                {},
+                Source(RESOLUTION, 0),
+                key=key,
+            ).key
+    return None
 
 
 def _plan_equipment_lists(plan, rows):
@@ -2043,6 +2101,43 @@ def _stored_stats(row):
     return {stat.field_name: stat.value for stat in statline.ordered_stats()}
 
 
+#: Built-in members a sheet **replaces** rather than adds to, by the
+#: kind the plan names. A fighter buys from one equipment list, so
+#: naming one is naming *the* one: a fighter moved from the Escher list
+#: to the Cawdor list must not be left holding both, which would widen
+#: what they can buy without anybody saying so. Everything else in the
+#: set is kit, and kit is only ever added to — that is where the pieces
+#: no sheet defines are put by hand.
+REPLACED_BUILT_INS = ("Collection",)
+
+
+def _kind_of(key):
+    """The kind a plan key names — the word before its first colon."""
+    return key.split(":", 1)[0]
+
+
+def _superseded_built_ins(members, stored, named):
+    """Built-in members this upload takes off rather than keeps.
+
+    Only the kinds a set holds at most one of, and only where the sheet
+    names one of that kind: a column saying nothing takes nothing off.
+    That reading matters, because the other one strips every fighter the
+    first time a sheet without the column is uploaded — and a blank cell
+    is the sheet declining to say, here as everywhere else.
+
+    ``members`` is the planned membership, ``stored`` the rows the set
+    holds, and ``named`` the assignables among them the sheet still
+    names.
+    """
+    claimed = {_kind_of(member["item"]) for member in members} & set(REPLACED_BUILT_INS)
+    return [
+        member
+        for member in stored
+        if member.assignable.pk not in named
+        and type(member.assignable).__name__ in claimed
+    ]
+
+
 def _built_ins_difference(plan, planned, row, resolve):
     """A fighter's built-in kit: what the sheet adds, and never what it
     stops naming.
@@ -2051,6 +2146,10 @@ def _built_ins_difference(plan, planned, row, resolve):
     sheet defines, added by hand precisely because an import could not
     bring it. Replacing the set would delete exactly that, every time.
     So the sheet may add, and what it no longer names is said instead.
+
+    The fighter's equipment list is the exception, because it is not
+    kit: there is one of it, and naming a new one is naming a
+    replacement (:data:`REPLACED_BUILT_INS`).
     """
     stored = {member.assignable.pk: member for member in row.members.all()}
     added, changed, named = [], [], set()
@@ -2066,11 +2165,18 @@ def _built_ins_difference(plan, planned, row, resolve):
         if held.amount != amount:
             changed.append(f"{said} {held.amount} → {amount}")
 
+    superseded = _superseded_built_ins(
+        planned.fields["members"], stored.values(), named
+    )
     # What the sheet has stopped naming stays, and is said instead. An
     # author who meant to take it off has to, which is annoying and
     # honest; the alternative deletes the hand-added kit on every
     # re-upload and cannot be undone from the sheets.
-    dropped = [member for pk, member in stored.items() if pk not in named]
+    dropped = [
+        member
+        for pk, member in stored.items()
+        if pk not in named and member not in superseded
+    ]
     if dropped:
         plan.problem(
             planned.source,
@@ -2086,6 +2192,8 @@ def _built_ins_difference(plan, planned, row, resolve):
         difference["added"] = sorted(added)
     if changed:
         difference["changed"] = sorted(changed)
+    if superseded:
+        difference["removed"] = sorted(str(member.assignable) for member in superseded)
     return difference
 
 
@@ -2141,7 +2249,13 @@ class IngestResult:
         return dict(tally)
 
 
-#: Creation order — PROTECT relations point up this list.
+#: Creation order — PROTECT relations point up this list. It is also
+#: the order rows settle in, so a row is always measured against
+#: something already looked for.
+#:
+#: A collection comes before the built-in sets because a fighter's
+#: equipment list is one of its built-ins: read the other way round, the
+#: set would be asked to hold a list nothing had made yet.
 PERFORM_ORDER = [
     "Category",
     "Trait",
@@ -2154,9 +2268,9 @@ PERFORM_ORDER = [
     "WeaponProfile",
     "Wargear",
     "WeaponAccessory",
+    "Collection",
     "DefaultAssignmentSet",
     "Profile",
-    "Collection",
     "CollectionEntry",
     "Restriction",
     "Modifier",
@@ -2415,19 +2529,24 @@ class _Performer:
         return row
 
     def _update_defaultassignmentset(self, planned):
-        """A fighter's built-in kit, added to.
+        """A fighter's built-in kit, added to — and its equipment list
+        put in place of whichever it held.
 
-        Never taken from: this is where the kit no sheet defines is
-        added by hand, precisely because an import cannot bring it, and
-        replacing the set would delete exactly that on every re-upload.
+        Kit is never taken from: this is where the pieces no sheet
+        defines are added by hand, precisely because an import cannot
+        bring them, and replacing the set would delete exactly that on
+        every re-upload. A fighter buys from one list, though, so a
+        sheet naming a list is naming the only one there is.
         """
         from n26.library import authoring
 
         row = self._the_row_the_preview_described(planned)
         held = {member.assignable.pk: member for member in row.members.all()}
         position = row.members.count()
+        named = set()
         for member in planned.fields["members"]:
             thing = self.resolve(member["item"])
+            named.add(thing.pk)
             extras = {name: v for name, v in member.items() if name != "item"}
             already = held.get(thing.pk)
             if already is None:
@@ -2437,6 +2556,10 @@ class _Performer:
                 position += 1
             elif already.amount != extras.get("amount", 0):
                 authoring.revise(already, amount=extras.get("amount", 0))
+        for member in _superseded_built_ins(
+            planned.fields["members"], held.values(), named
+        ):
+            member.delete()
         return row
 
     # -- one creator per kind, each a thin call into library.authoring ------
@@ -2820,14 +2943,17 @@ def _imported(pack=None):
     section = apps.get_model("library", "Section")
     return parts + [
         ("collection entries", CollectionEntry.objects.filter(**scope)),
+        ("fighter profiles", profiles),
+        # The built-in sets go before the collections they name: a
+        # fighter's equipment list is one of its built-ins, and the
+        # membership row protects the list.
+        ("built-in sets", DefaultAssignmentSet.objects.filter(**scope)),
         (
             "collections",
             Collection.objects.filter(**scope).exclude(
                 name__in=[SKILLS_COLLECTION, TRADING_POST_COLLECTION]
             ),
         ),
-        ("fighter profiles", profiles),
-        ("built-in sets", DefaultAssignmentSet.objects.filter(**scope)),
         ("weapon profiles", WeaponProfile.objects.filter(**scope)),
         ("weapons", Weapon.objects.filter(**scope)),
         ("wargear", Wargear.objects.filter(**scope)),

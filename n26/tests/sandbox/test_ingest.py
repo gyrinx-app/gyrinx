@@ -91,10 +91,10 @@ Equipment List,Escher,Wargear,Weapon accessories,Telescopic sight,,20,,Telescopi
 """
 
 PROFILES_CSV = """
-Gang,Section,Category,Name,M,WS,BS,S,T,W,I,A,Sv,Ld,Cl,Wil,Int,Type,Subtype(s),Starting XP,Rating,Special Rules,Default skills (nb i have not listed skills applied by subtype),Default assignment,Primary Skill Sets,Secondary Skill Sets
-Escher,,Leaders,Gang Queen,6",3+,3+,3,3,3,4,2,5+,8,8,7,7,Fighter,Leader,61,120,Witch,Catfall,,"Agility, Combat",Cunning
-Cawdor,Gang List,Gangers,Way-Brethren,5",4+,4+,3,3,1,4,1,6+,6,6,6,6,Fighter,"Ganger, Specialist",13,45,,,,Combat,"Agility, Shooting"
-Goliath,Supplementary Fighters,Beasts,Sumpkroc,4",4+,-,4,4,2,2,1,5+,4,4,4,4,Fighter,"Beast, Pet",,65,,,Ferocious jaws,,
+Gang,Section,Category,Name,M,WS,BS,S,T,W,I,A,Sv,Ld,Cl,Wil,Int,Type,Subtype(s),Starting XP,Rating,Special Rules,Default skills (nb i have not listed skills applied by subtype),Default assignment,Equipment List,Primary Skill Sets,Secondary Skill Sets
+Escher,,Leaders,Gang Queen,6",3+,3+,3,3,3,4,2,5+,8,8,7,7,Fighter,Leader,61,120,Witch,Catfall,,Escher,"Agility, Combat",Cunning
+Cawdor,Gang List,Gangers,Way-Brethren,5",4+,4+,3,3,1,4,1,6+,6,6,6,6,Fighter,"Ganger, Specialist",13,45,,,,Cawdor,Combat,"Agility, Shooting"
+Goliath,Supplementary Fighters,Beasts,Sumpkroc,4",4+,-,4,4,2,2,1,5+,4,4,4,4,Fighter,"Beast, Pet",,65,,,Ferocious jaws,,,
 """
 
 
@@ -1843,6 +1843,194 @@ Escher,Scout,6",4+,4+,3,3,1,4,1,6+,6,7,7,6,Fighter,Ganger,4,25,,,Farsight,Agilit
 
         assert plan.ok
         assert any("imported without it" in p.message for p in plan.problems)
+
+
+class TestTheEquipmentListAFighterBuysFrom:
+    """The ``Equipment List`` column on the All Profiles sheet.
+
+    A fighter reaches a list by holding it among its built-ins — access
+    arrives at hire the way a weapon in its hands does — so the column
+    plans one more member of the fighter's built-ins set. The cell
+    carries the Title the equipment-lists sheet gives the list, because
+    that is the word an author has in front of them.
+
+    Access is not kit, and the two places that matters are here: there
+    is one list, so naming one replaces whichever was held; and it is
+    free, so shopping rights never reach a fighter's rating.
+    """
+
+    #: The Gang Queen's cell, and the columns either side of it, so a
+    #: rewritten sheet can only mean this one.
+    CELL = ",Catfall,,Escher,"
+
+    @pytest.fixture
+    def imported(self, foundation, sheets):
+        perform(plan_ingest(pack=None, **sheets))
+        return sheets
+
+    def collections_of(self, profile):
+        return [
+            str(member.assignable)
+            for member in profile.built_ins.members.filter(collection__isnull=False)
+        ]
+
+    def test_the_named_list_joins_the_fighters_built_ins(self, plan):
+        built_ins = plan.get(plan.get("Profile:gang queen").fields["built_ins"])
+        assert {"item": ESCHER_LIST} in built_ins.fields["members"]
+
+        perform(plan)
+        queen = Profile.objects.get(name="Gang Queen")
+        assert self.collections_of(queen) == ["Escher Equipment List"]
+
+    def test_a_cell_spelling_the_whole_name_out_means_the_same_list(
+        self, foundation, sheets
+    ):
+        """Both readings of the column land on one row: the title, and
+        the name the library actually holds."""
+        spelled = edited(PROFILES_CSV, self.CELL, ",Catfall,,Escher Equipment List,")
+        plan = plan_ingest(pack=None, **{**sheets, "profiles": spelled})
+        built_ins = plan.get(plan.get("Profile:gang queen").fields["built_ins"])
+        assert {"item": ESCHER_LIST} in built_ins.fields["members"]
+
+    def test_the_title_is_matched_however_it_is_typed(self, foundation, sheets):
+        loose = edited(PROFILES_CSV, self.CELL, ",Catfall,,  eSCHER  ,")
+        plan = plan_ingest(pack=None, **{**sheets, "profiles": loose})
+        built_ins = plan.get(plan.get("Profile:gang queen").fields["built_ins"])
+        assert {"item": ESCHER_LIST} in built_ins.fields["members"]
+
+    def test_a_title_no_list_carries_is_said_against_the_column_and_the_row(
+        self, foundation, sheets
+    ):
+        """A typo must not pass as a fighter who shops nowhere in
+        particular. Nothing incorrect is written, so the fighter still
+        arrives — and the report says which cell to fix."""
+        typo = edited(PROFILES_CSV, self.CELL, ",Catfall,,Eschur,")
+        plan = plan_ingest(pack=None, **{**sheets, "profiles": typo})
+
+        said = [problem for problem in plan.problems if "Eschur" in problem.message]
+        assert len(said) == 1
+        assert (said[0].sheet, said[0].line, said[0].severity) == (
+            "profiles",
+            1,
+            "note",
+        )
+        assert "Equipment List column" in said[0].message
+        assert plan.ok
+
+        perform(plan)
+        assert self.collections_of(Profile.objects.get(name="Gang Queen")) == []
+
+    def test_a_blank_cell_attaches_nothing_and_is_not_a_problem(self, plan):
+        """The Sumpkroc is a beast: it buys from nothing, which is an
+        empty cell rather than a gap in the sheet."""
+        built_ins = plan.get(plan.get("Profile:sumpkroc").fields["built_ins"])
+        assert not [
+            member
+            for member in built_ins.fields["members"]
+            if member["item"].startswith("Collection:")
+        ]
+        assert not [
+            problem
+            for problem in plan.problems
+            if problem.sheet == "profiles" and "Equipment List" in problem.message
+        ]
+
+        perform(plan)
+        assert self.collections_of(Profile.objects.get(name="Sumpkroc")) == []
+
+    def test_a_list_already_in_the_pack_is_found_by_a_profiles_only_upload(
+        self, imported
+    ):
+        """Resolve, never create, across sheets — and across uploads: a
+        sheet naming a list founds no second one."""
+        plan = plan_ingest(profiles=read_csv(PROFILES_CSV))
+        assert plan.get(ESCHER_LIST).action == "resolved"
+
+        built_ins = plan.get(plan.get("Profile:gang queen").fields["built_ins"])
+        assert built_ins.action == "unchanged"
+        perform(plan)
+        assert Collection.objects.filter(name="Escher Equipment List").count() == 1
+
+    def test_a_fighter_moved_to_another_list_holds_only_the_new_one(self, imported):
+        """Add-only is right for kit and wrong for access. A Gang Queen
+        left holding both lists could buy from either, and nothing on
+        her card would say why."""
+        moved = edited(PROFILES_CSV, self.CELL, ",Catfall,,Cawdor,")
+        plan = plan_ingest(**{**imported, "profiles": moved})
+
+        built_ins = plan.get(plan.get("Profile:gang queen").fields["built_ins"])
+        assert built_ins.action == "update"
+        assert built_ins.changes["members"] == {
+            "added": ["Cawdor Equipment List"],
+            "removed": ["Escher Equipment List"],
+        }
+
+        perform(plan)
+        queen = Profile.objects.get(name="Gang Queen")
+        assert self.collections_of(queen) == ["Cawdor Equipment List"]
+
+    def test_moving_the_list_leaves_the_hand_added_kit_alone(self, imported):
+        """The narrow rule stays narrow: one list replaces another, and
+        the exo-suit no sheet defines is still there afterwards."""
+        from n26.library import authoring
+
+        queen = Profile.objects.get(name="Gang Queen")
+        authoring.add_built_in(queen, authoring.create_wargear("Exo-suit", price=0))
+
+        moved = edited(PROFILES_CSV, self.CELL, ",Catfall,,Cawdor,")
+        perform(plan_ingest(**{**imported, "profiles": moved}))
+
+        held = {str(member.assignable) for member in queen.built_ins.members.all()}
+        assert "Exo-suit" in held
+        assert "Escher Equipment List" not in held
+
+    def test_a_column_gone_blank_retracts_nothing(self, imported):
+        """A blank cell is the sheet declining to say, as it is
+        everywhere else. Read as a retraction, one upload of a sheet
+        without the column would take every fighter's list away."""
+        blanked = edited(PROFILES_CSV, self.CELL, ",Catfall,,,")
+        plan = plan_ingest(**{**imported, "profiles": blanked})
+        perform(plan)
+
+        queen = Profile.objects.get(name="Gang Queen")
+        assert self.collections_of(queen) == ["Escher Equipment List"]
+        assert any(
+            "Escher Equipment List" in problem.message and problem.severity == "note"
+            for problem in plan.problems
+        )
+
+    def test_the_list_adds_nothing_to_what_the_fighter_is_worth(self, imported):
+        """Access is not a purchase. A list that counted would inflate
+        every fighter who shops, by the whole worth of the shop."""
+        from django.contrib.auth.models import User
+
+        from n26.core.reconcile import assert_reconciled
+        from n26.library.models import GangType
+
+        from .actions import found_gang, hire_with_option
+
+        # Priced on purpose, so what keeps it out of the rating is the
+        # built-ins rule rather than a zero that happened to be there.
+        Collection.objects.filter(name="Escher Equipment List").update(price=500)
+
+        gang = found_gang(
+            "Shoppers",
+            GangType.objects.get(name="Escher"),
+            owner=User.objects.create_user("shopper"),
+            budget=1000,
+        )
+        model = hire_with_option(
+            gang, Profile.objects.get(name="Gang Queen"), "Yolanda"
+        )
+
+        # She arrives holding the list, and is worth her Rating column.
+        assert "Escher Equipment List" in {
+            str(assignment.assignable) for assignment in model.assignments.all()
+        }
+        assert model.recompute_rating() == 120
+        gang.refresh_from_db()
+        assert gang.rating == 120
+        assert_reconciled(gang)
 
 
 class TestTheUploadPage:

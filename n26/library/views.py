@@ -933,7 +933,8 @@ INGEST_SHEETS = [
     (
         "profiles",
         "All Profiles",
-        "The fighters, each with the heading and category it is hired under.",
+        "The fighters, each with the heading and category it is hired "
+        "under and the title of the equipment list it buys from.",
     ),
 ]
 
