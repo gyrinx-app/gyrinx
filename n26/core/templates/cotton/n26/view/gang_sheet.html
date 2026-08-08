@@ -72,6 +72,17 @@ row, which is what makes an eleven-fighter gang read as a wall.
     was asking.
     {% endcomment %}
     <c-n26.page-header title="{{ sheet.name }}">
+        {% comment %}
+        The gang's own colour, before its name and inside the h1, so the sheet
+        and the row that opened it are marked the same way. Drawn only where
+        there is one — see <c-n26.color-swatch> for why an unset colour draws
+        nothing rather than holding the space.
+        {% endcomment %}
+        {% if sheet.colour %}
+            <c-slot name="leading">
+                <c-n26.color-swatch color="{{ sheet.colour }}" />
+            </c-slot>
+        {% endif %}
         <c-slot name="breadcrumb">
             {% comment %}
             The user first, then the collection, then this gang: the trail a reader
@@ -81,22 +92,9 @@ row, which is what makes an eleven-fighter gang read as a wall.
             {% endcomment %}
             <c-ui.breadcrumbs>
                 <c-ui.breadcrumbs.item>
-                    {% comment %}
-                    flair-link rather than a badge in a pill. The badge beside a
-                    username and the badge beside a house are the same idea, and
-                    this is already the component for it — text with a small SVG
-                    after it, sized in em so the same call works in a breadcrumb
-                    and in a heading. A pill would say the same thing and spend a
-                    breadcrumb's worth of width doing it.
-
-                    tone="current" so the owner reads as part of the trail rather
-                    than as the one accent-coloured thing on it; what a breadcrumb
-                    emphasises is the current page, and that is the last item.
-                    {% endcomment %}
                     <c-n26.flair-link text="{{ owner }}" href="{{ owner_href }}"
                                       tone="current" label="{{ owner_flair_label }}">{{ owner_flair }}</c-n26.flair-link>
                 </c-ui.breadcrumbs.item>
-                <c-ui.breadcrumbs.item href="{{ gangs_href }}">Gangs</c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item :current="True">{{ sheet.name }}</c-ui.breadcrumbs.item>
             </c-ui.breadcrumbs>
         </c-slot>
