@@ -54,8 +54,8 @@ A native <details> would open on its own and need no second copy. It was not
 used because the joining is: the button group's rules match `button` and `a`,
 and a <summary> is neither, so the chevron would take none of the radius or
 border handling and this component would have to re-implement it — along with
-Escape, the outside click and arrow-key movement, all of which the dropdown
-already has right. The strip is the cheaper of the two prices.
+Escape and the outside click, which the dropdown already has right. The strip
+is the cheaper of the two prices.
 
   --- staying on the screen ---
 
@@ -107,6 +107,41 @@ gang table uses.
 The query is cleared each time the panel opens, because a switcher is opened to
 go somewhere and the list you left behind is not the list you want next.
 
+  --- moving through it from the keyboard ---
+
+Focus lands in the filter box on open and never leaves it. Down and Up move a
+highlight through the rows; Enter goes to the highlighted one; Escape empties a
+filter that has something in it, and closes the panel when it has not. So open,
+two letters, Down, Enter is the whole journey without the reader's hands
+leaving where they were typing.
+
+Nothing is highlighted when the panel opens. The top row is usually the thing
+you are already on, so a highlight sitting there offers Enter as a way back to
+where you already are — and it competes with the tick and tint already saying
+which row that is. The first Down is what starts the highlight, and it starts
+it on the first row still showing.
+
+The highlight is an id, not a position, and it is looked up in the rows that
+pass the filter rather than in all of them. A position counts hidden rows, and
+lands the highlight on one; an id that has just been filtered out is dropped,
+so Enter can never reach a row that is not on the screen. Moving it scrolls it
+into view, because the list is short and the rows are not.
+
+It is a tint the reader can see and a name the reader can hear: the filter box
+carries aria-activedescendant, so the highlighted row is announced by the
+control that has focus. A tint on its own would be a highlight only sighted
+readers have. Real focus was the alternative, and it is the wrong one here —
+moving focus to a row takes the caret out of the box, and the next letter typed
+would go nowhere.
+
+The pointer moves the highlight as well, so hovering a row and pressing Enter
+goes to the row under the pointer. Two rows marked at once — one under the
+pointer, one under the arrow keys — would leave nothing on the screen saying
+where Enter goes.
+
+None of this is how the list is reached. Every row is a real link, tabbable in
+order, and Tab-then-Enter works with the panel's script and without it.
+
   label — the current thing's name, on the leading link. Empty draws no link and
     leaves the chevron on its own.
   href — where that link goes.
@@ -124,19 +159,16 @@ go somewhere and the list you left behind is not the list you want next.
     the window.
   slot — the destinations, as <c-n26.quick-switcher.item>.
 {% endcomment %}
-<c-vars
-    label=""
-    href=""
-    icon=""
-    heading="Switch"
-    menu_label=""
-    placeholder="Search"
-    empty="No matches"
-    align="start"
-    min_width="16rem"
-    class=""
-/>
-
+<c-vars label=""
+        href=""
+        icon=""
+        heading="Switch"
+        menu_label=""
+        placeholder="Search"
+        empty="No matches"
+        align="start"
+        min_width="16rem"
+        class="" />
 <div {{ attrs }} class="inline-block max-w-full {{ class }}">
     <c-n26.button-group>
         {% comment %}
@@ -157,14 +189,15 @@ go somewhere and the list you left behind is not the list you want next.
             <c-ui.button variant="ghost" size="sm" class="px-2!" href="{{ href }}">
                 <span class="flex items-center gap-1.5">
                     {% if icon %}
-                        <c-n26.icon name="{{ icon }}" class="size-4 shrink-0 text-ink-500 dark:text-ink-400" />
+                        <c-n26.icon name="{{ icon }}"
+                                    class="size-4 shrink-0 text-ink-500 dark:text-ink-400" />
                     {% endif %}
                     <span class="min-w-0 max-w-48 truncate">{{ label }}</span>
                 </span>
             </c-ui.button>
         {% endif %}
-
-        <c-ui.dropdown align="{{ align }}" min_width="min({{ min_width }}, calc(100vw - 1rem))">
+        <c-ui.dropdown align="{{ align }}"
+                       min_width="min({{ min_width }}, calc(100vw - 1rem))">
             <c-slot name="trigger">
                 {% comment %}
                 The chevron is named rather than left to the label beside it:
@@ -207,7 +240,6 @@ go somewhere and the list you left behind is not the list you want next.
                     </span>
                 </c-ui.button>
             </c-slot>
-
             {% comment %}
             The panel's own scope. `matches` is read by every item and `shown`
             by the empty message, so what the list does and what the message
@@ -215,8 +247,8 @@ go somewhere and the list you left behind is not the list you want next.
 
             Focus moves to the filter as the panel opens: a switcher is opened
             because you know roughly what you are looking for, and the first
-            keystroke should narrow the list rather than land nowhere. Arrow
-            keys move from there into the items — that part is the dropdown's.
+            keystroke should narrow the list rather than land nowhere. It then
+            stays there — see the key handling below.
 
             `fit` keeps the panel on the screen. It reaches one element up,
             because the box the kit places is the one this scope sits inside,
@@ -225,19 +257,75 @@ go somewhere and the list you left behind is not the list you want next.
             with it. The window listener rides a frame so it lands after the
             kit's own repositioning, which takes one too. A hidden panel has no
             width to measure and nowhere to be, so it is left alone.
+
+            The ids are minted from one x-id root so that the box and the rows
+            agree on them: `$id` counts per element otherwise, and the box
+            would point at a list id nothing has.
             {% endcomment %}
-            <div x-data="{
+            <div x-id="['n26-switcher']"
+                 x-data="{
                      query: '',
                      items: [],
+                     active: '',
                      gutter: 8,
                      tries: 0,
                      refit: null,
-                     register(facets) { this.items.push(facets) },
+                     register(el, facets) {
+                         const row = { id: this.$id('n26-switcher') + '-option-' + this.items.length, el, ...facets };
+                         this.items.push(row);
+                         return row.id;
+                     },
                      matches(facets) {
                          const q = this.query.trim().toLowerCase();
                          return !q || facets.search.includes(q);
                      },
-                     get shown() { return this.items.filter(f => this.matches(f)).length },
+                     // The highlight is worked out from the rows the filter
+                     // lets through, never from all of them: a position in
+                     // the whole list counts rows nobody can see, and lands
+                     // the highlight on one of them.
+                     get visible() { return this.items.filter(row => this.matches(row)) },
+                     get shown() { return this.visible.length },
+                     highlight(id) { this.active = id },
+                     move(step) {
+                         const rows = this.visible;
+                         if (!rows.length) { this.active = ''; return }
+                         const at = rows.findIndex(row => row.id === this.active);
+                         const to = at < 0 ? (step > 0 ? 0 : rows.length - 1) : (at + step + rows.length) % rows.length;
+                         this.active = rows[to].id;
+                         // The list scrolls, so the row moved to is often
+                         // below the fold of it.
+                         rows[to].el.scrollIntoView({ block: 'nearest' });
+                     },
+                     keys(event) {
+                         if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                             // The panel around this box answers an arrow key
+                             // by putting real focus on a row, which would
+                             // take the caret out of the box mid-word. Kept
+                             // from it, and answered by moving the highlight.
+                             event.preventDefault();
+                             event.stopPropagation();
+                             this.move(event.key === 'ArrowDown' ? 1 : -1);
+                         } else if (event.key === 'Home' || event.key === 'End') {
+                             // Both belong to the caret while the box has
+                             // focus; the panel would spend them on the list.
+                             event.stopPropagation();
+                         } else if (event.key === 'Enter') {
+                             const row = this.items.find(r => r.id === this.active);
+                             if (!row) return;
+                             event.preventDefault();
+                             // A real click on a real link, so the panel
+                             // closes and the browser navigates by the path
+                             // the pointer takes.
+                             row.el.click();
+                         } else if (event.key === 'Escape') {
+                             // Kept from the window listener that closes the
+                             // panel: a filter with something in it is the
+                             // smaller thing to undo, and a second press
+                             // still leaves.
+                             event.stopPropagation();
+                             if (this.query) { this.query = ''; this.active = '' } else { this.close() }
+                         }
+                     },
                      fit() {
                          const panel = this.$el.parentElement;
                          // A panel that is still opening has no width to
@@ -274,7 +362,13 @@ go somewhere and the list you left behind is not the list you want next.
                      init() {
                          this.$watch('dropdownMenu', open => {
                              this.query = '';
+                             this.active = '';
                              if (open) this.$nextTick(() => { this.$refs.filter.focus(); this.fit(); });
+                         });
+                         // A highlight the query has just hidden would send
+                         // Enter to a row nobody can see.
+                         this.$watch('query', () => {
+                             if (!this.visible.some(row => row.id === this.active)) this.active = '';
                          });
                          this.refit = () => requestAnimationFrame(() => this.fit());
                          window.addEventListener('resize', this.refit);
@@ -282,13 +376,21 @@ go somewhere and the list you left behind is not the list you want next.
                      destroy() { window.removeEventListener('resize', this.refit) },
                  }"
                  class="flex max-w-[calc(100vw-1rem)] flex-col">
-
                 {% comment %}
                 No title strip. The panel is already named by the trigger it
                 hangs from and by the placeholder in its own filter, so a line
                 repeating the same words costs a row of the list to say what
                 the reader just pressed. `heading` still names the chevron for
                 anything reading the page aloud — it is spoken, not drawn.
+                {% endcomment %}
+                {% comment %}
+                The box owns the arrow keys, because the box is where focus
+                is. It never gives focus up: it names the highlighted row
+                with aria-activedescendant instead, so what is spoken and
+                what is tinted are the same row and the caret stays in the
+                words being typed. aria-controls is what makes that legal —
+                the row it names is not inside the box, so the box has to say
+                which list it is naming rows in.
                 {% endcomment %}
                 <div class="border-b border-box-border p-2">
                     <c-ui.input type="search"
@@ -297,21 +399,22 @@ go somewhere and the list you left behind is not the list you want next.
                                 aria-label="{{ placeholder }}"
                                 autocomplete="off"
                                 x-ref="filter"
-                                x-model="query">
+                                x-model="query"
+                                @keydown="keys($event)"
+                                ::aria-controls="$id('n26-switcher') + '-list'"
+                                ::aria-activedescendant="active || null">
                         <c-slot name="left_addon">
                             <c-n26.icon name="magnifying-glass" class="size-4" stroke_width="1.5" />
                         </c-slot>
                     </c-ui.input>
                 </div>
-
                 {% comment %}
                 Pulled up by a pixel, so the rule under the last row lands on
                 the panel's own edge instead of beside it. Each row draws its
                 own rule (see the item), which is what keeps filtering from
                 stranding one at the top of the list.
                 {% endcomment %}
-                <div class="-mb-px max-h-72 overflow-y-auto">{{ slot }}</div>
-
+                <div :id="$id('n26-switcher') + '-list'" class="-mb-px max-h-72 overflow-y-auto">{{ slot }}</div>
                 {% comment %}
                 x-cloak, so a reader with no script never sees a line about a
                 filter they do not have.
@@ -322,7 +425,6 @@ go somewhere and the list you left behind is not the list you want next.
             </div>
         </c-ui.dropdown>
     </c-n26.button-group>
-
     {% comment %}
     The same destinations, drawn flat for a reader whose browser ran no script
     and therefore has no panel to open. No filter box with them: a filter that
@@ -333,7 +435,7 @@ go somewhere and the list you left behind is not the list you want next.
     {% endcomment %}
     <noscript>
         <div class="mt-2 w-72 max-w-full overflow-hidden rounded-box border border-box-border">
-            <div class="-mb-px">{{ slot }}</div>
+            <div>{{ slot }}</div>
         </div>
     </noscript>
 </div>

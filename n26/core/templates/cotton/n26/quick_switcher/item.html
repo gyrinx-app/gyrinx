@@ -9,6 +9,13 @@ filter above it ever runs. The row registers its own searchable text with the
 panel on init and hides itself while the query excludes it; nothing outside the
 panel knows or needs to know how many rows are showing.
 
+  --- the highlighted one ---
+
+Separately from the current one: the highlight is where the arrow keys have
+got to, and pressing Enter goes there. It is a tint plus an id the filter box
+names aloud, never a tint alone. The pointer moves it as well, so hovering a
+row and pressing Enter goes to the row under the pointer.
+
   --- the current one ---
 
 The tick is drawn, and the row is tinted, and neither is what says "current" —
@@ -30,16 +37,33 @@ nothing above to separate it from.
 <c-vars label="" href="" icon="" :current="False" class="" />
 
 {% comment %}
-register, matches and close all live above this row in the scope chain: the
-first two on the panel, close() on the dropdown itself. The row holds nothing
-of its own but the text it is matched on.
+register, matches, highlight, active and close all live above this row in the
+scope chain: the first four on the panel, close() on the dropdown itself. The
+row holds nothing of its own but the text it is matched on and the id the
+panel gave it back.
+
+The id is what the filter box points at when this row is the highlighted one,
+so it has to be in the document and it has to be unique on the page: the panel
+mints it, because only the panel knows how many rows it has.
+
+The pointer moves the highlight too. One row marked is the whole point of a
+highlight — a fill under the pointer and a highlight somewhere else are two
+answers to "where does Enter go", and Enter can only take one of them.
+
+A stronger tint than hover's, and it has to win against the current row's,
+which is the same colour hover uses. Which of two plain background utilities
+wins is decided by the order Tailwind emitted them, so this one is marked
+important rather than left to that.
 {% endcomment %}
 <a href="{{ href }}"
    role="menuitem"
-   x-data="{ facets: { search: {{ label|lower|json_dumps }} } }"
-   x-init="register(facets)"
+   x-data="{ id: '', facets: { search: {{ label|lower|json_dumps }} } }"
+   x-init="id = register($el, facets)"
+   :id="id"
    x-show="matches(facets)"
    @click="close()"
+   @mouseenter="highlight(id)"
+   :class="{ 'bg-ink-200! dark:bg-ink-700!': active === id }"
    {% if current %}aria-current="page"{% endif %}
    {{ attrs }}
    class="flex items-center gap-2.5 border-b border-box-border px-3 py-2 text-sm
