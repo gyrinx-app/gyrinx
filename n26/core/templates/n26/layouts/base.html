@@ -121,7 +121,15 @@ banner, is_impersonating / impersonator, gtm_container_id, messages, user.
         attribute: cotton parses attributes before Django's block machinery runs,
         so a block in an attribute silently renders as nothing.
         {% endcomment %}
-        <c-n26.site.nav title="Gyrinx" href="/" sticky="1" class="dark">
+        {% comment %}
+        The brand goes to the edition's own home, not the site root: every page
+        under this layout is an n26 page, and a logo that dumps a tester back on
+        the n23 site reads as leaving the app rather than going home.
+        {% endcomment %}
+        <c-n26.site.nav title="Gyrinx"
+                        href="{% url 'n26-dashboard' %}"
+                        sticky="1"
+                        class="dark">
             <c-slot name="logo">
                 <img src="{% static 'platform/img/brand/logo-gold-transparent-bg.svg' %}"
                      alt=""
