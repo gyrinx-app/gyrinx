@@ -322,6 +322,20 @@ class TestPlanning:
         assert "Skill:catfall" in members
         assert {"item": "Counter:xp", "amount": 61} in built_ins.fields["members"]
 
+    def test_a_heading_typed_in_another_case_is_the_same_column(
+        self, foundation, sheets
+    ):
+        """Headings are typed by hand. A column that differs by a
+        capital or a stray space must still be read: matching exactly
+        makes it absent, and everything behind it goes missing while the
+        upload still reports success.
+        """
+        retyped = PROFILES_CSV.replace("Section,Category,", "section, CATEGORY ,", 1)
+        planned = plan_ingest(**{**sheets, "profiles": read_csv(retyped)})
+
+        queen = planned.get("Profile:gang queen")
+        assert queen.fields["category"] == "Category:gang list:leaders"
+
     def test_a_fighter_is_homed_where_the_sheet_says(self, plan):
         """The hire list groups by each fighter's home category, so the
         sheet's Category and Section are what shelve it."""

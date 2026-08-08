@@ -450,9 +450,42 @@ class IngestPlan:
 # --- Reading -----------------------------------------------------------------
 
 
+def _fold_column(name):
+    """A column heading's matching form: case and spacing set aside."""
+    return re.sub(r"\s+", " ", str(name).strip()).casefold()
+
+
+class Row(dict):
+    """A sheet row that finds a column however its heading was typed.
+
+    Headings are typed by hand into a spreadsheet, so "Equipment list",
+    "Equipment List" and a stray trailing space are one column to
+    everyone except a dict. Matching them exactly means a heading that
+    differs by a capital reads as *absent*, and the whole feature behind
+    it goes missing with nothing said — the worst way for a sheet to be
+    wrong, because the upload succeeds and the preview looks right.
+
+    Only lookup folds. The row still holds what the file said, so
+    anything reporting a heading back to an author quotes their own.
+    """
+
+    def __init__(self, row):
+        super().__init__(row)
+        # Built once per row rather than per lookup: a sheet is tens of
+        # thousands of gets, and a fold on each is the whole read.
+        self._folded = {
+            _fold_column(key): value for key, value in row.items() if key is not None
+        }
+
+    def get(self, key, default=None):
+        if key in self:
+            return self[key]
+        return self._folded.get(_fold_column(key), default)
+
+
 def read_csv(text):
     """CSV text → rows. The file interface: everything after this is rows."""
-    return list(csv.DictReader(io.StringIO(text.strip())))
+    return [Row(row) for row in csv.DictReader(io.StringIO(text.strip()))]
 
 
 # --- Planning ----------------------------------------------------------------
