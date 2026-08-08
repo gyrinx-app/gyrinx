@@ -18,6 +18,7 @@ can open a picker that writes, and that picker does not exist — a Save button
 that saves nothing is worse than a value with no affordance at all.
 {% endcomment %}
 {% block head_title %}{{ sheet.name }}{% endblock head_title %}
+{% block nav_heading %}{{ sheet.name }}{% endblock nav_heading %}
 {% block nav_items %}
     {% include 'n26/_nav.html' %}
 {% endblock %}

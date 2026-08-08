@@ -1,11 +1,8 @@
 {# title: Signed out #}
 {# layout: full #}
-{# note: The same bar with the actions a visitor sees. Sign Up is the accent button and Sign In is not, because one of them is the thing the page is asking for. #}
+{# note: The same bar with the actions a visitor sees. Sign Up is the accent button and Sign In is not, because one of them is the thing the page is asking for. No user_label, so there is no account menu — a visitor has no account to open — and the drawer's gangs section is absent rather than empty. #}
 {% load static %}
-<c-n26.site.nav title="Gyrinx"
-                href="#"
-                variant="pill"
-                class="rounded-box border border-box-border">
+<c-n26.site.nav title="Gyrinx" href="#" class="rounded-box border border-box-border">
     <c-slot name="logo">
         <img src="{% static 'n26/gyrinx-logo.svg' %}"
              alt=""
@@ -13,15 +10,13 @@
              height="24"
              class="size-6">
     </c-slot>
-    <c-ui.navbar.item href="#" :current="True">
+    <c-ui.navbar.item href="#" current="1">
         Home
     </c-ui.navbar.item>
     <c-ui.navbar.item href="#">
-        Lists &amp; Gangs
+        Gangs
     </c-ui.navbar.item>
-    <c-ui.navbar.item href="#">
-        Campaigns
-    </c-ui.navbar.item>
+    <span>Campaigns <span class="text-xs tracking-wide uppercase">Soon</span></span>
     <c-slot name="actions">
         <c-ui.mode-toggle storage_key="n26-theme" default="system" size="sm" />
         <c-ui.button href="#" variant="default" size="sm">

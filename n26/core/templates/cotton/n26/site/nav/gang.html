@@ -1,0 +1,26 @@
+{% comment %}
+<c-n26.site.nav.gang> — one of the reader's gangs, in the navigation drawer.
+
+    <c-n26.site.nav.gang href="/n26/gangs/1/" name="The Ashen Choir" type="Escher" />
+
+Two lines rather than one: the name is what the reader is looking for and the
+type is how they tell two of their own apart, so the type is quieter and sits
+under it rather than competing for the same line.
+
+A component rather than markup at the call site, because the drawer's rows and
+the page that lists gangs should agree about what a gang looks like without the
+layout template knowing any of the classes.
+
+  href — the gang's sheet.
+  name — the gang's name.
+  type — the gang type, shown under the name. Optional.
+{% endcomment %}
+<c-vars href="#" name="" type="" class="" />
+
+<a href="{{ href }}"
+   {{ attrs }}
+   class="flex flex-col rounded-control px-3 py-2 transition-colors
+          hover:bg-ink-100 dark:hover:bg-ink-800 {{ class }}">
+    <span class="truncate text-sm text-ink-700 dark:text-ink-300">{{ name }}</span>
+    {% if type %}<span class="truncate text-xs text-ink-500 dark:text-ink-400">{{ type }}</span>{% endif %}
+</a>

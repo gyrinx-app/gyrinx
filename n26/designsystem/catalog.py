@@ -1739,23 +1739,36 @@ GROUPS: list[Group] = [
             Component(
                 slug="site-nav",
                 tag="c-n26.site.nav",
-                template="n26/site/nav.html",
-                summary="The bar across the top of every page: brand, links, actions.",
-                needs=(ALPINE, KIT_JS, COLLAPSE),
+                template="n26/site/nav/index.html",
+                summary=(
+                    "The bar across the top of every page, and the drawer behind "
+                    "its burger."
+                ),
+                needs=(ALPINE, KIT_JS, FOCUS),
                 notes=(
-                    "Mostly the kit's c-ui.navbar, which already has the tedious "
-                    "parts right — a burger that mirrors the items and actions "
-                    "into a mobile panel, an is-current marker its variant "
-                    "styles, the focus and aria wiring. What this adds is the two "
-                    "things the kit has no opinion about: a brand block, and a "
-                    "measure. The measure is the reason it exists. The kit runs "
-                    "its row the full width of the window, which suits an "
-                    "application that fills the screen; a site with a footer "
-                    "under it wants the logo above the first footer column. "
-                    "Items stay the kit's c-ui.navbar.item rather than a wrapper "
-                    "of our own — it already marks itself current in a way the "
-                    "parent styles, and a pass-through would only be somewhere "
-                    "for the two to drift apart."
+                    "The links are in the drawer and nowhere else, which is what "
+                    "buys the bar its one good idea: the space beside the brand "
+                    "belongs to the page, so every page can say its own name "
+                    "there after a middle dot. A bar that held both had to choose, "
+                    "and the page that most needed naming — a half-filled form, "
+                    "whose title is the first thing to scroll away — was exactly "
+                    "the page whose links then went missing. The burger is on the "
+                    "left because the panel arrives from the left, and it is the "
+                    "same control at every width rather than one that appears "
+                    "below md: a burger is only predictable if you already know "
+                    "the window is narrow. Items stay the kit's c-ui.navbar.item "
+                    "— a bare <a> its container styles, which is what lets one "
+                    "list be drawn in the drawer and again in the noscript strip "
+                    "under the bar. That strip is not decoration: Alpine builds "
+                    "the drawer out of a <template>, so with no script the panel "
+                    "does not exist and the links would be nowhere."
+                ),
+                parts=(
+                    Part(
+                        "c-n26.site.nav.gang",
+                        "n26/site/nav/gang.html",
+                        "One of the reader's own gangs, in the drawer.",
+                    ),
                 ),
             ),
             Component(
