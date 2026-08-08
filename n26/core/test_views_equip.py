@@ -143,6 +143,23 @@ def test_the_standard_trading_post_is_offered(client, tester, fighter):
     assert "Lho Sticks" in body
 
 
+def test_a_homebrew_trading_post_is_not_the_standard_one(
+    client, tester, fighter, homebrew
+):
+    """Collection names are only unique per pack. A pack that names its
+    own collection "Trading Post" must not be offered as the standard
+    fallback — it reaches a fighter the way any pack list does, by
+    being assigned or granted."""
+    from n26.library.authoring import create_trading_post
+
+    create_wargear("Bootleg Stimms", price=5, trade_point_price=1, pack=homebrew)
+    create_trading_post(pack=homebrew)
+
+    client.force_login(tester)
+    body = client.get(equip_url(fighter)).content.decode()
+    assert "Bootleg Stimms" not in body
+
+
 def test_the_chosen_list_is_url_state(client, tester, fighter, house_list):
     """?list= picks which collection is browsed."""
     from n26.library.authoring import create_trading_post

@@ -165,14 +165,20 @@ def equip(request, pk):
     from n26.core.card import build_card, build_modifier_index
     from n26.core.effects import compute
     from n26.core.operations import NotEnoughCredits, operation
-    from n26.library.models import Collection
+    from n26.library.models import Collection, get_default_pack
     from n26.library.standard_content import TRADING_POST_COLLECTION
 
     miniature = _own_miniature_or_404(request, pk)
     gang = miniature.gang
 
     collections = [access.collection for access in collections_for(miniature)]
-    post = Collection.objects.filter(name=TRADING_POST_COLLECTION).first()
+    # Pinned to the default pack: collection names are only unique per
+    # pack, so a homebrew pack's own "Trading Post" must not shadow the
+    # standard one here. A pack's post reaches a fighter the way any list
+    # does — by being assigned or granted, which collections_for found.
+    post = Collection.objects.filter(
+        name=TRADING_POST_COLLECTION, pack=get_default_pack()
+    ).first()
     if post is not None and post.pk not in {c.pk for c in collections}:
         collections.append(post)
 
