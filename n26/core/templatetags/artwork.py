@@ -1,12 +1,12 @@
 """Drawing stored artwork without trusting it.
 
-A gang type's badge is a block of SVG somebody typed into an authoring form and
-a database handed back, so it is user input however staff-only the form was.
-Drawn inline — which is what lets it take the colour of the text it sits in —
-the browser will run whatever is in it, so it goes through the platform's
-allowlist on the way out. Cleaning at render rather than at save means the
-stored value stays faithful to what the author wrote, and a tighter allowlist
-takes effect on artwork that is already there.
+A gang type's badge is a block of SVG that somebody uploaded and storage handed
+back, so it is user input however staff-only the surface was. Drawn inline —
+which is what lets it take the colour of the text it sits in — the browser will
+run whatever is in it, so it goes through the platform's allowlist on the way
+out. Cleaning at render rather than at save means the stored file stays
+faithful to what the author made, and a tighter allowlist takes effect on
+artwork that is already there.
 
 The sanitiser is ``gyrinx.svg`` rather than a copy here. What is safe to put in
 a page is a property of SVG and of the browser, not of either edition's content
@@ -37,7 +37,7 @@ def safe_artwork(value):
 
     Usage::
 
-        {{ gang_type.icon|safe_artwork }}
+        {{ gang_type.artwork|safe_artwork }}
 
     Returns an empty string for anything blank or unusable, so a gang type with
     no artwork draws nothing at all rather than an empty box. No trailing

@@ -39,7 +39,11 @@
     {% endif %}
     {% if edit_form %}
         <c-n26.form-section title="This {{ verbose_name }}" class="mt-8">
-            <form method="post" class="max-w-xl space-y-5">
+            {# A form carrying an upload has to say so, or the browser posts the #}
+            {# file's name and nothing else. The form knows whether it holds one. #}
+            <form method="post"
+                  {% if edit_form.is_multipart %}enctype="multipart/form-data"{% endif %}
+                  class="max-w-xl space-y-5">
                 {% csrf_token %}
                 <input type="hidden" name="act" value="edit">
                 {% include "authoring/_form.html" with form=edit_form %}
@@ -76,7 +80,9 @@
                     {% for paragraph in part_help %}<p>{{ paragraph }}</p>{% endfor %}
                 </c-n26.prose>
             {% endif %}
-            <form method="post" class="max-w-xl space-y-5">
+            <form method="post"
+                  {% if form.is_multipart %}enctype="multipart/form-data"{% endif %}
+                  class="max-w-xl space-y-5">
                 {% csrf_token %}
                 {% include "authoring/_form.html" %}
                 {% if statline_form %}

@@ -63,7 +63,7 @@ class CreateGangForm(forms.Form):
             {
                 "value": str(row.pk),
                 "label": str(row),
-                "icon": row.icon,
+                "icon": row.artwork,
                 "description": _founding_budget(row.starting_credits),
                 "checked": str(row.pk) == submitted,
             }

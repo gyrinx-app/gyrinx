@@ -1,5 +1,7 @@
+from django import forms
 from django.contrib import admin
 
+from n26.library import artwork
 from n26.library.models import (
     ContentPack,
     GangType,
@@ -21,8 +23,37 @@ class ContentPackAdmin(admin.ModelAdmin):
     search_fields = ["name", "slug"]
 
 
+class GangTypeForm(forms.ModelForm):
+    """The badge's two ways in, in the admin as on the authoring page.
+
+    The extra control stores nothing of its own: it puts the file in the
+    site's storage and writes the resulting address into ``icon_url``, which
+    is the only thing the row keeps.
+    """
+
+    icon_url_upload = forms.FileField(
+        required=False,
+        label="Upload a drawing",
+        help_text=(
+            "An SVG file. Uploading one stores it and fills in the address "
+            "above, replacing whatever is there."
+        ),
+        widget=forms.ClearableFileInput(attrs={"accept": ".svg,image/svg+xml"}),
+    )
+
+    class Meta:
+        model = GangType
+        fields = "__all__"
+
+    def clean(self):
+        cleaned = super().clean()
+        artwork.clean_onto(self, cleaned, "icon_url", "icon_url_upload")
+        return cleaned
+
+
 @admin.register(GangType)
 class GangTypeAdmin(admin.ModelAdmin):
+    form = GangTypeForm
     list_display = ["name", "pack", "archived"]
     list_filter = ["pack", "archived"]
     search_fields = ["name"]

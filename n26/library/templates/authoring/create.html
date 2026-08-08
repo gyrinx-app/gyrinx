@@ -21,7 +21,11 @@
             {% for paragraph in kind_help %}<p>{{ paragraph }}</p>{% endfor %}
         </c-n26.prose>
     {% endif %}
-    <form method="post" class="mt-6 max-w-xl space-y-5">
+    {# A form carrying an upload has to say so, or the browser posts the file's #}
+    {# name and nothing else. The form itself knows whether it holds one. #}
+    <form method="post"
+          {% if form.is_multipart %}enctype="multipart/form-data"{% endif %}
+          class="mt-6 max-w-xl space-y-5">
         {% csrf_token %}
         {% include "authoring/_form.html" %}
         {% if suggestion_form %}

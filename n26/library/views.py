@@ -484,7 +484,7 @@ def create(request, kind):
     suggestion_class = suggestion_form_for(model)
 
     if request.method == "POST":
-        form = form_class(request.POST)
+        form = form_class(request.POST, request.FILES)
         suggestions = (
             suggestion_class(request.POST, prefix="suggested")
             if suggestion_class
@@ -559,7 +559,7 @@ def detail(request, kind, pk):
 
     edit_class = generate_form(spec)
     if request.method == "POST" and act == "edit":
-        edit_form = edit_class.opened_on(thing, request.POST)
+        edit_form = edit_class.opened_on(thing, request.POST, request.FILES)
         if edit_form.is_valid():
             try:
                 with transaction.atomic():
@@ -587,7 +587,7 @@ def detail(request, kind, pk):
             else None
         )
         if request.method == "POST" and not act:
-            form = form_class(request.POST)
+            form = form_class(request.POST, request.FILES)
             statline_form = statline_class(request.POST) if statline_class else None
             forms_valid = form.is_valid() and (
                 statline_form is None or statline_form.is_valid()

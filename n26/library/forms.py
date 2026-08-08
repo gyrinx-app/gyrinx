@@ -35,7 +35,9 @@ import inspect
 from django import forms
 from django.core.exceptions import ValidationError
 
+from n26.library import artwork
 from n26.library.specs import (
+    Artwork,
     Bool,
     Choice,
     Conditions,
@@ -177,6 +179,25 @@ def _form_fields(spec, name, kind):
                 else forms.TextInput(),
             )
         }
+    if isinstance(kind, Artwork):
+        # Two controls, one stored value. The upload is not a spec field —
+        # nothing about it is kept — so it never reaches the verb; clean()
+        # turns it into the address the box holds.
+        return {
+            name: forms.CharField(
+                required=_is_required(spec, name),
+                help_text=kind.help,
+            ),
+            f"{name}_upload": forms.FileField(
+                required=False,
+                label="Upload a drawing",
+                help_text=(
+                    "An SVG file. Uploading one stores it and fills in the "
+                    "address above, replacing whatever is there."
+                ),
+                widget=forms.ClearableFileInput(attrs={"accept": ".svg,image/svg+xml"}),
+            ),
+        }
     if isinstance(kind, Choice):
         return {
             name: forms.ChoiceField(
@@ -281,6 +302,8 @@ class GeneratedForm(forms.Form):
                     )
             if isinstance(kind, Union):
                 self._clean_union(name, kind, cleaned)
+            if isinstance(kind, Artwork):
+                artwork.clean_onto(self, cleaned, name, f"{name}_upload")
         return cleaned
 
     def _clean_union(self, name, kind, cleaned):
@@ -359,7 +382,7 @@ class GeneratedForm(forms.Form):
         return self.spec.compile(data)
 
     @classmethod
-    def opened_on(cls, thing, data=None, prefix="edit"):
+    def opened_on(cls, thing, data=None, files=None, prefix="edit"):
         """The same form, filled in from a row that already exists.
 
         A creating spec describes its verb's parameters, and for the
@@ -380,7 +403,7 @@ class GeneratedForm(forms.Form):
             for name in cls.spec.fields
             if hasattr(thing, name)
         }
-        return cls(data, initial=initial, prefix=prefix)
+        return cls(data, files, initial=initial, prefix=prefix)
 
     def apply_to(self, thing):
         """Write this valid form's fields onto an existing row.

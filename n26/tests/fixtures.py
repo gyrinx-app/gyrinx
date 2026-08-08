@@ -162,6 +162,37 @@ def make_statline(db):
 
 
 @pytest.fixture
+def own_storage(settings, tmp_path):
+    """Point the site's storage at a directory this test owns.
+
+    Uploads go to whatever storage is configured, which outside a test is a
+    bucket and inside one is a directory under the checkout. A test that
+    wrote there would leave files behind and see another test's. The address
+    they are published at is pinned too, so what a test asserts about one
+    does not depend on how the machine running it is configured.
+    """
+    settings.MEDIA_ROOT = tmp_path
+    settings.MEDIA_URL = "/media/"
+    return tmp_path
+
+
+@pytest.fixture
+def store_artwork(own_storage):
+    """Put a drawing in the site's storage and return its address —
+    the shape a gang type's ``icon_url`` holds."""
+    from django.core.files.base import ContentFile
+    from django.core.files.storage import default_storage
+
+    def _store(source, name="badge.svg"):
+        key = default_storage.save(
+            f"gang-type-icons/{name}", ContentFile(source.encode())
+        )
+        return default_storage.url(key)
+
+    return _store
+
+
+@pytest.fixture
 def names():
     """Pull the ``name`` column off a queryset, for readable assertions."""
 

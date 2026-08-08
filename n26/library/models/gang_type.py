@@ -1,6 +1,7 @@
 from django.db import models
 from django.db.models.functions import Lower
 
+from n26.library.artwork import read as read_artwork
 from n26.library.models.assignable import (
     Assignable,
     Family,
@@ -30,20 +31,22 @@ class GangType(Content, Assignable):
 
     family = Family.GANG
 
-    # Markup in the row rather than an uploaded file: artwork is authored
-    # content and travels with the pack that holds it, so it belongs in the
-    # same table as the name it decorates and needs no bucket to be readable.
-    # It is untrusted for the same reason any other authored text is — it is
-    # sanitised on the way out, never on the way in, so tightening the
-    # allowlist re-secures what is already stored.
-    icon = models.TextField(
+    # The drawing is a file in the site's own storage and the row keeps its
+    # address, so a badge can be uploaded here or pointed at where it already
+    # sits. Drawn inline rather than as an image, which is what lets it take
+    # the colour of the text beside it — and that means the server reads the
+    # bytes, so an address is only ever resolved against this site's storage
+    # and never fetched from wherever it points (library/artwork.py).
+    icon_url = models.CharField(
+        max_length=500,
         blank=True,
         default="",
         help_text=(
-            "SVG markup for the gang type's badge, drawn beside its name "
-            "wherever the gang is listed. Paste the whole <svg> element; draw "
-            "it in one colour and it will follow the surrounding text. Leave "
-            "blank and nothing is drawn."
+            "Address of the SVG drawn beside this gang type's name wherever "
+            "the gang is listed. Upload a drawing to fill this in, or paste "
+            "the address of one already uploaded. Draw it in one colour and "
+            "it will follow the surrounding text. Leave blank and nothing is "
+            "drawn."
         ),
     )
 
@@ -74,3 +77,14 @@ class GangType(Content, Assignable):
 
     def __str__(self):
         return self.name
+
+    @property
+    def artwork(self):
+        """The badge's SVG source, for a surface to clean and draw inline.
+
+        The one accessor every surface reads, so none of them has to know
+        that an address is involved. Empty for a type with no badge and for
+        one whose address no longer names anything — both draw as nothing at
+        all rather than as a gap in a column of names.
+        """
+        return read_artwork(self.icon_url)

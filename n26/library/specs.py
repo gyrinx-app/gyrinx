@@ -87,6 +87,17 @@ class Text(_Sourced):
 
 
 @dataclass(frozen=True)
+class Artwork(_Sourced):
+    """The address of a drawing in the site's own storage.
+
+    Two controls, one value: a box holding the address, and an upload
+    that puts a file in the storage and fills the box in. Only the
+    address is stored, so there is nothing for a reader to choose
+    between (library/artwork.py).
+    """
+
+
+@dataclass(frozen=True)
 class Choice(_Sourced):
     """One of a fixed set. ``options`` for a plain tuple (offerable
     kinds); otherwise the choices come off the sourced model field.
@@ -605,10 +616,9 @@ def _build_registry():
             {
                 "name": Text(source=(GangType, "name")),
                 "starting_credits": Int(source=(GangType, "starting_credits")),
-                # A paragraph field because the value is a block of SVG source.
-                # Nothing on an ingest sheet carries artwork, so this is
+                # Nothing on an ingest sheet carries artwork, so a badge is
                 # authored here and only here.
-                "icon": Text(source=(GangType, "icon"), long=True),
+                "icon_url": Artwork(source=(GangType, "icon_url")),
                 "qualifier": Text(source=(GangType, "qualifier")),
                 "library_author_help": Text(
                     source=(GangType, "library_author_help"), long=True
