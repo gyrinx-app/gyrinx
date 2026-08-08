@@ -96,7 +96,7 @@ class TestEveryDialectCompiles:
 class TestRoundsBySpecificity:
     """Compute runs in rounds; a scope's round is its selector's specificity.
 
-    Tom's design (2026-08-05): unconditional modifiers (specificity 0)
+    Unconditional modifiers (specificity 0)
     settle first; filtered scopes (specificity 1+) then ask against the
     settled facts, all seeing the same snapshot. So a wargear's
     unconditional "grants Mounted" lands in round 0, and a rule for

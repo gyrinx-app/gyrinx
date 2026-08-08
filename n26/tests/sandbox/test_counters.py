@@ -1,6 +1,6 @@
 """Counters, with XP as the first one — and effects hanging off values.
 
-Tom's design (2026-08-05): XP is a Counter so that the machinery gets
+XP is a Counter so that the machinery gets
 proven on day one — a threshold-conditioned scope reveals a promotion
 offer at 5 XP and confers a title at 10, computed, withdrawn if the
 value drops. The definition is content; who has one is assignment (XP

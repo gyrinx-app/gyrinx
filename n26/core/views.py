@@ -1,8 +1,8 @@
 """The preview endpoint: form state in, card state out.
 
-Tom's framing (design/authoring.md): the scratch-card UI is earnable if
-"an endpoint that takes the form state and gives back card state"
-exists. This is that endpoint, deliberately thin — everything it does
+The scratch-card UI becomes possible once an endpoint takes form state
+and gives back card state (design/authoring.md). This is that endpoint,
+deliberately thin — everything it does
 lives in :mod:`n26.preview`, and nothing it does survives the request:
 the preview rolls its own transaction back.
 """

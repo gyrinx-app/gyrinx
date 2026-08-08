@@ -167,7 +167,7 @@ class Spec:
         Keys absent from ``data`` fall back to the verb's own defaults.
         A ``Conditions`` value is a list of ``(verb_name, payload)``
         pairs, each compiled by that condition's spec and passed
-        positionally — the nesting Tom's grammar asks for.
+        positionally — the nesting the grammar asks for.
         """
         signature = inspect.signature(self.verb)
         args, kwargs = [], {}

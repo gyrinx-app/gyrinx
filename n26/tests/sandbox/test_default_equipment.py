@@ -1,11 +1,9 @@
 """What a profile comes with, and what may be chosen instead.
 
-The Khimerix, from Tom's dictation:
-
-    A Khimerix is armed with chemical cloud breath and talons. They may
-    select from the below options when added to a Gang Roster:
-      · replace chemical cloud breath with gaseous eruption breath +25
-      · replace talons with razor-sharp talons +25
+The Khimerix is the shape this proves. It carries chemical cloud breath
+and talons as built-ins, and offers two swaps when it joins a roster:
+gaseous eruption breath for the breath, razor-sharp talons for the
+talons, each at +25.
 
 Nothing is ever *replaced*. A choice decides which set materialises at
 hire, and the option not taken simply never comes into being — which is
@@ -206,7 +204,7 @@ class TestPricingIsAdditive:
     def test_the_cost_may_live_on_the_built_ins_instead(
         self, gang, person_type, gang_type, weapons
     ):
-        """Tom's idea: every profile has built-ins, so they can carry the cost."""
+        """Every profile has built-ins, so they can carry the price."""
         profile = Profile.objects.create(
             name="Cheap beast",
             profile_type=person_type,

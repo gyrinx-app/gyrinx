@@ -1,8 +1,8 @@
 """The Enforcer Haunt: a chosen *type*, as a Subtype.
 
-Tom's modelling (2026-08-06): Psyrender and Bonecrusher are Subtypes —
-the book says the Haunt "selects one of the following **types**", and
-Subtype is the system's word for exactly that. The pick is then a
+Psyrender and Bonecrusher are Subtypes — the Haunt selects one of
+several types, and Subtype is the system's word for exactly that. The
+pick is then a
 matchable fact ("all Psyrender models…" is expressible), it reads in
 the type line, and the payload rides the subtype as ordinary modifiers:
 
@@ -79,7 +79,7 @@ def powers_collection(families):
 @pytest.fixture
 def wyrd_types(families, powers_collection):
     """Psyrender and Bonecrusher: each a Subtype carrying its placement
-    and its chained power pick — Tom's sketch, verbatim."""
+    and its chained power pick."""
     _, tiers = powers_collection
     made = {}
     for key, name in [("psyrender", "Psyrender"), ("bonecrusher", "Bonecrusher")]:

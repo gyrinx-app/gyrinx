@@ -1,11 +1,11 @@
 """Authoring verbs — the one vocabulary for building library content.
 
-Graduated from ``tests/sandbox/actions.py`` (2026-08-06): these verbs
-are the authoring API, and the admin's forms compile to exactly these
-calls — a form that can't be expressed as a verb here can't exist, and
-a verb here is what a spec describes (design/authoring.md).
+These verbs are the authoring API, and the admin's forms compile to
+exactly these calls — a form that can't be expressed as a verb here
+can't exist, and a verb here is what a spec describes
+(design/authoring.md).
 
-The grammar, agreed with Tom (design/authoring-build-plan.md):
+The grammar (design/authoring-build-plan.md):
 
 * **Scopes** say who a modifier reaches, and take nested **conditions**::
 

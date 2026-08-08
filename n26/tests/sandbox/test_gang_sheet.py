@@ -1,9 +1,9 @@
 """The gang as a data structure of its own.
 
-Tom, 2026-08-06 (design/gang-sheet.md): "take the same approach we took
-to miniatures, and build a data structure for a gang that includes all
-its properties, so we have a test structure to work against. You can
-then derive a renderable version from that." So: ``GangCard`` is the
+A gang gets the same treatment a miniature does (design/gang-sheet.md):
+a data structure holding all its properties, so there is something to
+test against, with the renderable version derived from it. So:
+``GangCard`` is the
 fetch, ``ComputedGang`` is the test interface, and the grown
 ``GangSheet`` derives from both — the same three layers a miniature
 has, and the surface gang-level choices (a Venator's ranked skill

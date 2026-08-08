@@ -1,6 +1,6 @@
 """Skills, skill sets, placements, and Wyrd powers.
 
-The design, from Tom's sketch (design/collections.md gets the log):
+The design (design/collections.md gets the log):
 
 * a skill set is a **home category** — the taxonomy every collection
   shares; a skill's D6 number is its position within the set;
@@ -107,9 +107,9 @@ def library(sets):
 def catalogue(library):
     """The one collection: every skill and every power, by sweep.
 
-    This is Tom's proof point in fixture form — the powers arrive via a
-    second sweep line, and nothing downstream knows or cares that they
-    are a different kind.
+    The proof point in fixture form — the powers arrive via a second
+    sweep line, and nothing downstream knows or cares that they are a
+    different kind.
     """
     return create_collection("Skills & Powers", contains=[Skill, Power])
 
