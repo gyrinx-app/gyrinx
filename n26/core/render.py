@@ -16,6 +16,7 @@ from n26.core.card import build_card
 from n26.core.effects import kind_of
 from n26.library.models import (
     Collection,
+    Counter,
     Hidden,
     Power,
     Rule,
@@ -24,6 +25,7 @@ from n26.library.models import (
     Weapon,
     WeaponProfile,
 )
+from n26.library.standard_content import XP_COUNTER
 
 #: The book's weapon slots on one card. Each weapon takes its own
 #: ``slots`` against this budget — asterisked weapons two, grenades none.
@@ -303,6 +305,9 @@ class GangSheet:
     rating: int
     credits: int
     wealth: int
+    #: The colour the owner picked, drawn as a mark wherever the gang is
+    #: named. A palette name the theme resolves, or empty for no colour.
+    colour: str = ""
     #: The gang's own rows — its founding, the house list, its rules.
     rows: list[AssignableLine] = field(default_factory=list)
     #: Gang-level choices — a Venator's ranked skill trees.
@@ -420,10 +425,14 @@ def card_to_model_card(
     Everything about *who* the card is for arrives as arguments, so this
     works the same whether the card came from a player's assignments or
     from a profile's default equipment in a hire preview.
+
+    ``xp`` is what to show when the card holds no XP counter; a card that
+    holds one shows its value instead, so the cell moves with every tally.
     """
     primary = None
     subtypes, skills, equipment, weapons, collections = [], [], [], [], []
     powers, rules = [], []
+    counted_xp = None
 
     # A node that answers a choice is drawn as that choice's row, not as a
     # loose piece of equipment as well.
@@ -551,6 +560,13 @@ def card_to_model_card(
             collections.append(
                 AssignableLine(name=node.name, provenance=provenance_of(node))
             )
+        elif isinstance(thing, Counter):
+            # A counter is a running number, not a possession, so it is
+            # never drawn as a piece of kit. XP has a cell of its own on
+            # the card and fills it from the counter's value — the value a
+            # hire opens at its printed Starting XP and every tally moves.
+            if thing.name.casefold() == XP_COUNTER.casefold():
+                counted_xp = _counter_value(node)
         elif node.is_profile:
             # A Legacy profile rides the card but is not drawn from: it is
             # not equipment either, so it falls off here until Legacy gets
@@ -650,9 +666,16 @@ def card_to_model_card(
             else []
         ),
         owned_by=owned_by,
-        xp=xp,
+        xp=xp if counted_xp is None else counted_xp,
         xp_target=xp_target,
     )
+
+
+def _counter_value(node):
+    """What a counter node stands at. Zero on a card built from library
+    alone: a preview has no assignment to hold a value."""
+    held = getattr(node.assignment, "counter_value", None) if node.assignment else None
+    return held.value if held else 0
 
 
 def _weapon_changes(weapon_state):
@@ -745,6 +768,7 @@ def render_gang(gang, with_effects=True):
         rating=gang.rating,
         credits=gang.credits,
         wealth=gang.wealth,
+        colour=gang.colour,
         rows=_gang_rows(gang_card, gang_computed),
         choices=(
             [

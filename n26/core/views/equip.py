@@ -1,0 +1,162 @@
+"""Buying equipment for one fighter — the web face of :mod:`n26.core.browse`."""
+
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.shortcuts import redirect, render
+
+from n26.core.views.permissions import _own_miniature_or_404
+
+
+def _thing_key(thing):
+    """One string naming a browsed line's item — what the Buy buttons
+    submit. Model label plus pk, the same pair ``browse`` dedupes on,
+    because a pk alone is ambiguous across the assignable tables."""
+    return f"{thing._meta.label_lower}:{thing.pk}"
+
+
+@login_required
+def equip(request, pk):
+    """Buy equipment for one fighter, from a list they can actually browse.
+
+    Which list is URL state (``?list=<pk>``), picked from
+    ``collections_for`` — the fighter's own lists, their gang's, computed
+    grants — plus the standard Trading Post when the library has one.
+
+    The Buy buttons submit the *identity* of a line, never its price:
+    the server re-browses the chosen collection and hands the found line
+    whole to ``Operation.buy``, so what is paid is always the server's
+    derivation and a tampered form can name nothing that is not on the
+    list. Browsed on equipment-list terms for now — Trade Points are
+    shown, not charged, because a TP budget is a session concept that
+    does not exist yet.
+
+    A purchase stays on the page: kitting out a fighter is a run of
+    purchases, and the breadcrumb is the way back.
+    """
+    from n26.core.access import collections_for
+    from n26.core.browse import browse, usability_for, with_use_notes
+    from n26.core.card import build_card, build_modifier_index
+    from n26.core.effects import compute
+    from n26.core.operations import NotEnoughCredits, operation
+    from n26.library.models import Collection, get_default_pack
+    from n26.library.standard_content import TRADING_POST_COLLECTION
+
+    miniature = _own_miniature_or_404(request, pk)
+    gang = miniature.gang
+
+    collections = [access.collection for access in collections_for(miniature)]
+    # Pinned to the default pack: collection names are only unique per
+    # pack, so a homebrew pack's own "Trading Post" must not shadow the
+    # standard one here. A pack's post reaches a fighter the way any list
+    # does — by being assigned or granted, which collections_for found.
+    post = Collection.objects.filter(
+        name=TRADING_POST_COLLECTION, pack=get_default_pack()
+    ).first()
+    if post is not None and post.pk not in {c.pk for c in collections}:
+        collections.append(post)
+
+    chosen = None
+    wanted = request.GET.get("list")
+    for collection in collections:
+        if str(collection.pk) == wanted:
+            chosen = collection
+            break
+    if chosen is None and collections:
+        chosen = collections[0]
+
+    view = None
+    if chosen is not None:
+        card = build_card(miniature)
+        index = build_modifier_index([node.assignable for node in card.all_nodes()])
+        view = with_use_notes(browse(chosen), usability_for(compute(card, index)))
+
+    if request.method == "POST" and view is not None:
+        key = request.POST.get("thing", "")
+        line = next(
+            (row for row in view.all_lines() if _thing_key(row.thing) == key), None
+        )
+        back = f"{request.path}?list={chosen.pk}"
+        if line is None:
+            # Not on this list — a stale page or a tampered form. The
+            # list itself is the answer either way.
+            messages.error(request, "That item is not on this list.")
+            return redirect(back)
+        try:
+            with operation(gang, actor=request.user) as op:
+                op.buy(miniature, line=line)
+        except NotEnoughCredits as refusal:
+            messages.error(request, str(refusal))
+            return redirect(back)
+        messages.success(request, f"Bought {line.name} for {miniature.name}.")
+        return redirect(back)
+
+    lines = list(view.all_lines()) if view is not None else []
+    trade_points = [
+        line.trade_points for line in lines if line.trade_points is not None
+    ]
+    sections = view.sections if view is not None else []
+    return render(
+        request,
+        "n26/equip.html",
+        {
+            "miniature": miniature,
+            "gang": gang,
+            "collections": collections,
+            "chosen": chosen,
+            # Each line paired with the key its Buy button submits, so the
+            # template never composes an identity of its own.
+            "section_rows": [
+                {
+                    "name": section.name,
+                    "first": index == 0,
+                    "categories": [
+                        {
+                            "name": category.name,
+                            "lines": [
+                                {"line": line, "key": _thing_key(line.thing)}
+                                for line in category.lines
+                            ],
+                        }
+                        for category in section.categories
+                    ],
+                }
+                for index, section in enumerate(sections)
+            ],
+            # Registration names, "" included — see the hire view: a row
+            # in an unnamed category registers under its section's name,
+            # and a list that omits one hides those rows client-side.
+            "categories": list(
+                dict.fromkeys(
+                    category.name or section.name
+                    for section in sections
+                    for category in section.categories
+                )
+            ),
+            "category_options": [
+                {"value": name, "label": name}
+                for name in dict.fromkeys(
+                    category.name
+                    for section in sections
+                    for category in section.categories
+                    if category.name
+                )
+            ],
+            # All-or-nothing, as on the hire page: tabs are the whole
+            # navigation once on, and an unnamed section can never be the
+            # active tab — mixed content would hide it.
+            "sections": (
+                [section.name for section in sections]
+                if sections and all(section.name for section in sections)
+                else []
+            ),
+            "cost_floor": min((line.credits for line in lines), default=0),
+            "cost_ceiling": max((line.credits for line in lines), default=0),
+            "tp_ceiling": max(trade_points, default=0),
+            "has_trade_points": bool(trade_points),
+            # Distinct from has_trade_points: an exclusive line has
+            # trade_points=None ("E" is not a number), so a list of
+            # exclusive-only items would otherwise never draw the toggle
+            # that is the only way to filter them.
+            "has_exclusive": any(line.is_exclusive for line in lines),
+        },
+    )

@@ -487,6 +487,111 @@ class TestSectionsAndLastingEffects:
         assert vehicle_type.lasting_effect_term == "Damage"
 
 
+class TestAProfilesHome:
+    """A profile sorts into the hire list under a category, the same way
+    a piece of wargear sorts into an equipment list. The picker names
+    the section too, so two sections may both hold a Champions.
+
+    The home is optional: a profile with none gathers at the end of the
+    hire list under no heading, which is what a sheet that names no
+    category should produce.
+    """
+
+    def test_the_create_form_offers_a_home(
+        self, author, client, default_pack, fighter_type, gang_type
+    ):
+        from n26.library.authoring import create_category
+
+        create_category("Escher", "Champions")
+        body = client.get("/n26/authoring/profile/new/").content.decode()
+
+        assert "Escher: Champions" in body
+
+    def test_a_created_profile_keeps_its_home(
+        self, author, client, default_pack, fighter_type, gang_type
+    ):
+        from n26.library.authoring import create_category
+        from n26.library.models import Profile
+
+        champions = create_category("Escher", "Champions")
+        response = client.post(
+            "/n26/authoring/profile/new/",
+            {
+                "name": "Death-maiden",
+                "profile_type": str(fighter_type.pk),
+                "gang_type": str(gang_type.pk),
+                "price": "115",
+                "category": str(champions.pk),
+            },
+        )
+
+        assert response.status_code == 302
+        assert Profile.objects.get(name="Death-maiden").category == champions
+
+    def test_a_home_is_optional(
+        self, author, client, default_pack, fighter_type, gang_type
+    ):
+        from n26.library.models import Profile
+
+        response = client.post(
+            "/n26/authoring/profile/new/",
+            {
+                "name": "Wyld Runner",
+                "profile_type": str(fighter_type.pk),
+                "gang_type": str(gang_type.pk),
+                "price": "60",
+                "category": "",
+            },
+        )
+
+        assert response.status_code == 302
+        assert Profile.objects.get(name="Wyld Runner").category is None
+
+    def test_the_edit_page_opens_on_the_home_it_has(
+        self, author, client, default_pack, fighter_type, gang_type
+    ):
+        from n26.library.authoring import create_category, create_profile
+
+        champions = create_category("Escher", "Champions")
+        profile = create_profile(
+            "Death-maiden", fighter_type, gang_type, price=115, category=champions
+        )
+
+        body = client.get(f"/n26/authoring/profile/{profile.pk}/").content.decode()
+        picker = re.search(
+            r'<select\s+name="edit-category".*?</select>', body, re.S
+        ).group()
+        chosen = re.search(r"<option[^>]*\bselected\b[^>]*>", picker).group()
+        assert str(champions.pk) in chosen
+
+    def test_the_home_can_be_changed(
+        self, author, client, default_pack, fighter_type, gang_type
+    ):
+        from n26.library.authoring import create_category, create_profile
+
+        champions = create_category("Escher", "Champions")
+        gangers = create_category("Escher", "Gangers")
+        profile = create_profile(
+            "Death-maiden", fighter_type, gang_type, price=115, category=champions
+        )
+
+        response = client.post(
+            f"/n26/authoring/profile/{profile.pk}/",
+            {
+                "act": "edit",
+                "edit-name": "Death-maiden",
+                "edit-profile_type": str(fighter_type.pk),
+                "edit-gang_type": str(gang_type.pk),
+                "edit-price": "115",
+                "edit-category": str(gangers.pk),
+            },
+        )
+
+        assert response.status_code == 302
+        profile.refresh_from_db()
+        assert profile.category == gangers
+
+
 class TestAuthorHelp:
     """Every assignable carries the author's own help
     — addable on the form, never a home for the book's rules text."""

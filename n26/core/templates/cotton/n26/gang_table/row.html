@@ -1,7 +1,7 @@
 {% comment %}
 <c-n26.gang-table.row> — one gang: what it is called, what it is, what it is worth.
 
-    <c-n26.gang-table.row name="The Ashen Choir" type="Escher (HoB)"
+    <c-n26.gang-table.row name="The Ashen Choir" type="Escher (HoB)" colour="teal"
                           :sheet="sheet" href="/gangs/1/" print_href="/gangs/1/print/" />
 
 The whole row opens the gang, and the buttons on it still work. Exactly one real
@@ -24,11 +24,13 @@ you came to the list.
 
   name — the gang's. The link, and the accessible name for the whole row.
   type — its gang type, under the name.
+  colour — the gang's colour, as a mark before the name. Empty draws nothing, so a
+    column of names where few gangs have one keeps its left edge.
   :sheet — a n26.render.GangSheet, for <c-n26.wealth>.
   href — where the row goes. The edit screen, since that is what a row is for.
   print_href — the print button's destination. Omitted, no print button.
 {% endcomment %}
-<c-vars name="" type="" :sheet="None" href="" print_href="" class="" />
+<c-vars name="" type="" colour="" :sheet="None" href="" print_href="" class="" />
 
 <div x-data="{ facets: {
         type: {{ type|json_dumps }},
@@ -51,9 +53,15 @@ you came to the list.
             hover:bg-ink-500/5 @2xl:grid-cols-[minmax(0,1fr)_17rem_9rem] {{ class }}">
 
     <div class="col-start-1 row-start-1 min-w-0">
+        {% comment %}
+        The mark goes inside the anchor rather than beside it, so the focus ring
+        that draws around the name draws around the whole thing and the two never
+        wrap apart. It is aria-hidden, so the row's accessible name is still the
+        gang's name and nothing else.
+        {% endcomment %}
         <a href="{{ href }}"
            class="n26-row-link rounded-control text-base font-semibold text-ink-900 focus-ring dark:text-ink-100">
-            {{ name }}
+            <c-n26.color-swatch color="{{ colour }}" />{{ name }}
         </a>
         <p class="text-sm text-muted">{{ type }}</p>
     </div>

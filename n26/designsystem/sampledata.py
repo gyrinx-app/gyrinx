@@ -7,6 +7,8 @@ prove the ORM does.
 
 from dataclasses import dataclass, replace
 
+from django.utils.text import slugify
+
 from n26.core.browse import CategoryGroup, CollectionView, PricedLine, SectionGroup
 from n26.core.hire import STANDARD_OPTION_NAME, HireEntry, HireGroup, HireOption
 from n26.core.notes import INFO, WARNING, Note
@@ -885,6 +887,23 @@ def hire_list():
     return section_rows
 
 
+def hire_entry(value):
+    """The sample entry a press names, looked up by what the rows submit.
+
+    The shell's rows submit their slugified name, so pressing Hire on one
+    of three hundred can be answered with that one's dialog rather than a
+    fixed example that would name the wrong fighter.
+    """
+    if not value:
+        return None
+    for section_row in hire_list():
+        for category in section_row["categories"]:
+            for entry in category["entries"]:
+                if slugify(entry.name) == value:
+                    return entry
+    return None
+
+
 def hire_context():
     """What the hire view needs: the sections, and the ends of its one slider."""
     section_rows = hire_list()
@@ -911,6 +930,13 @@ def hire_context():
         ],
         "hire_price_floor": min(entry.base_price for entry in entries),
         "hire_price_ceiling": max(entry.base_price for entry in entries),
+        # What a press hands the name dialog: the row's answer, already
+        # given, riding to the next request as fields nobody has to retype.
+        "hire_dialog_choices": ["Chainsword"],
+        "hire_dialog_fields": [
+            {"name": "profile", "value": "ganger"},
+            {"name": "ganger:1", "value": "1"},
+        ],
         # What a real gang would supply. Shown, never enforced.
     }
 
@@ -982,6 +1008,7 @@ def gang_sheet():
         rating=360,
         credits=1037,
         wealth=1397,
+        colour="violet",
         rows=[
             AssignableLine(name="Founded in Cycle 3"),
             AssignableLine(name="Escher house list"),
@@ -1052,7 +1079,7 @@ def gang_sheet_context():
 # worth. Only the four figures matter here; a dashboard row draws nothing else.
 
 
-def _gang_summary(name, gang_type, rating, credits, stash_rating):
+def _gang_summary(name, gang_type, rating, credits, stash_rating, colour=""):
     return GangSheet(
         name=name,
         gang_type=gang_type,
@@ -1060,19 +1087,21 @@ def _gang_summary(name, gang_type, rating, credits, stash_rating):
         credits=credits,
         stash_rating=stash_rating,
         wealth=rating + credits + stash_rating,
+        colour=colour,
     )
 
 
 #: Five gangs, deliberately unalike: a long name to test the row on a phone, two
-#: of the same type so the filter has something to narrow, and one with nothing in
-#: the stash so a zero is drawn rather than hidden.
+#: of the same type so the filter has something to narrow, one with nothing in the
+#: stash so a zero is drawn rather than hidden, and two with no colour, because a
+#: list where some rows carry a mark and some do not is the one that ships.
 GANGS = [
-    _gang_summary("The Ashen Choir", "Escher (HoB)", 360, 1037, 100),
-    _gang_summary("Rust in Peace", "Goliath (HoC)", 1240, 85, 0),
+    _gang_summary("The Ashen Choir", "Escher (HoB)", 360, 1037, 100, "violet"),
+    _gang_summary("Rust in Peace", "Goliath (HoC)", 1240, 85, 0, "amber"),
     _gang_summary(
         "The Silent Ledger and the Long Count", "Delaque (HoS)", 980, 210, 45
     ),
-    _gang_summary("Sump City Rats", "Underhive Outcasts", 1475, 12, 260),
+    _gang_summary("Sump City Rats", "Underhive Outcasts", 1475, 12, 260, "teal"),
     _gang_summary("Cog and Coil", "Goliath (HoC)", 1105, 430, 75),
 ]
 

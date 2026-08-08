@@ -3,18 +3,21 @@ The authoring section's app-bar links, with the current page marked. One
 include, the same shape as the app's n26/_nav.html and for the same
 reason: two copies of one list of links is two places for one to drift.
 
-Takes `here` — "index", "foundations", "modifiers" or "ingest". The leaf
+Takes `here` — "index", "modifiers", "foundations" or "ingest". The leaf
 and detail pages pass "index": they are reached from the index and have
 no bar item of their own, and a bar with nothing marked reads as a page
 that belongs nowhere. "App" is the way back out and is never current —
 it is not an authoring page.
+
+Modifiers before Foundations: modifiers are what an author comes back to
+day after day, and foundations are the rows you plant once.
 {% endcomment %}
 <c-ui.navbar.item href="{% url 'authoring-index' %}"
                   current="{% if here == 'index' %}1{% endif %}">Content library</c-ui.navbar.item>
-<c-ui.navbar.item href="{% url 'authoring-foundations' %}"
-                  current="{% if here == 'foundations' %}1{% endif %}">Foundations</c-ui.navbar.item>
 <c-ui.navbar.item href="{% url 'authoring-modifiers' %}"
                   current="{% if here == 'modifiers' %}1{% endif %}">Modifiers</c-ui.navbar.item>
+<c-ui.navbar.item href="{% url 'authoring-foundations' %}"
+                  current="{% if here == 'foundations' %}1{% endif %}">Foundations</c-ui.navbar.item>
 <c-ui.navbar.item href="{% url 'authoring-ingest' %}"
                   current="{% if here == 'ingest' %}1{% endif %}">Ingest</c-ui.navbar.item>
 <c-ui.navbar.item href="{% url 'n26-dashboard' %}">App</c-ui.navbar.item>

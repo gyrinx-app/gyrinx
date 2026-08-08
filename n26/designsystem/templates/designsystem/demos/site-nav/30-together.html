@@ -6,7 +6,7 @@
     <c-n26.site.announcement tone="info" cta_text="Read the notes" cta_url="#">
         Campaigns are live, and every gang can now join one.
     </c-n26.site.announcement>
-    <c-n26.site.nav title="Gyrinx" href="#">
+    <c-n26.site.nav title="Gyrinx" href="#" user_label="tom">
         <c-slot name="logo">
             <img src="{% static 'n26/gyrinx-logo.svg' %}"
                  alt=""
@@ -14,29 +14,30 @@
                  height="24"
                  class="size-6">
         </c-slot>
-        <c-ui.navbar.item href="#" :current="True">
+        <c-slot name="heading">
+            The Ashen Choir
+        </c-slot>
+        <c-ui.navbar.item href="#" current="1">
             Home
         </c-ui.navbar.item>
         <c-ui.navbar.item href="#">
-            Lists &amp; Gangs
+            Gangs
         </c-ui.navbar.item>
-        <c-ui.navbar.item href="#">
-            Campaigns
-        </c-ui.navbar.item>
-        <c-ui.navbar.item href="#">
-            Customisation
-        </c-ui.navbar.item>
-        <c-ui.navbar.item href="#">
-            Help
-        </c-ui.navbar.item>
+        <span>Campaigns <span class="text-xs tracking-wide uppercase">Soon</span></span>
+        <c-slot name="gangs">
+            <c-n26.site.nav.gang href="#" name="The Ashen Choir" type="Escher" colour="violet" />
+        </c-slot>
         <c-slot name="actions">
             <c-ui.mode-toggle storage_key="n26-theme" default="system" size="sm" />
-            <c-ui.button href="#" variant="default" size="sm">
-                <span class="flex items-center gap-1.5">
-                    <c-n26.icon name="cog-6-tooth" class="size-4" />
-                    tom
-                </span>
-            </c-ui.button>
+        </c-slot>
+        <c-slot name="menu">
+            <c-ui.dropdown.item href="#">
+                Your account
+            </c-ui.dropdown.item>
+            <c-ui.dropdown.separator />
+            <c-ui.dropdown.item href="#" variant="danger">
+                Sign out
+            </c-ui.dropdown.item>
         </c-slot>
     </c-n26.site.nav>
     <div class="n26-site-container py-10">

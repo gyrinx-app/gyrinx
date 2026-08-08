@@ -1,5 +1,6 @@
 {% load static %}
 {% load banner %}
+{% load navigation %}
 {% comment %}
 The n26 page shell. Block names and order match the platform base template
 (head_title, stylesheet, body, content, extra_body, extra_script) so templates
@@ -116,6 +117,8 @@ banner, is_impersonating / impersonator, gtm_container_id, messages, user.
         {% comment %}
         The `dark` class keeps the header dark in both modes: it re-declares the
         theme's dark tokens for the subtree and enables dark: utilities inside it.
+        The drawer teleports out of this subtree and so follows the page's theme,
+        which is right — it covers the page, not the bar.
 
         The nav_heading block goes *inside* a c-slot, never into a heading=""
         attribute: cotton parses attributes before Django's block machinery runs,
@@ -145,14 +148,36 @@ banner, is_impersonating / impersonator, gtm_container_id, messages, user.
             {% comment %}
             A block rather than a slot: a page extending this template can fill
             a block, but cannot fill a slot on a component the template owns.
+            Whichever area the page belongs to fills it with its own links, so
+            an author browsing the authoring pages gets an authoring drawer.
             {% endcomment %}
             {% block nav_items %}
             {% endblock nav_items %}
             {% comment %}
-            The account items live inside the nav's one menu, under the
-            navigation links: the signed-in trigger is the username, and a
-            second button holding just the account would put half of
-            "where can I go" behind each of two controls.
+            The reader's own gangs, under the places the app has: a gang is
+            what someone opens the drawer for, and the alternative is two
+            presses through the gangs page every time.
+
+            The query runs here rather than in a context processor because
+            this layout is the only thing that draws the drawer — a processor
+            would run it for every page on the site.
+            {% endcomment %}
+            {% if user.is_authenticated %}
+                <c-slot name="gangs">
+                    {% drawer_gangs as drawer_gangs_ %}
+                    {% for gang in drawer_gangs_ %}
+                        <c-n26.site.nav.gang href="{% url 'n26-gang' gang.pk %}"
+                                             name="{{ gang.name }}"
+                                             type="{{ gang.gang_type }}"
+                                             colour="{{ gang.colour }}" />
+                    {% endfor %}
+                </c-slot>
+            {% endif %}
+            {% comment %}
+            The account menu: what you are signed in as, the doors only staff
+            have, and the way out. Each separator is drawn by the section
+            below it, so the staff section leaving takes its rule with it and
+            nobody sees two in a row.
 
             c-ui.dropdown.item, not c-ui.menu.item — menu.item calls
             selectOption(), which is combobox machinery outside a dropdown's
@@ -162,13 +187,25 @@ banner, is_impersonating / impersonator, gtm_container_id, messages, user.
                 <c-slot name="menu">
                     {% url 'admin:index' as admin_url_ %}
                     {% url 'account_logout' as logout_url_ %}
-                    <c-ui.dropdown.separator />
                     <c-ui.dropdown.item href="/account/">
                         Your account
                     </c-ui.dropdown.item>
-                    {% if user.is_staff and admin_url_ %}
-                        <c-ui.dropdown.item href="{{ admin_url_ }}">
-                            Admin
+                    {% comment %}
+                    The doors into the admin and into content authoring, kept
+                    together and out of the drawer: the drawer is for the
+                    places every reader has, and writing content is something
+                    a handful of accounts do. The gate inside authoring is
+                    staff-only regardless — this only decides who sees it.
+                    {% endcomment %}
+                    {% if user.is_staff %}
+                        <c-ui.dropdown.separator />
+                        {% if admin_url_ %}
+                            <c-ui.dropdown.item href="{{ admin_url_ }}">
+                                Admin
+                            </c-ui.dropdown.item>
+                        {% endif %}
+                        <c-ui.dropdown.item href="{% url 'authoring-index' %}">
+                            Content Library
                         </c-ui.dropdown.item>
                     {% endif %}
                     {% if logout_url_ %}
@@ -239,14 +276,15 @@ banner, is_impersonating / impersonator, gtm_container_id, messages, user.
         {% endif %}
         {% block body %}
             <main id="content" class="n26-site-container flex-1 pt-4 pb-10">
-                {% if messages %}
-                    <div class="mb-4 flex flex-col gap-2">
-                        {% for message in messages %}
-                            <c-ui.alert variant="{% if message.level_tag == 'success' %}success{% elif message.level_tag == 'warning' %}warning{% elif message.level_tag == 'error' %}error{% else %}info{% endif %}"
-                                        dismissible="1">{{ message }}</c-ui.alert>
-                        {% endfor %}
-                    </div>
-                {% endif %}
+                {% comment %}
+                A block, so a page that needs its messages somewhere else can
+                empty this one and include the same partial where it wants
+                them. Reading the storage is what consumes it, so a page doing
+                that must empty this or the message draws twice.
+                {% endcomment %}
+                {% block messages %}
+                    {% include "n26/includes/messages.html" %}
+                {% endblock messages %}
                 {% block content %}
                 {% endblock content %}
             </main>

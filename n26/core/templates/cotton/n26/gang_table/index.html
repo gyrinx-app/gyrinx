@@ -1,7 +1,8 @@
 {% comment %}
 <c-n26.gang-table> — the gangs you own, searchable.
 
-    <c-n26.gang-table :type_options="options" noun="gangs">
+    <c-n26.gang-table :type_options="options" noun="gangs"
+                      action="/n26/gangs/" :query="query">
         <c-n26.gang-table.row name="The Ashen Choir" type="Escher (HoB)"
                               :sheet="sheet" href="/gangs/1/" print_href="/gangs/1/print/" />
     </c-n26.gang-table>
@@ -30,22 +31,47 @@ one question with one answer. Rows register their facets on init and show
 themselves only while those pass, so the count and the list are computed from one
 object and cannot disagree.
 
+  --- two searches, one box ---
+
+The box narrows what is on the page as you type; pressing Search asks the server,
+which can reach gangs this page never carried. Given an `action` it does both:
+typing is the fast answer to a question the page can already answer, submitting
+is for when it cannot.
+
+`query` is what the server was asked, and the box opens holding it. That is also
+what keeps the two out of each other's way: while the box still reads what the
+server answered, the in-page filter passes every row, because the rows on the
+page *are* the answer — narrowing by that query again would hide any row the
+server matched by means a substring does not have (a word stem, a field the row
+does not print). Type something else and it narrows from there as usual.
+
   :type_options — [{value, label}] of every gang type present. Drawn only when
     there are two or more: a filter with one option filters nothing.
   noun — what the count counts. "gangs" by default.
+  action — where Search submits, as a GET. Without one there is nowhere to go
+    and the submit does nothing; the box still narrows in place.
+  :query — the query the server answered, echoed back into the box. Pass it as
+    an expression: through an attribute it is escaped twice and a quote in the
+    query comes back as `&amp;quot;`.
   empty — what to show when a search matches nothing.
 {% endcomment %}
-<c-vars :type_options="[]" noun="gangs" class="" />
+<c-vars :type_options="[]" noun="gangs" action="" query="" class="" />
 
 <div x-data="{
         rows: [],
-        query: '',
+        query: {{ query|json_dumps }},
+        answered: {{ query|lower|json_dumps }},
         type: '',
         register(facets) { this.rows.push(facets) },
         matches(facets) {
             if (this.type && facets.type !== this.type) return false;
             const q = this.query.trim().toLowerCase();
-            return !q || facets.search.includes(q);
+            {% comment %}
+            The server already answered this exact question, so these rows are
+            the result — asking it again here could only take rows away.
+            {% endcomment %}
+            if (!q || q === this.answered) return true;
+            return facets.search.includes(q);
         },
         get shown() { return this.rows.filter(f => this.matches(f)).length },
      }"
@@ -56,7 +82,13 @@ object and cannot disagree.
      @choice-apply.window="if ($event.detail.name === 'type') type = $event.detail.value"
      class="flex flex-col gap-3 {{ class }}">
 
-    <c-n26.search-bar :live="True" model="query" placeholder="Search {{ noun }}" />
+    {% comment %}
+    Both passed as expressions, not as "{{ … }}" strings: a value written into an
+    attribute is escaped on the way in and escaped again on the way out, so a
+    query containing a quote comes back into the box as `&quot;`.
+    {% endcomment %}
+    <c-n26.search-bar :live="True" model="query" :action="action"
+                      :value="query" placeholder="Search {{ noun }}" />
 
     {% if type_options|length > 1 %}
         <div class="flex flex-wrap items-center gap-2">

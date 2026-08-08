@@ -3,7 +3,7 @@ import json
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.http import Http404
-from django.shortcuts import render
+from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.views.decorators.clickjacking import xframe_options_sameorigin
 
@@ -220,13 +220,27 @@ def shell_hire(request):
     there is no submit to handle. What it is here to show is the pattern under a
     scroll — a sticky bar whose heading outlives the h1, and a form whose submit
     is three hundred rows down rather than at the bottom.
+
+    A press is answered the way the real screen answers one — with this page's
+    URL naming the profile, and the dialog drawn over it — because the whole
+    point of the loop is that it happens without leaving the list, and a shell
+    that skipped it would be showing half of the pattern.
+
+    The message is pushed for the same reason the home page pushes one, and
+    proves the opposite thing: this screen takes its messages out of the
+    layout's slot and draws them inside the form, above the list.
     """
+    here = reverse("designsystem:shell_hire")
+    if request.method == "POST":
+        return redirect(f"{here}?hire={request.POST.get('hire', '')}")
+    messages.success(request, "Hired Vex — Ganger, 80¢.")
     return render(
         request,
         "designsystem/shell/hire.html",
         {
             "banner": _SHELL_BANNER,
             "gang_owner": sampledata.OWNER,
+            "hire_entry": sampledata.hire_entry(request.GET.get("hire")),
             **create_gang_context(),
             **sampledata.hire_context(),
         },

@@ -1,0 +1,120 @@
+{% comment %}
+<c-n26.hire-dialog> — name the fighter whose Hire was pressed.
+
+    <c-n26.hire-dialog action="/gangs/1/hire/" profile="Ganger" price="55"
+                       :choices="choices" :fields="fields"
+                       cancel_url="/gangs/1/hire/" :form="form">
+        {% csrf_token %}
+    </c-n26.hire-dialog>
+
+The last step of a hire and the only one that asks anything. Which profile and
+which options were answered by the row that was pressed, so they arrive here as
+hidden fields rather than as controls: changing them means going back to the
+row. What is left is a name, and the price the answer adds up to.
+
+  --- open is a server state ---
+
+The page draws this only when the URL names a pressed profile, so there is no
+trigger, no toggle and no client-side open flag — the dialog is in the HTML or
+it is not. That is what makes pressing Hire work with scripting off, and what
+makes the open dialog a link somebody can send.
+
+The kit's c-ui.dialog is the other shape: a trigger beside content teleported
+into a <template> and revealed by Alpine. With the open state already decided
+by the server and no script running, it would draw nothing at all. So this is a
+native <dialog open> — a panel in the page's flow on its own, promoted to a real
+modal (top layer, backdrop, Escape, trapped focus) by showModal() where Alpine
+is there to call it. The `static` class is what it degrades to, and it is
+dropped at the moment the promotion succeeds.
+
+Escape closes a modal by itself, which would leave a list on screen while the
+URL still names a profile. So dismissing navigates: the close event and Cancel
+both go to cancel_url, and the address bar keeps agreeing with the page.
+
+  action — where the name posts. The hire page itself.
+  profile — the profile pressed, named in the title.
+  price — what this hire will charge, in credits.
+  choices — the options ticked on the row, listed so a reader can see what they
+    are confirming.
+  fields — the hidden inputs carrying that answer, as {name, value} pairs.
+  cancel_url — where Cancel and a dismissed dialog go: this page with no
+    profile named.
+  form — the Django form carrying the name field. c-ui.field reads its label,
+    help text and errors.
+  modal — promote to the top layer. On by default; off draws the panel in the
+    page's flow, which is what a reader without scripting sees.
+  slot — the csrf token. A component has no request and renders none itself.
+{% endcomment %}
+<c-vars
+    action=""
+    profile=""
+    price=""
+    :choices="None"
+    :fields="None"
+    cancel_url=""
+    :form="None"
+    :modal="True"
+    class=""
+/>
+
+{% comment %}
+The promotion is two steps because a dialog rendered with the `open` attribute
+is already open, and showModal() on an open dialog throws rather than upgrading
+it.
+
+Closing first means a failed promotion would leave the dialog shut, which is
+worse than never having tried: the server decided this dialog is open, and the
+unpromoted panel in the page's flow is the whole fallback. So the promotion is
+guarded and reopens the panel if it does not take — `promoted` stays false, and
+the panel keeps the static presentation it renders with.
+{% endcomment %}
+<dialog open
+        {% if modal %}x-data="{ promoted: false }"
+        x-init="try { if ($el.open) $el.close(); $el.showModal(); promoted = true } catch (e) { $el.open = true }"
+        :class="{ 'static': !promoted }"
+        @close="window.location = '{{ cancel_url }}'"{% endif %}
+        aria-labelledby="hire-dialog-title"
+        {{ attrs }}
+        class="static m-0 w-full max-w-lg rounded-box border border-box-border bg-surface p-0 text-ink-900 shadow-xl backdrop:bg-black/50 dark:bg-ink-900 dark:text-ink-100 {{ class }}">
+    <form method="post" action="{{ action }}" class="space-y-5 p-6">
+        {{ slot }}
+        {% for field in fields %}<input type="hidden" name="{{ field.name }}" value="{{ field.value }}">{% endfor %}
+        <div class="space-y-1.5">
+            <h2 id="hire-dialog-title"
+                class="text-lg font-semibold tracking-tight text-ink-900 dark:text-ink-100">
+                Hire a {{ profile }}
+            </h2>
+            {% comment %}
+            The price is the whole answer the row was configured to, not the
+            advertised one — an option ticked upstairs is charged here, so it is
+            named here too.
+            {% endcomment %}
+            <p class="text-sm text-muted">
+                {{ price }}¢{% if choices %} — {{ choices|join:", " }}{% endif %}
+            </p>
+        </div>
+
+        {% comment %}
+        Autofocus, because the dialog exists to be typed in: a modal that opens
+        with the cursor nowhere makes a reader click before they can answer.
+        {% endcomment %}
+        <c-ui.field label="Name"
+                    description="Optional — you can name them later."
+                    error="x"
+                    :form="form"
+                    name="name"
+                    for="fighter-name">
+            <c-ui.input id="fighter-name" name="name" autocomplete="off" autofocus="autofocus"
+                        value="{{ form.name.value|default:'' }}" />
+        </c-ui.field>
+
+        {% comment %}
+        Cancel is a link rather than a button: it goes somewhere — this page
+        without a profile named — and nothing it does needs a form.
+        {% endcomment %}
+        <div class="flex justify-end gap-2">
+            <c-ui.button variant="default" href="{{ cancel_url }}">Cancel</c-ui.button>
+            <c-ui.button type="submit" variant="success">Hire</c-ui.button>
+        </div>
+    </form>
+</dialog>

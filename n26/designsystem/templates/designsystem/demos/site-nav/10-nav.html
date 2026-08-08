@@ -1,8 +1,11 @@
 {# title: The bar #}
 {# layout: full #}
-{# note: Mostly the kit's c-ui.navbar, which already handles the burger, the mobile mirror of the items and actions, and the is-current marker. What this adds is a brand block and a measure — the same container the announcement and footer use, so the logo lines up with the first footer column. Narrow the window to see the items fold into the panel. #}
+{# note: Burger, brand, then the page's own name after a middle dot. Press the burger for the places the app has and the reader's own gangs; press the name on the right for the account. Narrow the window to see the page name step aside — the brand and the controls are what a phone has room for. #}
 {% load static %}
-<c-n26.site.nav title="Gyrinx" href="#" class="rounded-box border border-box-border">
+<c-n26.site.nav title="Gyrinx"
+                href="#"
+                user_label="tom"
+                class="rounded-box border border-box-border">
     <c-slot name="logo">
         <img src="{% static 'n26/gyrinx-logo.svg' %}"
              alt=""
@@ -10,28 +13,31 @@
              height="24"
              class="size-6">
     </c-slot>
-    <c-ui.navbar.item href="#" :current="True">
+    <c-slot name="heading">
+        The Ashen Choir
+    </c-slot>
+    <c-ui.navbar.item href="#" current="1">
         Home
     </c-ui.navbar.item>
     <c-ui.navbar.item href="#">
-        Lists &amp; Gangs
+        Gangs
     </c-ui.navbar.item>
-    <c-ui.navbar.item href="#">
-        Campaigns
-    </c-ui.navbar.item>
-    <c-ui.navbar.item href="#">
-        Customisation
-    </c-ui.navbar.item>
-    <c-ui.navbar.item href="#">
-        Help
-    </c-ui.navbar.item>
+    <span>Campaigns <span class="text-xs tracking-wide uppercase">Soon</span></span>
+    <span>Content Packs <span class="text-xs tracking-wide uppercase">Soon</span></span>
+    <c-slot name="gangs">
+        <c-n26.site.nav.gang href="#" name="The Ashen Choir" type="Escher" colour="violet" />
+        <c-n26.site.nav.gang href="#" name="Gravebolt Kin" type="Goliath" />
+    </c-slot>
     <c-slot name="actions">
         <c-ui.mode-toggle storage_key="n26-theme" default="system" size="sm" />
-        <c-ui.button href="#" variant="default" size="sm">
-            <span class="flex items-center gap-1.5">
-                <c-n26.icon name="cog-6-tooth" class="size-4" />
-                tom
-            </span>
-        </c-ui.button>
+    </c-slot>
+    <c-slot name="menu">
+        <c-ui.dropdown.item href="#">
+            Your account
+        </c-ui.dropdown.item>
+        <c-ui.dropdown.separator />
+        <c-ui.dropdown.item href="#" variant="danger">
+            Sign out
+        </c-ui.dropdown.item>
     </c-slot>
 </c-n26.site.nav>

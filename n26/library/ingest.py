@@ -43,7 +43,8 @@ Three standing rules are load-bearing here:
   type or a mode.
 * **Equipment lists** — a named collection per ``Title``, one entry per
   line, at this list's price where it differs from the catalogue's.
-* **Gang list profiles** — the fighters.
+* **All Profiles** — the fighters, each with the heading and category
+  it is hired under.
 
 They join on an ``ID`` column printing ``Name (Profile) (Category ←
 Section)``, which :class:`ItemId` parses. Resolution goes through that,
@@ -403,7 +404,7 @@ def plan_ingest(
     1. the **equipment** sheet — the catalogue: what exists, and its price;
     2. the **weapon profiles** sheet — the statlines, onto those rows;
     3. the **equipment lists** — collections and entries, restrictions deferred;
-    4. the **gang list profiles** — the fighters;
+    4. the **All Profiles** sheet — the fighters;
     5. those deferred restrictions, which needed the fighters.
 
     Resolve, never create, at every step.
@@ -428,7 +429,10 @@ def _exists(plan, model, **filters):
     return model.objects.filter(pack=plan.pack, **filters).first()
 
 
-def _plan_category(plan, section, name, source):
+def _plan_category(plan, section, name, source, section_position=0):
+    """A category and the heading above it. ``section_position`` is the
+    order that heading reads in, and applies only where the plan founds
+    it — a heading already in the pack keeps the order it has."""
     from n26.library.models import Category
 
     key = f"Category:{_norm(section)}:{_norm(name)}"
@@ -447,7 +451,7 @@ def _plan_category(plan, section, name, source):
     plan.add(
         "Category",
         _clean(name),
-        {"section": section.strip()},
+        {"section": section.strip(), "section_position": section_position},
         source,
         key=key,
         action=action,
@@ -797,9 +801,45 @@ def _statline_values(row, columns):
     return values
 
 
+#: The headings the profiles sheet homes fighters under, and the order
+#: the hire list reads them in: the gang's own list first, everything
+#: hired beside it after. A blank ``Section`` cell means the gang list —
+#: the sheet only spells out the other one.
+GANG_LIST_SECTION = "Gang List"
+PROFILE_SECTIONS = {GANG_LIST_SECTION: 0, "Supplementary Fighters": 1}
+
+
+def _plan_home(plan, row, name, source):
+    """A fighter's home category, from the sheet's ``Category`` and
+    ``Section``. Returns its key, or None where the sheet names none."""
+    section = _clean(row.get("Section") or "") or GANG_LIST_SECTION
+    category = _clean(row.get("Category") or "")
+    if not category:
+        plan.problem(
+            source,
+            f"{name!r} names no Category — it arrives ungrouped, under no "
+            f"heading in the hire list",
+            severity="note",
+        )
+        return None
+    return _plan_category(
+        plan,
+        section,
+        category,
+        source,
+        # A heading the sheet invents sorts after both known ones rather
+        # than tying with the gang list at 0, where the tie-break is
+        # alphabetical and would interleave it with the gang's own
+        # fighters.
+        section_position=PROFILE_SECTIONS.get(section, len(PROFILE_SECTIONS)),
+    )
+
+
 def _plan_profiles(plan, rows):
-    """The gang list profiles sheet. Rating **is** the price (§5a); the
-    grid columns become placement modifiers on the profile itself."""
+    """The All Profiles sheet. Rating **is** the price (§5a); the grid
+    columns become placement modifiers on the profile itself, and the
+    ``Category`` and ``Section`` columns are the fighter's home — where
+    the hire list shelves it."""
     from n26.library.models import GangType, Profile, Rule, Skill, Subtype
 
     for line, row in enumerate(rows, start=1):
@@ -988,6 +1028,7 @@ def _plan_profiles(plan, rows):
                 "price": int(rating) if rating.isdigit() else 0,
                 "stats": _statline_values(row, MODEL_COLUMNS),
                 "built_ins": built_ins_key,
+                "category": _plan_home(plan, row, name, source),
             },
             source,
             key=profile_key,
@@ -1635,10 +1676,28 @@ class _Performer:
 
     def _create_category(self, planned):
         from n26.library import authoring
+        from n26.library.models import Section
 
-        return authoring.create_category(
-            planned.fields["section"], planned.name, **self.shared
-        )
+        # The heading is founded here rather than left to the verb so it
+        # can carry the order it reads in; one already in the pack keeps
+        # the order it has.
+        #
+        # Matched case-insensitively, the way every other lookup in this
+        # performer matches: a pack is unique on a section's lowercased
+        # name, so an exact-match lookup asked for "Gang list" where the
+        # pack holds "Gang List" misses it, inserts, and trips the
+        # constraint — taking the whole import down. Two sheets spelling
+        # one heading differently is all it takes to get there.
+        section = Section.objects.filter(
+            name__iexact=planned.fields["section"], **self.shared
+        ).first()
+        if section is None:
+            section = Section.objects.create(
+                name=planned.fields["section"],
+                position=planned.fields["section_position"],
+                **self.shared,
+            )
+        return authoring.create_category(section, planned.name, **self.shared)
 
     def _create_trait(self, planned):
         from n26.library import authoring
@@ -1754,6 +1813,7 @@ class _Performer:
         from n26.library import authoring
         from n26.library.models import ProfileType
 
+        home = planned.fields["category"]
         profile = authoring.create_profile(
             planned.name,
             self._standard(
@@ -1764,6 +1824,9 @@ class _Performer:
             self.resolve(planned.fields["gang_type"]),
             price=planned.fields["price"],
             qualifier=planned.fields.get("qualifier", ""),
+            # No home means the hire list has nowhere to shelve it: it
+            # gathers at the end, under no heading.
+            category=self.resolve(home) if home else None,
             **self.shared,
         )
         if planned.fields["built_ins"]:

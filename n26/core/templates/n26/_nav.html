@@ -1,21 +1,23 @@
 {% comment %}
-The links every real n26 page shares. One include rather than each page
-writing its own, for the same reason the gallery's shell has one: two
-copies of the same links is two places for one to drift. The gallery's
-version (designsystem/shell/_nav.html) points at the shell walk; this
-one points at the pages that write.
+The places the app has, for the navigation drawer. One include rather than
+each page writing its own list, for the same reason the gallery's shell has
+one: two copies of the same links is two places for one to drift. The
+gallery's version (designsystem/shell/_nav.html) points at the shell walk;
+this one points at the pages that write.
 
-Takes `here` — "home" or "new-gang".
+Campaigns and Content Packs are words rather than links: neither has a page
+yet, and the dashboard's tabs for them say the same thing. A link that lands
+nowhere teaches a reader to distrust the rest of the list, where a plain word
+costs nothing and is true.
+
+Making a gang is an action rather than a place, and it has a button on both
+pages that would list it.
+
+Takes `here` — "home" or "gangs".
 {% endcomment %}
 <c-ui.navbar.item href="{% url 'n26-dashboard' %}"
                   current="{% if here == 'home' %}1{% endif %}">Home</c-ui.navbar.item>
-<c-ui.navbar.item href="{% url 'n26-create-gang' %}"
-                  current="{% if here == 'new-gang' %}1{% endif %}">Create a gang</c-ui.navbar.item>
-{% comment %}
-The way into the authoring section, for the people who may use it. The
-gate inside authoring is staff-only regardless — this only decides who
-sees the door.
-{% endcomment %}
-{% if user.is_staff %}
-    <c-ui.navbar.item href="{% url 'authoring-index' %}">Authoring</c-ui.navbar.item>
-{% endif %}
+<c-ui.navbar.item href="{% url 'n26-gangs' %}"
+                  current="{% if here == 'gangs' %}1{% endif %}">Gangs</c-ui.navbar.item>
+<span>Campaigns <span class="text-xs tracking-wide uppercase">Soon</span></span>
+<span>Content Packs <span class="text-xs tracking-wide uppercase">Soon</span></span>

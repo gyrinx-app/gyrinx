@@ -11,7 +11,10 @@ The load-bearing ideas:
 * the dashboard and the create form are the design system's views bound
   to real data — the user's own gangs, the platform's changelog;
 * a valid create submit founds a real gang: the row, its founding
-  assignment, and the type's built-ins, owned by the signed-in user.
+  assignment, and the type's built-ins, owned by the signed-in user;
+* the shell's drawer holds whatever links the area gave it and the
+  reader's own gangs, while the account menu behind their name holds
+  the doors — and the staff-only ones only for staff.
 
 Tests run --nomigrations, so the "N26 Testers" group the accounts data
 migration creates does not exist here — each test that needs it makes
@@ -117,6 +120,260 @@ class TestTheDashboard:
         # the entry's payload — dropped with its content, not escaped.
         assert "alert" not in body
         assert "fine" in body
+
+
+TELEPORT = '<template x-teleport="body">'
+
+
+def nav_drawer(body):
+    """The panel behind the burger.
+
+    Alpine builds it out of a <template>, which is one inert block in
+    the response — and the only place the reader's gangs appear, so it
+    also tells the drawer's copy of the links apart from the flat copy
+    drawn for a reader with no script.
+    """
+    header = body[body.index("<header") : body.index("</header>")]
+    start = header.index(TELEPORT)
+    return header[start : header.index("</template>", start)]
+
+
+def nav_bar(body):
+    """The row across the top, with the drawer's panel and the no-script
+    strip cut out — both repeat the links, so a bare substring search
+    could not tell which copy it had found."""
+    header = body[body.index("<header") : body.index("</header>")]
+    start = header.index(TELEPORT)
+    end = header.index("</template>", start) + len("</template>")
+    bar = header[:start] + header[end:]
+    return bar[: bar.index("<noscript>")]
+
+
+def nav_noscript(body):
+    """The flat list of links under the bar, drawn for a reader whose
+    browser ran no script and so has no drawer to open."""
+    header = body[body.index("<header") : body.index("</header>")]
+    return header[header.index("<noscript>") : header.index("</noscript>")]
+
+
+def account_menu(body):
+    """The panel behind the reader's own name. The header's one
+    role="menu" region, and the account items live only in it."""
+    bar = nav_bar(body)
+    return bar[bar.index('role="menu"') :]
+
+
+def in_order(text, *fragments):
+    """Where each fragment first appears, for asserting a running order."""
+    return [text.index(fragment) for fragment in fragments]
+
+
+class TestTheNavigation:
+    """A bar that names the page, a drawer that holds the places, an
+    account menu that holds the doors.
+
+    The bar reads left to right as one sentence — burger, brand, the
+    page's own name — with the controls at the far end. Everywhere a
+    reader can go is behind the burger: the area's pages, and their own
+    gangs under them. Everything about the account, including the
+    staff-only doors, is behind their name.
+    """
+
+    @pytest.fixture
+    def staff(self, client):
+        user = User.objects.create_user("boss", is_staff=True)
+        client.force_login(user)
+        return user
+
+    def test_the_bar_reads_burger_brand_then_page(self, tester, client, default_pack):
+        bar = nav_bar(client.get("/n26/").content.decode())
+        positions = in_order(
+            bar,
+            'aria-label="Open navigation menu"',
+            "n26-site-brand",
+            "·",
+            "Home",
+        )
+        assert positions == sorted(positions)
+
+    def test_the_controls_sit_at_the_far_end(self, tester, client, default_pack):
+        """Past the page's name, so nothing the page says can push them
+        around and a reader finds them in the same place every time."""
+        bar = nav_bar(client.get("/n26/").content.decode())
+        positions = in_order(
+            bar,
+            "n26-site-brand",
+            'aria-label="Toggle dark mode"',
+            'aria-label="Open account menu"',
+        )
+        assert positions == sorted(positions)
+
+    def test_the_drawer_holds_the_places_the_app_has(
+        self, tester, client, default_pack
+    ):
+        drawer = nav_drawer(client.get("/n26/").content.decode())
+        positions = in_order(
+            drawer, ">Home</a>", ">Gangs</a>", "Campaigns", "Content Packs"
+        )
+        assert positions == sorted(positions)
+        # Founding is an action with a button on both pages, not a place.
+        assert ">Create a gang</a>" not in drawer
+
+    def test_a_place_with_no_page_yet_is_not_a_link(self, tester, client, default_pack):
+        """Campaigns and Content Packs are coming and are worth naming,
+        but a link that lands nowhere teaches a reader to distrust the
+        rest of the list."""
+        drawer = nav_drawer(client.get("/n26/").content.decode())
+        assert ">Campaigns</a>" not in drawer
+        assert ">Content Packs</a>" not in drawer
+        assert "Campaigns <span" in drawer
+
+    def test_the_drawer_lists_the_readers_own_gangs(
+        self, tester, client, default_pack, gang_type, make_profile
+    ):
+        """Under the places, because a gang is what someone opens the
+        drawer for. With the type, which is how a player tells two of
+        their own apart."""
+        from n26.tests.sandbox.actions import found_gang
+
+        gang = found_gang("The Bad Girls", gang_type, owner=tester)
+
+        drawer = nav_drawer(client.get("/n26/").content.decode())
+        positions = in_order(
+            drawer,
+            ">Gangs</a>",
+            "Your gangs",
+            "The Bad Girls",
+            str(gang_type),
+        )
+        assert positions == sorted(positions)
+        assert f"/n26/gangs/{gang.pk}/" in drawer
+
+    def test_a_gangs_colour_is_a_mark_beside_its_name(
+        self, tester, client, default_pack, gang_type, make_profile
+    ):
+        """The colour reaches the markup as the palette's variable in a
+        style attribute. A class built from the colour's name is a string
+        Tailwind never sees and never emits, so it would have styled
+        nothing at all."""
+        from n26.tests.sandbox.actions import found_gang
+
+        gang = found_gang("The Bad Girls", gang_type, owner=tester)
+        gang.colour = "violet"
+        gang.save()
+
+        drawer = nav_drawer(client.get("/n26/").content.decode())
+        assert "background: var(--color-violet-500)" in drawer
+
+    def test_a_gang_with_no_colour_gets_no_mark(
+        self, tester, client, default_pack, gang_type, make_profile
+    ):
+        """Nothing is drawn and no space is held: most gangs have no
+        colour, and a placeholder on every row is a gutter with nothing
+        in it."""
+        from n26.tests.sandbox.actions import found_gang
+
+        found_gang("The Bad Girls", gang_type, owner=tester)
+
+        drawer = nav_drawer(client.get("/n26/").content.decode())
+        assert "The Bad Girls" in drawer
+        assert "background: var(--color-" not in drawer
+
+    def test_nobody_elses_gangs_are_in_it(
+        self, tester, client, default_pack, gang_type, make_profile
+    ):
+        from n26.tests.sandbox.actions import found_gang
+
+        found_gang(
+            "Someone Else's Problem",
+            gang_type,
+            owner=User.objects.create_user("rival"),
+        )
+
+        drawer = nav_drawer(client.get("/n26/").content.decode())
+        assert "Someone Else" not in drawer
+        assert "Your gangs" not in drawer
+
+    def test_a_reader_with_no_gangs_is_shown_no_heading_for_them(
+        self, tester, client, default_pack
+    ):
+        """The section is drawn only when something is in it: an empty
+        "Your gangs" reads as a list that failed to load."""
+        drawer = nav_drawer(client.get("/n26/").content.decode())
+        assert "Your gangs" not in drawer
+
+    def test_a_visitor_has_no_gangs_to_list(self, rf, default_pack):
+        """Signed out there is nothing to put in the section, so the
+        drawer draws neither the heading nor the rule above it. The
+        gate turns an anonymous visitor away before any n26 page
+        renders, so the claim is made where it is decided."""
+        from django.contrib.auth.models import AnonymousUser
+
+        from n26.core.templatetags.navigation import drawer_gangs
+
+        request = rf.get("/n26/")
+        request.user = AnonymousUser()
+        assert drawer_gangs({"request": request}) == []
+
+    def test_the_links_are_there_for_a_reader_with_no_script(
+        self, tester, client, default_pack
+    ):
+        """The drawer is Alpine's and lives in a <template> that never
+        runs without script, so the same links are drawn flat under the
+        bar as well."""
+        strip = nav_noscript(client.get("/n26/").content.decode())
+        positions = in_order(strip, ">Home</a>", ">Gangs</a>")
+        assert positions == sorted(positions)
+
+    def test_the_account_menu_is_you_the_doors_and_the_way_out(
+        self, staff, client, default_pack
+    ):
+        menu = account_menu(client.get("/n26/").content.decode())
+        positions = in_order(
+            menu, "Your account", "Admin", "Content Library", "Sign out"
+        )
+        assert positions == sorted(positions)
+        assert menu.count('role="separator"') == 2
+
+    def test_nobody_else_is_shown_a_door_they_cannot_open(
+        self, tester, client, default_pack
+    ):
+        """A tester who is not staff is refused by both pages anyway, so
+        an item they can only bounce off is noise — and the rule above
+        those two goes with them, rather than leaving a reader two rules
+        in a row."""
+        menu = account_menu(client.get("/n26/").content.decode())
+        assert "Admin" not in menu
+        assert "Content Library" not in menu
+        assert menu.count('role="separator"') == 1
+
+    def test_the_authoring_area_puts_its_own_pages_in_the_drawer(
+        self, staff, client, default_pack
+    ):
+        """The drawer draws whatever the area gave it, so an author
+        moving between the authoring pages gets those in the one
+        control, with App at the end as the way back out."""
+        drawer = nav_drawer(client.get("/n26/authoring/").content.decode())
+        positions = in_order(
+            drawer,
+            ">Content library</a>",
+            ">Modifiers</a>",
+            ">Foundations</a>",
+            ">Ingest</a>",
+            ">App</a>",
+        )
+        assert positions == sorted(positions)
+        assert ">Home</a>" not in drawer
+        assert ">Gangs</a>" not in drawer
+
+    def test_a_page_names_itself_in_the_bar_and_keeps_its_links(
+        self, staff, client, default_pack
+    ):
+        """The name and the links no longer compete for the same space,
+        so a page setting one keeps the other."""
+        body = client.get("/n26/authoring/modifiers/").content.decode()
+        assert "Modifiers" in nav_bar(body)
+        assert ">Foundations</a>" in nav_drawer(body)
 
 
 class TestTheSiteBanner:

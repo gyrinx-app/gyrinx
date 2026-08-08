@@ -2,6 +2,7 @@
 {% block head_title %}
     {{ thing }}
 {% endblock head_title %}
+{% block nav_heading %}{{ thing }}{% endblock nav_heading %}
 {% block content %}
     <c-n26.page-header title="{{ thing }}">
         <c-slot name="breadcrumb">

@@ -620,6 +620,9 @@ def _build_registry():
                 ),
                 "gang_type": One(model=GangType, source=(Profile, "gang_type")),
                 "price": Int(source=(Profile, "price")),
+                "category": One(
+                    model=Category, optional=True, source=(Profile, "category")
+                ),
                 "qualifier": Text(source=(Profile, "qualifier")),
                 "library_author_help": Text(
                     source=(Profile, "library_author_help"), long=True

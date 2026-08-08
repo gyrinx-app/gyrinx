@@ -1021,6 +1021,33 @@ GROUPS: list[Group] = [
                 ),
             ),
             Component(
+                slug="hire-dialog",
+                tag="c-n26.hire-dialog",
+                template="n26/hire_dialog.html",
+                summary="The one question a press leaves: what is this fighter called?",
+                needs=(ALPINE,),
+                notes=(
+                    "The only component here whose open state is a server "
+                    "state. The page draws it when the URL names a pressed "
+                    "profile, which is what makes the dialog a link, makes it "
+                    "survive a reload, and makes pressing Hire work with "
+                    "scripting off. c-ui.dialog is the other shape — a trigger "
+                    "beside content teleported into a <template> and revealed "
+                    "by Alpine — and with the answer already decided by the "
+                    "server and no script running it draws nothing at all. So "
+                    "this is a native <dialog open>: a panel in the flow of the "
+                    "page on its own, promoted to a real modal by showModal() "
+                    "where Alpine is there to call it, which brings the top "
+                    "layer, the backdrop, Escape and a focus trap without any "
+                    "of them being written here. Dismissing navigates rather "
+                    "than hiding, because a dialog closed in place would leave "
+                    "a list on screen while the URL still named a profile. The "
+                    "profile and its options are hidden fields, not controls: "
+                    "they were answered by the row, and the way to change them "
+                    "is to go back to it."
+                ),
+            ),
+            Component(
                 slug="choice-menu",
                 tag="c-n26.choice-menu",
                 template="n26/choice_menu.html",
@@ -1070,6 +1097,29 @@ GROUPS: list[Group] = [
                 ),
             ),
             Component(
+                slug="color-swatch",
+                tag="c-n26.color-swatch",
+                template="n26/color_swatch.html",
+                summary="A colour, as a small round mark before a name.",
+                notes=(
+                    "One component for the mark a gang's colour makes, because the "
+                    "gang table, the gang's own heading and the drawer would "
+                    "otherwise each answer three questions for themselves and come "
+                    "to different answers. One prop takes the colour whether it is a "
+                    "literal or a theme name: a hex is frozen because someone chose "
+                    "it, while a token resolves through var() and follows a theme "
+                    "change. It has to be a style attribute — Tailwind reads class "
+                    "names as literal strings, so a class built from a variable is "
+                    "one it never emits, while every --color-* variable is emitted "
+                    "for exactly this lookup. No colour draws nothing at all: a "
+                    "reserved space would be an empty gutter down a list where most "
+                    "gangs have none, and a neutral ring would be indistinguishable "
+                    "from a gang that picked ink. Aria-hidden unless given a label, "
+                    "because a colour on its own tells a reader who cannot see it "
+                    "nothing they can use and the name is already beside it."
+                ),
+            ),
+            Component(
                 slug="color-link",
                 tag="c-n26.color-link",
                 template="n26/color_link.html",
@@ -1077,12 +1127,11 @@ GROUPS: list[Group] = [
                 notes=(
                     "The sibling of flair-link: both are c-n26.link with something "
                     "in a slot that sits outside the underline — a swatch before the "
-                    "text here, a badge after it there. One prop takes the colour "
-                    "whether it is a literal or a theme name, because a call site "
-                    "should not have to say which it meant: a hex is frozen because "
-                    "someone chose it, while a token resolves through var() and "
-                    "follows a theme change. Sized in em like flair-link, so there is "
-                    "no size prop."
+                    "text here, a badge after it there. The swatch is "
+                    "c-n26.color-swatch, so this owns only the placing of it; a "
+                    "heading or a drawer row that already has an anchor of its own "
+                    "draws the swatch directly rather than taking a link it does not "
+                    "want."
                 ),
             ),
             Component(
@@ -1103,7 +1152,8 @@ GROUPS: list[Group] = [
                     Part(
                         "c-n26.flair.staff",
                         "n26/flair/staff.html",
-                        "The pixel-art staff badge. Fixed palette by design.",
+                        "The pixel-art staff badge, drawn from the platform's own "
+                        "badge asset. Fixed palette by design.",
                     ),
                     Part(
                         "c-n26.flair.house",
@@ -1111,6 +1161,25 @@ GROUPS: list[Group] = [
                         "The Goliath house icon. Drawn with currentColor, so it "
                         "follows the text.",
                     ),
+                ),
+            ),
+            Component(
+                slug="user-link",
+                tag="c-n26.user-link",
+                template="n26/user_link.html",
+                summary="A person's name with the badge they actually hold.",
+                notes=(
+                    "flair-link with the badge decided rather than passed in, "
+                    "because the alternative is every page deciding for itself and "
+                    "the pages disagreeing. Which mark someone shows belongs to the "
+                    "person, not to the screen they appear on: it is derived from "
+                    "their live supporter standing and staff flag against the "
+                    "platform's registry, plus their own pick among what that "
+                    "leaves them. Drawing it from is_staff — which one page did — "
+                    "gives every supporter no badge at all. There is no label prop "
+                    "for the same reason: the wording comes from the registry, so a "
+                    "call site cannot guess wrong about what someone else's badge "
+                    "means, and a new tier needs no edition change."
                 ),
             ),
             Component(
@@ -1712,23 +1781,36 @@ GROUPS: list[Group] = [
             Component(
                 slug="site-nav",
                 tag="c-n26.site.nav",
-                template="n26/site/nav.html",
-                summary="The bar across the top of every page: brand, links, actions.",
-                needs=(ALPINE, KIT_JS, COLLAPSE),
+                template="n26/site/nav/index.html",
+                summary=(
+                    "The bar across the top of every page, and the drawer behind "
+                    "its burger."
+                ),
+                needs=(ALPINE, KIT_JS, FOCUS),
                 notes=(
-                    "Mostly the kit's c-ui.navbar, which already has the tedious "
-                    "parts right — a burger that mirrors the items and actions "
-                    "into a mobile panel, an is-current marker its variant "
-                    "styles, the focus and aria wiring. What this adds is the two "
-                    "things the kit has no opinion about: a brand block, and a "
-                    "measure. The measure is the reason it exists. The kit runs "
-                    "its row the full width of the window, which suits an "
-                    "application that fills the screen; a site with a footer "
-                    "under it wants the logo above the first footer column. "
-                    "Items stay the kit's c-ui.navbar.item rather than a wrapper "
-                    "of our own — it already marks itself current in a way the "
-                    "parent styles, and a pass-through would only be somewhere "
-                    "for the two to drift apart."
+                    "The links are in the drawer and nowhere else, which is what "
+                    "buys the bar its one good idea: the space beside the brand "
+                    "belongs to the page, so every page can say its own name "
+                    "there after a middle dot. A bar that held both had to choose, "
+                    "and the page that most needed naming — a half-filled form, "
+                    "whose title is the first thing to scroll away — was exactly "
+                    "the page whose links then went missing. The burger is on the "
+                    "left because the panel arrives from the left, and it is the "
+                    "same control at every width rather than one that appears "
+                    "below md: a burger is only predictable if you already know "
+                    "the window is narrow. Items stay the kit's c-ui.navbar.item "
+                    "— a bare <a> its container styles, which is what lets one "
+                    "list be drawn in the drawer and again in the noscript strip "
+                    "under the bar. That strip is not decoration: Alpine builds "
+                    "the drawer out of a <template>, so with no script the panel "
+                    "does not exist and the links would be nowhere."
+                ),
+                parts=(
+                    Part(
+                        "c-n26.site.nav.gang",
+                        "n26/site/nav/gang.html",
+                        "One of the reader's own gangs, in the drawer.",
+                    ),
                 ),
             ),
             Component(
@@ -1826,24 +1908,28 @@ GROUPS: list[Group] = [
                 slug="view-fighter-hire",
                 tag="c-n26.view.fighter-hire",
                 template="n26/view/fighter_hire.html",
-                summary="Name a fighter, then pick what they are.",
+                summary="Pick what a fighter is, one press at a time.",
                 needs=(ALPINE, KIT_JS, COLLAPSE, FOCUS),
                 notes=(
                     "Optimised for finding the profile and nothing else. "
                     "Everything above the list is there under protest, because "
                     "on a phone every row of chrome is a row of fighters you "
-                    "cannot see — so the form is two things, a name and the "
-                    "picker. The name comes first because that is the order the "
-                    "sentence goes in, and it is optional and says so: blocking "
-                    "a hire on naming would slow the common case, which is "
-                    "buying three Gangers and naming them once they have done "
+                    "cannot see — so the screen is a list, and nothing above it "
+                    "asks a question the reader has not reached yet. Naming is "
+                    "one of those questions: it is asked after the press, by "
+                    "c-n26.hire-dialog, because a name field at the top is a "
+                    "field answered once and then in the way, and blocking a "
+                    "hire on it would slow the common case, which is buying "
+                    "three Gangers and naming them once they have done "
                     "something worth naming. There is no submit button. Every "
                     "Hire in the list is this form's submit, carrying which "
                     "profile or which option was pressed, which is what the "
                     "row's `value` is for — and the form should not grow a "
                     "primary action of its own, because a Hire at the bottom of "
                     "a list of Hire buttons is a second answer to a question "
-                    "already answered."
+                    "already answered. A hire lands back here rather than on "
+                    "the gang sheet, so the notice slot draws the confirmation "
+                    "beside the list it was pressed in."
                 ),
             ),
             Component(

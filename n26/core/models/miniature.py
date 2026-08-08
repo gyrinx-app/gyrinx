@@ -14,6 +14,8 @@ class Miniature(Base, Owned, Rated):
     """
 
     name = models.CharField(max_length=200)
+    #: What a card shows only when the model keeps no XP counter. Where
+    #: there is one, its value is the number and ``tally`` is what moves it.
     xp = models.PositiveIntegerField(default=0)
     xp_target = models.PositiveIntegerField(
         null=True,

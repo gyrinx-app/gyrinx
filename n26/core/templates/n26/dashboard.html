@@ -6,11 +6,13 @@ changelog, drawn entirely from the design system — the gallery's shell
 home (designsystem/shell/home.html) is this page with sample rows, so
 what was judged there is what ships here.
 
-The gang search and the type filter are <c-n26.gang-table>'s own,
-client-side: every row registers its facets and the table narrows as
-you type, which is all a list this size needs.
+The type filter is <c-n26.gang-table>'s own, client-side: every row
+registers its facets and the table narrows as you type. The search box
+does that too, and pressing Search hands the query to the gangs page,
+which can find gangs this tab never carried.
 {% endcomment %}
 {% block head_title %}Home{% endblock head_title %}
+{% block nav_heading %}Home{% endblock nav_heading %}
 {% block nav_items %}
     {% include 'n26/_nav.html' with here='home' %}
 {% endblock %}
@@ -19,9 +21,12 @@ you type, which is all a list this size needs.
                           new_gang_href="{% url 'n26-create-gang' %}"
                           new_campaign_href="">
         <c-slot name="gangs">
-            <c-n26.gang-table :type_options="gang_type_options" noun="gangs">
+            <c-n26.gang-table :type_options="gang_type_options"
+                              noun="gangs"
+                              action="{% url 'n26-gangs' %}"
+                              :query="query">
                 <c-slot name="empty">
-                    {% if gangs %}
+                    {% if gangs or query %}
                         No gangs match that. Try a shorter search.
                     {% else %}
                         No gangs yet — founding one takes a minute.
@@ -30,6 +35,7 @@ you type, which is all a list this size needs.
                 {% for gang in gangs %}
                     <c-n26.gang-table.row name="{{ gang.name }}"
                                           type="{{ gang.gang_type }}"
+                                          colour="{{ gang.colour }}"
                                           :sheet="gang"
                                           href="{% url 'n26-gang' gang.pk %}" />
                 {% endfor %}

@@ -1,0 +1,220 @@
+{% comment %}
+<c-n26.site.nav> — the bar across the top of every page, and the drawer behind
+its burger.
+
+    <c-n26.site.nav title="Gyrinx" href="/" user_label="tom">
+        <c-slot name="logo"><img src="…" alt="" width="24" height="24"></c-slot>
+        <c-slot name="heading">Create a gang</c-slot>
+
+        <c-ui.navbar.item href="/" current="1">Home</c-ui.navbar.item>
+        <c-ui.navbar.item href="/gangs/">Gangs</c-ui.navbar.item>
+
+        <c-slot name="gangs">
+            <c-n26.site.nav.gang href="/gangs/1/" name="The Ashen Choir" type="Escher" />
+        </c-slot>
+
+        <c-slot name="actions">
+            <c-ui.mode-toggle storage_key="theme" size="sm" />
+        </c-slot>
+        <c-slot name="menu">
+            <c-ui.dropdown.item href="/account/">Your account</c-ui.dropdown.item>
+        </c-slot>
+    </c-n26.site.nav>
+
+  --- the bar names the page; the drawer holds the places ---
+
+The bar reads left to right as one sentence: the burger, the brand, then the
+page's own name after a middle dot. Every page can name itself there, because
+the name no longer competes with anything — the links live in the drawer, so
+the space beside the brand is the page's for good rather than on loan.
+
+The burger is the first thing in the bar rather than the last. It opens a panel
+from the left edge, and a control that opens something from the left belongs on
+that side; putting it opposite makes the panel arrive from somewhere the reader
+was not looking. It is the same control at every width, not one that appears
+below md: a burger is only predictable if you already know the window is narrow,
+so someone who learns where the links live on a phone would have to learn again
+on a laptop.
+
+The account menu stays outermost on the right, where signing in or out — which
+adds and removes buttons — cannot shift it.
+
+  --- what it kept from the kit ---
+
+<c-ui.drawer> for the panel and <c-ui.dropdown> for the account menu, which
+bring the focus trap, the escape handling, the outside click and the placement
+— the parts that are tedious and easy to get subtly wrong. The links inside are
+<c-ui.navbar.item>, a bare <a> that lets its container style it, which is what
+lets one list of links be rendered in the drawer and again for a reader with no
+script.
+
+  --- with no script ---
+
+The drawer's panel is Alpine's, and Alpine builds it out of a <template> that
+never runs. A <noscript> under the bar draws the same links flat, so the places
+the app has are reachable however the page arrived. The gangs are not repeated
+there: the Gangs link in that same list is the whole roster.
+
+  title — the wordmark beside the logo.
+  href — where the brand links to.
+  logo — a slot, for a mark beside the title. Drawn in the bar and again at the
+    top of the drawer. Optional.
+  heading — a slot: the page's own name, after a middle dot. A slot rather than
+    an attribute because the base template fills it from a block, and a block
+    inside a Cotton attribute never runs. Tested with `.strip`, because a page
+    leaving the block empty still passes the newlines around it and Django
+    counts whitespace as truthy.
+  slot — the drawer's links, as <c-ui.navbar.item>. Whichever area the page
+    belongs to supplies its own; the current one marks itself.
+  gangs — a slot under the links, for the reader's own gangs as
+    <c-n26.site.nav.gang>. Its heading and the rule above it are drawn only
+    when something is in it, so a signed-out reader gets no empty section.
+  actions — the right-hand controls: theme toggle, sign in. They sit to the
+    left of the account menu, which stays outermost.
+  user_label — a signed-in user's name. It is the account menu's trigger, and
+    with no name there is no menu: a visitor has no account to open.
+  menu — the account items, rendered in that menu as <c-ui.dropdown.item>. The
+    caller draws its own separators, so a section only staff see cannot leave a
+    rule behind for everyone else.
+  menu_label — the account trigger's accessible name, and its tooltip.
+  drawer_label — the burger's accessible name, and its tooltip.
+  sticky — keep the bar at the top of the window as the page scrolls.
+{% endcomment %}
+<c-vars
+    title=""
+    href="/"
+    user_label=""
+    menu_label="Open account menu"
+    drawer_label="Open navigation menu"
+    sticky=""
+    class=""
+/>
+
+<header {{ attrs }} class="n26-site-nav {% if sticky %}sticky top-0{% else %}relative{% endif %}
+                           z-40 w-full border-b border-ink-200 dark:border-ink-800 {{ class }}">
+    <div class="flex h-14 items-center gap-2 px-4">
+        {% comment %}
+        The drawer's root is display:contents, so the burger sits in this row as
+        if the drawer were not wrapped around it. The panel teleports to the
+        body, which also takes it out of this header's `dark` subtree — the bar
+        stays dark in both modes, the drawer follows the reader's theme.
+        {% endcomment %}
+        <c-ui.drawer side="left" size="sm">
+            <button type="button"
+                    @click="drawerOpen = true"
+                    aria-label="{{ drawer_label }}"
+                    title="{{ drawer_label }}"
+                    class="inline-flex shrink-0 cursor-pointer items-center rounded-control p-2
+                           text-ink-600 hover:bg-ink-100 focus-ring
+                           dark:text-ink-300 dark:hover:bg-ink-800">
+                <c-n26.icon name="bars-3" class="size-5" />
+            </button>
+            <c-slot name="header">
+                <a href="{{ href }}" class="n26-site-brand focus-ring">
+                    {% if logo %}{{ logo }}{% endif %}
+                    {% if title %}<span>{{ title }}</span>{% endif %}
+                </a>
+            </c-slot>
+            <c-slot name="content">
+                {% comment %}
+                Styled by the container rather than by each item, which is what
+                lets the same list be drawn here and in the noscript strip
+                below: a navbar item is a bare <a> carrying an is-current
+                marker, and whatever holds it decides the look.
+
+                A place with no page yet is a <span> rather than an <a>, so it
+                is in the list without being a door that opens on nothing.
+
+                The current page keeps the accent and takes the weight with it —
+                it is the one row here that is a state rather than a destination.
+                {% endcomment %}
+                <nav class="-mx-2 flex flex-col
+                            [&>a]:flex [&>a]:items-center [&>a]:gap-3
+                            [&>a]:rounded-control [&>a]:px-3 [&>a]:py-2
+                            [&>a]:text-sm [&>a]:transition-colors
+                            [&>a]:text-ink-700 dark:[&>a]:text-ink-300
+                            [&>a:hover]:bg-ink-100 dark:[&>a:hover]:bg-ink-800
+                            [&>.is-current]:font-medium
+                            [&>.is-current]:text-accent
+                            [&>span]:flex [&>span]:items-center [&>span]:gap-2
+                            [&>span]:px-3 [&>span]:py-2 [&>span]:text-sm
+                            [&>span]:text-ink-400 dark:[&>span]:text-ink-500">{{ slot }}</nav>
+                {% if gangs.strip %}
+                    <div class="my-3 h-px bg-ink-200 dark:bg-ink-800" role="separator"></div>
+                    <h2 class="px-1 pb-1 text-xs font-medium tracking-wide text-ink-500 uppercase dark:text-ink-400">
+                        Your gangs
+                    </h2>
+                    <div class="-mx-2 flex flex-col">{{ gangs }}</div>
+                {% endif %}
+            </c-slot>
+        </c-ui.drawer>
+
+        <a href="{{ href }}" class="n26-site-brand shrink-0 focus-ring">
+            {% if logo %}{{ logo }}{% endif %}
+            {% if title %}<span>{{ title }}</span>{% endif %}
+        </a>
+
+        {% comment %}
+        Truncates rather than wraps or pushes: the bar is a fixed 14 units tall,
+        and a long page name should lose its end rather than move the controls.
+
+        Below md the name and its dot are both hidden — the brand and the
+        controls already fill the bar, and the page's own h1 is a thumb's width
+        underneath saying the same thing.
+        {% endcomment %}
+        {% if heading.strip %}
+            <span class="hidden min-w-0 items-center gap-2 md:flex">
+                <span aria-hidden="true" class="text-ink-400 dark:text-ink-600">·</span>
+                <span class="min-w-0 truncate text-ink-600 dark:text-ink-400">{{ heading }}</span>
+            </span>
+        {% endif %}
+
+        <div class="ml-auto flex shrink-0 items-center gap-2">
+            {{ actions }}
+
+            {% comment %}
+            align="end" so the panel hangs from the right edge of the window
+            rather than running off it — the trigger is the last thing in the
+            bar, so a panel aligned to its start would open into the margin.
+            {% endcomment %}
+            {% if user_label %}
+                <c-ui.dropdown align="end">
+                    <c-slot name="trigger">
+                        {% comment %}
+                        The ellipsis-and-chevron pair is the app's one spelling
+                        of "this button opens more" — the gang sheet's overflow
+                        and the model cards' draw it the same way.
+                        {% endcomment %}
+                        <button type="button"
+                                aria-label="{{ menu_label }}"
+                                title="{{ menu_label }}"
+                                class="inline-flex cursor-pointer items-center gap-1.5 rounded-control px-2.5 py-1.5
+                                       text-sm font-medium text-ink-600 hover:bg-ink-100 focus-ring
+                                       dark:text-ink-300 dark:hover:bg-ink-800">
+                            <span class="max-w-40 truncate">{{ user_label }}</span>
+                            <span class="n26-icon-only gap-0.5">
+                                <c-n26.icon name="ellipsis-vertical" class="size-4" />
+                                <c-n26.icon name="chevron-down" class="size-3" stroke_width="2.5" />
+                            </span>
+                        </button>
+                    </c-slot>
+                    {% if menu %}{{ menu }}{% endif %}
+                </c-ui.dropdown>
+            {% endif %}
+        </div>
+    </div>
+
+    {% comment %}
+    The same list the drawer holds, drawn flat for a reader whose browser ran
+    no script and therefore has no drawer to open. A row that wraps rather
+    than a stack: it is under a bar the reader can see, and a column of links
+    at the top of every page would push the page itself off the screen.
+    {% endcomment %}
+    <noscript>
+        <nav class="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-ink-200 px-4 py-2
+                    text-sm [&>a]:text-ink-600 [&>a:hover]:text-ink-900 [&>.is-current]:font-medium
+                    [&>.is-current]:text-accent [&>span]:text-ink-400
+                    dark:border-ink-800 dark:[&>a]:text-ink-400 dark:[&>a:hover]:text-white
+                    dark:[&>span]:text-ink-500">{{ slot }}</nav>
+    </noscript>
+</header>

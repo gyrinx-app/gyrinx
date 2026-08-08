@@ -5,14 +5,22 @@ and the one script the union pickers need. Everything this used to
 carry — a whole head, an inline stylesheet, message rendering — the
 layout owns; what remains is only what is authoring's.
 {% endcomment %}
-{% block nav_heading %}
-    Content library
-{% endblock nav_heading %}
 {% comment %}
-"index" is the default because every page without a bar item of its own —
-the kind leaves, the detail pages — is reached from the index, and a bar
-with nothing marked reads as a page that belongs nowhere. Pages with
-their own item override this block with their `here`.
+"Content library" is the default name in the bar: the leaves and the detail
+pages are reached from the index and say their own name in their heading
+a line below, so naming the area there is more use than repeating them.
+Pages that are a place of their own override this block.
+{% endcomment %}
+{% block nav_heading %}Content library{% endblock nav_heading %}
+{% comment %}
+The drawer holds this area's own pages rather than the app's. An author
+moving between Modifiers and Foundations all afternoon wants those in
+the one control, and "App" at the end of the list is the way back out.
+
+"index" is the default because every page without an item of its own —
+the kind leaves, the detail pages — is reached from the index, and a
+drawer with nothing marked reads as a page that belongs nowhere. Pages
+with their own item override this block with their `here`.
 {% endcomment %}
 {% block nav_items %}
     {% include 'authoring/_nav.html' with here='index' %}

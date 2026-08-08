@@ -42,9 +42,11 @@ way overspend is the operation's job rather than the form's.
   value — what this profile submits as, which turns Hire into a submit button for
     the surrounding form and scopes this row's field names. Without it the row is
     still a working set of controls, for a call site to wire up itself.
-  field — the name Hire submits under. "profile" by default.
+  field — the name Hire submits under, "hire" by default. The button says what
+    was pressed, not what to do with it: the hire page answers a press with the
+    same page and this profile's name dialog open on it.
 {% endcomment %}
-<c-vars :entry="None" limited="" value="" field="profile" class="" />
+<c-vars :entry="None" limited="" value="" field="hire" class="" />
 
 {% comment %}
 Every field on the row is scoped by the profile, because one form holds the whole

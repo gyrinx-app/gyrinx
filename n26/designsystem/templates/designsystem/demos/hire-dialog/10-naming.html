@@ -1,0 +1,11 @@
+{# title: Naming the fighter #}
+{# note: modal="" draws the panel in the page. The real screen leaves it on and the dialog promotes itself with showModal() — which would cover this page — and the panel is also exactly what a reader without scripting gets. #}
+{# layout: full #}
+<c-n26.hire-dialog action="#"
+                   profile="Ganger"
+                   price="80"
+                   :choices="hire_dialog_choices"
+                   :fields="hire_dialog_fields"
+                   cancel_url="#"
+                   :form="hire_fighter_form"
+                   modal="" />

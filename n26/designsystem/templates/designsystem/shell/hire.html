@@ -17,10 +17,35 @@ it there.
 {% block nav_items %}
     {% include 'designsystem/shell/_nav.html' with here='hire' %}
 {% endblock %}
+{% comment %}
+Emptied here and included inside the form, which is the one thing this screen
+does differently to every other: its confirmation belongs beside the list the
+press came from. The storage is consumed by whichever place reads it first, so
+there can only be one.
+{% endcomment %}
+{% block messages %}
+{% endblock messages %}
 {% block content %}
+    {% comment %}
+    Before the list, because with scripting off the dialog is a panel in the
+    page's flow rather than a modal over it, and a panel below three hundred
+    rows is one nobody finds.
+    {% endcomment %}
+    {% if hire_entry %}
+        <c-n26.hire-dialog action="{% url 'designsystem:shell_hire' %}"
+                           profile="{{ hire_entry.name }}"
+                           price="{{ hire_entry.base_price }}"
+                           cancel_url="{% url 'designsystem:shell_hire' %}"
+                           :form="hire_fighter_form">
+            {% csrf_token %}
+        </c-n26.hire-dialog>
+    {% endif %}
     <c-n26.view.fighter-hire action="{% url 'designsystem:shell_hire' %}"
                              gang="The Ashen Choir"
                              :form="hire_fighter_form">
+        <c-slot name="notice">
+            {% include "n26/includes/messages.html" %}
+        </c-slot>
         {% comment %}
         Owner, then gang, then this page — the trail a reader actually walked,
         and the thing "Joining The Ashen Choir" used to say in the lead. A

@@ -1,0 +1,13 @@
+{# title: In a breadcrumb #}
+{# note: tone="current" so the owner reads as part of the trail rather than as the one accent-coloured thing on it — what a breadcrumb emphasises is the page you are on, and that is the last item. The badge is sized in em, so the same call works here and in a heading. #}
+<c-ui.breadcrumbs>
+    <c-ui.breadcrumbs.item>
+        <c-n26.user-link :user="user" href="/n26/" tone="current" />
+    </c-ui.breadcrumbs.item>
+    <c-ui.breadcrumbs.item href="/n26/">
+        Ash Wastes Nomads
+    </c-ui.breadcrumbs.item>
+    <c-ui.breadcrumbs.item :current="True">
+        Hire
+    </c-ui.breadcrumbs.item>
+</c-ui.breadcrumbs>

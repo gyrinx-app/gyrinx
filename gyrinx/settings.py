@@ -145,7 +145,9 @@ INSTALLED_APPS = [
     # Autoconfig injects the cotton template loader and the `cotton` builtin tag
     # library. It POPS APP_DIRS from TEMPLATES and substitutes an explicit
     # cached.Loader chain that still includes app_directories, so app templates
-    # and both explicit DIRS keep resolving.
+    # and both explicit DIRS keep resolving. That cached.Loader is why the dev
+    # server would otherwise serve stale templates; settings_dev swaps this entry
+    # for an AppConfig that takes it back out (see gyrinx/cotton_dev.py).
     #
     # Do NOT set COTTON_ISOLATE_BY_DEFAULT: it does not exist in 2.7.2 and fails
     # silently. Do NOT set COTTON_ENABLE_CONTEXT_ISOLATION either: on 2.7.2 it

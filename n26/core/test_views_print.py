@@ -107,6 +107,23 @@ class TestTheSetupScreen:
         body = client.get(setup_url(gang)).content.decode()
         assert "Tournament crew" in body
 
+    def test_resaving_under_another_casing_overwrites_the_same_setup(
+        self, client, tester, gang, roster
+    ):
+        """A gang is unique over its configs' lowercased names, so a
+        name differing only in case is the same setup — matching it
+        exactly would miss, insert, and trip the constraint."""
+        vex, sull = roster
+        client.force_login(tester)
+        client.post(setup_url(gang), {"name": "Roster", "fighters": [str(vex.pk)]})
+        client.post(setup_url(gang), {"name": "roster", "fighters": [str(sull.pk)]})
+
+        configs = PrintConfig.objects.filter(gang=gang, name__iexact="roster")
+        assert configs.count() == 1
+        # Overwritten in place, keeping the name it was first saved under.
+        assert configs.get().name == "Roster"
+        assert list(configs.get().miniatures.all()) == [sull]
+
     def test_loading_a_config_prefills_the_form(self, client, tester, gang, roster):
         vex, sull = roster
         config = PrintConfig.objects.create(gang=gang, name="Crew", include_stash=False)

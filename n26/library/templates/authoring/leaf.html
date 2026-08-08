@@ -2,6 +2,7 @@
 {% block head_title %}
     {{ verbose_name_plural|capfirst }}
 {% endblock head_title %}
+{% block nav_heading %}{{ verbose_name_plural|capfirst }}{% endblock nav_heading %}
 {% block content %}
     <c-n26.page-header title="{{ verbose_name_plural|capfirst }}">
         <c-slot name="breadcrumb">
