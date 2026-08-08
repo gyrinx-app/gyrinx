@@ -31,6 +31,10 @@ Quiet, and directly under the title with no gap of its own — it is what the th
 a fighter card draws between a name and its type line.
 
   title — the page's name. Rendered as the h1; there should be one per page.
+    Either shape, the same way `lead` is: an attribute for plain words, or a
+    `title` slot when the name carries markup — a reader's badge after their
+    username, say. An attribute is escaped, so markup passed that way is
+    printed as source. Pass both and the attribute wins, silently.
   trailing — a control immediately after the title, on its line and outside the
     h1: a switcher to the page's siblings is the case it exists for. Outside,
     because what goes here is a control rather than part of the page's name,

@@ -8,6 +8,11 @@
         <c-slot name="changelog">…c-n26.changelog…</c-slot>
     </c-n26.view.dashboard>
 
+    <c-n26.view.dashboard new_gang_href="/gangs/new/">
+        <c-slot name="username"><c-n26.user-link :user="user" tone="current" underline="none" /></c-slot>
+        …
+    </c-n26.view.dashboard>
+
 Two things, in the order they matter: what you own, and what has changed since you
 last looked. Nothing else — a dashboard that tries to be a summary of everything
 is a page nobody reads twice.
@@ -53,7 +58,15 @@ have made the reader choose between them, which is a decision they do not have.
 Gang first, so that when they wrap on a phone the main action is the one at the
 top rather than the one you reach after reading past another.
 
-  username — who is reading. The greeting is the page's h1.
+The name in it takes either shape: `username="tom"` for a plain string, or a
+`username` slot for markup — which is how the reader's badge gets in, as a
+<c-n26.user-link>. Whose badge someone shows is not this page's answer to give,
+so the slot carries whatever the caller drew rather than this component deriving
+it. The badge is sized in em, so it follows the heading with no size passed to
+it. Pass both shapes and the attribute wins, silently — pick one.
+
+  username — who is reading. The greeting is the page's h1. A slot of the same
+    name replaces it with markup.
   new_gang_href — where the primary button goes. Without one, no button.
   new_gang_label — its wording. "Create Gang" by default.
   new_campaign_href — where the second button goes. Without one, no button.
@@ -73,7 +86,13 @@ top rather than the one you reach after reading past another.
 />
 
 <div class="flex flex-col gap-8 {{ class }}">
-    <c-n26.page-header title="Hello, {{ username }}">
+    {% comment %}
+    The greeting goes in as a slot rather than a title attribute, because the
+    name in it may be markup — an attribute is escaped, and a badge passed
+    through one arrives as its own source code printed on the page.
+    {% endcomment %}
+    <c-n26.page-header>
+        <c-slot name="title">Hello, {{ username }}</c-slot>
         {% if new_gang_href or new_campaign_href %}
             <c-slot name="actions">
                 {% if new_gang_href %}

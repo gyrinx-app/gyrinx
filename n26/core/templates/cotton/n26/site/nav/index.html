@@ -80,7 +80,11 @@ there: the Gangs link in that same list is the whole roster.
   actions — the right-hand controls: theme toggle, sign in. They sit to the
     left of the account menu, which stays outermost.
   user_label — a signed-in user's name. It is the account menu's trigger, and
-    with no name there is no menu: a visitor has no account to open.
+    with no name there is no menu: a visitor has no account to open. Either
+    shape: an attribute for a plain name, or a `user_label` slot when the name
+    carries markup — a badge after it, as a <c-n26.user-link>. An attribute is
+    escaped, so markup passed that way is printed as source; pass both and the
+    attribute wins, silently.
   menu — the account items, rendered in that menu as <c-ui.dropdown.item>. The
     caller draws its own separators, so a section only staff see cannot leave a
     rule behind for everyone else.
@@ -230,9 +234,18 @@ there: the Gangs link in that same list is the whole roster.
                             {% comment %}
                             The reader's name goes the way the wordmark goes,
                             and for the same reason: on a phone the bar's width
-                            belongs to the page. The ellipsis and chevron still
-                            say the control opens something, and its accessible
-                            name says what.
+                            belongs to the page. Whatever the name carries goes
+                            with it — a badge after it is inside this box, so it
+                            leaves with the name rather than standing in the bar
+                            on its own. The ellipsis and chevron still say the
+                            control opens something, and its accessible name
+                            says what.
+
+                            The width is capped and the overflow cut: the bar is
+                            one row, and a name long enough to reach the page's
+                            own title should lose its end rather than push
+                            anything. A name that long loses its badge with it,
+                            which is the right thing to drop of the two.
                             {% endcomment %}
                             <span class="hidden max-w-40 truncate sm:inline">{{ user_label }}</span>
                             <span class="n26-icon-only gap-0.5">

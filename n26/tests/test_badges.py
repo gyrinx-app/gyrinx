@@ -122,6 +122,17 @@ class TestTheBadgeBesideAName:
         assert "patron" in menu
         assert badge_svg(GUILDER).strip() in menu
 
+    def test_the_bars_account_button_marks_the_name_it_shows(
+        self, supporter, client, default_pack
+    ):
+        """The button carries the name at any width the page can spare
+        it, and a name shown there without its badge would be the one
+        place in the chrome that disagreed about who this is."""
+        body = client.get("/n26/gangs/new/").content.decode()
+        button = body[: body.index('role="menu"')]
+        assert "patron" in button
+        assert badge_svg(GUILDER).strip() in button
+
     def test_the_badge_says_what_the_registry_says_it_means(
         self, supporter, client, default_pack
     ):
@@ -132,6 +143,41 @@ class TestTheBadgeBesideAName:
         body = client.get("/n26/gangs/new/").content.decode()
         assert f'aria-label="{GUILDER.description}"' in body
         assert f'title="{GUILDER.description}"' in body
+
+
+class TestTheHomePageGreeting:
+    """The home page opens by naming whoever is reading, so the name
+    there carries the same mark it carries everywhere else."""
+
+    def test_the_greeting_marks_the_reader(self, supporter, client, default_pack):
+        body = client.get("/n26/").content.decode()
+        heading = body[body.index("Hello,") :]
+        heading = heading[: heading.index("</h1>")]
+        assert "patron" in heading
+        assert badge_svg(GUILDER).strip() in heading
+
+    def test_the_badge_is_inside_the_heading_and_scales_with_it(
+        self, supporter, client, default_pack
+    ):
+        """Sized in em rather than pixels, so it grows with the h1
+        instead of sitting beside it at the size of body text."""
+        body = client.get("/n26/").content.decode()
+        heading = body[body.index("Hello,") :]
+        heading = heading[: heading.index("</h1>")]
+        assert FLAIR_WRAPPER in heading
+        assert "size-[1em]" in heading
+
+    def test_a_reader_entitled_to_nothing_is_greeted_by_name_alone(
+        self, tester, client, default_pack
+    ):
+        """The common case: no mark, and no quarter-em of nothing after
+        the name where one would have gone."""
+        tester("nobody")
+
+        body = client.get("/n26/").content.decode()
+        assert "Hello," in body
+        assert "nobody" in body
+        assert FLAIR_WRAPPER not in body
 
 
 class TestTheOwnerOfAGang:

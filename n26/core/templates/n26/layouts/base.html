@@ -131,9 +131,25 @@ banner, is_impersonating / impersonator, gtm_container_id, messages, user.
         {% endcomment %}
         <c-n26.site.nav title="Gyrinx"
                         href="{% url 'n26-dashboard' %}"
-                        user_label="{% if user.is_authenticated %}{{ user.username }}{% endif %}"
                         sticky="1"
                         class="dark">
+            {% comment %}
+            The account button's name, with the badge the account holds. A slot
+            rather than the user_label attribute because an attribute is escaped
+            and the badge would arrive as its own source code; drawn only when
+            there is someone to name, because an empty label is what tells the
+            bar a visitor has no account menu to open.
+
+            Which badge is the platform's answer rather than this edition's —
+            supporter standing and staff flag belong to the account — and
+            c-n26.user-link is what asks. No href: the button around it is the
+            control, and a link inside a button is a press with two answers.
+            {% endcomment %}
+            {% if user.is_authenticated %}
+                <c-slot name="user_label">
+                    <c-n26.user-link :user="user" tone="current" underline="none" />
+                </c-slot>
+            {% endif %}
             <c-slot name="logo">
                 <img src="{% static 'platform/img/brand/logo-gold-transparent-bg.svg' %}"
                      alt=""
@@ -190,7 +206,7 @@ banner, is_impersonating / impersonator, gtm_container_id, messages, user.
                         <c-n26.site.nav.gang href="{% url 'n26-gang' gang.pk %}"
                                              name="{{ gang.name }}"
                                              type="{{ gang.gang_type }}"
-                                             :type_icon="gang.gang_type.icon"
+                                             :type_icon="gang.gang_type.artwork"
                                              colour="{{ gang.colour }}" />
                     {% endfor %}
                 </c-slot>

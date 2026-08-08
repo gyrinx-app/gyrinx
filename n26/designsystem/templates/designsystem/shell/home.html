@@ -18,9 +18,17 @@ the bottom.
     {% include 'designsystem/shell/_nav.html' with here='home' %}
 {% endblock %}
 {% block content %}
-    <c-n26.view.dashboard username="{{ dashboard_username }}"
-                          new_gang_href="{% url 'designsystem:shell_new_gang' %}"
+    <c-n26.view.dashboard new_gang_href="{% url 'designsystem:shell_new_gang' %}"
                           new_campaign_href="#">
+        {% comment %}
+        The reader's own name and own badge, the same call the real home page
+        makes — the greeting is the one thing on this shell that cannot be
+        sample data and still prove anything, because what is being judged is
+        a badge sized against a heading rather than against a table cell.
+        {% endcomment %}
+        <c-slot name="username">
+            <c-n26.user-link :user="user" tone="current" underline="none" />
+        </c-slot>
         <c-slot name="gangs">
             <c-n26.gang-table :type_options="dashboard_types" noun="gangs">
                 <c-slot name="empty">
