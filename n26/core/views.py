@@ -433,10 +433,14 @@ def print_setup(request, pk):
             "sheet": sheet,
             # What each model is worth with no weapons ticked — the live
             # crew total starts here and adds ticked weapons back on the
-            # client. Derived server-side so the template only reads it.
+            # client. Derived server-side so the template only reads it;
+            # `ticked` too, because a cotton :prop evaluates a variable,
+            # not an `in` expression — passed as one, every card rendered
+            # unticked and nothing errored.
             "model_rows": [
                 {
                     "card": card,
+                    "ticked": card.id in ticked_models,
                     "base_rating": card.rating
                     - sum(weapon.total_rating for weapon in card.weapons),
                 }

@@ -1219,6 +1219,27 @@ GROUPS: list[Group] = [
                 ),
             ),
             Component(
+                slug="checkbox-card",
+                tag="c-n26.checkbox-card",
+                template="n26/checkbox_card.html",
+                summary="A selectable card whose body stays interactive.",
+                needs=(ALPINE,),
+                notes=(
+                    "The kit's checkbox cards make the whole surface the toggle, "
+                    "which is right up until the card holds controls of its own — "
+                    "then a press on any of them would toggle the card. This one "
+                    "confines the toggle to its header and keeps the body live, "
+                    "which is the difference that justifies a second component; "
+                    "the presentation is deliberately the kit's, so the two read "
+                    "as one family. While unticked the body is dimmed and inert — "
+                    "choices inside an unselected card are choices about something "
+                    "that is not happening. inert stops interaction and focus but "
+                    "not submission, so an input that must not submit while the "
+                    "card is unticked binds :disabled to the `picked` the card "
+                    "puts in scope."
+                ),
+            ),
+            Component(
                 slug="divider",
                 tag="c-n26.divider",
                 template="n26/divider.html",

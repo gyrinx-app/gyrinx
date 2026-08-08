@@ -1,0 +1,62 @@
+{% comment %}
+<c-n26.checkbox-card> — a selectable card whose body stays interactive.
+
+    <c-n26.checkbox-card name="fighters" value="01ABC…" label="Vex"
+                         description="Ganger" :checked="True">
+        <c-slot name="meta">85¢</c-slot>
+        …rows of dependent controls…
+    </c-n26.checkbox-card>
+
+The kit's own checkbox cards (c-ui.checkbox.group variant="cards") make the
+whole surface the toggle, which is right up until the card holds controls of
+its own — then a press on any of them would toggle the card. This one confines
+the toggle to its header row and keeps the body live, which is the difference
+that justifies a second component. The presentation is deliberately the
+kit's: border-2 to the accent with a light tint while ticked, so the two read
+as one family whichever a screen uses.
+
+While unticked the body is dead — dimmed and inert, because choices inside an
+unselected card are choices about something that is not happening. inert stops
+interaction and focus but not form submission: an input inside that must not
+submit while the card is unticked binds :disabled="!picked" itself.
+
+`picked` is in Alpine scope for the body and meta slots to read.
+
+  name, value — the form identity of the card's own checkbox.
+  :checked — the starting state.
+  label — the card's title.
+  description — the muted line under it. Optional.
+  meta — a slot at the header's far end: a price, a counter. Optional.
+  slot — the body, under a rule. Optional; without one the card is just
+    its header.
+{% endcomment %}
+<c-vars name="" value="" :checked="False" label="" description="" class="" />
+
+<div {{ attrs }}
+     x-data="{ picked: {{ checked|yesno:'true,false' }} }"
+     class="rounded-box border-2 p-4 transition-[background-color] {{ class }}"
+     :class="picked ? 'border-accent bg-accent/5' : 'border-ink-200 dark:border-ink-700'">
+    <label class="flex cursor-pointer items-start gap-3">
+        <input type="checkbox"
+               name="{{ name }}"
+               value="{{ value }}"
+               {% if checked %}checked{% endif %}
+               @change="picked = $event.target.checked"
+               class="mt-0.5 size-5 shrink-0 accent-[var(--color-accent)] focus-ring">
+        <span class="min-w-0 flex-1">
+            <span class="block truncate text-base font-semibold text-ink-900 dark:text-ink-100">{{ label }}</span>
+            {% if description %}<span class="block truncate text-muted">{{ description }}</span>{% endif %}
+        </span>
+        {% if meta %}{{ meta }}{% endif %}
+    </label>
+    {% comment %}
+    pl-8 walks the body in to the title's left edge — checkbox width plus the
+    header's gap — so the contents read as the card's own rather than as a
+    second list beside it.
+    {% endcomment %}
+    {% if slot.strip %}
+        <div class="mt-2 border-t border-box-border pt-2 pl-8"
+             :class="picked ? '' : 'opacity-50'"
+             :inert="!picked">{{ slot }}</div>
+    {% endif %}
+</div>

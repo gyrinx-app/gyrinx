@@ -66,8 +66,21 @@ class TestTheSetupScreen:
         assert "Vex" in body
         assert "Sull" in body
         assert "Lasgun" in body
-        # Everything starts ticked: the common print is the whole gang.
-        assert body.count("checked") >= 4  # 2 fighters + 2 weapons + toggles
+        # Everything starts ticked — asserted per input kind, because a
+        # bare count was once satisfied by the weapons and toggles alone
+        # while every model rendered unticked: a cotton :prop had been
+        # handed an `in` expression, which evaluates to nothing without
+        # erroring.
+        model_inputs = [
+            chunk for chunk in body.split("<input") if 'name="fighters"' in chunk
+        ]
+        weapon_inputs = [
+            chunk for chunk in body.split("<input") if 'name="weapons"' in chunk
+        ]
+        assert len(model_inputs) == 2
+        assert all("checked" in chunk for chunk in model_inputs)
+        assert len(weapon_inputs) == 2
+        assert all("checked" in chunk for chunk in weapon_inputs)
 
     def test_an_unnamed_post_rewrites_the_scratch_config(
         self, client, tester, gang, roster
