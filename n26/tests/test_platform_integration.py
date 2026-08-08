@@ -299,10 +299,19 @@ class TestTheNavigation:
         positions = in_order(
             bar,
             "n26-site-brand",
-            'aria-label="Toggle dark mode"',
             'aria-label="Open account menu"',
         )
         assert positions == sorted(positions)
+
+    def test_the_colour_scheme_is_behind_the_account_menu(
+        self, tester, client, default_pack
+    ):
+        """A scheme is chosen once and then never again, and a control in
+        the bar holds a row of space the page's own name wants on every
+        screen. Behind the name it is still one press away."""
+        body = client.get("/n26/").content.decode()
+        assert "set('system')" in account_menu(body)
+        assert 'aria-label="Toggle dark mode"' not in nav_bar(body)
 
     def test_the_drawer_holds_the_places_the_app_has(
         self, tester, client, default_pack
