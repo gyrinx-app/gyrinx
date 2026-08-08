@@ -34,16 +34,21 @@ that saves nothing is worse than a value with no affordance at all.
         The badge is a fact about the owner, and which one they hold is the
         platform's answer — supporter tier or staff, whichever they are entitled
         to and have picked. The wording comes from there too, so this page never
-        guesses what someone else's badge means. No type_flair: the only house
-        artwork in the set is Goliath's, and hanging it on an Escher gang would
-        be a badge that lies. The type still reads as text — flair-link draws
-        the name with no badge.
+        guesses what someone else's badge means.
+
+        The type's badge is the library's own answer: whatever artwork was
+        authored against this gang type, cleaned on the way out. A type with
+        none draws nothing, so the lead reads as the bare name — which is right,
+        and is not the same as this page choosing a picture for it.
         {% endcomment %}
         {% if owner_badge %}
             <c-slot name="owner_flair">
                 {% badge_svg owner_badge %}
             </c-slot>
         {% endif %}
+        <c-slot name="type_flair">
+            <c-n26.flair.gang-type :icon="gang.gang_type.icon" />
+        </c-slot>
         {% comment %}
         Only when there is something to list. An empty detail-list is still a
         <dl>, and the sheet stacks its sections with gap-4 — so a gang with no
