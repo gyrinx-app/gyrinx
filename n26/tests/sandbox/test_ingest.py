@@ -349,6 +349,24 @@ class TestPlanning:
             == 1
         )
 
+    def test_a_heading_the_sheet_invents_reads_after_the_known_ones(
+        self, foundation, sheets
+    ):
+        """Sections sort by position and then by name, so a heading
+        sharing the gang list's 0 would tie and break alphabetically —
+        interleaving an unexpected shelf with the gang's own fighters
+        rather than landing after them."""
+        invented = read_csv(
+            """
+Gang,Section,Category,Name,M,WS,BS,S,T,W,I,A,Sv,Ld,Cl,Wil,Int,Type,Subtype(s),Starting XP,Rating,Special Rules,Default skills,Default assignment,Primary Skill Sets,Secondary Skill Sets
+Escher,Alliances,Hangers-On,Rogue Doc,5",4+,4+,3,3,1,4,1,6+,6,6,6,6,Fighter,Ganger,,50,,,,Combat,
+"""
+        )
+        planned = plan_ingest(pack=None, **{**sheets, "profiles": invented})
+        home = planned.get(planned.get("Profile:rogue doc").fields["category"])
+        assert home.fields["section"] == "Alliances"
+        assert home.fields["section_position"] == 2
+
     def test_built_ins_resolve_against_the_catalogue(self, plan):
         croc = plan.get("Profile:sumpkroc")
         built_ins = plan.get(croc.fields["built_ins"])
@@ -917,6 +935,25 @@ class TestIdempotency:
         assert Weapon.objects.count() == weapons
         assert Trait.objects.count() == traits
         assert Profile.objects.count() == profiles
+
+    def test_a_heading_already_spelled_differently_is_reused(
+        self, foundation, sheets, default_pack
+    ):
+        """A pack is unique on a section's lowercased name, so a heading
+        the pack already holds under another casing must be matched, not
+        inserted again — an exact-match lookup misses it, then the insert
+        trips the constraint and takes the whole import down with it."""
+        from n26.library.models import Section
+
+        Section.objects.create(pack=default_pack, name="gang list", position=7)
+
+        perform(plan_ingest(pack=None, **sheets))
+
+        headings = Section.objects.filter(pack=default_pack, name__iexact="gang list")
+        assert [s.name for s in headings] == ["gang list"]
+        # The one already there keeps the order it had.
+        assert headings.get().position == 7
+        assert Category.objects.get(name="Leaders").section == headings.get()
 
     def test_the_same_name_from_another_gang_is_qualified_not_merged(
         self, foundation, sheets

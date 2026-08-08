@@ -827,7 +827,11 @@ def _plan_home(plan, row, name, source):
         section,
         category,
         source,
-        section_position=PROFILE_SECTIONS.get(section, 0),
+        # A heading the sheet invents sorts after both known ones rather
+        # than tying with the gang list at 0, where the tie-break is
+        # alphabetical and would interleave it with the gang's own
+        # fighters.
+        section_position=PROFILE_SECTIONS.get(section, len(PROFILE_SECTIONS)),
     )
 
 
@@ -1677,11 +1681,22 @@ class _Performer:
         # The heading is founded here rather than left to the verb so it
         # can carry the order it reads in; one already in the pack keeps
         # the order it has.
-        section, _ = Section.objects.get_or_create(
-            name=planned.fields["section"],
-            defaults={"position": planned.fields["section_position"]},
-            **self.shared,
-        )
+        #
+        # Matched case-insensitively, the way every other lookup in this
+        # performer matches: a pack is unique on a section's lowercased
+        # name, so an exact-match lookup asked for "Gang list" where the
+        # pack holds "Gang List" misses it, inserts, and trips the
+        # constraint — taking the whole import down. Two sheets spelling
+        # one heading differently is all it takes to get there.
+        section = Section.objects.filter(
+            name__iexact=planned.fields["section"], **self.shared
+        ).first()
+        if section is None:
+            section = Section.objects.create(
+                name=planned.fields["section"],
+                position=planned.fields["section_position"],
+                **self.shared,
+            )
         return authoring.create_category(section, planned.name, **self.shared)
 
     def _create_trait(self, planned):

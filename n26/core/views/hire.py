@@ -79,7 +79,13 @@ def _picks(data, profile, entry):
     for group_index, group in enumerate(entry.groups):
         field = f"{scope}:{group_index}"
         for value in data.getlist(field):
+            # isdigit before int: a negative index is a real index from
+            # the far end, so "-1" would quietly resolve to another
+            # option in the group rather than being refused like every
+            # other index the group does not have.
             try:
+                if not value.isdigit():
+                    raise ValueError(value)
                 option = group.options[int(value)]
             except ValueError, IndexError:
                 raise Http404("No such option") from None
@@ -158,13 +164,29 @@ def hire_fighter(request, pk):
                 # The confirmation quotes the ledger rather than the page's
                 # own arithmetic: what a player was charged is whatever the
                 # operation wrote down.
-                paid = miniature.membership.ledger_entry.paid
-                messages.success(
-                    request,
-                    f"Hired {profile.name} for {paid}¢."
-                    if miniature.name == profile.name
-                    else f"Hired {miniature.name} — {profile.name}, {paid}¢.",
-                )
+                #
+                # Both hops are guarded, and the price is dropped rather
+                # than guessed at when either is missing. membership is
+                # nullable and ledger_entry is a reverse one-to-one that
+                # raises rather than answering None, so reading them bare
+                # turns a hire that did commit into a 500 on the way to
+                # saying so — the fighter would exist with nothing on
+                # screen to say they had been hired.
+                entry = getattr(miniature.membership, "ledger_entry", None)
+                if entry is None:
+                    messages.success(
+                        request,
+                        f"Hired {profile.name}."
+                        if miniature.name == profile.name
+                        else f"Hired {miniature.name} — {profile.name}.",
+                    )
+                else:
+                    messages.success(
+                        request,
+                        f"Hired {profile.name} for {entry.paid}¢."
+                        if miniature.name == profile.name
+                        else f"Hired {miniature.name} — {profile.name}, {entry.paid}¢.",
+                    )
                 return redirect("n26-hire-fighter", pk=gang.pk)
             # A name the field will not take. The dialog comes back holding
             # what was typed, with the error under it — the selection is in

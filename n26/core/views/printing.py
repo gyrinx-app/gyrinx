@@ -118,14 +118,16 @@ def print_setup(request, pk):
             weapon__isnull=False,
             pk__in=request.POST.getlist("weapons"),
         )
-        config, _ = PrintConfig.objects.update_or_create(
-            gang=gang,
-            name=name,
-            defaults={
-                "include_header": bool(request.POST.get("include_header")),
-                "include_stash": bool(request.POST.get("include_stash")),
-            },
-        )
+        # Matched on the lowercased name, which is what the gang is
+        # unique over: saving "Roster" where the gang already holds
+        # "roster" would otherwise miss, insert, and trip the constraint
+        # rather than overwriting the setup the player meant.
+        config = PrintConfig.objects.filter(gang=gang, name__iexact=name).first()
+        if config is None:
+            config = PrintConfig(gang=gang, name=name)
+        config.include_header = bool(request.POST.get("include_header"))
+        config.include_stash = bool(request.POST.get("include_stash"))
+        config.save()
         config.miniatures.set(miniatures)
         config.assignments.set(weapons)
         return redirect(f"{reverse('n26-print', args=[gang.pk])}?config={config.pk}")

@@ -61,10 +61,16 @@ both go to cancel_url, and the address bar keeps agreeing with the page.
 The promotion is two steps because a dialog rendered with the `open` attribute
 is already open, and showModal() on an open dialog throws rather than upgrading
 it.
+
+Closing first means a failed promotion would leave the dialog shut, which is
+worse than never having tried: the server decided this dialog is open, and the
+unpromoted panel in the page's flow is the whole fallback. So the promotion is
+guarded and reopens the panel if it does not take — `promoted` stays false, and
+the panel keeps the static presentation it renders with.
 {% endcomment %}
 <dialog open
         {% if modal %}x-data="{ promoted: false }"
-        x-init="if ($el.open) $el.close(); $el.showModal(); promoted = true"
+        x-init="try { if ($el.open) $el.close(); $el.showModal(); promoted = true } catch (e) { $el.open = true }"
         :class="{ 'static': !promoted }"
         @close="window.location = '{{ cancel_url }}'"{% endif %}
         aria-labelledby="hire-dialog-title"
