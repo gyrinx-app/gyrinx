@@ -479,6 +479,7 @@ def detail(request, kind, pk):
             "kind": kind,
             "thing": thing,
             "verbose_name": model._meta.verbose_name,
+            "verbose_name_plural": model._meta.verbose_name_plural,
             "kind_help": kind_help(model),
             **part_context,
             **(

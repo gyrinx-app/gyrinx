@@ -8,7 +8,7 @@
             <c-ui.breadcrumbs>
                 <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Authoring</c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item href="{% url 'authoring-leaf' kind %}">
-                    {{ verbose_name|capfirst }}s
+                    {{ verbose_name_plural|capfirst }}
                 </c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item :current="True">
                     {{ thing }}
