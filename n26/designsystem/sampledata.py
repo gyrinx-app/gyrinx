@@ -377,14 +377,26 @@ OWNER = "tom"
 
 
 def nav_context():
-    """The bar's gang switcher, built as the real screens build it.
+    """The switchers a gang's screens draw, built as the real ones are built.
 
-    The application's version comes from a query; this is the same structure
-    with fixed rows, so the shell pages and the demos draw the control the
-    app draws with no database behind them.
+    The application's versions come from a query; these are the same
+    structures with fixed rows, so the shell pages and the demos draw the
+    controls the app draws with no database behind them.
+
+    Two of them, because a gang's screen has two: the bar names the gang and
+    offers the reader's others, and the heading — which is already the name —
+    offers the same list as a chevron on its own, named differently so the two
+    are told apart by anything reading the page aloud.
     """
     from n26.core.navigation import Switcher, SwitcherItem
 
+    gangs = (
+        SwitcherItem(label="The Ashen Choir", href="#the-ashen-choir", current=True),
+        SwitcherItem(label="Gravebolt Kin", href="#gravebolt-kin"),
+        SwitcherItem(label="Pit of Teeth", href="#pit-of-teeth"),
+        SwitcherItem(label="The Rust Sermon", href="#the-rust-sermon"),
+        SwitcherItem(label="Salt and Iron", href="#salt-and-iron"),
+    )
     return {
         "sample_switcher": Switcher(
             label="The Ashen Choir",
@@ -393,16 +405,15 @@ def nav_context():
             menu_label="Switch to another gang",
             placeholder="Search gangs",
             empty="No gangs match",
-            items=(
-                SwitcherItem(
-                    label="The Ashen Choir", href="#the-ashen-choir", current=True
-                ),
-                SwitcherItem(label="Gravebolt Kin", href="#gravebolt-kin"),
-                SwitcherItem(label="Pit of Teeth", href="#pit-of-teeth"),
-                SwitcherItem(label="The Rust Sermon", href="#the-rust-sermon"),
-                SwitcherItem(label="Salt and Iron", href="#salt-and-iron"),
-            ),
-        )
+            items=gangs,
+        ),
+        "sample_heading_switcher": Switcher(
+            heading="Your gangs",
+            menu_label="Your other gangs",
+            placeholder="Search gangs",
+            empty="No gangs match",
+            items=gangs,
+        ),
     }
 
 

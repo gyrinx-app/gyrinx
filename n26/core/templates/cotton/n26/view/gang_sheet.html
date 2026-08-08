@@ -33,6 +33,10 @@ row, which is what makes an eleven-fighter gang read as a wall.
 
   :sheet — a n26.render.GangSheet. Its four figures are drawn opposite the name,
     in the header's own actions slot.
+  switcher — a control beside the gang's name, for the reader's other gangs. The
+    view takes it as a slot rather than building it, because which gangs those
+    are is a question about the reader and this component only knows about one
+    gang.
   owner — whose gang it is, for the breadcrumb.
   owner_href — where the owner's name goes. Without it the name is plain text.
   owner_flair — a badge to sit after the owner's name: <c-n26.flair.staff />.
@@ -48,6 +52,12 @@ row, which is what makes an eleven-fighter gang read as a wall.
   members — the fighter cards, drawn straight into the grid.
   stash_empty — what to say when the stash is empty.
 {% endcomment %}
+{% comment %}
+`switcher` is declared for the reason `actions` is declared on the page header:
+an undeclared slot name is not empty when nobody fills it — it is whatever the
+enclosing scope happens to have under that name, and a page that builds one
+into a variable of its own would find it drawn here as well.
+{% endcomment %}
 <c-vars
     :sheet="None"
     owner=""
@@ -55,6 +65,7 @@ row, which is what makes an eleven-fighter gang read as a wall.
     owner_flair_label=""
     type_flair_label=""
     gangs_href="#"
+    switcher=""
     class=""
 />
 
@@ -82,6 +93,15 @@ row, which is what makes an eleven-fighter gang read as a wall.
             <c-slot name="leading">
                 <c-n26.color-swatch color="{{ sheet.colour }}" />
             </c-slot>
+        {% endif %}
+        {% comment %}
+        Trailing rather than leading: the leading slot is inside the h1 and is
+        read out as part of the page's name, which a control must not be. This
+        one sits after the name, on its baseline, and is the reader's way from
+        this gang to the next.
+        {% endcomment %}
+        {% if switcher.strip %}
+            <c-slot name="trailing">{{ switcher }}</c-slot>
         {% endif %}
         <c-slot name="breadcrumb">
             {% comment %}

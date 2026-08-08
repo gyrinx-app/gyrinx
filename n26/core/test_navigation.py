@@ -1,8 +1,14 @@
-"""The bar's gang switcher: whose gangs it lists, and what it costs.
+"""The switchers: what each one lists, and what it costs.
 
-The switcher is drawn on every screen that belongs to one gang, so both of
-those are load-bearing — a list that included somebody else's gangs would be
-a leak, and a query that grew with the roster would grow on every page.
+They are drawn on every screen that belongs to one gang, so both of those are
+load-bearing — a list that included somebody else's gangs or somebody else's
+fighters would be a leak, and a query that grew with the roster would grow on
+every page.
+
+Which siblings a switcher offers depends on what the control sits beside. The
+bar names the gang and offers the reader's others; a heading naming a fighter
+offers the gang's other fighters, because the useful move from the middle of
+equipping one is to the next one.
 """
 
 import pytest
@@ -11,7 +17,12 @@ from django.test import RequestFactory
 from django.urls import reverse
 
 from n26.core.models import Gang
-from n26.core.navigation import NAV_SIBLINGS, gang_switcher, owned_gangs
+from n26.core.navigation import (
+    NAV_SIBLINGS,
+    fighter_switcher,
+    gang_switcher,
+    owned_gangs,
+)
 
 pytestmark = pytest.mark.django_db
 
@@ -117,6 +128,93 @@ class TestWhatItCosts:
             gang_switcher(request_for(tester), here)
 
 
+@pytest.fixture
+def hire(tester, make_profile, make_statline):
+    """Put a fighter on a gang's roster, by name.
+
+    Free, so a test can fill a roster past the cap without the gang running
+    out of credits half way.
+    """
+    from n26.core.operations import operation
+
+    profile = make_profile("Ganger", price=0)
+    make_statline(profile)
+
+    def _hire(gang, name):
+        with operation(gang, actor=tester) as op:
+            return op.hire(profile, name)
+
+    return _hire
+
+
+class TestWhichFightersAreListed:
+    """The heading on a fighter's screen switches fighters, and the set is
+    the gang's roster — not the reader's, and not everyone's."""
+
+    def test_it_lists_the_gangs_own_fighters(self, make_gang, hire):
+        gang = make_gang("The Ashen Choir")
+        here = hire(gang, "Vex")
+        hire(gang, "Karn")
+        switcher = fighter_switcher(gang, here)
+        assert {item.label for item in switcher.items} == {"Vex", "Karn"}
+
+    def test_another_gangs_fighters_are_not_in_it(
+        self, tester, stranger, make_gang, hire
+    ):
+        """Including one would be a way of finding out that someone else's
+        fighter exists, and what they called it."""
+        gang = make_gang("The Ashen Choir")
+        here = hire(gang, "Vex")
+        hire(make_gang("Their Gang", owner=stranger), "Their Fighter")
+        hire(make_gang("Pit of Teeth"), "My Other Fighter")
+        switcher = fighter_switcher(gang, here)
+        assert [item.label for item in switcher.items] == ["Vex"]
+
+    def test_a_fighter_off_the_roster_is_not_offered(self, make_gang, hire):
+        """Leaving the gang is the membership being archived, which is what
+        the sheet reads too — so the switcher and the sheet agree on who is
+        in the gang."""
+        gang = make_gang("The Ashen Choir")
+        here = hire(gang, "Vex")
+        gone = hire(gang, "Karn")
+        gone.membership.archive()
+        switcher = fighter_switcher(gang, here)
+        assert [item.label for item in switcher.items] == ["Vex"]
+
+    def test_every_row_leads_to_that_fighters_own_equip_screen(self, make_gang, hire):
+        gang = make_gang("The Ashen Choir")
+        here = hire(gang, "Vex")
+        other = hire(gang, "Karn")
+        switcher = fighter_switcher(gang, here)
+        assert {item.href for item in switcher.items} == {
+            reverse("n26-equip", args=[here.pk]),
+            reverse("n26-equip", args=[other.pk]),
+        }
+
+    def test_the_fighter_you_are_on_survives_the_cap(self, make_gang, hire):
+        gang = make_gang("The Ashen Choir")
+        for index in range(NAV_SIBLINGS + 2):
+            hire(gang, f"Fighter {index:02d}")
+        here = hire(gang, "Zzz, the last one")
+        switcher = fighter_switcher(gang, here)
+        assert switcher.items[0].label == "Zzz, the last one"
+        assert switcher.items[0].current
+
+    def test_the_query_does_not_grow_with_the_roster(
+        self, make_gang, hire, django_assert_num_queries
+    ):
+        """One capped query, on a screen a player opens for every fighter in
+        turn — so a big gang must cost it what a small one does."""
+        gang = make_gang("The Ashen Choir")
+        here = hire(gang, "Vex")
+        with django_assert_num_queries(1):
+            fighter_switcher(gang, here)
+        for index in range(NAV_SIBLINGS * 2):
+            hire(gang, f"Fighter {index:02d}")
+        with django_assert_num_queries(1):
+            fighter_switcher(gang, here)
+
+
 class TestTheBar:
     """What a gang's screens actually put in the HTML."""
 
@@ -159,11 +257,92 @@ class TestTheBar:
         assert 'aria-label="Switch to another gang"' not in body
 
 
+class TestTheHeading:
+    """A page's own name gets a switcher too, and it switches whatever the
+    name is — which is not always what the bar is showing."""
+
+    def test_the_gang_sheet_offers_the_others_beside_its_name(
+        self, client, tester, make_gang
+    ):
+        """The same set as the bar, because the heading is the gang. Named
+        differently, because two controls announced identically tell a reader
+        who cannot see where they sit nothing about either."""
+        here = make_gang("The Ashen Choir")
+        client.force_login(tester)
+        body = client.get(reverse("n26-gang", args=[here.pk])).content.decode()
+        assert 'aria-label="Switch to another gang"' in body
+        assert 'aria-label="Your other gangs"' in body
+
+    def test_the_gangs_beside_the_heading_cost_nothing_extra(
+        self, client, tester, make_gang
+    ):
+        """Both switchers and the drawer read the same memoised list, so
+        drawing it a second time on the same page is free."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        here = make_gang("The Ashen Choir")
+        for index in range(NAV_SIBLINGS):
+            make_gang(f"Gang {index:02d}")
+        client.force_login(tester)
+        with CaptureQueriesContext(connection) as captured:
+            assert client.get(reverse("n26-gang", args=[here.pk])).status_code == 200
+        capped = [
+            query
+            for query in captured.captured_queries
+            if f"LIMIT {NAV_SIBLINGS}" in query["sql"] and "n26_gang" in query["sql"]
+        ]
+        assert len(capped) == 1
+
+    def test_the_equip_screen_offers_the_gangs_other_fighters(
+        self, client, tester, make_gang, hire
+    ):
+        """The bar switches gangs and the heading switches fighters. Both are
+        on the screen, and the one beside "Equip Vex" is the one that moves a
+        player to the next fighter."""
+        gang = make_gang("The Ashen Choir")
+        here = hire(gang, "Vex")
+        other = hire(gang, "Karn")
+        client.force_login(tester)
+        body = client.get(reverse("n26-equip", args=[here.pk])).content.decode()
+        assert 'aria-label="Equip another fighter"' in body
+        assert 'aria-label="Switch to another gang"' in body
+        assert reverse("n26-equip", args=[other.pk]) in body
+
+    def test_the_equip_screen_costs_the_same_whatever_the_roster(
+        self, client, tester, make_gang, hire
+    ):
+        """A list of fighters on the screen of every fighter is exactly where
+        a per-row query would hide: opened once per fighter, and worst on the
+        gangs with the most of them."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        gang = make_gang("The Ashen Choir")
+        here = hire(gang, "Vex")
+        client.force_login(tester)
+        url = reverse("n26-equip", args=[here.pk])
+        # Once first: the session row is written on the first request of a
+        # session and updated on the rest.
+        client.get(url)
+
+        with CaptureQueriesContext(connection) as alone:
+            assert client.get(url).status_code == 200
+        for index in range(NAV_SIBLINGS * 2):
+            hire(gang, f"Fighter {index:02d}")
+        with CaptureQueriesContext(connection) as crowded:
+            assert client.get(url).status_code == 200
+
+        assert len(crowded.captured_queries) == len(alone.captured_queries)
+
+
 class TestTheColourScheme:
-    """The control moved into the account menu; it still has to be there and
+    """The control lives in the account menu; it still has to be there and
     still has to be able to set all three states."""
 
-    def test_the_scheme_rows_are_in_the_account_menu(self, client, tester, make_gang):
+    def test_every_scheme_is_reachable_from_the_account_menu(
+        self, client, tester, make_gang
+    ):
         client.force_login(tester)
         body = client.get(reverse("n26-gangs")).content.decode()
         assert "set('light')" in body

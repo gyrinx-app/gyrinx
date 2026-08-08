@@ -27,14 +27,33 @@ def drawer_gangs(context):
 
 
 @register.simple_tag(takes_context=True)
-def gang_switcher(context, gang):
-    """The bar's switcher on a screen that belongs to one gang.
+def gang_switcher(context, gang, named=True, menu_label="Switch to another gang"):
+    """The switcher on a screen that belongs to one gang.
 
     A tag for the same reason the drawer's list is one: the rows are the
-    reader's own gangs, wanted only by the pages that draw the bar with a
-    gang in it, and read through the same memo — so a gang screen showing
-    both the drawer and this switcher still spends one query on them.
+    reader's own gangs, wanted only by the pages that draw a gang, and
+    read through the same memo — so a page drawing this in the bar, again
+    beside its heading, and the drawer as well still spends one query on
+    them between the three.
+
+    ``named=False`` is the chevron on its own, for a heading that is
+    already the gang's name. A page drawing this twice must give the
+    second one its own ``menu_label``.
     """
     from n26.core.navigation import gang_switcher as build
 
-    return build(context["request"], gang)
+    return build(context["request"], gang, named=named, menu_label=menu_label)
+
+
+@register.simple_tag
+def fighter_switcher(gang, miniature):
+    """The gang's fighters, from the screen of one of them.
+
+    A tag rather than view context: it is the same control on every
+    fighter screen, and one query that only the pages drawing it should
+    pay for. The rows are ``n26.core.navigation``'s — capped, scoped to
+    the gang, and off the roster means out of the list.
+    """
+    from n26.core.navigation import fighter_switcher as build
+
+    return build(gang, miniature)

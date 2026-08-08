@@ -105,13 +105,22 @@ def owned_gangs(request):
     return found
 
 
-def gang_switcher(request, gang):
-    """The bar's switcher on any screen that belongs to one gang.
+def gang_switcher(request, gang, named=True, menu_label="Switch to another gang"):
+    """The switcher on any screen that belongs to one gang.
 
-    A fighter's screens use it too, naming the gang rather than the
-    fighter: what a player wants from the bar halfway through equipping
-    someone is the way to their other gang, and the fighter is named by
-    the page's own heading directly below.
+    A fighter's screens use it in the bar too, naming the gang rather
+    than the fighter: what a player wants from the bar halfway through
+    equipping someone is the way to their other gang, and the fighter is
+    named by the page's own heading directly below.
+
+    ``named`` draws the gang's name as the leading link. The bar wants
+    that; a heading that is already the gang's name does not, and passes
+    False for the chevron on its own.
+
+    ``menu_label`` is the chevron's accessible name, and a page drawing
+    this twice must give the second one its own: two controls announced
+    identically tell a reader who cannot see where they sit nothing about
+    either.
     """
     from django.urls import reverse
 
@@ -124,11 +133,51 @@ def gang_switcher(request, gang):
 
     here = item(gang)
     return Switcher(
-        label=gang.name,
-        href=here.href,
+        label=gang.name if named else "",
+        href=here.href if named else "",
         heading="Your gangs",
-        menu_label="Switch to another gang",
+        menu_label=menu_label,
         placeholder="Search gangs",
         empty="No gangs match",
         items=with_current([item(row) for row in owned_gangs(request)], here),
+    )
+
+
+def fighter_switcher(gang, miniature):
+    """The gang's other fighters, from the screen of one of them.
+
+    Every destination is the screen this is drawn on, for a different
+    fighter: what a player wants after kitting one out is the next one,
+    and without this the way there is back to the sheet and in again.
+
+    Scoped to the gang by the query rather than by anything a caller
+    passes — a switcher that could name someone else's fighter would be a
+    way of finding out that they exist. A fighter whose membership has
+    been archived has left the roster and is not offered.
+
+    One capped query, the same shape the drawer's gang list uses: the cap
+    is on the query, so a gang of thirty costs this page what a gang of
+    three does. The fighter being looked at is put back if the cap
+    dropped it.
+    """
+    from django.urls import reverse
+
+    from n26.core.models import Miniature
+
+    def item(row):
+        return SwitcherItem(
+            label=row.name,
+            href=reverse("n26-equip", args=[row.pk]),
+            current=row.pk == miniature.pk,
+        )
+
+    rows = Miniature.objects.filter(
+        membership__gang=gang, membership__archived=False
+    ).order_by("name")[:NAV_SIBLINGS]
+    return Switcher(
+        heading="Fighters",
+        menu_label="Equip another fighter",
+        placeholder="Search fighters",
+        empty="No fighters match",
+        items=with_current([item(row) for row in rows], item(miniature)),
     )

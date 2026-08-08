@@ -53,13 +53,32 @@ class TestTheLeadingLink:
             <c-n26.quick-switcher heading="Switch gang">{ITEMS}</c-n26.quick-switcher>
             """
         )
-        # The identifier's own link goes; the destinations it sat above stay, and
-        # the chevron is still the one control in the group rather than the
-        # surviving half of a pair.
+        # The identifier's own link goes; the destinations it sat above stay,
+        # and the chevron is still a whole control rather than the surviving
+        # half of a pair.
         assert 'href="/n26/gangs/current/"' in with_label
         assert 'href="/n26/gangs/current/"' not in without
         assert 'href="/n26/gangs/2/"' in without
-        assert without.count("n26-button-group") == 1
+        assert without.count('aria-haspopup="menu"') == 1
+
+    def test_the_label_is_drawn_as_a_link_and_not_as_a_button(self):
+        """A reader who cannot tell the two halves apart presses the name
+        expecting the list and gets a page. So the name is the house inline
+        link — accent, underlined on hover — and only the chevron is a
+        button."""
+        html = render(
+            f"""
+            <c-n26.quick-switcher label="The Ashen Choir" href="/n26/gangs/1/"
+                                  heading="Switch gang">{ITEMS}</c-n26.quick-switcher>
+            """
+        )
+        trigger = html[: html.index("<noscript>")]
+        assert "text-accent" in trigger
+        assert "hover:underline" in trigger
+        # Underlined on hover, never at rest: a name underlined all the time
+        # beside a heading reads as an error in the heading.
+        assert "underline-offset-2" in trigger
+        assert 'class="underline' not in trigger
 
     def test_the_chevron_is_named_even_with_no_label_beside_it(self):
         html = render('<c-n26.quick-switcher heading="Switch gang" />')

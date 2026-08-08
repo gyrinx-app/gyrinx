@@ -21,6 +21,14 @@ a page and its chrome is not visible in either one alone.
                            owner_flair_label="Gyrinx staff"
                            type_flair_label="Goliath"
                            gangs_href="{% url 'designsystem:shell_home' %}">
+        {% comment %}
+        The same list the bar offers, beside the name instead of in the bar —
+        which is what the application does, and the pair is only worth judging
+        together.
+        {% endcomment %}
+        <c-slot name="switcher">
+            <c-n26.quick-switcher.of :switcher="sample_heading_switcher" />
+        </c-slot>
         <c-slot name="owner_flair">
             <c-n26.flair.staff />
         </c-slot>

@@ -40,6 +40,18 @@ that said it twice would be spending the width the name needs.
                            owner_flair_label="{{ owner_badge.description }}"
                            gangs_href="{% url 'n26-dashboard' %}">
         {% comment %}
+        The reader's other gangs, beside the name of this one — the same rows
+        the bar offers, off the same memo, so the two cost one query between
+        them. The heading has already said which gang this is, so this is the
+        chevron on its own; it is named differently from the bar's, because two
+        controls announced identically tell a reader who cannot see where they
+        sit nothing about either.
+        {% endcomment %}
+        <c-slot name="switcher">
+            {% gang_switcher gang named=False menu_label="Your other gangs" as heading_gangs_ %}
+            <c-n26.quick-switcher.of :switcher="heading_gangs_" />
+        </c-slot>
+        {% comment %}
         The badge is a fact about the owner, and which one they hold is the
         platform's answer — supporter tier or staff, whichever they are entitled
         to and have picked. The wording comes from there too, so this page never

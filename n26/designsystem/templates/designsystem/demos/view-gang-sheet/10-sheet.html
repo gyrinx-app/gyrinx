@@ -12,6 +12,9 @@
     whatever it is given in em and lets it inherit the text colour, so the view
     never has to know which house or which standing it is drawing.
     {% endcomment %}
+    <c-slot name="switcher">
+        <c-n26.quick-switcher.of :switcher="sample_heading_switcher" />
+    </c-slot>
     <c-slot name="owner_flair">
         <c-n26.flair.staff />
     </c-slot>
