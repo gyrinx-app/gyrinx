@@ -418,6 +418,90 @@ class TestEditingOne:
         assert weapon.is_exclusive is True
 
 
+class TestSwitchingBetweenKindsAndRows:
+    """An author works down a list of kinds rather than down one kind, so
+    every page in here offers the others — from the bar, from a listing's
+    own heading, and from a row's page over the other rows of its kind."""
+
+    def test_the_bar_offers_the_other_kinds_from_a_page_that_is_not_one(
+        self, author, client, default_pack
+    ):
+        body = client.get("/n26/authoring/foundations/").content.decode()
+        assert 'aria-label="Switch kind"' in body
+        assert "/n26/authoring/weapon/" in body
+
+    def test_a_kinds_page_marks_itself(self, author, client, default_pack):
+        body = client.get("/n26/authoring/category/").content.decode()
+        # The row for the kind being shown says so, and the row for any
+        # other kind does not.
+        assert re.search(
+            r'<a href="/n26/authoring/category/"[^>]*aria-current="page"', body
+        )
+        assert not re.search(
+            r'<a href="/n26/authoring/weapon/"[^>]*aria-current="page"', body
+        )
+
+    def test_the_listing_offers_the_kinds_beside_its_heading(
+        self, author, client, default_pack
+    ):
+        """The same list as the bar's, and named differently: two controls
+        announced identically tell a reader who cannot see where they sit
+        nothing about either."""
+        body = client.get("/n26/authoring/category/").content.decode()
+        assert 'aria-label="Switch kind"' in body
+        assert 'aria-label="Switch to another kind of content"' in body
+
+    def test_a_rows_page_offers_the_other_rows(self, author, client, default_pack):
+        from n26.library.authoring import create_rule
+
+        here = create_rule("Lead Ritual")
+        other = create_rule("Sump Sense")
+        body = client.get(f"/n26/authoring/rule/{here.pk}/").content.decode()
+
+        # Named for the kind in the model's own words, which is "special
+        # rule" rather than the slug in the URL.
+        assert 'aria-label="Switch to another special rule"' in body
+        assert f"/n26/authoring/rule/{other.pk}/" in body
+        assert "sump sense" in body  # what the panel's filter matches on
+
+    def test_the_row_being_looked_at_is_marked(self, author, client, default_pack):
+        from n26.library.authoring import create_rule
+
+        here = create_rule("Lead Ritual")
+        other = create_rule("Sump Sense")
+        body = client.get(f"/n26/authoring/rule/{here.pk}/").content.decode()
+
+        assert re.search(
+            rf'<a href="/n26/authoring/rule/{here.pk}/"[^>]*aria-current="page"', body
+        )
+        assert not re.search(
+            rf'<a href="/n26/authoring/rule/{other.pk}/"[^>]*aria-current="page"', body
+        )
+
+    def test_the_sibling_list_does_not_grow_with_the_kind(
+        self, author, client, default_pack
+    ):
+        """Capped, and the cap is on the query — a kind with hundreds of
+        rows must cost a row's page what a kind with two costs it."""
+        from n26.library.authoring import create_rule
+
+        here = create_rule("Lead Ritual")
+        client.get(f"/n26/authoring/rule/{here.pk}/")  # warm any lazy setup
+
+        def queries():
+            from django.db import connection
+            from django.test.utils import CaptureQueriesContext
+
+            with CaptureQueriesContext(connection) as captured:
+                client.get(f"/n26/authoring/rule/{here.pk}/")
+            return len(captured)
+
+        before = queries()
+        for index in range(30):
+            create_rule(f"Rule {index:02d}")
+        assert queries() == before
+
+
 class TestTheDoorIsStaffed:
     def test_anonymous_is_sent_to_log_in(self, client, default_pack):
         response = client.get("/n26/authoring/subtype/")
