@@ -8,10 +8,9 @@ problem stops the write, and that the danger zone puts the library back
 to its foundations.
 """
 
-import io
-
 import pytest
 from django.contrib.auth.models import User
+from django.core.files.uploadedfile import SimpleUploadedFile
 
 from n26.library.models import Profile, Wargear, Weapon
 from n26.library.models.collection import Collection
@@ -43,7 +42,9 @@ def foundation(default_pack):
 
 
 def upload(text, name):
-    return io.BytesIO(text.strip().encode("utf-8"))
+    """A CSV as a browser would send it — named, because a real upload
+    always is and Django reads the name off the file."""
+    return SimpleUploadedFile(name, text.strip().encode("utf-8"), "text/csv")
 
 
 def sheets():

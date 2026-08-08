@@ -818,6 +818,62 @@ Corpse Grinder Cults,Gang Queen,5",3+,4+,3,3,2,4,2,5+,7,7,7,7,Fighter,Leader,61,
         assert perform(again).created == {}
 
 
+class TestResolvingAgainstThePack:
+    """A partial upload — a list on its own, say — resolves against what
+    the pack already holds rather than what this run planned."""
+
+    def test_a_shared_name_resolves_by_its_whole_id(self, foundation, sheets):
+        """Two weapons print "Power fist". Matching on the name alone
+        takes whichever comes first, which can hand a list the other
+        one at the other price."""
+        perform(plan_ingest(pack=None, **sheets))
+        only_lists = plan_ingest(
+            equipment_lists=read_csv(
+                """
+Collection,Title,Section,Category,Name,Profile,Credits,Restrictions,ID
+Equipment List,Cawdor,Close combat weapons,Exo weapons,Power fist,,105,,x
+"""
+            )
+        )
+        assert only_lists.ok
+        resolved = only_lists.get(EXO_FIST)
+        assert resolved.fields["qualifier"] == "Exo weapons"
+        assert resolved.fields["price"] == 105
+
+    def test_a_firing_line_brings_its_weapon_with_it(self, foundation, sheets):
+        """An entry asks a profile which weapon it hangs on, to know
+        whether it is already listed — so resolution has to say."""
+        perform(plan_ingest(pack=None, **sheets))
+        only_lists = plan_ingest(
+            equipment_lists=read_csv(
+                """
+Collection,Title,Section,Category,Name,Profile,Credits,Restrictions,ID
+Equipment List,Cawdor,Ranged weapons,Auto/stub weapons,Autogun,warp round,10,,x
+"""
+            )
+        )
+        assert only_lists.ok
+        ammo = only_lists.get(WARP_ROUND)
+        assert only_lists.get(ammo.fields["weapon"]).name == "Autogun"
+
+    def test_a_name_the_pack_holds_once_still_resolves(self, foundation, sheets):
+        """Exactness must not lock out a hand-authored item filed under
+        a category of its author's choosing: where the name is the
+        pack's alone, it is not ambiguous and it is found."""
+        perform(plan_ingest(pack=None, **sheets))
+        only_lists = plan_ingest(
+            equipment_lists=read_csv(
+                """
+Collection,Title,Section,Category,Name,Profile,Credits,Restrictions,ID
+Equipment List,Cawdor,Ranged weapons,Somewhere else,Frag lance,,35,,x
+"""
+            )
+        )
+        assert only_lists.ok
+        assert not [p for p in only_lists.problems if p.severity == "error"]
+        assert [p.kind for p in only_lists.planned if p.kind == "Weapon"] == ["Weapon"]
+
+
 class TestClearing:
     """Undoing an import, so the next one starts from the same ground.
 

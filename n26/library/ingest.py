@@ -1180,9 +1180,16 @@ def _override(item, list_price):
 def _resolve_by_id(plan, ident):
     """The catalogue row an ID names: planned, or already in the pack.
 
-    Weapons and wargear are named directly; a listing that carries a
-    ``Profile`` is selling one firing line of a weapon (a grenade type,
-    an ammo), which is its own listable thing.
+    A listing that carries a ``Profile`` is offering one firing line of a
+    weapon — a grenade type, an ammo — which is its own listable thing;
+    everything else is named directly.
+
+    Against the pack the whole ID is used, category and all, because a
+    printed name is not an identity: matching "Power fist" by name alone
+    would take whichever row came first and could hand a list the wrong
+    weapon at the wrong price. Only where the name turns out to be the
+    pack's alone does it fall back to that, which is what lets a
+    hand-authored item filed under its own category still be found.
     """
     from n26.library.models import Wargear, Weapon, WeaponProfile
 
@@ -1192,32 +1199,77 @@ def _resolve_by_id(plan, ident):
                 "WeaponProfile",
                 WeaponProfile,
                 {"weapon__name__iexact": ident.name, "name__iexact": ident.profile},
+                {
+                    "weapon__category__name__iexact": ident.category,
+                    "weapon__category__section__name__iexact": ident.section,
+                },
             )
         ]
     else:
+        homed = {
+            "category__name__iexact": ident.category,
+            "category__section__name__iexact": ident.section,
+        }
         candidates = [
-            ("Weapon", Weapon, {"name__iexact": ident.name}),
-            ("Wargear", Wargear, {"name__iexact": ident.name}),
+            ("Weapon", Weapon, {"name__iexact": ident.name}, homed),
+            ("Wargear", Wargear, {"name__iexact": ident.name}, homed),
         ]
 
-    for kind, _model, _filters in candidates:
+    for kind, _model, _by_name, _home in candidates:
         key = f"{kind}:{ident.key}"
         if plan.get(key):
             return key
 
     # Not planned this run — the pack may already hold it, which is what
     # a second upload and the hand-authored items both look like.
-    for kind, model, filters in candidates:
-        if existing := _exists(plan, model, **filters):
-            return plan.add(
-                kind,
-                existing.name,
-                {"price": existing.price, "unpriced": False},
-                Source("resolution", 0),
-                key=f"{kind}:{ident.key}",
-                action="exists",
-            ).key
+    for kind, model, by_name, home in candidates:
+        found = _exists(plan, model, **by_name, **home)
+        if found is None:
+            named = model.objects.filter(pack=plan.pack, **by_name)
+            found = named.first() if named.count() == 1 else None
+        if found is not None:
+            return _plan_existing(plan, kind, found, ident).key
     return None
+
+
+def _plan_existing(plan, kind, found, ident):
+    """A row the pack already holds, as a planned "exists" line.
+
+    It carries what anything reading the plan will ask of it — the
+    qualifier that tells two same-named rows apart, and for a firing
+    line the weapon it hangs on, which is how an entry knows whether it
+    is already listed. A key left off here surfaces much later as a
+    missing lookup on somebody else's line.
+    """
+    fields = {
+        "price": found.price,
+        "unpriced": False,
+        "qualifier": found.qualifier,
+    }
+    if kind == "WeaponProfile":
+        weapon_key = f"Weapon:{ident.parent.key}"
+        if not plan.get(weapon_key):
+            plan.add(
+                "Weapon",
+                found.weapon.name,
+                {
+                    "price": found.weapon.price,
+                    "unpriced": False,
+                    "qualifier": found.weapon.qualifier,
+                },
+                Source("resolution", 0),
+                key=weapon_key,
+                action="exists",
+            )
+        fields["weapon"] = weapon_key
+    return plan.add(
+        kind,
+        found.name,
+        fields,
+        Source("resolution", 0),
+        key=f"{kind}:{ident.key}",
+        action="exists",
+    )
 
 
 def _plan_restrictions(plan, pending):
@@ -1339,7 +1391,7 @@ def _entry_exists(plan, collection_name, item_key):
     filters = {f"{column}__name__iexact": planned.name}
     if kind == "WeaponProfile":
         # A profile's name is only unique under its weapon.
-        weapon = plan.get(planned.fields["weapon"])
+        weapon = plan.get(planned.fields.get("weapon", ""))
         if weapon is not None:
             filters["weapon_profile__weapon__name__iexact"] = weapon.name
     else:
@@ -1789,13 +1841,16 @@ def _imported(pack=None):
     # deleted trait is what stops the whole clear.
     standard_modifiers = list(
         Modifier.objects.filter(
-            library_specialisation_set__name__in=[name for name, _ in SPECIALISATIONS]
+            **scope,
+            library_specialisation_set__name__in=[name for name, _ in SPECIALISATIONS],
         )
         .distinct()
         .values_list("pk", flat=True)
     )
     doomed = list(
-        Modifier.objects.exclude(pk__in=standard_modifiers).values_list("pk", flat=True)
+        Modifier.objects.filter(**scope)
+        .exclude(pk__in=standard_modifiers)
+        .values_list("pk", flat=True)
     )
 
     # A modifier holds its scope and effect, and those rows are what
