@@ -1595,3 +1595,35 @@ class TestTheModifiersPage:
         )
         assert response.status_code == 200
         assert "cannot apply" in response.content.decode()
+
+    def test_more_modifiers_do_not_mean_more_queries(
+        self, author, client, default_pack, django_assert_num_queries
+    ):
+        """The page reads every modifier's sentence and counts every
+        carrier. Both are gathered for the whole page at once, so a pack
+        that grows costs rows, not round trips."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from n26.library.authoring import (
+            attach_modifiers_to,
+            create_rule,
+            create_subtype,
+            ef_adds,
+            modifier,
+            targets_model,
+        )
+
+        def compose(name):
+            made = modifier(name, targets_model(), ef_adds(create_subtype(name)))
+            attach_modifiers_to(create_rule(f"{name} rule"), [made])
+
+        for index in range(3):
+            compose(f"Grants {index}")
+        with CaptureQueriesContext(connection) as few:
+            assert client.get("/n26/authoring/modifiers/").status_code == 200
+
+        for index in range(3, 12):
+            compose(f"Grants {index}")
+        with django_assert_num_queries(len(few), exact=False):
+            assert client.get("/n26/authoring/modifiers/").status_code == 200

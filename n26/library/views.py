@@ -15,6 +15,7 @@ The composer and the preview pane hang off this same skeleton later
 
 import inspect
 import re
+from collections import Counter
 
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
@@ -161,6 +162,13 @@ def _has_detail(kind):
     return kind in DETAIL_KINDS or kind in DETAIL_VIEWS or _carries_modifiers(kind)
 
 
+#: The most empty condition rows a composer will offer at once. The
+#: count rides in the URL, where any number can be typed, and each row
+#: is a whole rendered form — a scope narrowed twenty ways is already
+#: past what an author can read.
+MAX_CHIPS = 20
+
+
 def _assignable_models():
     """Every concrete kind that can carry modifiers."""
     from django.apps import apps
@@ -172,15 +180,67 @@ def _assignable_models():
     ]
 
 
+def _carrier_counts(modifiers):
+    """How many things carry each of these modifiers, keyed by pk.
+
+    The number is what stops an author editing a shared modifier
+    thinking it is theirs alone. The kinds share no table, so the tally
+    costs one query per kind — per *page*, though, not per kind per
+    modifier: a page listing every modifier would otherwise spend
+    hundreds of queries counting.
+    """
+    counts = Counter()
+    pks = [modifier.pk for modifier in modifiers]
+    if not pks:
+        return counts
+    for model in _assignable_models():
+        counts.update(
+            model.objects.filter(modifiers__in=pks).values_list("modifiers", flat=True)
+        )
+    return counts
+
+
 def _carrier_count(modifier):
-    """How many things carry this modifier, across every kind. The
-    kinds share no table, so this is one count per kind — fine at
-    authoring-page scale, and the number is what stops an author
-    editing a shared modifier thinking it is theirs alone."""
-    return sum(
-        model.objects.filter(modifiers=modifier).count()
-        for model in _assignable_models()
-    )
+    """How many things carry this one modifier."""
+    return _carrier_counts([modifier])[modifier.pk]
+
+
+def _reading_sentences(modifiers):
+    """A modifier queryset with everything its sentences read loaded.
+
+    A modifier says itself by walking its scope and its effect, and
+    each of those walks further — the stat a change names, the subtypes
+    a condition lists. Unhinted that is several queries per row. The
+    paths are derived from the fields rather than listed, so a new
+    scope, effect or condition kind is covered the day it is added.
+    """
+    from n26.library.models import Modifier
+    from n26.library.models.modifier import EFFECT_FIELDS, SCOPE_FIELDS
+
+    def forward_relations(model):
+        return [
+            field.name
+            for field in model._meta.get_fields()
+            if field.concrete and (field.many_to_one or field.one_to_one)
+        ]
+
+    select, prefetch = [], []
+    for half in (*SCOPE_FIELDS, *EFFECT_FIELDS):
+        select.append(half)
+        related = Modifier._meta.get_field(half).related_model
+        select.extend(f"{half}__{name}" for name in forward_relations(related))
+        # Conditions hang off their scope the other way round, so they
+        # are fetched separately rather than joined.
+        for condition in getattr(related, "CONDITIONS", ()):
+            model = related._meta.get_field(condition).related_model
+            prefetch.append(f"{half}__{condition}")
+            prefetch.extend(
+                f"{half}__{condition}__{field.name}"
+                for field in model._meta.get_fields()
+                if field.concrete and (field.many_to_one or field.many_to_many)
+            )
+
+    return modifiers.select_related(*select).prefetch_related(*prefetch)
 
 
 def _label_for(row):
@@ -546,6 +606,7 @@ def _composer_state(request, attach_to=None, bound_composer=None):
         chips = max(0, int(request.GET.get("chips", 0)))
     except ValueError:
         chips = 0
+    chips = min(chips, MAX_CHIPS)
 
     composer = bound_composer
     if composer is None and scope_kind in specs() and effect_kind in specs():
@@ -570,10 +631,12 @@ def _modifier_section(request, thing, bound_composer=None):
     the composer."""
     from n26.library.models import Modifier
 
+    attached = list(_reading_sentences(thing.modifiers.all()))
+    counts = _carrier_counts(attached)
+
     rows = []
-    attached = list(thing.modifiers.all())
     for modifier in attached:
-        others = _carrier_count(modifier) - 1
+        others = counts[modifier.pk] - 1
         notes = [str(modifier.scope), str(modifier.effect)]
         if others:
             notes.append(f"also on {others} other carrier{'' if others == 1 else 's'}")
@@ -584,7 +647,9 @@ def _modifier_section(request, thing, bound_composer=None):
             "pk": modifier.pk,
             "label": f"{modifier.name} — {modifier.scope}: {modifier.effect}",
         }
-        for modifier in Modifier.objects.exclude(pk__in=[m.pk for m in attached])
+        for modifier in _reading_sentences(
+            Modifier.objects.exclude(pk__in=[m.pk for m in attached])
+        )
     ]
 
     return {
@@ -622,9 +687,12 @@ def modifiers(request):
                 )
                 return redirect("authoring-modifiers")
 
+    every = list(_reading_sentences(Modifier.objects.all()))
+    counts = _carrier_counts(every)
+
     rows = []
-    for modifier in Modifier.objects.all():
-        carriers = _carrier_count(modifier)
+    for modifier in every:
+        carriers = counts[modifier.pk]
         notes = [str(modifier.scope), str(modifier.effect)]
         notes.append(
             f"on {carriers} carrier{'' if carriers == 1 else 's'}"
