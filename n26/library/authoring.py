@@ -164,11 +164,19 @@ def set_statline(owner, pack=None, **values):
 
     ``set_statline(juve, movement=4, weapon_skill=3, toughness=3)``
 
+    Settable twice, which is what the name promises: a second call
+    writes the characteristics it names over the ones already there and
+    leaves the rest as they are. A statline is one row per owner, so
+    founding a second would not be an alternative reading — it would be
+    an error.
+
     Raises ``KeyError`` if a name isn't part of the profile's statline type,
     so a typo fails loudly rather than silently doing nothing.
     """
     extra = {"pack": pack} if pack else {}
-    statline = Statline.objects.create(owner=owner, **extra)
+    statline = getattr(owner, "statline", None)
+    if statline is None:
+        statline = Statline.objects.create(owner=owner, **extra)
 
     by_field_name = {
         type_stat.field_name: type_stat
@@ -181,13 +189,51 @@ def set_statline(owner, pack=None, **values):
         )
 
     for field_name, value in values.items():
-        StatlineStat.objects.create(
+        StatlineStat.objects.update_or_create(
             statline=statline,
             statline_type_stat=by_field_name[field_name],
-            value=str(value),
-            **extra,
+            defaults={"value": str(value), **extra},
         )
     return statline
+
+
+def revise(row, **fields):
+    """Write the named columns of a row that already exists, and save.
+
+    The other verbs make things; changing one is a write to the columns
+    the kind already names, so this takes no spec of its own — its
+    parameters are the row's own fields, and the row's kind is what
+    describes those. One write path, shared by the authoring pages and
+    by a re-import of a changed spreadsheet, so the two cannot come to
+    disagree about what editing means.
+
+    A many-to-many field is refused rather than assigned. A set is
+    replaced by the verb that owns it (``set_traits``,
+    ``set_statline``), because replacing a set is a decision — what
+    happens to a member the new value does not name — and ``setattr``
+    has no way to express one.
+    """
+    for name, value in fields.items():
+        if row._meta.get_field(name).many_to_many:
+            raise ValueError(
+                f"{name} is a set, so revise cannot write it — use the "
+                f"set_ verb that owns it and says what leaving means"
+            )
+        setattr(row, name, value)
+    row.save()
+    return row
+
+
+def set_traits(weapon_profile, traits):
+    """The traits printed on a firing line, replaced.
+
+    The statlines sheet is the whole statement about a line's traits,
+    and a card prints them, so a trait the sheet stops naming goes.
+    Added to instead, a line rewritten from Rapid Fire (1) to Rapid
+    Fire (2) would print both forever.
+    """
+    weapon_profile.traits.set(traits)
+    return weapon_profile
 
 
 # --- Assignables ---------------------------------------------------------
@@ -595,7 +641,7 @@ def add_built_in(carrier, thing, amount=0, position=None, **kwargs):
     acquired — a profile's equipment list, its starting kit, its
     opening XP. Founds the carrier's built-ins set on first use, so an
     author never makes the set by hand."""
-    from n26.library.models import DefaultAssignment, DefaultAssignmentSet
+    from n26.library.models import DefaultAssignmentSet
 
     if carrier.built_ins is None:
         shared = {"pack": kwargs["pack"]} if "pack" in kwargs else {}
@@ -604,10 +650,24 @@ def add_built_in(carrier, thing, amount=0, position=None, **kwargs):
             name=f"{label} built-ins", **shared
         )
         carrier.save()
+    return add_default_member(
+        carrier.built_ins, thing, amount=amount, position=position, **kwargs
+    )
+
+
+def add_default_member(default_set, thing, amount=0, position=None, **kwargs):
+    """One more thing in a set of defaults, at the end unless placed.
+
+    The set is named rather than the carrier, which is what a re-import
+    of a fighter whose sheet has grown a rule needs: the set is already
+    there and only the new member is missing.
+    """
+    from n26.library.models import DefaultAssignment
+
     if position is None:
-        position = carrier.built_ins.members.count()
+        position = default_set.members.count()
     return DefaultAssignment.objects.create(
-        default_set=carrier.built_ins,
+        default_set=default_set,
         assignable=thing,
         amount=amount,
         position=position,

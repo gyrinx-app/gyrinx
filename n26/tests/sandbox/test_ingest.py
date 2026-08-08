@@ -1262,6 +1262,226 @@ class TestThePreviewShowsTheDifference:
         ]
 
 
+class TestApplyingWhatChanged:
+    """Importing a corrected sheet writes the corrections.
+
+    The sheet wins, and it wins visibly: the preview lists every field
+    it would rewrite and Import rewrites exactly those. The contract is
+    the pair of them — a change that happens without appearing in the
+    preview, or a field the preview named and nothing wrote, is the
+    same bug wearing two faces.
+    """
+
+    @pytest.fixture
+    def imported(self, foundation, sheets):
+        perform(plan_ingest(pack=None, **sheets))
+        return sheets
+
+    def test_a_corrected_price_lands(self, imported):
+        plan = plan_ingest(
+            **{
+                **imported,
+                "equipment": edited(
+                    EQUIPMENT_CSV, ",Frag grenades,,30,2,", ",Frag grenades,,35,2,"
+                ),
+            }
+        )
+        result = perform(plan)
+        assert set(result.updated) == {FRAG_GRENADES}
+        assert Weapon.objects.get(name="Frag grenades").price == 35
+
+    def test_a_rewritten_firing_line_lands_traits_and_stats(self, imported):
+        plan = plan_ingest(
+            **{
+                **imported,
+                "weapon_profiles": edited(
+                    WEAPON_PROFILES_CSV,
+                    '8",24",3,-,1,Rapid Fire (1)',
+                    '8",24",4,-,1,"Rapid Fire (2), Unwieldy"',
+                ),
+            }
+        )
+        perform(plan)
+        own = Weapon.objects.get(name="Autogun").profiles.get(name="")
+        assert sorted(own.trait_names) == ["Rapid Fire (2)", "Unwieldy"]
+        assert own.statline.as_dict()["strength"] == "4"
+
+    def test_a_new_special_rule_joins_the_kit_without_disturbing_the_rest(
+        self, imported
+    ):
+        plan = plan_ingest(
+            **{
+                **imported,
+                "profiles": edited(
+                    PROFILES_CSV,
+                    "Fighter,Leader,61,120,Witch,",
+                    'Fighter,Leader,61,120,"Witch, Overseer",',
+                ),
+            }
+        )
+        perform(plan)
+        queen = Profile.objects.get(name="Gang Queen")
+        members = {str(m.assignable) for m in queen.built_ins.members.all()}
+        assert {"Witch", "Overseer", "Leader", "Catfall"} <= members
+        assert queen.built_ins.members.get(counter__isnull=False).amount == 61
+
+    def test_a_relisted_price_lands_on_the_entry(self, imported):
+        plan = plan_ingest(
+            **{
+                **imported,
+                "equipment_lists": edited(
+                    EQUIPMENT_LISTS_CSV,
+                    "Goliath,Wargear,Personal equipment,Respirator,,20,",
+                    "Goliath,Wargear,Personal equipment,Respirator,,40,",
+                ),
+            }
+        )
+        perform(plan)
+        entry = CollectionEntry.objects.get(
+            collection__name="Goliath Equipment List",
+            wargear__name="Respirator",
+        )
+        assert entry.price_override == 40
+        assert entry.price.credits == 40
+
+    def test_a_restriction_added_later_finally_reaches_the_item(self, imported):
+        """It never did before: the restriction took the entry's "already
+        there" and was skipped, so a list that gained a "<Fighter> only"
+        after its first import stayed open to everyone."""
+        plan = plan_ingest(
+            **{
+                **imported,
+                "equipment_lists": edited(
+                    EQUIPMENT_LISTS_CSV,
+                    "Escher,Ranged weapons,Auto/stub weapons,Autogun,,20,,",
+                    "Escher,Ranged weapons,Auto/stub weapons,Autogun,,20,"
+                    "Way-Brethren only,",
+                ),
+            }
+        )
+        perform(plan)
+        autogun = Weapon.objects.get(name="Autogun")
+        assert [p.name for p in autogun.usable_by_profiles.all()] == ["Way-Brethren"]
+
+    def test_a_skill_set_moved_between_tiers_is_in_one_tier_afterwards(self, imported):
+        """The live wrong-card case. Added to without retracting, the
+        fighter ends up with Combat in both tiers — which is not
+        untidiness, it is a fighter buying skills more cheaply than the
+        book allows."""
+        plan = plan_ingest(
+            **{
+                **imported,
+                "profiles": edited(
+                    PROFILES_CSV,
+                    ',Combat,"Agility, Shooting"',
+                    ',,"Agility, Shooting, Combat"',
+                ),
+            }
+        )
+        perform(plan)
+        brethren = Profile.objects.get(name="Way-Brethren")
+        tiers = {
+            m.places_category.category.name: m.places_category.section.name
+            for m in brethren.modifiers.filter(places_category__isnull=False)
+        }
+        assert tiers == {
+            "Agility": "Secondary",
+            "Shooting": "Secondary",
+            "Combat": "Secondary",
+        }
+
+    def test_the_motivating_case_the_category_home_lands_and_nothing_is_orphaned(
+        self, foundation, sheets
+    ):
+        """A fighter imported before its sheet said where it belonged,
+        then the sheet says. The category row was always made; the
+        fighter that should point at it was skipped, so the pack kept
+        gaining headings nothing was filed under.
+        """
+        homeless = read_csv(PROFILES_CSV.replace(",Leaders,Gang Queen", ",,Gang Queen"))
+        perform(plan_ingest(**{**sheets, "profiles": homeless}))
+
+        perform(plan_ingest(**sheets))
+
+        queen = Profile.objects.get(name="Gang Queen")
+        assert queen.category.name == "Leaders"
+        assert queen.category.section.name == "Gang List"
+        leaders = Category.objects.filter(name="Leaders")
+        assert leaders.count() == 1
+        assert leaders.get().profiles.exists()
+
+    def test_a_second_import_of_the_corrected_sheet_does_nothing(self, imported):
+        """The stronger idempotency claim: a *changed* sheet applied
+        twice changes things once."""
+        corrected = {
+            **imported,
+            "equipment": edited(
+                EQUIPMENT_CSV, ",Frag grenades,,30,2,", ",Frag grenades,,35,2,"
+            ),
+        }
+        perform(plan_ingest(**corrected))
+
+        again = plan_ingest(**corrected)
+        assert {p.action for p in again.planned} <= {"unchanged", "resolved"}
+        result = perform(again)
+        assert result.created == {} and result.updated == {}
+        assert Weapon.objects.get(name="Frag grenades").price == 35
+
+    def test_the_named_fields_are_the_only_ones_that_move(self, imported):
+        """A price correction is a price correction. Anything an author
+        typed into a column the sheets do not carry is still there
+        afterwards — the sheets are authoritative about what they know
+        and silent about the rest."""
+        grenades = Weapon.objects.get(name="Frag grenades")
+        grenades.library_author_help = "Ask before repricing these."
+        grenades.save()
+        before = {
+            "slots": grenades.slots,
+            "trade_point_price": grenades.trade_point_price,
+            "category": grenades.category_id,
+        }
+
+        plan = plan_ingest(
+            **{
+                **imported,
+                "equipment": edited(
+                    EQUIPMENT_CSV, ",Frag grenades,,30,2,", ",Frag grenades,,35,2,"
+                ),
+            }
+        )
+        assert set(plan.get(FRAG_GRENADES).changes) == {"price"}
+        perform(plan)
+
+        grenades.refresh_from_db()
+        assert grenades.price == 35
+        assert grenades.library_author_help == "Ask before repricing these."
+        assert {
+            "slots": grenades.slots,
+            "trade_point_price": grenades.trade_point_price,
+            "category": grenades.category_id,
+        } == before
+
+    def test_a_row_that_vanished_between_preview_and_import_stops_everything(
+        self, imported
+    ):
+        """Preview and Import are two requests over the same files, and
+        the pack can move in between. Writing a difference onto a row
+        nobody measured is the one outcome worth refusing."""
+        plan = plan_ingest(
+            **{
+                **imported,
+                "equipment": edited(
+                    EQUIPMENT_CSV, ",Frag grenades,,30,2,", ",Frag grenades,,35,2,"
+                ),
+            }
+        )
+        Weapon.objects.get(name="Frag grenades").delete()
+
+        with pytest.raises(LookupError, match="no longer the row the preview"):
+            perform(plan)
+        assert Weapon.objects.filter(name="Autogun").exists()
+
+
 class TestNothingIsLostQuietly:
     """The registries a planned row must appear in, discovered rather
     than listed. Every one of them can be forgotten, and forgetting any
@@ -1328,6 +1548,59 @@ class TestNothingIsLostQuietly:
 
         updatable = {name for f in SHEET_FIELDS.values() for name in f.updatable}
         assert updatable == set(FIELD_SHAPES)
+
+    def test_every_kind_says_how_it_is_made_or_why_it_never_is(self):
+        from n26.library.ingest import CREATORS, NEVER_CREATED, PERFORM_ORDER
+
+        assert set(PERFORM_ORDER) == set(CREATORS) | set(NEVER_CREATED)
+
+    def test_every_kind_the_sheets_can_change_says_how_it_changes(self):
+        from n26.library.ingest import NEVER_UPDATED, SHEET_FIELDS, UPDATERS
+
+        changeable = {k for k, f in SHEET_FIELDS.items() if f.updatable}
+        assert changeable == set(UPDATERS)
+        assert not changeable & set(NEVER_UPDATED)
+
+    def test_the_registries_name_methods_that_exist(self):
+        from n26.library.ingest import CREATORS, UPDATERS, _Performer
+
+        for registry in (CREATORS, UPDATERS):
+            for kind, method in registry.items():
+                assert hasattr(_Performer, method), f"{kind} names {method}"
+
+    def test_a_kind_with_nowhere_to_go_is_refused_by_name(self, plan):
+        """The bug class this closes: a planned kind absent from the
+        performing order was skipped without a word, and the upload
+        reported success with part of it never written."""
+        import n26.library.ingest as ingest_module
+
+        order = [k for k in ingest_module.PERFORM_ORDER if k != "Weapon"]
+        with pytest.MonkeyPatch.context() as patch:
+            patch.setattr(ingest_module, "PERFORM_ORDER", order)
+            with pytest.raises(LookupError, match="Weapon has no place"):
+                perform(plan)
+        assert Weapon.objects.count() == 0
+
+    def test_a_change_with_nothing_to_carry_it_out_is_refused_by_name(
+        self, foundation, sheets
+    ):
+        import n26.library.ingest as ingest_module
+
+        perform(plan_ingest(pack=None, **sheets))
+        plan = plan_ingest(
+            **{
+                **sheets,
+                "equipment": edited(
+                    EQUIPMENT_CSV, ",Frag grenades,,30,2,", ",Frag grenades,,35,2,"
+                ),
+            }
+        )
+        without = {k: v for k, v in ingest_module.UPDATERS.items() if k != "Weapon"}
+        with pytest.MonkeyPatch.context() as patch:
+            patch.setattr(ingest_module, "UPDATERS", without)
+            with pytest.raises(LookupError, match="Weapon is planned to change"):
+                perform(plan)
+        assert Weapon.objects.get(name="Frag grenades").price == 30
 
 
 class TestResolvingAgainstThePack:

@@ -1104,10 +1104,12 @@ def ingest(request):
                         )
                     else:
                         with transaction.atomic():
-                            performed = perform(plan).counts()
+                            result = perform(plan)
+                        performed = result.counts()
                         messages.success(
                             request,
-                            f"Imported {sum(performed.values())} rows.",
+                            f"Created {sum(performed.values())} rows, "
+                            f"changed {len(result.updated)}.",
                         )
 
     return render(

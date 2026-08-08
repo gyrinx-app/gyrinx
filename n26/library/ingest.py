@@ -2019,12 +2019,59 @@ PERFORM_ORDER = [
 ]
 
 
+#: Kinds a plan may name but must never make. What the sheets say about
+#: these is only ever which one they mean.
+NEVER_CREATED = {
+    "Specialisation": (
+        "which specialisations exist is authored content, and a "
+        "restriction string does not get to mint one"
+    ),
+}
+
+
+def _refuse_what_cannot_be_done(plan):
+    """Stop before writing anything if some of the plan has nowhere to
+    go.
+
+    Every kind must have a place in the performing order, a way of
+    being made and a way of being changed — whichever of those the plan
+    asks for. A missing one used to mean the row was passed over in
+    silence, which is the worst outcome available: the upload reports
+    success and part of it never happened.
+    """
+    shortfalls = []
+    for planned in plan.planned:
+        if planned.action == UNSETTLED:
+            shortfalls.append(f"{planned.key} was never settled")
+        if planned.kind not in PERFORM_ORDER:
+            shortfalls.append(f"{planned.kind} has no place in the performing order")
+        if planned.action == "create" and planned.kind not in CREATORS:
+            shortfalls.append(
+                f"{planned.kind} is planned to be made and nothing makes it"
+                + (
+                    f" — {NEVER_CREATED[planned.kind]}"
+                    if planned.kind in NEVER_CREATED
+                    else ""
+                )
+            )
+        if planned.action == "update" and planned.kind not in UPDATERS:
+            shortfalls.append(
+                f"{planned.kind} is planned to change and nothing changes it"
+            )
+    if shortfalls:
+        raise LookupError(
+            "this plan cannot be carried out in full, so none of it was: "
+            + "; ".join(sorted(set(shortfalls)))
+        )
+
+
 def perform(plan):
     """Execute the plan through the authoring verbs, in one transaction.
 
     Refuses a plan with error problems: the preview said no. Returns an
-    :class:`IngestResult` whose counts match the preview's ``create``
-    tallies — the preview is the contract.
+    :class:`IngestResult` whose creations and changes match what the
+    preview said — the preview is the contract, and a change writes
+    exactly the fields the preview named as changing.
 
     Standard content must already exist (the foundations page): the
     statline shapes, profile types, XP counter and skill tiers are
@@ -2036,6 +2083,7 @@ def perform(plan):
         raise ValueError(
             f"plan has {len(errors)} unresolved problem(s); first: {errors[0].message}"
         )
+    _refuse_what_cannot_be_done(plan)
     result = IngestResult()
     with transaction.atomic():
         performer = _Performer(plan, result)
@@ -2092,8 +2140,138 @@ class _Performer:
             if planned.kind not in self.UNREFERENCED:
                 self.resolve(planned.key)
             return
-        creator = getattr(self, f"_create_{planned.kind.lower()}")
+        if planned.action == "update":
+            updater = getattr(self, UPDATERS[planned.kind])
+            self.result.updated[planned.key] = updater(planned)
+            return
+        creator = getattr(self, CREATORS[planned.kind])
         self.result.created[planned.key] = creator(planned)
+
+    def _the_row_the_preview_described(self, planned):
+        """The row a change is to be written onto — that row, not
+        whatever the same lookup finds now.
+
+        A preview and an import are two requests over the same files,
+        and the pack can move between them. If what the preview
+        measured is gone, or is no longer the row that lookup answers
+        with, the whole import stops: the alternative is writing a
+        difference onto a row nobody looked at.
+        """
+        row = find_existing(planned, self.plan.pack, self.resolve)
+        if row is None or str(row.pk) != planned.existing:
+            raise LookupError(
+                f"{planned.key} is no longer the row the preview described — "
+                f"the pack changed in between; preview again"
+            )
+        return row
+
+    # -- changing what is already there -------------------------------------
+    #
+    # An updater writes exactly the fields the settling pass named as
+    # different, and takes the values from the plan. Nothing decides
+    # again here what has changed: the preview said, and this does that.
+
+    def _revise_columns(self, planned, row):
+        """The plain columns this change names — its own values, and the
+        rows its keys point at — written through one verb."""
+        from n26.library import authoring
+
+        values = {}
+        for name in planned.changes:
+            shape = FIELD_SHAPES[name]
+            if shape == "scalar":
+                values[name] = planned.fields[name]
+            elif shape == "reference":
+                values[name] = self.resolve(planned.fields[name])
+        if values:
+            authoring.revise(row, **values)
+        return row
+
+    def _update_weapon(self, planned):
+        return self._revise_columns(
+            planned, self._the_row_the_preview_described(planned)
+        )
+
+    _update_wargear = _update_weapon
+    _update_weaponaccessory = _update_weapon
+    _update_collectionentry = _update_weapon
+
+    def _update_weaponprofile(self, planned):
+        from n26.library import authoring
+
+        row = self._the_row_the_preview_described(planned)
+        self._revise_columns(planned, row)
+        if "traits" in planned.changes:
+            authoring.set_traits(
+                row, [self.resolve(key) for key in planned.fields["traits"]]
+            )
+        if "stats" in planned.changes:
+            self._set_statline(row, planned.fields["stats"], WEAPON_COLUMNS)
+        return row
+
+    def _update_profile(self, planned):
+        row = self._the_row_the_preview_described(planned)
+        self._revise_columns(planned, row)
+        if "stats" in planned.changes:
+            self._set_statline(row, planned.fields["stats"], MODEL_COLUMNS)
+        if "skill_grid" in planned.changes:
+            self._retract_placements(row, planned)
+        return row
+
+    def _retract_placements(self, profile, planned):
+        """Take off the skill-set placements this fighter's sheet no
+        longer names.
+
+        The placements it *does* name are made afterwards, as modifiers
+        in their own right, so what is left here is only the leaving.
+        A modifier can hang on more than one carrier, so it is detached
+        first and only deleted where nothing else holds it — and then by
+        its scope and effect rows, which are what the modifier cascades
+        away with.
+        """
+        from n26.library import authoring
+
+        wanted = {
+            row.pk
+            for row in (
+                find_existing(self.plan.get(key), self.plan.pack, self.resolve)
+                for key in planned.fields["skill_grid"]
+            )
+            if row is not None
+        }
+        for modifier in _placements(profile):
+            if modifier.pk in wanted:
+                continue
+            authoring.detach_modifier(profile, modifier)
+            if not _anything_carries(modifier):
+                modifier.places_category.delete()
+                if modifier.scope is not None:
+                    modifier.scope.delete()
+
+    def _update_defaultassignmentset(self, planned):
+        """A fighter's built-in kit, added to.
+
+        Never taken from: this is where the kit no sheet defines is
+        added by hand, precisely because an import cannot bring it, and
+        replacing the set would delete exactly that on every re-upload.
+        """
+        from n26.library import authoring
+
+        row = self._the_row_the_preview_described(planned)
+        held = {member.assignable.pk: member for member in row.members.all()}
+        position = row.members.count()
+        for member in planned.fields["members"]:
+            thing = self.resolve(member["item"])
+            extras = {name: v for name, v in member.items() if name != "item"}
+            already = held.get(thing.pk)
+            if already is None:
+                authoring.add_default_member(
+                    row, thing, position=position, **extras, **self.shared
+                )
+                position += 1
+            elif already.amount != extras.get("amount", 0):
+                authoring.revise(already, amount=extras.get("amount", 0))
+        return row
 
     # -- one creator per kind, each a thin call into library.authoring ------
 
@@ -2324,6 +2502,59 @@ class _Performer:
             pack=self.plan.pack,
             **{field_names[column]: value for column, value in stats.items()},
         )
+
+
+def _anything_carries(modifier):
+    """Is any assignable still holding this modifier?
+
+    Modifiers are shareable, so taking one off a fighter is not the
+    same as being finished with it. The kinds are read off the app
+    rather than listed, so a new one is covered without anyone
+    remembering to say so.
+    """
+    from django.apps import apps
+
+    return any(
+        model.objects.filter(modifiers=modifier).exists()
+        for model in apps.get_app_config("library").get_models()
+        if hasattr(model, "modifiers")
+    )
+
+
+#: How each kind is made, and how a kind the sheets can change is
+#: changed. Two tables that can be read against a plan before anything
+#: is written, which is the point of their being tables: a kind planned
+#: to be made or changed with nothing to do it is refused up front
+#: (:func:`_refuse_what_cannot_be_done`) rather than failing part way
+#: through an import, on the one row that needed it.
+CREATORS = {
+    "Category": "_create_category",
+    "Trait": "_create_trait",
+    "GangType": "_create_gangtype",
+    "Subtype": "_create_subtype",
+    "Skill": "_create_skill",
+    "Rule": "_create_rule",
+    "Weapon": "_create_weapon",
+    "WeaponProfile": "_create_weaponprofile",
+    "Wargear": "_create_wargear",
+    "WeaponAccessory": "_create_weaponaccessory",
+    "DefaultAssignmentSet": "_create_defaultassignmentset",
+    "Profile": "_create_profile",
+    "Collection": "_create_collection",
+    "CollectionEntry": "_create_collectionentry",
+    "Restriction": "_create_restriction",
+    "Modifier": "_create_modifier",
+}
+
+UPDATERS = {
+    "Weapon": "_update_weapon",
+    "Wargear": "_update_wargear",
+    "WeaponAccessory": "_update_weaponaccessory",
+    "WeaponProfile": "_update_weaponprofile",
+    "Profile": "_update_profile",
+    "DefaultAssignmentSet": "_update_defaultassignmentset",
+    "CollectionEntry": "_update_collectionentry",
+}
 
 
 # --- Clearing ------------------------------------------------------------------

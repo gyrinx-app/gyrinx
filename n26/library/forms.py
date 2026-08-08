@@ -369,13 +369,30 @@ class GeneratedForm(forms.Form):
         """Write this valid form's fields onto an existing row.
 
         The verb is for making things; changing one is a write to the
-        columns the spec already names. Values the form does not carry
-        are left alone rather than blanked.
+        columns the spec already names, which is ``authoring.revise`` —
+        one write path, shared with a re-import of a changed
+        spreadsheet. Values the form does not carry are left alone
+        rather than blanked.
+
+        A many-to-many field is the exception the shared verb refuses,
+        and rightly: replacing a set is a decision. Here the decision is
+        already made — a multi-select carries the whole set, so what it
+        does not name has been taken off.
         """
+        from n26.library.authoring import revise
+
+        columns, sets = {}, {}
         for name in self.spec.fields:
-            if name in self.fields:
-                setattr(thing, name, self.cleaned_data.get(name))
-        thing.save()
+            if name not in self.fields:
+                continue
+            value = self.cleaned_data.get(name)
+            if thing._meta.get_field(name).many_to_many:
+                sets[name] = value
+            else:
+                columns[name] = value
+        revise(thing, **columns)
+        for name, value in sets.items():
+            getattr(thing, name).set(value or ())
         return thing
 
 
