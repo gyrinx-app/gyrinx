@@ -45,27 +45,49 @@ def dashboard(request):
     just register their facets.
     """
     from gyrinx.site.models import ChangelogEntry
-    from n26.core.models import Gang
 
-    gangs = (
-        Gang.objects.filter(owner=request.user, archived=False)
-        .select_related("gang_type", "stash")
-        .order_by("name")
-    )
     return render(
         request,
         "n26/dashboard.html",
         {
-            "gangs": gangs,
-            # Deduplicated in order rather than sorted: the filter reads
-            # better in the order the reader saw the types down the list.
-            "gang_type_options": [
-                {"value": name, "label": name}
-                for name in dict.fromkeys(str(gang.gang_type) for gang in gangs)
-            ],
+            **_gang_table_context(request),
             "changelog": ChangelogEntry.objects.filter(archived=False)[:5],
         },
     )
+
+
+@login_required
+def gangs(request):
+    """Every gang you own, on a page of its own.
+
+    The dashboard's gangs tab shows the same rows in two thirds of a
+    column beside the changelog; this is where the bar's Gangs link
+    lands, so the list gets the whole width and nothing else competes
+    with it. Same context, same component — the two cannot disagree
+    about what a gang row looks like.
+    """
+    return render(request, "n26/gangs.html", _gang_table_context(request))
+
+
+def _gang_table_context(request):
+    """The rows and facets <c-n26.gang-table> needs: the viewer's own
+    gangs, and the types present among them for the filter."""
+    from n26.core.models import Gang
+
+    owned = (
+        Gang.objects.filter(owner=request.user, archived=False)
+        .select_related("gang_type", "stash")
+        .order_by("name")
+    )
+    return {
+        "gangs": owned,
+        # Deduplicated in order rather than sorted: the filter reads
+        # better in the order the reader saw the types down the list.
+        "gang_type_options": [
+            {"value": name, "label": name}
+            for name in dict.fromkeys(str(gang.gang_type) for gang in owned)
+        ],
+    }
 
 
 @login_required

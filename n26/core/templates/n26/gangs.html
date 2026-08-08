@@ -1,0 +1,41 @@
+{% extends "n26/layouts/base.html" %}
+{% comment %}
+Every gang you own, and the way to found another.
+
+The same <c-n26.gang-table> the dashboard's first tab draws, over the
+same context — one component and one query shape, so the two screens
+cannot come to disagree about what a gang row shows. What differs is the
+room: here the list has the page to itself rather than two thirds of a
+column beside the changelog.
+
+Founding is the page's action, in the header, because a list of gangs is
+where someone goes when they want one more.
+{% endcomment %}
+{% block head_title %}Gangs{% endblock head_title %}
+{% block nav_items %}
+    {% include 'n26/_nav.html' with here='gangs' %}
+{% endblock %}
+{% block content %}
+    <div class="flex flex-col gap-8">
+        <c-n26.page-header title="Gangs">
+            <c-slot name="actions">
+                <c-ui.button variant="primary" href="{% url 'n26-create-gang' %}">Create Gang</c-ui.button>
+            </c-slot>
+        </c-n26.page-header>
+        <c-n26.gang-table :type_options="gang_type_options" noun="gangs">
+            <c-slot name="empty">
+                {% if gangs %}
+                    No gangs match that. Try a shorter search.
+                {% else %}
+                    No gangs yet — founding one takes a minute.
+                {% endif %}
+            </c-slot>
+            {% for gang in gangs %}
+                <c-n26.gang-table.row name="{{ gang.name }}"
+                                      type="{{ gang.gang_type }}"
+                                      :sheet="gang"
+                                      href="{% url 'n26-gang' gang.pk %}" />
+            {% endfor %}
+        </c-n26.gang-table>
+    </div>
+{% endblock content %}

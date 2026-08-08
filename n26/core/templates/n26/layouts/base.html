@@ -171,6 +171,18 @@ banner, is_impersonating / impersonator, gtm_container_id, messages, user.
                             Admin
                         </c-ui.dropdown.item>
                     {% endif %}
+                    {% comment %}
+                    The door into authoring, beside the other staff-only
+                    door rather than in the bar: the bar is for the places
+                    every reader has, and writing content is something a
+                    handful of accounts do. The gate inside authoring is
+                    staff-only regardless — this only decides who sees it.
+                    {% endcomment %}
+                    {% if user.is_staff %}
+                        <c-ui.dropdown.item href="{% url 'authoring-index' %}">
+                            Authoring
+                        </c-ui.dropdown.item>
+                    {% endif %}
                     {% if logout_url_ %}
                         <c-ui.dropdown.separator />
                         <c-ui.dropdown.item href="{{ logout_url_ }}" variant="danger">

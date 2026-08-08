@@ -11,7 +11,9 @@ The load-bearing ideas:
 * the dashboard and the create form are the design system's views bound
   to real data — the user's own gangs, the platform's changelog;
 * a valid create submit founds a real gang: the row, its founding
-  assignment, and the type's built-ins, owned by the signed-in user.
+  assignment, and the type's built-ins, owned by the signed-in user;
+* the shell's one menu holds whatever links the area put in the bar,
+  plus the account items — and the staff-only ones only for staff.
 
 Tests run --nomigrations, so the "N26 Testers" group the accounts data
 migration creates does not exist here — each test that needs it makes
@@ -117,6 +119,87 @@ class TestTheDashboard:
         # the entry's payload — dropped with its content, not escaped.
         assert "alert" not in body
         assert "fine" in body
+
+
+def nav_menu(body):
+    """The panel behind the shell's one menu button.
+
+    The header renders its links twice — flat in the bar and stacked in
+    the menu — so a bare substring search cannot tell which copy it
+    found. The menu is the header's one role="menu" region, and the
+    account items live only in it.
+    """
+    header = body[: body.index("</header>")]
+    return header[header.index('role="menu"') :]
+
+
+def in_order(text, *fragments):
+    """Where each fragment first appears, for asserting a running order."""
+    return [text.index(fragment) for fragment in fragments]
+
+
+class TestTheNavigation:
+    """Two places in the bar and the account items under them.
+
+    The bar is for where a reader can go — the dashboard and their
+    gangs. Everything about the account, including the staff-only doors,
+    is in the menu below those links, and the menu is the same list the
+    bar drew, so the two can never name different pages.
+    """
+
+    @pytest.fixture
+    def staff(self, client):
+        user = User.objects.create_user("boss", is_staff=True)
+        client.force_login(user)
+        return user
+
+    def test_the_bar_is_home_and_gangs(self, tester, client, default_pack):
+        body = client.get("/n26/").content.decode()
+        home, gangs = in_order(body, ">Home</a>", ">Gangs</a>")
+        assert home < gangs
+        # Founding is an action with a button on both pages, not a place.
+        assert ">Create a gang</a>" not in body
+
+    def test_the_menu_holds_the_links_and_then_the_account(
+        self, tester, client, default_pack
+    ):
+        menu = nav_menu(client.get("/n26/").content.decode())
+        positions = in_order(
+            menu, ">Home</a>", ">Gangs</a>", "Your account", "Sign out"
+        )
+        assert positions == sorted(positions)
+
+    def test_staff_get_the_two_extra_doors(self, staff, client, default_pack):
+        menu = nav_menu(client.get("/n26/").content.decode())
+        positions = in_order(menu, "Your account", "Admin", "Authoring", "Sign out")
+        assert positions == sorted(positions)
+
+    def test_nobody_else_is_shown_a_door_they_cannot_open(
+        self, tester, client, default_pack
+    ):
+        """A tester who is not staff is refused by both pages anyway, so
+        an item they can only bounce off is noise."""
+        menu = nav_menu(client.get("/n26/").content.decode())
+        assert "Admin" not in menu
+        assert "Authoring" not in menu
+
+    def test_the_authoring_area_puts_its_own_pages_in_the_menu(
+        self, staff, client, default_pack
+    ):
+        """The menu draws whatever the area gave the bar, so an author
+        gets the authoring pages there and not the app's."""
+        menu = nav_menu(client.get("/n26/authoring/").content.decode())
+        positions = in_order(
+            menu,
+            ">Authoring</a>",
+            ">Modifiers</a>",
+            ">Foundations</a>",
+            ">Ingest</a>",
+            ">App</a>",
+        )
+        assert positions == sorted(positions)
+        assert ">Home</a>" not in menu
+        assert ">Gangs</a>" not in menu
 
 
 class TestTheSiteBanner:

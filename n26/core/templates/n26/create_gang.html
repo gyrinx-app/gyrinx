@@ -9,7 +9,7 @@ built-ins bring.
 {% block head_title %}Create a gang{% endblock head_title %}
 {% block nav_heading %}Create a gang{% endblock nav_heading %}
 {% block nav_items %}
-    {% include 'n26/_nav.html' with here='new-gang' %}
+    {% include 'n26/_nav.html' %}
 {% endblock %}
 {% block content %}
     <c-n26.view.create-gang action="{% url 'n26-create-gang' %}"
