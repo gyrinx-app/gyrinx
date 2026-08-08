@@ -41,3 +41,6 @@ playbooks/trace/output/*
 # live prod DB password; written 0o600 and deleted on exit — never commit it)
 gyrinx/_prodshell_settings.py
 _cotton_test_host/
+
+# The n26 edition's working design docs — local research material, never committed
+/n26/design/

@@ -160,7 +160,12 @@ class TestThePage:
         assert "missing" in body
         assert "Model characteristics" in body
 
-        client.post("/n26/authoring/foundations/", {"do": "seed:model-characteristics"})
+        # The button's own payload. This test once posted a key the view
+        # never read and still passed, because the old inline stylesheet
+        # happened to contain the word "complete" — the page said nothing
+        # of the sort. The styles are the design system's now, so the
+        # assertion finally means what it says.
+        client.post("/n26/authoring/foundations/", {"create": "model-characteristics"})
         body = client.get("/n26/authoring/foundations/").content.decode()
         assert "complete" in body
         assert "Fighter" in body  # the profile type it made

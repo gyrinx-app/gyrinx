@@ -212,6 +212,9 @@ extend_exclude = "gyrinx/templates/cotton,n26/core/templates/cotton"
 exclude_dirs = [
     ".venv",
     ".git",
+    # Claude's working notes are untracked scratch, not shipped code — but
+    # bandit -r . reads them and fails commits on whatever they contain.
+    ".claude",
     "__pycache__",
     "*/migrations/*",
     "*/tests/*",

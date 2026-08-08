@@ -15,6 +15,8 @@ them:
 * the surface is staff-only.
 """
 
+import re
+
 import pytest
 from django.contrib.auth.models import User
 
@@ -294,14 +296,14 @@ class TestFamilies:
     def test_the_index_groups_by_family(self, author, client, default_pack):
         body = client.get("/n26/authoring/").content.decode()
         # Every family has pages now, and they read in declaration order.
+        # The heading text, not its markup — the section component owns that.
         positions = [
-            body.index(f"<h2>{label}</h2>")
-            for label in ("Base", "Model", "Gear", "Gang")
+            body.index(f">{label}</h2>") for label in ("Base", "Model", "Gear", "Gang")
         ]
         assert positions == sorted(positions)
         # A kind sits under its family.
-        assert body.index("<h2>Gear</h2>") < body.index("wargear")
-        assert body.index("<h2>Gang</h2>") < body.index("archetype")
+        assert body.index(">Gear</h2>") < body.index("wargear")
+        assert body.index(">Gang</h2>") < body.index("archetype")
 
     def test_the_family_table(self):
         """The grouping as agreed, pinned so it changes deliberately."""
@@ -528,9 +530,9 @@ class TestWeapons:
             ("L", "lethality"),
         ):
             assert f'name="{field}"' in body
-            # The platform's form renderer draws the label (no ":" suffix,
-            # its own classes) — assert the words, not the chrome.
-            assert f">{short}</label>" in body
+            # The kit's label wraps its text in a whitespace-padded span —
+            # assert the words where they land, not the chrome around them.
+            assert re.search(rf">\s*{re.escape(short)}\s*</span>", body)
         assert 'placeholder="4&quot;"' in body  # the stat's own example
 
     def test_adding_the_mandatory_profile_with_its_stats_and_traits(

@@ -1,26 +1,31 @@
 {% extends "authoring/base.html" %}
-{% block title %}Authoring{% endblock %}
+{% block head_title %}
+    Authoring
+{% endblock head_title %}
 {% block content %}
-    <h1>Content authoring</h1>
-    <p>
-        The leaves: the fundamental things everything else references.
-        Start at <a href="{% url 'authoring-foundations' %}">Foundations</a> if the
-        library is empty — stats and statline shapes are created there.
-    </p>
+    <c-n26.page-header title="Content authoring"
+                       lead="The leaves: the fundamental things everything else references." />
+    <c-n26.prose class="mt-2">
+        <p>
+            Start at <c-n26.link href="{% url 'authoring-foundations' %}">Foundations</c-n26.link>
+            if the library is empty — stats and statline shapes are created there.
+        </p>
+    </c-n26.prose>
     {% for family in families %}
-        <h2>{{ family.label }}</h2>
-        <table>
-            <tbody>
-                {% for entry in family.kinds %}
-                    <tr>
-                        <td>
-                            <a href="{% url 'authoring-leaf' entry.kind %}">{{ entry.verbose_name|capfirst }}</a>
-                            <span class="summary">{{ entry.summary|safe }}</span>
-                        </td>
-                        <td class="count">{{ entry.count }}</td>
-                    </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        <c-n26.form-section title="{{ family.label }}" class="mt-8">
+            <c-ui.table>
+                <tbody>
+                    {% for entry in family.kinds %}
+                        <tr>
+                            <td>
+                                <c-n26.link href="{% url 'authoring-leaf' entry.kind %}">{{ entry.verbose_name|capfirst }}</c-n26.link>
+                            </td>
+                            <td class="w-full">{{ entry.summary }}</td>
+                            <td class="text-right tabular-nums">{{ entry.count }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </c-ui.table>
+        </c-n26.form-section>
     {% endfor %}
-{% endblock %}
+{% endblock content %}

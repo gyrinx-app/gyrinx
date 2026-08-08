@@ -1,63 +1,91 @@
 {% extends "authoring/base.html" %}
-{% block title %}{{ thing }}{% endblock %}
+{% block head_title %}
+    {{ thing }}
+{% endblock head_title %}
 {% block content %}
-    <p class="count"><a href="{% url 'authoring-leaf' 'collection' %}">← all collections</a></p>
-    <h1>{{ thing }}</h1>
-    {% if thing.library_author_help %}<p>{{ thing.library_author_help }}</p>{% endif %}
-    <h2>Definition</h2>
-    {% if sweeps or entries %}
-        {% if sweeps %}
-            <ul>
-                {% for sweep in sweeps %}<li>{{ sweep }}</li>{% endfor %}
-            </ul>
+    <c-n26.page-header title="{{ thing }}">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Authoring</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-leaf' 'collection' %}">
+                    Collections
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    {{ thing }}
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+    </c-n26.page-header>
+    {% if thing.library_author_help %}
+        <c-n26.prose class="mt-3 max-w-2xl">
+            <p>{{ thing.library_author_help }}</p>
+        </c-n26.prose>
+    {% endif %}
+    <c-n26.form-section title="Definition" class="mt-8">
+        {% if sweeps or entries %}
+            {% if sweeps %}
+                <c-n26.prose>
+                    <ul>
+                        {% for sweep in sweeps %}<li>{{ sweep }}</li>{% endfor %}
+                    </ul>
+                </c-n26.prose>
+            {% endif %}
+            {% if entries %}
+                <c-ui.table>
+                    <tbody>
+                        {% for entry in entries %}
+                            <tr>
+                                <td>{{ entry.label }}</td>
+                                <td class="text-right text-muted">{{ entry.notes|join:" · " }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </c-ui.table>
+            {% endif %}
+        {% else %}
+            <c-ui.description>
+                Nothing defined yet — no sweeps, no entries.
+            </c-ui.description>
         {% endif %}
-        {% if entries %}
-            <table>
+    </c-n26.form-section>
+    <c-n26.form-section title="Preview ({{ line_count }} line{{ line_count|pluralize }})"
+                        description="What the definition means right now — author an item that fits and it appears here on the next load. Browsed as a plain list; a trading trip withholds “E” rows and charges the TP shown."
+                        class="mt-10">
+        {% for section in sections %}
+            <c-ui.table class="mt-2">
+                <thead>
+                    <tr>
+                        <th>{{ section.name|default:"(no section)" }}</th>
+                        <th class="text-right">credits</th>
+                        <th class="text-right">TP</th>
+                        <th></th>
+                    </tr>
+                </thead>
                 <tbody>
-                    {% for entry in entries %}
-                        <tr>
-                            <td>{{ entry.label }}</td>
-                            <td class="count">{{ entry.notes|join:" · " }}</td>
-                        </tr>
+                    {% for category in section.categories %}
+                        {% if category.name %}
+                            <tr>
+                                <th colspan="4">{{ category.name }}</th>
+                            </tr>
+                        {% endif %}
+                        {% for row in category.rows %}
+                            <tr>
+                                <td>
+                                    {% if row.nested %}<span class="text-muted">—</span>{% endif %}
+                                    {{ row.name }}
+                                </td>
+                                <td class="text-right tabular-nums">{{ row.credits }}</td>
+                                <td class="text-right tabular-nums">{{ row.tp }}</td>
+                                <td class="text-right text-muted">{{ row.notes|join:" · " }}</td>
+                            </tr>
+                        {% endfor %}
                     {% endfor %}
                 </tbody>
-            </table>
-        {% endif %}
-    {% else %}
-        <p class="count">Nothing defined yet — no sweeps, no entries.</p>
-    {% endif %}
-    <h2>Preview <span class="count">({{ line_count }} line{{ line_count|pluralize }})</span></h2>
-    <p class="count">
-        What the definition means right now — author an item that
-        fits and it appears here on the next load. Browsed as a plain list; a
-        trading trip withholds “E” rows and charges the TP shown.
-    </p>
-    {% for section in sections %}
-        <h3>{{ section.name|default:"(no section)" }}</h3>
-        <table>
-            <thead>
-                <tr>
-                    <th></th>
-                    <th class="count">credits</th>
-                    <th class="count">TP</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for category in section.categories %}
-                    {% if category.name %}<tr><th colspan="4">{{ category.name }}</th></tr>{% endif %}
-                    {% for row in category.rows %}
-                        <tr>
-                            <td>{% if row.nested %}<span class="count">—</span>{% endif %}{{ row.name }}</td>
-                            <td class="count">{{ row.credits }}</td>
-                            <td class="count">{{ row.tp }}</td>
-                            <td class="count">{{ row.notes|join:" · " }}</td>
-                        </tr>
-                    {% endfor %}
-                {% endfor %}
-            </tbody>
-        </table>
-    {% empty %}
-        <p class="count">Empty — nothing matches the definition yet.</p>
-    {% endfor %}
-{% endblock %}
+            </c-ui.table>
+        {% empty %}
+            <c-ui.description>
+                Empty — nothing matches the definition yet.
+            </c-ui.description>
+        {% endfor %}
+    </c-n26.form-section>
+{% endblock content %}
