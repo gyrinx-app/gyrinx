@@ -129,71 +129,89 @@ and creating one are one screen, not two.
                  class="space-y-4">
                 <div class="grid auto-rows-min grid-cols-1 gap-4 md:grid-cols-2">
                     {% for row in model_rows %}
-                        <div x-data="{ slots: 0, recount() { this.slots = [...$el.querySelectorAll('input[name=weapons]:checked')].reduce((used, weapon) => used + Number(weapon.dataset.slots), 0) } }"
+                        {% comment %}
+                        The kit's checkbox cards (c-ui.checkbox.group
+                        variant="cards") are the presentation this borrows:
+                        border-2 to the accent with a light tint while
+                        checked. Borrowed rather than used, because that
+                        component makes its whole surface the toggle — and
+                        this card hosts the weapon checkboxes inside it, so a
+                        weapon tick would untick the model.
+                        {% endcomment %}
+                        <div x-data="{ picked: {% if row.card.id in ticked_models %}true{% else %}false{% endif %}, slots: 0, recount() { this.slots = [...$el.querySelectorAll('input[name=weapons]:checked')].reduce((used, weapon) => used + Number(weapon.dataset.slots), 0) } }"
                              x-init="recount()"
-                             @change="recount()">
-                            <c-ui.card padding="none">
-                                <c-slot name="header">
-                                    <label class="flex min-h-11 cursor-pointer items-center gap-2.5 px-3 py-2">
-                                        <input type="checkbox"
-                                               name="fighters"
-                                               value="{{ row.card.id }}"
-                                               data-base="{{ row.base_rating }}"
-                                               {% if row.card.id in ticked_models %}checked{% endif %}
-                                               class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
-                                        <span class="min-w-0 flex-1">
-                                            <span class="block truncate font-semibold text-ink-900 dark:text-ink-100">{{ row.card.name }}</span>
-                                            {% if row.card.profile_name %}
-                                                <span class="block truncate text-sm text-muted">{{ row.card.profile_name }}</span>
-                                            {% endif %}
-                                        </span>
-                                        {% if row.card.weapons %}
-                                            {% comment %}
-                                            The card's slot spend against the book's
-                                            budget, loud past it. title says which
-                                            number this is — the bare fraction reads
-                                            as anything.
-                                            {% endcomment %}
-                                            <span class="shrink-0 text-xs tabular-nums"
-                                                  :class="slots > {{ slot_budget }} ? 'font-medium text-amber-600 dark:text-amber-400' : 'text-muted'"
-                                                  title="Weapon slots used of the {{ slot_budget }} on a card"
-                                                  x-text="slots + '/{{ slot_budget }} slots'"></span>
-                                        {% endif %}
-                                        <span class="shrink-0 text-sm tabular-nums text-muted">{{ row.card.rating }}¢</span>
-                                    </label>
-                                </c-slot>
+                             @change="recount()"
+                             class="rounded-box border-2 p-4 transition-[background-color]"
+                             :class="picked ? 'border-accent bg-accent/5' : 'border-ink-200 dark:border-ink-700'">
+                            <label class="flex cursor-pointer items-start gap-3">
+                                <input type="checkbox"
+                                       name="fighters"
+                                       value="{{ row.card.id }}"
+                                       data-base="{{ row.base_rating }}"
+                                       {% if row.card.id in ticked_models %}checked{% endif %}
+                                       @change="picked = $event.target.checked"
+                                       class="mt-0.5 size-5 shrink-0 accent-[var(--color-accent)] focus-ring">
+                                <span class="min-w-0 flex-1">
+                                    <span class="block truncate text-base font-semibold text-ink-900 dark:text-ink-100">{{ row.card.name }}</span>
+                                    {% if row.card.profile_name %}
+                                        <span class="block truncate text-muted">{{ row.card.profile_name }}</span>
+                                    {% endif %}
+                                </span>
                                 {% if row.card.weapons %}
-                                    <div class="flex flex-col px-3 py-2">
-                                        {% for weapon in row.card.weapons %}
-                                            {% comment %}
-                                        Only stored weapons can be chosen — a computed
-                                        line has no assignment to key on, and there are
-                                        none of those today. The guard keeps a future
-                                        one from rendering an unsubmittable box.
-                                            {% endcomment %}
-                                            {% if weapon.id %}
-                                                <label class="flex min-h-9 cursor-pointer items-center gap-2.5 rounded-control px-1 hover:bg-ink-500/5">
-                                                    <input type="checkbox"
-                                                           name="weapons"
-                                                           value="{{ weapon.id }}"
-                                                           data-model="{{ row.card.id }}"
-                                                           data-rating="{{ weapon.total_rating }}"
-                                                           data-slots="{{ weapon.slots }}"
-                                                           {% if weapon.id in ticked_weapons %}checked{% endif %}
-                                                           class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
-                                                    <span class="min-w-0 flex-1 truncate text-sm text-ink-900 dark:text-ink-100">{{ weapon.name }}</span>
-                                                    {% if weapon.slots != 1 %}
-                                                        <span class="shrink-0 text-xs text-muted">{{ weapon.slots }} slot{{ weapon.slots|pluralize }}</span>
-                                                    {% endif %}
-                                                    <span class="shrink-0 text-xs tabular-nums text-muted">{{ weapon.total_rating }}¢</span>
-                                                </label>
-                                            {% endif %}
-                                        {% endfor %}
-                                    </div>
-                                {% else %}
-                                    <p class="px-3 py-2 text-sm text-muted">No weapons.</p>
+                                    {% comment %}
+                                    The card's slot spend against the book's
+                                    budget, loud past it. title says which
+                                    number this is — the bare fraction reads
+                                    as anything.
+                                    {% endcomment %}
+                                    <span class="shrink-0 text-xs tabular-nums"
+                                          :class="slots > {{ slot_budget }} ? 'font-medium text-amber-600 dark:text-amber-400' : 'text-muted'"
+                                          title="Weapon slots used of the {{ slot_budget }} on a card"
+                                          x-text="slots + '/{{ slot_budget }} slots'"></span>
                                 {% endif %}
-                            </c-ui.card>
+                                <span class="shrink-0 text-sm tabular-nums text-muted">{{ row.card.rating }}¢</span>
+                            </label>
+                            {% comment %}
+                            The weapons, indented to the title's left edge so
+                            they read as the card's contents rather than a
+                            second list. Only stored weapons can be chosen —
+                            a computed line has no assignment to key on, and
+                            there are none of those today; the guard keeps a
+                            future one from rendering an unsubmittable box.
+                            {% endcomment %}
+                            {% if row.card.weapons %}
+                                <div class="mt-2 flex flex-col border-t border-box-border pt-2 pl-8">
+                                    {% for weapon in row.card.weapons %}
+                                        {% if weapon.id %}
+                                            {% comment %}
+                                            Dead while the model is unticked: an
+                                            unpicked model prints nothing, so its
+                                            weapon boxes are choices about a card
+                                            that will not exist. A disabled input
+                                            also does not submit, which matches —
+                                            the server ignores them anyway.
+                                            {% endcomment %}
+                                            <label class="flex min-h-9 items-center gap-2.5 rounded-control px-1"
+                                                   :class="picked ? 'cursor-pointer hover:bg-ink-500/5' : 'opacity-50 cursor-not-allowed'">
+                                                <input type="checkbox"
+                                                       name="weapons"
+                                                       value="{{ weapon.id }}"
+                                                       data-model="{{ row.card.id }}"
+                                                       data-rating="{{ weapon.total_rating }}"
+                                                       data-slots="{{ weapon.slots }}"
+                                                       {% if weapon.id in ticked_weapons %}checked{% endif %}
+                                                       :disabled="!picked"
+                                                       class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
+                                                <span class="min-w-0 flex-1 truncate text-sm text-ink-900 dark:text-ink-100">{{ weapon.name }}</span>
+                                                {% if weapon.slots != 1 %}
+                                                    <span class="shrink-0 text-xs text-muted">{{ weapon.slots }} slot{{ weapon.slots|pluralize }}</span>
+                                                {% endif %}
+                                                <span class="shrink-0 text-xs tabular-nums text-muted">{{ weapon.total_rating }}¢</span>
+                                            </label>
+                                        {% endif %}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
                         </div>
                     {% endfor %}
                 </div>
