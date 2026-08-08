@@ -11,15 +11,20 @@ Each stage is verified on its own interface (design/ingest.md §8):
 * ``perform`` — the plan becomes database rows, through the
   ``n26.library.authoring`` verbs, and creates exactly what the preview said.
 
-The fixture sheets are miniatures of the real pre-ingest worksheets —
-the rows are drawn from the worked examples in design/ingest.md.
+The fixture sheets are miniatures of the real pre-ingest worksheets,
+column for column: the **equipment** catalogue (what exists, and its
+price), the **weapon profiles** (statlines only), the **equipment
+lists** (a named collection per Title) and the **gang list profiles**
+(the fighters). They join on the ID the sheets compute,
+``Name (Profile) (Category ← Section)``, which is why the fixture holds
+two different weapons both called "Power fist".
 """
 
 import json
 
 import pytest
 
-from n26.library.ingest import perform, plan_ingest, read_csv
+from n26.library.ingest import ItemId, perform, plan_ingest, read_csv
 from n26.library.models import (
     Category,
     Profile,
@@ -30,30 +35,49 @@ from n26.library.models import (
 from n26.library.models.collection import Collection, CollectionEntry
 from n26.library.standard_content import STANDARD_CONTENT
 
-# --- The upload: three small sheets in the real sheets' shape ---------------
-
-WEAPONS_CSV = """
-Gang,Type,Subtype,Name,SR,LR,Str,AP,L,Traits,Credits,TP
-Trading Post,Ranged,Auto/stub,Autogun,8",24",3,-,1,Rapid Fire (1),20,0
-Trading Post,Ranged,Auto/stub,- warp round,8",24",3,-,1,"Cursed, Single Shot",10,4
-Cawdor,Close Combat,Lances,Frag lance,,,,,,,35,E
-Cawdor,Close Combat,Lances,- primed,E,-,4,-1,1,"Heavy, Knockback (5+), Melee",,
-Cawdor,Close Combat,Lances,- spent,E,-,S,-,1,"Heavy, Melee",,
-Escher,Close Combat,Power,Power knife,E,-,S+1,-2,1,Melee,-,E
-Goliath,Ranged,Natural,Ferocious jaws,E,-,S,-1,1,"Melee, Rending (6+)",-,E
-"""
+# --- The upload: four small sheets in the real sheets' shape -----------------
+#
+# Miniatures of the team's exports, column for column. The ``ID`` column
+# they carry is the sheets' own join key, printing
+# ``Name (Profile) (Category ← Section)`` — ingest recomputes it from
+# those four columns rather than trusting the cell, so it is here for
+# fidelity, not because anything reads it.
 
 EQUIPMENT_CSV = """
-Gang,Type,Subtype,Name,Credits,Restrictions
-Escher,Ranged,Auto/stub,Autogun,20,
-Escher,Close Combat,Power,Power knife,25,
-Escher,Wargear,Personal equipment,Respirator,15,
-Escher,Wargear,Pets,Phelynx,60,maximum one per gang
-Cawdor,Close Combat,Lances,Frag lance,35,Way-Brethren only
-Cawdor,Wargear,Personal equipment,Respirator,15,
-Goliath,Wargear,Personal equipment,Respirator,20,
-Goliath,Ranged,Auto/stub,Autogun,20,
-Goliath,Ranged,Auto/stub,- warp round,10,
+Assignable,Section,Category,Name,Profile,Cost,TP,ID
+Weapon,Ranged weapons,Auto/stub weapons,Autogun,,20,0,Autogun () (Auto/stub weapons ← Ranged weapons)
+Weapon Profile,Ranged weapons,Auto/stub weapons,Autogun,warp round,10,4,Autogun (warp round) (Auto/stub weapons ← Ranged weapons)
+Weapon,Close combat weapons,Lances,Frag lance,,-,E,Frag lance () (Lances ← Close combat weapons)
+Weapon,Close combat weapons,Power weapons,Power fist,,-,E,Power fist () (Power weapons ← Close combat weapons)
+Weapon,Close combat weapons,Exo weapons,Power fist,,105,2,Power fist () (Exo weapons ← Close combat weapons)
+Weapon,Close combat weapons,Natural weapons,Ferocious jaws,,-,E,Ferocious jaws () (Natural weapons ← Close combat weapons)
+Wargear,Wargear,Personal equipment,Respirator,,15,1,Respirator () (Personal equipment ← Wargear)
+Wargear,Wargear,Pets,Phelynx,,-,E,Phelynx () (Pets ← Wargear)
+"""
+
+WEAPON_PROFILES_CSV = """
+Section,Category,Name,Profile,Sub-profile,SR,LR,Str,AP,L,Traits,ID
+Ranged weapons,Auto/stub weapons,Autogun,,,8",24",3,-,1,Rapid Fire (1),Autogun () (Auto/stub weapons ← Ranged weapons)
+Ranged weapons,Auto/stub weapons,Autogun,warp round,,8",24",3,-,1,"Cursed, Single Shot",Autogun (warp round) (Auto/stub weapons ← Ranged weapons)
+Close combat weapons,Lances,Frag lance,primed,,E,-,4,-1,1,"Heavy, Knockback (5+), Melee",Frag lance (primed) (Lances ← Close combat weapons)
+Close combat weapons,Lances,Frag lance,spent,,E,-,S,-,1,"Heavy, Melee",Frag lance (spent) (Lances ← Close combat weapons)
+Close combat weapons,Power weapons,Power fist,,,E,-,S+2,-2,2,"Melee, Power Pack",Power fist () (Power weapons ← Close combat weapons)
+Close combat weapons,Exo weapons,Power fist,,,E,-,S+2,-2,2,Melee,Power fist () (Exo weapons ← Close combat weapons)
+Close combat weapons,Natural weapons,Ferocious jaws,,,E,-,S,-1,1,"Melee, Rending (6+)",Ferocious jaws () (Natural weapons ← Close combat weapons)
+"""
+
+EQUIPMENT_LISTS_CSV = """
+Collection,Title,Section,Category,Name,Profile,Credits,Restrictions,ID
+Equipment List,Escher,Ranged weapons,Auto/stub weapons,Autogun,,20,,Autogun () (Auto/stub weapons ← Ranged weapons)
+Equipment List,Escher,Close combat weapons,Power weapons,Power fist,,25,,Power fist () (Power weapons ← Close combat weapons)
+Equipment List,Escher,Wargear,Personal equipment,Respirator,,15,,Respirator () (Personal equipment ← Wargear)
+Equipment List,Escher,Wargear,Pets,Phelynx,,60,Maximum one per gang,Phelynx () (Pets ← Wargear)
+Equipment List,Cawdor,Close combat weapons,Lances,Frag lance,,35,Way-Brethren only,Frag lance () (Lances ← Close combat weapons)
+Equipment List,Cawdor,Wargear,Personal equipment,Respirator,,15,,Respirator () (Personal equipment ← Wargear)
+Equipment List,Goliath,Wargear,Personal equipment,Respirator,,20,,Respirator () (Personal equipment ← Wargear)
+Equipment List,Goliath,Ranged weapons,Auto/stub weapons,Autogun,,20,,Autogun () (Auto/stub weapons ← Ranged weapons)
+Equipment List,Goliath,Ranged weapons,Auto/stub weapons,Autogun,warp round,10,,Autogun (warp round) (Auto/stub weapons ← Ranged weapons)
+Equipment List,Goliath,Close combat weapons,Exo weapons,Power fist,,105,Gunner specialist only,Power fist () (Exo weapons ← Close combat weapons)
 """
 
 PROFILES_CSV = """
@@ -62,6 +86,48 @@ Escher,Gang Queen,6",3+,3+,3,3,3,4,2,5+,8,8,7,7,Fighter,Leader,61,120,Witch,Catf
 Cawdor,Way-Brethren,5",4+,4+,3,3,1,4,1,6+,6,6,6,6,Fighter,"Ganger, Specialist",13,45,,,,Combat,"Agility, Shooting"
 Goliath,Sumpkroc,4",4+,-,4,4,2,2,1,5+,4,4,4,4,Fighter,"Beast, Pet",,65,,,Ferocious jaws,,
 """
+
+
+def catalogue_key(kind, name, profile="", category="", section=""):
+    """The plan key for a catalogue row — how the sheets identify a thing.
+
+    Named here because the key carries the category: two of the fixture's
+    weapons are called "Power fist", and only the category tells them
+    apart.
+    """
+    return f"{kind}:{ItemId(name, profile, category, section).key}"
+
+
+RANGED, CLOSE, GEAR = "Ranged weapons", "Close combat weapons", "Wargear"
+AUTOGUN = catalogue_key(
+    "Weapon", "Autogun", category="Auto/stub weapons", section=RANGED
+)
+WARP_ROUND = catalogue_key(
+    "WeaponProfile", "Autogun", "warp round", "Auto/stub weapons", RANGED
+)
+AUTOGUN_OWN = catalogue_key("WeaponProfile", "Autogun", "", "Auto/stub weapons", RANGED)
+FRAG_LANCE = catalogue_key("Weapon", "Frag lance", category="Lances", section=CLOSE)
+LANCE_PRIMED = catalogue_key("WeaponProfile", "Frag lance", "primed", "Lances", CLOSE)
+LANCE_SPENT = catalogue_key("WeaponProfile", "Frag lance", "spent", "Lances", CLOSE)
+POWER_FIST = catalogue_key(
+    "Weapon", "Power fist", category="Power weapons", section=CLOSE
+)
+EXO_FIST = catalogue_key("Weapon", "Power fist", category="Exo weapons", section=CLOSE)
+JAWS = catalogue_key(
+    "Weapon", "Ferocious jaws", category="Natural weapons", section=CLOSE
+)
+RESPIRATOR = catalogue_key(
+    "Wargear", "Respirator", category="Personal equipment", section=GEAR
+)
+PHELYNX = catalogue_key("Wargear", "Phelynx", category="Pets", section=GEAR)
+
+ESCHER_LIST = "Collection:escher equipment list"
+CAWDOR_LIST = "Collection:cawdor equipment list"
+GOLIATH_LIST = "Collection:goliath equipment list"
+
+
+def entry_key(collection_key, item_key):
+    return f"CollectionEntry:{collection_key.split(':', 1)[1]}:{item_key}"
 
 
 @pytest.fixture
@@ -75,8 +141,9 @@ def foundation(default_pack):
 @pytest.fixture
 def sheets():
     return {
-        "weapons": read_csv(WEAPONS_CSV),
-        "equipment_lists": read_csv(EQUIPMENT_CSV),
+        "equipment": read_csv(EQUIPMENT_CSV),
+        "weapon_profiles": read_csv(WEAPON_PROFILES_CSV),
+        "equipment_lists": read_csv(EQUIPMENT_LISTS_CSV),
         "profiles": read_csv(PROFILES_CSV),
     }
 
@@ -110,37 +177,59 @@ class TestStandardContentIsTheGround:
 
 class TestPlanning:
     def test_a_file_becomes_rows(self):
-        rows = read_csv(WEAPONS_CSV)
+        rows = read_csv(WEAPON_PROFILES_CSV)
         assert len(rows) == 7
         assert rows[0]["Name"] == "Autogun"
         assert rows[0]["SR"] == '8"'
 
     def test_the_plan_says_what_each_row_becomes(self, plan):
-        autogun = plan.get("Weapon:autogun")
+        # The equipment sheet fixes identity and price...
+        autogun = plan.get(AUTOGUN)
         assert autogun.action == "create"
         assert autogun.fields["price"] == 20
         assert autogun.fields["is_exclusive"] is False
+        assert autogun.fields["trade_point_price"] == 0  # 0 is a real TP price
 
-        # Shape A: a weapon with stats is its own first, free profile —
-        # unnamed, because the card prints it as the weapon itself.
-        own = plan.get("WeaponProfile:autogun:")
+        # ...and the profiles sheet supplies the statline. A weapon's own
+        # line is unnamed, free and first: the card prints it as the
+        # weapon itself.
+        own = plan.get(AUTOGUN_OWN)
         assert own.name == ""
         assert own.fields["position"] == 0
         assert own.fields["price"] == 0
         assert own.fields["stats"]["SR"] == '8"'
 
-        # The dash row beneath it is a further, priced profile.
-        warp = plan.get("WeaponProfile:autogun:warp round")
+        # A named line is priced by the equipment sheet, not this one.
+        warp = plan.get(WARP_ROUND)
         assert warp.fields["position"] == 1
         assert warp.fields["price"] == 10
         assert warp.fields["trade_point_price"] == 4
 
-        # Shape B: a stat-less header weapon; all profiles are dash rows.
-        lance = plan.get("Weapon:frag lance")
-        assert lance.fields["price"] == 35
+        # A weapon with no own line starts at its first named one — the
+        # lance is only ever primed or spent, and neither is a hole.
+        lance = plan.get(FRAG_LANCE)
+        assert lance.fields["price"] == 0  # "-": the lists price it
         assert lance.fields["is_exclusive"] is True
-        assert plan.get("WeaponProfile:frag lance:primed").fields["position"] == 0
-        assert plan.get("WeaponProfile:frag lance:spent").fields["position"] == 1
+        assert plan.get(LANCE_PRIMED).fields["position"] == 0
+        assert plan.get(LANCE_SPENT).fields["position"] == 1
+
+    def test_one_printed_name_two_weapons_are_told_apart(self, plan):
+        # A power fist is Exo kit and a Power weapon: two weapons wearing
+        # one name, kept apart by the category the sheet files them under
+        # and by the author-facing qualifier (§6a).
+        assert plan.get(POWER_FIST).fields["qualifier"] == "Power weapons"
+        assert plan.get(EXO_FIST).fields["qualifier"] == "Exo weapons"
+        assert plan.get(POWER_FIST).fields["price"] == 0  # "-", list-priced
+        assert plan.get(EXO_FIST).fields["price"] == 105
+
+    def test_the_tp_column_is_the_whole_trading_post_story(self, plan):
+        # "E" is never-sold-there; a digit is its price there. Nothing
+        # plans a Trading Post — membership is having the price.
+        assert plan.get(RESPIRATOR).fields["trade_point_price"] == 1
+        assert plan.get(RESPIRATOR).fields["is_exclusive"] is False
+        assert plan.get(PHELYNX).fields["trade_point_price"] is None
+        assert plan.get(PHELYNX).fields["is_exclusive"] is True
+        assert not [p for p in plan.planned if p.name == "Trading Post"]
 
     def test_traits_are_planned_once_with_annotations(self, plan):
         melee = plan.get("Trait:melee:")
@@ -163,10 +252,10 @@ class TestPlanning:
         assert "Skill:catfall" in members
         assert {"item": "Counter:xp", "amount": 61} in built_ins.fields["members"]
 
-    def test_built_ins_resolve_against_the_weapons_sheet(self, plan):
+    def test_built_ins_resolve_against_the_catalogue(self, plan):
         croc = plan.get("Profile:sumpkroc")
         built_ins = plan.get(croc.fields["built_ins"])
-        assert {"item": "Weapon:ferocious jaws"} in built_ins.fields["members"]
+        assert {"item": JAWS} in built_ins.fields["members"]
 
     def test_the_grid_columns_become_placement_modifiers(self, plan):
         primary = plan.get("Modifier:Profile:gang queen:agility:primary")
@@ -177,51 +266,42 @@ class TestPlanning:
         }
         assert plan.get("Modifier:Profile:gang queen:cunning:secondary")
 
-    def test_equipment_lines_become_entries_and_restrictions(self, plan):
-        entry = plan.get("CollectionEntry:cawdor:Weapon:frag lance")
-        assert entry.fields["collection"] == "Collection:cawdor equipment list"
+    def test_list_lines_become_a_named_collection_of_entries(self, plan):
+        # The sheet splits the kind from the name; the library holds one
+        # row, so the two go back together.
+        assert plan.get(CAWDOR_LIST).name == "Cawdor Equipment List"
+
+        entry = plan.get(entry_key(CAWDOR_LIST, FRAG_LANCE))
+        assert entry.fields["collection"] == CAWDOR_LIST
         restriction = plan.get(f"Restriction:{entry.key}")
         assert restriction.fields["profile"] == "Profile:way-brethren"
 
-        # The dash line under Goliath's autogun is a profile entry.
-        assert plan.get("CollectionEntry:goliath:WeaponProfile:autogun:warp round")
+        # A listing that names a Profile sells one firing line of a gun.
+        assert plan.get(entry_key(GOLIATH_LIST, WARP_ROUND))
 
-    def test_prices_reference_and_override(self, plan):
-        # Respirator is 15, 15, 20 across three lists: 15 is the
-        # reference, Goliath's 20 an override, the others none (§5b).
-        assert plan.get("Wargear:respirator").fields["price"] == 15
-        goliath = plan.get("CollectionEntry:goliath:Wargear:respirator")
-        assert goliath.fields["price_override"] == 20
-        escher = plan.get("CollectionEntry:escher:Wargear:respirator")
-        assert escher.fields["price_override"] is None
+    def test_an_entry_overrides_only_where_it_disagrees(self, plan):
+        # The catalogue prices a respirator at 15. Escher agrees, so its
+        # entry says nothing and a later correction flows through;
+        # Goliath charges 20, which is this list's own fact.
+        assert plan.get(RESPIRATOR).fields["price"] == 15
+        assert (
+            plan.get(entry_key(ESCHER_LIST, RESPIRATOR)).fields["price_override"]
+            is None
+        )
+        assert (
+            plan.get(entry_key(GOLIATH_LIST, RESPIRATOR)).fields["price_override"] == 20
+        )
 
-        # Power knife is printed "-": its reference comes from the one
-        # list that sells it. Ferocious jaws is on no list: a free
-        # built-in, price 0.
-        assert plan.get("Weapon:power knife").fields["price"] == 25
-        assert plan.get("Weapon:ferocious jaws").fields["price"] == 0
+    def test_a_list_only_item_takes_its_price_from_the_list(self, plan):
+        # "-" is no reference price at all, so the list price is the only
+        # price the thing has ever had and is always written.
+        assert plan.get(POWER_FIST).fields["price"] == 0
+        assert (
+            plan.get(entry_key(ESCHER_LIST, POWER_FIST)).fields["price_override"] == 25
+        )
 
-    def test_the_new_sheet_shape_plans_identically(self, foundation):
-        explicit = read_csv(
-            """
-Gang,Type,Subtype,Weapon,Profile,SR,LR,Str,AP,L,Traits,Credits,TP
-Trading Post,Ranged,Auto/stub,Autogun,,8",24",3,-,1,Rapid Fire (1),20,0
-Trading Post,Ranged,Auto/stub,Autogun,warp round,8",24",3,-,1,"Cursed, Single Shot",10,4
-"""
-        )
-        positional = read_csv(
-            """
-Gang,Type,Subtype,Name,SR,LR,Str,AP,L,Traits,Credits,TP
-Trading Post,Ranged,Auto/stub,Autogun,8",24",3,-,1,Rapid Fire (1),20,0
-Trading Post,Ranged,Auto/stub,- warp round,8",24",3,-,1,"Cursed, Single Shot",10,4
-"""
-        )
-        keys = lambda plan: {  # noqa: E731
-            (p.kind, p.key, p.fields.get("price")) for p in plan.planned
-        }
-        assert keys(plan_ingest(weapons=explicit)) == keys(
-            plan_ingest(weapons=positional)
-        )
+        # Ferocious jaws is on no list: a free built-in, and it stays 0.
+        assert plan.get(JAWS).fields["price"] == 0
 
 
 # --- Stage 2: plan → preview ---------------------------------------------------
@@ -231,12 +311,12 @@ class TestPreview:
     def test_the_preview_counts_what_the_upload_creates(self, plan):
         preview = plan.preview()
         assert preview["ok"] is True
-        assert preview["counts"]["Weapon"] == 4
-        assert preview["counts"]["WeaponProfile"] == 6
+        assert preview["counts"]["Weapon"] == 5  # two of them named "Power fist"
+        assert preview["counts"]["WeaponProfile"] == 7
         assert preview["counts"]["Profile"] == 3
         assert preview["counts"]["Wargear"] == 2
         assert preview["counts"]["Collection"] == 3
-        assert preview["counts"]["CollectionEntry"] == 9
+        assert preview["counts"]["CollectionEntry"] == 10
         assert preview["actions"]["create"] == sum(
             1 for p in plan.planned if p.action == "create"
         )
@@ -246,10 +326,16 @@ class TestPreview:
         by_sheet = {
             example["source"]["sheet"]: example for example in preview["examples"]
         }
-        weapons_example = by_sheet["weapons"]
-        assert weapons_example["row"]["Name"] == "Autogun"
-        created = {(c["kind"], c["name"]) for c in weapons_example["creates"]}
-        assert ("Weapon", "Autogun") in created
+        # The catalogue row makes the weapon; the statline row makes its
+        # firing line and the traits on it. Two sheets, two halves.
+        equipment_example = by_sheet["equipment"]
+        assert equipment_example["row"]["Name"] == "Autogun"
+        assert ("Weapon", "Autogun") in {
+            (c["kind"], c["name"]) for c in equipment_example["creates"]
+        }
+
+        statline_example = by_sheet["weapon_profiles"]
+        created = {(c["kind"], c["name"]) for c in statline_example["creates"]}
         assert ("WeaponProfile", "") in created  # the weapon's own, unnamed line
         assert ("Trait", "Rapid Fire") in created
 
@@ -261,7 +347,7 @@ class TestPreview:
     def test_examples_can_be_sampled(self, plan):
         preview = plan.preview(examples=2, sample=True, seed=26)
         assert (
-            len([e for e in preview["examples"] if e["source"]["sheet"] == "weapons"])
+            len([e for e in preview["examples"] if e["source"]["sheet"] == "equipment"])
             == 2
         )
 
@@ -273,7 +359,11 @@ class TestPreview:
     def test_notes_are_said_but_do_not_block(self, plan):
         preview = plan.preview()
         notes = [p for p in preview["problems"] if p["severity"] == "note"]
-        assert any("maximum one per gang" in n["message"] for n in notes)
+        # A gang-wide cap is not a restriction on *use*, and a
+        # specialisation is something usable-by has no arm for. Both are
+        # said plainly and carried past, never bent into the wrong shape.
+        assert any("not a restriction on use" in n["message"] for n in notes)
+        assert any("names a specialisation" in n["message"] for n in notes)
         assert preview["ok"] is True
 
 
@@ -285,29 +375,48 @@ class TestProblems:
         plan = plan_ingest(
             equipment_lists=read_csv(
                 """
-Gang,Type,Subtype,Name,Credits,Restrictions
-Escher,Ranged,Web,Web pisol,90,
+Collection,Title,Section,Category,Name,Profile,Credits,Restrictions,ID
+Equipment List,Escher,Ranged weapons,Web weapons,Web pisol,,90,,x
 """
             )
         )
         assert not plan.ok
         assert "Web pisol" in plan.problems[0].message
-        assert plan.get("Weapon:web pisol") is None
+        assert not [p for p in plan.planned if p.kind == "Weapon"]
         with pytest.raises(ValueError, match="Web pisol"):
             perform(plan)
 
-    def test_a_priced_first_profile_is_refused(self, foundation):
+    def test_a_priced_own_line_is_refused(self, foundation):
+        # A weapon's own firing line is bought with the weapon, so it
+        # cannot carry a price of its own. A catalogue row typed
+        # "Weapon Profile" that names no profile is asking for exactly
+        # that, and is sent back rather than guessed at.
         plan = plan_ingest(
-            weapons=read_csv(
+            equipment=read_csv(
                 """
-Gang,Type,Subtype,Name,SR,LR,Str,AP,L,Traits,Credits,TP
-Cawdor,Close Combat,Lances,Frag lance,,,,,,,35,E
-Cawdor,Close Combat,Lances,- primed,E,-,4,-1,1,Melee,45,
+Assignable,Section,Category,Name,Profile,Cost,TP,ID
+Weapon,Close combat weapons,Lances,Frag lance,,-,E,x
+Weapon Profile,Close combat weapons,Lances,Frag lance,,45,E,y
 """
             )
         )
         assert not plan.ok
-        assert "mandatory and free" in plan.problems[0].message
+        assert "names no Profile" in plan.problems[0].message
+
+    def test_a_statline_for_nothing_the_catalogue_sells_is_ignored(self, foundation):
+        # Nothing is created either way, so this is said and carried
+        # past — it never invents the weapon (resolve, never create).
+        plan = plan_ingest(
+            weapon_profiles=read_csv(
+                """
+Section,Category,Name,Profile,Sub-profile,SR,LR,Str,AP,L,Traits,ID
+Ranged weapons,Web weapons,Web pistol,,,8",16",3,-,1,Web,x
+"""
+            )
+        )
+        assert plan.ok  # a note, not an error
+        assert "sells no such thing" in plan.problems[0].message
+        assert not [p for p in plan.planned if p.kind == "Weapon"]
 
     def test_an_unresolvable_built_in_is_a_problem(self, foundation):
         plan = plan_ingest(
@@ -419,12 +528,12 @@ class TestPerform:
         perform(plan)
         respirator = Wargear.objects.get(name="Respirator")
         assert respirator.price == 15
-        goliath_list = Collection.objects.get(name="Goliath equipment list")
+        goliath_list = Collection.objects.get(name="Goliath Equipment List")
         entry = CollectionEntry.objects.get(collection=goliath_list, wargear=respirator)
         assert entry.price_override == 20
         assert entry.price.credits == 20
 
-        escher_list = Collection.objects.get(name="Escher equipment list")
+        escher_list = Collection.objects.get(name="Escher Equipment List")
         assert (
             CollectionEntry.objects.get(
                 collection=escher_list, wargear=respirator
@@ -437,8 +546,8 @@ class TestPerform:
 
     def test_categories_land_under_their_sections(self, plan):
         perform(plan)
-        category = Category.objects.get(name="Auto/stub")
-        assert category.section.name == "Ranged"
+        category = Category.objects.get(name="Auto/stub weapons")
+        assert category.section.name == "Ranged weapons"
 
     def test_skill_sets_resolve_to_the_standard_ones(self, plan):
         """The sheet names Agility and Combat, and standard content
@@ -455,6 +564,43 @@ class TestPerform:
         assert {"Agility", "Combat"} <= before  # sown, not invented here
         assert set(after.values_list("name", flat=True)) == before
         assert after.filter(name="Agility").count() == 1
+
+    def test_the_trading_post_fills_itself(self, plan):
+        """Ingest builds no Trading Post, and the post is full anyway.
+
+        Membership there is *having a trade point price*, swept in by
+        standard content's two selectors — so setting the field from the
+        sheet's TP column is ingest's whole part in it. "E" is the other
+        half of the same fact: never sold there, equipment list only.
+        """
+        from n26.library.standard_content import TRADING_POST_COLLECTION
+
+        perform(plan)
+        post = Collection.objects.get(name=TRADING_POST_COLLECTION)
+        assert post.entries.count() == 0  # nothing was listed by hand
+
+        swept = {
+            item.name
+            for selector in post.selectors.all()
+            for item in selector.contents(include_exclusive=False)
+        }
+        assert "Autogun" in swept  # TP 0 — free there, but offered
+        assert "Respirator" in swept  # TP 1
+        assert "Frag lance" not in swept  # TP "E" — list only
+        assert "Phelynx" not in swept
+
+        # And the two halves never both hold, which the database also
+        # refuses (exclusive_has_no_trade_points).
+        assert not Weapon.objects.filter(
+            is_exclusive=True, trade_point_price__isnull=False
+        ).exists()
+
+    def test_one_name_two_weapons_both_arrive(self, plan):
+        perform(plan)
+        fists = Weapon.objects.filter(name="Power fist").order_by("qualifier")
+        assert [w.qualifier for w in fists] == ["Exo weapons", "Power weapons"]
+        # The qualifier is for authors; a card prints the name alone.
+        assert {str(w) for w in fists} == {"Power fist"}
 
     def test_the_whole_upload_is_one_transaction(self, foundation, sheets, monkeypatch):
         import n26.library.ingest as ingest_module

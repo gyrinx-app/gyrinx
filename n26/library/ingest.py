@@ -32,16 +32,33 @@ Three standing rules are load-bearing here:
   re-declared here. Perform says which seed is missing rather than
   quietly planting its own.
 
-Sheet shapes: the weapons and equipment-list sheets are accepted in
-both the current shape (a ``Name`` column, profiles as ``- `` dash
-rows attached by position) and the asked-for shape (§7a/§7b: explicit
-``Weapon`` and ``Profile`` columns). The ``Gang`` column is taken at
-face value as a gang; the polymorphic cases (affiliations, alliances —
-§4(c)) need the mapping table and are out of scope here.
+**The sheets, and how they join.** Four of them, each with one job:
 
-Two gangs printing the same fighter name is normal, and the qualifier
-(§6a) is how the library holds both: the second gang's row plans with
-``qualifier = the gang's name``, said as a note in the preview.
+* **Equipment** — the catalogue. One row per thing the game sells,
+  typed by an ``Assignable`` column (a weapon, wargear, or one of a
+  weapon's priced firing lines), carrying its category and its price.
+  The only place a reference price lives.
+* **Weapon profiles** — the statlines, and nothing else. A blank
+  ``Profile`` is the weapon's own firing line; a named one is an ammo
+  type or a mode.
+* **Equipment lists** — a named collection per ``Title``, one entry per
+  line, at this list's price where it differs from the catalogue's.
+* **Gang list profiles** — the fighters.
+
+They join on an ``ID`` column printing ``Name (Profile) (Category ←
+Section)``, which :class:`ItemId` parses. Resolution goes through that,
+never through the name alone: eight weapons share a printed name across
+categories, so a name is not an identity. Where two catalogue rows do
+share one, both are kept and told apart by the author-facing
+``qualifier`` (§6a) — renaming would put a word on a player's card that
+the books do not print.
+
+**Nothing here builds a Trading Post.** Membership there is *having a
+trade point price* — the post is two sweeps sown as standard content —
+so ingest's whole part in it is setting ``trade_point_price`` and
+``is_exclusive`` from the sheet's ``TP`` column. The sheets keep those
+as one fact: ``Cost`` ``-`` and ``TP`` ``E`` always appear together,
+meaning "equipment-list only, priced by the list".
 """
 
 import csv
@@ -136,16 +153,6 @@ class Problem:
         }
 
 
-def _norm(name):
-    """The resolution key for a printed name: case, spacing, asterisks."""
-    return re.sub(r"\s+", " ", name.strip().rstrip("*").strip()).lower()
-
-
-def _clean(name):
-    """The stored form: trimmed, asterisks (slot marks) off."""
-    return re.sub(r"\s+", " ", name.strip().rstrip("*").strip())
-
-
 _SMART = {"“": '"', "”": '"', "’": "'", "‘": "'"}
 
 
@@ -153,6 +160,70 @@ def _unsmart(value):
     for smart, plain in _SMART.items():
         value = value.replace(smart, plain)
     return value
+
+
+def _norm(name):
+    """The resolution key for a printed name: case, spacing, asterisks —
+    and quote glyphs, because ``Butcher's`` and ``Butcher’s`` are the
+    same name typed by different hands."""
+    return _unsmart(re.sub(r"\s+", " ", name.strip().rstrip("*").strip())).lower()
+
+
+def _clean(name):
+    """The stored form: trimmed, asterisks (slot marks) off. Quote glyphs
+    are kept as the sheet wrote them — only resolution folds them."""
+    return re.sub(r"\s+", " ", name.strip().rstrip("*").strip())
+
+
+@dataclass(frozen=True)
+class ItemId:
+    """The sheets' own join key, parsed into its four parts.
+
+    Every catalogue sheet carries an ``ID`` column printing
+    ``Name (Profile) (Category ← Section)``, and it reproduces exactly
+    from those four columns — which is what makes the sheets joinable
+    without guessing at names. Resolution goes through this, never
+    through the name alone: eight weapons share a printed name across
+    categories (a power fist is Exo kit *and* a Power weapon), so a
+    name is not an identity.
+
+    ``key`` is the resolution form — case, spacing and quote glyphs
+    folded. The parts keep whatever the sheet wrote, for storing.
+    """
+
+    name: str
+    profile: str
+    category: str
+    section: str
+
+    @classmethod
+    def of(cls, row):
+        """The ID a row *means*, read off its four columns."""
+        return cls(
+            name=_clean(row.get("Name") or ""),
+            profile=_clean(row.get("Profile") or ""),
+            category=_clean(row.get("Category") or ""),
+            section=_clean(row.get("Section") or ""),
+        )
+
+    @property
+    def printed(self):
+        """The ID as the sheet prints it — for saying so in a problem."""
+        return f"{self.name} ({self.profile}) ({self.category} ← {self.section})"
+
+    @property
+    def key(self):
+        return (
+            f"{_norm(self.name)}|{_norm(self.profile)}"
+            f"|{_norm(self.category)}|{_norm(self.section)}"
+        )
+
+    @property
+    def parent(self):
+        """The weapon a named profile hangs on: the same row, unnamed."""
+        return ItemId(
+            name=self.name, profile="", category=self.category, section=self.section
+        )
 
 
 def _name_and_annotation(token):
@@ -298,19 +369,36 @@ def read_csv(text):
 # --- Planning ----------------------------------------------------------------
 
 
-def plan_ingest(weapons=(), equipment_lists=(), profiles=(), pack=None):
-    """Rows from up to three sheets → one :class:`IngestPlan`.
+def plan_ingest(
+    equipment=(),
+    weapon_profiles=(),
+    equipment_lists=(),
+    profiles=(),
+    pack=None,
+):
+    """Rows from up to four sheets → one :class:`IngestPlan`.
 
-    Order matters only inside: weapons plan first so equipment lists and
-    built-ins resolve against them (resolve, never create).
+    The order is forced, and it is circular if done naively: statlines
+    hang on catalogue rows, lists resolve against the catalogue, a
+    fighter's built-in kit names things the catalogue defines, and a
+    list's restrictions name fighters. So:
+
+    1. the **equipment** sheet — the catalogue: what exists, and its price;
+    2. the **weapon profiles** sheet — the statlines, onto those rows;
+    3. the **equipment lists** — collections and entries, restrictions deferred;
+    4. the **gang list profiles** — the fighters;
+    5. those deferred restrictions, which needed the fighters.
+
+    Resolve, never create, at every step.
     """
     from n26.library.models import get_default_pack
 
     plan = IngestPlan(pack or get_default_pack())
-    _plan_weapons(plan, weapons)
+    profile_prices = _plan_equipment(plan, equipment)
+    _plan_weapon_profiles(plan, weapon_profiles, profile_prices)
+    pending_restrictions = _plan_equipment_lists(plan, equipment_lists)
     _plan_profiles(plan, profiles)
-    _plan_equipment_lists(plan, equipment_lists)
-    _backfill_prices(plan)
+    _plan_restrictions(plan, pending_restrictions)
     return plan
 
 
@@ -361,169 +449,298 @@ def _plan_trait(plan, token, source):
     return key
 
 
-def _plan_weapons(plan, rows):
-    """The weapons sheet. Both shapes: an explicit ``Weapon``/``Profile``
-    column pair, or ``Name`` with positional dash rows (§7a)."""
-    from n26.library.models import Weapon
+#: The ``Assignable`` column's words → the kinds a plan speaks in.
+EQUIPMENT_KINDS = {
+    "weapon": "Weapon",
+    "wargear": "Wargear",
+    "weapon profile": "WeaponProfile",
+}
 
-    current_weapon = None  # key of the weapon dash rows attach to
+
+def _prices(row):
+    """``Cost`` and ``TP`` → the three priced fields.
+
+    The sheets keep one rule and it is worth stating plainly: a thing is
+    either sold at the Trading Post at a printed price, or it is
+    equipment-list only. ``Cost`` ``-`` and ``TP`` ``E`` always appear
+    together, and the database refuses exclusive-with-a-TP-price, so the
+    pair is written as the single fact it is.
+
+    ``0`` is a real Trade Point price, not a blank — an item free at the
+    post is still offered there.
+    """
+    cost = (row.get("Cost") or "").strip()
+    trade = (row.get("TP") or "").strip().upper()
+    exclusive = trade == "E"
+    return {
+        "price": int(cost) if cost.isdigit() else 0,
+        # No printed price of its own: whatever list sells it says so.
+        "unpriced": not cost.isdigit(),
+        "trade_point_price": None if exclusive or not trade.isdigit() else int(trade),
+        "is_exclusive": exclusive,
+    }
+
+
+def _plan_equipment(plan, rows):
+    """The equipment sheet: the catalogue, and the only place a price lives.
+
+    One row per thing the game sells, typed by its ``Assignable``
+    column — a weapon, a piece of wargear, or one of a weapon's priced
+    firing lines. Statlines arrive on the weapon profiles sheet; this
+    pass fixes identity, home and price.
+
+    Nothing here builds a Trading Post. Membership there is *having a
+    trade point price* — the post is two sweeps sown as standard content
+    — so setting the field is the whole job.
+
+    Returns the prices found for named weapon profiles, keyed by ID: the
+    profiles themselves are defined by their statlines, and this sheet
+    only says what they cost.
+    """
+    from n26.library.models import Wargear, Weapon
+
+    # Pass 1: which printed names does more than one item claim? Those
+    # want the author-facing qualifier (§6a) — a power fist is Exo kit
+    # and a Power weapon, two weapons wearing one name. The category is
+    # how the sheet tells them apart, so it is what qualifies them.
+    claims = {}
+    for row in rows:
+        kind = EQUIPMENT_KINDS.get(_norm(row.get("Assignable") or ""))
+        if kind is None:
+            continue
+        ident = ItemId.of(row)
+        claims.setdefault((kind, _norm(ident.name), _norm(ident.profile)), set()).add(
+            ident.key
+        )
+    contested = {claim for claim, ids in claims.items() if len(ids) > 1}
+
+    profile_prices = {}
+    seen = {}
     for line, row in enumerate(rows, start=1):
-        source = Source("weapons", line)
+        source = Source("equipment", line)
         plan.remember_row(source, row)
 
-        explicit = "Weapon" in row
-        if explicit:
-            weapon_name = _clean(row.get("Weapon", ""))
-            profile_name = _clean(row.get("Profile", "") or "")
-            is_profile_row = bool(profile_name)
-        else:
-            raw = row.get("Name", "")
-            if _is_dash_row(raw):
-                if current_weapon is None:
-                    plan.problem(source, f"profile row {raw!r} has no weapon above it")
-                    continue
-                weapon_name = plan.get(current_weapon).name
-                profile_name = _clean(_dash_name(raw))
-                is_profile_row = True
-            else:
-                weapon_name = _clean(raw)
-                profile_name = ""
-                is_profile_row = False
+        said = _clean(row.get("Assignable") or "")
+        kind = EQUIPMENT_KINDS.get(_norm(said))
+        if kind is None:
+            plan.problem(
+                source,
+                f"Assignable {said!r} is not a kind — the sheet's kinds are "
+                f"{', '.join(sorted(set(EQUIPMENT_KINDS.values())))}",
+            )
+            continue
 
-        if not weapon_name:
+        ident = ItemId.of(row)
+        if not ident.name:
+            plan.problem(source, "row names nothing")
+            continue
+
+        key = f"{kind}:{ident.key}"
+        if key in seen:
+            plan.problem(
+                source,
+                f"{ident.printed!r} is in the sheet twice "
+                f"(already at equipment:{seen[key]}) — the first is used",
+                severity="note",
+            )
+            continue
+        seen[key] = line
+
+        priced = _prices(row)
+        qualifier = (
+            ident.category
+            if (kind, _norm(ident.name), _norm(ident.profile)) in contested
+            else ""
+        )
+
+        if kind == "WeaponProfile":
+            # This sheet prices a firing line; the statline sheet is what
+            # says the line exists at all. Hold the price for that pass.
+            if not ident.profile:
+                plan.problem(
+                    source,
+                    f"{ident.name!r} is typed 'Weapon Profile' but names no "
+                    f"Profile — a weapon's own line is priced on the weapon",
+                )
+                continue
+            profile_prices[ident.key] = priced
+            continue
+
+        category = _plan_category(plan, ident.section, ident.category, source)
+
+        if kind == "Wargear":
+            plan.add(
+                "Wargear",
+                ident.name,
+                {
+                    "category": category,
+                    "qualifier": qualifier,
+                    "price": priced["price"],
+                    "unpriced": priced["unpriced"],
+                    "trade_point_price": priced["trade_point_price"],
+                    "is_exclusive": priced["is_exclusive"],
+                },
+                source,
+                key=key,
+                action="exists"
+                if _exists(
+                    plan, Wargear, name__iexact=ident.name, qualifier__iexact=qualifier
+                )
+                else "create",
+            )
+            continue
+
+        plan.add(
+            "Weapon",
+            ident.name,
+            {
+                "category": category,
+                "qualifier": qualifier,
+                "price": priced["price"],
+                "unpriced": priced["unpriced"],
+                "trade_point_price": priced["trade_point_price"],
+                "is_exclusive": priced["is_exclusive"],
+                # Asterisked weapons take two hands on the card.
+                "slots": 2 if "*" in (row.get("Name") or "") else 1,
+                "statline_type": WEAPON_STATLINE,  # standard content's name
+            },
+            source,
+            key=key,
+            action="exists"
+            if _exists(
+                plan, Weapon, name__iexact=ident.name, qualifier__iexact=qualifier
+            )
+            else "create",
+        )
+
+    return profile_prices
+
+
+def _plan_weapon_profiles(plan, rows, prices):
+    """The weapon profiles sheet: the statlines, and nothing else.
+
+    A row with a blank ``Profile`` is the weapon's own firing line — the
+    card prints it as the weapon itself, so it is stored unnamed, free
+    and first. A named row is a further line: an ammo type or a firing
+    mode, costing whatever the equipment sheet priced it at, and free
+    when that sheet does not list it.
+
+    Resolve, never create: a statline whose weapon the catalogue does
+    not define is a problem, not a new weapon.
+
+    The rows are grouped by weapon before anything is planned, because
+    the sheet is *sorted* rather than ordered: a weapon's ammo line can
+    sit far from the weapon's own line, and a weapon may have no own
+    line at all. Grouping is what lets the first line always be first.
+    """
+    groups = {}
+    seen = {}
+    for line, row in enumerate(rows, start=1):
+        source = Source("weapon_profiles", line)
+        plan.remember_row(source, row)
+
+        if (row.get("Sub-profile") or "").strip():
+            plan.problem(
+                source,
+                f"{ItemId.of(row).printed!r} has a Sub-profile — a weapon "
+                f"within a weapon is hand-authored, not imported (§7b)",
+            )
+            continue
+
+        ident = ItemId.of(row)
+        if not ident.name:
             plan.problem(source, "row names no weapon")
             continue
 
-        stats = _statline_values(row, WEAPON_COLUMNS)
-        traits = [
-            _plan_trait(plan, token, source)
-            for token in _split_list(row.get("Traits", ""))
-            if token != "-"  # nosec B105 - a dash cell, not a password
-        ]
-        price = _price(row.get("Credits", ""))
-        unpriced = row.get("Credits", "").strip() in ("-", "")
-        # The TP column, as the sheet prints it: a number is the Trading
-        # Post price, "E" is equipment-list only, "-" or blank means not
-        # offered there — stored as NULL, never 0.
-        tp_token = row.get("TP", "").strip()
-        exclusive = tp_token.upper() == "E"
-        trade_points = int(tp_token) if tp_token.isdigit() else None
-        category = _plan_category(
-            plan,
-            row.get("Type", "Weapon"),
-            row.get("Subtype") or "Uncategorised",
-            source,
-        )
-        slots = 2 if "*" in (row.get("Name", "") + row.get("Weapon", "")) else 1
-
-        weapon_key = f"Weapon:{_norm(weapon_name)}"
-
-        if not is_profile_row:
-            # A weapon row. With stats it is also its own first profile
-            # (shape A); a stat-less header (shape B) starts bare.
-            action = (
-                "exists"
-                if _exists(plan, Weapon, name__iexact=weapon_name)
-                else "create"
-            )
-            plan.add(
-                "Weapon",
-                weapon_name,
-                {
-                    "price": price,
-                    "unpriced": unpriced,
-                    "trade_point_price": trade_points,
-                    "is_exclusive": exclusive,
-                    "category": category,
-                    "slots": slots,
-                    "statline_type": WEAPON_STATLINE,  # standard content's name
-                },
-                source,
-                key=weapon_key,
-                action=action,
-            )
-            current_weapon = weapon_key
-            if stats:
-                # The weapon's own line: an *unnamed* profile — the card
-                # prints it as the weapon itself (library/authoring.py,
-                # add_weapon_profile).
-                plan.add(
-                    "WeaponProfile",
-                    "",
-                    {
-                        "weapon": weapon_key,
-                        "price": 0,
-                        # The weapon's own line sells as the weapon: its
-                        # TP lives on the Weapon row, never here.
-                        "trade_point_price": None,
-                        "is_exclusive": exclusive,
-                        "stats": stats,
-                        "traits": traits,
-                        "position": 0,
-                    },
+        weapon_key = f"Weapon:{ident.parent.key}"
+        weapon = plan.get(weapon_key)
+        if weapon is None:
+            # Nothing is created either way, so both of these are said and
+            # carried past rather than blocking an otherwise good upload.
+            if plan.get(f"Wargear:{ident.parent.key}"):
+                plan.problem(
                     source,
-                    key=f"WeaponProfile:{_norm(weapon_name)}:",
-                    action=action,
-                )
-            continue
-
-        # A profile row.
-        if not plan.get(weapon_key):
-            if existing := _exists(plan, Weapon, name__iexact=weapon_name):
-                plan.add(
-                    "Weapon",
-                    existing.name,
-                    {},
-                    source,
-                    key=weapon_key,
-                    action="exists",
+                    f"{ident.printed!r} is typed Wargear on the equipment "
+                    f"sheet, and wargear carries no statline — imported "
+                    f"without it. A thing with a firing line is a Weapon",
+                    severity="note",
                 )
             else:
                 plan.problem(
                     source,
-                    f"profile {profile_name!r} names unknown weapon {weapon_name!r}",
+                    f"{ident.printed!r} has a statline, but the equipment "
+                    f"sheet sells no such thing — ignored (resolve, never "
+                    f"create, §7b)",
+                    severity="note",
                 )
-                continue
-        position = sum(
-            1
-            for p in plan.planned
-            if p.kind == "WeaponProfile" and p.fields.get("weapon") == weapon_key
-        )
-        if position == 0 and price:
+            continue
+
+        key = f"WeaponProfile:{ident.key}"
+        if key in seen:
             plan.problem(
                 source,
-                f"{weapon_name!r}: a weapon's first profile is mandatory and "
-                f"free, but {profile_name!r} is priced {price}",
+                f"{ident.printed!r} has more than one statline "
+                f"(already at weapon_profiles:{seen[key]}) — the sheet must "
+                f"say which is right; the first is used",
+                severity="note",
             )
             continue
-        # WeaponProfile has no database uniqueness (design/ingest.md §8
-        # stage 2) — (weapon, name) is the importer's own key, checked
-        # here so a re-run marks the row exists instead of duplicating it.
-        from n26.library.models import WeaponProfile
+        seen[key] = line
+        groups.setdefault(weapon_key, []).append((source, row, ident))
 
-        plan.add(
-            "WeaponProfile",
-            profile_name,
-            {
-                "weapon": weapon_key,
-                "price": price,
-                "trade_point_price": trade_points,
-                "is_exclusive": exclusive,
-                "stats": stats,
-                "traits": traits,
-                "position": position,
-            },
-            source,
-            key=f"WeaponProfile:{_norm(weapon_name)}:{_norm(profile_name)}",
-            action="exists"
-            if _exists(
-                plan,
-                WeaponProfile,
-                weapon__name__iexact=weapon_name,
-                name__iexact=profile_name,
+    for weapon_key, members in groups.items():
+        # The weapon's own line leads, whatever order the sheet found it
+        # in; the named lines follow as the sheet has them. A weapon with
+        # no own line simply starts at its first named one — no hole.
+        own = [member for member in members if not member[2].profile]
+        named = [member for member in members if member[2].profile]
+        for position, (source, row, ident) in enumerate(own[:1] + named):
+            priced = prices.get(ident.key)
+            if priced is None or not ident.profile:
+                # The weapon's own line is always free — the weapon's
+                # price buys it — and so is a named line the equipment
+                # sheet never priced (a lance's two ends).
+                priced = {
+                    "price": 0,
+                    "trade_point_price": None,
+                    "is_exclusive": False,
+                }
+            _plan_weapon_profile_row(
+                plan, weapon_key, ident, priced, position, source, row
             )
-            else "create",
+
+
+def _plan_weapon_profile_row(plan, weapon_key, ident, priced, position, source, row):
+    """One statline row → one planned profile, at its place in the order."""
+    from n26.library.models import WeaponProfile
+
+    plan.add(
+        "WeaponProfile",
+        ident.profile,
+        {
+            "weapon": weapon_key,
+            "price": priced["price"],
+            "trade_point_price": priced["trade_point_price"],
+            "is_exclusive": priced["is_exclusive"],
+            "stats": _statline_values(row, WEAPON_COLUMNS),
+            "traits": [
+                _plan_trait(plan, trait, source)
+                for trait in _split_list(row.get("Traits", ""))
+                if trait != "-"
+            ],
+            "position": position,
+        },
+        source,
+        key=f"WeaponProfile:{ident.key}",
+        action="exists"
+        if _exists(
+            plan,
+            WeaponProfile,
+            weapon__name__iexact=ident.name,
+            name__iexact=ident.profile,
         )
+        else "create",
+    )
 
 
 def _statline_values(row, columns):
@@ -744,163 +961,255 @@ def _plan_profiles(plan, rows):
 
 def _resolve_item(plan, name):
     """A name that must already mean something: a planned weapon or
-    wargear, or one in the pack. Returns its key, or None."""
+    wargear, or one in the pack. Returns its key, or None.
+
+    The catalogue is keyed by ID, which carries the category — but a
+    fighter's built-in kit prints a bare name and no category, so this
+    is the one place resolution goes by name alone. A name two catalogue
+    rows share cannot be resolved that way and is refused rather than
+    guessed at.
+    """
     from n26.library.models import Wargear, Weapon
 
-    for kind in ("Weapon", "Wargear"):
-        key = f"{kind}:{_norm(name)}"
-        if plan.get(key):
-            return key
+    wanted = _norm(name)
+    hits = [
+        planned
+        for planned in plan.planned
+        if planned.kind in ("Weapon", "Wargear") and _norm(planned.name) == wanted
+    ]
+    if len(hits) == 1:
+        return hits[0].key
+    if len(hits) > 1:
+        return None  # ambiguous by name; the ID is what tells them apart
+
     for kind, model in (("Weapon", Weapon), ("Wargear", Wargear)):
         if existing := _exists(plan, model, name__iexact=_clean(name)):
             return plan.add(
-                "Weapon" if model is Weapon else "Wargear",
+                kind,
                 existing.name,
-                {},
+                {"price": existing.price, "unpriced": False},
                 Source("resolution", 0),
-                key=f"{kind}:{_norm(name)}",
+                key=f"{kind}:resolved|{wanted}",
                 action="exists",
             ).key
     return None
 
 
+#: What the ``Collection`` column says these rows build. One kind today;
+#: the column exists so the sheet can grow others without a new file.
+EQUIPMENT_LIST_COLLECTION = "Equipment List"
+
+
+def _collection_name(title):
+    """The collection a ``Title`` names — "Ash Waste Nomads Equipment List".
+
+    The sheet splits the kind (``Collection``) from the name (``Title``);
+    the library holds one row, so the two are put back together. Saying
+    the kind matters: a gang type and its list would otherwise be one
+    word apart in every dropdown.
+    """
+    return f"{_clean(title)} {EQUIPMENT_LIST_COLLECTION}"
+
+
 def _plan_equipment_lists(plan, rows):
-    """The equipment lists sheet: a Collection per gang, an entry per
-    line. Weapon lines resolve; wargear lines create the wargear."""
-    from n26.library.models import Wargear
+    """The equipment lists sheet: one named collection per ``Title``.
+
+    An entry per line, resolved against the catalogue **by ID** — never
+    created here. The ID carries the category, which is what tells two
+    weapons sharing a printed name apart, so resolution is exact and a
+    miss is a real miss.
+
+    A price override is written only where the list disagrees with the
+    catalogue. An item the catalogue prices ``-`` has no reference price
+    at all, so the list price is the only price it has ever had and is
+    always written; an item whose list price matches its reference
+    carries nothing, which is what "at catalogue price" looks like.
+
+    Returns the restrictions found, deferred: they name fighters, and
+    fighter profiles plan after this pass.
+    """
     from n26.library.models.collection import Collection
 
-    current_weapon = {}  # gang -> weapon key, for dash rows
+    pending_restrictions = []
     positions = TallyCounter()
     for line, row in enumerate(rows, start=1):
         source = Source("equipment_lists", line)
         plan.remember_row(source, row)
-        gang = _clean(row.get("Gang", ""))
-        collection_name = f"{gang} equipment list"
-        collection_key = f"Collection:{_norm(collection_name)}"
+
+        title = _clean(row.get("Title") or row.get("Gang") or "")
+        if not title:
+            plan.problem(source, "row names no list")
+            continue
+
+        name = _collection_name(title)
+        collection_key = f"Collection:{_norm(name)}"
         if not plan.get(collection_key):
             plan.add(
                 "Collection",
-                collection_name,
+                name,
                 {},
                 source,
                 key=collection_key,
                 action="exists"
-                if _exists(plan, Collection, name__iexact=collection_name)
+                if _exists(plan, Collection, name__iexact=name)
                 else "create",
             )
 
-        row_type = (row.get("Type") or "").strip()
-        price = _price(row.get("Credits", ""))
-        priced = row.get("Credits", "").strip().isdigit()
+        ident = ItemId.of(row)
+        if not ident.name:
+            plan.problem(source, "row names nothing")
+            continue
 
-        if row_type == "Wargear":
-            name = _clean(row.get("Name", ""))
-            category = _plan_category(
-                plan, "Wargear", row.get("Subtype") or "Uncategorised", source
+        item_key = _resolve_by_id(plan, ident)
+        if item_key is None:
+            plan.problem(
+                source,
+                f"{title} sells {ident.printed!r}, which the equipment sheet "
+                f"does not define and the pack does not hold — resolve, "
+                f"never create (§7b)",
             )
-            item_key = f"Wargear:{_norm(name)}"
-            if not plan.get(item_key):
-                plan.add(
-                    "Wargear",
-                    name,
-                    {"category": category, "prices_seen": [], "price": 0},
-                    source,
-                    key=item_key,
-                    action="exists"
-                    if _exists(plan, Wargear, name__iexact=name)
-                    else "create",
-                )
-        else:
-            # A weapon line: explicit columns or Name with dash rows.
-            if "Weapon" in row:
-                weapon_name = _clean(row.get("Weapon", ""))
-                profile_name = _clean(row.get("Profile", "") or "")
-            else:
-                raw = row.get("Name", "")
-                if _is_dash_row(raw):
-                    parent = current_weapon.get(gang)
-                    if parent is None:
-                        plan.problem(
-                            source, f"profile line {raw!r} has no weapon above it"
-                        )
-                        continue
-                    weapon_name = plan.get(parent).name
-                    profile_name = _clean(_dash_name(raw))
-                else:
-                    weapon_name, profile_name = _clean(raw), ""
+            continue
 
-            weapon_key = f"Weapon:{_norm(weapon_name)}"
-            resolved = _resolve_item(plan, weapon_name)
-            if resolved != weapon_key:
-                plan.problem(
-                    source,
-                    f"{gang} list sells {weapon_name!r}, which no sheet "
-                    f"defines and the pack does not hold — resolve, never "
-                    f"create (§7b)",
-                )
-                continue
-            current_weapon[gang] = weapon_key
-            if profile_name:
-                item_key = f"WeaponProfile:{_norm(weapon_name)}:{_norm(profile_name)}"
-                if not plan.get(item_key):
-                    plan.problem(
-                        source,
-                        f"{gang} list sells {weapon_name!r} profile "
-                        f"{profile_name!r}, which the weapons sheet does not "
-                        f"define",
-                    )
-                    continue
-            else:
-                item_key = weapon_key
+        entry_key = f"CollectionEntry:{_norm(name)}:{item_key}"
+        if plan.get(entry_key):
+            plan.problem(
+                source,
+                f"{title} lists {ident.printed!r} twice — the second is ignored",
+                severity="note",
+            )
+            continue
 
-        restriction = (row.get("Restrictions") or "").strip()
-        entry_fields = {
-            "collection": collection_key,
-            "item": item_key,
-            "position": positions[collection_key],
-            "list_price": price if priced else None,
-        }
-        positions[collection_key] += 1
+        item = plan.get(item_key)
+        credits = (row.get("Credits") or "").strip()
+        list_price = int(credits) if credits.isdigit() else None
         entry = plan.add(
             "CollectionEntry",
-            f"{plan.get(item_key).name} in {gang} equipment list",
-            entry_fields,
+            f"{item.name} in {name}",
+            {
+                "collection": collection_key,
+                "item": item_key,
+                "position": positions[collection_key],
+                "price_override": _override(item, list_price),
+            },
             source,
-            key=f"CollectionEntry:{_norm(gang)}:{item_key}",
-            action="exists"
-            if _entry_exists(plan, collection_name, item_key)
-            else "create",
+            key=entry_key,
+            action="exists" if _entry_exists(plan, name, item_key) else "create",
         )
-        if priced and (item := plan.get(item_key)) and item.kind == "Wargear":
-            if item.action == "create":
-                item.fields["prices_seen"].append(price)
+        positions[collection_key] += 1
 
+        restriction = (row.get("Restrictions") or "").strip()
         if restriction:
-            match = re.match(r"^(.*?)\s+only$", restriction, flags=re.IGNORECASE)
-            profile_ref = match and _profile_ref(plan, match.group(1), gang)
-            if profile_ref:
-                plan.add(
-                    "Restriction",
-                    f"{plan.get(item_key).name} ({restriction})",
-                    {"item": item_key, "profile": profile_ref},
-                    source,
-                    key=f"Restriction:{entry.key}",
-                    action=entry.action,
-                )
-            elif match:
-                plan.problem(
-                    source,
-                    f"restriction {restriction!r} names a profile no sheet "
-                    f"defines and the pack does not hold",
-                )
-            else:
-                plan.problem(
-                    source,
-                    f"restriction {restriction!r} is not expressible yet — "
-                    f"imported without it (§5c)",
-                    severity="note",
-                )
+            pending_restrictions.append(
+                (source, restriction, item_key, title, entry.key, entry.action)
+            )
+
+    return pending_restrictions
+
+
+def _override(item, list_price):
+    """What this entry must say about price, beyond the catalogue.
+
+    ``None`` means "at catalogue price" — the entry stores nothing and a
+    later correction to the item flows through. A number is this list's
+    own price, which the catalogue does not know.
+    """
+    if list_price is None:
+        return None
+    # No reference price to agree with: the list is the only price.
+    if item.fields.get("unpriced"):
+        return list_price
+    if list_price != item.fields.get("price"):
+        return list_price
+    return None
+
+
+def _resolve_by_id(plan, ident):
+    """The catalogue row an ID names: planned, or already in the pack.
+
+    Weapons and wargear are named directly; a listing that carries a
+    ``Profile`` is selling one firing line of a weapon (a grenade type,
+    an ammo), which is its own listable thing.
+    """
+    from n26.library.models import Wargear, Weapon, WeaponProfile
+
+    if ident.profile:
+        candidates = [
+            (
+                "WeaponProfile",
+                WeaponProfile,
+                {"weapon__name__iexact": ident.name, "name__iexact": ident.profile},
+            )
+        ]
+    else:
+        candidates = [
+            ("Weapon", Weapon, {"name__iexact": ident.name}),
+            ("Wargear", Wargear, {"name__iexact": ident.name}),
+        ]
+
+    for kind, _model, _filters in candidates:
+        key = f"{kind}:{ident.key}"
+        if plan.get(key):
+            return key
+
+    # Not planned this run — the pack may already hold it, which is what
+    # a second upload and the hand-authored items both look like.
+    for kind, model, filters in candidates:
+        if existing := _exists(plan, model, **filters):
+            return plan.add(
+                kind,
+                existing.name,
+                {"price": existing.price, "unpriced": False},
+                Source("resolution", 0),
+                key=f"{kind}:{ident.key}",
+                action="exists",
+            ).key
+    return None
+
+
+def _plan_restrictions(plan, pending):
+    """The deferred restrictions pass: fighter profiles exist by now.
+
+    Three shapes turn up and only one has a home. "<Fighter> only"
+    narrows an item to a profile, which ``UsableBy`` holds. A
+    specialisation ("Gunner specialist only") names something
+    ``UsableBy`` has no arm for, and a gang-wide cap ("Max one per
+    gang") is not a restriction on *use* at all. Both are said and
+    carried past rather than quietly dropped or bent into the wrong
+    mechanism.
+    """
+    for source, restriction, item_key, gang, entry_key, entry_action in pending:
+        match = re.match(r"^(.*?)\s+only$", restriction, flags=re.IGNORECASE)
+        profile_ref = match and _profile_ref(plan, match.group(1), gang)
+        if profile_ref:
+            plan.add(
+                "Restriction",
+                f"{plan.get(item_key).name} ({restriction})",
+                {"item": item_key, "profile": profile_ref},
+                source,
+                key=f"Restriction:{entry_key}",
+                action=entry_action,
+            )
+        elif match and re.search(r"specialist$", match.group(1), flags=re.IGNORECASE):
+            plan.problem(
+                source,
+                f"restriction {restriction!r} names a specialisation, which "
+                f"usable-by cannot express yet — imported without it",
+                severity="note",
+            )
+        elif match:
+            plan.problem(
+                source,
+                f"restriction {restriction!r} names a fighter no sheet "
+                f"defines and the pack does not hold — imported without it",
+                severity="note",
+            )
+        else:
+            plan.problem(
+                source,
+                f"restriction {restriction!r} is not a restriction on use — "
+                f"imported without it (§5c)",
+                severity="note",
+            )
 
 
 def _profile_ref(plan, name, gang):
@@ -933,87 +1242,26 @@ def _entry_exists(plan, collection_name, item_key):
     """Is this line already an entry of this collection in the pack?"""
     from n26.library.models import CollectionEntry
 
-    kind, *rest = item_key.split(":")
+    kind = item_key.split(":", 1)[0]
     column = {
         "Weapon": "weapon",
         "WeaponProfile": "weapon_profile",
         "Wargear": "wargear",
     }[kind]
-    filters = {f"{column}__name__iexact": plan.get(item_key).name}
+    planned = plan.get(item_key)
+    filters = {f"{column}__name__iexact": planned.name}
     if kind == "WeaponProfile":
-        filters["weapon_profile__weapon__name__iexact"] = rest[0]
+        # A profile's name is only unique under its weapon.
+        weapon = plan.get(planned.fields["weapon"])
+        if weapon is not None:
+            filters["weapon_profile__weapon__name__iexact"] = weapon.name
+    else:
+        filters[f"{column}__qualifier__iexact"] = planned.fields.get("qualifier", "")
     return CollectionEntry.objects.filter(
         pack=plan.pack,
         collection__name__iexact=collection_name,
         **filters,
     ).exists()
-
-
-def _backfill_prices(plan):
-    """Second pass on prices (§5b): reference price on the item, list
-    disagreement becomes a per-entry override.
-
-    Wargear reference is the modal list price. A weapon printed ``-``
-    takes its reference from the lists the same way; one printed with a
-    number keeps it. Entries matching the reference carry no override.
-    """
-    from n26.library.models import Wargear
-
-    references = {}
-    for planned in list(plan.planned):
-        if planned.kind != "Wargear":
-            continue
-        if planned.action == "exists":
-            row = _exists(plan, Wargear, name__iexact=planned.name)
-            if row:
-                references[planned.key] = row.price
-            continue
-        seen = planned.fields.pop("prices_seen", [])
-        if seen:
-            reference = TallyCounter(seen).most_common(1)[0][0]
-            references[planned.key] = reference
-            plan._replace(planned.key, price=reference)
-
-    weapon_list_prices = {}
-    for planned in plan.planned:
-        if (
-            planned.kind == "CollectionEntry"
-            and planned.fields["list_price"] is not None
-        ):
-            weapon_list_prices.setdefault(planned.fields["item"], []).append(
-                planned.fields["list_price"]
-            )
-    from n26.library.models import Weapon
-
-    for planned in list(plan.planned):
-        if planned.kind != "Weapon":
-            continue
-        if planned.action == "exists":
-            row = _exists(plan, Weapon, name__iexact=planned.name)
-            if row:
-                references[planned.key] = row.price
-        elif planned.fields.get("unpriced"):
-            seen = weapon_list_prices.get(planned.key, [])
-            if seen:
-                reference = TallyCounter(seen).most_common(1)[0][0]
-                references[planned.key] = reference
-                plan._replace(planned.key, price=reference)
-        else:
-            references[planned.key] = planned.fields["price"]
-
-    for planned in list(plan.planned):
-        if planned.kind != "CollectionEntry":
-            continue
-        list_price = planned.fields.pop("list_price")
-        reference = references.get(planned.fields["item"])
-        override = (
-            list_price
-            if list_price is not None
-            and reference is not None
-            and list_price != reference
-            else None
-        )
-        plan._replace(planned.key, price_override=override)
 
 
 # --- Performing ----------------------------------------------------------------
@@ -1133,8 +1381,6 @@ class _Performer:
             "GangType": GangType,
             "Subtype": Subtype,
             "Skill": Skill,
-            "Weapon": Weapon,
-            "Wargear": Wargear,
             "Collection": Collection,
         }
         if kind in simple:
@@ -1143,6 +1389,15 @@ class _Performer:
                 .objects.filter(name__iexact=planned.name, **self.shared)
                 .first()
             )
+        if kind in ("Weapon", "Wargear"):
+            # Qualified: two catalogue rows may print one name, and the
+            # qualifier is the only thing telling them apart.
+            model = Weapon if kind == "Weapon" else Wargear
+            return model.objects.filter(
+                name__iexact=planned.name,
+                qualifier__iexact=planned.fields.get("qualifier", ""),
+                **self.shared,
+            ).first()
         if kind == "Profile":
             return Profile.objects.filter(
                 name__iexact=planned.name,
@@ -1241,6 +1496,7 @@ class _Performer:
             price=planned.fields["price"],
             trade_point_price=planned.fields["trade_point_price"],
             is_exclusive=planned.fields["is_exclusive"],
+            qualifier=planned.fields.get("qualifier", ""),
             category=self.resolve(planned.fields["category"]),
             **self.shared,
         )
@@ -1267,6 +1523,9 @@ class _Performer:
         return authoring.create_wargear(
             planned.name,
             price=planned.fields["price"],
+            trade_point_price=planned.fields["trade_point_price"],
+            is_exclusive=planned.fields["is_exclusive"],
+            qualifier=planned.fields.get("qualifier", ""),
             category=self.resolve(planned.fields["category"]),
             **self.shared,
         )
