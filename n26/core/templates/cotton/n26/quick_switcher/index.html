@@ -110,8 +110,15 @@ go somewhere and the list you left behind is not the list you want next.
                 open state lives in the dropdown's Alpine scope and a static
                 attribute would say "closed" forever.
                 {% endcomment %}
+                {% comment %}
+                shrink-0, because the switcher is put in rows that run out of
+                room — a top bar on a phone among them. Everything else in the
+                group can give ground and the label truncates, but a chevron
+                squeezed to a sliver is a control nobody can press.
+                {% endcomment %}
                 <c-ui.button variant="ghost"
                              size="sm"
+                             class="shrink-0"
                              aria-label="{{ menu_label|default:heading }}"
                              title="{{ menu_label|default:heading }}"
                              aria-haspopup="menu"

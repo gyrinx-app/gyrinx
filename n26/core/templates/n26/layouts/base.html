@@ -144,14 +144,16 @@ banner, is_impersonating / impersonator, gtm_container_id, messages, user.
             <c-slot name="heading">
                 {% block nav_heading %}
                 {% endblock nav_heading %}
-                {% comment %}
-                A second block beside the name rather than inside it. A page
-                that is one of something — one gang, one kind of content —
-                offers the others here; whether it also names itself first is
-                its own business. Fill both and the bar reads "Foundations" and
-                then a chevron; fill only this one and the switcher carries the
-                name itself, which is what a gang's screens do.
-                {% endcomment %}
+            </c-slot>
+            {% comment %}
+            A second slot beside the name rather than more of it. A page that
+            is one of something — one gang, one kind of content — offers the
+            others here; whether it also names itself first is its own
+            business. Fill both and the bar reads "Foundations" and then a
+            chevron; fill only this one and the switcher carries the name
+            itself, which is what a gang's screens do.
+            {% endcomment %}
+            <c-slot name="switcher">
                 {% block nav_switcher %}
                 {% endblock nav_switcher %}
             </c-slot>

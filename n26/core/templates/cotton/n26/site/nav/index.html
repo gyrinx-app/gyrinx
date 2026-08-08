@@ -67,6 +67,11 @@ there: the Gangs link in that same list is the whole roster.
     and a block inside a Cotton attribute never runs. Tested with `.strip`,
     because a page leaving the block empty still passes the newlines around it
     and Django counts whitespace as truthy.
+  switcher — a slot beside the name, for a control that belongs to it: a
+    switcher to the page's siblings is what it exists for. Its own slot rather
+    than more of `heading`, because the name is drawn in a box that hides its
+    overflow — that is what truncates it — and a panel opening from inside such
+    a box is clipped away to nothing.
   slot — the drawer's links, as <c-ui.navbar.item>. Whichever area the page
     belongs to supplies its own; the current one marks itself.
   gangs — a slot under the links, for the reader's own gangs as
@@ -86,6 +91,7 @@ there: the Gangs link in that same list is the whole roster.
 <c-vars
     title=""
     href="/"
+    switcher=""
     user_label=""
     menu_label="Open account menu"
     drawer_label="Open navigation menu"
@@ -172,10 +178,20 @@ there: the Gangs link in that same list is the whole roster.
         wordmark does: on a phone there is nothing on its left to separate the
         name from.
         {% endcomment %}
-        {% if heading.strip %}
+        {% if heading.strip or switcher.strip %}
             <span class="flex min-w-0 items-center gap-2">
                 <span aria-hidden="true" class="hidden text-ink-400 sm:inline dark:text-ink-600">·</span>
-                <span class="flex min-w-0 items-center gap-1 truncate text-ink-600 dark:text-ink-400">{{ heading }}</span>
+                {% comment %}
+                The name is truncated inside a box of its own and the control
+                is outside it. Truncating means hiding the overflow, and a
+                panel that opens from inside a box that hides its overflow is
+                a panel with nothing in it — worse, focusing the filter scrolls
+                the box, and the bar's contents slide out of the window.
+                {% endcomment %}
+                {% if heading.strip %}
+                    <span class="min-w-0 truncate text-ink-600 dark:text-ink-400">{{ heading }}</span>
+                {% endif %}
+                {% if switcher.strip %}<span class="shrink-0">{{ switcher }}</span>{% endif %}
             </span>
         {% endif %}
 
@@ -201,7 +217,14 @@ there: the Gangs link in that same list is the whole roster.
                                 class="inline-flex cursor-pointer items-center gap-1.5 rounded-control px-2.5 py-1.5
                                        text-sm font-medium text-ink-600 hover:bg-ink-100 focus-ring
                                        dark:text-ink-300 dark:hover:bg-ink-800">
-                            <span class="max-w-40 truncate">{{ user_label }}</span>
+                            {% comment %}
+                            The reader's name goes the way the wordmark goes,
+                            and for the same reason: on a phone the bar's width
+                            belongs to the page. The ellipsis and chevron still
+                            say the control opens something, and its accessible
+                            name says what.
+                            {% endcomment %}
+                            <span class="hidden max-w-40 truncate sm:inline">{{ user_label }}</span>
                             <span class="n26-icon-only gap-0.5">
                                 <c-n26.icon name="ellipsis-vertical" class="size-4" />
                                 <c-n26.icon name="chevron-down" class="size-3" stroke_width="2.5" />
