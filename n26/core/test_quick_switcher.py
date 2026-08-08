@@ -240,7 +240,9 @@ class TestMovingThroughItFromTheKeyboard:
         query."""
         html = panel()
         assert "active: ''," in html
-        assert "this.query = '';\n                             this.active = '';" in html
+        assert (
+            "this.query = '';\n                             this.active = '';" in html
+        )
 
     def test_the_highlighted_row_is_named_aloud_by_the_control_that_has_focus(self):
         """A tint is a highlight only sighted readers have. The box keeps
