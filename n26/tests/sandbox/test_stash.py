@@ -1,12 +1,11 @@
 """The stash: the gang's store of surplus equipment.
 
 Rules facts this pins (core rules): the stash holds weapons and
-wargear; gear moves between it and models ("can be moved to any number of
-Model Cards"); Wealth counts models, cash, and the stash. And Tom's
-rulings (2026-08-05): the stash is a **fourth assignment host** — acts
-like a model, needs no profile, is never a card — and founding is
-unlimited spend: no budget unless somebody sets one, the gang's number is
-its rating.
+wargear; gear moves freely between it and any number of models; Wealth
+counts models, cash, and the stash. And the modelling decisions: the
+stash is a **fourth assignment host** — acts like a model, needs no
+profile, is never a card — and founding is unlimited spend: no budget
+unless somebody sets one, the gang's number is its rating.
 """
 
 import pytest
@@ -70,7 +69,7 @@ class TestTheStore:
         assert gang.rating == 135
 
     def test_buying_into_it_at_the_house_price(self, gang, house_list):
-        """Tom's forward-looking case, already expressible: the stash
+        """A forward-looking case, already expressible: the stash
         uses the gang's own list — a line is a complete purchase
         whoever the holder is."""
         bought = buy(gang.stash, lasgun_line(house_list))

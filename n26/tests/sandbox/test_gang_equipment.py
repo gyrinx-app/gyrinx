@@ -1,10 +1,10 @@
 """Gang Equipment: the Trazior Pattern Sentry Gun spawns a vehicle.
 
-Tom's modelling (2026-08-06, design/gang-equipment.md): the wargear is
-bought into the Stash, and its weapon options don't sit on the wargear —
-they decide **which vehicle-shaped card is generated**. "The grenade
-launcher and the heavy stubber are option groups on the wargear
-purchase, which result in different vehicle cards."
+The wargear is bought into the Stash, and its weapon options don't sit
+on the wargear — they decide **which vehicle-shaped card is generated**
+(design/gang-equipment.md). The grenade launcher and the heavy stubber
+are option groups on the wargear purchase, and different picks result
+in different vehicle cards.
 
 Nothing here is new machinery — it composes three shipped pieces:
 

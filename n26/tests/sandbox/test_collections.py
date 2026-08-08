@@ -133,7 +133,7 @@ class TestReferencePricing:
 
     def test_exclusive_with_a_tp_price_is_unauthorable(self, db):
         """TP "E" and a TP price are contradictory facts — refused at the
-        database, per Tom: is_exclusive wins if code ever has to choose."""
+        database; is_exclusive wins if code ever has to choose."""
         with pytest.raises(IntegrityError), transaction.atomic():
             create_wargear("Nonsense", trade_point_price=3, is_exclusive=True)
 
@@ -375,7 +375,7 @@ class TestHavingAList:
 
 
 class TestRatingFollowsTheRule:
-    """Tom's ruling: a discount leaves the rating at full price; a list's
+    """A discount leaves the rating at full price; a list's
     own price IS the price, so it is also the rating; and the number
     written at purchase is pinned on that assignment forever."""
 

@@ -1,7 +1,7 @@
 """Four printed cards, represented end to end — the four-card challenge.
 
-Tom's challenge (2026-08-04): prove the system can represent four real
-rulebook profiles, exactly as the book prints them. Each one leans on
+The challenge: prove the system can represent four real rulebook
+profiles, exactly as the book prints them. Each one leans on
 a different corner of the machinery:
 
 * **Van Saar Ash Wastes 'Arachni-Rig'** — a vehicle; an any-of option
