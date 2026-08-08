@@ -1,0 +1,131 @@
+{% extends "n26/layouts/base.html" %}
+{% comment %}
+A gang, whole — the design system's sheet over real rows.
+
+The gallery's shell version (designsystem/shell/gang.html) is this page with
+sample data, the same relationship shell/home.html has to n26/dashboard.html.
+What was judged there is what ships here, so the two should be edited together.
+
+  --- what is not wired yet ---
+
+Hire, Equip, Print, Cards and Delete have no routes. They are drawn anyway, at
+"#", so the screen keeps the shape the library settled on and the gaps are
+visible rather than quietly designed around. Each becomes a url tag as its
+feature lands.
+
+The gang's choices and counters are shown as settled facts. The library's row
+can open a picker that writes, and that picker does not exist — a Save button
+that saves nothing is worse than a value with no affordance at all.
+{% endcomment %}
+{% block head_title %}{{ sheet.name }}{% endblock head_title %}
+{% block nav_items %}
+    {% include 'n26/_nav.html' %}
+{% endblock %}
+{% block content %}
+    <c-n26.view.gang-sheet :sheet="sheet"
+                           owner="{{ gang.owner.username }}"
+                           owner_href="{% url 'n26-dashboard' %}"
+                           owner_flair_label="{% if gang.owner.is_staff %}Gyrinx staff{% endif %}"
+                           gangs_href="{% url 'n26-dashboard' %}">
+        {% comment %}
+        The staff badge is a fact about the owner, so it is drawn from the owner
+        rather than always. No type_flair: the only house artwork in the set is
+        Goliath's, and hanging it on an Escher gang would be a badge that lies.
+        The type still reads as text — flair-link draws the name with no badge.
+        {% endcomment %}
+        {% if gang.owner.is_staff %}
+            <c-slot name="owner_flair">
+                <c-n26.flair.staff />
+            </c-slot>
+        {% endif %}
+        {% comment %}
+        Only when there is something to list. An empty detail-list is still a
+        <dl>, and the sheet stacks its sections with gap-4 — so a gang with no
+        choices and no counters would pay a line of space for an element with
+        nothing in it. The component draws the slot only if it is filled.
+        {% endcomment %}
+        {% if sheet.choices or sheet.counters %}
+            <c-slot name="details">
+                <c-n26.detail-list>
+                    {% for choice in sheet.choices %}
+                        <c-n26.detail-list.row label="{{ choice.kind_label }}"
+                                               value="{% if choice.chosen %}{{ choice.chosen }}{% else %}—{% endif %}"
+                                               :editable="False" />
+                    {% endfor %}
+                    {% for counter in sheet.counters %}
+                        <c-n26.detail-list.row label="{{ counter.name }}"
+                                               value="{{ counter.value }}"
+                                               :editable="False" />
+                    {% endfor %}
+                </c-n26.detail-list>
+            </c-slot>
+        {% endif %}
+        {% comment %}
+        Hiring is a gang-level act: it adds a fighter to the roster. Buying is
+        not — equipment is bought for a particular model and lives on that
+        model's card — so the way to the trading post is the Equip on each card
+        below.
+        {% endcomment %}
+        <c-slot name="actions">
+            <c-ui.button size="sm" variant="primary" href="#">
+                Hire fighter
+            </c-ui.button>
+        </c-slot>
+        <c-slot name="secondary_actions">
+            <c-n26.button-group>
+                <c-ui.button size="sm" variant="default" href="#">
+                    Print
+                </c-ui.button>
+                <c-ui.dropdown>
+                    <c-slot name="trigger">
+                        <c-ui.button size="sm" variant="default" aria-label="More actions">
+                            <span class="n26-icon-only gap-0.5">
+                                <c-n26.icon name="ellipsis-vertical" class="size-4" />
+                                <c-n26.icon name="chevron-down" class="size-3" stroke_width="2.5" />
+                            </span>
+                        </c-ui.button>
+                    </c-slot>
+                    <c-ui.dropdown.item variant="danger" href="#">
+                        Delete gang
+                    </c-ui.dropdown.item>
+                </c-ui.dropdown>
+            </c-n26.button-group>
+        </c-slot>
+        <c-slot name="stash_empty">
+            Nothing in the stash yet.
+        </c-slot>
+        <c-slot name="members">
+            {% for member in sheet.models %}
+                <c-n26.model-card :card="member">
+                    <c-slot name="actions">
+                        {% comment %}
+                        Equip is the one you came for and the only per-model act
+                        that is not destructive, so it is the primary and it is on
+                        its own. Cards and Delete share the dropdown because
+                        neither is frequent and one is irreversible.
+                        {% endcomment %}
+                        <c-ui.button size="xs" variant="primary" href="#">
+                            Equip
+                        </c-ui.button>
+                        <c-ui.dropdown>
+                            <c-slot name="trigger">
+                                <c-ui.button size="xs" variant="default" aria-label="More actions">
+                                    <span class="n26-icon-only gap-0.5">
+                                        <c-n26.icon name="ellipsis-vertical" class="size-3.5" />
+                                        <c-n26.icon name="chevron-down" class="size-3" stroke_width="2.5" />
+                                    </span>
+                                </c-ui.button>
+                            </c-slot>
+                            <c-ui.dropdown.item href="#">
+                                Cards
+                            </c-ui.dropdown.item>
+                            <c-ui.dropdown.item variant="danger" href="#">
+                                Delete
+                            </c-ui.dropdown.item>
+                        </c-ui.dropdown>
+                    </c-slot>
+                </c-n26.model-card>
+            {% endfor %}
+        </c-slot>
+    </c-n26.view.gang-sheet>
+{% endblock content %}

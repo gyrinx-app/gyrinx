@@ -31,7 +31,7 @@ you type, which is all a list this size needs.
                     <c-n26.gang-table.row name="{{ gang.name }}"
                                           type="{{ gang.gang_type }}"
                                           :sheet="gang"
-                                          href="#" />
+                                          href="{% url 'n26-gang' gang.pk %}" />
                 {% endfor %}
             </c-n26.gang-table>
         </c-slot>

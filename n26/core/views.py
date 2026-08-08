@@ -11,8 +11,9 @@ import json
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse
-from django.shortcuts import redirect, render
+from django.core.exceptions import ValidationError
+from django.http import Http404, JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from n26.core.preview import PreviewError, preview
@@ -62,6 +63,44 @@ def dashboard(request):
             ],
             "changelog": ChangelogEntry.objects.filter(archived=False)[:5],
         },
+    )
+
+
+@login_required
+def gang_sheet(request, pk):
+    """One gang, whole: what it is worth, what it owns, who is in it.
+
+    The design system's gang sheet over real rows. ``render_gang``
+    already does the derivation — the gang's own lines, its choices and
+    counters, the stash, a card per member — in a fixed number of
+    queries however big the roster, so this view is the lookup and
+    nothing else, and the page draws the same component the gallery's
+    shell does.
+
+    Scoped to the owner, and a gang belonging to someone else is a 404
+    rather than a 403: which gangs exist is not something a stranger
+    should be able to probe for.
+    """
+    from n26.core.models import Gang
+    from n26.core.render import render_gang
+
+    # A pk that is not a ULID reaches to_python and raises ValidationError,
+    # which is a 500 for what is only ever a bad URL. Well-formed-but-absent
+    # already 404s on its own.
+    try:
+        gang = get_object_or_404(
+            Gang.objects.select_related("gang_type", "owner", "stash"),
+            pk=pk,
+            owner=request.user,
+            archived=False,
+        )
+    except ValidationError:
+        raise Http404("No such gang") from None
+
+    return render(
+        request,
+        "n26/gang_sheet.html",
+        {"gang": gang, "sheet": render_gang(gang)},
     )
 
 
