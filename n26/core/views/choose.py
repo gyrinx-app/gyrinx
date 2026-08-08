@@ -1,0 +1,195 @@
+"""Answering a choice a modifier offered.
+
+A slot is computed — it exists while its carrier does, and only the
+answer is ever stored — so there is nothing to open until a reader
+presses Choose. Choose leads here: the slot's question, and what this
+gang or this fighter may pick to answer it.
+
+The whole flow is one page because the difference between a skill, an
+archetype and an affiliation is data. The offer itself says what may
+answer it (``n26.core.browse.offered_by``) and the pick screen is built
+from that answer (``n26.core.render.build_choice_offer``), so nothing
+here asks what kind of thing is being chosen.
+
+The address holds the slot::
+
+    /gangs/<gang>/choose/<card>:<carrier>:<offer>/
+
+``card`` is the model whose card was pressed, or ``gang`` for the gang's
+own row; ``carrier`` is the assignment offering the choice; ``offer`` is
+which of its offers. Everything the page needs is in the URL, so it is a
+link, it survives a reload, and it works with scripting off.
+"""
+
+from dataclasses import dataclass
+
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.core.exceptions import ValidationError
+from django.http import Http404
+from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+
+from n26.core.views.permissions import _own_gang_or_404
+
+
+@dataclass(frozen=True)
+class _Found:
+    """One slot, located: the computed slot, the card it sits on, and the
+    stored row carrying the offer."""
+
+    slot: object
+    computed: object
+    anchor: object
+    #: The model whose card the slot was drawn on, or None for the gang's.
+    miniature: object = None
+
+
+def link_slots(gang, *holders):
+    """Point every choice slot on these structures at its picker.
+
+    Costs no queries: a slot's address is already on the line, and this
+    only turns it into a URL. A slot with no address keeps an empty href
+    and draws as a fact with nothing to press — which is right for a card
+    depicting nobody.
+    """
+    for holder in holders:
+        for line in holder.choices:
+            if line.key:
+                line.href = reverse("n26-choose", args=[gang.pk, line.key])
+
+
+def _find_slot(gang, key):
+    """The slot an address names, on the card it was drawn on.
+
+    Rebuilt rather than remembered: a slot is computed, so the honest
+    answer to "does this slot still exist" is to compute the card again
+    and look. A carrier that has since been removed takes its slot with
+    it, and the address stops resolving — a 404, because the question no
+    longer exists rather than because the reader may not ask it.
+    """
+    from n26.core.card import build_card, build_gang_card, build_modifier_index
+    from n26.core.effects import compute, compute_gang
+    from n26.core.models import Miniature
+    from n26.core.render import GANG_SLOT_HOST
+
+    where, _, rest = key.partition(":")
+    anchor_pk, _, offer_pk = rest.partition(":")
+    if not (where and anchor_pk and offer_pk):
+        raise Http404("No such choice")
+
+    miniature = None
+    if where == GANG_SLOT_HOST:
+        card = build_gang_card(gang)
+    else:
+        try:
+            miniature = get_object_or_404(
+                Miniature,
+                pk=where,
+                membership__gang=gang,
+                membership__archived=False,
+            )
+        except ValidationError:
+            # A pk that is not a ULID at all is only ever a bad link.
+            raise Http404("No such fighter") from None
+        card = build_card(miniature)
+
+    index = build_modifier_index([node.assignable for node in card.all_nodes()])
+    computed = compute_gang(card, index) if miniature is None else compute(card, index)
+
+    for slot in computed.choices:
+        anchor = getattr(slot.anchor, "assignment", None)
+        if anchor is None or slot.offer is None:
+            continue
+        if str(anchor.pk) == anchor_pk and str(slot.offer.pk) == offer_pk:
+            return _Found(
+                slot=slot, computed=computed, anchor=anchor, miniature=miniature
+            )
+    raise Http404("No such choice")
+
+
+def _host(found):
+    """Whose answer this is, when the carrier cannot say.
+
+    A carrier held by the gang and echoed onto a member's card offers the
+    slot to that member — "Leaders and Champions each select a skill" —
+    and the row it echoed from belongs to nobody in particular, so the
+    answer has to name the fighter whose card was pressed. Every other
+    slot lets the offer decide: a fighter's own carrier answers on the
+    fighter, and an offer that says the gang holds the answer still does.
+    """
+    if found.miniature is not None and found.slot.anchor.broadcast:
+        return {"miniature": found.miniature}
+    return {}
+
+
+@login_required
+def choose(request, pk, slot):
+    """The pick screen for one slot, and the press that answers it.
+
+    GET asks and writes nothing. POST names one thing from the list the
+    server has just re-derived — never a price and never a free-text
+    identity — and writes the answer as an assignment caused by the
+    carrier's, so removing the carrier takes the answer with it.
+
+    Changing your mind retires the old answer in the same operation. One
+    question has one answer; two rows answering one slot would resolve it
+    to whichever loaded first.
+
+    Nothing here refuses a pick. The list is short because the offer is
+    narrow, not because anything is being withheld, and leaving the slot
+    open costs nothing — the way back is the gang.
+    """
+    from n26.core.operations import NotEnoughCredits, operation
+    from n26.core.render import build_choice_offer
+
+    gang = _own_gang_or_404(request, pk)
+    found = _find_slot(gang, slot)
+    offer = build_choice_offer(found.slot, found.computed)
+    back = reverse("n26-gang", args=[gang.pk])
+
+    if request.method == "POST":
+        wanted = request.POST.get("thing", "")
+        picked = next(
+            (
+                option
+                for group in offer.groups
+                for option in group.options
+                if option.key == wanted
+            ),
+            None,
+        )
+        if picked is None:
+            # Nothing on the list — a stale page, or a press with nothing
+            # selected. The list itself is the answer either way.
+            messages.error(request, "That is not one of the things on offer.")
+            return redirect(request.path)
+        try:
+            with operation(gang, actor=request.user) as op:
+                held = found.slot.resolved_with
+                if held is not None and held.assignment is not None:
+                    op.remove(held.assignment)
+                op.choose(found.anchor, picked.thing, **_host(found))
+        except NotEnoughCredits as refusal:
+            messages.error(request, str(refusal))
+            return redirect(request.path)
+        messages.success(request, f"Chose {picked.name} — {offer.label}.")
+        return redirect(back)
+
+    bearer = found.miniature.name if found.miniature is not None else gang.name
+    return render(
+        request,
+        "n26/choose.html",
+        {
+            "gang": gang,
+            "miniature": found.miniature,
+            "offer": offer,
+            "bearer": bearer,
+            "back": back,
+            # Not "lead". A cotton slot is a context variable, and any
+            # component on the page with a slot of that name — the site
+            # footer's columns have one — draws whatever the page happens
+            # to have under it.
+            "pick_lead": f"For {bearer}. Leaving this open costs nothing.",
+        },
+    )

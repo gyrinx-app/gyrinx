@@ -1561,6 +1561,28 @@ GROUPS: list[Group] = [
                 ),
             ),
             Component(
+                slug="choice-slots",
+                tag="c-n26.choice-slots",
+                template="n26/choice_slots.html",
+                summary="Open questions as rows: the answer, or a Choose control.",
+                needs=(ALPINE, KIT_JS, FOCUS),
+                notes=(
+                    "Rows rather than a container of its own, so a gang's choices "
+                    "and its counters sit in one detail list. Two containers side "
+                    "by side would set one run of labelled facts at two rhythms "
+                    "with a gap between them that means nothing. Answered and "
+                    "unanswered are the same control leading to the same page, "
+                    "because they are the same question — pressing an answered "
+                    "slot is how you change your mind, and giving it a different "
+                    "shape would say it was settled. An unanswered one is never "
+                    "marked as missing: nothing counts it, nothing refuses to "
+                    "proceed without it. A line with no address — a card built "
+                    "from a profile's default equipment has real offers and no "
+                    "rows to answer them against — draws as text with an em dash "
+                    "rather than as a button that goes nowhere."
+                ),
+            ),
+            Component(
                 slug="stash",
                 tag="c-n26.stash",
                 template="n26/stash/index.html",

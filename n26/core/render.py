@@ -180,6 +180,12 @@ class WeaponLine:
         return [p for p in self.profiles if p.name]
 
 
+#: What a gang's own choice slots are addressed under, where a model's are
+#: addressed under the model's id. A ULID is never this word, so the two
+#: kinds of host cannot collide in a slot key.
+GANG_SLOT_HOST = "gang"
+
+
 @dataclass
 class ChoiceLine:
     """A choice, drawn as its own row like any other assignable.
@@ -193,10 +199,65 @@ class ChoiceLine:
     kind_label: str
     chosen: str | None
     provenance: Provenance = field(default_factory=Provenance)
+    #: What addresses this one slot: the card it is drawn on, the assignment
+    #: carrying the offer, and the offer itself. All three are needed — one
+    #: carrier may offer two slots of the same kind, and a gang-held carrier
+    #: puts a slot on every card it reaches. Empty when the card draws no
+    #: stored rows: a preview depicts nobody, so it has no slot to answer.
+    key: str = ""
+    #: Where a Choose control leads. Filled in by whoever knows the URL
+    #: space, because this module knows what a slot *is* and not where a
+    #: picker lives. Empty draws the prompt as plain text, which is what a
+    #: print sheet and a gallery sample want.
+    href: str = ""
 
     @property
     def is_resolved(self):
         return self.chosen is not None
+
+
+@dataclass(frozen=True)
+class Choosable:
+    """One thing that could answer a choice slot."""
+
+    #: The identity a form submits — the model's label and its primary key,
+    #: the same pair the equipment listing keys its Buy buttons on, because
+    #: a bare key is ambiguous across the assignable tables.
+    key: str
+    name: str
+    thing: object = None
+    #: True for the thing already answering this slot, so a picker can open
+    #: on the current answer rather than on nothing.
+    is_current: bool = False
+    #: Remarks about picking this one — "usable by Walkers only". Said,
+    #: never enforced; the list is an offer, not a rule.
+    detail: str = ""
+
+
+@dataclass
+class ChoosableGroup:
+    """One heading in a pick list, and what sits under it."""
+
+    name: str
+    options: list[Choosable] = field(default_factory=list)
+
+
+@dataclass
+class ChoiceOffer:
+    """A slot and what may answer it — the pick screen, as data.
+
+    One structure whatever the offer names, which is the point: a skill, an
+    archetype and an affiliation differ in the rows they list and in
+    nothing else, so one page draws all three.
+    """
+
+    label: str
+    chosen: str | None = None
+    groups: list[ChoosableGroup] = field(default_factory=list)
+
+    @property
+    def is_empty(self):
+        return not any(group.options for group in self.groups)
 
 
 @dataclass(frozen=True)
@@ -391,6 +452,102 @@ def _computed_provenance(contribution):
         source=contribution.source,
         source_kind=contribution.source_kind,
         computed=True,
+    )
+
+
+def _slot_key(slot, host):
+    """What addresses one computed slot, or empty when nothing does.
+
+    A slot hangs off an assignment, so a card built from a profile's
+    default equipment has no row to answer against — the offer is real,
+    the address is not, and an empty key is how a line says there is
+    nowhere to send a reader.
+    """
+    anchor = getattr(slot.anchor, "assignment", None)
+    if not host or anchor is None or slot.offer is None:
+        return ""
+    return f"{host}:{anchor.pk}:{slot.offer.pk}"
+
+
+def choice_lines(computed, host=""):
+    """A computed card's choice slots as lines a renderer draws.
+
+    ``host`` is what the slots are addressed under — a model's id, or
+    ``GANG_SLOT_HOST`` for the gang's own. Passed rather than derived
+    because the same slot may sit on a member's card and on the gang's,
+    and which one a reader pressed decides whose answer it is.
+    """
+    if not computed:
+        return []
+    return [
+        ChoiceLine(
+            kind_label=slot.kind_label,
+            chosen=slot.chosen_name,
+            key=_slot_key(slot, host),
+            provenance=Provenance(
+                source=slot.source,
+                source_kind=slot.source_kind,
+                computed=True,
+            ),
+        )
+        for slot in computed.choices
+    ]
+
+
+def build_choice_offer(slot, computed):
+    """What may answer one slot, in the one shape a picker draws.
+
+    The offer decides the list; this only flattens it. A slot narrowed to
+    a tier answers with the browsable view the fighter already shops from,
+    so its shelves become the headings and the fighter's own placements
+    have already shaped it. An unnarrowed slot has no collection and
+    answers with the whole kind, which is one heading-less group. Neither
+    branch knows what kind of thing is being picked — that is what lets a
+    skill, an archetype and an affiliation share a screen.
+    """
+    from n26.core.browse import CollectionView, offered_by
+
+    offered = offered_by(slot, computed)
+    current = slot.resolved_with.assignable if slot.resolved_with is not None else None
+
+    groups = []
+    if isinstance(offered, CollectionView):
+        for section in offered.sections:
+            for category in section.categories:
+                # The category is the useful heading — the skill set, the
+                # power family. The section names the whole list already,
+                # and stands in where the content declared no category.
+                groups.append(
+                    ChoosableGroup(
+                        name=category.name or section.name,
+                        options=[
+                            _choosable(line.thing, current, line.notes)
+                            for line in category.lines
+                        ],
+                    )
+                )
+    elif offered is not None:
+        groups.append(
+            ChoosableGroup(
+                name="",
+                options=[_choosable(thing, current) for thing in offered],
+            )
+        )
+
+    return ChoiceOffer(
+        label=slot.kind_label,
+        chosen=slot.chosen_name,
+        groups=[group for group in groups if group.options],
+    )
+
+
+def _choosable(thing, current, notes=()):
+    return Choosable(
+        key=f"{thing._meta.label_lower}:{thing.pk}",
+        name=str(thing),
+        thing=thing,
+        is_current=current is not None and thing == current,
+        detail="; ".join(note.text for note in notes),
     )
 
 
@@ -635,22 +792,7 @@ def card_to_model_card(
         powers=sorted(powers, key=lambda line: line.name),
         equipment=sorted(equipment, key=lambda line: line.name),
         collections=sorted(collections, key=lambda line: line.name),
-        choices=(
-            [
-                ChoiceLine(
-                    kind_label=slot.kind_label,
-                    chosen=slot.chosen_name,
-                    provenance=Provenance(
-                        source=slot.source,
-                        source_kind=slot.source_kind,
-                        computed=True,
-                    ),
-                )
-                for slot in computed.choices
-            ]
-            if computed
-            else []
-        ),
+        choices=choice_lines(computed, host=id),
         effects=(
             [
                 EffectLine(
@@ -770,22 +912,7 @@ def render_gang(gang, with_effects=True):
         wealth=gang.wealth,
         colour=gang.colour,
         rows=_gang_rows(gang_card, gang_computed),
-        choices=(
-            [
-                ChoiceLine(
-                    kind_label=slot.kind_label,
-                    chosen=slot.chosen_name,
-                    provenance=Provenance(
-                        source=slot.source,
-                        source_kind=slot.source_kind,
-                        computed=True,
-                    ),
-                )
-                for slot in gang_computed.choices
-            ]
-            if gang_computed
-            else []
-        ),
+        choices=choice_lines(gang_computed, host=GANG_SLOT_HOST),
         counters=(
             gang_computed.counters if gang_computed else counter_readings(gang_card)
         ),

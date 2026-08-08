@@ -55,11 +55,12 @@ question "Buys from" was there to answer, and closer to hand.
     Both are props rather than card.notes and card.lore because
     n26.render.ModelCard has neither field yet — see design/asks/model-card-notes-
     lore.md. When it grows them, call sites pass card.notes and this stays as is.
-  choose_href — where an unresolved choice sends a reader. Left empty the prompt
-    still reads as a sentence, because c-n26.link renders a span with no href —
-    which is what a print sheet and a preview want.
+  Each choice row carries its own picker link on the ChoiceLine, filled in by a
+  view that knows where pickers live. A card whose lines have none still reads as
+  a sentence, because c-n26.link renders a span with no href — which is what a
+  print sheet and a preview want.
 {% endcomment %}
-<c-vars :card="None" choose_href="" notes_href="" lore_href="" class="" />
+<c-vars :card="None" notes_href="" lore_href="" class="" />
 
 <c-ui.card padding="none" class="{{ class }}">
     <c-slot name="header">
@@ -260,8 +261,10 @@ question "Buys from" was there to answer, and closer to hand.
                 {% comment %}
                 Unresolved reads as an invitation rather than as a blank. "— not
                 chosen" describes the gap and leaves the reader to work out what to
-                do about it; "Choose a Specialisation" is the thing to do, and the
-                kind_label already names it.
+                do about it; "Choose" is the thing to do. One word, because the
+                label beside it already names the question — repeating it reads as
+                a sentence assembled by a machine, and would have to know whether
+                the label takes "a" or "an".
 
                 c-n26.link renders a span when there is no href, so a card with
                 nowhere to send anyone — a print sheet, a preview — still reads as a
@@ -272,9 +275,15 @@ question "Buys from" was there to answer, and closer to hand.
                 the prompt indistinguishable from the label beside it until you
                 happen to point at it. A solid rule also reads apart from the dotted
                 one provenance uses, which is a different statement entirely.
+
+                An answered choice is a link too, on the default hover underline:
+                pressing it is how you change your mind, and it goes to the same
+                page the prompt does. Quieter than the prompt because it is a value
+                first and a control second — the empty one has nothing to read, so
+                being a control is all it is.
                 {% endcomment %}
-                {% if choice.is_resolved %}{{ choice.chosen }}
-                {% else %}<c-n26.link href="{{ choose_href }}" underline="always">Choose a {{ choice.kind_label }}</c-n26.link>{% endif %}
+                {% if choice.is_resolved %}<c-n26.link href="{{ choice.href }}" tone="current">{{ choice.chosen }}</c-n26.link>
+                {% else %}<c-n26.link href="{{ choice.href }}" underline="always">Choose</c-n26.link>{% endif %}
             </dd>
         {% endfor %}
 

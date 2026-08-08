@@ -1,5 +1,5 @@
 {# title: Facts you can change #}
-{# note: A label and a value that is also the way to edit it. The skill trees are three answers to one question, so they are one control — press it and the three become three. Territory is unresolved, which is information and not an error. Type is settled, so it gets no control at all. #}
+{# note: A label and a value that is also the way to edit it. The skill trees are three answers to one question, so they are one control. Type is settled, so it gets no control at all. Territory opens a form in place; a row that leads to a page of its own passes href instead, which is what the gang's choice slots do — see c-n26.choice-slots. #}
 <c-n26.detail-list>
     {% comment %}
     A settled fact, for the :editable="False" case: what kind of gang this is was
@@ -7,27 +7,29 @@
     the rows you can change rather than looking like one that failed to render.
     {% endcomment %}
     <c-n26.detail-list.row label="Type" value="{{ gang.gang_type }}" :editable="False" />
-    {% for choice in gang.choices %}
-        {% comment %}
-        A ChoiceLine's kind_label is the question and `chosen` is the answer,
-        however many things the answer names. Unresolved reads as a prompt rather
-        than as an error, because n26.render is explicit that a renderer informs.
-        {% endcomment %}
-        <c-n26.detail-list.row label="{{ choice.kind_label }}"
-                               value="{% if choice.chosen %}{{ choice.chosen }}{% else %}Choose{% endif %}">
-            <c-slot name="dialog_header">
-                <h2 class="text-base font-semibold">{{ choice.kind_label }}</h2>
-            </c-slot>
-            <c-slot name="dialog">
-                <p class="text-sm text-muted">The picker for this choice would sit here.</p>
-            </c-slot>
-            <c-slot name="dialog_footer">
-                <c-ui.button size="sm" variant="primary">
-                    Save
-                </c-ui.button>
-            </c-slot>
-        </c-n26.detail-list.row>
-    {% endfor %}
+    {% comment %}
+    A value holding a list, all inside one control: three skill trees are three
+    answers to one question, and three buttons would say there were three
+    questions.
+    {% endcomment %}
+    <c-n26.detail-list.row label="Skill trees" value="Ferocity, Brawn, Cunning" href="#" />
+    {% comment %}
+    The dialog case. A form small enough to answer without leaving the page —
+    anything longer than that wants a page, and passes href.
+    {% endcomment %}
+    <c-n26.detail-list.row label="Territory" value="Choose">
+        <c-slot name="dialog_header">
+            <h2 class="text-base font-semibold">Territory</h2>
+        </c-slot>
+        <c-slot name="dialog">
+            <p class="text-sm text-muted">A short form would sit here.</p>
+        </c-slot>
+        <c-slot name="dialog_footer">
+            <c-ui.button size="sm" variant="success">
+                Save
+            </c-ui.button>
+        </c-slot>
+    </c-n26.detail-list.row>
     {% for counter in gang.counters %}
         <c-n26.detail-list.row label="{{ counter.name }}" value="{{ counter.value }}" />
     {% endfor %}

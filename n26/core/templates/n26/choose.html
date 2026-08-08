@@ -1,0 +1,76 @@
+{% extends "n26/layouts/base.html" %}
+{% load navigation %}
+{% comment %}
+Answering one choice slot.
+
+One page for every kind of choice. The view has already flattened whatever the
+offer answered with into groups of options (n26.render.ChoiceOffer), so nothing
+here knows whether it is drawing skills, archetypes or affiliations — a page that
+did would be three pages wearing one filename.
+
+Radios in a form, no script: one of many is the browser's rule, the press posts,
+and the server writes the answer. A reader who leaves without pressing Save has
+changed nothing, which is the whole point of an open slot.
+{% endcomment %}
+{% block head_title %}{{ offer.label|capfirst }} — {{ gang.name }}{% endblock head_title %}
+{% block nav_switcher %}
+    {% gang_switcher gang as gang_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="gang_switcher_" />
+{% endblock nav_switcher %}
+{% block nav_items %}
+    {% include 'n26/_nav.html' %}
+{% endblock %}
+{% block content %}
+    <c-n26.form-page action="{{ request.path }}"
+                     title="{{ offer.label|capfirst }}"
+                     lead="{{ pick_lead }}"
+                     submit_label="Save">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'n26-dashboard' %}">
+                    <c-n26.user-link :user="user" href="{% url 'n26-dashboard' %}" tone="current" />
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{{ back }}">
+                    {{ gang.name }}
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    {{ offer.label|capfirst }}
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% csrf_token %}
+        {% comment %}
+        Nothing to pick from is a thing to say, not a page to hide. It happens
+        when the offer narrows to a tier the fighter has nothing placed in yet —
+        an Outcast's Primary skills before the Leader has chosen an archetype —
+        and the fix is elsewhere on the sheet, so the page says so and leaves.
+        {% endcomment %}
+        {% if offer.is_empty %}
+            <c-n26.form-section>
+                <p class="text-muted">
+                    Nothing is on offer here yet. This slot draws on lists that other
+                    picks open up, so answering those first fills it in.
+                </p>
+            </c-n26.form-section>
+        {% else %}
+            {% for group in offer.groups %}
+                {% comment %}
+                One fieldset per heading, all sharing the input name: the groups
+                are how the list is read, not four separate questions, and the
+                browser keeps one answer across the lot because the name is one
+                name. A group with no heading — an offer that names a whole kind
+                rather than a tier of a list — draws its cards and no legend.
+                {% endcomment %}
+                <c-n26.radio-cards label="{{ group.name }}" name="thing">
+                    {% for option in group.options %}
+                        <c-n26.radio-cards.card name="thing"
+                                                value="{{ option.key }}"
+                                                label="{{ option.name }}"
+                                                description="{{ option.detail }}"
+                                                :checked="option.is_current" />
+                    {% endfor %}
+                </c-n26.radio-cards>
+            {% endfor %}
+        {% endif %}
+    </c-n26.form-page>
+{% endblock content %}

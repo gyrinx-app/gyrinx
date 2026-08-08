@@ -37,22 +37,12 @@ a page and its chrome is not visible in either one alone.
         </c-slot>
         <c-slot name="details">
             <c-n26.detail-list>
-                {% for choice in gang.choices %}
-                    <c-n26.detail-list.row label="{{ choice.kind_label }}"
-                                           value="{% if choice.chosen %}{{ choice.chosen }}{% else %}Choose{% endif %}">
-                        <c-slot name="dialog_header">
-                            <h2 class="text-base font-semibold">{{ choice.kind_label }}</h2>
-                        </c-slot>
-                        <c-slot name="dialog">
-                            <p class="text-sm text-muted">The picker for this choice would sit here.</p>
-                        </c-slot>
-                        <c-slot name="dialog_footer">
-                            <c-ui.button size="sm" variant="primary">
-                                Save
-                            </c-ui.button>
-                        </c-slot>
-                    </c-n26.detail-list.row>
-                {% endfor %}
+                {% comment %}
+                The gang's open questions and its counters in one strip: the
+                choices know where their own pickers are, the counters have
+                nowhere to go yet.
+                {% endcomment %}
+                <c-n26.choice-slots :choices="gang.choices" />
                 {% for counter in gang.counters %}
                     <c-n26.detail-list.row label="{{ counter.name }}" value="{{ counter.value }}" />
                 {% endfor %}

@@ -1,0 +1,11 @@
+{# title: Answered, open, and unaddressed #}
+{# note: Three states in one strip. Skill trees has an answer and is still a control, because pressing it is how you change your mind. Territory has none, so it says Choose. Alliance has no picker to reach — a card built from a profile's default equipment has real offers and no rows to answer them against — so it draws as a fact. The counters sit in the same list: choices and counters are one run of labelled facts, not two. #}
+{# layout: full #}
+<c-n26.detail-list>
+    <c-n26.choice-slots :choices="gang.choices" />
+    {% for counter in gang.counters %}
+        <c-n26.detail-list.row label="{{ counter.name }}"
+                               value="{{ counter.value }}"
+                               :editable="False" />
+    {% endfor %}
+</c-n26.detail-list>

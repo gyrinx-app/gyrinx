@@ -111,15 +111,19 @@ def gang_sheet(request, pk):
     Scoped to the owner, and a gang belonging to someone else is a 404
     rather than a 403: which gangs exist is not something a stranger
     should be able to probe for.
+
+    Every choice slot on the sheet — the gang's own and every member's —
+    is pointed at its picker here, in one pass over what has already been
+    derived. No queries, so a roster of sixteen costs what a roster of one
+    does.
     """
     from n26.core.render import render_gang
+    from n26.core.views.choose import link_slots
 
     gang = _own_gang_or_404(request, pk)
-    return render(
-        request,
-        "n26/gang_sheet.html",
-        {"gang": gang, "sheet": render_gang(gang)},
-    )
+    sheet = render_gang(gang)
+    link_slots(gang, sheet, *sheet.models)
+    return render(request, "n26/gang_sheet.html", {"gang": gang, "sheet": sheet})
 
 
 @login_required

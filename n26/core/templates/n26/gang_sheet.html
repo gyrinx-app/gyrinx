@@ -14,9 +14,9 @@ The per-card Cards and Delete items have no routes. They are drawn anyway, at
 visible rather than quietly designed around. Each becomes a url tag as its
 feature lands — Hire, Equip, Print and the gang's own Delete already have.
 
-The gang's choices and counters are shown as settled facts. The library's row
-can open a picker that writes, and that picker does not exist — a Save button
-that saves nothing is worse than a value with no affordance at all.
+The counters are shown as settled facts: there is no route that tallies one yet,
+and a control that saves nothing is worse than a value with no affordance at all.
+The choices do have one — each slot leads to its own picker.
 {% endcomment %}
 {% load badge_tags %}
 {% block head_title %}{{ sheet.name }}{% endblock head_title %}
@@ -79,11 +79,7 @@ that said it twice would be spending the width the name needs.
         {% if sheet.choices or sheet.counters %}
             <c-slot name="details">
                 <c-n26.detail-list>
-                    {% for choice in sheet.choices %}
-                        <c-n26.detail-list.row label="{{ choice.kind_label }}"
-                                               value="{% if choice.chosen %}{{ choice.chosen }}{% else %}—{% endif %}"
-                                               :editable="False" />
-                    {% endfor %}
+                    <c-n26.choice-slots :choices="sheet.choices" />
                     {% for counter in sheet.counters %}
                         <c-n26.detail-list.row label="{{ counter.name }}"
                                                value="{{ counter.value }}"

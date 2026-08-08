@@ -1,0 +1,54 @@
+{% comment %}
+<c-n26.choice-slots> — the open questions, as rows in a strip of standing facts.
+
+    <c-n26.detail-list>
+        <c-n26.choice-slots :choices="sheet.choices" />
+        {% for counter in sheet.counters %}
+            <c-n26.detail-list.row label="{{ counter.name }}" value="{{ counter.value }}" />
+        {% endfor %}
+    </c-n26.detail-list>
+
+Rows, not a container of its own. A gang's choices and its counters are one run
+of labelled facts — "Territory: Choose, Reputation: 7, Meat: 3" reads as one
+strip — and two containers side by side would set them at two rhythms with a gap
+between them that means nothing. So this draws <c-n26.detail-list.row>s into
+whichever list the caller has open, and the caller decides what else goes in it.
+
+  --- filled and empty are the same row ---
+
+A slot that has been answered shows the answer; one that has not shows Choose.
+Both are the same control leading to the same page, because both are the same
+question — pressing an answered slot is how you change your mind, and giving the
+two different shapes would say the answered one was settled.
+
+An unanswered slot is information, never an error: nothing is marked, nothing is
+counted as missing, and nothing anywhere refuses to proceed without it.
+
+  --- a slot with nowhere to go ---
+
+A card built from a profile's default equipment has real offers and no stored
+rows to answer them against, so its lines carry no address. Those draw as plain
+text with an em dash — a settled-looking fact rather than a dead button, which is
+what a print sheet and the gallery want.
+
+  :choices — n26.render.ChoiceLine values, from a ModelCard or a GangSheet.
+    Each carries its own href; a view fills those in (n26.core.views.choose).
+  choose_label — what an unanswered slot's control says. One word by default,
+    because the label beside it already names the question.
+  class — extra classes on every row. There is no container to put them on.
+{% endcomment %}
+<c-vars :choices="None" choose_label="Choose" class="" />
+
+{% for choice in choices %}
+    {% if choice.href %}
+        <c-n26.detail-list.row label="{{ choice.kind_label }}"
+                               href="{{ choice.href }}"
+                               class="{{ class }}"
+                               value="{% if choice.is_resolved %}{{ choice.chosen }}{% else %}{{ choose_label }}{% endif %}" />
+    {% else %}
+        <c-n26.detail-list.row label="{{ choice.kind_label }}"
+                               :editable="False"
+                               class="{{ class }}"
+                               value="{% if choice.is_resolved %}{{ choice.chosen }}{% else %}—{% endif %}" />
+    {% endif %}
+{% endfor %}

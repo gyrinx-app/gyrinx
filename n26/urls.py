@@ -18,6 +18,10 @@ urlpatterns = [
     path("gangs/<str:pk>/", views.gang_sheet, name="n26-gang"),
     path("gangs/<str:pk>/hire/", views.hire_fighter, name="n26-hire-fighter"),
     path("gangs/<str:pk>/delete/", views.delete_gang, name="n26-delete-gang"),
+    # The slot's own address. It names the card, the assignment carrying
+    # the offer and the offer itself, so one route answers a fighter's
+    # choice and the gang's alike — see n26.core.views.choose.
+    path("gangs/<str:pk>/choose/<str:slot>/", views.choose, name="n26-choose"),
     path("fighters/<str:pk>/equip/", views.equip, name="n26-equip"),
     path("gangs/<str:pk>/print/setup/", views.print_setup, name="n26-print-setup"),
     path("gangs/<str:pk>/print/", views.print_gang, name="n26-print"),

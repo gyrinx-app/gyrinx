@@ -696,6 +696,10 @@ def model_card():
             ChoiceLine(
                 kind_label="Specialisation",
                 chosen=None,
+                # A real card's slot carries the address of its own picker.
+                # "#" stands in because the gallery has no gang behind it;
+                # what matters for the card is that the prompt is a control.
+                href="#",
                 provenance=Provenance(
                     source="Specialist", source_kind="subtype", computed=True
                 ),
@@ -1073,12 +1077,29 @@ STASH = [
 ]
 
 
+#: The gang's open questions. Each carries the address of its own picker —
+#: "#" here, because the gallery has no gang behind it, and what the strip is
+#: showing is that a slot is a control whether or not it has been answered.
+#:
+#: The third has no address at all: a card built from a profile's default
+#: equipment has real offers and no stored rows to answer them against, so it
+#: draws as a fact rather than as a button that goes nowhere.
+CHOICES = [
+    ChoiceLine(kind_label="Skill trees", chosen="Ferocity, Brawn, Cunning", href="#"),
+    # Unresolved is information, not an error: n26.render is explicit that
+    # a renderer informs and does not police.
+    ChoiceLine(kind_label="Territory", chosen=None, href="#"),
+    ChoiceLine(kind_label="Alliance", chosen=None),
+]
+
+
 def gang_sheet():
     """One gang, with enough going on to exercise the sheet.
 
     The awkward cases on purpose: a choice with three answers — the "list inside
-    one control" the detail list exists for — an unresolved choice, counters, and
-    a stash holding something granted rather than bought.
+    one control" the detail list exists for — an unresolved choice, a choice with
+    nowhere to send anyone, counters, and a stash holding something granted rather
+    than bought.
     """
     return GangSheet(
         name="The Ashen Choir",
@@ -1092,12 +1113,7 @@ def gang_sheet():
             AssignableLine(name="Escher house list"),
             _granted("Toxin Trade", "Escher", "gang type"),
         ],
-        choices=[
-            ChoiceLine(kind_label="Skill trees", chosen="Ferocity, Brawn, Cunning"),
-            # Unresolved is information, not an error: n26.render is explicit that
-            # a renderer informs and does not police.
-            ChoiceLine(kind_label="Territory", chosen=None),
-        ],
+        choices=CHOICES,
         counters=[_reading("Reputation", 7), _reading("Meat", 3)],
         stash=STASH,
         stash_rating=115,
