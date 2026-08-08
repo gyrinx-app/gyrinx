@@ -611,6 +611,30 @@ def notify_many(
     return created
 
 
+class ChangelogEntryTag(AppBase):
+    """A label an entry can carry — an edition ("N23", "N26"), say.
+
+    A lookup table rather than a choices field so tags can be added in the
+    admin without a deploy. Entries wear any number of them.
+    """
+
+    name = models.CharField(
+        max_length=100,
+        unique=True,
+        help_text="The tag as shown, e.g. 'N26'.",
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "changelog entry tag"
+        verbose_name_plural = "changelog entry tags"
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
 class ChangelogEntry(AppBase):
     """One dated entry in the site changelog.
 
@@ -626,8 +650,14 @@ class ChangelogEntry(AppBase):
         blank=True,
         help_text="The detail, as rich text. Keep it short — a dashboard lists many.",
     )
+    tags = models.ManyToManyField(
+        ChangelogEntryTag,
+        blank=True,
+        related_name="entries",
+        help_text="Labels for filtering, e.g. the edition the change belongs to.",
+    )
 
-    history = HistoricalRecords()
+    history = HistoricalRecords(m2m_fields=[tags])
 
     class Meta:
         verbose_name = "changelog entry"
