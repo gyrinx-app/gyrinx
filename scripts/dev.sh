@@ -241,8 +241,15 @@ mkdir -p "$LOG_DIR"
 # without it. `npm run watch` only rebuilds on file *changes* — it never does
 # an initial build — so without these two steps the dev server boots against
 # a missing or stale styles.css and templates render unstyled.
+#
+# One generated stylesheet per edition, both produced by `npm run css` and both
+# gitignored: n23 compiles SCSS with sass, n26 builds Tailwind from its design
+# system's input file. They are checked together because the build command is
+# one command — a worktree holding a fresh styles.css and a stale app.css would
+# otherwise pass this and serve n26 unstyled.
 CSS_FILE="${WT_ROOT}/n23/core/static/core/css/styles.css"
 SCSS_DIR="${WT_ROOT}/n23/core/static/core/scss"
+N26_CSS_FILE="${WT_ROOT}/n26/designsystem/static/designsystem/app.css"
 
 # `npm` is needed for the install step, the one-shot CSS build, and the
 # background watcher — so fail fast up front rather than letting any of those
@@ -270,9 +277,23 @@ if [ -f "$CSS_FILE" ] && [ -d "$SCSS_DIR" ]; then
   fi
 fi
 
+# Tailwind reads the templates it scans as well as its own input files, so an
+# edited template dates app.css exactly as an edited stylesheet does — a class
+# used for the first time has no rule until the next build. Hence html as well
+# as css here, and the output itself excluded so it never dates itself.
+n26_changed=false
+if [ -f "$N26_CSS_FILE" ]; then
+  if [ -n "$(find "${WT_ROOT}/n26" -type f \( -name '*.html' -o -name '*.css' \) \
+    ! -path "$N26_CSS_FILE" -newer "$N26_CSS_FILE" -print -quit 2>/dev/null)" ]; then
+    n26_changed=true
+  fi
+fi
+
 if [ ! -f "$CSS_FILE" ] \
+  || [ ! -f "$N26_CSS_FILE" ] \
   || [ "${WT_ROOT}/package-lock.json" -nt "$CSS_FILE" ] \
-  || [ "$scss_changed" = true ]; then
+  || [ "$scss_changed" = true ] \
+  || [ "$n26_changed" = true ]; then
   echo "Building CSS (initial build)..."
   (cd "$WT_ROOT" && npm run css > "$LOG_DIR/npm-css-build.log" 2>&1) || {
     echo "ERROR: Initial CSS build failed. See $LOG_DIR/npm-css-build.log" >&2
@@ -281,13 +302,16 @@ if [ ! -f "$CSS_FILE" ] \
   }
 fi
 
-if [ ! -s "$CSS_FILE" ]; then
-  echo "ERROR: Expected CSS file is missing or empty: $CSS_FILE" >&2
-  echo "Run \`npm install && npm run css\` from $WT_ROOT to diagnose." >&2
-  exit 1
-fi
+for css in "$CSS_FILE" "$N26_CSS_FILE"; do
+  if [ ! -s "$css" ]; then
+    echo "ERROR: Expected CSS file is missing or empty: $css" >&2
+    echo "Run \`npm install && npm run css\` from $WT_ROOT to diagnose." >&2
+    exit 1
+  fi
+  echo "CSS ready: $css ($(wc -c < "$css" | tr -d ' ') bytes)"
+done
 CSS_SIZE=$(wc -c < "$CSS_FILE" | tr -d ' ')
-echo "CSS ready: $CSS_FILE (${CSS_SIZE} bytes)"
+N26_CSS_SIZE=$(wc -c < "$N26_CSS_FILE" | tr -d ' ')
 
 # ---------------------------------------------------------------------------
 # Background process management
@@ -326,6 +350,7 @@ echo "  Database:  $DB_NAME"
 echo "  URL:       http://localhost:${DJANGO_PORT}"
 echo "  Logs:      ${LOG_DIR}/"
 echo "  CSS file:  ${CSS_FILE} (${CSS_SIZE} bytes)"
+echo "             ${N26_CSS_FILE} (${N26_CSS_SIZE} bytes)"
 if [ "$NO_WATCH" = false ]; then
 echo "  CSS watch: running (PID ${PIDS[0]:-?}) → ${LOG_DIR}/npm-watch.log"
 fi

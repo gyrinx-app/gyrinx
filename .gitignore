@@ -11,6 +11,7 @@ venv/
 css/
 n23/core/static/core/css/styles.css
 n23/core/static/core/css/styles.css.map
+n26/designsystem/static/designsystem/app.css
 performance_view_queries_latest.json
 dist/
 /node_modules/
