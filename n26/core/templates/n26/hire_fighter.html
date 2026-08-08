@@ -1,4 +1,5 @@
 {% extends "n26/layouts/base.html" %}
+{% load navigation %}
 {% comment %}
 Hiring a fighter — the design system's picker over the real gang list.
 
@@ -16,7 +17,15 @@ Champion/Brute/Hanger-on cap, which is not yet a fact the library records —
 drawing it from a hardcoded list would be a marker that lies.
 {% endcomment %}
 {% block head_title %}Hire Fighters{% endblock head_title %}
-{% block nav_heading %}Hire Fighters{% endblock nav_heading %}
+{% comment %}
+The bar names the gang and opens on the reader's others. The heading
+block stays empty: the switcher carries the name itself, and a bar
+that said it twice would be spending the width the name needs.
+{% endcomment %}
+{% block nav_switcher %}
+    {% gang_switcher gang as gang_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="gang_switcher_" />
+{% endblock nav_switcher %}
 {% block nav_items %}
     {% include 'n26/_nav.html' %}
 {% endblock %}

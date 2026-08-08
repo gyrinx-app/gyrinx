@@ -1,4 +1,5 @@
 {% extends "n26/layouts/base.html" %}
+{% load navigation %}
 {% comment %}
 Choosing what a print includes, before the paper is committed.
 
@@ -18,7 +19,15 @@ Loading a saved config (?config=) pre-fills the same form — editing a config
 and creating one are one screen, not two.
 {% endcomment %}
 {% block head_title %}Print {{ gang.name }}{% endblock head_title %}
-{% block nav_heading %}Print {{ gang.name }}{% endblock nav_heading %}
+{% comment %}
+The bar names the gang and opens on the reader's others. The heading
+block stays empty: the switcher carries the name itself, and a bar
+that said it twice would be spending the width the name needs.
+{% endcomment %}
+{% block nav_switcher %}
+    {% gang_switcher gang as gang_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="gang_switcher_" />
+{% endblock nav_switcher %}
 {% block nav_items %}
     {% include 'n26/_nav.html' %}
 {% endblock %}

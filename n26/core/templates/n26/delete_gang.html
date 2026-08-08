@@ -1,4 +1,5 @@
 {% extends "n26/layouts/base.html" %}
+{% load navigation %}
 {% comment %}
 The question asked before a gang is deleted, at an address of its own.
 
@@ -17,7 +18,15 @@ The alert is warning rather than error: an error reports something that already
 went wrong, and nothing has yet.
 {% endcomment %}
 {% block head_title %}Delete {{ gang.name }}{% endblock head_title %}
-{% block nav_heading %}Delete {{ gang.name }}{% endblock nav_heading %}
+{% comment %}
+The bar names the gang and opens on the reader's others. The heading
+block stays empty: the switcher carries the name itself, and a bar
+that said it twice would be spending the width the name needs.
+{% endcomment %}
+{% block nav_switcher %}
+    {% gang_switcher gang as gang_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="gang_switcher_" />
+{% endblock nav_switcher %}
 {% block nav_items %}
     {% include 'n26/_nav.html' %}
 {% endblock %}
