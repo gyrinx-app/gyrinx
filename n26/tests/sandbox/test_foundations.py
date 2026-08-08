@@ -2,15 +2,15 @@
 
 Stats, statline shapes and profile types are nobody's authoring
 decision — the rulebook fixes them, and nothing else can be built
-until they exist. So they are sown from a page rather than typed, and
+until they exist. So they are created from a page rather than typed, and
 these tests hold the seeds to what makes buttons safer than a data
 migration:
 
-* a seed says honestly whether it has been sown, including *partly*;
-* sowing twice is harmless, so a half-built library can be topped up;
-* sowing shares definitions with nothing invented — a weapon's
+* a seed says honestly whether it has been created, including *partly*;
+* creating twice is harmless, so a half-built library can be topped up;
+* creating shares definitions with nothing invented — a weapon's
   Strength is the fighter's Strength, matched not duplicated;
-* what a seed sows is what the whole app already expects, so a card
+* what a seed creates is what the whole app already expects, so a card
   rendered on seeded content reads exactly as a card on fixtures.
 """
 
@@ -49,7 +49,7 @@ class TestTheSeedsThemselves:
         assert total > 0
 
     @pytest.mark.parametrize("key", sorted(STANDARD_CONTENT), ids=str)
-    def test_sowing_makes_it_sown(self, key, default_pack):
+    def test_creating_makes_it_complete(self, key, default_pack):
         seed = STANDARD_CONTENT[key]
         seed.create()
         present, total = seed.check()
@@ -57,7 +57,7 @@ class TestTheSeedsThemselves:
         assert seed.status() == "complete"
 
     @pytest.mark.parametrize("key", sorted(STANDARD_CONTENT), ids=str)
-    def test_sowing_twice_changes_nothing(self, key, default_pack):
+    def test_creating_twice_changes_nothing(self, key, default_pack):
         seed = STANDARD_CONTENT[key]
         seed.create()
         after_once = seed.check()
@@ -86,7 +86,7 @@ class TestTheSeedsThemselves:
         assert Stat.objects.filter(full_name="Movement").count() == 1
 
 
-class TestWhatTheSeedsSow:
+class TestWhatTheSeedsCreate:
     def test_the_model_characteristics_are_the_thirteen(self, default_pack):
         STANDARD_CONTENT["model-characteristics"].create()
 
@@ -121,7 +121,7 @@ class TestWhatTheSeedsSow:
 
     def test_the_weapon_shape_reuses_the_fighters_strength(self, default_pack):
         """Stat definitions are shared across statline types by design,
-        so sowing both must not fork Strength in two."""
+        so creating both must not fork Strength in two."""
         STANDARD_CONTENT["model-characteristics"].create()
         STANDARD_CONTENT["weapon-characteristics"].create()
 
@@ -153,6 +153,46 @@ class TestWhatTheSeedsSow:
         assert GangType.objects.count() == 17
         assert GangType.objects.get(name="Escher").starting_credits is None
 
+    def test_the_specialisations_arrive_granting_their_skills(self, default_pack):
+        """The Specialist's eight fields, each wired to the one skill it
+        grants — the pair is the content, so a row without its grant is
+        only half created."""
+        from n26.library.models import Specialisation
+
+        STANDARD_CONTENT["skills"].create()
+        STANDARD_CONTENT["specialisations"].create()
+
+        assert set(Specialisation.objects.values_list("name", flat=True)) == {
+            "Heavy",
+            "Gunner",
+            "Gunslinger",
+            "Scout",
+            "Sniper",
+            "Brawler",
+            "Medic",
+            "Tech",
+        }
+        granted = {
+            row.name: [str(modifier.effect.skill) for modifier in row.modifiers.all()]
+            for row in Specialisation.objects.all()
+        }
+        assert granted["Gunner"] == ["Hip-shooting"]
+        assert granted["Medic"] == ["Medicate"]
+        assert granted["Heavy"] == ["Bulging Biceps"]
+
+    def test_specialisations_create_the_skills_they_grant(self, default_pack):
+        """Created alone — no skills yet — it still completes, because a
+        specialisation without its skill is half a thing and the seed
+        owns that dependency rather than the order of button presses."""
+        from n26.library.models import Skill, Specialisation
+
+        seed = STANDARD_CONTENT["specialisations"]
+        seed.create()
+
+        assert seed.status() == "complete"
+        assert Specialisation.objects.count() == 8
+        assert Skill.objects.filter(name="Hip-shooting").exists()
+
 
 class TestThePage:
     def test_it_shows_status_before_and_after(self, author, client, default_pack):
@@ -170,7 +210,7 @@ class TestThePage:
         assert "complete" in body
         assert "Fighter" in body  # the profile type it made
 
-    def test_sowing_needs_a_real_seed(self, author, client, default_pack):
+    def test_creating_needs_a_real_seed(self, author, client, default_pack):
         assert (
             client.post(
                 "/n26/authoring/foundations/", {"do": "seed:nonsense"}
@@ -289,7 +329,7 @@ class TestSeededContentIsUsable:
     def test_a_weapon_authored_on_seeded_stats_renders(
         self, author, client, default_pack
     ):
-        """End to end from nothing: sow, author a weapon, read the card."""
+        """End to end from nothing: create, author a weapon, read the card."""
         from n26.core.render import render_gang
         from n26.library.authoring import create_profile, create_trait, set_statline
         from n26.library.models import Weapon
@@ -349,7 +389,10 @@ class TestSeededContentIsUsable:
             intelligence=6,
         )
         gang = found_gang(
-            "The Seeded", gang_type, owner=User.objects.create_user("sower"), budget=500
+            "The Seeded",
+            gang_type,
+            owner=User.objects.create_user("seeder"),
+            budget=500,
         )
         fighter = hire(gang, ganger, "Yolanda", paid=50)
         give_weapon(fighter, lasgun, paid=15)

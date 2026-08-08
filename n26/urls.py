@@ -29,6 +29,12 @@ urlpatterns = [
         authoring_views.foundations,
         name="authoring-foundations",
     ),
+    path("authoring/ingest/", authoring_views.ingest, name="authoring-ingest"),
+    path(
+        "authoring/ingest/clear/",
+        authoring_views.ingest_clear,
+        name="authoring-ingest-clear",
+    ),
     path("authoring/<slug:kind>/", authoring_views.leaf, name="authoring-leaf"),
     path(
         "authoring/<slug:kind>/<str:pk>/",

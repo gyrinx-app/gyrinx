@@ -25,6 +25,7 @@ pack, exactly as admin ingestion would. Nothing here stores rules text —
 see CLAUDE.md.
 """
 
+import re
 from dataclasses import dataclass
 
 from n26.library.models import (
@@ -192,6 +193,7 @@ def create_wargear(
     name,
     price=0,
     trade_point_price=None,
+    is_exclusive=False,
     category=None,
     qualifier="",
     library_author_help="",
@@ -205,6 +207,7 @@ def create_wargear(
         name=name,
         price=price,
         trade_point_price=trade_point_price,
+        is_exclusive=is_exclusive,
         category=category,
         qualifier=qualifier,
         library_author_help=library_author_help,
@@ -292,6 +295,26 @@ def create_power(
         library_author_help=library_author_help,
         **kwargs,
     )
+
+
+def split_annotation(text):
+    """``"Leash (3\\")"`` → ``("Leash", '3"')``; ``"Melee"`` → ``("Melee", "")``.
+
+    How a printed name in brackets is read, in one place, because two
+    writers use it: the importer reading a sheet cell, and the authoring
+    forms reading what a person typed. They must agree — a rule's
+    annotation is part of its identity, so ``Leash`` + ``3"`` and a rule
+    literally named ``Leash (3")`` are different rows that print the
+    same, which is precisely the duplicate the annotation prevents.
+    """
+    smart = {"“": '"', "”": '"', "’": "'", "‘": "'"}
+    for curly, plain in smart.items():
+        text = text.replace(curly, plain)
+    text = re.sub(r"\s*\(", " (", text.strip())
+    match = re.match(r"^(.*?)\s*\((.*)\)$", text)
+    if match:
+        return match.group(1), match.group(2)
+    return text, ""
 
 
 def create_rule(name, annotation="", qualifier="", library_author_help="", **kwargs):
@@ -516,13 +539,14 @@ def create_counter(name, qualifier="", library_author_help="", **kwargs):
 
 
 def restrict_use(thing, *allowed):
-    """Who may use this — pass ProfileType, Subtype or Profile rows.
+    """Who may use this — ProfileType, Subtype, Profile or Specialisation.
 
     ``restrict_use(wyld_bow, wyld_runner)`` is "Wyld bow (Wyld Runner
     only)": a whole fighter entry, which is how a shared house list
-    narrows a few of its lines.
+    narrows a few of its lines. ``restrict_use(rad_beamer, gunner)`` is
+    "(Gunner specialist only)" — the field a Specialist chose.
     """
-    from n26.library.models import Profile, ProfileType, Subtype
+    from n26.library.models import Profile, ProfileType, Specialisation, Subtype
 
     for item in allowed:
         if isinstance(item, ProfileType):
@@ -531,6 +555,8 @@ def restrict_use(thing, *allowed):
             thing.usable_by_subtypes.add(item)
         elif isinstance(item, Profile):
             thing.usable_by_profiles.add(item)
+        elif isinstance(item, Specialisation):
+            thing.usable_by_specialisations.add(item)
         else:
             raise ValueError(f"{type(item).__name__} cannot restrict use")
     return thing

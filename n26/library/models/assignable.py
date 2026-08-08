@@ -253,6 +253,17 @@ class UsableBy(models.Model):
             "rulebook prints per-entry restrictions."
         ),
     )
+    usable_by_specialisations = models.ManyToManyField(
+        "library.Specialisation",
+        blank=True,
+        related_name="+",
+        help_text=(
+            'The "Gunner" in "(Gunner specialist only)" — the field a '
+            "Specialist chose, which is a possession like a subtype rather "
+            "than a kind of fighter. Van Saar narrow several list lines "
+            "this way."
+        ),
+    )
 
     class Meta:
         abstract = True
@@ -260,11 +271,11 @@ class UsableBy(models.Model):
     def usable_by_selector(self):
         """Who may use this, in the selector vocabulary.
 
-        The stored shape stays this mixin's own dialect — three tailored
+        The stored shape stays this mixin's own dialect — four tailored
         M2Ms — and compiles here to the one grammar: being an allowed
         *entry* is an ``Exactly`` (the fighter matchable's thing is their
-        profile); having an allowed type or subtype is a ``Has``. Empty
-        is ``Anything()``, the default-open rule.
+        profile); having an allowed type, subtype or specialisation is a
+        ``Has``. Empty is ``Anything()``, the default-open rule.
 
         Prefetch-aware: reads the lists with ``.all()``, so a browse that
         prefetched them compiles a whole listing without extra queries.
@@ -274,6 +285,7 @@ class UsableBy(models.Model):
         possessed = [
             *self.usable_by_profile_types.all(),
             *self.usable_by_subtypes.all(),
+            *self.usable_by_specialisations.all(),
         ]
         entries = list(self.usable_by_profiles.all())
         if not possessed and not entries:
@@ -780,6 +792,11 @@ class Rule(Content, Assignable):
     only — the rule's text is copyrighted and is never stored (CLAUDE.md).
     A rule that also *does* something the app can compute carries ordinary
     modifiers.
+
+    The annotation is part of the identity, exactly as it is for a
+    ``Trait``: a rule that comes in variants — a leash at several
+    distances — is several rows sharing one printed name, not one row
+    that cannot decide.
     """
 
     family = Family.BASE
@@ -787,11 +804,12 @@ class Rule(Content, Assignable):
     class Meta:
         verbose_name = "special rule"
         verbose_name_plural = "special rules"
-        ordering = ["name"]
+        ordering = ["name", "annotation"]
         constraints = [
             models.UniqueConstraint(
                 "pack",
                 Lower("name"),
+                Lower("annotation"),
                 Lower("qualifier"),
                 name="rule_unique_per_pack",
             ),

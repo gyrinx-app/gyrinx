@@ -166,6 +166,32 @@ class TestTheUnionPicker:
         assert str(effect) == "adds Cult of Personality"
         assert Rule.objects.filter(name="Cult of Personality").exists()
 
+    def test_a_named_rule_puts_its_bracket_in_the_annotation(self, default_pack):
+        """A rule's annotation is part of its identity, so a bracket the
+        author typed must land there. Otherwise this makes a rule *named*
+        "Leash (3")" that prints exactly like the real one, matches
+        nothing, and quietly doubles it."""
+        from n26.library.models import Rule
+
+        form = generate_form(specs()["ef_adds"])(
+            {"thing_kind": "rule", "thing_new_rule": 'Leash (3")'}
+        )
+        assert form.is_valid(), form.errors
+        form.compile()
+
+        rule = Rule.objects.get(name="Leash")
+        assert rule.annotation == '3"'
+        assert str(rule) == 'Leash (3")'  # prints as the book writes it
+
+    def test_the_form_and_the_importer_read_a_name_the_same_way(self, default_pack):
+        """The two writers of content must agree, or each makes rows the
+        other cannot find."""
+        from n26.library.authoring import split_annotation
+        from n26.library.ingest import _name_and_annotation
+
+        for typed in ('Leash (3")', "Melee", "Ammo (5+)", "Knockback (6+)"):
+            assert split_annotation(typed) == _name_and_annotation(typed)
+
     def test_neither_picked_nor_named_refuses_in_words(self, default_pack):
         form = generate_form(specs()["ef_adds"])({"thing_kind": "rule"})
         assert not form.is_valid()

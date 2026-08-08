@@ -78,7 +78,7 @@ def gang_type(db):
     return GangType.objects.create(name="Escher")
 
 
-#: The fixtures build exactly what the Foundations page sows — one
+#: The fixtures build exactly what the Foundations page creates — one
 #: definition, so a suite can never stand on a shape the app cannot
 #: produce.
 FIGHTER_STAT_DEFINITIONS = MODEL_CHARACTERISTICS

@@ -128,16 +128,21 @@ class Card:
         return next((n for n in self.all_nodes() if n.name == name), None)
 
     def model_matchable(self):
-        """The model as selector food: its entry, its type, its subtypes.
+        """The model as selector food: its entry, its type, its subtypes
+        and the specialisation it chose.
 
         The **base** adapter: printed facts — stored rows — only. During
         ``compute`` each round layers what earlier rounds settled on top
         of this (``n26.effects._Facts``), so a filtered scope sees
         unconditional grants; ``usability_for`` layers the final state
         the same way. Called bare, it answers from the rows alone.
+
+        A specialisation counts as a possession for the same reason a
+        subtype does: "(Gunner specialist only)" asks what this fighter
+        *is*, and the choice is the answer.
         """
         from n26.core import select
-        from n26.library.models import Counter, Subtype
+        from n26.library.models import Counter, Specialisation, Subtype
 
         profile = None
         possessions = []
@@ -150,7 +155,7 @@ class Card:
             if node.is_primary_profile:
                 profile = node.assignable
                 possessions.append(profile.profile_type)
-            elif isinstance(node.assignable, Subtype):
+            elif isinstance(node.assignable, (Subtype, Specialisation)):
                 possessions.append(node.assignable)
             elif isinstance(node.assignable, Counter):
                 held = (

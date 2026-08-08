@@ -1,0 +1,86 @@
+{% extends "authoring/base.html" %}
+{% block head_title %}
+    Delete imported content
+{% endblock head_title %}
+{% block content %}
+    <c-n26.page-header title="Delete all imported content"
+                       lead="Everything an import wrote goes. The foundations stay, so the next import starts from the same ground.">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Authoring</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-ingest' %}">Ingest</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Delete
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+    </c-n26.page-header>
+    {% if total %}
+        <c-n26.form-section title="What would go"
+                            description="Counted now, from the same query that does the deleting — so these are the rows, not an estimate."
+                            class="mt-8">
+            <c-ui.table>
+                <thead>
+                    <tr>
+                        <th scope="col" class="w-full">Kind</th>
+                        <th scope="col" class="text-right">Rows</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for kind, count in standing.items %}
+                        <tr>
+                            <td>{{ kind }}</td>
+                            <td class="text-right tabular-nums">{{ count }}</td>
+                        </tr>
+                    {% endfor %}
+                    <tr>
+                        <td class="font-medium text-ink-900 dark:text-ink-100">Total</td>
+                        <td class="text-right font-medium tabular-nums text-ink-900 dark:text-ink-100">{{ total }}</td>
+                    </tr>
+                </tbody>
+            </c-ui.table>
+        </c-n26.form-section>
+        <c-n26.form-section title="What stays" class="mt-10">
+            <c-n26.prose>
+                <p>
+                    The rows the rulebook fixes: stats, statline shapes, the two Types,
+                    the core subtypes and skills, the gang types, the specialisations
+                    and the skill sets they grant, the Skills &amp; Powers collection
+                    and the Trading Post — along with the eight grants wiring a
+                    specialisation to its skill. Every one of those is standard content,
+                    and a clear leaves it whole — the
+                    <c-n26.link href="{% url 'authoring-foundations' %}">Foundations</c-n26.link>
+                    page will still read complete afterwards.
+                </p>
+                <p>
+                    Every other modifier goes, including any authored by hand: one
+                    rule naming a trait that is on its way out would otherwise stop
+                    the whole clear.
+                </p>
+                <p>
+                    Content a gang is holding cannot go: the player data protects it.
+                    If any does, nothing at all is removed and this page names what
+                    holds it.
+                </p>
+            </c-n26.prose>
+        </c-n26.form-section>
+        <div class="mt-10 rounded-box border border-red-500/40 px-4 py-3">
+            <form method="post" class="flex flex-wrap items-center gap-3">
+                {% csrf_token %}
+                <c-ui.button type="submit" variant="danger">
+                    Yes, delete {{ total }} rows
+                </c-ui.button>
+                <c-n26.link href="{% url 'authoring-ingest' %}">Cancel</c-n26.link>
+            </form>
+        </div>
+    {% else %}
+        <c-n26.form-section title="Nothing to delete" class="mt-8">
+            <c-n26.prose>
+                <p>
+                    The library holds nothing an import wrote — only the foundations.
+                    <c-n26.link href="{% url 'authoring-ingest' %}">Back to Ingest</c-n26.link>.
+                </p>
+            </c-n26.prose>
+        </c-n26.form-section>
+    {% endif %}
+{% endblock content %}

@@ -74,7 +74,11 @@ EFFECT_MODELS = {
 #: Kinds the union picker may create inline: name-only leaves. The help
 #: is the copyright guardrail, written once.
 CREATABLE_INLINE = ("rule", "subtype")
-NAME_ONLY_HELP = "Name only. The rule's wording stays in the book."
+NAME_ONLY_HELP = (
+    "Name only. The rule's wording stays in the book. A bracket becomes "
+    'the annotation, so "Leash (3\\")" is Leash at 3" — the same row the '
+    "importer would make."
+)
 
 
 class PendingCreate:
@@ -295,8 +299,16 @@ class GeneratedForm(forms.Form):
         """
         from n26.library import authoring
 
+        def _new_rule(typed):
+            # A rule's annotation is part of its identity, so a bracket
+            # the author typed has to land in the annotation — otherwise
+            # this makes a rule *named* "Leash (3\")" that prints exactly
+            # like the real one and matches nothing.
+            name, annotation = authoring.split_annotation(typed)
+            return authoring.create_rule(name, annotation=annotation)
+
         creators = {
-            "rule": authoring.create_rule,
+            "rule": _new_rule,
             "subtype": authoring.create_subtype,
         }
         data = {}
