@@ -1008,6 +1008,7 @@ def gang_sheet():
         rating=360,
         credits=1037,
         wealth=1397,
+        colour="violet",
         rows=[
             AssignableLine(name="Founded in Cycle 3"),
             AssignableLine(name="Escher house list"),
@@ -1078,7 +1079,7 @@ def gang_sheet_context():
 # worth. Only the four figures matter here; a dashboard row draws nothing else.
 
 
-def _gang_summary(name, gang_type, rating, credits, stash_rating):
+def _gang_summary(name, gang_type, rating, credits, stash_rating, colour=""):
     return GangSheet(
         name=name,
         gang_type=gang_type,
@@ -1086,19 +1087,21 @@ def _gang_summary(name, gang_type, rating, credits, stash_rating):
         credits=credits,
         stash_rating=stash_rating,
         wealth=rating + credits + stash_rating,
+        colour=colour,
     )
 
 
 #: Five gangs, deliberately unalike: a long name to test the row on a phone, two
-#: of the same type so the filter has something to narrow, and one with nothing in
-#: the stash so a zero is drawn rather than hidden.
+#: of the same type so the filter has something to narrow, one with nothing in the
+#: stash so a zero is drawn rather than hidden, and two with no colour, because a
+#: list where some rows carry a mark and some do not is the one that ships.
 GANGS = [
-    _gang_summary("The Ashen Choir", "Escher (HoB)", 360, 1037, 100),
-    _gang_summary("Rust in Peace", "Goliath (HoC)", 1240, 85, 0),
+    _gang_summary("The Ashen Choir", "Escher (HoB)", 360, 1037, 100, "violet"),
+    _gang_summary("Rust in Peace", "Goliath (HoC)", 1240, 85, 0, "amber"),
     _gang_summary(
         "The Silent Ledger and the Long Count", "Delaque (HoS)", 980, 210, 45
     ),
-    _gang_summary("Sump City Rats", "Underhive Outcasts", 1475, 12, 260),
+    _gang_summary("Sump City Rats", "Underhive Outcasts", 1475, 12, 260, "teal"),
     _gang_summary("Cog and Coil", "Goliath (HoC)", 1105, 430, 75),
 ]
 

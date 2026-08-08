@@ -1097,6 +1097,29 @@ GROUPS: list[Group] = [
                 ),
             ),
             Component(
+                slug="color-swatch",
+                tag="c-n26.color-swatch",
+                template="n26/color_swatch.html",
+                summary="A colour, as a small round mark before a name.",
+                notes=(
+                    "One component for the mark a gang's colour makes, because the "
+                    "gang table, the gang's own heading and the drawer would "
+                    "otherwise each answer three questions for themselves and come "
+                    "to different answers. One prop takes the colour whether it is a "
+                    "literal or a theme name: a hex is frozen because someone chose "
+                    "it, while a token resolves through var() and follows a theme "
+                    "change. It has to be a style attribute — Tailwind reads class "
+                    "names as literal strings, so a class built from a variable is "
+                    "one it never emits, while every --color-* variable is emitted "
+                    "for exactly this lookup. No colour draws nothing at all: a "
+                    "reserved space would be an empty gutter down a list where most "
+                    "gangs have none, and a neutral ring would be indistinguishable "
+                    "from a gang that picked ink. Aria-hidden unless given a label, "
+                    "because a colour on its own tells a reader who cannot see it "
+                    "nothing they can use and the name is already beside it."
+                ),
+            ),
+            Component(
                 slug="color-link",
                 tag="c-n26.color-link",
                 template="n26/color_link.html",
@@ -1104,12 +1127,11 @@ GROUPS: list[Group] = [
                 notes=(
                     "The sibling of flair-link: both are c-n26.link with something "
                     "in a slot that sits outside the underline — a swatch before the "
-                    "text here, a badge after it there. One prop takes the colour "
-                    "whether it is a literal or a theme name, because a call site "
-                    "should not have to say which it meant: a hex is frozen because "
-                    "someone chose it, while a token resolves through var() and "
-                    "follows a theme change. Sized in em like flair-link, so there is "
-                    "no size prop."
+                    "text here, a badge after it there. The swatch is "
+                    "c-n26.color-swatch, so this owns only the placing of it; a "
+                    "heading or a drawer row that already has an anchor of its own "
+                    "draws the swatch directly rather than taking a link it does not "
+                    "want."
                 ),
             ),
             Component(

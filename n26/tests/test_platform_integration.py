@@ -249,6 +249,36 @@ class TestTheNavigation:
         assert positions == sorted(positions)
         assert f"/n26/gangs/{gang.pk}/" in drawer
 
+    def test_a_gangs_colour_is_a_mark_beside_its_name(
+        self, tester, client, default_pack, gang_type, make_profile
+    ):
+        """The colour reaches the markup as the palette's variable in a
+        style attribute. A class built from the colour's name is a string
+        Tailwind never sees and never emits, so it would have styled
+        nothing at all."""
+        from n26.tests.sandbox.actions import found_gang
+
+        gang = found_gang("The Bad Girls", gang_type, owner=tester)
+        gang.colour = "violet"
+        gang.save()
+
+        drawer = nav_drawer(client.get("/n26/").content.decode())
+        assert "background: var(--color-violet-500)" in drawer
+
+    def test_a_gang_with_no_colour_gets_no_mark(
+        self, tester, client, default_pack, gang_type, make_profile
+    ):
+        """Nothing is drawn and no space is held: most gangs have no
+        colour, and a placeholder on every row is a gutter with nothing
+        in it."""
+        from n26.tests.sandbox.actions import found_gang
+
+        found_gang("The Bad Girls", gang_type, owner=tester)
+
+        drawer = nav_drawer(client.get("/n26/").content.decode())
+        assert "The Bad Girls" in drawer
+        assert "background: var(--color-" not in drawer
+
     def test_nobody_elses_gangs_are_in_it(
         self, tester, client, default_pack, gang_type, make_profile
     ):

@@ -23,13 +23,14 @@ def tester(db):
 
 @pytest.fixture
 def make_gang(gang_type, tester):
-    def _make(name, owner=None, type_=None):
+    def _make(name, owner=None, type_=None, colour=""):
         return Gang.objects.create(
             name=name,
             owner=owner or tester,
             gang_type=type_ or gang_type,
             starting_credits=1000,
             credits=1000,
+            colour=colour,
         )
 
     return _make
@@ -87,6 +88,43 @@ def test_each_row_links_to_its_sheet(client, tester, make_gang):
     client.force_login(tester)
     body = client.get(reverse("n26-gangs")).content.decode()
     assert reverse("n26-gang", args=[gang.pk]) in body
+
+
+def row_link(body):
+    """The anchor on a row's name — the one carrying .n26-row-link.
+
+    Sliced out rather than searched for, because a gang the reader owns
+    is named in the drawer as well: a bare substring search could not
+    tell the row's copy of the mark from the drawer's.
+    """
+    link = body[body.index("n26-row-link") :]
+    return link[: link.index("</a>")]
+
+
+def test_a_gangs_colour_is_a_mark_before_its_name(client, tester, make_gang):
+    """Resolved to the palette's variable in a style attribute. A class
+    built from the colour's name is a string Tailwind never sees and
+    never emits, so it would have styled nothing at all."""
+    make_gang("The Ashen Choir", colour="teal")
+
+    client.force_login(tester)
+    link = row_link(client.get(reverse("n26-gangs")).content.decode())
+    assert "background: var(--color-teal-500)" in link
+    # Decorative: the colour says nothing the name beside it does not.
+    assert 'aria-hidden="true"' in link
+
+
+def test_a_gang_with_no_colour_gets_no_mark(client, tester, make_gang):
+    """Nothing drawn and no space held. Most gangs have no colour, so a
+    placeholder would be an empty gutter down the length of the list —
+    and the palette has an `ink`, so a neutral mark would be a gang that
+    chose grey."""
+    make_gang("The Ashen Choir")
+
+    client.force_login(tester)
+    link = row_link(client.get(reverse("n26-gangs")).content.decode())
+    assert "The Ashen Choir" in link
+    assert "background: var(--color-" not in link
 
 
 def test_founding_is_offered_where_the_list_is(client, tester):

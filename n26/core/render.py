@@ -305,6 +305,9 @@ class GangSheet:
     rating: int
     credits: int
     wealth: int
+    #: The colour the owner picked, drawn as a mark wherever the gang is
+    #: named. A palette name the theme resolves, or empty for no colour.
+    colour: str = ""
     #: The gang's own rows — its founding, the house list, its rules.
     rows: list[AssignableLine] = field(default_factory=list)
     #: Gang-level choices — a Venator's ranked skill trees.
@@ -765,6 +768,7 @@ def render_gang(gang, with_effects=True):
         rating=gang.rating,
         credits=gang.credits,
         wealth=gang.wealth,
+        colour=gang.colour,
         rows=_gang_rows(gang_card, gang_computed),
         choices=(
             [

@@ -243,6 +243,16 @@ class TestTheSheetDerives:
         # The answer row is drawn as the choice's line, never twice.
         assert "Overwatch" not in [line.name for line in sheet.rows]
 
+    def test_the_gangs_colour_rides_the_sheet(self, gang):
+        """The mark drawn beside a gang's name comes off the sheet like
+        everything else a page shows, so a heading and the row that
+        opened it cannot disagree about which colour the gang is."""
+        assert render_gang(gang).colour == ""
+
+        gang.colour = "violet"
+        gang.save()
+        assert render_gang(gang).colour == "violet"
+
     def test_wealth_still_counts_everything(self, gang, yolanda, house_list):
         from n26.core.browse import browse
 

@@ -1,0 +1,49 @@
+{% comment %}
+<c-n26.color-swatch> — a colour, as a small round mark before a name.
+
+    <c-n26.color-swatch color="teal" />
+    <c-n26.color-swatch color="#8d9900" shade="600" label="Gang colour" />
+
+The mark a gang's colour makes wherever the gang is named — the table of gangs,
+the gang's own heading, the drawer. One component, so those cannot come to
+disagree about how big the dot is, how far it sits from the name, or what an
+unset colour looks like. <c-n26.color-link> draws this in its leading slot; the
+three places that already have their own anchor draw it directly.
+
+*One prop takes the colour, whether it is a name or a literal.* Anything
+containing "#" or "(" is used verbatim; anything else is read as a theme colour,
+so `accent` follows the brand and `red` resolves to `var(--color-red-500)`. A
+call site should not have to say which kind it meant — see css_color in
+core/templatetags/theme.py. It has to be a style attribute rather than a class:
+Tailwind reads class names as literal strings, so bg-{{ colour }}-500 is a class
+it never sees and never emits, while every --color-* variable is emitted for
+exactly this lookup.
+
+*No colour draws nothing* — no outline, no reserved space. Most gangs have none,
+so a placeholder would be an empty gutter down the length of a list; and the
+palette contains `ink`, so a neutral ring would be indistinguishable from a gang
+that chose grey. A name with no mark starts where names start. Deciding it here
+rather than at each call site is the point: a list, a heading and a drawer row
+cannot answer it differently.
+
+*Sized in em, so there is no size prop.* A little under the cap height and
+nudged off the baseline, so it reads as sitting on the text's centre line, and
+the same call works in a 14px drawer row and in a 3xl heading. The gap is the
+component's too, for the same reason the size is.
+
+  color — a theme colour name, `accent`, or a literal such as #8d9900. Empty
+    draws nothing at all.
+  shade — which step of a named scale. Default 500; ignored for accent and literals.
+  label — an accessible name for the mark. Left empty it is aria-hidden, which is
+    right wherever the thing it stands for is named in the text beside it: a
+    colour on its own tells a reader who cannot see it nothing they can use.
+{% endcomment %}{% load theme %}<c-vars
+    color=""
+    shade="500"
+    label=""
+    class=""
+/>{% comment %}
+Cramped tags and no trailing newline, like <c-n26.link>: this renders inline, so
+any whitespace the template emits around its markup collapses into a space next
+to the name it precedes — on top of the gap the mark already carries.
+{% endcomment %}{% if color %}<span class="mr-[0.4em] inline-block size-[0.8em] shrink-0 rounded-full align-[-0.02em] {{ class }}" style="background: {{ color|css_color:shade }}" {% if label %}role="img" aria-label="{{ label }}"{% else %}aria-hidden="true"{% endif %}></span>{% endif %}

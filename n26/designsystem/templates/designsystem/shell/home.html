@@ -35,6 +35,7 @@ the bottom.
                     {% endcomment %}
                     <c-n26.gang-table.row name="{{ gang.name }}"
                                           type="{{ gang.gang_type }}"
+                                          colour="{{ gang.colour }}"
                                           :sheet="gang"
                                           href="{% url 'designsystem:shell_gang' %}"
                                           print_href="{% url 'designsystem:print_lab' %}" />

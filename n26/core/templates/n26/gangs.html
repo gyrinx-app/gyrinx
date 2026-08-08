@@ -40,6 +40,7 @@ where someone goes when they want one more.
             {% for gang in gangs %}
                 <c-n26.gang-table.row name="{{ gang.name }}"
                                       type="{{ gang.gang_type }}"
+                                      colour="{{ gang.colour }}"
                                       :sheet="gang"
                                       href="{% url 'n26-gang' gang.pk %}" />
             {% endfor %}

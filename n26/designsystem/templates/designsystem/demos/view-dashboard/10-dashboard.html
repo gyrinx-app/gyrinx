@@ -12,6 +12,7 @@
             {% for gang in dashboard_gangs %}
                 <c-n26.gang-table.row name="{{ gang.name }}"
                                       type="{{ gang.gang_type }}"
+                                      colour="{{ gang.colour }}"
                                       :sheet="gang"
                                       href="#"
                                       print_href="#" />

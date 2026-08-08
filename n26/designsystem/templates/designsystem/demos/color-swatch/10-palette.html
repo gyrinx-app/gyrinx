@@ -1,0 +1,23 @@
+{# title: A colour, before a name #}
+{# note: The mark a gang's colour makes wherever the gang is named. A style attribute, not a class: Tailwind reads class names as literal strings, so one built from a variable is never emitted — every --color-* variable is, for exactly this lookup. #}
+{# layout: col #}
+<p>
+    <c-n26.color-swatch color="violet" />
+    The Ashen Choir
+</p>
+<p>
+    <c-n26.color-swatch color="amber" />
+    Rust in Peace
+</p>
+<p>
+    <c-n26.color-swatch color="teal" />
+    Sump City Rats
+</p>
+<p>
+    <c-n26.color-swatch color="#8d9900" />
+    A literal, frozen because someone chose it
+</p>
+<p>
+    <c-n26.color-swatch color="accent" />
+    The theme's own accent, which follows it
+</p>
