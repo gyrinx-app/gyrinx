@@ -930,6 +930,67 @@ Equipment List,Cawdor,Ranged weapons,Somewhere else,Frag lance,,35,,x
         assert [p.kind for p in only_lists.planned if p.kind == "Weapon"] == ["Weapon"]
 
 
+class TestBuiltInsResolveByNameAlone:
+    """A fighter's built-in kit prints a bare name and no category, so
+    this is the one place resolution cannot use the sheets' ID — and
+    the one place a shared name has to be refused rather than guessed."""
+
+    FIGHTER = """
+Gang,Name,M,WS,BS,S,T,W,I,A,Sv,Ld,Cl,Wil,Int,Type,Subtype(s),Starting XP,Rating,Special Rules,Default skills,Default assignment,Primary Skill Sets,Secondary Skill Sets
+Escher,Scout,6",4+,4+,3,3,1,4,1,6+,6,7,7,6,Fighter,Ganger,4,25,,,Farsight,Agility,
+"""
+
+    def test_one_of_a_name_resolves_whatever_kind_it_is(self, foundation, default_pack):
+        from n26.library import authoring
+
+        accessory = authoring.create_weapon_accessory("Farsight", price=15)
+        plan = plan_ingest(profiles=read_csv(self.FIGHTER))
+
+        assert plan.ok
+        built_ins = plan.get(plan.get("Profile:scout").fields["built_ins"])
+        # The set also holds the subtype and the opening XP; the kit is
+        # whatever resolved to a catalogue row.
+        kit = [
+            plan.get(member["item"]).name
+            for member in built_ins.fields["members"]
+            if member["item"].startswith(("Weapon", "Wargear"))
+        ]
+        assert kit == [accessory.name]
+
+    def test_a_name_two_kinds_share_is_refused(self, foundation, default_pack):
+        """A sight and a piece of wargear may print one name. Answering
+        by whichever kind is looked up first is no answer."""
+        from n26.library import authoring
+
+        authoring.create_wargear("Farsight", price=10)
+        authoring.create_weapon_accessory("Farsight", price=15)
+
+        plan = plan_ingest(profiles=read_csv(self.FIGHTER))
+
+        assert plan.ok  # a note — the fighter still arrives
+        assert any("imported without it" in p.message for p in plan.problems)
+        # The fighter keeps its subtype and XP; only the kit is missing.
+        built_ins = plan.get(plan.get("Profile:scout").fields["built_ins"])
+        assert not [
+            member
+            for member in built_ins.fields["members"]
+            if member["item"].startswith(("Weapon", "Wargear"))
+        ]
+
+    def test_two_rows_of_one_kind_are_refused_too(self, foundation, default_pack):
+        """Same trap within a kind: a qualifier is what tells them
+        apart, and a bare name does not carry one."""
+        from n26.library import authoring
+
+        authoring.create_wargear("Farsight", price=10, qualifier="Escher")
+        authoring.create_wargear("Farsight", price=15, qualifier="Cawdor")
+
+        plan = plan_ingest(profiles=read_csv(self.FIGHTER))
+
+        assert plan.ok
+        assert any("imported without it" in p.message for p in plan.problems)
+
+
 class TestClearing:
     """Undoing an import, so the next one starts from the same ground.
 

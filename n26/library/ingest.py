@@ -1041,21 +1041,34 @@ def _resolve_item(plan, name):
     if len(hits) > 1:
         return None  # ambiguous by name; the ID is what tells them apart
 
-    for kind, model in (
-        ("Weapon", Weapon),
-        ("Wargear", Wargear),
-        ("WeaponAccessory", WeaponAccessory),
-    ):
-        if existing := _exists(plan, model, name__iexact=_clean(name)):
-            return plan.add(
-                kind,
-                existing.name,
-                {"price": existing.price, "unpriced": False},
-                Source("resolution", 0),
-                key=f"{kind}:resolved|{wanted}",
-                action="exists",
-            ).key
-    return None
+    # Every kind at once, and every row of each: a sight and a piece of
+    # wargear may print one name, as may two rows of one kind told apart
+    # by their qualifier. Taking the first would answer by the order
+    # these are asked in, which is no answer at all.
+    found = [
+        (kind, row)
+        for kind, model in (
+            ("Weapon", Weapon),
+            ("Wargear", Wargear),
+            ("WeaponAccessory", WeaponAccessory),
+        )
+        for row in model.objects.filter(pack=plan.pack, name__iexact=_clean(name))
+    ]
+    if len(found) != 1:
+        return None
+    kind, existing = found[0]
+    return plan.add(
+        kind,
+        existing.name,
+        {
+            "price": existing.price,
+            "unpriced": False,
+            "qualifier": existing.qualifier,
+        },
+        Source("resolution", 0),
+        key=f"{kind}:resolved|{wanted}",
+        action="exists",
+    ).key
 
 
 #: What the ``Collection`` column says these rows build. One kind today;
