@@ -97,3 +97,33 @@ class TestTheList:
         # Lowercased at render time, because the query is lowercased before the
         # comparison and doing it per keystroke would be work per row per key.
         assert "pit of teeth" in html
+
+
+class TestStayingOnTheScreen:
+    """A panel hung from a trigger in the middle of a narrow window runs off
+    the edge, and the destinations past the edge cannot be pressed. Nothing a
+    server-rendered test can see says whether that happened, so what is pinned
+    here is the two pieces that stop it — one CSS, one script — because either
+    can be dropped in an edit and leave a page that still serves 200."""
+
+    def test_the_panel_can_never_be_wider_than_the_window(self):
+        html = render(f"<c-n26.quick-switcher>{ITEMS}</c-n26.quick-switcher>")
+        assert "max-w-[calc(100vw-1rem)]" in html
+
+    def test_a_minimum_width_is_capped_at_the_window_too(self):
+        """A minimum beats a maximum in CSS, so a minimum wider than the screen
+        would undo the cap above it."""
+        html = render(
+            f'<c-n26.quick-switcher min_width="24rem">{ITEMS}</c-n26.quick-switcher>'
+        )
+        assert "min(24rem, calc(100vw - 1rem))" in html
+
+    def test_the_placement_is_corrected_when_the_panel_opens_and_on_resize(self):
+        html = render(f"<c-n26.quick-switcher>{ITEMS}</c-n26.quick-switcher>")
+        assert "this.fit()" in html
+        assert "window.addEventListener('resize', this.refit)" in html
+
+    def test_the_scriptless_strip_gives_up_its_width_rather_than_overflow(self):
+        html = render(f"<c-n26.quick-switcher>{ITEMS}</c-n26.quick-switcher>")
+        strip = html.split("<noscript>")[1]
+        assert "max-w-full" in strip

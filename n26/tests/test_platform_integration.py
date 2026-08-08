@@ -313,6 +313,34 @@ class TestTheNavigation:
         assert "set('system')" in account_menu(body)
         assert 'aria-label="Toggle dark mode"' not in nav_bar(body)
 
+    def test_the_scheme_is_one_control_of_three_and_not_three_rows(
+        self, tester, client, default_pack
+    ):
+        """Three menu rows would stand level with the places the menu
+        leads to, and make the panel half as tall again on the screen
+        with the least height to give. One segmented control says the
+        same thing in a third of the space — and it is a choice of one
+        from three, so each part announces itself as a radio in a group
+        rather than as another door out of the menu."""
+        menu = account_menu(client.get("/n26/").content.decode())
+        assert menu.count('role="menuitemradio"') == 3
+        assert 'role="group"' in menu
+        assert 'aria-label="Theme"' in menu
+        # Each state still sets it: a control that renders and no longer
+        # switches looks right in every screenshot and works for nobody.
+        for scheme in ("light", "dark", "system"):
+            assert f"set('{scheme}')" in menu
+
+    def test_each_scheme_carries_its_own_drawing(self, tester, client, default_pack):
+        """The sun, the moon and a screen. One icon for the group could
+        only picture whichever scheme is current, and which one is
+        current is what the control is there to show."""
+        from n26.core import icons
+
+        menu = account_menu(client.get("/n26/").content.decode())
+        for name in ("sun", "moon", "computer-desktop"):
+            assert icons.paths(name)[0] in menu
+
     def test_the_drawer_holds_the_places_the_app_has(
         self, tester, client, default_pack
     ):

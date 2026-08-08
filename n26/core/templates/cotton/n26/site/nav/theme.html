@@ -5,25 +5,44 @@
         <c-n26.site.nav.theme storage_key="theme" />
     </c-ui.dropdown.group>
 
-Three rows in the account menu rather than a control in the bar. Picking a
-colour scheme is something a reader does once and then never again, and the
-top bar has one row of space that a page's own name and its switcher want
-every time. The rows are written out rather than left to the kit's own menu
-variant because that variant is a dropdown, and a dropdown opened from inside
-a dropdown is two panels fighting over the same outside click.
+One segmented control in the account menu rather than a control in the bar.
+Picking a colour scheme is something a reader does once and then never again,
+and the top bar has one row of space that a page's own name and its switcher
+want every time.
+
+  --- one object, not three destinations ---
+
+Three full-width rows in the menu would each carry the weight of "Your account"
+and the staff doors, which are places to go, and would make the panel half as
+tall again on the screen where height is scarcest. A segment is a third of one
+row: the choice reads as a single object, and the two positions the reader is
+not on are visibly the alternatives to the one they are.
+
+The kit's own menu variant is a dropdown, and a dropdown opened from inside a
+dropdown is two panels fighting over the same outside click. So the segments
+are written out here on top of the kit's headless form, which is the same
+behaviour with none of the controls.
 
   --- three named states, not a flip ---
 
 A two-way toggle can say "dark" but cannot say "the same as everything else on
 this machine", which is the state most readers are already in and the only one
-that keeps following the machine after the choice. So the third row exists, and
-each row says which it is instead of the reader having to work out what
+that keeps following the machine after the choice. So there is a third segment,
+and each says which it is instead of the reader having to work out what
 pressing would do.
 
+Each carries its own drawing — a sun, a moon, a screen. One icon for the group
+could only picture whichever scheme is current, and which one is current is
+what this control exists to show. System's accessible name also says which
+scheme the machine is asking for, because the screen icon tells it apart from
+the two concrete choices but not from the one it is behaving as.
+
 `menuitemradio` because that is what these are: one of three, inside a menu,
-with the current one announced as checked. The tick is drawn for the same
-reason it is drawn in the switcher — as a picture of what aria-checked has
-already said, not instead of it.
+with the current one announced as checked. The raised pill is drawn from
+`aria-checked` itself rather than from a second piece of Alpine state, so what
+the control looks like and what it announces cannot come apart. The weight of
+the label changes with it: a fill is a colour, and a colour on its own is not a
+state.
 
 The menu is left open on a press. A reader picking a scheme is usually
 comparing, and closing the panel would mean reopening it to see the other one.
@@ -36,49 +55,57 @@ comparing, and closing the panel would mean reopening it to see the other one.
 {% comment %}
 The kit's toggle in its headless form: none of its own controls, but all of
 its behaviour — the stored choice, the media query it follows in system mode,
-and the class on <html> every other part of the page reads. `mode` and `set()`
-below live in its scope.
+and the class on <html> every other part of the page reads. `mode`, `mq` and
+`set()` below live in its scope.
 {% endcomment %}
 <c-ui.mode-toggle variant="headless" storage_key="{{ storage_key }}">
-    <div {{ attrs }} class="{{ class }}">
+    {% comment %}
+    A flex row of three rather than a three-column grid: a grid column may be
+    narrower than what is in it, and the segment would then wrap "System" onto
+    two lines. Flex items refuse to shrink below their content, so the panel
+    widens to fit the control instead.
+    {% endcomment %}
+    <div {{ attrs }}
+         role="group"
+         aria-label="Theme"
+         class="mx-3 my-1 flex gap-1 rounded-control bg-ink-100 p-1 dark:bg-ink-800
+                [&>button]:flex [&>button]:flex-1 [&>button]:cursor-pointer
+                [&>button]:flex-col [&>button]:items-center [&>button]:gap-1
+                [&>button]:rounded-control [&>button]:px-2 [&>button]:py-1.5
+                [&>button]:text-xs [&>button]:whitespace-nowrap
+                [&>button]:text-ink-600 [&>button]:transition-colors
+                [&>button:hover]:text-ink-900
+                dark:[&>button]:text-ink-400 dark:[&>button:hover]:text-white
+                [&>button[aria-checked=true]]:bg-white
+                [&>button[aria-checked=true]]:font-medium
+                [&>button[aria-checked=true]]:text-ink-900
+                [&>button[aria-checked=true]]:shadow-sm
+                dark:[&>button[aria-checked=true]]:bg-ink-600
+                dark:[&>button[aria-checked=true]]:text-white {{ class }}">
         <button type="button"
                 role="menuitemradio"
                 @click="set('light')"
                 :aria-checked="mode === 'light'"
-                class="flex w-full items-center gap-3 rounded-control px-4 py-2 text-left text-sm
-                       text-ink-700 transition-colors hover:bg-ink-100
-                       focus-visible:bg-ink-100 focus-visible:outline-none
-                       dark:text-ink-300 dark:hover:bg-ink-800 dark:focus-visible:bg-ink-800">
-            <span class="flex-1">Light</span>
-            <span x-cloak x-show="mode === 'light'">
-                <c-n26.icon name="check" class="size-4 shrink-0 text-accent" />
-            </span>
+                class="focus-ring">
+            <c-n26.icon name="sun" class="size-4" />
+            Light
         </button>
         <button type="button"
                 role="menuitemradio"
                 @click="set('dark')"
                 :aria-checked="mode === 'dark'"
-                class="flex w-full items-center gap-3 rounded-control px-4 py-2 text-left text-sm
-                       text-ink-700 transition-colors hover:bg-ink-100
-                       focus-visible:bg-ink-100 focus-visible:outline-none
-                       dark:text-ink-300 dark:hover:bg-ink-800 dark:focus-visible:bg-ink-800">
-            <span class="flex-1">Dark</span>
-            <span x-cloak x-show="mode === 'dark'">
-                <c-n26.icon name="check" class="size-4 shrink-0 text-accent" />
-            </span>
+                class="focus-ring">
+            <c-n26.icon name="moon" class="size-4" />
+            Dark
         </button>
         <button type="button"
                 role="menuitemradio"
                 @click="set('system')"
                 :aria-checked="mode === 'system'"
-                class="flex w-full items-center gap-3 rounded-control px-4 py-2 text-left text-sm
-                       text-ink-700 transition-colors hover:bg-ink-100
-                       focus-visible:bg-ink-100 focus-visible:outline-none
-                       dark:text-ink-300 dark:hover:bg-ink-800 dark:focus-visible:bg-ink-800">
-            <span class="flex-1">System</span>
-            <span x-cloak x-show="mode === 'system'">
-                <c-n26.icon name="check" class="size-4 shrink-0 text-accent" />
-            </span>
+                :aria-label="mq &amp;&amp; mq.matches ? 'System — your device asks for dark' : 'System — your device asks for light'"
+                class="focus-ring">
+            <c-n26.icon name="computer-desktop" class="size-4" />
+            System
         </button>
     </div>
 </c-ui.mode-toggle>

@@ -1696,7 +1696,14 @@ GROUPS: list[Group] = [
                     "the empty message and the list itself are one array. Rows "
                     "carry their own bottom rule rather than the list dividing "
                     "between them, because a divide counts hidden rows and the "
-                    "first one left showing would draw a rule under nothing."
+                    "first one left showing would draw a rule under nothing. The "
+                    "panel is kept inside the window whatever the trigger is doing: "
+                    "CSS caps its width at the window less a gutter, and a margin "
+                    "the kit's placement never touches nudges it back in from "
+                    "whichever edge it crosses. Nudged rather than flipped to the "
+                    "trigger's other side, because flipping helps a trigger near an "
+                    "edge and does nothing for one in the middle of a phone with a "
+                    "panel wider than either side of it."
                 ),
                 parts=(
                     Part(
@@ -1900,10 +1907,13 @@ GROUPS: list[Group] = [
                     "still a link home, and a word naming the site on every screen "
                     "of the site is the least of what a phone's bar can hold — so "
                     "the page's name, and the switcher that acts on it, survive to "
-                    "the narrowest width. The colour scheme moved out of the bar "
-                    "into the account menu for the same reason: it is pressed once "
-                    "in a reader's life and was holding a row of space the page "
-                    "wants on every screen."
+                    "the narrowest width. The colour scheme lives in the account "
+                    "menu for the same reason: it is pressed once in a reader's "
+                    "life, and a bar's one row of space is wanted by the page on "
+                    "every screen. It is a segmented control of three there, not "
+                    "three rows — three rows would carry the weight of the places "
+                    "the menu leads to, and cost the panel half its height again "
+                    "on a phone."
                 ),
                 parts=(
                     Part(
@@ -1914,8 +1924,8 @@ GROUPS: list[Group] = [
                     Part(
                         "c-n26.site.nav.theme",
                         "n26/site/nav/theme.html",
-                        "Light, dark or the machine's own setting, as rows in the "
-                        "account menu.",
+                        "Light, dark or the machine's own setting, as one "
+                        "segmented control in the account menu.",
                     ),
                 ),
             ),
