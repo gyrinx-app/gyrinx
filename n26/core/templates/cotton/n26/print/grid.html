@@ -1,0 +1,45 @@
+{% comment %}
+<c-n26.print.grid> — tiles items across the page, never cutting one in half.
+
+    <c-n26.print.grid columns="2" gutter="4mm">
+        {% for fighter in fighters %}
+            <c-n26.print.card>…</c-n26.print.card>
+        {% endfor %}
+    </c-n26.print.grid>
+
+Named a grid, and pointedly not `display: grid`. Nor flex. In WebKit a flex or
+grid item does not take part in page fragmentation: the item is laid out as a
+unit and the fold is applied over the top of it, so `break-inside: avoid` on a
+flex child is not honoured — it is ignored without a word, and a card comes off
+the printer in two halves on two sheets. This is the single biggest cause of
+broken print output on iOS, and it is invisible until someone prints from a
+phone, because desktop Chrome fragments flex children well enough to fool you.
+
+So this is a block container of inline-blocks, and the distinction that matters
+is not that inline-blocks fragment *better* — it is that they cannot fragment at
+all. An inline-block is an atomic inline: one indivisible box on a line. A line
+box that does not fit the space left on the page moves to the next page whole,
+and takes every card on it. Nothing in the layout model is capable of cutting
+one, so nothing has to be asked not to.
+
+The cell width is derived rather than chosen: columns and gutter go in, and the
+width that exactly fills the printable area comes out. There is no combination
+of props that overflows the paper. A card picks that width up automatically, so
+call sites do not repeat it and cannot disagree with it.
+
+  columns — 1 to 6. Written out as CSS rules per count in print.css, because
+    the end-of-row rule needs :nth-child and nth-child takes a literal.
+  gutter — between cards, both ways. Any CSS length.
+
+Every child is an item, including ones you meant to hide: nth-child counts
+elements, so a child with display:none still takes its turn and shifts the
+end-of-row rule onto the wrong card. Leave it out of the loop instead.
+{% endcomment %}
+<c-vars columns="2" gutter="4mm" class="" />
+
+<div {{ attrs }}
+     class="n26-print-grid {{ class }}"
+     data-print-cols="{{ columns }}"
+     style="--print-cols: {{ columns }}; --print-gutter: {{ gutter }}">
+    {{ slot }}
+</div>

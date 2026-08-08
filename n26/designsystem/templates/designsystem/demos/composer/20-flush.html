@@ -1,0 +1,13 @@
+{# title: Flush variant, prefilled #}
+{# note: variant="flush" drops the raised box for use inside an existing panel. There is no default slot — initial text is the value prop. #}
+{# layout: full #}
+<c-ui.composer name="reply"
+               variant="flush"
+               rows="3"
+               value="Thanks — I'll take a look this afternoon.">
+    <c-slot name="trailing">
+        <c-ui.button variant="primary" size="sm">
+            Reply
+        </c-ui.button>
+    </c-slot>
+</c-ui.composer>

@@ -1,0 +1,45 @@
+{% comment %}
+<c-n26.icon> — one drawing from the project's icon set.
+
+    <c-n26.icon name="pencil" />
+    <c-n26.icon name="plus" class="size-4" stroke_width="2" />
+    <c-n26.icon name="truck" label="Deliveries" />
+
+There is no icon library to install — the kit ships none — so before this the
+artwork was pasted inline wherever it was wanted, and the same chevron lived in
+five templates. The paths now live in core/icons.py and this renders them; see
+that module for where the drawings come from and which four are ours.
+
+Everything except the path data is the same for every icon, which is what makes
+one component enough: a 24x24 canvas, no fill, currentColor, round caps and
+joins. So an icon takes the colour of the text it sits in and needs no colour
+prop, and the size comes from a class — or from nothing at all, since
+.n26-icon-inline sizes and vertically centres any svg inside it.
+
+stroke_width is a prop rather than a constant because weight is a function of
+size, not of the drawing: 1.7 is the house value at the sizes icons usually
+appear, and something rendered at size-3 wants 2 or 2.5 or it fades out.
+
+An icon with a `label` is a picture that carries meaning and is announced; one
+without is decoration beside text that already says it, and is hidden. Hidden is
+the default because that is overwhelmingly the case that comes up.
+
+The brand marks are the exception, and the one reason this template has an `if`
+in it. A logo is a filled shape, not a line drawing, and cannot be restated as a
+stroke without becoming a different logo — so github and discord are drawn as
+they ship and this swaps fill for stroke to suit. stroke_width means nothing on
+one and is ignored; core/icons.py's SOLID set is what decides.
+
+  name — a key in core/icons.py. An unknown name raises rather than rendering
+    an empty <svg>, which would be an invisible hole in a toolbar.
+  stroke_width — 1.7 by default. Raise it as the rendered size falls. No effect
+    on a solid icon.
+  label — accessible name. Omit for decorative icons.
+{% endcomment %}{% load icons %}<c-vars
+    name=""
+    stroke_width="1.7"
+    label=""
+    class=""
+/><svg {{ attrs }} class="{{ class }}" viewBox="0 0 24 24"
+     {% if name|is_solid_icon %}fill="currentColor" stroke="none"{% else %}fill="none" stroke="currentColor" stroke-width="{{ stroke_width }}" stroke-linecap="round" stroke-linejoin="round"{% endif %}
+     {% if label %}role="img" aria-label="{{ label }}"{% else %}aria-hidden="true"{% endif %}>{% for d in name|icon_paths %}<path d="{{ d }}"/>{% endfor %}</svg>

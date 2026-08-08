@@ -1,0 +1,142 @@
+{% comment %}
+<c-n26.view.create-gang> — found a gang: name it, say what it is, and start.
+
+    <c-n26.view.create-gang action="/gangs/new/" :form="form" :gang_types="types" />
+
+A view rather than a component: a whole screen assembled from the library, so the
+pieces can be judged together at the width they will be used at. Not a page — no
+chrome, no routing — just the part between the nav and the footer.
+
+  --- the shape a form takes here ---
+
+This is the first proper form in the library and the others should look like it:
+a heading, a line of help under it, then fields in titled groups, then one
+primary action at the end. Everything is c-ui.field over a kit control, so the
+label, the help text and the error all come from one place and cannot drift apart
+per screen the way hand-rolled markup does.
+
+Two groups rather than one run of four, and the split is not arbitrary — it is
+required and optional. A reader can stop after the first group and have a gang;
+everything below it is something they may care about and may not. Saying that
+with a heading is cheaper than saying it four times in four labels.
+
+  --- required, and how it is marked ---
+
+Marked once at the top and then with an asterisk on the labels that need it,
+which is the convention people already read from every other form on the web.
+Not by marking the optional ones instead: two of these are optional today and
+that would leave the mandatory fields unmarked, so the reader learns nothing from
+a label carrying no badge.
+
+  --- one action, at the end, on the right ---
+
+No Cancel beside it. Leaving is what the back button and the nav are for, and a
+Cancel next to Create is a button whose whole job is to discard what someone
+typed, sited one thumb-width from the one that keeps it.
+
+The frame — the measure, the spacing, the header and that footer — is
+<c-n26.form-page>, which every form shares. This view is its fields.
+
+  action — where the form posts.
+  form — a bound or unbound Django form. c-ui.field reads labels, help text and
+    errors straight off it, so a redisplay after a failed submit needs nothing
+    added here.
+  gang_types — the options for the type select, as (value, label) pairs.
+  heading — the title. "Create a gang" by default.
+  submit_label — the primary button's wording.
+  breadcrumb — the trail above the title. Passed through to form-page.
+  slot — goes inside the form. Where the embedding page puts its csrf token, and
+    any hidden field it needs carried through.
+{% endcomment %}
+<c-vars
+    action=""
+    :form="None"
+    :gang_types="[]"
+    heading="Create a gang"
+    submit_label="Create gang"
+    class=""
+/>
+
+{% comment %}
+The frame — measure, rhythm, header, footer — is c-n26.form-page's, shared with
+every other form. This view supplies its fields and nothing about the shape of
+the page around them, which is the point: two forms that each drew their own
+frame had already drifted to two widths and two rhythms.
+{% endcomment %}
+<c-n26.form-page action="{{ action }}" :form="form" {{ attrs }}
+                 title="{{ heading }}"
+                 lead="A gang is a name, a type and the models you hire into it. Required fields are marked with an asterisk (*)."
+                 submit_label="{{ submit_label }}"
+                 class="{{ class }}">
+    {% if breadcrumb %}<c-slot name="breadcrumb">{{ breadcrumb }}</c-slot>{% endif %}
+
+    {% comment %}
+    A view renders no csrf token of its own: it has no request, and a component
+    that quietly omitted one would be worse than one that never claimed to. The
+    slot is where the embedding page puts {% csrf_token %}.
+    {% endcomment %}
+    {{ slot }}
+
+    <c-n26.form-section title="General">
+        <c-ui.field label="Gang name *" description="You can change this later."
+                    error="x" :form="form" name="name" for="gang-name">
+            <c-ui.input id="gang-name" name="name" autocomplete="off"
+                        value="{{ form.name.value|default:'' }}" />
+        </c-ui.field>
+
+        <c-ui.field label="Gang type *"
+                    description="What the gang is, which fixes who you can hire and what they may carry."
+                    error="x" :form="form" name="gang_type" for="gang-type">
+            <c-ui.select.native id="gang-type" name="gang_type"
+                                placeholder="Choose a type"
+                                value="{{ form.gang_type.value|default:'' }}">
+                {% comment %}
+                The conditional sits inside the quoted value rather than around
+                the attribute. Cotton parses a component's attribute list before
+                Django runs, so a bare {% if %} emitting a whole attribute breaks
+                tag detection — and `:selected="a == b"` is not a comparison
+                Cotton evaluates, it resolves as a variable and comes back truthy
+                for every option, which selects all of them and leaves the
+                browser showing the first. That is the bug this shape avoids.
+                {% endcomment %}
+                {% for value, label in gang_types %}
+                    <c-ui.select.option value="{{ value }}"
+                                        selected="{% if value == form.gang_type.value %}1{% endif %}">{{ label }}</c-ui.select.option>
+                {% endfor %}
+            </c-ui.select.native>
+        </c-ui.field>
+    </c-n26.form-section>
+
+    <c-n26.form-section title="Setup"
+                        description="Both optional, and both changeable once the gang exists.">
+        {% comment %}
+        Blank means no limit, and the help text has to say so — an empty number
+        field otherwise reads as zero, which is the opposite. It is the one place
+        on this form where leaving something out is a decision rather than a
+        deferral, so it is the one that gets explained.
+
+        A credit suffix rather than a "credits" label, because the field is
+        already labelled and the unit belongs against the number.
+        {% endcomment %}
+        <c-ui.field label="Starting credits"
+                    description="Leave blank to spend as much as you like."
+                    error="x" :form="form" name="starting_credits" for="starting-credits">
+            <c-ui.input id="starting-credits" name="starting_credits"
+                        type="number" min="0" inputmode="numeric"
+                        placeholder="No limit" right_addon="¢"
+                        value="{{ form.starting_credits.value|default:'' }}" />
+        </c-ui.field>
+
+        <c-n26.colour-picker name="colour" value="{{ form.colour.value|default:'' }}"
+                             label="Colour"
+                             description="Shown against the gang wherever it is listed." />
+    </c-n26.form-section>
+
+    {% comment %}
+    The submit button is form-page's, drawn from submit_label. Green, because the
+    library's rule is that the button which brings a thing into existence is
+    `success` — a button that saves an edit is `primary` and one that destroys
+    something is `danger`. Three colours for three kinds of consequence, so the
+    committing action is findable without reading the words on it.
+    {% endcomment %}
+</c-n26.form-page>

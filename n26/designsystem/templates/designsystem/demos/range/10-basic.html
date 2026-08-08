@@ -1,0 +1,22 @@
+{# title: Value display #}
+{# note: The starting position is the value prop. :show_value puts the live number beside the track, or under it with value_position. #}
+{# layout: col #}
+<c-ui.range label="Credits"
+            name="credits"
+            min="0"
+            max="1000"
+            step="50"
+            value="350"
+            :show_value="True" />
+<c-ui.range label="Below"
+            name="below"
+            value="70"
+            :show_value="True"
+            value_position="below" />
+<c-ui.range label="No readout" name="plain" value="25" />
+<c-ui.range label="Off-accent"
+            name="neutral"
+            value="60"
+            :accent="False"
+            :show_value="True" />
+<c-ui.range label="Disabled" name="off" value="40" :disabled="True" />

@@ -1,0 +1,13 @@
+{% comment %}
+The links every real n26 page shares. One include rather than each page
+writing its own, for the same reason the gallery's shell has one: two
+copies of the same links is two places for one to drift. The gallery's
+version (designsystem/shell/_nav.html) points at the shell walk; this
+one points at the pages that write.
+
+Takes `here` — "home" or "new-gang".
+{% endcomment %}
+<c-ui.navbar.item href="{% url 'n26-dashboard' %}"
+                  current="{% if here == 'home' %}1{% endif %}">Home</c-ui.navbar.item>
+<c-ui.navbar.item href="{% url 'n26-create-gang' %}"
+                  current="{% if here == 'new-gang' %}1{% endif %}">Create a gang</c-ui.navbar.item>

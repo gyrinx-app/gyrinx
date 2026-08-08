@@ -1,0 +1,64 @@
+{% comment %}
+<c-n26.page-header> — what this page is, at the top of it.
+
+    <c-n26.page-header title="Hire a fighter" lead="Joining The Ashen Choir" />
+
+    <c-n26.page-header title="{{ gang.name }}">
+        <c-slot name="breadcrumb">…</c-slot>
+        <c-slot name="lead">Escher (HoB) <c-n26.flair.house /></c-slot>
+        <c-slot name="actions"><c-ui.button>Edit</c-ui.button></c-slot>
+    </c-n26.page-header>
+
+Exists because two screens had already disagreed. The gang sheet set its name at
+text-2xl/sm:text-3xl and the hire form set its at text-xl/sm:text-2xl, for no
+reason either of them could have told you — a page title is a page title, and the
+size of one should not depend on which template a person happened to be editing.
+
+One scale, chosen here once. Everything else about a header is optional and
+composes: the trail above it, a quiet line under it, and controls that belong to
+the page rather than to anything on it.
+
+  --- the lead ---
+
+One name, either shape: pass `lead="…"` for a few words or open a `lead` slot for
+markup, and the same test works for both — `.strip` is a method on a string as
+much as it is on slot content, so the template does not have to know which it got.
+That is what lets the common case stay a bare attribute instead of taxing every
+caller with a slot to write three words in.
+
+Quiet, and directly under the title with no gap of its own — it is what the thing
+*is* rather than what it is called, and a reader needs it once. Same relationship
+a fighter card draws between a name and its type line.
+
+  title — the page's name. Rendered as the h1; there should be one per page.
+  lead — a line under it. Ignored if the lead slot has content.
+  breadcrumb — the trail above the title, if the page has one.
+  actions — controls for the page as a whole. Wraps under the title on a phone
+    rather than squeezing it: a title that truncates to make room for a button is
+    the wrong thing to have shortened.
+{% endcomment %}
+<c-vars title="" lead="" class="" />
+
+<div class="flex flex-col gap-1 {{ class }}">
+    {% if breadcrumb %}<div class="mb-1">{{ breadcrumb }}</div>{% endif %}
+
+    <div class="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+        <div class="min-w-0">
+            <h1 class="text-2xl font-semibold text-ink-900 dark:text-ink-100 sm:text-3xl">{{ title }}</h1>
+            {% comment %}
+            slot.strip, not slot: a header written across several lines with only
+            named slots inside it still has a default slot holding the newlines
+            between them, and Django counts whitespace as truthy.
+            {% endcomment %}
+            {% comment %}
+            Body size. Quiet comes from the colour, not from shrinking it: the
+            lead is usually the sentence that says what the page is for, and a
+            reader who needs it is worse off reading it at 14px. Small text is
+            for what a reader is meant to scan past.
+            {% endcomment %}
+            {% if lead.strip %}<p class="text-muted">{{ lead }}</p>{% endif %}
+        </div>
+
+        {% if actions %}<div class="flex shrink-0 flex-wrap items-center gap-2">{{ actions }}</div>{% endif %}
+    </div>
+</div>

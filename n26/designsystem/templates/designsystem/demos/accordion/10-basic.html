@@ -1,0 +1,14 @@
+{# title: One at a time #}
+{# note: type="single" is the default and closes the others as you open one. :collapsible lets the open row be closed again. #}
+{# layout: full #}
+<c-ui.accordion class="rounded-box border border-box-border">
+    <c-ui.accordion.item header="What is a gang rating?" class="px-4" :expanded="True">
+        <p class="text-sm text-muted">The total credit value of your fighters and their equipment.</p>
+    </c-ui.accordion.item>
+    <c-ui.accordion.item header="How do lasting injuries work?" class="px-4">
+        <p class="text-sm text-muted">Roll on the injury table after a fighter goes out of action.</p>
+    </c-ui.accordion.item>
+    <c-ui.accordion.item header="Can I have two leaders?" class="px-4">
+        <p class="text-sm text-muted">No — one leader per gang, replaced only if they die.</p>
+    </c-ui.accordion.item>
+</c-ui.accordion>

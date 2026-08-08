@@ -1,0 +1,128 @@
+{% comment %}
+<c-n26.colour-picker> — pick a colour from the palette, or none.
+
+    <c-n26.colour-picker name="colour" value="teal"
+                         label="Colour"
+                         description="Shown against the gang everywhere it appears." />
+
+A grid of swatches, one radio each. Radios and not a select, because the whole
+question is "which of these looks right" and a dropdown makes you open it, read
+twenty words and close it again to compare two. Laid out as a grid so the answer
+is a glance.
+
+  --- none is an option, not the absence of one ---
+
+The first swatch is None, and it is a real radio with a real value. A picker
+whose default is "nothing selected" cannot be *returned* to nothing once you have
+touched it — you would have to reload the page — and it also cannot tell "no
+colour" apart from "not answered yet", which matters the moment this is inside a
+form that redisplays after an error.
+
+  --- the swatch is the control ---
+
+Each radio is sr-only and the swatch beside it is what you see, styled through
+peer-checked. That is a label wrapping a real input, so it is keyboard-reachable,
+arrow-keys between options like any radio group, submits without JavaScript, and
+reads out its colour's name to a screen reader. Nothing here is a div pretending.
+
+  --- why a lookup and not bg-{{ name }}-500 ---
+
+Tailwind reads class names as literal strings; a class built from a variable is a
+class it never sees and never emits. app.css force-emits the palette via @source
+inline() so the utility exists, but the honest way to be sure is to write the
+class out. Same reason c-ui.badge keeps its own dict.
+
+The named hues are fixed; ink follows the theme's neutral scale, so it is the one
+swatch that changes with light and dark.
+
+  name — the form field name.
+  value — the colour currently chosen. Empty means None, which is the default.
+  label, description — the fieldset's legend and the line under it. Optional.
+  colours — the palette, if you want a shorter one. Names must be keys of
+    swatches; anything else renders as an empty box, which is the failure you
+    want rather than a page that will not load.
+{% endcomment %}
+<c-vars
+    name="colour"
+    value=""
+    label=""
+    description=""
+    :colours="['ink', 'red', 'orange', 'amber', 'yellow', 'lime', 'green', 'emerald', 'teal', 'cyan', 'sky', 'blue', 'indigo', 'violet', 'purple', 'fuchsia', 'pink', 'rose']"
+    :swatches="{
+        'ink': 'bg-ink-500',
+        'red': 'bg-red-500',
+        'orange': 'bg-orange-500',
+        'amber': 'bg-amber-500',
+        'yellow': 'bg-yellow-500',
+        'lime': 'bg-lime-500',
+        'green': 'bg-green-500',
+        'emerald': 'bg-emerald-500',
+        'teal': 'bg-teal-500',
+        'cyan': 'bg-cyan-500',
+        'sky': 'bg-sky-500',
+        'blue': 'bg-blue-500',
+        'indigo': 'bg-indigo-500',
+        'violet': 'bg-violet-500',
+        'purple': 'bg-purple-500',
+        'fuchsia': 'bg-fuchsia-500',
+        'pink': 'bg-pink-500',
+        'rose': 'bg-rose-500',
+    }"
+    class=""
+/>
+
+<fieldset {{ attrs }} class="{{ class }}">
+    {% if label %}
+        {% comment %}
+        A legend, not a label. The group is the thing being named and no single
+        radio in it is; a <label> here would have to point at one swatch and
+        would then announce "Colour" for that one and nothing for the rest.
+        {% endcomment %}
+        <legend class="mb-1.5 block font-semibold text-ink-900 dark:text-ink-100">{{ label }}</legend>
+    {% endif %}
+    {% if description %}
+        <p class="mb-2 text-muted">{{ description }}</p>
+    {% endif %}
+
+    {% comment %}
+    auto-fill rather than a column count per breakpoint: the swatches are all one
+    size and there is no reason for the number per row to be a decision anyone
+    has to maintain. It fills the measure it is given, which on a phone is four
+    or five and on the form's column is ten.
+    {% endcomment %}
+    <div class="grid grid-cols-[repeat(auto-fill,minmax(2.75rem,1fr))] gap-2">
+        {% comment %}
+        None first, and drawn as an outlined box with a line through it rather
+        than as a white swatch — white is a colour, and on a light page an empty
+        white square reads as "unset" only if you already know the palette has no
+        white in it.
+        {% endcomment %}
+        <label class="group relative cursor-pointer" title="No colour">
+            <input type="radio" name="{{ name }}" value=""
+                   class="peer sr-only" {% if not value %}checked{% endif %}>
+            <span class="block aspect-square rounded-control border border-box-border
+                         bg-[linear-gradient(to_top_right,transparent_calc(50%_-_1px),currentColor_calc(50%_-_1px),currentColor_calc(50%_+_1px),transparent_calc(50%_+_1px))]
+                         text-ink-300 dark:text-ink-600
+                         ring-accent ring-offset-2 ring-offset-[var(--color-bg)]
+                         peer-checked:ring-2 peer-focus-visible:ring-2"></span>
+            <span class="sr-only">No colour</span>
+        </label>
+
+        {% for colour in colours %}
+            <label class="group relative cursor-pointer" title="{{ colour|capfirst }}">
+                <input type="radio" name="{{ name }}" value="{{ colour }}"
+                       class="peer sr-only" {% if value == colour %}checked{% endif %}>
+                {% comment %}
+                The ring sits outside the swatch on the page's own background, so
+                a selected dark colour and a selected pale one are marked the
+                same way. A border or an inset ring would vanish into ink and
+                glare out of yellow.
+                {% endcomment %}
+                <span class="block aspect-square rounded-control {{ swatches|get_item:colour }}
+                             ring-accent ring-offset-2 ring-offset-[var(--color-bg)]
+                             peer-checked:ring-2 peer-focus-visible:ring-2"></span>
+                <span class="sr-only">{{ colour|capfirst }}</span>
+            </label>
+        {% endfor %}
+    </div>
+</fieldset>

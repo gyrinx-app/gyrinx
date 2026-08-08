@@ -1,0 +1,17 @@
+{# title: Reacting to a choice #}
+{# note: The menu dispatches select-change with {value, label}, so you can respond without reading the hidden input. #}
+{# layout: col #}
+<div x-data="{ chosen: null }" class="space-y-3">
+    <c-ui.menu name="rating"
+               placeholder="Rate this component"
+               @select-change="chosen = $event.detail">
+        <c-ui.menu.item value="1" label="Needs work" />
+        <c-ui.menu.item value="2" label="Fine" />
+        <c-ui.menu.item value="3" label="Good" />
+    </c-ui.menu>
+    <p class="text-sm text-muted">
+        Last event:
+        <code class="rounded bg-ink-500/10 px-1.5 py-0.5 text-xs"
+              x-text="chosen ? JSON.stringify(chosen) : 'none yet'">none yet</code>
+    </p>
+</div>

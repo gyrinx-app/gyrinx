@@ -1,0 +1,54 @@
+{% comment %}
+<c-n26.print.table> — a long table that crosses pages without losing its head.
+
+    <c-n26.print.table>
+        <c-slot name="head">
+            <tr><th>Item</th><th class="is-numeric">Cost</th></tr>
+        </c-slot>
+        {% for item in items %}
+            <tr><td>{{ item.name }}</td><td class="is-numeric">{{ item.cost }}¢</td></tr>
+        {% endfor %}
+    </c-n26.print.table>
+
+Unlike everything else in this family, a table is *supposed* to break — that is
+what makes it the right shape for a hundred rows. It just must never break
+through the middle of a row, and it must take its header with it.
+
+Both of those are one line of CSS each and neither is the default. `thead` is
+given `display: table-header-group`, which is what makes a browser repeat it at
+the top of every page the table reaches; a header written as an ordinary first
+row appears once, on page one, and every page after it is a wall of unlabelled
+numbers. Rows get `break-inside: avoid`, which tables do honour, being block
+containers rather than flex items.
+
+Column widths are fixed by default, which is the less obvious of the two
+defaults. Auto layout re-measures per fragment, so the same table split across
+two pages can come out with different column widths on each — the same data,
+visibly out of alignment across the fold.
+
+The head slot takes a whole `<tr>` rather than a list of column names, so a
+header can span, group and align like any other row.
+
+  layout — fixed (default) or auto.
+  groups — the slot supplies its own <tbody> per group of rows, instead of every
+    row sharing one. For a table whose entries take several rows each: a weapon
+    with two ammo profiles and an accessory is one entry on four lines, and the
+    rules belong between the entries rather than between the lines. Sets
+    .is-grouped too, which is what drops the per-row rules.
+
+    It has to be the component that stops wrapping, not the caller that nests. A
+    <tbody> inside a <tbody> is not something HTML allows, and no one complains —
+    the browser silently flattens them, which looks precisely like the CSS not
+    working. It did.
+
+Two classes are provided for cells, used on th and td alike: `is-numeric` for
+right-aligned tabular figures, and `is-group` for a rule opening a run of
+related columns.
+{% endcomment %}
+<c-vars layout="fixed" groups="" class="" />
+
+<table {{ attrs }} class="n26-print-table{% if layout == 'auto' %} is-auto{% endif %}{% if groups %} is-grouped{% endif %} {{ class }}">
+    {% if head %}<thead>{{ head }}</thead>{% endif %}
+    {% if groups %}{{ slot }}{% else %}<tbody>{{ slot }}</tbody>{% endif %}
+    {% if foot %}<tfoot>{{ foot }}</tfoot>{% endif %}
+</table>

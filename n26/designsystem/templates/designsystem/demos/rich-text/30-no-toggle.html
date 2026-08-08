@@ -1,0 +1,7 @@
+{# title: Editor only #}
+{# note: :toggle="False" for forms where a preview would just be noise — a short note field, say. #}
+{# layout: full #}
+<c-n26.rich-text :field="rich_text_form.notes"
+                 label="Private notes"
+                 description="Only you can see these."
+                 :toggle="False" />

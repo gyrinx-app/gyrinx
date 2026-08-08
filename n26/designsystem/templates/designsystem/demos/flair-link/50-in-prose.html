@@ -1,0 +1,51 @@
+{# title: In a sentence, and in a table #}
+{# note: Laid out inline rather than as a flex box, so it wraps with the text around it. In a table it keeps the badge tight against the name. #}
+{# layout: full #}
+<div class="space-y-6">
+    <p class="max-w-md text-sm">
+        The list was created by
+        <c-n26.flair-link text="tom" href="/design/" label="Gyrinx staff">
+            <c-n26.flair.staff />
+        </c-n26.flair-link>
+        and last edited four weeks ago. It fields a
+        <c-n26.flair-link text="Goliath (HoC)" href="/design/">
+            <c-n26.flair.house />
+        </c-n26.flair-link>
+        gang of six fighters, and wraps across lines like any other text.
+    </p>
+    <c-ui.table>
+        <thead>
+            <tr>
+                <th>Owner</th>
+                <th>Gang</th>
+                <th>Rating</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>
+                    <c-n26.flair-link text="tom" href="/design/" label="Gyrinx staff">
+                        <c-n26.flair.staff />
+                    </c-n26.flair-link>
+                </td>
+                <td>
+                    <c-n26.flair-link text="Rust in Peace" href="/design/">
+                        <c-n26.flair.house />
+                    </c-n26.flair-link>
+                </td>
+                <td>1240</td>
+            </tr>
+            <tr>
+                <td>
+                    <c-n26.flair-link text="ana" href="/design/" />
+                </td>
+                <td>
+                    <c-n26.flair-link text="Sump City Rats" href="/design/">
+                        <c-n26.flair.house />
+                    </c-n26.flair-link>
+                </td>
+                <td>1475</td>
+            </tr>
+        </tbody>
+    </c-ui.table>
+</div>

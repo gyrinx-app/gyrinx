@@ -1,0 +1,14 @@
+{# title: Several open at once #}
+{# note: Any type other than "single" allows multiple open rows. Rows are flush by design — the padding here comes from a class on each item, which is what lets you compose insets. #}
+{# layout: full #}
+<c-ui.accordion type="multiple" class="rounded-box border border-box-border">
+    <c-ui.accordion.item header="Melee weapons" class="px-4" :expanded="True">
+        <p class="text-sm text-muted">Chainsword, power hammer, shock stave.</p>
+    </c-ui.accordion.item>
+    <c-ui.accordion.item header="Ranged weapons" class="px-4" :expanded="True">
+        <p class="text-sm text-muted">Lasgun, autogun, plasma pistol.</p>
+    </c-ui.accordion.item>
+    <c-ui.accordion.item header="Locked" class="px-4" :disabled="True">
+        <p class="text-sm text-muted">You can't reach this one.</p>
+    </c-ui.accordion.item>
+</c-ui.accordion>

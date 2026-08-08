@@ -1,0 +1,20 @@
+{# title: Disabled, links and content #}
+{# note: There is no disabled prop — pass the plain HTML attribute. With href you get an <a> that looks identical, which is the right element for navigation. #}
+<c-ui.button variant="primary" disabled>
+    Disabled
+</c-ui.button>
+<c-ui.button href="https://django-cotton.com/ui">
+    Link button
+</c-ui.button>
+<c-ui.button variant="primary">
+    <span class="flex items-center justify-center gap-2">
+        <c-ui.spinner size="xs" color="current" />
+        Saving…
+    </span>
+</c-ui.button>
+<c-ui.button>
+    <span class="flex items-center justify-center gap-1.5">
+        <c-n26.icon name="plus" class="size-4" stroke_width="1.5" />
+        With icon
+    </span>
+</c-ui.button>

@@ -1,0 +1,32 @@
+{% comment %}
+<c-n26.changelog.entry> — one update: a short title, two lines of it, a date.
+
+    <c-n26.changelog.entry title="Vehicles" date="6 Aug" href="/changelog/vehicles/">
+        Hire a Trazior and it brings its own card…
+    </c-n26.changelog.entry>
+
+The whole row opens the entry, by the same means <c-n26.gang-table.row> uses: one
+real <a>, on the title, with .n26-row-link stretching its ::after over the row.
+Here there is nothing else to press, so nothing needs lifting above it.
+
+The summary is clamped to two lines. An entry allowed to run to five is one the
+eye skips, and the full text is a single press away — so it cuts at the point
+where reading it here stops being cheaper than opening it. Two lines rather than
+one because one is a headline, and this already has a headline.
+
+  title — the short header.
+  date — when. Beside the title on a phone too: it is two or three characters and
+    it is how a reader decides whether they have read this already.
+  href — the entry.
+{% endcomment %}
+<c-vars title="" date="" href="" class="" />
+
+<div class="relative px-1 py-3 hover:bg-ink-500/5 {{ class }}">
+    <div class="flex items-baseline justify-between gap-3">
+        <h3 class="min-w-0 text-base font-semibold text-ink-900 dark:text-ink-100">
+            <a href="{{ href }}" class="n26-row-link rounded-control focus-ring">{{ title }}</a>
+        </h3>
+        {% if date %}<span class="shrink-0 text-sm tabular-nums text-muted">{{ date }}</span>{% endif %}
+    </div>
+    <p class="n26-clamp-2 mt-0.5 text-sm text-muted">{{ slot }}</p>
+</div>

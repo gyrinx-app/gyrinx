@@ -1,0 +1,15 @@
+{# title: Label, with and without a badge #}
+{# note: Reach for this directly only when you're building a control the kit doesn't ship — the form components render their own label from the label prop. #}
+{# layout: col #}
+<div>
+    <c-ui.label for="demo-handle">
+        Handle
+    </c-ui.label>
+    <c-ui.input id="demo-handle" name="handle" placeholder="@tom" />
+</div>
+<div>
+    <c-ui.label for="demo-token" badge="Secret">
+        API token
+    </c-ui.label>
+    <c-ui.input id="demo-token" name="token" type="password" value="abcdef" />
+</div>

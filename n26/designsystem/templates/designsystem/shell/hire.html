@@ -1,0 +1,79 @@
+{% extends "n26/layouts/base.html" %}
+{% comment %}
+Hiring a fighter, in the shell it will actually live in.
+
+The second form in the walk, and the one that shows the pattern bending. Create a
+gang is a short form with a button at the end; this is a long list where every
+row carries its own submit, and both are forms. Seeing them one nav-click apart
+is the only way to judge whether they read as the same application.
+
+It is also the page that tests the nav's heading against a scroll. The bar is
+sticky and the list is hundreds of rows, so "Hire a fighter" is still on screen
+when the h1 that says it has long since gone — which is the argument for putting
+it there.
+{% endcomment %}
+{% block head_title %}Hire a fighter{% endblock head_title %}
+{% block nav_heading %}Hire a fighter{% endblock nav_heading %}
+{% block nav_items %}
+    {% include 'designsystem/shell/_nav.html' with here='hire' %}
+{% endblock %}
+{% block content %}
+    <c-n26.view.fighter-hire action="{% url 'designsystem:shell_hire' %}"
+                             gang="The Ashen Choir"
+                             :form="hire_fighter_form">
+        {% comment %}
+        Owner, then gang, then this page — the trail a reader actually walked,
+        and the thing "Joining The Ashen Choir" used to say in the lead. A
+        breadcrumb says it better because it also says where to go back to.
+        {% endcomment %}
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'designsystem:shell_home' %}">
+                    <c-n26.flair-link text="{{ gang_owner }}"
+                                      tone="current"
+                                      href="{% url 'designsystem:shell_home' %}" />
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'designsystem:shell_gang' %}">The Ashen Choir</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Hire
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% csrf_token %}
+        <c-n26.profile-picker :categories="hire_categories"
+                              :sections="hire_sections"
+                              cost_floor="{{ hire_price_floor }}"
+                              cost_ceiling="{{ hire_price_ceiling }}">
+            <c-slot name="filters">
+                <c-n26.search-bar :live="True"
+                                  :nested="True"
+                                  model="query"
+                                  placeholder="Search the gang list" />
+                <div class="flex flex-wrap items-center gap-2">
+                    <c-n26.filter-menu label="Category" name="category" :options="hire_category_options" />
+                    <c-n26.range-menu label="Price"
+                                      model_min="minCost"
+                                      model_max="maxCost"
+                                      min="{{ hire_price_floor }}"
+                                      max="{{ hire_price_ceiling }}"
+                                      step="5"
+                                      suffix="¢"
+                                      at_max_label="Any" />
+                </div>
+            </c-slot>
+            {% for section_row in hire_section_rows %}
+                <c-n26.collection-picker.section name="{{ section_row.section.name }}" :open="section_row.first">
+                    {% for category in section_row.section.categories %}
+                        <c-n26.collection-picker.category name="{{ category.name }}">
+                            {% for entry in category.entries %}
+                                <c-n26.profile-picker.row :entry="entry"
+                                                          value="{{ entry.name|slugify }}"
+                                                          limited="{% if section_row.section.name != 'Gang List' or category.name == 'Champions' %}1{% endif %}" />
+                            {% endfor %}
+                        </c-n26.collection-picker.category>
+                    {% endfor %}
+                </c-n26.collection-picker.section>
+            {% endfor %}
+        </c-n26.profile-picker>
+    </c-n26.view.fighter-hire>
+{% endblock content %}

@@ -1,0 +1,13 @@
+{# title: Sanitising #}
+{# note: The same hostile payload, source on the left and rendered on the right. safe_rich_text drops the script and its contents, the iframe, the javascript: href, the onerror handler and the comment — and keeps the heading, the real link and the allowed part of the style attribute. Editor output is user input, so it is cleaned on the way out rather than trusted. #}
+{# layout: full #}
+<div class="grid gap-4 lg:grid-cols-2">
+    <div>
+        <div class="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">Stored</div>
+        <pre class="overflow-x-auto rounded-box border border-box-border bg-ink-500/5 p-4 text-xs leading-relaxed"><code>{{ unsafe_html }}</code></pre>
+    </div>
+    <div>
+        <div class="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">Rendered</div>
+        <c-n26.rich-text :value="unsafe_html" class="rounded-box border border-box-border p-4" />
+    </div>
+</div>

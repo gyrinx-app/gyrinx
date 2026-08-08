@@ -1,0 +1,70 @@
+{% comment %}
+<c-n26.link> — an inline text link.
+
+    <c-n26.link href="/lists/">Back to lists</c-n26.link>
+    <c-n26.link href="/lists/" tone="current" underline="always">In a coloured row</c-n26.link>
+    <c-n26.link>No href, so no link</c-n26.link>
+
+The kit has no link component — c-ui.button variant="text" is still a button, with
+a button's padding and semantics — so this is the plain one, and the base the
+other link-ish components are built from.
+
+Two decisions in it.
+
+*Colour is a prop, not a class.* Passing class="text-muted" alongside a default of
+text-accent leaves two utilities of equal specificity fighting, and which one wins
+depends on the order Tailwind happened to emit them in. A `tone` lookup means only
+one is ever applied. class is still there for everything that is not colour.
+
+*Without an href it renders a <span>*, not a dead anchor. Table cells and lists are
+full of things that are only sometimes linked, and this keeps that a prop rather
+than an {% templatetag openblock %} if {% templatetag closeblock %} at every call site.
+
+The text sits in its own span so the underline is on the text alone. That matters
+for the `leading` and `trailing` slots: anything in them — a swatch, a badge, an
+icon — stays clear of the rule. <c-n26.color-link> is this component with a colour
+swatch in the first, and <c-n26.flair-link> is it with a badge in the second.
+
+Whitespace below is load-bearing, hence the cramped tags. This renders inline, so
+any newline the template emits before or after its markup collapses into a space
+in the surrounding text — enough to put a gap before the comma in
+"<c-n26.link>...</c-n26.link>, and". So nothing sits between the end of this
+comment, the c-vars tag and the markup, and the file ends without a newline.
+
+slot.strip for the same reason one level in: written across several lines — which
+is how anything with a trailing slot gets written — the default slot arrives
+wrapped in newlines, and inside the underlined span those get a rule drawn under
+them. |safe restores the marking .strip drops, so markup in the slot survives.
+
+  href — renders an <a>; without it, a <span>.
+  underline — hover (default), always, or none.
+  tone — accent (default), current to inherit the surrounding colour, or muted.
+  leading — content before the text, outside the underline.
+  trailing — content after the text, outside the underline.
+{% endcomment %}<c-vars
+    href=""
+    underline="hover"
+    tone="accent"
+    class=""
+    :tone_classes="{
+        'accent': 'text-accent hover:text-accent-content',
+        'current': 'text-current',
+        'muted': 'text-muted hover:text-ink-800 dark:hover:text-ink-200',
+    }"
+    :underline_classes="{
+        'hover': 'no-underline hover:underline focus-visible:underline underline-offset-2',
+        'always': 'underline underline-offset-2',
+        'none': 'no-underline',
+    }"
+/>{% comment %}
+Whitespace here is load-bearing, hence the cramped tags below. An inline component
+emits its template's own leading and trailing newlines into the text flow, where
+they collapse to a space — enough to put a gap before the comma in
+"<c-n26.link>…</c-n26.link>, and". So the markup opens and closes hard against the
+tags, and the file ends without a trailing newline.
+
+slot.strip, not slot, for the same reason one level in: written across several
+lines — which is how anything with a trailing slot gets written — the default slot
+arrives wrapped in newlines, and inside the underlined span those get a rule drawn
+under them. |safe restores the marking that .strip drops, so markup survives.
+{% endcomment %}{% if href %}<a href="{{ href }}" {{ attrs }} class="no-underline transition-colors {{ tone_classes|get_item:tone }} {{ class }}">{{ leading }}<span class="{{ underline_classes|get_item:underline }}">{{ slot.strip|safe }}</span>{{ trailing }}</a>{% else %}<span {{ attrs }} class="{{ class }}">{{ leading }}{{ slot.strip|safe }}{{ trailing }}</span>{% endif %}

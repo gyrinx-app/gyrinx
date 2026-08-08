@@ -1,0 +1,34 @@
+{# title: Signed out #}
+{# layout: full #}
+{# note: The same bar with the actions a visitor sees. Sign Up is the accent button and Sign In is not, because one of them is the thing the page is asking for. #}
+{% load static %}
+<c-n26.site.nav title="Gyrinx"
+                href="#"
+                variant="pill"
+                class="rounded-box border border-box-border">
+    <c-slot name="logo">
+        <img src="{% static 'n26/gyrinx-logo.svg' %}"
+             alt=""
+             width="24"
+             height="24"
+             class="size-6">
+    </c-slot>
+    <c-ui.navbar.item href="#" :current="True">
+        Home
+    </c-ui.navbar.item>
+    <c-ui.navbar.item href="#">
+        Lists &amp; Gangs
+    </c-ui.navbar.item>
+    <c-ui.navbar.item href="#">
+        Campaigns
+    </c-ui.navbar.item>
+    <c-slot name="actions">
+        <c-ui.mode-toggle storage_key="n26-theme" default="system" size="sm" />
+        <c-ui.button href="#" variant="default" size="sm">
+            Sign In
+        </c-ui.button>
+        <c-ui.button href="#" variant="primary" size="sm">
+            Sign Up
+        </c-ui.button>
+    </c-slot>
+</c-n26.site.nav>

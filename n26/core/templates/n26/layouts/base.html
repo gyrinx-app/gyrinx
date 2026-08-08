@@ -1,0 +1,312 @@
+{% load static %}
+{% comment %}
+The n26 page shell. Block names and order match the platform base template
+(head_title, stylesheet, body, content, extra_body, extra_script) so templates
+written against it extend this one unchanged. Context it reads, all optional:
+banner, is_impersonating / impersonator, gtm_container_id, messages, user.
+{% endcomment %}<!DOCTYPE html>
+<html lang="en-gb">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="description"
+              content="Gyrinx is a free set of tools for the Necromunda community">
+        <meta name="author" content="Gyrinx">
+        <meta name="keywords" content="Necromunda, Gyrinx">
+        <meta name="application-name" content="Gyrinx">
+        {% comment %}
+        Must come before the stylesheet; storage_key and default must match
+        every <c-ui.mode-toggle> on the page.
+        {% endcomment %}
+        <c-ui.mode-toggle.head storage_key="theme" default="system" />
+        {% comment %}
+        crossorigin is required on the preconnect: fonts are fetched anonymously,
+        and without it the browser opens a second connection and the hint is wasted.
+        {% endcomment %}
+        <link rel="dns-prefetch" href="https://use.typekit.net">
+        <link rel="preconnect" href="https://use.typekit.net" crossorigin>
+        <link rel="stylesheet" href="https://use.typekit.net/rso6ezl.css">
+        {% block favicon %}
+            <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+            <link rel="icon" href="/favicon.ico" type="image/x-icon">
+            <link rel="apple-touch-icon-precomposed"
+                  sizes="152x152"
+                  href="{% static 'platform/img/brand/favicon/apple-touch-icon-152x152.png' %}">
+            <link rel="apple-touch-icon-precomposed"
+                  sizes="120x120"
+                  href="{% static 'platform/img/brand/favicon/apple-touch-icon-120x120.png' %}">
+            <link rel="icon"
+                  type="image/png"
+                  sizes="196x196"
+                  href="{% static 'platform/img/brand/favicon/favicon-196x196.png' %}">
+            <link rel="icon"
+                  type="image/png"
+                  sizes="32x32"
+                  href="{% static 'platform/img/brand/favicon/favicon-32x32.png' %}">
+            <link rel="icon"
+                  type="image/png"
+                  sizes="16x16"
+                  href="{% static 'platform/img/brand/favicon/favicon-16x16.png' %}">
+        {% endblock favicon %}
+        {# djlint:off #}
+        <title>{% spaceless %}{% block head_title %}{% endblock head_title %}{% endspaceless %} | Gyrinx</title>
+        {# djlint:on #}
+        {% block stylesheet %}
+            <link rel="stylesheet" href="{% static 'designsystem/app.css' %}">
+        {% endblock stylesheet %}
+        {% comment %}
+        1320px from 1400px up matches the platform's container cap, so n26 pages
+        read as the same width as the rest of the site.
+        {% endcomment %}
+        <style>
+            :root { --n26-site-width: 75rem; }
+            @media (min-width: 1400px) {
+                :root { --n26-site-width: 1320px; }
+            }
+        </style>
+        {% if gtm_container_id %}
+            {# djlint:off #}
+            <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+                new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+                j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+                'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+                })(window,document,'script','dataLayer','{{ gtm_container_id }}');
+            </script>
+            {# djlint:on #}
+        {% endif %}
+    </head>
+    {% comment %}
+    --n26-sticky-top tells sticky descendants (e.g. <c-n26.collection-picker>)
+    where the viewport top really is: the nav is sticky and 3.5rem tall, so
+    anything that stuck at 0 would slide underneath it.
+    {% endcomment %}
+    {# djlint:off H021 — a CSS custom property children read; it must ride the element #}
+    <body class="flex min-h-screen flex-col" style="--n26-sticky-top: 3.5rem">
+        {# djlint:on #}
+        {% if gtm_container_id %}
+            {# djlint:off #}
+            <noscript>
+                <iframe src="https://www.googletagmanager.com/ns.html?id={{ gtm_container_id }}"
+                        height="0" width="0" style="display:none; visibility:hidden"></iframe>
+            </noscript>
+            {# djlint:on #}
+        {% endif %}
+        <a href="#content"
+           class="sr-only focus:not-sr-only focus:absolute focus:top-3 focus:left-3 focus:z-50 focus:rounded-control focus:bg-accent focus:px-3 focus:py-2 focus:text-accent-foreground">
+            Skip to main content
+        </a>
+        {% if banner %}
+            <c-n26.site.announcement tone="{{ banner.colour|default:'info' }}"
+                                     icon="{{ banner.icon }}"
+                                     cta_text="{{ banner.cta_text }}"
+                                     cta_url="{{ banner.cta_url }}"
+                                     id="site-banner-{{ banner.id }}">
+                {{ banner.text }}
+            </c-n26.site.announcement>
+        {% endif %}
+        {% comment %}
+        The `dark` class keeps the header dark in both modes: it re-declares the
+        theme's dark tokens for the subtree and enables dark: utilities inside it.
+
+        The nav_heading block goes *inside* a c-slot, never into a heading=""
+        attribute: cotton parses attributes before Django's block machinery runs,
+        so a block in an attribute silently renders as nothing.
+        {% endcomment %}
+        <c-n26.site.nav title="Gyrinx" href="/" sticky="1" class="dark">
+            <c-slot name="logo">
+                <img src="{% static 'platform/img/brand/logo-gold-transparent-bg.svg' %}"
+                     alt=""
+                     width="24"
+                     height="24"
+                     class="size-6">
+            </c-slot>
+            <c-slot name="heading">
+                {% block nav_heading %}
+                {% endblock nav_heading %}
+            </c-slot>
+            {% comment %}
+            A block rather than a slot: a page extending this template can fill
+            a block, but cannot fill a slot on a component the template owns.
+            {% endcomment %}
+            {% block nav_items %}
+            {% endblock nav_items %}
+            <c-slot name="actions">
+                <c-ui.mode-toggle storage_key="theme" size="sm" />
+                {% if user.is_authenticated %}
+                    {% comment %}
+                    c-ui.dropdown.item, not c-ui.menu.item — menu.item calls
+                    selectOption(), which is combobox machinery outside a
+                    dropdown's scope, so it throws on click and the panel
+                    never closes.
+                    {% endcomment %}
+                    {% url 'admin:index' as admin_url_ %}
+                    {% url 'account_logout' as logout_url_ %}
+                    <c-ui.dropdown>
+                        <c-slot name="trigger">
+                            <c-ui.button size="sm" variant="default">
+                                {{ user.username }}
+                            </c-ui.button>
+                        </c-slot>
+                        <c-ui.dropdown.item href="/account/">
+                            Account
+                        </c-ui.dropdown.item>
+                        {% if user.is_staff and admin_url_ %}
+                            <c-ui.dropdown.item href="{{ admin_url_ }}">
+                                Admin
+                            </c-ui.dropdown.item>
+                        {% endif %}
+                        {% if logout_url_ %}
+                            <c-ui.dropdown.separator />
+                            <c-ui.dropdown.item href="{{ logout_url_ }}" variant="danger">
+                                Sign out
+                            </c-ui.dropdown.item>
+                        {% endif %}
+                    </c-ui.dropdown>
+                {% else %}
+                    {% url 'account_login' as login_url_ %}
+                    {% url 'account_signup' as signup_url_ %}
+                    {% comment %}
+                    No ?next on the login and signup pages themselves — it would
+                    point back at the form and send the user round in a circle.
+                    {% endcomment %}
+                    {% if request.path != login_url_ and request.path != signup_url_ %}
+                        {% with next_param=request.get_full_path|urlencode %}
+                            <c-ui.button size="sm"
+                                         variant="default"
+                                         href="{{ login_url_ }}?next={{ next_param }}">
+                                Sign In
+                            </c-ui.button>
+                            {% if signup_url_ %}
+                                <c-ui.button size="sm"
+                                             variant="primary"
+                                             href="{{ signup_url_ }}?next={{ next_param }}">
+                                    Sign Up
+                                </c-ui.button>
+                            {% endif %}
+                        {% endwith %}
+                    {% else %}
+                        <c-ui.button size="sm" variant="default" href="{{ login_url_ }}">
+                            Sign In
+                        </c-ui.button>
+                        {% if signup_url_ %}
+                            <c-ui.button size="sm" variant="primary" href="{{ signup_url_ }}">
+                                Sign Up
+                            </c-ui.button>
+                        {% endif %}
+                    {% endif %}
+                {% endif %}
+            </c-slot>
+        </c-n26.site.nav>
+        {% if is_impersonating %}
+            {% comment %}
+            Deliberately not dismissible: an impersonation notice must show on
+            every page. Stopping is a POST, so it goes in the `action` slot
+            rather than being a CTA link.
+            {% endcomment %}
+            {% url 'core:impersonate-stop' as stop_url_ %}
+            <c-n26.site.announcement tone="danger" dismissible="" id="impersonation-banner">
+                Impersonating <strong>{{ request.user.username }}</strong> — signed in as
+                {{ impersonator.username }}. Everything you do is recorded as this user.
+                <c-slot name="action">
+                    <form method="post" action="{{ stop_url_ }}">
+                        {% csrf_token %}
+                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                        <c-ui.button size="sm" variant="default" type="submit">
+                            Stop impersonating
+                        </c-ui.button>
+                    </form>
+                </c-slot>
+            </c-n26.site.announcement>
+        {% endif %}
+        {% block body %}
+            <main id="content" class="n26-site-container flex-1 pt-4 pb-10">
+                {% if messages %}
+                    <div class="mb-4 flex flex-col gap-2">
+                        {% for message in messages %}
+                            <c-ui.alert variant="{% if message.level_tag == 'success' %}success{% elif message.level_tag == 'warning' %}warning{% elif message.level_tag == 'error' %}error{% else %}info{% endif %}"
+                                        dismissible="1">{{ message }}</c-ui.alert>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+                {% block content %}
+                {% endblock content %}
+            </main>
+        {% endblock body %}
+        {% block extra_body %}
+        {% endblock extra_body %}
+        {% block footer %}
+            <c-n26.site.footer>
+                <c-n26.site.footer.column>
+                    <c-slot name="lead">
+                        <a href="/" class="n26-site-brand focus-ring" aria-label="Gyrinx">
+                            <img src="{% static 'platform/img/brand/logo-gold-transparent-bg.svg' %}"
+                                 alt=""
+                                 width="24"
+                                 height="24"
+                                 class="size-6">
+                            <span>Gyrinx</span>
+                        </a>
+                    </c-slot>
+                    <li>Designed and built in the UK.</li>
+                    {% if user.is_staff %}
+                        <li><c-n26.link href="{% url 'admin:index' %}" tone="muted">Admin</c-n26.link></li>
+                    {% endif %}
+                    <li class="flex items-center gap-3 pt-1">
+                        <c-n26.link href="https://github.com/gyrinx-app" tone="muted">
+                            <c-n26.icon name="github" class="size-5" label="GitHub" />
+                        </c-n26.link>
+                        <c-n26.link href="https://discord.gg/6yZQ8Y7C4W" tone="muted">
+                            <c-n26.icon name="discord" class="size-5" label="Discord" />
+                        </c-n26.link>
+                    </li>
+                </c-n26.site.footer.column>
+                {% comment %}
+                A literal &, not &amp; — cotton reads the attribute as text and
+                Django escapes it on output, so an entity gets double-escaped.
+                {% endcomment %}
+                <c-n26.site.footer.column heading="Help & Documentation">
+                    <li>
+                        <c-n26.link href="/content/" tone="muted">
+                            Getting started
+                        </c-n26.link>
+                    </li>
+                    <li>
+                        <c-n26.link href="/content/" tone="muted">
+                            Building a gang
+                        </c-n26.link>
+                    </li>
+                    <li>
+                        <c-n26.link href="/content/" tone="muted">
+                            Running a campaign
+                        </c-n26.link>
+                    </li>
+                    <li>
+                        <c-n26.link href="/content/" tone="muted">
+                            Printing cards
+                        </c-n26.link>
+                    </li>
+                </c-n26.site.footer.column>
+                <c-n26.site.footer.column heading="Support Gyrinx on Patreon">
+                    <c-slot name="content">
+                        <a href="https://patreon.com/Gyrinx"
+                           class="n26-img-tilt block rounded-box focus-ring">
+                            <img src="{% static 'platform/img/patreon.png' %}"
+                                 alt="Support Gyrinx on Patreon"
+                                 class="w-full rounded-box border border-box-border">
+                        </a>
+                    </c-slot>
+                </c-n26.site.footer.column>
+            </c-n26.site.footer>
+        {% endblock footer %}
+        {% comment %}
+        Order matters: the kit's factories must be defined before Alpine walks
+        the document and evaluates an x-data that names one.
+        {% endcomment %}
+        <script defer src="{% static 'django_cotton_ui/cotton-ui.min.js' %}"></script>
+        <script defer src="{% static 'designsystem/vendor/alpine-collapse.min.js' %}"></script>
+        <script defer src="{% static 'designsystem/vendor/alpine-focus.min.js' %}"></script>
+        <script defer src="{% static 'designsystem/vendor/alpine.min.js' %}"></script>
+        {% block extra_script %}
+        {% endblock extra_script %}
+    </body>
+</html>

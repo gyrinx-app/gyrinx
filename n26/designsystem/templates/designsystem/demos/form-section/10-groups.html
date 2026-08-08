@@ -1,0 +1,20 @@
+{# title: Two groups #}
+{# note: The unit a form is built from. A heading, an optional line of help, then the fields. Separated by space rather than boxed: four lines around every group makes a short form look like a settings screen, and the heading is already saying where the group starts. #}
+{# layout: col #}
+<div class="max-w-2xl space-y-8">
+    <c-n26.form-section title="General">
+        <c-ui.input label="Gang name *"
+                    name="demo-name"
+                    description="You can change this later." />
+        <c-ui.input label="Motto" name="demo-motto" />
+    </c-n26.form-section>
+    <c-n26.form-section title="Setup"
+                        description="Both optional, and both changeable once the gang exists.">
+        <c-ui.input label="Starting credits"
+                    name="demo-credits"
+                    type="number"
+                    placeholder="No limit"
+                    right_addon="¢"
+                    description="Leave blank to spend as much as you like." />
+    </c-n26.form-section>
+</div>

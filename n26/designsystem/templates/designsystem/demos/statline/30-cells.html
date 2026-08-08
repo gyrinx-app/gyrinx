@@ -1,0 +1,28 @@
+{# title: Cells inside another table #}
+{# note: statline.header and statline.cells emit cells rather than rows, and take a flat list — which is what lets the weapon table put a name column in front of the same stats, and the book layout render one group at a time. #}
+{# layout: full #}
+<div class="overflow-x-auto">
+    <table class="w-full border-collapse text-sm">
+        <thead class="border-b border-box-border">
+            <tr>
+                <c-n26.statline.header :cells="model_card.weapons.2.profiles.0.statline.cells">
+                    <c-slot name="leading">
+                        <th scope="col"
+                            class="px-4 py-1.5 text-left text-xs font-semibold text-ink-900 dark:text-ink-100">Weapons</th>
+                    </c-slot>
+                </c-n26.statline.header>
+            </tr>
+        </thead>
+        <tbody>
+            {% for profile in model_card.weapons.2.profiles %}
+                <tr>
+                    <c-n26.statline.cells :cells="profile.statline.cells">
+                        <c-slot name="leading">
+                            <td class="px-4 py-1.5 text-ink-900 dark:text-ink-100">{{ profile.name }}</td>
+                        </c-slot>
+                    </c-n26.statline.cells>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>

@@ -1,0 +1,20 @@
+{% comment %}
+<c-n26.statline.cells> — the <td> cells for a set of characteristics.
+
+    <tr><c-n26.statline.cells :cells="profile.statline.cells" /></tr>
+
+The values half of <c-n26.statline.header>, taking the same flat list so the two
+line up however they are sliced. Values arrive already formatted — Stat.format_value
+has turned 4 into 4", 3 into 3+ and 2 into +2 — so nothing here interprets a
+characteristic.
+
+A modified cell is marked twice over: accent *and* semibold. Colour alone would
+disappear in a theme whose accent sits close to the text, and this is the one place
+on a card where "this is not the printed value" has to survive a bad palette. The
+tooltip names what changed it, which the paper card cannot do at all.
+
+  :cells — a list of n26.render.StatCell.
+  leading / trailing — extra <td> either side.
+{% endcomment %}
+<c-vars :cells="None" />
+{% if leading %}{{ leading }}{% endif %}{% for cell in cells %}<td class="whitespace-nowrap px-2 py-1.5 text-center tabular-nums text-ink-900 dark:text-ink-100 {% if cell.first_of_group and not forloop.first %}border-l border-box-border{% endif %} {% if cell.highlighted %}bg-ink-500/10{% endif %}">{% if cell.modified %}<c-ui.tooltip size="sm"><span class="font-semibold text-accent underline decoration-dotted underline-offset-2">{{ cell.value }}</span><c-slot name="content">{{ cell.short_name }} changed by {% for change in cell.modified_by %}{{ change.source|default:"a modifier" }}{% if change.source_kind %} ({{ change.source_kind }}){% endif %}{% if not forloop.last %}, {% endif %}{% endfor %}</c-slot></c-ui.tooltip>{% else %}{{ cell.value }}{% endif %}</td>{% endfor %}{% if trailing %}{{ trailing }}{% endif %}

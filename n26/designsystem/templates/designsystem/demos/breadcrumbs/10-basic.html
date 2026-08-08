@@ -1,0 +1,14 @@
+{# title: Basic trail #}
+{# note: With no separator slot the "/" is drawn in CSS and needs no JavaScript at all. #}
+{# layout: col #}
+<c-ui.breadcrumbs>
+    <c-ui.breadcrumbs.item href="#">
+        Campaigns
+    </c-ui.breadcrumbs.item>
+    <c-ui.breadcrumbs.item href="#">
+        Dust Falls
+    </c-ui.breadcrumbs.item>
+    <c-ui.breadcrumbs.item :current="True">
+        Escher
+    </c-ui.breadcrumbs.item>
+</c-ui.breadcrumbs>

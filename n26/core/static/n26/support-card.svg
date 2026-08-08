@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" width="640" height="360" role="img" aria-label="Support Gyrinx">
+    <!-- A stand-in for the real support poster. Drawn rather than photographed
+         so the tilt demo weighs a kilobyte instead of the 1.8MB the original
+         PNG does — what is being demonstrated is the motion, and any rectangle
+         with edges shows that. -->
+    <defs>
+        <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#26221c"/>
+            <stop offset="1" stop-color="#14120f"/>
+        </linearGradient>
+    </defs>
+    <rect width="640" height="360" fill="url(#bg)"/>
+    <path d="M84 150.5 424 104M84 216.5 424 170" stroke="#F7AF08" stroke-width="40" stroke-linecap="round" opacity="0.28"/>
+    <text x="48" y="196" font-family="system-ui, sans-serif" font-size="46" font-weight="700" fill="#F7AF08">Support Gyrinx</text>
+    <text x="48" y="240" font-family="system-ui, sans-serif" font-size="22" fill="#c9c2b6">Back the project on Patreon</text>
+    <rect x="0.5" y="0.5" width="639" height="359" fill="none" stroke="#F7AF08" stroke-opacity="0.35"/>
+</svg>

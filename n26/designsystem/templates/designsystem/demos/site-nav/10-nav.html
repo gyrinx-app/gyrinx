@@ -1,0 +1,37 @@
+{# title: The bar #}
+{# layout: full #}
+{# note: Mostly the kit's c-ui.navbar, which already handles the burger, the mobile mirror of the items and actions, and the is-current marker. What this adds is a brand block and a measure — the same container the announcement and footer use, so the logo lines up with the first footer column. Narrow the window to see the items fold into the panel. #}
+{% load static %}
+<c-n26.site.nav title="Gyrinx" href="#" class="rounded-box border border-box-border">
+    <c-slot name="logo">
+        <img src="{% static 'n26/gyrinx-logo.svg' %}"
+             alt=""
+             width="24"
+             height="24"
+             class="size-6">
+    </c-slot>
+    <c-ui.navbar.item href="#" :current="True">
+        Home
+    </c-ui.navbar.item>
+    <c-ui.navbar.item href="#">
+        Lists &amp; Gangs
+    </c-ui.navbar.item>
+    <c-ui.navbar.item href="#">
+        Campaigns
+    </c-ui.navbar.item>
+    <c-ui.navbar.item href="#">
+        Customisation
+    </c-ui.navbar.item>
+    <c-ui.navbar.item href="#">
+        Help
+    </c-ui.navbar.item>
+    <c-slot name="actions">
+        <c-ui.mode-toggle storage_key="n26-theme" default="system" size="sm" />
+        <c-ui.button href="#" variant="default" size="sm">
+            <span class="flex items-center gap-1.5">
+                <c-n26.icon name="cog-6-tooth" class="size-4" />
+                tom
+            </span>
+        </c-ui.button>
+    </c-slot>
+</c-n26.site.nav>

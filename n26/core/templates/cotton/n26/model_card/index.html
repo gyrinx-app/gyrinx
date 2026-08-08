@@ -1,0 +1,470 @@
+{% comment %}
+<c-n26.model-card> — a fighter's card: who they are, what they can do, what they carry.
+
+    <c-n26.model-card :card="card" />
+
+Takes a n26.render.ModelCard, which core/render.py already assembles in one query.
+Nothing here computes anything: values arrive formatted, weapon costs are summed by
+WeaponLine, and where a statline breaks into groups is content. The template's whole
+job is layout.
+
+It follows the rulebook's Model Card anatomy — name, cost, type, characteristics,
+weapons, skills, equipment, current/target XP — and then keeps going where being
+digital allows. The paper card cannot say *why* a characteristic differs from the
+printed one, that a trait was granted rather than printed, that a gun has paid ammo
+hung off it, or that a choice is still open. All four are already in the data.
+
+Read-only about the *fighter*: nothing here changes a statline, a weapon or a
+skill, and there are no controls over any of them. Notes and lore are the two
+exceptions and they are not really exceptions — they are the only things on a card
+a player writes rather than earns, and an Edit beside each is how you find out you
+can. Everything else is still a rendering.
+
+Two composition notes. Every region is a kit component or one of ours except the
+tables, which are composed from theme tokens — see <c-n26.statline> for why
+c-ui.table could not be reused. And almost nothing is greyed out: hierarchy comes
+from weight and size, and an empty value is an em dash rather than a muted "None",
+so a card has no second-class text on it. Two exceptions, both captions rather
+than content — the profile name under the model's, and the XP target beside the
+current one. Neither is a value a player looks up; each labels the thing next to
+it, which is the only thing grey is for here.
+
+  --- what it deliberately leaves out ---
+
+`card.collections` (which lists a fighter can shop at) and `card.effects` (what
+their kit does beyond this card) are both on the structure and neither is drawn
+(Tom, 2026-08-07). They are reference rather than identity: true of a fighter, and
+not what anyone is reading a card to find out. On a gang sheet of eleven cards
+they were two more rows between the statline and the weapons on every one of them.
+
+Buying is reached from Equip in the `actions` slot, which is the answer to the
+question "Buys from" was there to answer, and closer to hand.
+
+  :card — a n26.render.ModelCard.
+  avatar — a picture of the model, before the name. Any markup; it is framed and
+    clipped here. An <img> fills the frame; <c-ui.avatar> gives the circular
+    treatment and an initials fallback instead.
+  actions — what can be done to this fighter, on the header line between the
+    name and the rating. A slot, so a preview card can have none: the hire list
+    draws one of these behind every row and nothing on it should be pressable.
+  notes — the player's own notes about this fighter, as rendered markup.
+  lore — their backstory, the same.
+  notes_href, lore_href — where each Edit goes. Either alone is enough to draw the
+    section: an empty one with an Edit is how a reader learns they can write it.
+
+    Both are props rather than card.notes and card.lore because
+    n26.render.ModelCard has neither field yet — see design/asks/model-card-notes-
+    lore.md. When it grows them, call sites pass card.notes and this stays as is.
+  choose_href — where an unresolved choice sends a reader. Left empty the prompt
+    still reads as a sentence, because c-n26.link renders a span with no href —
+    which is what a print sheet and a preview want.
+{% endcomment %}
+<c-vars :card="None" choose_href="" notes_href="" lore_href="" class="" />
+
+<c-ui.card padding="none" class="{{ class }}">
+    <c-slot name="header">
+        {% comment %}
+        One line: the name, what you can do, what it costs.
+
+        The name takes the room that is going and wraps inside it; everything to
+        its right is shrink-0 and holds its place. That is the whole reason this
+        is one row rather than a name above a run of buttons — a fighter called
+        The Silent Ledger and the Long Count should cost the card a second line of
+        *name*, not a second row of chrome, and the controls should not move down
+        the card because someone had a long name.
+
+        No truncation. The name is the one thing on a card that cannot be worked
+        out from anything else on it, which is the same call the profile picker's
+        rows make.
+
+        items-start, so the buttons and the rating stay level with the first line
+        of a wrapping name instead of drifting to its middle.
+        {% endcomment %}
+        {% comment %}
+        -mx-2 because the kit's header band is px-6 and hardcodes it, where every
+        row below is px-4: the name started eight pixels further in than Skills
+        and the rating ended eight pixels further out, so the widest line on the
+        card had the least room to be wide in. Pulling back two is what puts the
+        header on the same margin as the tables.
+
+        A negative margin rather than a rule of our own, because the padding is a
+        utility on a kit element we do not own — there is no prop for it, and
+        anything overriding it would have to be unlayered and keyed on a class
+        added for the purpose. Two pixels of arithmetic against one hardcoded
+        value is the smaller thing to keep in step.
+        {% endcomment %}
+        <div class="-mx-2 flex items-start gap-3">
+            {% comment %}
+            The fighter's own photograph, before their name — the order you
+            recognise a model in, and the reason to have one at all: on a gang
+            sheet of eleven cards a painted mini is found faster than a name is
+            read.
+
+            Rounded, not circular. It is called an avatar because that is the
+            role — an image standing in for the fighter — but a photo of a
+            miniature is a tall rectangle, and a circle takes the head off the top
+            or the base off the bottom depending on the crop. The frame is square
+            at the theme's box radius, so the picture keeps its proportions and
+            still belongs to the card. A caller who wants the circle can put
+            <c-ui.avatar> in the slot and get one.
+            {% endcomment %}
+            {% if avatar %}
+                <span class="size-12 shrink-0 overflow-hidden rounded-box bg-ink-500/10
+                             [&_img]:size-full [&_img]:object-cover">{{ avatar }}</span>
+            {% endif %}
+
+            {% comment %}
+            The miniature's name, and under it the name of the profile it is
+            attached to. Two different facts: "Vesna Krail" is this one model and
+            nothing else, where "Escher Gang Queen" is a content-library entry
+            that any number of gangs have a copy of. A reader scanning a sheet
+            needs both — which model, and which entry it was hired from.
+
+            Not the type line. "Fighter (Leader)" is what *kind* of thing this is
+            and the statline already says it under a Type header, which is where
+            the printed card puts it. The profile name is a third thing again, and
+            the one that was missing.
+
+            Stacked and left, against a right-hand group that stays on one line
+            however tall this column gets.
+
+            Smaller and muted, which is the card's one piece of grey text. The
+            rule everywhere else is that hierarchy comes from weight and nothing
+            is greyed out, and it holds because every other line is something a
+            player looks up — this one is a label for the line above it. On a
+            sheet of eleven cards it is scanned past on ten of them, so it reads
+            as the caption it is rather than competing with the name.
+
+            Skipped when the two match, which is every model nobody has renamed
+            yet: a card hired an hour ago takes the entry's name as its own, and
+            printing it twice would look like a bug rather than like two facts
+            that happen to agree. n26.render_text drops it on the same test.
+            {% endcomment %}
+            <div class="min-w-0 flex-1">
+                <div class="font-semibold">{{ card.name }}</div>
+                {% if card.profile_name and card.profile_name != card.name %}
+                    <div class="text-sm text-muted">{{ card.profile_name }}</div>
+                {% endif %}
+            </div>
+
+            {% comment %}
+            What can be done to this fighter, and what it is worth — one line, and
+            one group, so the buttons and the price cannot come apart onto two
+            rows when the name beside them wraps.
+
+            items-start on the row above rather than items-center, so this group
+            sits against the name rather than floating to the middle of a
+            two-line column.
+
+            The actions are on the card and not on the gang because they are
+            per-model: you equip *this* fighter. A gang-level Buy would have to
+            ask which model after you pressed it.
+
+            A slot rather than props, unlike notes_href and lore_href below. Those
+            are the card's own content and it knows what they mean; which acts a
+            fighter offers is the application's vocabulary, and a card that
+            hardcoded Equip and Delete could not be the read-only preview the hire
+            list draws behind every row.
+            {% endcomment %}
+            <div class="flex shrink-0 flex-nowrap items-center gap-2">
+                {% if actions %}{{ actions }}{% endif %}
+
+                <c-ui.badge size="sm" variant="solid" class="shrink-0"
+                            title="Rating, including weapons and wargear">{{ card.rating }}¢</c-ui.badge>
+            </div>
+        </div>
+    </c-slot>
+
+    {% comment %}
+    The rulebook's layout: M–Sv on the first row, Ld–Int on the second, and the
+    columns the second row leaves over spent on the type line and XP rather than
+    left empty. Which is also why the header does not repeat the type or carry an
+    XP badge — the statline says both, in the place the printed card says them.
+    {% endcomment %}
+    <c-n26.statline :statline="card.statline" layout="book"
+                    type_line="{{ card.type_line }}"
+                    xp="{{ card.xp }}" xp_target="{{ card.xp_target|default_if_none:'–' }}" />
+
+    {% comment %}
+    A two-column grid rather than a table: these are label-and-value pairs, not
+    tabular data, and a grid keeps the labels aligned without asking a reader to
+    scan a header row that would only ever say "Field" and "Value".
+    {% endcomment %}
+    <dl class="grid grid-cols-[auto_1fr] gap-x-5 gap-y-2 border-t border-box-border px-4 py-3 text-sm">
+        {% comment %}
+        Written out rather than looped over a list of pairs. Three rows is not
+        enough repetition to be worth a helper on ModelCard, and naming them here
+        keeps the card's vocabulary — Rules, Skills, Gear — in the template that
+        renders it rather than split across a dataclass.
+        {% endcomment %}
+        {% comment %}
+        There is no "Rules" row any more. A granted skill and a bought one are
+        both skills — they arrive in one list, told apart by provenance — so
+        splitting them across two rows would file a thing by where it came from
+        rather than by what it is. The mark says where it came from instead.
+        {% endcomment %}
+        <dt class="font-semibold text-ink-900 dark:text-ink-100">Skills</dt>
+        <dd class="min-w-0 text-ink-900 dark:text-ink-100">
+            <c-n26.assignable-lines :lines="card.skills" />
+        </dd>
+
+        {% comment %}
+        Rules are named special rules, not skills. The book prints them apart —
+        which is the whole reason main made Rule its own kind rather than folding
+        it into Skill — so the card does too. Name and annotation only: never the
+        rules text, which is not ours to store.
+        {% endcomment %}
+        {% if card.rules %}
+            <dt class="font-semibold text-ink-900 dark:text-ink-100">Rules</dt>
+            <dd class="min-w-0 text-ink-900 dark:text-ink-100">
+                <c-n26.assignable-lines :lines="card.rules" />
+            </dd>
+        {% endif %}
+
+        {% comment %}
+        Powers get their own row rather than joining Skills, because they are a
+        different kind of thing that happens to be acquired the same way — a Wyrd
+        chooses one exactly as a Specialist chooses a skill, and the book brackets
+        them separately. Filing them together would say the distinction is
+        presentational when the rules turn on it.
+
+        Its own row, but the same treatment: one list, provenance telling a
+        chosen power from a granted one.
+        {% endcomment %}
+        {% if card.powers %}
+            <dt class="font-semibold text-ink-900 dark:text-ink-100">Powers</dt>
+            <dd class="min-w-0 text-ink-900 dark:text-ink-100">
+                <c-n26.assignable-lines :lines="card.powers" />
+            </dd>
+        {% endif %}
+
+        <dt class="font-semibold text-ink-900 dark:text-ink-100">Gear</dt>
+        <dd class="min-w-0 text-ink-900 dark:text-ink-100">
+            <c-n26.assignable-lines :lines="card.equipment" />
+        </dd>
+
+        {% comment %}
+        Each choice is its own row, labelled by what it asks for, exactly as an
+        assignable is — because that is what a resolved choice *is*, and giving
+        it a different shape would say the card is unfinished. Unresolved reads
+        as a missing value in a known field, which is the honest description:
+        "we inform; we do not police".
+
+        The provenance says which slot offered it, and is deliberately not
+        printed — two Skill rows are told apart by a picker link in a real UI,
+        not by explaining the rules engine on the card.
+        {% endcomment %}
+        {% for choice in card.choices %}
+            <dt class="font-semibold capitalize text-ink-900 dark:text-ink-100">{{ choice.kind_label }}</dt>
+            <dd class="min-w-0 text-ink-900 dark:text-ink-100">
+                {% comment %}
+                Unresolved reads as an invitation rather than as a blank. "— not
+                chosen" describes the gap and leaves the reader to work out what to
+                do about it; "Choose a Specialisation" is the thing to do, and the
+                kind_label already names it.
+
+                c-n26.link renders a span when there is no href, so a card with
+                nowhere to send anyone — a print sheet, a preview — still reads as a
+                sentence instead of showing a dead control.
+
+                underline="always", not the default hover. This theme's accent sits
+                at the same lightness as the card's own text, so colour alone leaves
+                the prompt indistinguishable from the label beside it until you
+                happen to point at it. A solid rule also reads apart from the dotted
+                one provenance uses, which is a different statement entirely.
+                {% endcomment %}
+                {% if choice.is_resolved %}{{ choice.chosen }}
+                {% else %}<c-n26.link href="{{ choose_href }}" underline="always">Choose a {{ choice.kind_label }}</c-n26.link>{% endif %}
+            </dd>
+        {% endfor %}
+
+    </dl>
+
+    {% comment %}
+    One weapon table, its stat columns taken from the first profile's statline. That
+    holds because a weapon's shape is fixed by its StatlineType, and a card's
+    weapons share one — melee and ranged both print range and accuracy, blank where
+    they do not apply. A card mixing shapes would need a table each, and would look
+    wrong long before it rendered wrong.
+    {% endcomment %}
+    {% if card.weapons %}
+        <div class="overflow-x-auto border-t border-box-border">
+            <table class="w-full border-collapse text-sm">
+                <thead class="border-b border-box-border">
+                    <tr>
+                        {% comment %}
+                        Columns come from the first profile on the card, not from a
+                        hardcoded list, so a pack that changes a weapon's statline
+                        type changes this header with it.
+                        {% endcomment %}
+                        <c-n26.statline.header :cells="card.weapons.0.profiles.0.statline.cells">
+                            <c-slot name="leading">
+                                <th scope="col" class="px-4 py-1.5 text-left text-xs font-semibold text-ink-900 dark:text-ink-100">Weapons</th>
+                            </c-slot>
+                        </c-n26.statline.header>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for weapon in card.weapons %}
+                        {% comment %}
+                        One rule, and it lives on WeaponLine so the text card, the
+                        print card and this one cannot drift: the unnamed profile
+                        *is* the weapon, so its stats ride the weapon's own row,
+                        and every named profile gets a row beneath. A lasgun shoots
+                        as a lasgun and needs one row; a grenade launcher is not its
+                        frag round, so hoisting frag up to the weapon's line would
+                        say it was — it keeps a row of its own instead.
+
+                        The test is the name, not the number of profiles or their
+                        price. Both grenade profiles are free, which is exactly the
+                        case a count or a price would get wrong.
+                        {% endcomment %}
+                        {% with own=weapon.own_line %}
+                        <tr class="{% if not forloop.first %}border-t border-box-border{% endif %}">
+                            {% if own %}
+                                <c-n26.statline.cells :cells="own.statline.cells">
+                                    <c-slot name="leading">
+                                        <td class="px-4 py-1.5 text-ink-900 dark:text-ink-100">
+                                            {% comment %}
+                                            The weapon's own line comes free with it and shows
+                                            the weapon's rating; a named profile is ammo bought
+                                            later, so it shows only what it added.
+                                            {% endcomment %}
+                                            {{ weapon.name }}
+                                            <span class="whitespace-nowrap">({{ weapon.base_rating }}¢)</span>
+                                        </td>
+                                    </c-slot>
+                                </c-n26.statline.cells>
+                            {% else %}
+                                <td colspan="99" class="px-4 pt-2 text-ink-900 dark:text-ink-100">
+                                    {{ weapon.name }}
+                                    <span class="whitespace-nowrap">({{ weapon.base_rating }}¢)</span>
+                                </td>
+                            {% endif %}
+                        </tr>
+
+                        {% if own.traits %}
+                            <tr>
+                                {# Aligned as the named profiles' traits are, and for the reason given there. #}
+                                <td></td>
+                                <td colspan="{{ own.statline.cells|length }}"
+                                    class="px-2 pb-2 text-xs text-ink-900 dark:text-ink-100">
+                                    <c-n26.assignable-lines :lines="own.traits" />
+                                </td>
+                            </tr>
+                        {% endif %}
+                        {% endwith %}
+
+                        {% for profile in weapon.named_profiles %}
+                            <tr>
+                                <c-n26.statline.cells :cells="profile.statline.cells">
+                                    <c-slot name="leading">
+                                        <td class="px-4 py-1.5 text-ink-900 dark:text-ink-100">
+                                            <span class="pl-4">{{ profile.name }}</span>
+                                            {% if profile.rating %}<span class="whitespace-nowrap">(+{{ profile.rating }}¢)</span>{% endif %}
+                                        </td>
+                                    </c-slot>
+                                </c-n26.statline.cells>
+                            </tr>
+
+                            {% if profile.traits %}
+                                <tr>
+                                    {% comment %}
+                                    An empty cell under the name column, so the traits
+                                    line up with the leftmost *stat* rather than with
+                                    the weapon's name. They describe the profile, and
+                                    starting them under the numbers says so.
+
+                                    Printed and granted traits are one list now, not
+                                    two — "where did Unstable come from" is answered by
+                                    the mark on Unstable rather than by keeping it in a
+                                    separate pile at the end of the row.
+                                    {% endcomment %}
+                                    <td></td>
+                                    <td colspan="{{ profile.statline.cells|length }}"
+                                        class="px-2 pb-2 text-xs text-ink-900 dark:text-ink-100">
+                                        <c-n26.assignable-lines :lines="profile.traits" />
+                                    </td>
+                                </tr>
+                            {% endif %}
+                        {% endfor %}
+
+                        {% comment %}
+                        What is bolted to the weapon, as opposed to carried by the
+                        fighter — a sight, suspensors. It hangs off the weapon and
+                        not off any one profile, so it gets the weapon's full width
+                        rather than sitting in the stat columns, and it is drawn
+                        through <c-n26.assignable-lines> so a granted accessory
+                        carries the same mark as a granted trait.
+
+                        Under the profiles, where the text renderer puts them
+                        above. The table has a reason it cannot follow: a weapon
+                        whose own line carries its stats has no separate name row,
+                        so "above the profiles" would print the accessory before
+                        the weapon it is attached to.
+
+                        Set at the table's size, not smaller. An accessory is a
+                        thing the fighter owns and paid for, which makes it a peer
+                        of the profiles above it rather than an annotation on
+                        them — the traits line is the annotation, and it is the
+                        one that gets to be small. It had been text-xs, so a
+                        Telescopic sight read as a footnote about the Lasgun
+                        rather than as part of the gun.
+                        {% endcomment %}
+                        {% if weapon.accessories %}
+                            <tr>
+                                <td colspan="99" class="px-4 pb-2 text-ink-900 dark:text-ink-100">
+                                    {% comment %}
+                                    A "+" opens the line, the mark n26.render_text
+                                    uses for the same thing. Without it an accessory
+                                    sits at the ammo profiles' indent with no stats
+                                    beside it and reads as a profile that is missing
+                                    its numbers; the ammo lines open with an em dash
+                                    of their own, so the two are told apart by the
+                                    mark rather than by the reader knowing already.
+
+                                    Not greyed: the card's rule is hierarchy by
+                                    weight and size, and a mark too quiet to see is
+                                    a mark that is not doing its job.
+                                    {% endcomment %}
+                                    <span class="pl-4">
+                                        <span aria-hidden="true">+</span>
+                                        <c-n26.assignable-lines :lines="weapon.accessories" />
+                                    </span>
+                                </td>
+                            </tr>
+                        {% endif %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% endif %}
+
+    {% comment %}
+    Notes and lore, last and in that order.
+
+    Both are prose about the fighter rather than facts of the fighter, which is
+    why they sit under the weapons and not among the Skills and Gear rows: those
+    rows are a table of what a model *is*, and a paragraph in one would stretch a
+    grid built for three words.
+
+    Notes before lore because notes are operational — "needs a new base", "owes
+    Kaine a favour" — and get read between games, where lore is read once. A
+    fighter usually has notes and rarely has lore, so the common one comes first
+    rather than after a wall of backstory.
+
+    Each renders only when there is something to render *or* somewhere to edit: a
+    heading over nothing is a row of chrome, but an empty section with an Edit
+    button is how anyone finds out they can write one. That is the case the empty
+    line covers.
+    {% endcomment %}
+    {% if notes or notes_href %}
+        <c-n26.model-card.prose heading="Notes" href="{{ notes_href }}"
+                                empty="No notes yet.">{{ notes }}</c-n26.model-card.prose>
+    {% endif %}
+
+    {% if lore or lore_href %}
+        <c-n26.model-card.prose heading="Lore" href="{{ lore_href }}"
+                                empty="Nothing written yet.">{{ lore }}</c-n26.model-card.prose>
+    {% endif %}
+</c-ui.card>

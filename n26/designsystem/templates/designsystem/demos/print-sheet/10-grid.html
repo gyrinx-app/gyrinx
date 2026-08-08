@@ -1,0 +1,32 @@
+{# title: The sheet and the grid #}
+{# layout: full #}
+{# note: Real A4 geometry at real size. The grid derives its cell width from the printable area, so no combination of columns and gutter can overflow the paper — and it tiles as atomic inlines, which is what stops the page fold cutting a card in two. owns_page keeps this preview from claiming the gallery's own @page rule. #}
+<c-n26.print.sheet page="a5"
+                   orientation="landscape"
+                   margin="6mm"
+                   owns_page=""
+                   scroll="1">
+    <c-n26.print.grid columns="3" gutter="4mm">
+        <c-n26.print.card title="Vesna Krail" subtitle="Fighter (Leader)" badge="95¢">
+            <c-n26.print.entry label="Skills">
+                Spring Up, Overseer
+            </c-n26.print.entry>
+            <c-n26.print.entry label="Gear">
+                Mesh armour, Photo-goggles
+            </c-n26.print.entry>
+        </c-n26.print.card>
+        <c-n26.print.card title="Dust" subtitle="Fighter (Ganger)" badge="60¢">
+            <c-n26.print.entry label="Skills">
+                Nerves of Steel
+            </c-n26.print.entry>
+        </c-n26.print.card>
+        <c-n26.print.card title="Ninefingers" subtitle="Fighter (Juve)" badge="75¢">
+            <c-n26.print.entry label="Skills">
+                Catfall, Spring Up
+            </c-n26.print.entry>
+            <c-n26.print.entry label="Gear">
+                Stiletto knife
+            </c-n26.print.entry>
+        </c-n26.print.card>
+    </c-n26.print.grid>
+</c-n26.print.sheet>

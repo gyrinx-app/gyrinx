@@ -1,0 +1,56 @@
+{% comment %}
+<c-n26.action-bar> — the inline row that buttons, groups, dropdowns and links sit in.
+
+    {# a page's actions #}
+    <c-n26.action-bar>
+        <c-ui.button variant="success">Add fighter</c-ui.button>
+        <c-n26.button-group>
+            <c-ui.button>Pin</c-ui.button>
+            <c-ui.button>Print</c-ui.button>
+        </c-n26.button-group>
+        <c-ui.dropdown trigger_text="More">…</c-ui.dropdown>
+    </c-n26.action-bar>
+
+    {# a quieter one, on its own tinted strip #}
+    <c-n26.action-bar :surface="True">
+        <c-n26.action-links>
+            <c-n26.action-link href="/x/">Attributes</c-n26.action-link>
+            <c-n26.action-link href="/y/">Resources</c-n26.action-link>
+        </c-n26.action-links>
+    </c-n26.action-bar>
+
+Layout only. A wrapping flex row that keeps controls of different heights on a
+shared centre line and pushes the trailing slot to the far end, so a toolbar is
+one decision made once rather than a gap guessed at each time.
+
+This was <c-n26.filter-bar>, which was the same row with a narrower name. A row of
+filters and a row of actions are the same thing — filtering *is* an action — and
+two components with identical markup is how a design system starts drifting.
+
+  :surface — a tinted, rounded strip behind the row, for a secondary bar sitting
+    inside a card or under a heading rather than at the top of a page.
+  :divided — a rule underneath, for when the bar sits directly above a table.
+  gap — normal (default) or tight, which is what a row of icon buttons wants.
+  trailing — right-aligned content.
+{% endcomment %}
+<c-vars
+    :surface="False"
+    :divided="False"
+    gap="normal"
+    class=""
+    :gap_classes="{
+        'normal': 'gap-3',
+        'tight': 'gap-2',
+    }"
+/>
+
+<div {{ attrs }}
+     class="flex flex-wrap items-center {{ gap_classes|get_item:gap }}
+            {% if surface %}rounded-box bg-ink-500/5 px-3 py-2{% endif %}
+            {% if divided %}border-b border-box-border pb-4{% endif %} {{ class }}">
+    {{ slot }}
+
+    {% if trailing %}
+        <div class="ml-auto flex flex-wrap items-center {{ gap_classes|get_item:gap }}">{{ trailing }}</div>
+    {% endif %}
+</div>

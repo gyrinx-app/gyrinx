@@ -592,3 +592,30 @@ def notify_many(
     except Exception:
         logger.exception("notify_many failed for subject=%r", subject)
     return created
+
+
+class ChangelogEntry(AppBase):
+    """One dated entry in the site changelog.
+
+    Platform-owned: what changed is a fact about the site, whichever
+    edition's dashboard lists it. The body is rich text, written in the
+    admin and sanitised at render time by whatever page shows it — the
+    n26 dashboard runs it through its ``richtext`` filter.
+    """
+
+    date = models.DateField(help_text="The day the change shipped.")
+    title = models.CharField(max_length=255, help_text="One line naming the change.")
+    body = models.TextField(
+        blank=True,
+        help_text="The detail, as rich text. Keep it short — a dashboard lists many.",
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "changelog entry"
+        verbose_name_plural = "changelog entries"
+        ordering = ["-date", "-created"]
+
+    def __str__(self):
+        return f"{self.date}: {self.title}"

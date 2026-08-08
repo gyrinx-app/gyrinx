@@ -1,0 +1,26 @@
+{# note: Unlike a tooltip, a popover can hold things you interact with. #}
+{# title: Click and hover #}
+<c-ui.popover position="bottom">
+    <c-slot name="trigger">
+        <c-ui.button>
+            Click me
+        </c-ui.button>
+    </c-slot>
+    <div class="w-64">
+        <div class="mb-2 font-semibold">Filter</div>
+        <c-ui.checkbox.group name="pop" :values="['ready']">
+            <c-ui.checkbox value="ready" label="Ready" />
+            <c-ui.checkbox value="recovery" label="In recovery" />
+        </c-ui.checkbox.group>
+    </div>
+</c-ui.popover>
+<c-ui.popover open_on="hover" position="top" :open_delay="150">
+    <c-slot name="trigger">
+        <c-ui.button variant="subtle">
+            Hover me
+        </c-ui.button>
+    </c-slot>
+    <div class="w-56 text-sm text-muted">
+        Opens after 150ms and waits 200ms before closing, so crossing it doesn't flicker.
+    </div>
+</c-ui.popover>

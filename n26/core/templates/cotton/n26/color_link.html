@@ -1,0 +1,42 @@
+{% comment %}
+<c-n26.color-link> — text with a colour swatch in front of it.
+
+    <c-n26.color-link color="#8d9900" href="/lists/1/">The Forsaken of Sublevel Theta</c-n26.color-link>
+    <c-n26.color-link color="red" shade="600" underline="always">Les Flambeaux</c-n26.color-link>
+    <c-n26.color-link color="accent">Follows the theme</c-n26.color-link>
+
+The sibling of <c-n26.flair-link>: both are <c-n26.link> with something in a slot
+that sits outside the underline. A badge after the text there, a swatch before it
+here — so the rule under the words never runs under the mark.
+
+*One prop takes the colour, whether it is yours or the theme's.* A gang colour is
+picked by a person and stored as hex, but a swatch standing for something the
+design system already knows about should track the theme rather than freeze a
+value. Anything containing "#" or "(" is used verbatim; anything else is read as a
+theme colour, so `accent` follows the brand and `red` resolves to
+`var(--color-red-500)`. One prop, because a call site should not have to say which
+kind it meant — see css_color in core/templatetags/theme.py.
+
+*It scales with the font, like flair-link and for the same reason:* the swatch is
+sized in em, so there is no size prop and one component works in a table row and
+in a heading. A little under the cap height, nudged off the baseline, so it reads
+as sitting on the text's centre line.
+
+  color — a theme colour name, `accent`, or a literal such as #8d9900.
+  shade — which step of a named scale. Default 500; ignored for accent and literals.
+  href, underline, tone — passed straight to <c-n26.link>.
+  label — an accessible name for the swatch. Left empty it is aria-hidden, which is
+    right when the colour is decorative and the text already names the thing.
+{% endcomment %}{% load theme %}<c-vars
+    color="accent"
+    shade="500"
+    href=""
+    underline="hover"
+    tone="accent"
+    label=""
+    class=""
+/>{% comment %}
+Boundaries are cramped and the file ends without a newline for the same reason as
+<c-n26.link>: this renders inline, and any whitespace the template emits around
+its markup collapses into a space in the surrounding sentence.
+{% endcomment %}<c-n26.link href="{{ href }}" underline="{{ underline }}" tone="{{ tone }}" class="{{ class }}"><c-slot name="leading"><span class="mr-[0.4em] inline-block size-[0.8em] shrink-0 rounded-full align-[-0.02em]" style="background: {{ color|css_color:shade }}" {% if label %}role="img" aria-label="{{ label }}"{% else %}aria-hidden="true"{% endif %}></span></c-slot>{{ slot.strip|safe }}</c-n26.link>

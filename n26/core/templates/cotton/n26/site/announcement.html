@@ -1,0 +1,105 @@
+{% comment %}
+<c-n26.site.announcement> — a bar across the top of the site, saying one thing.
+
+    <c-n26.site.announcement tone="info" cta_text="Read the notes" cta_url="/changelog/">
+        Campaigns are live.
+    </c-n26.site.announcement>
+
+    {# tell the server it was dismissed, so it stops sending it #}
+    <c-n26.site.announcement tone="warning"
+                             on_dismiss="fetch('/banners/{{ banner.id }}/dismiss/', {method: 'POST'})">
+        Scheduled maintenance on Sunday.
+    </c-n26.site.announcement>
+
+Above the nav rather than below it, because it is about the site rather than
+about the page, and because a bar that pushes the whole application down is
+harder to ignore than one tucked inside it. That is the point of the thing.
+
+**It does not remember being dismissed.** Closing it hides it for this page and
+nothing more; reload and it is back. That is deliberate — persistence is a
+decision only the application can make, and the two reasonable answers pull in
+opposite directions. A server that stores the dismissal can also count it, which
+is what you want if the bar is advertising something. A localStorage flag cannot
+be counted but survives a logged-out visitor. `on_dismiss` is where either goes:
+an Alpine expression run at the moment of closing, so the component owns the
+interaction and the application owns the memory.
+
+The tone carries an icon with it unless told otherwise, because the icon and the
+colour are saying the same thing and getting one without the other is how a red
+bar ends up looking like an unexplained mistake.
+
+  tone — info (default), success, warning, danger, neutral. Sets the colours and
+    the default icon together; they are one decision, not two.
+  icon — override the tone's icon with any name from n26/icons.py, or "none"
+    for a bar with no icon at all.
+  cta_text, cta_url — an optional call to action. Both, or neither: a button
+    with no destination is furniture.
+  action — a control, where a link will not do: a form that POSTs, say. Sits
+    where the CTA sits, outside the message text, because a form is flow content
+    and the message is a span.
+  dismissible — a close button. On by default; turn it off for something the
+    reader genuinely must not lose, which is rarer than it sounds.
+  on_dismiss — an Alpine expression run when it closes. See above.
+{% endcomment %}
+<c-vars
+    tone="info"
+    icon=""
+    cta_text=""
+    cta_url=""
+    dismissible="1"
+    on_dismiss=""
+    class=""
+/>
+
+{% comment %}
+An <aside>: complementary to the page rather than part of it, which is exactly
+what it is, and it gives the bar a landmark a screen reader can skip or return
+to. No role="status" — that announces on *change*, and this is present when the
+page loads, so it would interrupt to read out something already on the screen.
+
+x-show with no x-cloak, deliberately: the bar starts visible and stays visible
+until someone closes it, so there is nothing to hide during the moment before
+Alpine boots. Adding x-cloak here would hide it and then drop it in, shifting
+the page under the reader for no reason.
+{% endcomment %}
+<aside {{ attrs }}
+       x-data="{ shown: true }"
+       x-show="shown"
+       class="n26-announcement {{ class }}"
+       data-tone="{{ tone }}"
+       aria-label="Site announcement">
+    <div class="n26-site-container n26-announcement-row">
+
+        {% if icon != "none" %}
+            <c-n26.icon
+                name="{% if icon %}{{ icon }}{% elif tone == 'success' %}check-circle{% elif tone == 'warning' or tone == 'danger' %}exclamation-triangle{% else %}information-circle{% endif %}"
+                class="size-5 shrink-0" />
+        {% endif %}
+
+        <div class="n26-announcement-message">
+            <span>{{ slot }}</span>
+            {% if cta_text and cta_url %}
+                <a href="{{ cta_url }}" class="n26-announcement-cta focus-ring">
+                    {{ cta_text }}
+                    <c-n26.icon name="arrow-right" class="size-4" stroke_width="2" />
+                </a>
+            {% endif %}
+            {% comment %}
+            A control rather than a link, for a banner whose way out is a POST —
+            stopping an impersonation, say. Beside the CTA and not inside the
+            message span, because a <form> is flow content and a span is not: put
+            one in there and the browser closes the span around it.
+            {% endcomment %}
+            {% if action %}{{ action }}{% endif %}
+        </div>
+
+        {% if dismissible %}
+            <button type="button"
+                    @click="shown = false{% if on_dismiss %}; {{ on_dismiss }}{% endif %}"
+                    class="n26-announcement-dismiss focus-ring"
+                    aria-label="Dismiss announcement">
+                <c-n26.icon name="x-mark" class="size-4" stroke_width="2" />
+            </button>
+        {% endif %}
+    </div>
+</aside>

@@ -1,0 +1,41 @@
+{# title: Sizes, and one you can't dismiss #}
+{# note: Careful with the spelling — it's :dismissable on the dialog but :dismissible on the drawer. A close button always renders regardless. #}
+<c-ui.dialog size="sm">
+    <c-slot name="trigger">
+        <c-ui.button>
+            Small
+        </c-ui.button>
+    </c-slot>
+    <c-slot name="header">
+        <c-ui.dialog.title>
+            Small dialog
+        </c-ui.dialog.title>
+    </c-slot>
+    <p class="text-sm text-muted">max-w-sm.</p>
+</c-ui.dialog>
+<c-ui.dialog size="xl">
+    <c-slot name="trigger">
+        <c-ui.button>
+            Extra large
+        </c-ui.button>
+    </c-slot>
+    <c-slot name="header">
+        <c-ui.dialog.title>
+            Extra large dialog
+        </c-ui.dialog.title>
+    </c-slot>
+    <p class="text-sm text-muted">max-w-4xl — room for a table or a form.</p>
+</c-ui.dialog>
+<c-ui.dialog :dismissable="False">
+    <c-slot name="trigger">
+        <c-ui.button variant="danger">
+            Must decide
+        </c-ui.button>
+    </c-slot>
+    <c-slot name="header">
+        <c-ui.dialog.title>
+            No escape
+        </c-ui.dialog.title>
+    </c-slot>
+    <p class="text-sm text-muted">Escape and click-outside are disabled — use the close button.</p>
+</c-ui.dialog>

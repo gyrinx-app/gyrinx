@@ -1,0 +1,40 @@
+{% comment %}
+The table specimen: one table, long enough to need several pages.
+
+This is the case the grid cannot help with, and the one that proves the two
+things a <c-n26.print.table> is for. The header repeats at the top of every
+page, because thead is a real table-header-group — turn that off and page four
+is a column of numbers with nothing saying what they are. And no row is ever cut
+through the middle, so a price never ends up on a different sheet from the thing
+it prices.
+
+Deliberately not inside a card. A card is atomic and would simply refuse to
+paginate; this table has to survive the fold rather than dodge it.
+{% endcomment %}
+<c-n26.print.table>
+    <c-slot name="head">
+        <tr>
+            {# djlint:off H021 — print column widths live on the cells; print engines read them there #}
+            <th style="width: 40%">Item</th>
+            <th style="width: 24%" class="is-group">Category</th>
+            <th style="width: 12%" class="is-group is-numeric">Cost</th>
+            <th style="width: 12%" class="is-numeric">TP</th>
+            <th style="width: 12%" class="is-group is-centered">Have</th>
+        </tr>
+    </c-slot>
+    {% for row in table_rows %}
+        <tr>
+            <td>{{ row.name }}</td>
+            <td class="is-group">{{ row.category }}</td>
+            <td class="is-group is-numeric">{{ row.cost }}¢</td>
+            <td class="is-numeric">{% if row.availability %}{{ row.availability }}{% else %}—{% endif %}</td>
+            {% comment %}
+            An empty box rather than a tick or a blank: on paper the useful
+            answer to "do you have one" is somewhere to record that you now do.
+            {% endcomment %}
+            <td class="is-group is-centered">
+                <span class="n26-print-tick"></span>
+            </td>
+        </tr>
+    {% endfor %}
+</c-n26.print.table>

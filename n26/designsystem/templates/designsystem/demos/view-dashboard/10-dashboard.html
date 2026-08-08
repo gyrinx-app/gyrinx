@@ -1,0 +1,30 @@
+{# title: Where you land #}
+{# note: A greeting that says hello and then gets out of the way, one primary action and one beside it, your gangs, and what changed. Try the other two tabs: they are placeholders, and the changelog stays put behind them because what changed is worth seeing whichever you are on. Narrow the window: the rows go from four columns to one and nothing is dropped — what a gang is worth is why you came to the list. Press anywhere on a row to open it; Edit and Print still work. #}
+{# layout: full #}
+<c-n26.view.dashboard username="{{ dashboard_username }}"
+                      new_gang_href="#"
+                      new_campaign_href="#">
+    <c-slot name="gangs">
+        <c-n26.gang-table :type_options="dashboard_types" noun="gangs">
+            <c-slot name="empty">
+                No gangs match that. Try a shorter search.
+            </c-slot>
+            {% for gang in dashboard_gangs %}
+                <c-n26.gang-table.row name="{{ gang.name }}"
+                                      type="{{ gang.gang_type }}"
+                                      :sheet="gang"
+                                      href="#"
+                                      print_href="#" />
+            {% endfor %}
+        </c-n26.gang-table>
+    </c-slot>
+    <c-slot name="changelog">
+        <c-n26.changelog href="#">
+            {% for entry in dashboard_changelog %}
+                <c-n26.changelog.entry title="{{ entry.title }}" date="{{ entry.date }}" href="#">
+                    {{ entry.text }}
+                </c-n26.changelog.entry>
+            {% endfor %}
+        </c-n26.changelog>
+    </c-slot>
+</c-n26.view.dashboard>

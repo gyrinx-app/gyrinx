@@ -1,0 +1,26 @@
+{% extends "authoring/base.html" %}
+{% block title %}Authoring{% endblock %}
+{% block content %}
+    <h1>Content authoring</h1>
+    <p>
+        The leaves: the fundamental things everything else references.
+        Start at <a href="{% url 'authoring-foundations' %}">Foundations</a> if the
+        library is empty — stats and statline shapes are created there.
+    </p>
+    {% for family in families %}
+        <h2>{{ family.label }}</h2>
+        <table>
+            <tbody>
+                {% for entry in family.kinds %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'authoring-leaf' entry.kind %}">{{ entry.verbose_name|capfirst }}</a>
+                            <span class="summary">{{ entry.summary|safe }}</span>
+                        </td>
+                        <td class="count">{{ entry.count }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endfor %}
+{% endblock %}

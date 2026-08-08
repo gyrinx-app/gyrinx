@@ -1,0 +1,45 @@
+{% comment %}
+<c-n26.action-link> — one link in an action row, with an optional icon.
+
+    <c-n26.action-link href="/edit/">
+        <c-slot name="icon"><svg …/></c-slot>
+        Attributes
+    </c-n26.action-link>
+
+The third of the link family, after color-link and flair-link, and built the same
+way: <c-n26.link> with something in the `leading` slot, so the icon sits outside
+the span carrying the underline and the rule runs under the words alone.
+
+The icon is sized in em, so an action row in a table's small print and one under a
+page heading both look right with no size prop.
+
+tone="danger" is here rather than on c-n26.link because a destructive action in a
+row of ordinary ones is the case that actually comes up — "… · Delete".
+
+  href, underline — passed to <c-n26.link>.
+  tone — accent (default), muted, current, or danger.
+  icon — leading icon.
+{% endcomment %}
+<c-vars
+    href=""
+    underline="hover"
+    tone="accent"
+    class=""
+/>
+
+{% if tone == "danger" %}
+    {% comment %}
+    c-n26.link has no danger tone — red is not a theme token the way accent and
+    muted are — so it is applied here with tone="current" letting it through.
+    {% endcomment %}
+    <c-n26.link href="{{ href }}" underline="{{ underline }}" tone="current"
+                class="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 {{ class }}">
+        <c-slot name="leading">{% if icon %}<span class="n26-icon-inline mr-1" aria-hidden="true">{{ icon }}</span>{% endif %}</c-slot>
+        {{ slot.strip|safe }}
+    </c-n26.link>
+{% else %}
+    <c-n26.link href="{{ href }}" underline="{{ underline }}" tone="{{ tone }}" class="{{ class }}">
+        <c-slot name="leading">{% if icon %}<span class="n26-icon-inline mr-1" aria-hidden="true">{{ icon }}</span>{% endif %}</c-slot>
+        {{ slot.strip|safe }}
+    </c-n26.link>
+{% endif %}

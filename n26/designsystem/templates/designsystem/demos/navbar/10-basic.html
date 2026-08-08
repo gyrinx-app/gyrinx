@@ -1,0 +1,24 @@
+{# title: Full navbar #}
+{# note: Narrow the window and the links fold into a hamburger menu — the items and actions are written once and reused there. :sticky is on by default; it's off here so it doesn't pin itself to the top of this page. #}
+{# layout: full #}
+<c-ui.navbar :sticky="False"
+             variant="underline"
+             class="rounded-box border border-box-border">
+    <c-slot name="brand">
+        <span class="font-semibold">Gyrinx</span>
+    </c-slot>
+    <c-ui.navbar.item href="#" :current="True">
+        Gangs
+    </c-ui.navbar.item>
+    <c-ui.navbar.item href="#">
+        Campaigns
+    </c-ui.navbar.item>
+    <c-ui.navbar.item href="#">
+        Library
+    </c-ui.navbar.item>
+    <c-slot name="actions">
+        <c-ui.button size="sm" variant="primary">
+            New gang
+        </c-ui.button>
+    </c-slot>
+</c-ui.navbar>

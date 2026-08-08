@@ -1,0 +1,7 @@
+{# title: An empty stash #}
+{# note: Without an `empty` slot the component draws nothing at all — an empty stash is not worth a heading. Given one, it says so in a sentence rather than showing a zero, because "0¢" invites the reader to work out what it means. #}
+<c-n26.stash :lines="None" :total="0">
+    <c-slot name="empty">
+        Nothing in the stash. Anything the gang owns but nobody is carrying will appear here.
+    </c-slot>
+</c-n26.stash>

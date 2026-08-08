@@ -1,0 +1,28 @@
+{# title: Modal with header and footer #}
+{# note: The overlay teleports to <body>, so it's never clipped by a parent. Use dialog.title and dialog.description in the header so the accessible names get wired up. #}
+<c-ui.dialog>
+    <c-slot name="trigger">
+        <c-ui.button variant="primary">
+            Retire fighter
+        </c-ui.button>
+    </c-slot>
+    <c-slot name="header">
+        <c-ui.dialog.title>
+            Retire Kaine?
+        </c-ui.dialog.title>
+        <c-ui.dialog.description>
+            They'll be removed from the roster. Their equipment returns to the stash.
+        </c-ui.dialog.description>
+    </c-slot>
+    <p class="text-sm text-muted">This can't be undone once the campaign week closes.</p>
+    <c-slot name="footer">
+        <div class="flex justify-end gap-2">
+            <c-ui.button @click="dialogOpen = false">
+                Cancel
+            </c-ui.button>
+            <c-ui.button variant="danger">
+                Retire
+            </c-ui.button>
+        </div>
+    </c-slot>
+</c-ui.dialog>

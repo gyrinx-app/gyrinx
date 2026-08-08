@@ -1,0 +1,24 @@
+{# title: A richer panel #}
+{# note: class styles the panel itself rather than the root, which is worth remembering when the padding lands somewhere unexpected. #}
+<c-ui.popover position="right">
+    <c-slot name="trigger">
+        <c-ui.avatar initials="KA" color="auto" size="lg" class="cursor-pointer" />
+    </c-slot>
+    <div class="w-64">
+        <div class="flex items-center gap-3">
+            <c-ui.avatar initials="KA" color="auto" />
+            <div>
+                <div class="font-semibold">Kaine</div>
+                <div class="text-xs text-muted">Leader · 145 credits</div>
+            </div>
+        </div>
+        <div class="mt-3 flex gap-2">
+            <c-ui.button size="sm" variant="primary">
+                Open
+            </c-ui.button>
+            <c-ui.button size="sm">
+                Equipment
+            </c-ui.button>
+        </div>
+    </div>
+</c-ui.popover>

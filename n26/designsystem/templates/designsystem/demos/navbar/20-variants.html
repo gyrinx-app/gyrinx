@@ -1,0 +1,29 @@
+{# title: Item variants #}
+{# note: variant styles the desktop links only — the mobile menu always uses its own list styling. #}
+{# layout: col #}
+<c-ui.navbar :sticky="False"
+             variant="pill"
+             class="rounded-box border border-box-border">
+    <c-slot name="brand">
+        <span class="font-semibold">pill</span>
+    </c-slot>
+    <c-ui.navbar.item href="#" :current="True">
+        Active
+    </c-ui.navbar.item>
+    <c-ui.navbar.item href="#">
+        Other
+    </c-ui.navbar.item>
+</c-ui.navbar>
+<c-ui.navbar :sticky="False"
+             variant="ghost"
+             class="rounded-box border border-box-border">
+    <c-slot name="brand">
+        <span class="font-semibold">ghost</span>
+    </c-slot>
+    <c-ui.navbar.item href="#" :current="True">
+        Active
+    </c-ui.navbar.item>
+    <c-ui.navbar.item href="#">
+        Other
+    </c-ui.navbar.item>
+</c-ui.navbar>

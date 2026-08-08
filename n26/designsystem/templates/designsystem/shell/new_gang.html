@@ -1,0 +1,47 @@
+{% extends "n26/layouts/base.html" %}
+{% comment %}
+Founding a gang, in the shell it will actually live in.
+
+The one page here that is a form, which is why it earns a place in the walk: a
+form's measure is its own — capped at a column you can read down — where every
+other page in the shell spends the width it is given. Seeing the two next to each
+other is the only way to tell whether the narrow one looks deliberate or looks
+broken.
+
+This is also where the csrf token goes. <c-n26.view.create-gang> renders none of
+its own, on purpose: a view has no request, and a component that quietly omitted
+one would be worse than one that never claimed to.
+{% endcomment %}
+{% block head_title %}Create a gang{% endblock head_title %}
+{% comment %}
+The form's name in the bar. This is the case the heading exists for: the links
+are in the menu, so the space they used to take says which form you are filling
+in — which on a long form is the thing that scrolls away first.
+{% endcomment %}
+{% block nav_heading %}Create a gang{% endblock nav_heading %}
+{% block nav_items %}
+    {% include 'designsystem/shell/_nav.html' with here='new-gang' %}
+{% endblock %}
+{% block content %}
+    <c-n26.view.create-gang action="{% url 'designsystem:shell_new_gang' %}"
+                            :form="create_gang_form"
+                            :gang_types="gang_types">
+        {% comment %}
+        Only the owner above this one. There is no gang yet — that is the whole
+        point of the page — so the trail is as long as it can honestly be.
+        {% endcomment %}
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'designsystem:shell_home' %}">
+                    <c-n26.flair-link text="{{ gang_owner }}"
+                                      tone="current"
+                                      href="{% url 'designsystem:shell_home' %}" />
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Gang
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% csrf_token %}
+    </c-n26.view.create-gang>
+{% endblock content %}

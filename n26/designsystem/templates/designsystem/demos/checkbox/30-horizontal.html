@@ -1,0 +1,7 @@
+{# title: Horizontal and disabled #}
+{# layout: col #}
+<c-ui.checkbox.group label="Phases" name="phases" :horizontal="True" :values="['move']">
+    <c-ui.checkbox value="move" label="Move" />
+    <c-ui.checkbox value="shoot" label="Shoot" />
+    <c-ui.checkbox value="end" label="End" :disabled="True" />
+</c-ui.checkbox.group>

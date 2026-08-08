@@ -1,0 +1,34 @@
+{% comment %}
+The links every shell page shares, so the shell can be walked rather than
+glanced at.
+
+An include rather than each page writing its own: five copies of the same five
+links is five places for one to drift, and `here` is the only thing that differs
+between them.
+
+Not part of <c-n26.site.nav> and not in the app's base — these are gallery URLs,
+and a base that knew about them would be a base only this repository can use.
+
+<c-ui.navbar.item>, which renders a bare <a> carrying an is-current marker and
+leaves the styling to whatever contains it. That is what lets this one list serve
+both places the nav appears: underlined in the bar, stacked rows in the menu, one
+set of links.
+
+`current` as a string, not `:current` as a boolean. The kit tests it with a plain
+{% if %}, so "1" is on and "" is off; and a conditional inside a quoted value is
+the form Cotton is reliable with, where one emitting a whole attribute is not.
+
+Takes `here` — "home", "new-gang", "gang", "hire", "shop" or "print".
+{% endcomment %}
+<c-ui.navbar.item href="{% url 'designsystem:shell_home' %}"
+                  current="{% if here == 'home' %}1{% endif %}">Home</c-ui.navbar.item>
+<c-ui.navbar.item href="{% url 'designsystem:shell_new_gang' %}"
+                  current="{% if here == 'new-gang' %}1{% endif %}">Create a gang</c-ui.navbar.item>
+<c-ui.navbar.item href="{% url 'designsystem:shell_gang' %}"
+                  current="{% if here == 'gang' %}1{% endif %}">Gang</c-ui.navbar.item>
+<c-ui.navbar.item href="{% url 'designsystem:shell_hire' %}"
+                  current="{% if here == 'hire' %}1{% endif %}">Hire</c-ui.navbar.item>
+<c-ui.navbar.item href="{% url 'designsystem:shell_shop' %}"
+                  current="{% if here == 'shop' %}1{% endif %}">Shop</c-ui.navbar.item>
+<c-ui.navbar.item href="{% url 'designsystem:shell_print' %}"
+                  current="{% if here == 'print' %}1{% endif %}">Print</c-ui.navbar.item>

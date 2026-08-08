@@ -1,0 +1,39 @@
+{# title: Text colour #}
+{# note: A link is accent by default, badge included, because it is a link. tone="current" makes it inherit the colour around it instead — which is what you want inside already-coloured text. The house icon is drawn with fill="currentColor" so it follows either way; the staff badge has a fixed palette and keeps it, that being a property of the artwork rather than a setting. #}
+{# layout: col #}
+<p>
+    <c-n26.flair-link text="Accent, the default" href="/design/">
+        <c-n26.flair.house />
+    </c-n26.flair-link>
+</p>
+<p>
+    <c-n26.flair-link text="Muted" href="/design/" tone="muted">
+        <c-n26.flair.house />
+    </c-n26.flair-link>
+</p>
+<p class="text-red-500">
+    Inside red text:
+    <c-n26.flair-link text="current inherits it" href="/design/" tone="current">
+        <c-n26.flair.house />
+    </c-n26.flair-link>
+</p>
+<p class="text-emerald-600">
+    Inside green text:
+    <c-n26.flair-link text="so does this" href="/design/" tone="current">
+        <c-n26.flair.house />
+    </c-n26.flair-link>
+</p>
+<p class="text-red-500">
+    Unlinked text simply inherits:
+    <c-n26.flair-link text="Goliath (HoC)">
+        <c-n26.flair.house />
+    </c-n26.flair-link>
+</p>
+<p>
+    <c-n26.flair-link text="Fixed-palette badge, any tone"
+                      href="/design/"
+                      tone="muted"
+                      label="Gyrinx staff">
+        <c-n26.flair.staff />
+    </c-n26.flair-link>
+</p>

@@ -1,0 +1,20 @@
+{# title: Composed by hand #}
+{# note: The slot is only used when there's no page_obj — the escape hatch for cursor pagination and anything else that isn't a Django Page. #}
+{# layout: full #}
+<c-ui.pagination>
+    <c-ui.pagination.prev href="#" />
+    <c-ui.pagination.item href="#">
+        1
+    </c-ui.pagination.item>
+    <c-ui.pagination.item href="#" :current="True">
+        2
+    </c-ui.pagination.item>
+    <c-ui.pagination.item href="#">
+        3
+    </c-ui.pagination.item>
+    <c-ui.pagination.ellipsis />
+    <c-ui.pagination.item href="#">
+        12
+    </c-ui.pagination.item>
+    <c-ui.pagination.next href="#" />
+</c-ui.pagination>

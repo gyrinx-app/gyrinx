@@ -1,0 +1,16 @@
+{# title: Segmented and cards #}
+{# note: Same markup, three presentations. The group's variant is what the boxes read to style themselves. #}
+{# layout: col #}
+<c-ui.checkbox.group label="Segmented" name="seg" variant="segmented" :values="['b']">
+    <c-ui.checkbox value="a" label="Melee" />
+    <c-ui.checkbox value="b" label="Ranged" />
+    <c-ui.checkbox value="c" label="Psychic" />
+</c-ui.checkbox.group>
+<c-ui.checkbox.group label="Cards" name="cards" variant="cards" :values="['pitch']">
+    <c-ui.checkbox value="pitch"
+                   label="Zone Mortalis"
+                   description="Corridors and doors." />
+    <c-ui.checkbox value="sector"
+                   label="Sector Mechanicus"
+                   description="Gantries and levels." />
+</c-ui.checkbox.group>

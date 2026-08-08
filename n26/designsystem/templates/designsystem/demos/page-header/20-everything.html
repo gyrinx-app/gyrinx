@@ -1,0 +1,35 @@
+{# title: With a trail and controls #}
+{# note: The trail above, a lead under, and controls that belong to the page rather than to anything on it. They wrap under the title on a phone rather than squeezing it: a title truncated to make room for a button is the wrong thing to have shortened. #}
+<c-n26.page-header title="The Ashen Choir">
+    <c-slot name="breadcrumb">
+        <c-ui.breadcrumbs>
+            <c-ui.breadcrumbs.item href="#">
+                tom
+            </c-ui.breadcrumbs.item>
+            <c-ui.breadcrumbs.item href="#">
+                Gangs
+            </c-ui.breadcrumbs.item>
+            <c-ui.breadcrumbs.item :current="True">
+                The Ashen Choir
+            </c-ui.breadcrumbs.item>
+        </c-ui.breadcrumbs>
+    </c-slot>
+    {% comment %}
+    The lead as a slot rather than the prop, because this one is markup. Same
+    name either way: `.strip` is a method on a string as much as on slot content,
+    so the component does not have to know which it was given.
+    {% endcomment %}
+    <c-slot name="lead">
+        <c-n26.flair-link text="Escher (HoB)" tone="current">
+            <c-n26.flair.house />
+        </c-n26.flair-link>
+    </c-slot>
+    <c-slot name="actions">
+        <c-ui.button size="sm" variant="primary" href="#">
+            Hire fighter
+        </c-ui.button>
+        <c-ui.button size="sm" variant="default" href="#">
+            Print
+        </c-ui.button>
+    </c-slot>
+</c-n26.page-header>

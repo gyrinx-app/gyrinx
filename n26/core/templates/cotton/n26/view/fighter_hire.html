@@ -1,0 +1,115 @@
+{% comment %}
+<c-n26.view.fighter-hire> — name a fighter, then pick what they are.
+
+    <c-n26.view.fighter-hire action="/gangs/1/hire/" gang="The Ashen Choir">
+        <c-n26.profile-picker …>…</c-n26.profile-picker>
+    </c-n26.view.fighter-hire>
+
+A view rather than a component: a whole screen, assembled from the library, so
+the pieces can be judged together at the width they will actually be used at.
+Not a page — no chrome, no routing — just the part between the nav and the
+footer.
+
+  --- what it is optimised for ---
+
+Finding the profile, and nothing else. Everything on the screen above the list
+is there under protest, because on a phone every row of chrome is a row of
+fighters you cannot see. So the form is two things: a name, and the picker.
+
+The name comes first because that is the order the sentence goes in — you are
+hiring *someone* — but it is optional and says so. Blocking a hire on naming
+would make the fast path slower for the common case, which is buying three
+Gangers and naming them when they have done something worth naming.
+
+The picker's own search bar is the fast path, and it is already sticky, so it
+stays reachable while the list scrolls. The name field is not sticky: it is
+answered once and then in the way.
+
+  --- picking is submitting ---
+
+There is no separate submit. Every Hire button in the list is this form's submit
+button, carrying which profile — or which option — was pressed. That is the
+whole reason the row takes a `value`.
+
+Which means the form has no primary action of its own, and should not grow one:
+a "Hire" at the bottom of a list of Hire buttons would be a second answer to a
+question already answered, and on a phone it would be a screen away from the row
+it applied to.
+
+  --- the form pattern, minus the part that does not apply ---
+
+The field is c-ui.field over a kit control reading a real Django form, the same
+as <c-n26.view.create-gang>, so the label, the help text and the error come from
+one place rather than being rebuilt per screen. What it does not take is the
+final primary action, and that is not an omission: the picker's Hire buttons are
+this form's submits, so a Create-style button at the end would be a second answer
+to a question already answered.
+
+It skips the titled groups too. c-n26.form-section earns itself when a reader
+needs telling which parts they can skip; with one field and a list there is
+nothing to group, and a heading over a single input is a label with ceremony.
+
+  action — where the form posts.
+  gang — whose roster this is. Now shown in the breadcrumb rather than under
+    the heading, so the lead can say what the screen does instead.
+  heading — the title. "Hire a fighter" by default.
+  form — a Django form carrying the name field. c-ui.field reads its label, its
+    help text and its errors, so a redisplay after a failed submit needs nothing
+    added here.
+  breadcrumb — the trail above the title: the owner, then the gang.
+  slot — the picker.
+{% endcomment %}
+<c-vars
+    action=""
+    gang=""
+    heading="Hire a fighter"
+    :form="None"
+    class=""
+/>
+
+{% comment %}
+The frame is c-n26.form-page's, the same one create-gang uses — measure, rhythm,
+header and the rule at the end. No submit_label, so it draws no footer: the Hire
+buttons in the list are this form's submits.
+
+The lead says what the screen does rather than which gang it is for. "Joining The
+Ashen Choir" was the whole of it, which told a reader something the breadcrumb
+above now says better, and left the two things they might actually not know —
+that naming can wait, and that the controls under a profile change what they are
+buying — to be discovered.
+{% endcomment %}
+<c-n26.form-page action="{{ action }}" :form="form" {{ attrs }}
+                 title="{{ heading }}"
+                 lead="Pick a profile and press Hire. The options under each one change what you get and what you pay, and a name can wait until they have earned one."
+                 class="{{ class }}">
+    {% if breadcrumb %}<c-slot name="breadcrumb">{{ breadcrumb }}</c-slot>{% endif %}
+
+    {% comment %}
+    A view renders no csrf token of its own: it has no request, and a component
+    that quietly omitted one would be worse than one that never claimed to. The
+    page embedding this puts {% csrf_token %} in the slot.
+    {% endcomment %}
+
+    {% comment %}
+    "Optional" is in the help text, not the placeholder: a placeholder disappears
+    the moment somebody types, which is exactly when they might want to know they
+    could have left it blank.
+    {% endcomment %}
+    <c-ui.field label="Name" description="Optional — you can name them later."
+                error="x" :form="form" name="name" for="fighter-name">
+        <c-ui.input id="fighter-name" name="name" autocomplete="off"
+                    value="{{ form.name.value|default:'' }}" />
+    </c-ui.field>
+
+    {% comment %}
+    The picker. It brings its own sticky filter bar, so it needs no heading of
+    its own here — a "Profile" label above a search box that says "Search the
+    gang list" would be saying it twice.
+
+    At the form's measure, not wider. A row is a name, a price and a button and
+    would survive more width, but a list that overhangs the heading above it
+    reintroduces inside one page exactly the mismatch that pulling the two forms
+    onto one wrapper was meant to remove.
+    {% endcomment %}
+    {{ slot }}
+</c-n26.form-page>

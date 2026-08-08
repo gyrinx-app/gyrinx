@@ -1,0 +1,1848 @@
+"""The gallery's table of contents.
+
+Deliberately thin: this file says what exists, how it is grouped and what it is
+*for*. It does not restate any component's props — those are read from the
+installed package at runtime (see :mod:`designsystem.introspect`), so they cannot
+fall out of date with the version you have installed.
+
+Every public component in django-cotton-ui appears here. The internal ``impl.html``
+templates do not: they have no public tag, and their props are documented on the
+wrapper that forwards to them.
+"""
+
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass, field, replace
+
+from django.utils.text import slugify
+
+from . import introspect
+from .demos import Demo, demos_for
+
+
+@dataclass(frozen=True)
+class Part:
+    """A subcomponent: its own tag, documented on its parent's page."""
+
+    tag: str
+    template: str
+    summary: str
+    required: bool = False
+    """True when the parent does not work without it."""
+
+
+@dataclass(frozen=True)
+class Component:
+    slug: str
+    tag: str
+    template: str
+    summary: str
+    group: str = ""
+    notes: str = ""
+    """Gotchas worth knowing that aren't obvious from the prop list."""
+
+    needs: tuple[str, ...] = ()
+    """Runtime requirements beyond the base CSS — Alpine plugins, kit JS factories."""
+
+    parts: tuple[Part, ...] = ()
+
+    @property
+    def api(self) -> introspect.ComponentApi | None:
+        return introspect.api_for(self.template)
+
+    @property
+    def part_apis(self) -> list[tuple[Part, introspect.ComponentApi | None]]:
+        return [(part, introspect.api_for(part.template)) for part in self.parts]
+
+    @property
+    def demos(self) -> tuple[Demo, ...]:
+        return demos_for(self.slug)
+
+    @property
+    def search_term(self) -> str:
+        """What the sidebar filter matches against."""
+        return f"{self.slug} {self.tag} {self.group}".lower()
+
+
+@dataclass(frozen=True)
+class Group:
+    name: str
+    blurb: str
+    components: list[Component] = field(default_factory=list)
+
+    @property
+    def anchor(self) -> str:
+        return slugify(self.name)
+
+    @property
+    def search_terms(self) -> str:
+        """Its components' search terms as a JSON array.
+
+        The sidebar hides a whole group when the filter excludes every component
+        in it. Handing the group its members' terms lets that be one predicate
+        over data, rather than the group inspecting the DOM to see how many
+        children are still visible — which couples it to how the children happen
+        to be hidden.
+        """
+        return json.dumps([component.search_term for component in self.components])
+
+
+ALPINE = "Alpine.js"
+KIT_JS = "cotton-ui.js"
+COLLAPSE = "@alpinejs/collapse"
+FOCUS = "@alpinejs/focus"
+
+
+GROUPS: list[Group] = [
+    Group(
+        "Actions",
+        "Things you click.",
+        [
+            Component(
+                slug="button",
+                tag="c-ui.button",
+                template="button.html",
+                summary="The standard action control, in seven variants and six sizes.",
+                notes=(
+                    "Renders an <a> when href is set, otherwise a <button>. There is "
+                    "no disabled prop — pass disabled as a plain attribute; the styles "
+                    'for it already exist. type="button" is hardcoded, but because {{ '
+                    'attrs }} is emitted first, your own type="submit" still wins. '
+                    "The seventh variant, success, is this repository's: three of the "
+                    "fills carry a meaning rather than a mood — success makes "
+                    "something, danger destroys something, primary does neither — so "
+                    "the button that creates a gang or hires a fighter is always the "
+                    "green one and can be found without reading it. Added through a "
+                    "local override of the kit's template, which is also why the "
+                    "shadow rule in app.css lists .bg-green-700 alongside the other "
+                    "solid fills."
+                ),
+            ),
+            Component(
+                slug="dropdown",
+                tag="c-ui.dropdown",
+                template="dropdown/index.html",
+                summary=(
+                    "A menu of actions hung off a trigger, with optional keyboard "
+                    "shortcuts."
+                ),
+                needs=(ALPINE, KIT_JS, FOCUS),
+                notes=(
+                    "Needs either a trigger slot or trigger_text — with neither it "
+                    "renders a visible red error rather than failing silently. Set "
+                    ":collapsible to have it render inline below the md breakpoint "
+                    "instead of as a popover."
+                ),
+                parts=(
+                    Part(
+                        "c-ui.dropdown.item",
+                        "dropdown/item.html",
+                        "One action. Renders <a> with href, else <button>.",
+                    ),
+                    Part(
+                        "c-ui.dropdown.group",
+                        "dropdown/group.html",
+                        "A labelled cluster of items.",
+                    ),
+                    Part(
+                        "c-ui.dropdown.separator",
+                        "dropdown/separator.html",
+                        "A divider rule.",
+                    ),
+                ),
+            ),
+            Component(
+                slug="composer",
+                tag="c-ui.composer",
+                template="composer.html",
+                summary="A chat-style box: auto-growing textarea with action rows.",
+                needs=(ALPINE,),
+                notes=(
+                    "No default slot — the initial text is the value prop. The leading "
+                    "and trailing slots form the action row, which only renders if you "
+                    "fill at least one. The textarea grows to 320px, then scrolls."
+                ),
+            ),
+        ],
+    ),
+    Group(
+        "Forms",
+        (
+            "Every field wrapper takes the same label / description / "
+            "description_trailing / error / badge / form / name props and passes "
+            "everything else through to the control underneath, so type, size, "
+            "placeholder and disabled all work on the outer tag."
+        ),
+        [
+            Component(
+                slug="field",
+                tag="c-ui.field",
+                template="field.html",
+                summary=(
+                    "The label-and-description scaffold every other form component is "
+                    "built on."
+                ),
+                notes=(
+                    "Reach for this directly when wrapping a control the kit does not "
+                    "ship. Errors only render when error, form and name are all set — "
+                    "it delegates to c-ui.error with the form and name, so the error "
+                    "string's own content is ignored."
+                ),
+            ),
+            Component(
+                slug="input",
+                tag="c-ui.input",
+                template="input/index.html",
+                summary="A text input, with optional leading and trailing addons.",
+                notes=(
+                    "Addons are positioned absolutely and pointer-events-none, so they "
+                    "are for decoration — icons, units, currency symbols — not buttons."
+                ),
+            ),
+            Component(
+                slug="textarea",
+                tag="c-ui.textarea",
+                template="textarea/index.html",
+                summary="A multi-line input, fixed height or auto-growing.",
+                notes=(
+                    "size sets padding and font; height sets the fixed height (h-16 to "
+                    "h-80) and is a separate scale. :autoresize makes height a floor "
+                    "and needs Alpine."
+                ),
+            ),
+            Component(
+                slug="select",
+                tag="c-ui.select",
+                template="select/index.html",
+                summary="A list of options — the real <select>, or a styled listbox.",
+                needs=(ALPINE, KIT_JS),
+                notes=(
+                    'variant="native" (the default) needs no JS and gets the platform '
+                    'picker. variant="listbox" routes to c-ui.menu, and its slot must '
+                    "then contain c-ui.menu.item — not c-ui.select.option."
+                ),
+                parts=(
+                    Part(
+                        "c-ui.select.native",
+                        "select/native.html",
+                        "The plain <select>, usable on its own.",
+                    ),
+                    Part(
+                        "c-ui.select.option",
+                        "select/option.html",
+                        "An option for the native variant.",
+                    ),
+                ),
+            ),
+            Component(
+                slug="menu",
+                tag="c-ui.menu",
+                template="menu/index.html",
+                summary=(
+                    "A searchable listbox with descriptions, groups and keyboard "
+                    "navigation."
+                ),
+                needs=(ALPINE, KIT_JS),
+                notes=(
+                    'The engine behind select variant="listbox", and worth using '
+                    "directly when you want search or option descriptions. The trigger "
+                    "and content wrappers render themselves if you omit those slots, "
+                    "so usually you write only items. Submits through a hidden input "
+                    "and dispatches select-change with {value, label}."
+                ),
+                parts=(
+                    Part(
+                        "c-ui.menu.item",
+                        "menu/item.html",
+                        "One option: value, label, description, group.",
+                        required=True,
+                    ),
+                    Part(
+                        "c-ui.menu.trigger",
+                        "menu/trigger.html",
+                        "The closed-state button. Auto-rendered if omitted.",
+                    ),
+                    Part(
+                        "c-ui.menu.content",
+                        "menu/content.html",
+                        "The popover panel. Auto-rendered if omitted.",
+                    ),
+                    Part(
+                        "c-ui.menu.group",
+                        "menu/group.html",
+                        "A labelled cluster of options.",
+                    ),
+                    Part(
+                        "c-ui.menu.search",
+                        "menu/search.html",
+                        "A sticky filter box, focused on open.",
+                    ),
+                ),
+            ),
+            Component(
+                slug="combobox",
+                tag="c-ui.combobox",
+                template="combobox/index.html",
+                summary=(
+                    "Multi-select as removable tags, optionally searchable and free- "
+                    "text."
+                ),
+                needs=(ALPINE, KIT_JS),
+                notes=(
+                    "Options come from the :options prop, not from a slot. :writable "
+                    "lets people invent values that weren't in the list. Submits via a "
+                    "hidden <select multiple>."
+                ),
+            ),
+            Component(
+                slug="checkbox",
+                tag="c-ui.checkbox.group",
+                template="checkbox/group/index.html",
+                summary=(
+                    "Multi-choice, as plain rows, a segmented control or selectable "
+                    "cards."
+                ),
+                needs=(ALPINE, KIT_JS),
+                notes=(
+                    "c-ui.checkbox only works inside a group — it reads its state and "
+                    "its styling from the group's Alpine scope. Initially-checked "
+                    "boxes are set on the group with :values, not on the box with "
+                    ":checked."
+                ),
+                parts=(
+                    Part(
+                        "c-ui.checkbox",
+                        "checkbox/index.html",
+                        "One box. Must be inside the group.",
+                        required=True,
+                    ),
+                ),
+            ),
+            Component(
+                slug="radio",
+                tag="c-ui.radio.group",
+                template="radio/group/index.html",
+                summary="Single-choice, as rows, a segmented control, pills or cards.",
+                needs=(ALPINE, KIT_JS),
+                notes=(
+                    "Same rule as checkbox: c-ui.radio must be inside the group. The "
+                    "selected value is set on the group with :value. Arrow keys move "
+                    "between options. Unlike the checkbox group, this one also offers "
+                    "a pill variant."
+                ),
+                parts=(
+                    Part(
+                        "c-ui.radio",
+                        "radio/index.html",
+                        "One radio. Must be inside the group.",
+                        required=True,
+                    ),
+                ),
+            ),
+            Component(
+                slug="switch",
+                tag="c-ui.switch",
+                template="switch/index.html",
+                summary="An on/off toggle, standalone or as a label-left settings row.",
+                needs=(ALPINE, KIT_JS),
+                notes=(
+                    ":inline uses the field's toggle variant — label left, switch "
+                    "pushed right."
+                ),
+            ),
+            Component(
+                slug="range",
+                tag="c-ui.range",
+                template="range/index.html",
+                summary="A slider, with the live value beside or below the track.",
+                needs=(ALPINE,),
+                notes=(
+                    "The starting position is value, which the wrapper forwards as the "
+                    "impl's initial."
+                ),
+            ),
+            Component(
+                slug="datepicker",
+                tag="c-ui.datepicker",
+                template="datepicker/index.html",
+                summary=(
+                    "A date field that opens a calendar — single date, range or "
+                    "multiple."
+                ),
+                needs=(ALPINE, KIT_JS),
+                notes=(
+                    "Wraps c-ui.calendar in a popover. In range mode it submits "
+                    "name['from'] and name['to'] unless you give fromName and toName."
+                ),
+            ),
+            Component(
+                slug="calendar",
+                tag="c-ui.calendar",
+                template="calendar.html",
+                summary="The month grid on its own, with day, month and year views.",
+                needs=(ALPINE, KIT_JS),
+                notes=(
+                    "Usable inline, not just inside the datepicker. Hidden inputs — "
+                    "and so form submission — appear only once you pass name (or "
+                    "fromName/toName). x-modelable means x-model works on it."
+                ),
+            ),
+            Component(
+                slug="label",
+                tag="c-ui.label",
+                template="label.html",
+                summary="A form label, with an optional badge alongside it.",
+            ),
+            Component(
+                slug="description",
+                tag="c-ui.description",
+                template="description.html",
+                summary="Muted helper text under a control.",
+                notes=(
+                    "No props of its own; everything passes through and class merges "
+                    "with the defaults."
+                ),
+            ),
+            Component(
+                slug="error",
+                tag="c-ui.error",
+                template="error.html",
+                summary=(
+                    "A validation message, from a string or straight off a Django form."
+                ),
+                notes=(
+                    "Resolves in order: message, then form errors for name, then the "
+                    'slot. name="__all__" renders non-field errors. Renders nothing '
+                    "when they are all empty, so it is safe to leave in place "
+                    "unconditionally."
+                ),
+            ),
+        ],
+    ),
+    Group(
+        "Data display",
+        "Presenting content.",
+        [
+            Component(
+                slug="card",
+                tag="c-ui.card",
+                template="card.html",
+                summary="A surface with an optional header band.",
+                notes=(
+                    "Setting any of title, subheading or the header slot switches it "
+                    'to the two-part layout with a divider. padding="none" for flush '
+                    "content like a table."
+                ),
+            ),
+            Component(
+                slug="table",
+                tag="c-ui.table",
+                template="table.html",
+                summary="Styling for a plain HTML table, plus horizontal overflow.",
+                notes=(
+                    "You write ordinary thead/tbody/tr/th/td; it styles descendants. "
+                    "No JS, no sorting, no pagination — compose it with "
+                    "c-ui.pagination."
+                ),
+            ),
+            Component(
+                slug="badge",
+                tag="c-ui.badge",
+                template="badge.html",
+                summary="A small status or count pill in nineteen colours.",
+                notes=(
+                    "pill and solid are both spellings of variant, so they cannot be "
+                    'combined. inset takes edge names (inset="top bottom") to pull it '
+                    "tight against surrounding text."
+                ),
+            ),
+            Component(
+                slug="avatar",
+                tag="c-ui.avatar",
+                template="avatar/index.html",
+                summary="A user image, initials, or a fallback silhouette.",
+                needs=(ALPINE,),
+                notes=(
+                    'Falls back src → initials → silhouette. color="auto" hashes the '
+                    "initials to a stable colour. The default slot renders outside the "
+                    "clipped circle, which is where a status dot goes."
+                ),
+                parts=(
+                    Part(
+                        "c-ui.avatar.group",
+                        "avatar/group.html",
+                        "Overlaps a row of avatars with rings.",
+                    ),
+                ),
+            ),
+            Component(
+                slug="progress",
+                tag="c-ui.progress",
+                template="progress.html",
+                summary="A determinate progress bar.",
+                notes=(
+                    "No JS. bar_class overrides the colour entirely if the palette "
+                    "doesn't have what you want."
+                ),
+            ),
+            Component(
+                slug="spinner",
+                tag="c-ui.spinner",
+                template="spinner.html",
+                summary="An indeterminate loading spinner.",
+                notes=(
+                    'color="current" inherits the surrounding text colour, which is '
+                    "what you want inside a button."
+                ),
+            ),
+        ],
+    ),
+    Group(
+        "Feedback",
+        "Telling people what happened.",
+        [
+            Component(
+                slug="alert",
+                tag="c-ui.alert",
+                template="alert.html",
+                summary="An inline message box in four tones and three appearances.",
+                needs=(ALPINE,),
+                notes=(
+                    "Alpine is only needed for :dismissible; a static alert is pure "
+                    "markup."
+                ),
+            ),
+            Component(
+                slug="toast",
+                tag="c-ui.toast.container",
+                template="toast/container.html",
+                summary="Transient notifications, fired from anywhere by event.",
+                needs=(ALPINE,),
+                notes=(
+                    "There is no c-ui.toast — only the container, which you drop once "
+                    "in your base layout. It registers the $store.toasts Alpine store "
+                    "and renders a stack in every corner. Raise one with "
+                    "$dispatch('toast', {variant, title, message}); anything you pass "
+                    'overrides the container\'s props for that toast. duration="0" '
+                    "makes it sticky."
+                ),
+            ),
+            Component(
+                slug="tooltip",
+                tag="c-ui.tooltip",
+                template="tooltip.html",
+                summary="A small label on hover or focus.",
+                needs=(ALPINE,),
+                notes=(
+                    "The default slot is the trigger; the content slot is the bubble. "
+                    "Teleports to <body> and positions in document coordinates, so it "
+                    "escapes overflow clipping. Auto-flips when it won't fit."
+                ),
+            ),
+        ],
+    ),
+    Group(
+        "Navigation",
+        "Getting around.",
+        [
+            Component(
+                slug="navbar",
+                tag="c-ui.navbar",
+                template="navbar/index.html",
+                summary=(
+                    "A responsive top bar with a brand, links, actions and a mobile "
+                    "menu."
+                ),
+                needs=(ALPINE, COLLAPSE),
+                notes=(
+                    "The default slot and actions are duplicated into the mobile menu, "
+                    "so write them once. :drawer makes the mobile menu a slide-over "
+                    "rather than an inline collapse, and then it also needs the focus "
+                    "plugin."
+                ),
+                parts=(
+                    Part(
+                        "c-ui.navbar.item",
+                        "navbar/item.html",
+                        "A link. Styled by the navbar's variant.",
+                        required=True,
+                    ),
+                ),
+            ),
+            Component(
+                slug="nav",
+                tag="c-ui.nav",
+                template="nav/index.html",
+                summary="A horizontal row of underline tabs, for page navigation.",
+                notes=(
+                    "Navigation, not state: these are real links. For in-page panels "
+                    "use c-ui.tabs. Items are structural — the parent styles them via "
+                    "descendant selectors."
+                ),
+                parts=(
+                    Part(
+                        "c-ui.nav.item",
+                        "nav/item.html",
+                        "A link, with :current and an optional badge.",
+                        required=True,
+                    ),
+                ),
+            ),
+            Component(
+                slug="navlist",
+                tag="c-ui.navlist",
+                template="navlist/index.html",
+                summary="A vertical sidebar nav, with collapsible grouped sections.",
+                needs=(ALPINE, COLLAPSE),
+                notes=(
+                    ":persist_scroll remembers the scroll position across navigations, "
+                    "but only works if the navlist is its own scroll container — give "
+                    "it a max height and overflow-y-auto."
+                ),
+                parts=(
+                    Part(
+                        "c-ui.navlist.item",
+                        "navlist/item.html",
+                        "A link, with :current and an optional badge.",
+                        required=True,
+                    ),
+                    Part(
+                        "c-ui.navlist.group",
+                        "navlist/group.html",
+                        "A headed, optionally collapsible section.",
+                    ),
+                ),
+            ),
+            Component(
+                slug="breadcrumbs",
+                tag="c-ui.breadcrumbs",
+                template="breadcrumbs/index.html",
+                summary="A trail back up the hierarchy.",
+                notes=(
+                    "With no separator slot the “/” is pure CSS and needs no JS; "
+                    "supply one and Alpine clones it between items."
+                ),
+                parts=(
+                    Part(
+                        "c-ui.breadcrumbs.item",
+                        "breadcrumbs/item.html",
+                        "One crumb. Renders <a> unless :current.",
+                        required=True,
+                    ),
+                ),
+            ),
+            Component(
+                slug="pagination",
+                tag="c-ui.pagination",
+                template="pagination/index.html",
+                summary="Page links — automatic from a Django Page, or hand-composed.",
+                notes=(
+                    "Pass :page_obj and it renders prev, elided numbers and next by "
+                    "itself. The slot is only used when page_obj is None, which is the "
+                    "escape hatch for cursor pagination and other non-Page sources."
+                ),
+                parts=(
+                    Part(
+                        "c-ui.pagination.item",
+                        "pagination/item.html",
+                        "A numbered page link.",
+                    ),
+                    Part(
+                        "c-ui.pagination.prev",
+                        "pagination/prev.html",
+                        "Previous-page chevron.",
+                    ),
+                    Part(
+                        "c-ui.pagination.next",
+                        "pagination/next.html",
+                        "Next-page chevron.",
+                    ),
+                    Part(
+                        "c-ui.pagination.ellipsis",
+                        "pagination/ellipsis.html",
+                        "The gap marker.",
+                    ),
+                ),
+            ),
+            Component(
+                slug="scrollspy",
+                tag="c-ui.scrollspy",
+                template="scrollspy.html",
+                summary="Highlights the nav item for whichever section is on screen.",
+                needs=(ALPINE,),
+                notes=(
+                    "Wrap the nav, not the content. It tracks the ids in the nav's own "
+                    'a[href^="#"] plus anything marked [data-spy-section]. Pair with '
+                    "spy= on nav or navlist items. This page's own sidebar uses it."
+                ),
+            ),
+        ],
+    ),
+    Group(
+        "Disclosure",
+        "Showing and hiding.",
+        [
+            Component(
+                slug="tabs",
+                tag="c-ui.tabs",
+                template="tabs/index.html",
+                summary="In-page panels with a generated tab bar.",
+                needs=(ALPINE, KIT_JS),
+                notes=(
+                    "You write only the panels — the buttons are generated from the "
+                    "panels that register themselves, using each one's name as its "
+                    "label. The first panel wins unless you set :default_tab."
+                ),
+                parts=(
+                    Part(
+                        "c-ui.tabs.tab",
+                        "tabs/tab.html",
+                        "One panel. name is both its id and its button label.",
+                        required=True,
+                    ),
+                ),
+            ),
+            Component(
+                slug="accordion",
+                tag="c-ui.accordion",
+                template="accordion/index.html",
+                summary="Stacked expandable rows, one at a time or many.",
+                needs=(ALPINE, KIT_JS),
+                notes=(
+                    'type="single" allows one open row; any other value allows '
+                    "several. Rows are flush by design — padding belongs on the item, "
+                    "so you can compose insets."
+                ),
+                parts=(
+                    Part(
+                        "c-ui.accordion.item",
+                        "accordion/item.html",
+                        "One row. Must be inside the accordion.",
+                        required=True,
+                    ),
+                ),
+            ),
+            Component(
+                slug="collapse",
+                tag="c-ui.collapse",
+                template="collapse.html",
+                summary="A single show/hide toggle with an animated body.",
+                needs=(ALPINE, COLLAPSE),
+                notes=(
+                    "For one disclosure. Use the accordion when you have a set of them."
+                ),
+            ),
+        ],
+    ),
+    Group(
+        "Overlays",
+        "Layered on top.",
+        [
+            Component(
+                slug="dialog",
+                tag="c-ui.dialog",
+                template="dialog/index.html",
+                summary="A centred modal with header, body and footer slots.",
+                needs=(ALPINE, KIT_JS),
+                notes=(
+                    "Teleports the overlay to <body>. Note the spelling: :dismissable "
+                    "here, but :dismissible on the drawer. A close button always "
+                    "renders."
+                ),
+                parts=(
+                    Part(
+                        "c-ui.dialog.title",
+                        "dialog/title.html",
+                        "The accessible title. Must be inside the dialog.",
+                    ),
+                    Part(
+                        "c-ui.dialog.description",
+                        "dialog/description.html",
+                        "The accessible description.",
+                    ),
+                ),
+            ),
+            Component(
+                slug="drawer",
+                tag="c-ui.drawer",
+                template="drawer.html",
+                summary="A panel that slides in from any edge.",
+                needs=(ALPINE, FOCUS),
+                notes=(
+                    "The default slot is the trigger and the content slot is the body "
+                    "— the root is display:contents, so the trigger sits in your "
+                    "layout as though the drawer weren't there. Open it with "
+                    '@click="drawerOpen = true".'
+                ),
+            ),
+            Component(
+                slug="popover",
+                tag="c-ui.popover",
+                template="popover.html",
+                summary="A floating panel on click or hover, holding any content.",
+                needs=(ALPINE, KIT_JS),
+                notes=(
+                    'open_on="hover" honours open_delay and close_delay so it does not '
+                    "flicker on a quick pass. Unlike tooltip, it can hold interactive "
+                    "content. Note that class styles the panel, not the root."
+                ),
+            ),
+        ],
+    ),
+    Group(
+        "Theming",
+        "Controls for the theme itself. Both are wired up on this site — see Theming.",
+        [
+            Component(
+                slug="mode-toggle",
+                tag="c-ui.mode-toggle",
+                template="mode_toggle/index.html",
+                summary="Light / dark / system switching, in four presentations.",
+                needs=(ALPINE,),
+                notes=(
+                    "Pair it with c-ui.mode-toggle.head in <head>, with matching "
+                    "props, or the page flashes the wrong theme before Alpine boots. "
+                    'Syncs across tabs. variant="headless" hands you the scope so you '
+                    "can build your own control."
+                ),
+                parts=(
+                    Part(
+                        "c-ui.mode-toggle.head",
+                        "mode_toggle/head.html",
+                        "Blocking script for <head>. Prevents the flash.",
+                        required=True,
+                    ),
+                ),
+            ),
+            Component(
+                slug="theme-builder-widget",
+                tag="c-ui.theme-builder-widget",
+                template="theme_builder_widget.html",
+                summary=(
+                    "A floating devtool for editing theme tokens live, with CSS export."
+                ),
+                needs=(ALPINE, KIT_JS),
+                notes=(
+                    "A development tool rather than a UI primitive: drop it once, and "
+                    "it edits the tokens on <html> so the page you are already looking "
+                    "at is the preview. It is mounted on every page of this gallery — "
+                    "the paintbrush, bottom right. Copy the CSS it generates into your "
+                    "own stylesheet to keep a theme."
+                ),
+            ),
+        ],
+    ),
+    Group(
+        "Compositions",
+        (
+            "This project's own components, in templates/cotton/n26/ rather than the "
+            "kit. Most are assembled from the primitives above and add no "
+            "JavaScript of their own — where they need behaviour, they drive the "
+            "Alpine scope a kit component already provides. The exception is icon, "
+            "which is a primitive: the kit ships none, so we keep our own."
+        ),
+        [
+            Component(
+                slug="icon",
+                tag="c-n26.icon",
+                template="n26/icon.html",
+                summary="The whole icon set, from one named registry.",
+                notes=(
+                    "django-cotton-ui ships no icons at all, so until this existed "
+                    "every SVG was pasted inline where it was wanted — one chevron in "
+                    "five templates, one pencil in four, and nothing anywhere that "
+                    "listed what the project already had. The drawings are Heroicons "
+                    "v2 outline, on a 24x24 canvas with round caps and no fill, which "
+                    "is uniform enough that the registry in core/icons.py can be path "
+                    "data alone and this component supplies everything else. Four are "
+                    "our own redrawings, kept as they are because naming a set should "
+                    "not silently redraw it; the gallery marks them. Colour is never a "
+                    "prop — currentColor means an icon is the colour of its text — and "
+                    "stroke weight is, because weight is a function of rendered size "
+                    "rather than of the drawing."
+                ),
+            ),
+            Component(
+                slug="search-bar",
+                tag="c-n26.search-bar",
+                template="n26/search_bar.html",
+                summary="A search field, with its submit button beside it.",
+                notes=(
+                    "The field and its icon are one joined control, which the kit has "
+                    "no input group for: the wrapper owns the border, radius and focus "
+                    "ring, and the field is a plain <input> carrying the kit's own "
+                    "token classes, because c-ui.input would put a second border "
+                    "inside this one. The submit is deliberately *not* in that group — "
+                    "joined and filled it fought the group's border, joined and "
+                    "outlined it drew a second box inside it, both symptoms of a "
+                    "primary action not wanting to be a segment of the control it acts "
+                    "on. It is a real form, so it submits without JavaScript."
+                ),
+            ),
+            Component(
+                slug="filter-menu",
+                tag="c-n26.filter-menu",
+                template="n26/filter_menu.html",
+                summary=(
+                    "Multi-select filtering in a dropdown: All / None, "
+                    "per-row only, apply or cancel."
+                ),
+                needs=(ALPINE, KIT_JS, FOCUS),
+                notes=(
+                    "No new state. The checkbox group keeps its selection in a plain, "
+                    "assignable values array and the dropdown exposes close(), both "
+                    "above this content in the scope chain — so All, None and only are "
+                    "one assignment each. The group wraps the whole dropdown rather "
+                    "than sitting in its panel, which is what lets the trigger show a "
+                    "count while the panel is shut. Cancel reverts to a snapshot taken "
+                    "when the panel opened."
+                ),
+            ),
+            Component(
+                slug="range-menu",
+                tag="c-n26.range-menu",
+                template="n26/range_menu.html",
+                summary=(
+                    "A bound on a number, as a slider in a dropdown. One thumb or two."
+                ),
+                needs=(ALPINE, KIT_JS),
+                notes=(
+                    "The numeric member of the menu family, after filter-menu (many "
+                    "of a set) and choice-menu (one of a set). A slider is the wrong "
+                    "shape for a toolbar — it wants width — and the right shape for "
+                    "'how much', because the useful gesture is drag-until-the-list-"
+                    "looks-right rather than typing a number; a dropdown gives it "
+                    "width when open and leaves a button behind when shut. The "
+                    "trigger states the bound rather than the label, so a bar can be "
+                    "read without opening anything, and swaps in a word at either end "
+                    "for the cases where the number does not say what it means. Pass "
+                    "model_min and model_max instead of model and it becomes a "
+                    "two-thumb range. No OK or Cancel, unlike filter-menu: you are "
+                    "watching the list respond as you drag, and confirming something "
+                    "you have already seen happen is a step for nothing. The slider "
+                    "underneath is c-n26.range-slider, not c-ui.range: the kit's "
+                    "binds with x-modelable, which carries a drag out to the caller "
+                    "but will not carry a programmatic change back in — so Clear "
+                    "moved the model and left the filled track behind."
+                ),
+                parts=(
+                    Part(
+                        "c-n26.range-slider",
+                        "n26/range_slider.html",
+                        "The slider itself, one thumb or two. Ours rather than "
+                        "c-ui.range, which cannot be moved from outside.",
+                    ),
+                ),
+            ),
+            Component(
+                slug="collection-picker",
+                tag="c-n26.collection-picker",
+                template="n26/collection_picker/index.html",
+                summary=(
+                    "A long categorised list, filtered from a sticky bar and acted "
+                    "on inline. Built for a phone."
+                ),
+                needs=(ALPINE, KIT_JS, COLLAPSE),
+                notes=(
+                    "The filter bar sticks, because a filter you have to scroll back "
+                    "up to reach is one you use once; categories collapse, because "
+                    "thirty rows is a lot of thumb; and every control applies on "
+                    "touch, so the loop is filter, look, adjust rather than filter, "
+                    "wait, go back. Items register their own facets on init, so the "
+                    "counts, the readout and each group's visibility are one array "
+                    "read three ways and no total can fall out of date. An empty "
+                    "category hides itself rather than leaving a header behind, and a "
+                    "search forces every group open without overwriting what the "
+                    "reader had chosen. The controls are not built in: they go in a "
+                    "slot and write to this component's state by name, which is why "
+                    "the same shell serves a trading post and anything else long "
+                    "enough to need one."
+                ),
+                parts=(
+                    Part(
+                        "c-n26.collection-picker.section",
+                        "n26/collection_picker/section.html",
+                        "One collapsible tier, hiding itself when nothing under "
+                        "it matches.",
+                        required=True,
+                    ),
+                    Part(
+                        "c-n26.collection-picker.category",
+                        "n26/collection_picker/category.html",
+                        "The fine tier inside a section: a heading and its rows. "
+                        "Not collapsible — the section above it already is.",
+                    ),
+                    Part(
+                        "c-n26.collection-picker.item",
+                        "n26/collection_picker/item.html",
+                        "One row: name, cost, rarity and its buttons. One line at "
+                        "every width.",
+                        required=True,
+                    ),
+                ),
+            ),
+            Component(
+                slug="profile-picker",
+                tag="c-n26.profile-picker",
+                template="n26/profile_picker/index.html",
+                summary=(
+                    "The models a gang could buy: in sections, filtered, and "
+                    "hireable without opening a row."
+                ),
+                needs=(ALPINE, KIT_JS, COLLAPSE, FOCUS),
+                notes=(
+                    "The same screen as the trading post, because it is the same "
+                    "kind of screen — Profile is an Assignable, so a gang list is "
+                    "a collection like any other, and this is "
+                    "c-n26.collection-picker with hiring's vocabulary on it. "
+                    "Which keeps it thin: it sets the noun, drops the filters "
+                    "that mean nothing here (nothing you hire has a trade-points "
+                    "price or an Exclusive flag), and adds the one thing the "
+                    "shell has no business knowing — the composition limit. That "
+                    "limit is stated and never enforced, for three reasons "
+                    "pointing the same way: the rulebook treats going over as "
+                    "something to correct in the Post-cycle rather than "
+                    "something that cannot happen, n26.notes is explicit that "
+                    "nothing blocks on a note, and refusing belongs at the "
+                    "operation boundary where main puts overspend. Options are "
+                    "behind the disclosure only — a split button on the row "
+                    "would put a second decision in front of a reader who has "
+                    "not decided to hire at all."
+                ),
+                parts=(
+                    Part(
+                        "c-n26.profile-picker.row",
+                        "n26/profile_picker/row.html",
+                        "One profile: name, price and Hire on a line, with the "
+                        "whole card and the other options behind it.",
+                        required=True,
+                    ),
+                ),
+            ),
+            Component(
+                slug="choice-menu",
+                tag="c-n26.choice-menu",
+                template="n26/choice_menu.html",
+                summary=(
+                    "The same panel for one-of choices: radios, no All / None, no only."
+                ),
+                needs=(ALPINE, KIT_JS, FOCUS),
+                notes=(
+                    "For the things that are never several at once — a sort order "
+                    "being the obvious one. All / None and the per-row only go with "
+                    "the checkboxes, since they only mean anything when more than one "
+                    "row can be on; what is left is the list and OK / Cancel. The "
+                    "trigger shows the chosen label rather than a count, a count "
+                    "always being one. If you want a menu that commits the moment you "
+                    "pick, the kit's own c-ui.menu is the better fit."
+                ),
+            ),
+            Component(
+                slug="toggle",
+                tag="c-n26.toggle",
+                template="n26/toggle.html",
+                summary="A switch with its label beside it, sized to its content.",
+                needs=(ALPINE, KIT_JS),
+                notes=(
+                    "The kit stacks a switch's label above it, and :inline pushes the "
+                    "switch to the far right of a full-width row — neither suits a "
+                    "toolbar. The wrapping label is load-bearing rather than "
+                    "decorative: the kit's switch hides a checkbox bound with x-model, "
+                    "so label activation toggles it with no new JavaScript, and the "
+                    "switch then picks the label up as its accessible name."
+                ),
+            ),
+            Component(
+                slug="link",
+                tag="c-n26.link",
+                template="n26/link.html",
+                summary="An inline text link, with tones and underline modes.",
+                notes=(
+                    'The kit has no link — c-ui.button variant="text" is still a '
+                    "button — so this is the plain one, and what the link-ish "
+                    "components are built from. Colour is a prop rather than a class "
+                    'because class="text-muted" against a default of text-accent is '
+                    "two utilities of equal specificity, and which wins depends on the "
+                    "order Tailwind emitted them. Without an href it renders a span, "
+                    "not a dead anchor. The text sits in its own span, so the trailing "
+                    "slot stays outside the underline."
+                ),
+            ),
+            Component(
+                slug="color-link",
+                tag="c-n26.color-link",
+                template="n26/color_link.html",
+                summary="Text with a colour swatch in front of it.",
+                notes=(
+                    "The sibling of flair-link: both are c-n26.link with something "
+                    "in a slot that sits outside the underline — a swatch before the "
+                    "text here, a badge after it there. One prop takes the colour "
+                    "whether it is a literal or a theme name, because a call site "
+                    "should not have to say which it meant: a hex is frozen because "
+                    "someone chose it, while a token resolves through var() and "
+                    "follows a theme change. Sized in em like flair-link, so there is "
+                    "no size prop."
+                ),
+            ),
+            Component(
+                slug="flair-link",
+                tag="c-n26.flair-link",
+                template="n26/flair_link.html",
+                summary="Text with a small SVG badge after it, linked or not.",
+                notes=(
+                    "c-n26.link with a badge in its trailing slot, so everything about "
+                    "being a link lives there and this only owns the badge. The "
+                    "trailing slot is outside the underline, which is the point — a "
+                    "rule running under the artwork reads as a mistake. The badge is "
+                    "sized in em rather than px, so one component works in a table "
+                    "cell and in a heading with no size prop, and the rule is applied "
+                    "to descendant svg because the artwork belongs to the caller."
+                ),
+                parts=(
+                    Part(
+                        "c-n26.flair.staff",
+                        "n26/flair/staff.html",
+                        "The pixel-art staff badge. Fixed palette by design.",
+                    ),
+                    Part(
+                        "c-n26.flair.house",
+                        "n26/flair/house.html",
+                        "The Goliath house icon. Drawn with currentColor, so it "
+                        "follows the text.",
+                    ),
+                ),
+            ),
+            Component(
+                slug="page-header",
+                tag="c-n26.page-header",
+                template="n26/page_header.html",
+                summary="What this page is, at the top of it.",
+                notes=(
+                    "Exists because two screens had already disagreed: the gang "
+                    "sheet set its name at text-2xl and the hire form set its at "
+                    "text-xl, for no reason either template could have told you. "
+                    "One scale, decided here. The trail, the lead and the page's "
+                    "controls are all optional and compose around it. The lead "
+                    "takes one name for either shape — pass a string for a few "
+                    "words or open a slot for markup — because `.strip` is a "
+                    "method on a string as much as on slot content, so the "
+                    "template never has to know which it got, and the common case "
+                    "stays a bare attribute."
+                ),
+            ),
+            Component(
+                slug="prose",
+                tag="c-n26.prose",
+                template="n26/prose.html",
+                summary="A run of authored copy: headings, paragraphs, lists.",
+                notes=(
+                    "For prose a template writes, where c-n26.rich-text is for "
+                    "prose a database stores. The library had one and not the "
+                    "other, so anything hand-written in a page fell back to "
+                    "whatever utilities its author reached for — which is how two "
+                    "screens ended up with two heading scales. Both go through the "
+                    "same .rich-text rules, so a page's own copy and a description "
+                    "typed into the editor are the same typography. Plain HTML "
+                    "inside, not components: the tags are the vocabulary, a "
+                    "paragraph component would be a paragraph with extra steps, "
+                    "and the styling reaches them by descendant selector precisely "
+                    "so an author can write ordinary markup. Capped at max-w-prose "
+                    "unless something else already constrains the width."
+                ),
+            ),
+            Component(
+                slug="form-page",
+                tag="c-n26.form-page",
+                template="n26/form_page.html",
+                summary="The wrapper every form screen shares.",
+                notes=(
+                    "There is one of these and every form uses it, which is the "
+                    "whole point: there were briefly two, and create-gang had "
+                    "drifted to max-w-2xl with space-y-8 while hire was "
+                    "max-w-3xl with space-y-4. Nobody decided that — they were "
+                    "written a week apart. So the measure, the vertical rhythm, "
+                    "the header and the footer live here and a form view "
+                    "supplies its fields and nothing about the frame. The "
+                    "measure is about 42em, because a text input a foot wide is "
+                    "harder to aim at and harder to read back than one the width "
+                    "of a paragraph; the gap between sections is visibly larger "
+                    "than the gap between fields, which is what makes a group "
+                    "read as a group without a box round it. The footer is "
+                    "optional: a form whose submit lives elsewhere passes no "
+                    "submit_label and gets none, which is how the hire screen "
+                    "avoids a Create button under a list of Hire buttons."
+                ),
+            ),
+            Component(
+                slug="form-section",
+                tag="c-n26.form-section",
+                template="n26/form_section.html",
+                summary="A titled group of fields inside a form.",
+                notes=(
+                    "The unit a form is built from. Eight fields in one run is a "
+                    "wall; the same eight under two headings is two short "
+                    "questions, and a reader can tell before starting which "
+                    "parts they can skip. Separated by space and a heading "
+                    "rather than boxed — four lines around every group makes a "
+                    "short form look like a settings screen, and the gap after "
+                    "the last field is already saying where the group ended. "
+                    "c-ui.card is there for the cases that genuinely want a "
+                    "container. The title renders as an h2, so a form of these "
+                    "has a real document outline rather than a run of bold "
+                    "text. A description is better absent than restating the "
+                    "labels underneath it."
+                ),
+            ),
+            Component(
+                slug="colour-picker",
+                tag="c-n26.colour-picker",
+                template="n26/colour_picker.html",
+                summary="Pick a colour from the palette, or none.",
+                notes=(
+                    "Radios and not a select, because the question is entirely "
+                    "'which of these looks right' and a dropdown makes you open "
+                    "it, read twenty words and close it again to compare two. "
+                    "Each radio is sr-only with the swatch styled through "
+                    "peer-checked, so it is a real input in a real label: "
+                    "keyboard-reachable, arrow-keys between options, submits "
+                    "with no JavaScript, and reads its colour's name aloud. "
+                    "None is the first swatch and a real value rather than the "
+                    "absence of one — a picker defaulting to nothing-selected "
+                    "cannot be returned to nothing once touched, and cannot "
+                    "tell 'no colour' from 'not answered yet' when a form comes "
+                    "back after an error. The swatch classes are a lookup "
+                    "because Tailwind reads class names as literal strings and "
+                    "never emits one built from a variable. The grid is "
+                    "auto-fill, so how many fit a row is not a decision anybody "
+                    "has to maintain."
+                ),
+            ),
+            Component(
+                slug="coming-soon",
+                tag="c-n26.coming-soon",
+                template="n26/coming_soon.html",
+                summary="A section that exists but is not built yet.",
+                notes=(
+                    "Not an empty state, and the difference is the whole point of "
+                    "having both. A table's empty slot says the reader can fix this "
+                    "by searching for something else; this says there is nothing to "
+                    "fix and no reason to come back today. Wiring a tab to one of "
+                    "these is how a nav gets to be honest about what is coming "
+                    "without the tab having to appear later and surprise people. "
+                    "Deliberately plain — no illustration, no button, nothing "
+                    "actionable — because a placeholder that draws the eye draws it "
+                    "again on every load. Body copy at the normal size: it is read "
+                    "once and then skipped, which is the right outcome, and small "
+                    "print would only make that one reading harder."
+                ),
+            ),
+            Component(
+                slug="statline",
+                tag="c-n26.statline",
+                template="n26/statline/index.html",
+                summary="A set of characteristics as a compact strip.",
+                notes=(
+                    "One component for two jobs, because build_statline() in "
+                    "core/render.py serves a fighter profile and a weapon profile "
+                    "alike. The divider and the tint come from is_first_of_group and "
+                    "is_highlighted on StatlineTypeStat, so where a row breaks is "
+                    "content rather than a decision in the template. Header and "
+                    "cells are separate parts that emit cells rather than rows, "
+                    "which is what lets the weapon table put a name column in front "
+                    "of the same stats. Not built on c-ui.table: a statline is a "
+                    "centred strip where that is a left-aligned data grid, and its "
+                    "descendant-variant styling outranks any class on a cell, so it "
+                    "cannot be adjusted from the call site."
+                ),
+                needs=(ALPINE, KIT_JS),
+                parts=(
+                    Part(
+                        "c-n26.statline.header",
+                        "n26/statline/header.html",
+                        "The <th> cells, with an optional leading column.",
+                        required=True,
+                    ),
+                    Part(
+                        "c-n26.statline.cells",
+                        "n26/statline/cells.html",
+                        "The <td> cells. Marks a modified value and names what "
+                        "changed it.",
+                        required=True,
+                    ),
+                ),
+            ),
+            Component(
+                slug="gang-table",
+                tag="c-n26.gang-table",
+                template="n26/gang_table/index.html",
+                summary="The gangs you own, searchable, each row clickable.",
+                needs=(ALPINE, KIT_JS),
+                parts=(
+                    Part(
+                        "c-n26.gang-table.row",
+                        "n26/gang_table/row.html",
+                        "One gang: name, type, what it is worth, and its actions.",
+                    ),
+                ),
+                notes=(
+                    "Called a table because that is what it is to a reader, and "
+                    "built as a list of grid rows because a real one cannot "
+                    "survive a phone: four columns, one of them a four-figure "
+                    "wealth strip and one a pair of buttons, is more than 390px "
+                    "holds, and the usual escape — display:block on the cells — "
+                    "throws away the alignment that made it a table. A grid keeps "
+                    "both, and drops nothing at either width. The whole row is one "
+                    "link by way of exactly one real <a>, on the name, whose "
+                    "::after is stretched over the row: wrapping the row in an "
+                    "anchor would put two buttons inside a link, and a click "
+                    "handler on a div would lose the URL, middle-click and "
+                    "keyboard focus. The buttons are lifted above the stretch, "
+                    "which is the row's decision and so lives on the markup. Type "
+                    "is a plain select rather than c-n26.filter-menu: one question "
+                    "with one answer does not need Apply and Cancel."
+                ),
+            ),
+            Component(
+                slug="changelog",
+                tag="c-n26.changelog",
+                template="n26/changelog/index.html",
+                summary="What changed lately, newest first.",
+                parts=(
+                    Part(
+                        "c-n26.changelog.entry",
+                        "n26/changelog/entry.html",
+                        "One update: a short title, two lines of it, a date.",
+                    ),
+                ),
+                notes=(
+                    "A list, not a feed: nothing loads more, and the point of it "
+                    "on a dashboard is seeing at a glance whether anything has "
+                    "happened since last time. Summaries clamp at two lines — one "
+                    "is a headline and the entry already has a headline, and the "
+                    "full text is a press away, so it cuts where reading it here "
+                    "stops being cheaper than opening it. The way through to "
+                    "everything is in the heading rather than a last row: a row "
+                    "that opens an index is the one row in a list that does not "
+                    "behave like the list. Rows are clickable by the same means "
+                    "the gang table uses."
+                ),
+            ),
+            Component(
+                slug="wealth",
+                tag="c-n26.wealth",
+                template="n26/wealth/index.html",
+                summary="What a gang is worth, as a figure strip.",
+                needs=(ALPINE, KIT_JS),
+                parts=(
+                    Part(
+                        "c-n26.wealth.figure",
+                        "n26/wealth/figure.html",
+                        "One labelled figure: the short name over the value.",
+                    ),
+                ),
+                notes=(
+                    "Four figures in the order they answer questions about each "
+                    "other — rating is what the gang fields, credits what is left, "
+                    "stash what the gang owns and nobody carries, wealth the three "
+                    "added up — so "
+                    "reading left to right is reading the sum. Badges would put "
+                    "them in no relation at all. Takes the whole GangSheet rather "
+                    "than four numbers, because four positional integers in the "
+                    "same units are four chances to swap two and never find out. "
+                    "A definition list, not a table: a table needs its headers and "
+                    "values in separate rows, so each label and figure would be "
+                    "written twice and kept in step by hand. Real tooltips here "
+                    "where the statline uses a title attribute — that component "
+                    "spends nothing per cell because a gang sheet carries "
+                    "hundreds, and this strip is four cells once on a page, so it "
+                    "can afford the thing that works without a mouse."
+                ),
+            ),
+            Component(
+                slug="detail-list",
+                tag="c-n26.detail-list",
+                template="n26/detail_list/index.html",
+                summary="Labelled values, dense, each value a control.",
+                needs=(ALPINE, KIT_JS, FOCUS),
+                parts=(
+                    Part(
+                        "c-n26.detail-list.row",
+                        "n26/detail_list/row.html",
+                        "One label and its value, as an xs button.",
+                    ),
+                ),
+                notes=(
+                    "A gang has a dozen small standing facts and every one of them "
+                    "is something you can change, so the value is also the way to "
+                    "edit it. One control however much it holds: three skill trees "
+                    "are three answers to one question, and three buttons would "
+                    "say there were three questions. Built along action-links' "
+                    "lines — the rhythm belongs to the container, so hiding a row "
+                    "behind a permission check cannot leave a gap — but with no "
+                    "separator between pairs, because a mark between one pair and "
+                    "the next reads as being inside the pair. Flex wrap rather "
+                    "than a grid: a grid aligns every value to the widest label on "
+                    "the sheet, which spends most of a phone on nothing. The "
+                    "control keeps its border, because a ghost button is a value "
+                    "that only looks pressable once you are already pointing at "
+                    "it, which on a phone is never."
+                ),
+            ),
+            Component(
+                slug="stash",
+                tag="c-n26.stash",
+                template="n26/stash/index.html",
+                summary="The gang's storage, grouped by kind.",
+                parts=(
+                    Part(
+                        "c-n26.stash.group",
+                        "n26/stash/group.html",
+                        "One kind of thing, and the things.",
+                    ),
+                ),
+                notes=(
+                    "Grouped by what kind each item is, because that is the "
+                    "question actually asked of a stash: you scan it for "
+                    "armour, not for the thing called Mesh armour, and a flat "
+                    "alphabetical list makes that a read of every line. Items run "
+                    "on and wrap rather than taking a row each — the stash is a "
+                    "footnote on a gang sheet, not the point of it — and ratings "
+                    "sit against their own item, since nothing is being compared "
+                    "down a stash. The total goes on the heading, not under the "
+                    "last row where it would read as belonging to that row. Drawn "
+                    "through c-n26.assignable-lines, so something a modifier put "
+                    "there carries the mark it would on a card. "
+                    "supplies the groups: StashLine has a name, a rating and a "
+                    "provenance but not a kind, so the grouping cannot come from a "
+                    "GangSheet alone."
+                ),
+            ),
+            Component(
+                slug="model-card",
+                tag="c-n26.model-card",
+                template="n26/model_card/index.html",
+                summary="A fighter's card: characteristics, weapons, skills, gear, XP.",
+                notes=(
+                    "Renders a n26.render.ModelCard, which the backend already "
+                    "assembles in one query — the template computes nothing. It "
+                    "follows the rulebook's Model Card anatomy and then keeps going "
+                    "where digital allows: every line on the card carries its "
+                    "provenance, so a modified characteristic says what changed it "
+                    "and a granted skill or trait is marked apart from a bought one. "
+                    "Paid ammo is priced under its weapon, and a choice draws as its "
+                    "own row — resolved or not, because an unanswered one is "
+                    "information rather than an error. Read-only about the fighter: "
+                    "nothing here changes a statline, a weapon or a skill. Notes and "
+                    "lore carry an Edit each, which is not an exception so much as "
+                    "the shape of the thing — they are the only parts of a card a "
+                    "player writes rather than earns. Almost nothing is greyed "
+                    "out: hierarchy is weight and size, and an empty value is an "
+                    "em dash. The two exceptions are captions rather than "
+                    "content — the profile name under the model's, and the XP "
+                    "target beside the current one."
+                ),
+                needs=(ALPINE, KIT_JS),
+                parts=(
+                    Part(
+                        "c-n26.assignable-lines",
+                        "n26/assignable_lines.html",
+                        "A run of assignables — skills, gear, weapon traits — "
+                        "marking the ones that were granted rather than bought.",
+                        required=True,
+                    ),
+                    Part(
+                        "c-n26.model-card.prose",
+                        "n26/model_card/prose.html",
+                        "A written section at the foot of a card: Notes, Lore.",
+                    ),
+                ),
+            ),
+            Component(
+                slug="rich-text",
+                tag="c-n26.rich-text",
+                template="n26/rich_text.html",
+                summary=(
+                    "A TinyMCE editor that behaves like the other fields, and the "
+                    "safe renderer for what it produces."
+                ),
+                needs=(ALPINE, "TinyMCE", "form.media"),
+                notes=(
+                    "Two modes because they are two views of the same content: pass a "
+                    "bound field for the editor with an Edit / Preview switch, or just "
+                    "a value for the rendered article. Wrapped in c-ui.field, so "
+                    "label, "
+                    "description and errors work as they do on c-ui.input. Rendering "
+                    "always goes through safe_rich_text — editor output is user input "
+                    "that has been round-tripped through a database, so it is "
+                    "sanitised on the way out rather than trusted. You must render "
+                    "{{ form.media }} once on the page or no editor appears; the "
+                    "widget "
+                    "is only a textarea until that script runs."
+                ),
+            ),
+            Component(
+                slug="action-bar",
+                tag="c-n26.action-bar",
+                template="n26/action_bar.html",
+                summary=(
+                    "The inline row that buttons, groups, dropdowns and links sit in."
+                ),
+                notes=(
+                    "Layout only: a wrapping flex row keeping controls of differing "
+                    "heights on one centre line, with a trailing slot pushed to the "
+                    "far end. This was filter-bar, which was the same row under a "
+                    "narrower name — filtering is an action, and two components with "
+                    "identical markup is how a design system starts drifting. "
+                    ":surface puts it on a tinted strip, for a secondary bar inside a "
+                    "card rather than at the top of a page."
+                ),
+            ),
+            Component(
+                slug="button-group",
+                tag="c-n26.button-group",
+                template="n26/button_group.html",
+                summary="Buttons joined into one control.",
+                notes=(
+                    "The kit has no button group. The group owns the outer radius, its "
+                    "children give up theirs, and each after the first pulls left a "
+                    "pixel so touching borders read as one line. Done in CSS because "
+                    "rounded-none on a c-ui.button would only tie with the "
+                    "rounded-button already there, and ties are settled by whichever "
+                    "order Tailwind happened to emit. Anything can join the run — a "
+                    "dropdown trigger included, which is how you get the split caret "
+                    "at the end of a toolbar."
+                ),
+            ),
+            Component(
+                slug="action-links",
+                tag="c-n26.action-links",
+                template="n26/action_links.html",
+                summary="A run of links separated by middle dots.",
+                notes=(
+                    "The dots are drawn by CSS on every child but the first, not "
+                    "written at each call site — so adding, reordering or "
+                    "permission-hiding a link cannot leave a stray separator behind. "
+                    "The icon slot is one icon for the whole run, which is the shape "
+                    "these rows usually take."
+                ),
+                parts=(
+                    Part(
+                        "c-n26.action-link",
+                        "n26/action_link.html",
+                        "One link in the run, with an optional icon and a danger tone.",
+                        required=True,
+                    ),
+                ),
+            ),
+        ],
+    ),
+    Group(
+        "Print",
+        (
+            "Paper, which is a different medium and behaves like one. These are the "
+            "only components in the library that are not about a screen, and the "
+            "constraints are much tighter: fixed physical sizes in millimetres, a "
+            "page fold you do not control, and engines — iOS Safari above all — that "
+            "quietly ignore the layout you asked for. The rule that governs the whole "
+            "family is that a printed grid must not be a CSS grid, or a flexbox: "
+            "neither takes part in WebKit page fragmentation, so break-inside: avoid "
+            "is discarded without a word and a card comes off the printer in two "
+            "halves. Read the top of print.css before changing any of it."
+        ),
+        [
+            Component(
+                slug="print-sheet",
+                tag="c-n26.print.sheet",
+                template="n26/print/sheet.html",
+                summary=(
+                    "The paper: page size, margins, and the geometry everything "
+                    "else measures from."
+                ),
+                notes=(
+                    "Exactly one per document. @page is a document-level rule with no "
+                    "element to scope it to, so a second sheet's page size silently "
+                    "wins for both. It publishes the printable area as custom "
+                    "properties, which is what lets the grid derive a cell width that "
+                    "cannot overflow the paper — v1 kept a hardcoded 204mm in step "
+                    "with a 3mm margin by hand, two numbers for one fact. The sheet "
+                    "renders at true physical size on screen as well, so the preview "
+                    "is the artefact rather than an impression of it; that costs a "
+                    "sideways scroll on a phone and is worth it. Its palette is "
+                    "deliberately not the app's theme tokens — there is no dark mode "
+                    "on a sheet of paper."
+                ),
+                parts=(
+                    Part(
+                        "c-n26.print.grid",
+                        "n26/print/grid.html",
+                        "Tiles items N-up as atomic inlines, so none can be cut by the "
+                        "page fold.",
+                    ),
+                    Part(
+                        "c-n26.print.card",
+                        "n26/print/card.html",
+                        "One unit that arrives whole: grid-cell width, optional fixed "
+                        "height, footer on the bottom edge.",
+                    ),
+                    Part(
+                        "c-n26.print.statline",
+                        "n26/print/statline.html",
+                        "Characteristics in the book's two-row layout, with Type "
+                        "and XP filling the second row.",
+                    ),
+                    Part(
+                        "c-n26.print.table",
+                        "n26/print/table.html",
+                        "A long table whose header repeats on every page and whose "
+                        "rows never split.",
+                    ),
+                    Part(
+                        "c-n26.print.columns",
+                        "n26/print/columns.html",
+                        "Side-by-side columns, filled server-side — never CSS "
+                        "multicol, which WebKit collapses when printing.",
+                    ),
+                    Part(
+                        "c-n26.print.column",
+                        "n26/print/column.html",
+                        "One column, optionally spreading its children down the full "
+                        "height.",
+                    ),
+                    Part(
+                        "c-n26.print.entry",
+                        "n26/print/entry.html",
+                        "A labelled value, beside or above; monolithic, so no engine "
+                        "may split it.",
+                    ),
+                    Part(
+                        "c-n26.print.field",
+                        "n26/print/field.html",
+                        "A box to write in by hand, with whatever is already known "
+                        "printed inside.",
+                    ),
+                    Part(
+                        "c-n26.print.break",
+                        "n26/print/break.html",
+                        "End the page here.",
+                    ),
+                ),
+            ),
+        ],
+    ),
+    Group(
+        "Site chrome",
+        (
+            "The frame around an application rather than anything inside one: a "
+            "bar across the top saying one thing, the navigation under it, and "
+            "the footer at the bottom. Rebuilt from Gyrinx v1, which is where "
+            "the shape of each comes from. They share one container, which is "
+            "the least interesting and most load-bearing thing about them — "
+            "three separate max-widths is how a logo ends up two pixels off the "
+            "heading below it."
+        ),
+        [
+            Component(
+                slug="site-announcement",
+                tag="c-n26.site.announcement",
+                template="n26/site/announcement.html",
+                summary="A bar across the top of the site, saying one thing.",
+                needs=(ALPINE,),
+                notes=(
+                    "Above the nav rather than below it, because it is about the "
+                    "site rather than the page, and a bar that pushes the whole "
+                    "application down is harder to ignore than one tucked inside "
+                    "it — which is the point of the thing. It does not remember "
+                    "being dismissed, deliberately: persistence is a decision "
+                    "only the application can make, and the two reasonable "
+                    "answers pull opposite ways. A server that stores the "
+                    "dismissal can also count it, which is what you want if the "
+                    "bar is advertising something; a localStorage flag cannot be "
+                    "counted but survives a logged-out visitor. on_dismiss is "
+                    "where either goes. Tone sets the colours and the icon "
+                    "together, because they say the same thing and a red bar "
+                    "with no icon reads as an unexplained mistake."
+                ),
+            ),
+            Component(
+                slug="site-nav",
+                tag="c-n26.site.nav",
+                template="n26/site/nav.html",
+                summary="The bar across the top of every page: brand, links, actions.",
+                needs=(ALPINE, KIT_JS, COLLAPSE),
+                notes=(
+                    "Mostly the kit's c-ui.navbar, which already has the tedious "
+                    "parts right — a burger that mirrors the items and actions "
+                    "into a mobile panel, an is-current marker its variant "
+                    "styles, the focus and aria wiring. What this adds is the two "
+                    "things the kit has no opinion about: a brand block, and a "
+                    "measure. The measure is the reason it exists. The kit runs "
+                    "its row the full width of the window, which suits an "
+                    "application that fills the screen; a site with a footer "
+                    "under it wants the logo above the first footer column. "
+                    "Items stay the kit's c-ui.navbar.item rather than a wrapper "
+                    "of our own — it already marks itself current in a way the "
+                    "parent styles, and a pass-through would only be somewhere "
+                    "for the two to drift apart."
+                ),
+            ),
+            Component(
+                slug="site-footer",
+                tag="c-n26.site.footer",
+                template="n26/site/footer/index.html",
+                summary=(
+                    "The bottom of every page: columns of links, and the odd one out."
+                ),
+                notes=(
+                    "Columns rather than a links prop taking a list, because "
+                    "footers are where the odd one out lives — two columns of "
+                    "tidy links and a third holding a picture. A data-driven "
+                    "footer handles the two and grows an escape hatch for the "
+                    "third, and the escape hatch is this. Three across on a wide "
+                    "screen and one down on a phone, from the grid rather than "
+                    "from anything the caller says, so a two-column footer and a "
+                    "three-column one still line up with the nav. The Patreon "
+                    "card carries .n26-img-tilt, the one piece of deliberate fun "
+                    "on the page: it lifts and turns towards the pointer as if "
+                    "it were a physical thing on the desk. The transform is on "
+                    "the image and the hover on the link, so the target does not "
+                    "move out from under the pointer, and anyone who has asked "
+                    "for reduced motion gets the shadow without the tilt."
+                ),
+                parts=(
+                    Part(
+                        "c-n26.site.footer.column",
+                        "n26/site/footer/column.html",
+                        "One column: a heading, a list of links, or a picture "
+                        "instead of one.",
+                        required=True,
+                    ),
+                ),
+            ),
+        ],
+    ),
+    Group(
+        "Views",
+        (
+            "Whole screens, assembled from everything above. Not pages — no "
+            "chrome, no routing, just the part between the nav and the footer — "
+            "because the questions a screen raises are not the ones a component "
+            "raises. How much fits above the fold on a phone, whether two "
+            "components repeat each other, where the submit button went: none "
+            "of those can be answered by looking at either piece on its own."
+        ),
+        [
+            Component(
+                slug="view-gang-sheet",
+                tag="c-n26.view.gang-sheet",
+                template="n26/view/gang_sheet.html",
+                summary="A gang, whole: what it is worth and who is in it.",
+                needs=(ALPINE, KIT_JS, FOCUS),
+                notes=(
+                    "The order down the page is the order a reader asks: whose "
+                    "gang and where am I, what is it called, what kind, what is it "
+                    "worth, what are its standing facts, what can I do to it, what "
+                    "is in the stash, who is in it. Everything above the fighters "
+                    "is a header, small and over quickly, because every row of it "
+                    "is a row of fighters you cannot see. Two action runs and not "
+                    "one: hiring is what the screen is for and it is safe, "
+                    "printing is a detour, deleting is irreversible — and one row "
+                    "would sort them by nothing while putting a Delete in thumb "
+                    "range of a Hire. The dropboard around Delete is not "
+                    "decoration; it is the second deliberate press an irreversible "
+                    "thing should cost. The cards are a CSS grid to three columns, "
+                    "because a card holds a fixed amount of information: as the "
+                    "screen widens the answer is more cards abreast, not one wide "
+                    "column setting a statline's M and Sv a hand's width apart."
+                ),
+            ),
+            Component(
+                slug="view-dashboard",
+                tag="c-n26.view.dashboard",
+                template="n26/view/dashboard.html",
+                summary="Where you land: your gangs, and what changed.",
+                needs=(ALPINE, KIT_JS),
+                notes=(
+                    "Two things, in the order they matter: what you own, and what "
+                    "has changed since you last looked. A dashboard that tries to "
+                    "summarise everything is a page nobody reads twice. The "
+                    "greeting states a fact rather than asking a question — no "
+                    "prompt, no exclamation mark: someone came here to get on with "
+                    "something, and a page that opens by asking how they are is "
+                    "one they learn to scroll past. Founding a gang is the only "
+                    "primary button on the screen, because everything else here is "
+                    "a way to reach something that already exists. The gangs get no "
+                    "heading of their own — they are what the page is — where the "
+                    "changelog needs one, since a reader has to be told the list "
+                    "has stopped being about them."
+                ),
+            ),
+            Component(
+                slug="view-fighter-hire",
+                tag="c-n26.view.fighter-hire",
+                template="n26/view/fighter_hire.html",
+                summary="Name a fighter, then pick what they are.",
+                needs=(ALPINE, KIT_JS, COLLAPSE, FOCUS),
+                notes=(
+                    "Optimised for finding the profile and nothing else. "
+                    "Everything above the list is there under protest, because "
+                    "on a phone every row of chrome is a row of fighters you "
+                    "cannot see — so the form is two things, a name and the "
+                    "picker. The name comes first because that is the order the "
+                    "sentence goes in, and it is optional and says so: blocking "
+                    "a hire on naming would slow the common case, which is "
+                    "buying three Gangers and naming them once they have done "
+                    "something worth naming. There is no submit button. Every "
+                    "Hire in the list is this form's submit, carrying which "
+                    "profile or which option was pressed, which is what the "
+                    "row's `value` is for — and the form should not grow a "
+                    "primary action of its own, because a Hire at the bottom of "
+                    "a list of Hire buttons is a second answer to a question "
+                    "already answered."
+                ),
+            ),
+            Component(
+                slug="view-create-gang",
+                tag="c-n26.view.create-gang",
+                template="n26/view/create_gang.html",
+                summary="Found a gang: name it, say what it is, and start.",
+                notes=(
+                    "The library's form pattern, and the one the others should "
+                    "follow: a heading, a line of help under it, fields in "
+                    "titled groups, one primary action at the end. Every field "
+                    "is c-ui.field over a kit control, so the label, the help "
+                    "text and the error come from one place rather than being "
+                    "rebuilt per screen. Two groups rather than one run of four, "
+                    "split by required and optional — a reader can stop after "
+                    "the first and have a gang, and saying that with a heading "
+                    "is cheaper than saying it four times in four labels. "
+                    "Required is marked with an asterisk and stated once at the "
+                    "top; marking the optional ones instead would leave the "
+                    "mandatory fields bare and teach the reader nothing. No "
+                    "Cancel beside Create: leaving is what the back button is "
+                    "for, and a button whose job is to discard what somebody "
+                    "typed does not belong a thumb-width from the one that "
+                    "keeps it. Blank starting credits means no limit, which is "
+                    "the one place where leaving something out is a decision "
+                    "rather than a deferral — so it is the one the help text "
+                    "explains."
+                ),
+            ),
+        ],
+    ),
+]
+
+
+# Each component is declared inside its group, so stamp the group name back onto it
+# rather than repeating it on every entry.
+for _group in GROUPS:
+    _group.components[:] = [
+        replace(component, group=_group.name) for component in _group.components
+    ]
+
+COMPONENTS: list[Component] = [c for g in GROUPS for c in g.components]
+BY_SLUG = {c.slug: c for c in COMPONENTS}
+
+
+def get(slug: str) -> Component | None:
+    return BY_SLUG.get(slug)

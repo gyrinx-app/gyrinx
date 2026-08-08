@@ -1,0 +1,36 @@
+{% comment %}
+OVERRIDE of django_cotton_ui's cotton/ui/label.html. Identical to the shipped
+template except that `attrs.dict` is `attrs.attrs_dict`.
+
+Same underlying bug as the error.html override alongside this: Cotton's
+`attrs_dict()` filters out the props a component declared in <c-vars> and
+`dict()` does not, so label writes its own `badge` and `for` back out as HTML
+attributes.
+
+Here that produces `for="None"` on every label rendered through c-ui.field —
+field.html passes `:for="for"`, which defaults to None, and the merge stringifies
+it. The template's own `{% if for %}` guard is correct and already suppresses the
+real attribute; it is only the leak that emits one, pointing every label at an
+element id that does not exist. With the accessor fixed the guard is left to do
+its job: no `for` unless you pass one.
+
+designsystem/tests.py::test_override_still_needed watches the upstream template
+and fails once this is fixed there, so the override can be deleted rather than
+silently shadowing a newer version.
+{% endcomment %}
+<c-vars
+    badge=""
+    :for="None"
+/>
+
+<label
+    {{ attrs.attrs_dict|merge:'class:block font-semibold text-ink-900 dark:text-ink-100 mb-1.5' }}
+    {% if for %}for="{{ for }}"{% endif %}
+>
+    <span class="flex items-center gap-2">
+        {{ slot }}
+        {% if badge %}
+            <c-ui.badge size="sm" color="ink">{{ badge }}</c-ui.badge>
+        {% endif %}
+    </span>
+</label>

@@ -1,0 +1,7 @@
+{# title: Remembering the dismissal #}
+{# layout: col #}
+{# note: Closing it hides it for this page and nothing more — persistence is a decision only the application can make. A server that stores it can also count it, which is what you want if the bar is advertising something; a localStorage flag cannot be counted but survives a logged-out visitor. on_dismiss is where either goes. Reload this page and the bar is back. #}
+<c-n26.site.announcement tone="info"
+                         on_dismiss="$dispatch('toast', {variant: 'info', title: 'Dismissed', message: 'on_dismiss ran — a real app would post this somewhere.'})">
+    Close me: the expression in on_dismiss fires as I go.
+</c-n26.site.announcement>

@@ -1,0 +1,97 @@
+{% comment %}
+<c-n26.rich-text> — a TinyMCE editor that behaves like the other form fields, and
+the safe renderer for what it produces.
+
+    {# editing #}
+    <c-n26.rich-text :field="form.body" label="Description"
+                     description="Markdown shortcuts work: ## for a heading." />
+
+    {# rendering what was saved #}
+    <c-n26.rich-text :value="page.body" />
+
+Two modes, one component, because they are two views of the same content and it
+is useful to flip between them. Pass a bound field and you get the editor with an
+Edit / Preview switch; pass only a value and you get the rendered article.
+
+Wrapped in <c-ui.field>, so label, description and form errors work exactly as
+they do on c-ui.input — that is the whole point of it being a component rather
+than a bare {{ field }}.
+
+Rendering always goes through safe_rich_text. Editor output is user input that
+has been round-tripped through a database, so it is sanitised on the way out
+rather than trusted.
+
+*You must render {{ form.media }} once on the page.* Without it the widget is
+just a textarea with a data attribute and no editor ever appears. Once per page,
+not once per field — every editor shares the one script.
+
+Dark mode, responsiveness and the chrome matching the kit's inputs are handled
+outside this template: static/n26/richtext.js swaps the skin with the mode, and
+app.css restyles the editor's frame and the rendered prose from theme tokens.
+
+  :field — a bound form field whose widget is n26.widgets.RichText.
+  value — HTML. The content to render, or the editor's starting preview.
+  :toggle — show the Edit / Preview switch (default True, ignored without a field).
+  label, description, error, form, name — passed to c-ui.field.
+{% endcomment %}
+<c-vars
+    field=""
+    value=""
+    label=""
+    description=""
+    error=""
+    form=""
+    name=""
+    :toggle="True"
+    class=""
+/>
+
+{% load richtext %}
+
+{% if field %}
+    <c-ui.field label="{{ label }}"
+                description="{{ description }}"
+                error="{{ error }}"
+                :form="form"
+                name="{{ name }}"
+                class="{{ class }}">
+        <div x-data="richText({{ value|safe_rich_text|json_dumps }})">
+            {% if toggle %}
+                {% comment %}
+                A radio group would be the honest control for one-of-two, but this
+                switches a view rather than setting a value, so it stays buttons —
+                nothing here is submitted.
+                {% endcomment %}
+                <div class="mb-2 inline-flex rounded-control border border-box-border p-0.5 text-sm">
+                    <button type="button" @click="show('edit')"
+                            :class="mode === 'edit' ? 'bg-accent text-accent-foreground' : 'text-muted hover:text-accent'"
+                            class="rounded-[calc(var(--radius-control)*0.66)] px-3 py-1 font-medium transition-colors focus-ring">
+                        Edit
+                    </button>
+                    <button type="button" @click="show('preview')"
+                            :class="mode === 'preview' ? 'bg-accent text-accent-foreground' : 'text-muted hover:text-accent'"
+                            class="rounded-[calc(var(--radius-control)*0.66)] px-3 py-1 font-medium transition-colors focus-ring">
+                        Preview
+                    </button>
+                </div>
+            {% endif %}
+
+            {% comment %}
+            x-show, not a template swap: hiding keeps the editor instance alive, so
+            switching back does not tear TinyMCE down and rebuild it, and the undo
+            history survives.
+            {% endcomment %}
+            <div x-show="mode === 'edit'">{{ field }}</div>
+
+            <div x-show="mode === 'preview'" x-cloak
+                 class="rich-text min-h-[200px] rounded-control border border-box-border p-4">
+                <template x-if="!html.trim()">
+                    <p class="text-muted">Nothing to preview yet.</p>
+                </template>
+                <div x-html="html"></div>
+            </div>
+        </div>
+    </c-ui.field>
+{% else %}
+    <div {{ attrs }} class="rich-text {{ class }}">{{ value|safe_rich_text }}</div>
+{% endif %}

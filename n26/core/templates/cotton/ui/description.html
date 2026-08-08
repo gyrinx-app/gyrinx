@@ -1,0 +1,32 @@
+{% comment %}
+OVERRIDE of django_cotton_ui's cotton/ui/description.html.
+
+Two changes, one of them a house decision rather than a bug fix — so unlike the
+error.html and label.html overrides beside this, there is no test watching
+upstream. Those two exist only until the kit fixes `attrs.dict` and should be
+deleted when it does. This one is meant to stay.
+
+  --- the size ---
+
+The kit sets help text at text-sm. Here it is body size, because this is the
+field's help — the sentence a reader needs in order to answer correctly, like
+"Leave blank to spend as much as you like", which is the only place the unlimited
+case is stated anywhere. Text nobody can afford to skip should not be set smaller
+than the text around it.
+
+Small text is for things a reader is meant to scan past: a column header, a
+timestamp, a caption on a value that already speaks for itself. Help text is the
+opposite of that.
+
+  --- the accessor ---
+
+`attrs.dict` is `attrs.attrs_dict`, the same fix the error and label overrides
+carry. Cotton's `attrs_dict()` filters out the props a component declared in
+<c-vars> where `dict()` does not, so any prop passed here would otherwise be
+written back out as an HTML attribute. description declares none today, which is
+why this half is invisible — it is here so the file does not become the next one
+to grow the bug the moment someone adds a prop.
+{% endcomment %}
+<div {{ attrs.attrs_dict|merge:'class:text-ink-600 dark:text-ink-400 mt-1.5' }}>
+    {{ slot }}
+</div>

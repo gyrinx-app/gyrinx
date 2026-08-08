@@ -1,0 +1,371 @@
+{% extends "designsystem/base.html" %}
+{% load static %}
+{% block title %}Theming{% endblock %}
+{% block mobile_title %}Theming{% endblock %}
+{% block content %}
+    <div class="mx-auto max-w-4xl" x-data="themePresets({{ presets_json }})">
+        <header class="mb-10">
+            <h1 class="text-3xl font-semibold sm:text-4xl">Theming</h1>
+            <p class="mt-3 max-w-2xl text-lg text-muted">
+                Cotton UI is themed entirely by CSS custom properties, so a theme is a short block
+                of variable overrides rather than a rebuild. Pick a preset below and the whole
+                gallery changes — this page included.
+            </p>
+        </header>
+        {# ---------------------------------------------------------------- presets #}
+        <section class="mb-14">
+            <h2 class="text-xl font-semibold">Presets</h2>
+            <p class="mb-5 mt-1 text-sm text-muted">
+                These drive the kit's own theme builder — the paintbrush in the bottom-right corner —
+                rather than being a second, competing set of controls. So a preset is a starting
+                point: apply one, then open the widget to adjust any single dial, and use its
+                <em>Copy CSS</em> button to take the result away. Your choice persists as you browse.
+            </p>
+            <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {% for preset in presets %}
+                    <button type="button"
+                            @click="apply({{ forloop.counter0 }})"
+                            class="group rounded-box border border-box-border bg-surface p-4 text-left transition hover:border-accent focus-ring"
+                            :class="active === {{ forloop.counter0 }} ? 'border-accent ring-2 ring-accent/30' : ''">
+                        <div class="flex items-center gap-2">
+                            <span class="size-4 shrink-0 rounded-full"
+                                  style="background: var(--color-{{ preset.accent }}-500)"></span>
+                            <span class="font-medium">{{ preset.name }}</span>
+                            <span x-show="active === {{ forloop.counter0 }}"
+                                  x-cloak
+                                  class="ml-auto text-xs text-accent">active</span>
+                        </div>
+                        <p class="mt-1.5 text-sm text-muted">{{ preset.note }}</p>
+                    </button>
+                {% endfor %}
+            </div>
+            <div class="mt-4 flex flex-wrap items-center gap-3">
+                <c-ui.button size="sm" @click="reset()">
+                    Reset to stylesheet default
+                </c-ui.button>
+                <c-ui.button size="sm" variant="text" @click="openWidget()">
+                    Open the theme builder
+                </c-ui.button>
+                <span x-show="!available" x-cloak class="text-sm text-muted">Theme builder not found on this page.</span>
+            </div>
+        </section>
+        {# --------------------------------------------------------------- specimen #}
+        <section class="mb-14">
+            <h2 class="text-xl font-semibold">Specimen</h2>
+            <p class="mb-5 mt-1 text-sm text-muted">
+                A palette is hard to judge on a row of swatches. This is a small, dense screen using
+                most of the kit at once — the thing to look at when deciding whether a theme works.
+            </p>
+            <div class="overflow-hidden rounded-box border border-box-border">
+                <c-ui.navbar :sticky="False" variant="underline">
+                    <c-slot name="brand">
+                        <span class="font-semibold">Dust Falls</span>
+                    </c-slot>
+                    <c-ui.navbar.item href="#" :current="True">
+                        Roster
+                    </c-ui.navbar.item>
+                    <c-ui.navbar.item href="#">
+                        Territories
+                    </c-ui.navbar.item>
+                    <c-slot name="actions">
+                        <c-ui.button size="sm" variant="primary">
+                            New battle
+                        </c-ui.button>
+                    </c-slot>
+                </c-ui.navbar>
+                <div class="space-y-6 p-6">
+                    <div class="flex flex-wrap items-center gap-3">
+                        <c-ui.button variant="primary">
+                            Primary
+                        </c-ui.button>
+                        <c-ui.button>
+                            Default
+                        </c-ui.button>
+                        <c-ui.button variant="subtle">
+                            Subtle
+                        </c-ui.button>
+                        <c-ui.button variant="danger">
+                            Danger
+                        </c-ui.button>
+                        <c-ui.button variant="text">
+                            Text
+                        </c-ui.button>
+                        <c-ui.badge color="green" variant="pill">
+                            Ready
+                        </c-ui.badge>
+                        <c-ui.badge color="amber">
+                            Recovery
+                        </c-ui.badge>
+                        <c-ui.spinner size="sm" />
+                    </div>
+                    <div class="grid gap-6 md:grid-cols-2">
+                        <div class="space-y-4">
+                            <c-ui.input label="Fighter name"
+                                        name="spec_name"
+                                        value="Kaine"
+                                        description="Shown on the roster card." />
+                            <c-ui.select label="Class" name="spec_class">
+                                <c-ui.select.option value="leader" :selected="True">
+                                    Leader
+                                </c-ui.select.option>
+                                <c-ui.select.option value="champion">
+                                    Champion
+                                </c-ui.select.option>
+                            </c-ui.select>
+                            <c-ui.range label="Experience" name="spec_xp" value="65" :show_value="True" />
+                            <c-ui.switch :inline="True"
+                                         name="spec_active"
+                                         label="Active this week"
+                                         :checked="True" />
+                        </div>
+                        <div class="space-y-4">
+                            <c-ui.radio.group label="Terrain" name="spec_terrain" value="zm" variant="cards">
+                                <c-ui.radio value="zm" label="Zone Mortalis" description="Corridors and doors." />
+                                <c-ui.radio value="sm"
+                                            label="Sector Mechanicus"
+                                            description="Gantries and levels." />
+                            </c-ui.radio.group>
+                            <c-ui.progress :value="72" :show_value="True" />
+                            <c-ui.alert variant="warning" title="Over budget">
+                                60 credits above the campaign limit.
+                            </c-ui.alert>
+                        </div>
+                    </div>
+                    <c-ui.card padding="none" title="Roster" subheading="3 fighters">
+                        <c-ui.table>
+                            <thead>
+                                <tr>
+                                    <th>Fighter</th>
+                                    <th>Class</th>
+                                    <th>Status</th>
+                                    <th>Cost</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Kaine</td>
+                                    <td>Leader</td>
+                                    <td>
+                                        <c-ui.badge color="green">
+                                            Ready
+                                        </c-ui.badge>
+                                    </td>
+                                    <td>145</td>
+                                </tr>
+                                <tr>
+                                    <td>Vex</td>
+                                    <td>Champion</td>
+                                    <td>
+                                        <c-ui.badge color="amber">
+                                            Recovery
+                                        </c-ui.badge>
+                                    </td>
+                                    <td>110</td>
+                                </tr>
+                                <tr>
+                                    <td>Scrap</td>
+                                    <td>Juve</td>
+                                    <td>
+                                        <c-ui.badge color="green">
+                                            Ready
+                                        </c-ui.badge>
+                                    </td>
+                                    <td>40</td>
+                                </tr>
+                            </tbody>
+                        </c-ui.table>
+                    </c-ui.card>
+                    <div class="flex flex-wrap items-center gap-3">
+                        <c-ui.tooltip>
+                            <c-ui.button>
+                                Hover for a tooltip
+                            </c-ui.button>
+                            <c-slot name="content">
+                                Tooltips use the ink scale, not the accent.
+                            </c-slot>
+                        </c-ui.tooltip>
+                        <c-ui.dropdown trigger_text="Menu">
+                            <c-ui.dropdown.item>
+                                Edit
+                            </c-ui.dropdown.item>
+                            <c-ui.dropdown.item variant="danger">
+                                Delete
+                            </c-ui.dropdown.item>
+                        </c-ui.dropdown>
+                        <c-ui.avatar.group>
+                            <c-ui.avatar initials="KA" color="auto" />
+                            <c-ui.avatar initials="VX" color="auto" />
+                            <c-ui.avatar initials="SC" color="auto" />
+                        </c-ui.avatar.group>
+                    </div>
+                </div>
+            </div>
+        </section>
+        {# --------------------------------------------------------------- concepts #}
+        <section class="mb-14">
+            <h2 class="text-xl font-semibold">The four buckets</h2>
+            <p class="mb-6 mt-1 text-sm text-muted">
+                Everything themeable falls into one of four groups. Values below are read live from
+                this page, so they reflect the theme you have applied and the mode you are in.
+            </p>
+            <div class="space-y-8" x-data="tokenValues()">
+                {% for bucket in buckets %}
+                    <div>
+                        <h3 class="font-semibold">{{ bucket.name }}</h3>
+                        <p class="mb-3 mt-1 max-w-3xl text-sm text-muted">{{ bucket.blurb }}</p>
+                        <div class="overflow-x-auto rounded-box border border-box-border">
+                            <table class="w-full text-left text-sm">
+                                <tbody class="divide-y divide-[var(--color-box-border)]">
+                                    {% for token in bucket.tokens %}
+                                        <tr>
+                                            <td class="w-10 py-2 pl-4">
+                                                {% if token.kind == 'color' %}
+                                                    <span class="block size-5 rounded border border-box-border"
+                                                          style="background: var({{ token.name }})"></span>
+                                                {% endif %}
+                                            </td>
+                                            <td class="whitespace-nowrap py-2 pl-2 pr-4 font-mono text-xs">{{ token.name }}</td>
+                                            <td class="py-2 pr-4 font-mono text-xs text-muted"
+                                                x-text="value('{{ token.name }}')">…</td>
+                                            <td class="py-2 pr-4 text-xs text-muted">{{ token.purpose }}</td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        </section>
+        {# ------------------------------------------------------------------ howto #}
+        <section class="rounded-box border border-box-border bg-surface p-6">
+            <h2 class="text-lg font-semibold">Making a theme permanent</h2>
+            <p class="mt-2 text-sm leading-relaxed text-muted">
+                The widget writes to <code class="rounded bg-ink-500/10 px-1.5 py-0.5 text-xs">&lt;html&gt;</code>
+                and remembers your choice in localStorage — that is a preview aid, not a deployment
+                mechanism. To keep a theme, copy the CSS it generates into your own stylesheet after
+                the Tailwind import. It looks like this:
+            </p>
+            <pre class="mt-4 overflow-x-auto rounded-box bg-ink-500/5 p-4 text-xs leading-relaxed"><code>@import "tailwindcss";
+@import "./cotton-ui.sources.css";
+
+:root {
+    --color-accent: var(--color-indigo-500);
+    --color-accent-content: var(--color-indigo-600);
+    --color-accent-foreground: var(--color-white);
+    --radius-control: 0.25rem;
+    --radius-box: 0.375rem;
+}
+
+.dark {
+    --color-accent: var(--color-indigo-400);
+    --color-accent-content: var(--color-indigo-300);
+    --color-accent-foreground: var(--color-indigo-950);
+}</code></pre>
+            <p class="mt-4 text-sm leading-relaxed text-muted">
+                Two things are worth noticing. The accent is set separately per mode, because a 500
+                that reads well on white is usually too dark on near-black. And the neutral scale is
+                retoned by reassigning
+                <code class="rounded bg-ink-500/10 px-1.5 py-0.5 text-xs">--color-ink-*</code>,
+                never by overriding <code class="rounded bg-ink-500/10 px-1.5 py-0.5 text-xs">zinc</code>
+                itself — that indirection is what keeps your own <code class="rounded bg-ink-500/10 px-1.5 py-0.5 text-xs">zinc-*</code>
+                classes doing what they say.
+            </p>
+        </section>
+    </div>
+{% endblock %}
+{% block scripts %}
+    <script>
+document.addEventListener('alpine:init', () => {
+    // The kit's theme-builder widget owns the current theme: it holds the state,
+    // writes the custom properties, persists to localStorage and generates the
+    // export. Rather than duplicate any of that, the presets here reach into its
+    // Alpine scope, set the same fields its own controls set, and call its apply().
+    // One source of truth, and the widget's UI stays in sync with what you clicked.
+    const widget = () => document.querySelector('[x-data^="cottonThemeBuilderWidget"]');
+    const scope = () => {
+        const el = widget();
+        return el ? Alpine.$data(el) : null;
+    };
+
+    Alpine.data('themePresets', (presets) => ({
+        presets,
+        active: null,
+        available: true,
+
+        init() {
+            // The widget mounts from the same Alpine boot, so it may not have its
+            // scope yet on the first tick.
+            this.$nextTick(() => {
+                this.available = !!scope();
+                this.active = this.match();
+            });
+        },
+
+        // The widget restores its theme from localStorage on load, so after a
+        // reload work out which preset (if any) that restored state corresponds
+        // to, rather than showing nothing as selected while a preset is plainly
+        // still in effect.
+        match() {
+            const state = scope();
+            if (!state) return null;
+            const index = this.presets.findIndex((preset) =>
+                Object.entries(preset).every(([key, value]) =>
+                    key === 'name' || key === 'note' || state[key] === value));
+            return index === -1 ? null : index;
+        },
+
+        apply(index) {
+            const state = scope();
+            if (!state) { this.available = false; return; }
+
+            const preset = this.presets[index];
+            for (const [key, value] of Object.entries(preset)) {
+                if (key === 'name' || key === 'note') continue;
+                state[key] = value;
+            }
+            // apply() diffs against its own snapshot to decide which token groups
+            // are dirty, so assigning the fields first is all that is required.
+            state.apply();
+            this.active = index;
+        },
+
+        reset() {
+            const state = scope();
+            if (!state) { this.available = false; return; }
+            state.reset();
+            this.active = null;
+        },
+
+        openWidget() {
+            const state = scope();
+            if (state) state.panelOpen = true;
+        },
+    }));
+
+    // Live token values. Re-read whenever the theme or the mode changes, so the
+    // table never shows a stale number.
+    Alpine.data('tokenValues', () => ({
+        tick: 0,
+
+        init() {
+            const bump = () => { this.tick++; };
+            this._observer = new MutationObserver(bump);
+            this._observer.observe(document.documentElement, {
+                attributes: true,
+                attributeFilter: ['class', 'style'],
+            });
+        },
+
+        destroy() { this._observer?.disconnect(); },
+
+        value(name) {
+            this.tick;  // read, so Alpine re-evaluates when it changes
+            const computed = getComputedStyle(document.documentElement)
+                .getPropertyValue(name).trim();
+            return computed || '—';
+        },
+    }));
+});
+    </script>
+{% endblock %}

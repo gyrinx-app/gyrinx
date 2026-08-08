@@ -1,0 +1,63 @@
+{% extends "authoring/base.html" %}
+{% block title %}{{ thing }}{% endblock %}
+{% block content %}
+    <p class="count"><a href="{% url 'authoring-leaf' 'collection' %}">← all collections</a></p>
+    <h1>{{ thing }}</h1>
+    {% if thing.library_author_help %}<p>{{ thing.library_author_help }}</p>{% endif %}
+    <h2>Definition</h2>
+    {% if sweeps or entries %}
+        {% if sweeps %}
+            <ul>
+                {% for sweep in sweeps %}<li>{{ sweep }}</li>{% endfor %}
+            </ul>
+        {% endif %}
+        {% if entries %}
+            <table>
+                <tbody>
+                    {% for entry in entries %}
+                        <tr>
+                            <td>{{ entry.label }}</td>
+                            <td class="count">{{ entry.notes|join:" · " }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% endif %}
+    {% else %}
+        <p class="count">Nothing defined yet — no sweeps, no entries.</p>
+    {% endif %}
+    <h2>Preview <span class="count">({{ line_count }} line{{ line_count|pluralize }})</span></h2>
+    <p class="count">
+        What the definition means right now — author an item that
+        fits and it appears here on the next load. Browsed as a plain list; a
+        trading trip withholds “E” rows and charges the TP shown.
+    </p>
+    {% for section in sections %}
+        <h3>{{ section.name|default:"(no section)" }}</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th></th>
+                    <th class="count">credits</th>
+                    <th class="count">TP</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for category in section.categories %}
+                    {% if category.name %}<tr><th colspan="4">{{ category.name }}</th></tr>{% endif %}
+                    {% for row in category.rows %}
+                        <tr>
+                            <td>{% if row.nested %}<span class="count">—</span>{% endif %}{{ row.name }}</td>
+                            <td class="count">{{ row.credits }}</td>
+                            <td class="count">{{ row.tp }}</td>
+                            <td class="count">{{ row.notes|join:" · " }}</td>
+                        </tr>
+                    {% endfor %}
+                {% endfor %}
+            </tbody>
+        </table>
+    {% empty %}
+        <p class="count">Empty — nothing matches the definition yet.</p>
+    {% endfor %}
+{% endblock %}

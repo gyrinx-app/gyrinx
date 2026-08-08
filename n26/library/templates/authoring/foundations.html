@@ -1,0 +1,62 @@
+{% extends "authoring/base.html" %}
+{% block title %}Foundations{% endblock %}
+{% block content %}
+    <h1>Foundations</h1>
+    <p>
+        The things content is built <em>from</em>. Each has its own page;
+        what the rulebook fixes can be filled in here in one go.
+    </p>
+    <h2>Standard content</h2>
+    {% for entry in entries %}
+        <div class="seed">
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="create" value="{{ entry.key }}">
+                <p>
+                    <strong>{{ entry.name }}</strong>
+                    <span class="status {{ entry.status }}">{{ entry.status }}</span>
+                    <span class="count">{{ entry.present }} of {{ entry.total }} rows</span>
+                </p>
+                <p class="count">{{ entry.help }}</p>
+                <button type="submit">
+                    {% if entry.status == "complete" %}Create again{% else %}Create the missing rows{% endif %}
+                </button>
+            </form>
+        </div>
+    {% endfor %}
+    <h2>Types</h2>
+    <p class="count">
+        A model's Type is Fighter or Vehicle and nothing else, so
+        these are not authored — they arrive with the standard content above.
+        Everything else a model might be called is a
+        <a href="{% url 'authoring-leaf' 'subtype' %}">subtype</a>.</p>
+    {% if profile_types %}
+        <table>
+            <tbody>
+                {% for profile_type in profile_types %}
+                    <tr>
+                        <td>{{ profile_type.name }}</td>
+                        <td class="count">{{ profile_type.statline_type.name }}</td>
+                        <td class="count">lasting {{ profile_type.lasting_effect_term|lower }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p class="count">None yet.</p>
+    {% endif %}
+    <h2>Pages</h2>
+    <table>
+        <tbody>
+            {% for entry in kinds %}
+                <tr>
+                    <td>
+                        <a href="{% url 'authoring-leaf' entry.kind %}">{{ entry.verbose_name|capfirst }}</a>
+                        <span class="summary">{{ entry.summary|safe }}</span>
+                    </td>
+                    <td class="count">{{ entry.count }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}

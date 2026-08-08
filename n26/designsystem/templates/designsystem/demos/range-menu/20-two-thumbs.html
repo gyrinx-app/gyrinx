@@ -1,0 +1,26 @@
+{# title: Two thumbs: a floor and a ceiling #}
+{# note: Setting model_min and model_max switches the menu to c-n26.dual-range — two real range inputs stacked, so both thumbs keep their keyboard control. Drag one past the other and they swap roles rather than jamming, and what the caller reads is always the sorted pair. #}
+{# layout: col #}
+<div x-data="{ lowCost: 0, highCost: 200, lowR: 0, highR: 15 }"
+     class="flex flex-wrap items-center gap-2">
+    <c-n26.range-menu label="Price"
+                      model_min="lowCost"
+                      model_max="highCost"
+                      min="0"
+                      max="200"
+                      step="5"
+                      suffix="¢"
+                      at_max_label="Any" />
+    <c-n26.range-menu label="Rarity"
+                      model_min="lowR"
+                      model_max="highR"
+                      min="0"
+                      max="15"
+                      step="1"
+                      prefix="R"
+                      at_max_label="Any" />
+    <span class="text-sm tabular-nums text-ink-900 dark:text-ink-100">
+        cost <span x-text="lowCost"></span>–<span x-text="highCost"></span>¢,
+        rarity R<span x-text="lowR"></span>–R<span x-text="highR"></span>
+    </span>
+</div>

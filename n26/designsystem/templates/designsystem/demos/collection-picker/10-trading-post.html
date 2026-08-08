@@ -1,0 +1,112 @@
+{# title: A trading post #}
+{# note: A real n26.browse.CollectionView, not a list of dicts — the same shape browse() returns, so the component is typed against what the server actually sends. Narrow the window to see what it is for. Type in the field and the groups open themselves; drag either slider and the counts fall as you go; a category that empties out disappears rather than leaving a header behind. Narrow trade points and the two Exclusive items vanish, because "E" answers no numeric question — the rule n26.browse.narrow follows. #}
+{# layout: full #}
+<c-n26.collection-picker :categories="trading_post_categories"
+                         :sections="trading_post_sections"
+                         cost_floor="{{ trading_post_cost_floor }}"
+                         cost_ceiling="{{ trading_post_cost_ceiling }}"
+                         tp_ceiling="{{ trading_post_tp_ceiling }}"
+                         noun="items">
+    <c-slot name="filters">
+        <c-n26.search-bar :live="True" model="query" placeholder="Search the trading post" />
+        {% comment %}
+        Wrapping, not scrolling sideways: six controls fit two rows on a phone,
+        and a row you can see all of beats one you have to discover by swiping.
+        {% endcomment %}
+        <div class="flex flex-wrap items-center gap-2">
+            <c-n26.filter-menu label="Category"
+                               name="category"
+                               :options="trading_post_category_options" />
+            {% comment %}
+            Cost takes both ends, because "between 20 and 80" is a real question
+            here and a ceiling alone cannot ask it. Trade points keep one thumb:
+            the useful question there is only ever how hard to find you will
+            tolerate.
+            {% endcomment %}
+            <c-n26.range-menu label="Price"
+                              model_min="minCost"
+                              model_max="maxCost"
+                              min="{{ trading_post_cost_floor }}"
+                              max="{{ trading_post_cost_ceiling }}"
+                              step="5"
+                              suffix="¢"
+                              at_max_label="Any" />
+            <c-n26.range-menu label="Trade points"
+                              model="maxTradePoints"
+                              min="0"
+                              max="{{ trading_post_tp_ceiling }}"
+                              step="1"
+                              prefix="≤ "
+                              at_min_label="Freely available"
+                              at_max_label="Any" />
+            {% comment %}
+            A toggle for the case the slider cannot express: Exclusive items are
+            in or out, never nearer or further. It only means anything while the
+            slider is wide open, because narrowing it drops them regardless.
+
+            Listened to rather than bound. The kit's switch keeps its own state
+            and offers nothing to drive it from outside, so a `model` prop here
+            could only ever be one-way — the trap <c-n26.range-slider> documents
+            at length. Its hidden checkbox emits a change event that bubbles to
+            this label, so the call site reads it and writes the filter itself,
+            and there is only ever one copy of the answer.
+            {% endcomment %}
+            <c-n26.toggle label="Exclusive"
+                          :checked="True"
+                          @change="includeExclusive = $event.target.checked" />
+        </div>
+    </c-slot>
+    {% comment %}
+    Both of the view's levels, drawn as they come: sections collapse, categories
+    are headings inside them. Two sections rather than six, and the fine structure
+    is there once the coarse one is open — which is what the CollectionView had
+    all along and this demo used to flatten away.
+    {% endcomment %}
+    {% for section_row in trading_post_section_rows %}
+        <c-n26.collection-picker.section name="{{ section_row.section.name }}" :open="section_row.first">
+            {% for category in section_row.section.categories %}
+                <c-n26.collection-picker.category name="{{ category.name }}">
+                    {% for line in category.lines %}
+                        <c-n26.collection-picker.item name="{{ line.name }}"
+                                                      :cost="line.credits"
+                                                      :trade_points="line.trade_points"
+                                                      :exclusive="line.is_exclusive"
+                                                      :notes="line.notes">
+                            {% if line.name in trading_post_in_stash %}
+                                <c-slot name="icon">
+                                    <c-n26.icon name="check" label="Already in the stash" />
+                                </c-slot>
+                            {% endif %}
+                            <c-slot name="actions">
+                                <c-ui.button size="sm" variant="primary">
+                                    Add
+                                </c-ui.button>
+                                <c-ui.dropdown align="end" min_width="10rem">
+                                    <c-slot name="trigger">
+                                        {% comment %}
+                                    n26-icon-only gives the icon a line's worth of
+                                    height. Without it this button is 30px beside
+                                    Add's 34px: same padding, but a size-4 icon is
+                                    16px where a line of text is 20.
+                                        {% endcomment %}
+                                        <c-ui.button size="sm" aria-label="More for {{ line.name }}">
+                                            <span class="n26-icon-only">
+                                                <c-n26.icon name="ellipsis-vertical" class="size-4" stroke_width="2" />
+                                            </span>
+                                        </c-ui.button>
+                                    </c-slot>
+                                    <c-ui.dropdown.item>
+                                        Add to wishlist
+                                    </c-ui.dropdown.item>
+                                    <c-ui.dropdown.item>
+                                        Compare
+                                    </c-ui.dropdown.item>
+                                </c-ui.dropdown>
+                            </c-slot>
+                        </c-n26.collection-picker.item>
+                    {% endfor %}
+                </c-n26.collection-picker.category>
+            {% endfor %}
+        </c-n26.collection-picker.section>
+    {% endfor %}
+</c-n26.collection-picker>

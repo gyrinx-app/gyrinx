@@ -1,0 +1,36 @@
+{# title: Highlighting the visible section #}
+{# note: Wrap the nav, not the content. Scroll the panel on the right and the nav follows; click an item and it scrolls there. The gallery's own sidebar works the same way. #}
+{# layout: full #}
+<div class="grid gap-6 sm:grid-cols-[12rem_1fr]">
+    <c-ui.scrollspy root="#spy-scroller">
+        <c-ui.navlist variant="sidebar">
+            <c-ui.navlist.item spy="spy-move">
+                Movement
+            </c-ui.navlist.item>
+            <c-ui.navlist.item spy="spy-shoot">
+                Shooting
+            </c-ui.navlist.item>
+            <c-ui.navlist.item spy="spy-close">
+                Close combat
+            </c-ui.navlist.item>
+        </c-ui.navlist>
+    </c-ui.scrollspy>
+    <div id="spy-scroller"
+         class="h-64 overflow-y-auto rounded-box border border-box-border bg-surface p-4">
+        <section id="spy-move" data-spy-section class="mb-8">
+            <h4 class="mb-2 font-semibold">Movement</h4>
+            <p class="text-sm text-muted">A fighter may move up to their Movement characteristic in inches. Climbing costs double.</p>
+            <div class="h-40"></div>
+        </section>
+        <section id="spy-shoot" data-spy-section class="mb-8">
+            <h4 class="mb-2 font-semibold">Shooting</h4>
+            <p class="text-sm text-muted">Pick a target, check line of sight, roll to hit against Ballistic Skill.</p>
+            <div class="h-40"></div>
+        </section>
+        <section id="spy-close" data-spy-section>
+            <h4 class="mb-2 font-semibold">Close combat</h4>
+            <p class="text-sm text-muted">Both fighters roll attack dice; the higher result wins the exchange.</p>
+            <div class="h-40"></div>
+        </section>
+    </div>
+</div>

@@ -1,0 +1,34 @@
+{# title: Sections stacked #}
+{# note: tabs="" for the older shape: two layers of disclosure, every section on the page at once. Worth reaching for when there are more sections than fit a strip — a tab hides everything it is not, and that cost grows with the number of them. Otherwise the tabbed default above is the one, because stacked collapsibles make you press twice to reach the second section. #}
+{# layout: full #}
+<c-n26.profile-picker :categories="hire_categories"
+                      :sections="hire_sections"
+                      tabs=""
+                      cost_floor="{{ hire_price_floor }}"
+                      cost_ceiling="{{ hire_price_ceiling }}">
+    <c-slot name="filters">
+        <c-n26.search-bar :live="True" model="query" placeholder="Search the gang list" />
+        <div class="flex flex-wrap items-center gap-2">
+            <c-n26.range-menu label="Price"
+                              model_min="minCost"
+                              model_max="maxCost"
+                              min="{{ hire_price_floor }}"
+                              max="{{ hire_price_ceiling }}"
+                              step="5"
+                              suffix="¢"
+                              at_max_label="Any" />
+        </div>
+    </c-slot>
+    {% for section_row in hire_section_rows %}
+        <c-n26.collection-picker.section name="{{ section_row.section.name }}" :open="section_row.first">
+            {% for category in section_row.section.categories %}
+                <c-n26.collection-picker.category name="{{ category.name }}">
+                    {% for entry in category.entries %}
+                        <c-n26.profile-picker.row :entry="entry"
+                                                  limited="{% if section_row.section.name != 'Gang List' or category.name == 'Champions' %}1{% endif %}" />
+                    {% endfor %}
+                </c-n26.collection-picker.category>
+            {% endfor %}
+        </c-n26.collection-picker.section>
+    {% endfor %}
+</c-n26.profile-picker>

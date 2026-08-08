@@ -1,0 +1,66 @@
+{# title: A fixed-size card #}
+{# layout: full #}
+{# note: Given a height the card becomes a physical object: the body takes the slack and the foot slot sits on the bottom edge, so a sparse card and a full one keep their write-in boxes in the same place. Content past the bottom is clipped rather than spilling — set fit and the type shrinks to a floor first. #}
+<c-n26.print.sheet page="a5" margin="6mm" owns_page="" scroll="1">
+    <c-n26.print.grid columns="2" gutter="4mm">
+        <c-n26.print.card title="Escher Gang Queen"
+                          subtitle="Fighter (Leader)"
+                          badge="135¢"
+                          height="70mm"
+                          fit="1">
+            <c-slot name="foot">
+                <c-n26.print.field label="XP" height="4mm" label_width="11mm">
+                    61/79
+                </c-n26.print.field>
+                <c-n26.print.field label="Notes" height="9mm" label_width="11mm" />
+            </c-slot>
+            <c-n26.print.table>
+                <c-slot name="head">
+                    <tr>
+                        <th class="is-centered">M</th>
+                        <th class="is-centered">WS</th>
+                        <th class="is-centered">BS</th>
+                        <th class="is-centered is-group">LD</th>
+                        <th class="is-centered">CL</th>
+                    </tr>
+                </c-slot>
+                <tr>
+                    <td class="is-centered">5"</td>
+                    <td class="is-centered">2+</td>
+                    <td class="is-centered">3+</td>
+                    <td class="is-centered is-group">8</td>
+                    <td class="is-centered">8</td>
+                </tr>
+            </c-n26.print.table>
+            <c-n26.print.columns class="n26-print-mt">
+                <c-n26.print.column>
+                    <c-n26.print.entry label="Skills">
+                        Gang Hierarchy, Spring Up
+                    </c-n26.print.entry>
+                </c-n26.print.column>
+                <c-n26.print.column>
+                    <c-n26.print.entry label="Gear">
+                        Mesh armour, Bio-booster
+                    </c-n26.print.entry>
+                </c-n26.print.column>
+            </c-n26.print.columns>
+        </c-n26.print.card>
+        <c-n26.print.card height="70mm">
+            <c-slot name="foot">
+                <c-n26.print.field label="XP" height="4mm" label_width="11mm" />
+                <c-n26.print.field label="Notes" height="9mm" label_width="11mm" />
+            </c-slot>
+            <c-n26.print.field label="Name" height="7mm" label_width="11mm" />
+            <c-n26.print.columns class="n26-print-mt">
+                <c-n26.print.column spread>
+                    <c-n26.print.field label="Type" height="6mm" label_width="11mm" />
+                    <c-n26.print.field label="Skills" height="6mm" label_width="11mm" />
+                </c-n26.print.column>
+                <c-n26.print.column spread>
+                    <c-n26.print.field label="Cost" height="6mm" label_width="11mm" />
+                    <c-n26.print.field label="Gear" height="6mm" label_width="11mm" />
+                </c-n26.print.column>
+            </c-n26.print.columns>
+        </c-n26.print.card>
+    </c-n26.print.grid>
+</c-n26.print.sheet>

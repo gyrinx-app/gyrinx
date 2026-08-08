@@ -1,0 +1,8 @@
+{# title: The book layout #}
+{# note: The rulebook's two rows: M–Sv above, Ld–Int below, and the columns the second row leaves over spent on the type line and XP rather than left empty. Ld lines up under M because the colspans are worked out from the group lengths. Hover either half of the XP figure: the target is muted and both say which they are. #}
+{# layout: full #}
+<c-n26.statline :statline="model_card.statline"
+                layout="book"
+                type_line="{{ model_card.type_line }}"
+                xp="{{ model_card.xp }}"
+                xp_target="{{ model_card.xp_target|default_if_none:'–' }}" />

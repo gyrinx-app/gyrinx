@@ -1,0 +1,10 @@
+{# title: Multi-select tags #}
+{# note: Options come from the :options prop rather than a slot. Selected values render as removable tags and submit through a hidden <select multiple>. #}
+{# layout: col #}
+<c-ui.combobox label="Skills"
+               name="skills"
+               description="Pick as many as apply."
+               :options="['Nerves of Steel', 'Spring Up', 'Catfall', 'Dodge', 'Infiltrate', 'Overwatch']"
+               :selected="['Dodge']"
+               :searchable="True"
+               placeholder="Add a skill…" />

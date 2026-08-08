@@ -1,0 +1,14 @@
+{# title: Apply and cancel #}
+{# note: OK dispatches filter-apply with {name, values} and closes. Cancel puts back whatever was selected when you opened the panel — reopen, change things, then cancel to see it revert. #}
+{# layout: col #}
+<div x-data="{ applied: null }" class="space-y-3">
+    <c-n26.filter-menu label="House"
+                       name="house"
+                       :options="houses"
+                       @filter-apply="applied = $event.detail" />
+    <p class="text-sm text-muted">
+        Last applied:
+        <code class="rounded bg-ink-500/10 px-1.5 py-0.5 text-xs"
+              x-text="applied ? applied.name + ' → ' + (applied.values.length + ' selected') : 'nothing yet'">nothing yet</code>
+    </p>
+</div>

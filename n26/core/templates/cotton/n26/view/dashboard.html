@@ -1,0 +1,137 @@
+{% comment %}
+<c-n26.view.dashboard> — the page you land on: your gangs, and what changed.
+
+    <c-n26.view.dashboard username="tom"
+                          new_gang_href="/gangs/new/"
+                          new_campaign_href="/campaigns/new/">
+        <c-slot name="gangs">…c-n26.gang-table…</c-slot>
+        <c-slot name="changelog">…c-n26.changelog…</c-slot>
+    </c-n26.view.dashboard>
+
+Two things, in the order they matter: what you own, and what has changed since you
+last looked. Nothing else — a dashboard that tries to be a summary of everything
+is a page nobody reads twice.
+
+  --- the tabs ---
+
+What you own is three kinds of thing — gangs, campaigns, content packs — and they
+are alternatives rather than a list to scroll. Tabs, then, and not three stacked
+sections: a reader here is looking for one of the three, and stacking them makes
+two of those readers scroll past the ones they did not want every single visit.
+
+They sit in the gangs column rather than across the page, which is what keeps the
+changelog on screen whichever tab is showing. What changed is worth seeing while
+you look at any of the three, and a tab strip spanning the page would have said
+the changelog belonged to the gangs tab alone.
+
+Campaigns and content packs fall back to <c-n26.coming-soon> when their slots are
+empty, so the tabs are real now and filling them later changes nothing structural.
+
+Side by side from lg, two thirds to the gangs and one to the updates; stacked
+below it. A gang row spends most of a wide screen on its figures and its buttons,
+so handed the whole width the list gets a name column with nothing in it and the
+changelog sits a screenful below where nobody scrolls.
+
+  --- the greeting ---
+
+"Hello, tom", and nothing under it. Not a prompt, not a question, and nothing
+with an exclamation mark: the reader came here to get on with something, and a
+page that opens by asking them how they are is a page they learn to scroll past.
+
+There was a line of facts here — how many gangs, when one was last touched — on
+the grounds that a greeting may as well be useful. It went, and the argument for
+it was weaker than it looked: the count is on the tab and in the list directly
+below, and "last edited yesterday" is a thing you learn once and then read past
+forever. A summary of what is visible two inches lower is not information.
+
+Making something is the header's action, so it sits beside the greeting at width
+and wraps under it on a phone. Creating a gang is the primary and creating a
+campaign is not: they are both starts, but one is what nearly everyone came here
+to do and the other needs gangs to exist first. Two primaries side by side would
+have made the reader choose between them, which is a decision they do not have.
+
+Gang first, so that when they wrap on a phone the main action is the one at the
+top rather than the one you reach after reading past another.
+
+  username — who is reading. The greeting is the page's h1.
+  new_gang_href — where the primary button goes. Without one, no button.
+  new_gang_label — its wording. "Create Gang" by default.
+  new_campaign_href — where the second button goes. Without one, no button.
+  new_campaign_label — its wording. "Create Campaign" by default.
+  gangs — the gang table. The first tab.
+  campaigns — the campaigns tab. Falls back to a coming-soon panel.
+  content_packs — the content packs tab. Falls back the same way.
+  changelog — the changelog list, beside the tabs and outside them.
+{% endcomment %}
+<c-vars
+    username=""
+    new_gang_href=""
+    new_gang_label="Create Gang"
+    new_campaign_href=""
+    new_campaign_label="Create Campaign"
+    class=""
+/>
+
+<div class="flex flex-col gap-8 {{ class }}">
+    <c-n26.page-header title="Hello, {{ username }}">
+        {% if new_gang_href or new_campaign_href %}
+            <c-slot name="actions">
+                {% if new_gang_href %}
+                    <c-ui.button variant="primary" href="{{ new_gang_href }}">{{ new_gang_label }}</c-ui.button>
+                {% endif %}
+                {% if new_campaign_href %}
+                    <c-ui.button href="{{ new_campaign_href }}">{{ new_campaign_label }}</c-ui.button>
+                {% endif %}
+            </c-slot>
+        {% endif %}
+    </c-n26.page-header>
+
+    {% comment %}
+    Two thirds and one third from lg up, stacked below it.
+
+    The split is not decoration. A gang row needs its name, a four-figure strip
+    and two buttons on one line, which is most of a wide screen — so given the
+    whole width the list gets a name column with nothing in it and the changelog
+    sits a screenful further down where nobody scrolls. Side by side, the gangs
+    get the width they actually use and the updates get read.
+
+    lg, not md: at md the two thirds left over is 500px, which is less than the
+    strip and the buttons want before the name gets a character. Below that they
+    stack, in the order they matter — what you own, then what changed.
+
+    items-start so the changelog keeps its own height instead of stretching to
+    match a list of five gangs.
+    {% endcomment %}
+    <div class="grid grid-cols-1 items-start gap-8 lg:grid-cols-3">
+        {% comment %}
+        The gangs get no heading of their own — the tab is the heading, and a "Your
+        gangs" under a tab reading "Gangs" says it twice. The changelog does need
+        one, because it is the second thing and a reader has to be told the list
+        has stopped being about them.
+
+        The tab strip renders whether or not there are gangs to put in it: the
+        other two tabs are the reason it is there, and a dashboard that hides
+        Campaigns until you own a gang hides it from exactly the person who has
+        not started yet.
+        {% endcomment %}
+        <div class="min-w-0 lg:col-span-2">
+            <c-ui.tabs default_tab="Gangs">
+                <c-ui.tabs.tab name="Gangs">{{ gangs }}</c-ui.tabs.tab>
+
+                <c-ui.tabs.tab name="Campaigns">
+                    {% if campaigns %}{{ campaigns }}{% else %}
+                        <c-n26.coming-soon>We're working hard on it.</c-n26.coming-soon>
+                    {% endif %}
+                </c-ui.tabs.tab>
+
+                <c-ui.tabs.tab name="Content Packs">
+                    {% if content_packs %}{{ content_packs }}{% else %}
+                        <c-n26.coming-soon>We're working hard on it.</c-n26.coming-soon>
+                    {% endif %}
+                </c-ui.tabs.tab>
+            </c-ui.tabs>
+        </div>
+
+        {% if changelog %}<div class="min-w-0">{{ changelog }}</div>{% endif %}
+    </div>
+</div>

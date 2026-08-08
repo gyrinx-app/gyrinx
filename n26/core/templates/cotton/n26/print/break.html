@@ -1,0 +1,23 @@
+{% comment %}
+<c-n26.print.break> — end the page here.
+
+    <c-n26.print.grid>…</c-n26.print.grid>
+    <c-n26.print.break />
+    <c-n26.print.table>…</c-n26.print.table>
+
+For the times the reader's mental model has a page in it — a cover, then the
+cards; the cards, then the reference table — where letting the two run together
+would be tidier on paper and worse to use.
+
+Zero height, so it costs nothing where it lands, and both the modern property
+and the legacy alias, because WebKit reads the old name. It is aria-hidden: a
+page is a fact about paper, and a screen reader is not holding any.
+
+Note it will not force a fold in the on-screen preview, which flows continuously
+— <c-n26.print.sheet paged> draws its fold guides at even page intervals and
+does not know a break moved one. The printed output is right; the guide below
+the break is not.
+{% endcomment %}
+<c-vars class="" />
+
+<div {{ attrs }} class="n26-print-break {{ class }}" aria-hidden="true"></div>

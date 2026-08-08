@@ -1,0 +1,28 @@
+{# title: Unlinked, and in a list #}
+{# note: With no href it is a span, so the same component labels a legend entry as labels a link. #}
+{# layout: col #}
+<div>
+    <c-n26.color-link color="#8d9900">
+        Not a link — just a label
+    </c-n26.color-link>
+</div>
+<ul class="space-y-1 text-sm">
+    <li>
+        <c-n26.color-link color="#c02026" href="/design/">
+            Les Flambeaux
+        </c-n26.color-link>
+        <span class="text-muted">· 1,240 credits</span>
+    </li>
+    <li>
+        <c-n26.color-link color="#0092f9" href="/design/">
+            Sump City Rats
+        </c-n26.color-link>
+        <span class="text-muted">· 1,475 credits</span>
+    </li>
+    <li>
+        <c-n26.color-link color="#8d9900" href="/design/">
+            Cog and Coil
+        </c-n26.color-link>
+        <span class="text-muted">· 1,105 credits</span>
+    </li>
+</ul>

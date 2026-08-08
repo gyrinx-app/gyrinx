@@ -1,0 +1,14 @@
+{# title: Label, description and error #}
+{# note: The wrapper props are the same on every form component. Everything it doesn't recognise — type, placeholder, autocomplete — falls through to the <input>. #}
+{# layout: col #}
+<c-ui.input label="Email"
+            name="email"
+            type="email"
+            placeholder="you@example.com"
+            description="We'll only use this for account recovery." />
+<c-ui.input label="Password"
+            name="password"
+            type="password"
+            value="hunter2"
+            error="x"
+            :form="signup_form" />

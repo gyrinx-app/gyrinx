@@ -1,0 +1,38 @@
+{# title: Sidebar navigation #}
+{# layout: full #}
+<div class="grid gap-6 sm:grid-cols-2">
+    <c-ui.navlist class="w-full">
+        <c-ui.navlist.group heading="Gang">
+            <c-ui.navlist.item href="#" :current="True">
+                Roster
+            </c-ui.navlist.item>
+            <c-ui.navlist.item href="#" badge="2">
+                Stash
+            </c-ui.navlist.item>
+            <c-ui.navlist.item href="#">
+                Territories
+            </c-ui.navlist.item>
+        </c-ui.navlist.group>
+        <c-ui.navlist.group heading="Campaign" :expandable="True">
+            <c-ui.navlist.item href="#">
+                Battles
+            </c-ui.navlist.item>
+            <c-ui.navlist.item href="#">
+                Standings
+            </c-ui.navlist.item>
+        </c-ui.navlist.group>
+    </c-ui.navlist>
+    <c-ui.navlist variant="sidebar" class="w-full">
+        <c-ui.navlist.group heading="sidebar variant">
+            <c-ui.navlist.item href="#" :current="True">
+                Accent rail
+            </c-ui.navlist.item>
+            <c-ui.navlist.item href="#">
+                Second
+            </c-ui.navlist.item>
+            <c-ui.navlist.item href="#">
+                Third
+            </c-ui.navlist.item>
+        </c-ui.navlist.group>
+    </c-ui.navlist>
+</div>

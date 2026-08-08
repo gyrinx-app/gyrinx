@@ -1,0 +1,8 @@
+{# title: Beside a multi-select #}
+{# note: The pair as they are meant to be used — House filters to many, Sort picks one. #}
+{# layout: full #}
+<c-n26.action-bar>
+    <c-n26.filter-menu label="House" name="house" :options="houses" />
+    <c-n26.choice-menu label="Sort" name="sort" :options="sorts" :selected="'recent'" />
+    <c-n26.toggle name="mine" label="Your lists only" :checked="True" />
+</c-n26.action-bar>

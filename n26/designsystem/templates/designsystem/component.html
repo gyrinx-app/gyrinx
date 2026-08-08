@@ -1,0 +1,115 @@
+{% extends "designsystem/base.html" %}
+{% block title %}{{ component.tag }}{% endblock %}
+{% block mobile_title %}{{ component.slug }}{% endblock %}
+{% block content %}
+    <div class="mx-auto max-w-4xl">
+        <header class="mb-8">
+            <div class="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">{{ component.group }}</div>
+            <h1 class="break-all font-mono text-2xl font-semibold sm:text-3xl">&lt;{{ component.tag }}&gt;</h1>
+            {% comment %}
+        Views get a way out of the gallery. This page has a sidebar, a heading
+        set in a long monospace tag and a code block, and at phone width those
+        decide the layout before the view does — so "does this fit a phone"
+        cannot be answered here, only next door.
+            {% endcomment %}
+            {% if component.group == "Views" %}
+                <p class="mt-2 text-sm">
+                    <c-n26.link href="{% url 'designsystem:view_preview' component.slug %}"
+                                target="_blank"
+                                rel="noopener">
+                        Open on its own, at real width →
+                    </c-n26.link>
+                </p>
+            {% endif %}
+            <p class="mt-2 text-lg text-muted">{{ component.summary }}</p>
+            {% if component.needs %}
+                <div class="mt-4 flex flex-wrap items-center gap-2 text-xs">
+                    <span class="text-muted">Needs at runtime:</span>
+                    {% for need in component.needs %}
+                        <code class="rounded-control bg-ink-500/10 px-2 py-0.5">{{ need }}</code>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </header>
+        {% if component.notes %}
+            <div class="mb-10 rounded-box border-l-2 border-accent bg-accent/5 py-3 pl-4 pr-4">
+                <p class="text-sm leading-relaxed">{{ component.notes }}</p>
+            </div>
+        {% endif %}
+        {# ------------------------------------------------------------------ demos #}
+        {% if component.demos %}
+            <div class="mb-14 space-y-10">
+                {% for demo in component.demos %}
+                    {% include "designsystem/_demo.html" %}
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="mb-14 rounded-box border border-dashed border-box-border p-6 text-sm text-muted">
+                No examples yet. Add a template under
+                <code class="rounded bg-ink-500/10 px-1.5 py-0.5 text-xs">designsystem/templates/designsystem/demos/{{ component.slug }}/</code>
+                and it appears here automatically.
+            </div>
+        {% endif %}
+        {# -------------------------------------------------------------------- api #}
+        <section id="api" class="scroll-mt-24">
+            <h2 class="mb-1 text-xl font-semibold">Props</h2>
+            <p class="mb-4 text-sm text-muted">
+                Read from
+                <code class="rounded bg-ink-500/10 px-1.5 py-0.5 text-xs">{{ component.template }}</code>
+                {% if component.api.is_local %}
+                    in <code class="rounded bg-ink-500/10 px-1.5 py-0.5 text-xs">templates/cotton/</code>,
+                    this project's own component.
+                {% else %}
+                    in the installed package, so this matches the version you have.
+                {% endif %}
+                Anything not listed still works — undeclared attributes pass through to the
+                root element.
+            </p>
+            {% include "designsystem/_api_table.html" with api=component.api %}
+        </section>
+        {# ------------------------------------------------------------- sub-parts #}
+        {% if component.parts %}
+            <section id="parts" class="mt-14">
+                <h2 class="mb-1 text-xl font-semibold">Subcomponents</h2>
+                <p class="mb-6 text-sm text-muted">
+                    Used inside <code class="rounded bg-ink-500/10 px-1.5 py-0.5 text-xs">&lt;{{ component.tag }}&gt;</code>.
+                </p>
+                <div class="space-y-10">
+                    {% for part, part_api in component.part_apis %}
+                        <div>
+                            <h3 class="font-mono text-base font-semibold">&lt;{{ part.tag }}&gt;</h3>
+                            <p class="mb-3 mt-1 text-sm text-muted">
+                                {{ part.summary }}
+                                {% if part.required %}
+                                    <span class="ml-1 rounded bg-accent/15 px-1.5 py-0.5 text-[11px] font-medium text-accent">required</span>
+                                {% endif %}
+                            </p>
+                            {% include "designsystem/_api_table.html" with api=part_api %}
+                        </div>
+                    {% endfor %}
+                </div>
+            </section>
+        {% endif %}
+        {# ------------------------------------------------------------------- next #}
+        <nav class="mt-16 flex items-stretch justify-between gap-4 border-t border-box-border pt-6 text-sm">
+            {% if previous %}
+                <a href="{% url 'designsystem:component' previous.slug %}"
+                   class="group flex-1 rounded-box border border-box-border p-4 hover:border-accent">
+                    <div class="text-xs text-muted">Previous</div>
+                    <div class="mt-0.5 font-medium group-hover:text-accent">{{ previous.slug }}</div>
+                </a>
+            {% else %}
+                <div class="flex-1"></div>
+            {% endif %}
+            {% if next %}
+                <a href="{% url 'designsystem:component' next.slug %}"
+                   class="group flex-1 rounded-box border border-box-border p-4 text-right hover:border-accent">
+                    <div class="text-xs text-muted">Next</div>
+                    <div class="mt-0.5 font-medium group-hover:text-accent">{{ next.slug }}</div>
+                </a>
+            {% else %}
+                <div class="flex-1"></div>
+            {% endif %}
+        </nav>
+    </div>
+{% endblock %}

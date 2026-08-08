@@ -1,0 +1,44 @@
+{% comment %}
+<c-n26.site.footer.column> — one column of the footer.
+
+    {# the common case: a title over a list of links #}
+    <c-n26.site.footer.column heading="Help & Documentation">
+        <li><c-n26.link href="/help/" color="muted">Getting started</c-n26.link></li>
+    </c-n26.site.footer.column>
+
+    {# a title that is markup, not a word #}
+    <c-n26.site.footer.column>
+        <c-slot name="lead"><a href="/">…logo… Gyrinx</a></c-slot>
+        <li>Designed and built in the UK.</li>
+    </c-n26.site.footer.column>
+
+    {# not a list at all #}
+    <c-n26.site.footer.column heading="Support us">
+        <c-slot name="content"><a class="n26-img-tilt" href="…"><img …></a></c-slot>
+    </c-n26.site.footer.column>
+
+The default slot is the inside of a <ul>, so it takes <li> elements. A list,
+because a column of links is one, and saying so is what lets a screen reader
+announce "list, four items" and skip it — most of what a footer landmark is for.
+
+Three ways in, because footers are where the odd one out lives. `heading` is a
+word and becomes an <h3>. `lead` is for when the title is markup rather than a
+word — a brand block, a link — and is not wrapped in a heading, because "logo,
+Gyrinx, link" reads badly in a list of headings and is not the thing anyone is
+looking for. `content` replaces the list outright, for the column holding a
+picture instead of links.
+
+  heading — a plain title. Rendered as an <h3>.
+{% endcomment %}
+<c-vars heading="" class="" />
+
+<div {{ attrs }} class="{{ class }}">
+    {% if lead %}<div class="n26-site-footer-heading">{{ lead }}</div>{% endif %}
+    {% if heading %}<h3 class="n26-site-footer-heading">{{ heading }}</h3>{% endif %}
+
+    {% if content %}
+        {{ content }}
+    {% else %}
+        <ul class="n26-site-footer-links">{{ slot }}</ul>
+    {% endif %}
+</div>

@@ -1,0 +1,86 @@
+{% comment %}
+The authoring skeleton — deliberately plain. Structure now, styling at
+merge time; everything the pages say comes from specs and model help.
+{% endcomment %}
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="description" content="The n26 content authoring surface.">
+        <title>{% block title %}Authoring{% endblock %} — n26</title>
+        <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem auto; max-width: 46rem;
+           padding: 0 1rem; line-height: 1.5; color: #222; }
+    a { color: #14532d; }
+    h1 { font-size: 1.4rem; } h2 { font-size: 1.1rem; margin-top: 2rem; }
+    nav { margin-bottom: 1.5rem; font-size: 0.9rem; }
+    form div { margin-bottom: 0.9rem; }
+    label { display: block; font-weight: 600; }
+    .helptext { display: block; font-size: 0.85rem; color: #666; }
+    input[type=text], input[type=number], select {
+      padding: 0.3rem 0.4rem; min-width: 16rem; font-size: 1rem; }
+    button { padding: 0.4rem 1rem; font-size: 1rem; cursor: pointer; }
+    ul.errorlist { color: #b91c1c; margin: 0.2rem 0; padding-left: 1.1rem; }
+    .messages { color: #14532d; }
+    table { border-collapse: collapse; width: 100%; }
+    td, th { text-align: left; padding: 0.25rem 0.6rem 0.25rem 0; }
+    tbody tr { border-top: 1px solid #eee; }
+    .count { color: #666; font-size: 0.9rem; text-align: right; }
+    .summary { display: block; color: #666; font-size: 0.85rem; max-width: 34rem; }
+    .kind-help { border-left: 3px solid #d7e3d9; padding: 0.1rem 0 0.1rem 1rem;
+                 margin-bottom: 1.5rem; color: #444; font-size: 0.94rem; }
+    .kind-help p:first-child { font-weight: 600; color: #222; }
+    .kind-help code { background: #f2f4f2; padding: 0 0.2rem; }
+    fieldset.suggestions { border: 1px solid #e3e6e3; padding: 0.6rem 1rem;
+                           margin-bottom: 1rem; }
+    fieldset.suggestions legend { font-size: 0.85rem; color: #666; }
+    fieldset.statline { border: 1px solid #e3e6e3; padding: 0.6rem 1rem;
+                        margin-bottom: 1rem; }
+    fieldset.statline legend { font-size: 0.85rem; color: #666; }
+    fieldset.statline div { display: inline-block; margin-right: 1rem; }
+    fieldset.statline input { min-width: 0; }
+    fieldset.statline .helptext { font-size: 0.75rem; }
+    .seed { border: 1px solid #e3e6e3; padding: 0.6rem 1rem; margin-bottom: 0.8rem; }
+    .seed p { margin: 0.2rem 0; }
+    .status { font-size: 0.8rem; padding: 0 0.35rem; border-radius: 3px; }
+    .status.complete { background: #dcf0e2; color: #14532d; }
+    .status.missing { background: #f6dcdc; color: #7f1d1d; }
+    .status.incomplete { background: #f6efd6; color: #713f12; }
+        </style>
+    </head>
+    <body>
+        <nav>
+            <a href="{% url 'authoring-index' %}">Authoring</a> ·
+            <a href="{% url 'authoring-foundations' %}">Foundations</a>
+        </nav>
+        {% if messages %}
+            <ul class="messages">{% for message in messages %}<li>{{ message }}</li>{% endfor %}</ul>
+        {% endif %}
+        {% block content %}{% endblock %}
+        <script>
+    // A union picker (forms.py) is one kind select plus a control per
+    // kind; only the chosen kind's is worth seeing. The form marks the
+    // parts (a control shared by several kinds lists them all), this
+    // only reads the markers — with no script, every control shows and
+    // the form still works. Two panes may carry the same union, told
+    // apart by the Django form prefix on the control names.
+    function syncUnionPickers() {
+      document.querySelectorAll("select[data-union-kind]").forEach(function (select) {
+        var union = select.dataset.unionKind;
+        var prefix = select.name.slice(0, select.name.length - (union + "_kind").length);
+        select.form.querySelectorAll('[data-union-of="' + union + '"]').forEach(function (control) {
+          if (control.name.slice(0, prefix.length) !== prefix) return;
+          if (!prefix && control.name.indexOf("-") !== -1) return;
+          control.closest("div").hidden =
+            control.dataset.unionMember.split(" ").indexOf(select.value) === -1;
+        });
+      });
+    }
+    document.addEventListener("change", function (event) {
+      if (event.target.matches("select[data-union-kind]")) syncUnionPickers();
+    });
+    syncUnionPickers();
+        </script>
+    </body>
+</html>

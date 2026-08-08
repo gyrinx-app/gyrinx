@@ -181,3 +181,41 @@ class ImpersonationMiddleware:
             )
         for key in IMPERSONATE_SESSION_KEYS:
             session.pop(key, None)
+
+
+#: Membership of this group opens the n26 edition while it is being
+#: tested. Created by gyrinx/accounts/migrations/0002_n26_testers_group.
+N26_TESTERS_GROUP = "N26 Testers"
+
+
+class N26TestersGateMiddleware:
+    """Every /n26/ page is testers-only while the edition is in preview.
+
+    One gate for the whole prefix, so a new page cannot ship open by
+    forgetting a decorator: staff and members of the "N26 Testers"
+    group pass; anonymous visitors are sent to sign in and come back;
+    everyone else gets a 404 — the beta is invisible, not locked.
+
+    Sits after AuthenticationMiddleware, which it needs for
+    ``request.user``. Views behind it keep their own checks (authoring
+    is staff-only regardless) — this is the outer fence, not the only
+    one.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        if request.path.startswith("/n26/"):
+            if not request.user.is_authenticated:
+                from django.contrib.auth.views import redirect_to_login
+
+                return redirect_to_login(request.get_full_path())
+            if not (
+                request.user.is_staff
+                or request.user.groups.filter(name=N26_TESTERS_GROUP).exists()
+            ):
+                from django.http import Http404
+
+                raise Http404
+        return self.get_response(request)

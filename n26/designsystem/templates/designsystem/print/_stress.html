@@ -1,0 +1,44 @@
+{% comment %}
+The stress specimen: the same cards, holding more than they can.
+
+Every card here has a name too long for its width, every weapon, and four times
+the skills and gear. The point is not that it looks good — it is that the
+failure is the *intended* failure. With shrink-to-fit on, the detail block
+reduces its type until it fits and the card stays whole. With it off (`fit=0` in
+the URL), the content clips at the card's edge instead of spilling onto the one
+below, which is the guarantee the fixed-height card is actually making.
+
+Both outcomes are fine and neither is a sliced card, which is the thing that
+must never happen. If a fold ever appears through the middle of one of these,
+something in the grid has regressed.
+{% endcomment %}
+<c-n26.print.grid columns="{{ options.columns }}" gutter="{{ gutter_css }}">
+    {% for row in rows %}
+        <c-n26.print.card title="{{ row.card.name }}"
+                          badge="{{ row.card.rating }}¢"
+                          height="{{ card_height_css }}"
+                          fit="1"
+                          fit_min="1.4">
+            <c-slot name="foot">
+                <c-n26.print.field label="Notes" height="8mm" label_width="11mm" />
+            </c-slot>
+            {% comment %} The book's two-row layout: a row pair per group, Type and XP filling the rest. {% endcomment %}
+            <c-n26.print.statline :statline="row.card.statline"
+                                  type_line="{{ row.card.type_line }}"
+                                  xp="{{ row.card.xp_display }}"
+                                  class="n26-print-bleed" />
+            {% include "designsystem/print/_weapons.html" with card=row.card %}
+            <c-n26.print.columns class="n26-print-mt">
+                {% for column in row.columns %}
+                    <c-n26.print.column>
+                        {% for group in column %}
+                            <c-n26.print.entry label="{{ group.label }}">
+                                {{ group.text }}
+                            </c-n26.print.entry>
+                        {% endfor %}
+                    </c-n26.print.column>
+                {% endfor %}
+            </c-n26.print.columns>
+        </c-n26.print.card>
+    {% endfor %}
+</c-n26.print.grid>

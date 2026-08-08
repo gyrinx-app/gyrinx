@@ -1,0 +1,6 @@
+{# title: Sizes and states #}
+{# note: Click the text, not just the switch — the wrapping label makes the whole thing one target, and gives the switch its accessible name. sm is the default, because a toggle lives in the row under a search bar where it refines what the search returned rather than competing with it. #}
+<c-n26.toggle name="t1" label="Your lists only" :checked="True" />
+<c-n26.toggle name="t2" label="Archived" />
+<c-n26.toggle name="t3" label="Larger" size="md" :checked="True" />
+<c-n26.toggle name="t4" label="Disabled" :disabled="True" />

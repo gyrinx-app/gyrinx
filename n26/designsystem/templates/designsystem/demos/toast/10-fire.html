@@ -1,0 +1,16 @@
+{# title: Firing a toast #}
+{# note: There's no c-ui.toast — you raise one by dispatching an event, which any component can do without a reference to the container. This page's container is in the base layout, bottom-left. #}
+<c-ui.button variant="primary"
+             @click="$dispatch('toast', {variant: 'success', title: 'Saved', message: 'Roster updated.'})">
+    Success
+</c-ui.button>
+<c-ui.button @click="$dispatch('toast', {variant: 'info', title: 'Heads up', message: 'Two fighters are still in recovery.'})">
+    Info
+</c-ui.button>
+<c-ui.button @click="$dispatch('toast', {variant: 'warning', title: 'Over budget', message: 'You are 60 credits over.'})">
+    Warning
+</c-ui.button>
+<c-ui.button variant="danger"
+             @click="$dispatch('toast', {variant: 'error', title: 'Failed', message: 'That territory is taken.'})">
+    Error
+</c-ui.button>

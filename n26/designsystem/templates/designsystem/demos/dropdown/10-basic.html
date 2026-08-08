@@ -1,0 +1,14 @@
+{# title: Basic menu #}
+{# note: trigger_text gives you a styled default trigger. Items render <button> unless you pass href. #}
+<c-ui.dropdown trigger_text="Actions">
+    <c-ui.dropdown.item>
+        Edit
+    </c-ui.dropdown.item>
+    <c-ui.dropdown.item>
+        Duplicate
+    </c-ui.dropdown.item>
+    <c-ui.dropdown.separator />
+    <c-ui.dropdown.item variant="danger">
+        Delete
+    </c-ui.dropdown.item>
+</c-ui.dropdown>

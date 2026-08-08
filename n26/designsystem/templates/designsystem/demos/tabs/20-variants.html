@@ -1,0 +1,22 @@
+{# title: Segmented, sizes and a default #}
+{# note: :default_tab takes the name of the panel to open first; without it the first one registered wins. :fill stretches the tabs across the full width. #}
+{# layout: col #}
+<c-ui.tabs variant="segmented" default_tab="Shooting" :fill="True">
+    <c-ui.tabs.tab name="Movement">
+        <p class="text-sm text-muted">Move up to M inches.</p>
+    </c-ui.tabs.tab>
+    <c-ui.tabs.tab name="Shooting">
+        <p class="text-sm text-muted">Opened by default via default_tab.</p>
+    </c-ui.tabs.tab>
+    <c-ui.tabs.tab name="Combat">
+        <p class="text-sm text-muted">Roll attack dice.</p>
+    </c-ui.tabs.tab>
+</c-ui.tabs>
+<c-ui.tabs size="sm" :accent="False">
+    <c-ui.tabs.tab name="Small">
+        <p class="text-sm text-muted">size="sm", with :accent="False" for a neutral indicator.</p>
+    </c-ui.tabs.tab>
+    <c-ui.tabs.tab name="Neutral">
+        <p class="text-sm text-muted">Second panel.</p>
+    </c-ui.tabs.tab>
+</c-ui.tabs>

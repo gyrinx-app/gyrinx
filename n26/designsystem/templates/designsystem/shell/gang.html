@@ -1,0 +1,125 @@
+{% extends "n26/layouts/base.html" %}
+{% comment %}
+A gang's sheet, in the shell it will live in.
+
+The view has its own preview at /design/view/view-gang-sheet/, which answers "does
+this fit a phone". This answers a different question: what the sheet looks like
+under a nav, above a footer, and with a banner over the lot — the spacing between
+a page and its chrome is not visible in either one alone.
+{% endcomment %}
+{% block head_title %}{{ gang.name }}{% endblock head_title %}
+{% block nav_items %}
+    {% include 'designsystem/shell/_nav.html' with here='gang' %}
+{% endblock %}
+{% block content %}
+    <c-n26.view.gang-sheet :sheet="gang"
+                           owner="{{ dashboard_username }}"
+                           owner_href="{% url 'designsystem:shell_home' %}"
+                           owner_flair_label="Gyrinx staff"
+                           type_flair_label="Goliath"
+                           gangs_href="{% url 'designsystem:shell_home' %}">
+        <c-slot name="owner_flair">
+            <c-n26.flair.staff />
+        </c-slot>
+        <c-slot name="type_flair">
+            <c-n26.flair.house />
+        </c-slot>
+        <c-slot name="details">
+            <c-n26.detail-list>
+                {% for choice in gang.choices %}
+                    <c-n26.detail-list.row label="{{ choice.kind_label }}"
+                                           value="{% if choice.chosen %}{{ choice.chosen }}{% else %}Choose{% endif %}">
+                        <c-slot name="dialog_header">
+                            <h2 class="text-base font-semibold">{{ choice.kind_label }}</h2>
+                        </c-slot>
+                        <c-slot name="dialog">
+                            <p class="text-sm text-muted">The picker for this choice would sit here.</p>
+                        </c-slot>
+                        <c-slot name="dialog_footer">
+                            <c-ui.button size="sm" variant="primary">
+                                Save
+                            </c-ui.button>
+                        </c-slot>
+                    </c-n26.detail-list.row>
+                {% endfor %}
+                {% for counter in gang.counters %}
+                    <c-n26.detail-list.row label="{{ counter.name }}" value="{{ counter.value }}" />
+                {% endfor %}
+            </c-n26.detail-list>
+        </c-slot>
+        {% comment %}
+        Hiring is a gang-level act: it adds a fighter to the roster. Buying is
+        not — equipment is bought for a particular model and lives on that
+        model's card — so the way to the trading post is the Equip on each card
+        below. A gang-level Buy would have to ask "for whom?" after you pressed
+        it, which is a question the button should not have needed to ask.
+        {% endcomment %}
+        <c-slot name="actions">
+            <c-ui.button size="sm"
+                         variant="primary"
+                         href="{% url 'designsystem:view_preview' 'view-fighter-hire' %}">Hire fighter</c-ui.button>
+        </c-slot>
+        <c-slot name="secondary_actions">
+            <c-n26.button-group>
+                <c-ui.button size="sm"
+                             variant="default"
+                             href="{% url 'designsystem:shell_print' %}">Print</c-ui.button>
+                <c-ui.dropdown>
+                    <c-slot name="trigger">
+                        <c-ui.button size="sm" variant="default" aria-label="More actions">
+                            <span class="n26-icon-only gap-0.5">
+                                <c-n26.icon name="ellipsis-vertical" class="size-4" />
+                                <c-n26.icon name="chevron-down" class="size-3" stroke_width="2.5" />
+                            </span>
+                        </c-ui.button>
+                    </c-slot>
+                    <c-ui.dropdown.item variant="danger" href="#">
+                        Delete gang
+                    </c-ui.dropdown.item>
+                </c-ui.dropdown>
+            </c-n26.button-group>
+        </c-slot>
+        <c-slot name="stash_empty">
+            Nothing in the stash yet.
+        </c-slot>
+        <c-slot name="members">
+            {% for member in gang_members %}
+                <c-n26.model-card :card="member" choose_href="#">
+                    <c-slot name="actions">
+                        {% comment %}
+                    Equip is the one you came for and the only per-model act that
+                    is not destructive, so it is the primary and it is on its own.
+
+                    Not joined into a c-n26.button-group with the overflow, which
+                    is what the gang's Print and ⋮ do: those two are peers and read
+                    as one control with two halves. A primary joined to a default
+                    would say the halves are equal when one of them is the point.
+
+                    Cards and Delete share the dropdown because neither is
+                    frequent and one is irreversible — the second press a
+                    destructive act should cost, which is the same reasoning as
+                    Delete gang above.
+                        {% endcomment %}
+                        <c-ui.button size="xs"
+                                     variant="primary"
+                                     href="{% url 'designsystem:shell_shop' %}">Equip</c-ui.button>
+                        <c-ui.dropdown>
+                            <c-slot name="trigger">
+                                <c-ui.button size="xs" variant="default" aria-label="More actions">
+                                    <span class="n26-icon-only gap-0.5">
+                                        <c-n26.icon name="ellipsis-vertical" class="size-3.5" />
+                                        <c-n26.icon name="chevron-down" class="size-3" stroke_width="2.5" />
+                                    </span>
+                                </c-ui.button>
+                            </c-slot>
+                            <c-ui.dropdown.item href="{% url 'designsystem:shell_print' %}">Cards</c-ui.dropdown.item>
+                            <c-ui.dropdown.item variant="danger" href="#">
+                                Delete
+                            </c-ui.dropdown.item>
+                        </c-ui.dropdown>
+                    </c-slot>
+                </c-n26.model-card>
+            {% endfor %}
+        </c-slot>
+    </c-n26.view.gang-sheet>
+{% endblock content %}

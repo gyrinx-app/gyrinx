@@ -1,0 +1,11 @@
+{# title: Listbox variant #}
+{# note: variant="listbox" hands off to c-ui.menu, so the options must be c-ui.menu.item — not c-ui.select.option. You gain descriptions and styling; you lose the native mobile picker. #}
+{# layout: col #}
+<c-ui.select label="Assign to"
+             name="assignee"
+             variant="listbox"
+             placeholder="Choose a fighter">
+    <c-ui.menu.item value="kaine" label="Kaine" description="Leader · 145 credits" />
+    <c-ui.menu.item value="vex" label="Vex" description="Champion · 110 credits" />
+    <c-ui.menu.item value="scrap" label="Scrap" description="Juve · 40 credits" />
+</c-ui.select>

@@ -1,0 +1,67 @@
+{# title: With other components in the cells #}
+{# note: Nothing special going on — cells are ordinary <td>, so badges, avatars and dropdowns compose in the usual way. #}
+{# layout: full #}
+<c-ui.table>
+    <thead>
+        <tr>
+            <th>Fighter</th>
+            <th>Status</th>
+            <th>XP</th>
+            <th class="text-right">Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+                <span class="inline-flex items-center gap-2">
+                    <c-ui.avatar initials="KA" size="sm" color="auto" />
+                    Kaine
+                </span>
+            </td>
+            <td>
+                <c-ui.badge color="green">
+                    Ready
+                </c-ui.badge>
+            </td>
+            <td>
+                <c-ui.progress :value="70" size="xs" class="w-24" />
+            </td>
+            <td class="text-right">
+                <c-ui.dropdown trigger_text="⋯" align="end">
+                    <c-ui.dropdown.item>
+                        Edit
+                    </c-ui.dropdown.item>
+                    <c-ui.dropdown.item variant="danger">
+                        Retire
+                    </c-ui.dropdown.item>
+                </c-ui.dropdown>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <span class="inline-flex items-center gap-2">
+                    <c-ui.avatar initials="VX" size="sm" color="auto" />
+                    Vex
+                </span>
+            </td>
+            <td>
+                <c-ui.badge color="amber">
+                    Recovery
+                </c-ui.badge>
+            </td>
+            <td>
+                <c-ui.progress :value="35" size="xs" class="w-24" />
+            </td>
+            <td class="text-right">
+                <c-ui.dropdown trigger_text="⋯" align="end">
+                    <c-ui.dropdown.item>
+                        Edit
+                    </c-ui.dropdown.item>
+                    <c-ui.dropdown.item variant="danger">
+                        Retire
+                    </c-ui.dropdown.item>
+                </c-ui.dropdown>
+            </td>
+        </tr>
+    </tbody>
+</c-ui.table>

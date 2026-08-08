@@ -1,0 +1,15 @@
+{# title: Message composer #}
+{# note: The textarea grows with its content up to 320px. The action row only renders if you fill leading or trailing. #}
+{# layout: full #}
+<c-ui.composer name="message" placeholder="Write a message…">
+    <c-slot name="leading">
+        <c-ui.button variant="ghost" size="sm">
+            Attach
+        </c-ui.button>
+    </c-slot>
+    <c-slot name="trailing">
+        <c-ui.button variant="primary" size="sm">
+            Send
+        </c-ui.button>
+    </c-slot>
+</c-ui.composer>

@@ -1,0 +1,31 @@
+{# title: The frame #}
+{# note: Measure, rhythm, breadcrumb, heading, help and the action at the end — everything a form screen has except its fields. Both real forms in the library are this wrapper plus their own c-n26.form-sections, which is what stops them drifting to two widths again. #}
+{# layout: full #}
+<c-n26.form-page action="#"
+                 title="Create a gang"
+                 lead="A gang is a name, a type and the models you hire into it."
+                 submit_label="Create gang">
+    <c-slot name="breadcrumb">
+        <c-ui.breadcrumbs>
+            <c-ui.breadcrumbs.item href="#">
+                tom
+            </c-ui.breadcrumbs.item>
+            <c-ui.breadcrumbs.item :current="True">
+                Create a gang
+            </c-ui.breadcrumbs.item>
+        </c-ui.breadcrumbs>
+    </c-slot>
+    <c-n26.form-section title="General">
+        <c-ui.input label="Gang name *"
+                    name="demo-fp-name"
+                    description="You can change this later." />
+    </c-n26.form-section>
+    <c-n26.form-section title="Setup" description="Optional, and changeable later.">
+        <c-ui.input label="Starting credits"
+                    name="demo-fp-credits"
+                    type="number"
+                    placeholder="No limit"
+                    right_addon="¢"
+                    description="Leave blank to spend as much as you like." />
+    </c-n26.form-section>
+</c-n26.form-page>

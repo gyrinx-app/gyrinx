@@ -1,0 +1,18 @@
+{# title: As a settings row #}
+{# note: :inline switches to the field's toggle layout — label and description on the left, control pushed to the right. This is the shape you want in a settings panel. #}
+{# layout: full #}
+<div class="max-w-lg divide-y divide-[var(--color-box-border)] rounded-box border border-box-border bg-surface px-4">
+    <div class="py-3">
+        <c-ui.switch :inline="True"
+                     name="a"
+                     label="Public profile"
+                     description="Show your gangs on your profile page."
+                     :checked="True" />
+    </div>
+    <div class="py-3">
+        <c-ui.switch :inline="True"
+                     name="b"
+                     label="Email digest"
+                     description="A summary of campaign activity, once a week." />
+    </div>
+</div>

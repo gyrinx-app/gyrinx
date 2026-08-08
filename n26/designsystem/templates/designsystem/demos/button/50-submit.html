@@ -1,0 +1,9 @@
+{# title: Inside a form #}
+{# note: The template hardcodes type="button", but {{ attrs }} is written first and HTML keeps the first of a duplicated attribute — so your own type="submit" wins. #}
+{# layout: col #}
+<form onsubmit="event.preventDefault()" class="flex items-center gap-3">
+    <c-ui.input name="q" placeholder="Search…" />
+    <c-ui.button type="submit" variant="primary">
+        Submit
+    </c-ui.button>
+</form>

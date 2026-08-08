@@ -1,0 +1,17 @@
+{# title: Sizes and disabled #}
+{# layout: col #}
+<c-ui.select name="s1" size="sm" placeholder="Small">
+    <c-ui.select.option value="a">
+        Option A
+    </c-ui.select.option>
+</c-ui.select>
+<c-ui.select name="s2" size="lg" placeholder="Large">
+    <c-ui.select.option value="a">
+        Option A
+    </c-ui.select.option>
+</c-ui.select>
+<c-ui.select name="s3" :disabled="True" placeholder="Disabled">
+    <c-ui.select.option value="a">
+        Option A
+    </c-ui.select.option>
+</c-ui.select>

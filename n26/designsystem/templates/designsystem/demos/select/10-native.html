@@ -1,0 +1,19 @@
+{# title: Native select #}
+{# note: The default. A real <select>, so it needs no JavaScript and gets the platform picker — which is the right answer on a phone. #}
+{# layout: col #}
+<c-ui.select label="Gang type"
+             name="gang"
+             description="Determines which fighters you can recruit.">
+    <c-ui.select.option value="escher">
+        Escher
+    </c-ui.select.option>
+    <c-ui.select.option value="goliath">
+        Goliath
+    </c-ui.select.option>
+    <c-ui.select.option value="orlock" :selected="True">
+        Orlock
+    </c-ui.select.option>
+    <c-ui.select.option value="squat" :disabled="True">
+        Ironhead Squat Prospectors (locked)
+    </c-ui.select.option>
+</c-ui.select>

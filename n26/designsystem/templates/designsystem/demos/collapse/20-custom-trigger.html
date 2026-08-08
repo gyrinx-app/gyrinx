@@ -1,0 +1,13 @@
+{# title: Custom trigger #}
+{# note: The trigger slot replaces the text; :chevron="False" removes the caret if your trigger already signals the state. #}
+{# layout: col #}
+<c-ui.collapse :chevron="False">
+    <c-slot name="trigger">
+        <c-ui.badge color="blue" variant="pill">
+            Advanced options
+        </c-ui.badge>
+    </c-slot>
+    <div class="pt-3">
+        <c-ui.switch name="adv" label="Allow cross-pack references" />
+    </div>
+</c-ui.collapse>

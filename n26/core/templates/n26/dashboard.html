@@ -1,0 +1,48 @@
+{% extends "n26/layouts/base.html" %}
+{% load richtext %}
+{% comment %}
+The edition's front page: the signed-in user's gangs and the site
+changelog, drawn entirely from the design system — the gallery's shell
+home (designsystem/shell/home.html) is this page with sample rows, so
+what was judged there is what ships here.
+
+The gang search and the type filter are <c-n26.gang-table>'s own,
+client-side: every row registers its facets and the table narrows as
+you type, which is all a list this size needs.
+{% endcomment %}
+{% block head_title %}Home{% endblock head_title %}
+{% block nav_items %}
+    {% include 'n26/_nav.html' with here='home' %}
+{% endblock %}
+{% block content %}
+    <c-n26.view.dashboard username="{{ user.username }}"
+                          new_gang_href="{% url 'n26-create-gang' %}"
+                          new_campaign_href="">
+        <c-slot name="gangs">
+            <c-n26.gang-table :type_options="gang_type_options" noun="gangs">
+                <c-slot name="empty">
+                    {% if gangs %}
+                        No gangs match that. Try a shorter search.
+                    {% else %}
+                        No gangs yet — founding one takes a minute.
+                    {% endif %}
+                </c-slot>
+                {% for gang in gangs %}
+                    <c-n26.gang-table.row name="{{ gang.name }}"
+                                          type="{{ gang.gang_type }}"
+                                          :sheet="gang"
+                                          href="#" />
+                {% endfor %}
+            </c-n26.gang-table>
+        </c-slot>
+        <c-slot name="changelog">
+            <c-n26.changelog>
+                {% for entry in changelog %}
+                    <c-n26.changelog.entry title="{{ entry.title }}" date="{{ entry.date|date:'j M' }}" href="#">
+                        {{ entry.body|safe_rich_text }}
+                    </c-n26.changelog.entry>
+                {% endfor %}
+            </c-n26.changelog>
+        </c-slot>
+    </c-n26.view.dashboard>
+{% endblock content %}

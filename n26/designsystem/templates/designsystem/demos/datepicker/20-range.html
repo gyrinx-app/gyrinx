@@ -1,0 +1,9 @@
+{# title: Range and multiple #}
+{# note: In range mode it submits name['from'] and name['to'] unless you name the two ends yourself with fromName and toName. #}
+{# layout: col #}
+<c-ui.datepicker label="Campaign window"
+                 name="window"
+                 mode="range"
+                 fromName="starts_on"
+                 toName="ends_on" />
+<c-ui.datepicker label="Blackout dates" name="blackout" mode="multiple" />

@@ -1,0 +1,45 @@
+{% comment %}
+<c-n26.print.columns> — side-by-side columns, filled by you, not by CSS.
+
+    {# n26.printing.balance_columns did the splitting #}
+    <c-n26.print.columns gap="3mm">
+        {% for column in detail_columns %}
+            <c-n26.print.column>
+                {% for group in column %}
+                    <c-n26.print.entry label="{{ group.label }}">{{ group.text }}</c-n26.print.entry>
+                {% endfor %}
+            </c-n26.print.column>
+        {% endfor %}
+    </c-n26.print.columns>
+
+The thing to know is what this is instead of. CSS multi-column layout is the
+obvious tool and it does not survive printing on WebKit, which has no support
+for a multicol container nested inside another fragmentation context — and when
+printing, the page *is* a fragmentation context. iOS Safari collapses a
+`columns: 2` block to one full-width column, so the two-column layout exists on
+your desktop and nowhere else. Chrome fails differently and more quietly: v1
+watched it drop the last group off the end of a card.
+
+So the split happens before the HTML does. `n26.printing.balance_columns` takes
+your groups and returns the columns, cutting once at the point that minimises
+the taller side, which is what multicol's balancing was doing anyway — only now
+it is deterministic, identical in every engine, and unit-testable.
+
+Flex is safe here and only here. These columns are meant to live inside a
+<c-n26.print.card>, which is atomic and never fragments, so the flex layout is
+resolved wholly within one page. Put a tall one straight onto a sheet and it
+will be sliced with no regard for its contents, which is the same trap in a
+different costume.
+
+  gap — between columns.
+  fill — take the height left in a fixed-height card instead of sizing to the
+    content. What <c-n26.print.column spread> needs before it can spread
+    anything: with no definite height to divide, there is no slack to share.
+{% endcomment %}
+<c-vars gap="3mm" fill="" class="" />
+
+<div {{ attrs }}
+     class="n26-print-columns{% if fill %} is-fill{% endif %} {{ class }}"
+     style="--print-columns-gap: {{ gap }}">
+    {{ slot }}
+</div>

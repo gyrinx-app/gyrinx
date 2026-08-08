@@ -1,0 +1,15 @@
+{# title: Searchable, and clickable all over #}
+{# note: Called a table because that is what it is to a reader, built as grid rows because a real one cannot survive a phone — four columns, one of them a four-figure wealth strip, is more than 390px holds. Exactly one real link is in each row, on the name, stretched over the whole row; the buttons sit above it and still work. #}
+{# layout: full #}
+<c-n26.gang-table :type_options="dashboard_types" noun="gangs">
+    <c-slot name="empty">
+        No gangs match that. Try a shorter search.
+    </c-slot>
+    {% for gang in dashboard_gangs %}
+        <c-n26.gang-table.row name="{{ gang.name }}"
+                              type="{{ gang.gang_type }}"
+                              :sheet="gang"
+                              href="#"
+                              print_href="#" />
+    {% endfor %}
+</c-n26.gang-table>

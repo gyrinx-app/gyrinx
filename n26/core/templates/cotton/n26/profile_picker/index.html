@@ -1,0 +1,60 @@
+{% comment %}
+<c-n26.profile-picker> — the models a gang could buy, in sections and filtered.
+
+    <c-n26.profile-picker :categories="hire_categories"
+                     cost_floor="{{ floor }}" cost_ceiling="{{ ceiling }}">
+        <c-slot name="filters">…</c-slot>
+        <c-n26.collection-picker.section name="Gang List" :open="True">
+            <c-n26.collection-picker.category name="Leaders">
+                <c-n26.profile-picker.row :entry="entry" />
+            </c-n26.collection-picker.category>
+        </c-n26.collection-picker.section>
+    </c-n26.profile-picker>
+
+A gang sheet shows what you own; this shows what you could buy. The same screen
+as the trading post, because it is the same *kind* of screen — a collection of
+assignables, in sections and categories, priced, filtered at the top, acted
+on inline. Profile is an Assignable, so a gang list is a collection like any
+other, and this is <c-n26.collection-picker> with hiring's vocabulary on it.
+
+Which makes this component thin on purpose. It sets the noun, drops the filters
+that mean nothing here — nothing you hire has a trade-points price or an
+Exclusive flag — and gives hiring's rows somewhere to sit.
+
+  :categories — every category name, for the filter menu.
+  :sections — every section name, in order. Only needed for `tabs`.
+  tabs — draw the sections as a tab strip instead of stacking them as
+    collapsibles, leaving the category as the only thing that collapses.
+  cost_floor, cost_ceiling — the ends of the price slider.
+  filters — the control bar, in the shell's Alpine scope.
+{% endcomment %}
+<c-vars
+    :categories="[]"
+    :sections="[]"
+    {% comment %}
+    Inherited from <c-n26.collection-picker>, and named here rather than left to
+    the shell's default: this component passes `tabs` through explicitly, so an
+    empty default would override the shell's and quietly untab every gang list.
+    {% endcomment %}
+    tabs="1"
+    cost_floor="0"
+    cost_ceiling="9999"
+    noun="profiles"
+    class=""
+/>
+
+<c-n26.collection-picker
+    :categories="categories"
+    :sections="sections"
+    tabs="{{ tabs }}"
+    cost_floor="{{ cost_floor }}"
+    cost_ceiling="{{ cost_ceiling }}"
+    noun="{{ noun }}"
+    class="{{ class }}">
+
+    <c-slot name="filters">{{ filters }}</c-slot>
+
+    {{ slot }}
+
+    {% if empty %}<c-slot name="empty">{{ empty }}</c-slot>{% endif %}
+</c-n26.collection-picker>

@@ -1,0 +1,164 @@
+{% comment %}
+<c-n26.view.gang-sheet> — a gang, whole: who owns it, what it is worth, who is in it.
+
+    <c-n26.view.gang-sheet :sheet="gang" owner="tom" gangs_href="/gangs/">
+        <c-slot name="details">…detail-list rows…</c-slot>
+        <c-slot name="members">…model cards…</c-slot>
+    </c-n26.view.gang-sheet>
+
+The order down the page answers a reader's questions in the order they ask them:
+whose gang and where am I, what is it called, what kind is it, what is it worth,
+what are its standing facts, what can I do to it, what is in the stash, who is in
+it. Everything above the fighters is a header — small, dense, and over quickly —
+because the fighters are what the page is for and every row above them is a row of
+the gang you cannot see.
+
+  --- primary and secondary ---
+
+Two runs, not one. Hiring is what this screen is for and it is safe; printing is a
+detour and deleting is irreversible. Putting them in one row would sort them by
+nothing, and a Delete adjacent to a Hire is a mis-tap with a gang behind it. So the
+irreversible one is inside a dropdown, which is not decoration: it costs a
+deliberate second press, and that is the whole reason it is there.
+
+  --- the fighters ---
+
+CSS grid, up to three columns, one on a phone. A card is a fixed amount of
+information, so as the screen widens the right answer is more cards side by side
+rather than one wide column of stretched cards — a statline set in a 1200px row
+puts its M and its Sv a hand's width apart.
+
+`auto-rows-min` so a short card does not inherit the height of the tallest in its
+row, which is what makes an eleven-fighter gang read as a wall.
+
+  :sheet — a n26.render.GangSheet. Its four figures are drawn opposite the name,
+    in the header's own actions slot.
+  owner — whose gang it is, for the breadcrumb.
+  owner_href — where the owner's name goes. Without it the name is plain text.
+  owner_flair — a badge to sit after the owner's name: <c-n26.flair.staff />.
+  owner_flair_label — what that badge means, for a screen reader and as its title.
+    Left empty the badge is aria-hidden, which is right when it repeats the text.
+  type_flair, type_flair_label — the same, for the house beside the gang's type.
+  gangs_href — where the breadcrumb's "Gangs" goes.
+  details — the detail list. The caller builds it, because which facts a gang has
+    and what each one opens is the gang's business, not the layout's.
+  actions — the primary run: Hire fighter, Hire vehicle. What the screen is for.
+  secondary_actions — the detours and the dangerous ones: Print, and a dropdown
+    holding Delete. Kept apart from the primary run rather than sorted in with it.
+  members — the fighter cards, drawn straight into the grid.
+  stash_empty — what to say when the stash is empty.
+{% endcomment %}
+<c-vars
+    :sheet="None"
+    owner=""
+    owner_href=""
+    owner_flair_label=""
+    type_flair_label=""
+    gangs_href="#"
+    class=""
+/>
+
+<div class="flex flex-col gap-4 {{ class }}">
+
+    {% comment %}
+    The user first, then the collection, then this gang: the trail a reader
+    actually walked. The name is the current page and carries aria-current, so the
+    breadcrumb is also the answer to "which gang is this" for anything reading the
+    page aloud — which is why the h1 below can be the plain name and nothing else.
+    {% endcomment %}
+    {% comment %}
+    <c-n26.page-header> owns the scale. It used to be set here at text-2xl and in
+    the hire form at text-xl, which is two answers to a question neither template
+    was asking.
+    {% endcomment %}
+    <c-n26.page-header title="{{ sheet.name }}">
+        <c-slot name="breadcrumb">
+            {% comment %}
+            The user first, then the collection, then this gang: the trail a reader
+            actually walked. The name is the current page and carries aria-current,
+            so the breadcrumb is also the answer to "which gang is this" for
+            anything reading the page aloud.
+            {% endcomment %}
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item>
+                    {% comment %}
+                    flair-link rather than a badge in a pill. The badge beside a
+                    username and the badge beside a house are the same idea, and
+                    this is already the component for it — text with a small SVG
+                    after it, sized in em so the same call works in a breadcrumb
+                    and in a heading. A pill would say the same thing and spend a
+                    breadcrumb's worth of width doing it.
+
+                    tone="current" so the owner reads as part of the trail rather
+                    than as the one accent-coloured thing on it; what a breadcrumb
+                    emphasises is the current page, and that is the last item.
+                    {% endcomment %}
+                    <c-n26.flair-link text="{{ owner }}" href="{{ owner_href }}"
+                                      tone="current" label="{{ owner_flair_label }}">{{ owner_flair }}</c-n26.flair-link>
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{{ gangs_href }}">Gangs</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">{{ sheet.name }}</c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+
+        {% comment %}
+        The house icon rides along through flair-link, which sizes it in em and
+        lets it inherit the lead's muted colour — so it shrinks with the line
+        rather than being a fixed-size mark stuck beside smaller text. No href:
+        flair-link renders a span, because a gang's own type is not somewhere to go.
+        {% endcomment %}
+        <c-slot name="lead">
+            <c-n26.flair-link text="{{ sheet.gang_type }}" tone="current"
+                              label="{{ type_flair_label }}">{{ type_flair }}</c-n26.flair-link>
+        </c-slot>
+
+        {% comment %}
+        What the gang is worth, opposite its name. It is the number a reader came
+        back for, and beside the title it is answered before the eye has travelled
+        anywhere — where a line of its own below pushed everything else down for a
+        figure that fits in the space already going spare. The header wraps it
+        under the title on a phone, which is the same behaviour any other set of
+        page actions gets.
+
+        This slot must be filled even if it were empty. c-n26.page-header renders
+        `{% if actions %}`, and this view *also* has a slot called `actions` — so
+        with nothing passed here the child resolved the parent's variable of the
+        same name and drew the gang's Hire fighter a second time, up beside the
+        title. Cotton slots are context variables, and a name is a name.
+        {% endcomment %}
+        <c-slot name="actions">
+            <c-n26.wealth :sheet="sheet" />
+        </c-slot>
+    </c-n26.page-header>
+
+    {% if details %}{{ details }}{% endif %}
+
+    {% comment %}
+    Wraps rather than scrolls, and the secondary run drops under the primary one on
+    a phone. A row of actions that scrolls sideways hides the destructive one behind
+    an edge, which is the wrong thing to hide behind an edge — better it wraps and
+    the page gets a line taller.
+    {% endcomment %}
+    <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <div class="flex flex-wrap items-center gap-2">
+            {{ actions }}
+        </div>
+        {% if secondary_actions %}
+            <div class="flex flex-wrap items-center gap-2">
+                {{ secondary_actions }}
+            </div>
+        {% endif %}
+    </div>
+
+    <c-n26.stash :lines="sheet.stash" :total="sheet.stash_rating">
+        {% if stash_empty %}<c-slot name="empty">{{ stash_empty }}</c-slot>{% endif %}
+    </c-n26.stash>
+
+    {% comment %}
+    Fighters last and given the whole width. auto-rows-min keeps a short card
+    short; items-start would only align them, not stop them stretching.
+    {% endcomment %}
+    <div class="grid auto-rows-min grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {{ members }}
+    </div>
+</div>

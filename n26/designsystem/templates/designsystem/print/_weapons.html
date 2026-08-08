@@ -1,0 +1,129 @@
+{% comment %}
+The weapon table, shared by the specimens that show a fighter card.
+
+Two rows per profile, matching <c-n26.model-card>: the stats on the name's row,
+the traits on their own line beneath it, indented past the name column so they
+start under the leftmost *stat*. They describe the profile, and beginning them
+under the numbers says so.
+
+Worth the change on paper more than on screen. As a column, traits got 22% of a
+97mm card — about 21mm, which wrapped "Sidearm, Silent, Toxin (2+)" onto three
+lines and made every weapon three rows tall regardless. Given the full width
+they take one line, and the stat columns get the space back.
+
+A partial rather than a component: it is specimen scaffolding for the lab, and
+the only thing in it that is not plain markup is the weapon/profile naming rule,
+which is <c-n26.model-card>'s rule rather than the print family's. If a real
+gang sheet ever wants this, that is the point to promote it.
+
+Takes `card` — a n26.render.ModelCard.
+{% endcomment %}
+{% comment %}
+No top margin: it sits directly on the statline's bottom rule, so the two read
+as one block of statistics rather than two tables near each other.
+{% endcomment %}
+<c-n26.print.table class="n26-print-bleed" groups="1">
+    <c-slot name="head">
+        <tr>
+            {% comment %}
+            Columns come from the first profile on the card rather than a
+            hardcoded list, so a pack that changes a weapon's statline type
+            changes this header with it.
+            {% endcomment %}
+            {% comment %}
+            40%, not the third it looks like it wants. The stat columns hold two
+            or three characters each and had width to spare; the name column
+            holds "— hotshot las pack (+10¢)", which at a third of the card wraps
+            onto a second line and makes the row taller than the weapon above it.
+            Losing the indent bought two millimetres of that and not enough.
+            {% endcomment %}
+            {# djlint:off H021 — print column widths live on the cells; print engines read them there #}
+            <th style="width: 40%">Weapon</th>
+            {% for cell in card.weapons.0.profiles.0.statline.cells %}
+                <th class="is-centered{% if cell.first_of_group %} is-group{% endif %}"
+                    title="{{ cell.full_name }}">{{ cell.short_name }}</th>
+            {% endfor %}
+        </tr>
+    </c-slot>
+    {% for weapon in card.weapons %}
+        {% comment %}
+        One tbody per weapon: everything inside is one entry and takes no rules,
+        and the rule that does appear is the one between this weapon and the
+        next. See .n26-print-table.is-grouped.
+
+        Accessories ride on the weapon's name rather than taking a row. A row
+        costs about 4mm of a card whose height is the scarcest thing on the
+        sheet, and it spends that on two words — where wrapped after the name
+        they usually cost nothing at all, and at worst a second line of a cell
+        that was going to be the tallest in the row anyway.
+        {% endcomment %}
+        <tbody>
+            {% comment %}
+        One rule, and it lives on WeaponLine so the text card, the screen card
+        and this one cannot drift: the unnamed profile *is* the weapon, so its
+        stats ride the weapon's own row, and every named profile gets a row
+        beneath. A lasgun shoots as a lasgun and needs one row; a grenade
+        launcher is not its frag round, so it keeps a row of its own with frag
+        and krak underneath.
+
+        The test is the name, not the number of profiles or their price. Both
+        grenade profiles are free, which is the case a count or a price gets
+        wrong.
+            {% endcomment %}
+            {% with own=weapon.own_line %}
+                <tr {% if own.traits or not own %}class="is-continued"{% endif %}>
+                    {% comment %}
+                Without an own line the name spans the table, and that span is a
+                real column count rather than the colspan="99" the screen card
+                gets away with. That table is auto-layout, where an oversized
+                colspan is clamped harmlessly; this one is table-layout: fixed,
+                where it is taken at face value — the browser lays out a table of
+                99 columns and squeezes the nine real ones into a ninth of the
+                width. It renders as a heap of overlapping numbers, and only on
+                the weapons whose profiles are separately named.
+                    {% endcomment %}
+                    <td {% if not own %}colspan="{{ card.weapons.0.profiles.0.statline.cells|length|add:1 }}"{% endif %}>{{ weapon.name }} <span class="n26-print-cost">({{ weapon.base_rating }}¢)</span>{% if weapon.accessories %} <span class="n26-print-subname">{% for accessory in weapon.accessories %}+ {{ accessory.name }}{% if not forloop.last %} {% endif %}{% endfor %}</span>{% endif %}</td>
+                    {% if own %}
+                        {% for cell in own.statline.cells %}
+                            <td class="is-centered{% if cell.first_of_group %} is-group{% endif %}">{{ cell.value|default:"-" }}</td>
+                        {% endfor %}
+                    {% endif %}
+                </tr>
+                {% if own.traits %}
+                    <tr>
+                        {% comment %}
+                    An empty cell under the name column, so the traits line up
+                    with the leftmost stat rather than with the weapon's name.
+                        {% endcomment %}
+                        <td></td>
+                        <td colspan="{{ own.statline.cells|length }}" class="n26-print-traits">
+                            {% for trait in own.traits %}{{ trait.name }}{% if not forloop.last %}, {% endif %}{% endfor %}
+                        </td>
+                    </tr>
+                {% endif %}
+            {% endwith %}
+            {% for profile in weapon.named_profiles %}
+                {% comment %}
+            is-continued suppresses the row rule when a traits line follows,
+            so the pair reads as one weapon rather than as two entries.
+                {% endcomment %}
+                <tr {% if profile.traits %}class="is-continued"{% endif %}>
+                    <td><span class="n26-print-subname">{{ profile.name }}</span>{% if profile.rating %} <span class="n26-print-cost">(+{{ profile.rating }}¢)</span>{% endif %}</td>
+                    {% for cell in profile.statline.cells %}
+                        <td class="is-centered{% if cell.first_of_group %} is-group{% endif %}">{{ cell.value|default:"-" }}</td>
+                    {% endfor %}
+                </tr>
+                {% if profile.traits %}
+                    <tr>
+                        {# Aligned as the own line's traits are, and for the reason given there. #}
+                        <td></td>
+                        <td colspan="{{ profile.statline.cells|length }}"
+                            class="n26-print-traits">
+                            {% for trait in profile.traits %}{{ trait.name }}{% if not forloop.last %}, {% endif %}{% endfor %}
+                        </td>
+                    </tr>
+                {% endif %}
+            {% endfor %}
+        </tbody>
+    {% endfor %}
+</c-n26.print.table>

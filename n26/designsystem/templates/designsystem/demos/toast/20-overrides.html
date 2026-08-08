@@ -1,0 +1,11 @@
+{# title: Per-toast overrides #}
+{# note: Anything in the event payload beats the container's own props for that one toast — including which corner it appears in, and duration="0" to make it stay until dismissed. #}
+<c-ui.button @click="$dispatch('toast', {variant: 'info', title: 'Top right', message: 'Overrides the container position.', position: 'top-right'})">
+    Different corner
+</c-ui.button>
+<c-ui.button @click="$dispatch('toast', {variant: 'success', title: 'Solid', message: 'appearance: solid', appearance: 'solid'})">
+    Solid appearance
+</c-ui.button>
+<c-ui.button @click="$dispatch('toast', {variant: 'warning', title: 'Sticky', message: 'duration 0 — dismiss it yourself.', duration: 0})">
+    Sticky
+</c-ui.button>

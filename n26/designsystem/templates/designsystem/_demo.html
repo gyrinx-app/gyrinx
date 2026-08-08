@@ -1,0 +1,47 @@
+{% load designsystem %}
+{% comment %} One example. The preview is produced by including the demo's own template, and
+   the code below it is that same file's text — so they cannot disagree.
+{% endcomment %}
+<section id="{{ demo.dom_id }}"
+         class="scroll-mt-24"
+         x-data="{ showCode: false, copied: false }">
+    <div class="mb-2 flex items-end justify-between gap-4">
+        <div class="min-w-0">
+            <h3 class="text-sm font-semibold">
+                <a href="#{{ demo.dom_id }}" class="hover:text-accent">{{ demo.title }}</a>
+            </h3>
+            {% if demo.note %}
+                <p class="mt-0.5 text-sm text-muted">{{ demo.note }}</p>
+            {% endif %}
+        </div>
+        <div class="flex shrink-0 items-center gap-1">
+            <button type="button"
+                    @click="showCode = !showCode"
+                    class="rounded-control px-2 py-1 text-xs font-medium text-muted hover:bg-ink-500/10 hover:text-accent focus-ring">
+                <span x-text="showCode ? 'Hide code' : 'Code'">Code</span>
+            </button>
+            <button type="button"
+                    @click="navigator.clipboard.writeText($refs.source.textContent.trim()); copied = true; setTimeout(() => copied = false, 1200)"
+                    class="rounded-control px-2 py-1 text-xs font-medium text-muted hover:bg-ink-500/10 hover:text-accent focus-ring">
+                <span x-text="copied ? 'Copied' : 'Copy'">Copy</span>
+            </button>
+        </div>
+    </div>
+    {% comment %}
+    No overflow-hidden on this wrapper, however tempting it is for clipping the
+    canvas to the rounded corners: dropdowns, menus, popovers and date pickers
+    position themselves relative to their trigger and would be cut off at the
+    edge of the box. Each child rounds its own corners instead — the canvas takes
+    the bottom pair back when the code panel is open beneath it.
+    {% endcomment %}
+    <div class="rounded-box border border-box-border">
+        <div class="demo-canvas rounded-box {% if demo.layout == 'full' %}is-plain{% endif %} p-6 {% if demo.layout == 'row' %}flex flex-wrap items-center gap-3 {% elif demo.layout == 'col' %}flex flex-col gap-4{% endif %}"
+             :class="showCode ? 'rounded-b-none' : ''">{% include demo.template_name %}</div>
+        <div x-show="showCode"
+             x-collapse
+             x-cloak
+             class="overflow-hidden rounded-b-box border-t border-box-border">
+            <pre class="overflow-x-auto bg-ink-500/5 p-4 text-xs leading-relaxed"><code x-ref="source" class="highlight">{{ demo.source|highlight }}</code></pre>
+        </div>
+    </div>
+</section>

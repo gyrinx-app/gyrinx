@@ -1,0 +1,36 @@
+{% comment %}
+<c-n26.action-links> — a run of links separated by middle dots.
+
+    <c-n26.action-links>
+        <c-n26.action-link href="/a/">Attributes</c-n26.action-link>
+        <c-n26.action-link href="/b/">Resources</c-n26.action-link>
+    </c-n26.action-links>
+
+    {# one icon for the whole run, rather than one per link #}
+    <c-n26.action-links>
+        <c-slot name="icon">
+            <svg …/>
+        </c-slot>
+        <c-n26.action-link href="/a/" tone="muted">Modify from default</c-n26.action-link>
+        <c-n26.action-link href="/b/" tone="danger">Delete</c-n26.action-link>
+    </c-n26.action-links>
+
+The dots are drawn by CSS, on every child but the first, rather than written at
+each call site — which is the whole point: adding or reordering a link cannot
+leave a stray separator behind, and a link hidden by a permission check takes its
+dot with it. See .n26-action-links in app.css.
+
+  icon — a single leading icon for the run. Sized in em and muted, so it reads as
+    labelling the group rather than belonging to the first link.
+{% endcomment %}
+<c-vars
+    class=""
+/>
+
+<div {{ attrs }} class="n26-action-links flex flex-wrap items-center {{ class }}">
+    {% if icon %}
+        <span class="n26-action-links-icon n26-icon-inline mr-1.5 text-muted"
+              aria-hidden="true">{{ icon }}</span>
+    {% endif %}
+    {{ slot }}
+</div>

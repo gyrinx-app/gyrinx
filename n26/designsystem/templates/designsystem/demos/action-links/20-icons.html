@@ -1,0 +1,34 @@
+{# title: Icons #}
+{# note: Either one icon for the whole run — the icon slot on action-links, muted, reading as a label for the group — or one per link. Not usually both. #}
+{# layout: col #}
+<c-n26.action-links>
+    <c-slot name="icon">
+        <c-n26.icon name="arrow-uturn-left" />
+    </c-slot>
+    <c-n26.action-link href="/design/" tone="muted">
+        Modify from default
+    </c-n26.action-link>
+    <c-n26.action-link href="/design/" tone="danger">
+        Delete
+    </c-n26.action-link>
+</c-n26.action-links>
+<c-n26.action-links>
+    <c-n26.action-link href="/design/">
+        <c-slot name="icon">
+            <c-n26.icon name="pencil" />
+        </c-slot>
+        Attributes
+    </c-n26.action-link>
+    <c-n26.action-link href="/design/">
+        <c-slot name="icon">
+            <c-n26.icon name="pencil" />
+        </c-slot>
+        Resources
+    </c-n26.action-link>
+    <c-n26.action-link href="/design/">
+        <c-slot name="icon">
+            <c-n26.icon name="plus" stroke_width="2" />
+        </c-slot>
+        Add gangs
+    </c-n26.action-link>
+</c-n26.action-links>

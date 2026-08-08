@@ -1,0 +1,37 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en-gb">
+    <head>
+        <meta charset="utf-8">
+        {% comment %}
+    width=device-width, as everywhere. The temptation on a page laid out in
+    millimetres is to pin the viewport to the sheet instead, and it is a trap:
+    iOS derives its *print* layout viewport from the on-screen one, so a lie
+    told here to make the preview look tidy is a lie that reaches the paper.
+        {% endcomment %}
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="description" content="Print proofing for the n26 gang sheet.">
+        <title>Print sheet — {{ options.specimen }} — n26</title>
+        {% comment %}
+    A bare document, not designsystem/base.html. The sheet is the print target
+    itself: the thing headless Chrome renders to PDF, the URL you open on a
+    phone. Extending the gallery's layout would put a sidebar, a theme widget
+    and a webfont from the network in front of it, all to be hidden again by
+    print rules — and every one of them a way for the artefact under test to
+    differ from the artefact that ships.
+        {% endcomment %}
+        <link rel="stylesheet" href="{% static 'designsystem/app.css' %}">
+    </head>
+    <body>
+        <c-n26.print.sheet page="{{ options.page }}"
+                           orientation="{{ options.orientation }}"
+                           margin="{{ margin_css }}"
+                           paged="{{ options.paged|yesno:'1,' }}"
+                           grid="{{ options.grid|yesno:'1,' }}"
+                           fit="{{ options.fit|yesno:'1,' }}"
+                           auto_print="{{ options.auto_print|yesno:'1,' }}"
+                           scroll="1">
+            {% include specimen_template %}
+        </c-n26.print.sheet>
+    </body>
+</html>

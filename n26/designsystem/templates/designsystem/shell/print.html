@@ -1,0 +1,78 @@
+{% extends "n26/layouts/base.html" %}
+{% comment %}
+Printing a gang, from inside the application.
+
+/design/print/ is the lab: a harness with controls, and /design/print/sheet/ is
+the bare artefact it drives — the URL headless Chrome renders and a phone opens,
+with nothing around it that could differ from what ships.
+
+This is the third thing, and the one neither of those can answer: what happens
+when a real page in the real shell is sent to a printer. The sheet is laid out in
+millimetres and the shell is laid out in a window, and the question is whether the
+second leaves a mark on the first.
+
+The answer is meant to be no. app.css drops the nav, the banner, the footer and
+the container's measure under @media print, unconditionally rather than per page —
+so the paper here should be the same paper the bare sheet produces. Verified with
+a PDF rather than believed.
+
+On screen it keeps the chrome, which is the point: this is what a player sees
+before they press the button.
+{% endcomment %}
+{% block head_title %}Print — {{ gang.name }}{% endblock head_title %}
+{% block nav_items %}
+    {% include 'designsystem/shell/_nav.html' with here='print' %}
+{% endblock %}
+{% block content %}
+    {% comment %}
+    n26-print-hide, so the heading and the button do not cost a sheet of paper.
+    The class is the print family's own: everything that exists to drive the
+    preview carries it, and the lab's controls have used it since it was built.
+    {% endcomment %}
+    <div class="n26-print-hide">
+        <c-n26.page-header title="Print" lead="{{ gang.name }}">
+            <c-slot name="breadcrumb">
+                <c-ui.breadcrumbs>
+                    <c-ui.breadcrumbs.item href="{% url 'designsystem:shell_home' %}">Gangs</c-ui.breadcrumbs.item>
+                    <c-ui.breadcrumbs.item href="{% url 'designsystem:shell_gang' %}">{{ gang.name }}</c-ui.breadcrumbs.item>
+                    <c-ui.breadcrumbs.item :current="True">
+                        Print
+                    </c-ui.breadcrumbs.item>
+                </c-ui.breadcrumbs>
+            </c-slot>
+            <c-slot name="actions">
+                {% comment %}
+                window.print() rather than a link to a PDF endpoint. The browser's
+                own dialogue is what a reader will use, and it is the thing under
+                test: a preview that agreed with a server-rendered PDF but not
+                with Cmd-P would be testing the wrong artefact.
+                {% endcomment %}
+                <c-ui.button variant="primary" @click="window.print()">
+                    Print these cards
+                </c-ui.button>
+            </c-slot>
+        </c-n26.page-header>
+        <c-n26.prose class="mt-3">
+            <p class="text-sm text-muted">
+                What prints is the sheet below and nothing else — the nav, the
+                banner, the footer and this paragraph all drop out under
+                <code>@media print</code>. Compare it with
+                <c-n26.link href="{% url 'designsystem:print_sheet' %}?specimen=cards&amp;count={{ options.count }}">the bare sheet</c-n26.link>,
+                which is the same cards with no application around them.
+            </p>
+        </c-n26.prose>
+    </div>
+    {% comment %}
+    The same specimen the lab drives and the proof script renders, composed from
+    the same partial. A print page in the shell that built its own cards would be
+    a fourth thing to keep in step with the other three.
+    {% endcomment %}
+    <div class="mt-6">
+        <c-n26.print.sheet page="{{ options.page }}"
+                           orientation="{{ options.orientation }}"
+                           margin="{{ margin_css }}"
+                           paged="1">
+            {% include "designsystem/print/_cards.html" %}
+        </c-n26.print.sheet>
+    </div>
+{% endblock content %}

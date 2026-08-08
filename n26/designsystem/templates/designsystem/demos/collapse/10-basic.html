@@ -1,0 +1,32 @@
+{# title: A single disclosure #}
+{# note: For one thing. Use the accordion when you have a set of them that should coordinate. #}
+{# layout: col #}
+<c-ui.collapse trigger_text="Show the full stat line">
+    <div class="pt-3">
+        <c-ui.table>
+            <thead>
+                <tr>
+                    <th>M</th>
+                    <th>WS</th>
+                    <th>BS</th>
+                    <th>S</th>
+                    <th>T</th>
+                    <th>W</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>4"</td>
+                    <td>3+</td>
+                    <td>4+</td>
+                    <td>3</td>
+                    <td>3</td>
+                    <td>1</td>
+                </tr>
+            </tbody>
+        </c-ui.table>
+    </div>
+</c-ui.collapse>
+<c-ui.collapse trigger_text="Already open" :expanded="True">
+    <p class="pt-3 text-sm text-muted">Started expanded with :expanded.</p>
+</c-ui.collapse>

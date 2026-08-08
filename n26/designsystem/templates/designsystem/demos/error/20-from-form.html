@@ -1,0 +1,6 @@
+{# title: From a Django form #}
+{# note: Give it the form and a field name and it renders that field's errors. The special name __all__ renders non-field errors instead. #}
+{# layout: col #}
+<c-ui.error :form="signup_form" name="email" />
+<c-ui.error :form="signup_form" name="password" />
+<c-ui.error :form="signup_form" name="__all__" />

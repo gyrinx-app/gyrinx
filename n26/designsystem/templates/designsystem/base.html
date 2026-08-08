@@ -1,0 +1,212 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en-gb">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="description"
+              content="The n26 design system: every component, its API and its demos.">
+        <title>{% block title %}Design system{% endblock %} — n26</title>
+        {% comment %} Blocking script that reads the stored mode and sets .dark before first paint.
+       Must come before the stylesheet, and its props must match the toggle below.
+        {% endcomment %}
+        <c-ui.mode-toggle.head storage_key="n26-theme" default="system" />
+        {% comment %}
+    Mynor, from Typekit. The two hints go first and cost nothing: dns-prefetch for
+    browsers that will not act on preconnect, preconnect to open the TLS connection
+    while the rest of the head is still parsing. crossorigin is required — fonts are
+    fetched anonymously, and without it the browser opens a second connection and
+    the preconnect is wasted.
+
+    This is the one asset the gallery loads from the network; everything else,
+    Alpine included, is vendored. Offline you get the fallback stack in app.css.
+        {% endcomment %}
+        <link rel="dns-prefetch" href="https://use.typekit.net">
+        <link rel="preconnect" href="https://use.typekit.net" crossorigin>
+        <link rel="stylesheet" href="https://use.typekit.net/rso6ezl.css">
+        <link rel="stylesheet" href="{% static 'designsystem/app.css' %}">
+        {% if needs_rich_text %}
+            {% comment %}
+        Order matters. richtext.js registers a DOMContentLoaded listener that
+        rewrites each editor's config with the skin for the current mode; loading
+        it before form.media means that listener is registered — and so runs —
+        before django-tinymce's own initialiser reads the config.
+
+        form.media goes in once for the page, not once per editor: it is the same
+        two scripts however many fields there are, and Django would emit them
+        repeatedly if each field rendered its own.
+            {% endcomment %}
+            <script src="{% static 'n26/richtext.js' %}"></script>
+            {{ rich_text_form.media }}
+        {% endif %}
+        <link rel="icon"
+              href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>🎨</text></svg>">
+    </head>
+    <body class="min-h-screen">
+        <a href="#content"
+           class="sr-only focus:not-sr-only focus:absolute focus:top-3 focus:left-3 focus:z-50 focus:rounded-control focus:bg-accent focus:px-3 focus:py-2 focus:text-accent-foreground">
+            Skip to content
+        </a>
+        <div class="mx-auto flex max-w-[1600px]">
+            {# ---------------------------------------------------------------- sidebar #}
+            {# djlint:off H037 — Alpine @event.window modifiers, not duplicate attributes #}
+            <aside x-data="sidebar({{ all_search_terms }})"
+                   @toggle-sidebar.window="open = !open"
+                   @keydown.escape.window="open = false"
+                   class="fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-box-border bg-surface transition-transform lg:sticky lg:top-0 lg:h-screen lg:translate-x-0"
+                   :class="open ? 'translate-x-0' : '-translate-x-full'">
+                <div class="flex items-center justify-between gap-2 border-b border-box-border px-5 py-4">
+                    <a href="{% url 'designsystem:index' %}" class="group min-w-0">
+                        <div class="text-sm font-semibold">Design system</div>
+                        <div class="truncate text-xs text-muted">django-cotton-ui {{ kit_version }}</div>
+                    </a>
+                    <c-ui.mode-toggle storage_key="n26-theme" default="system" size="sm" />
+                </div>
+                <div class="border-b border-box-border px-4 py-3">
+                    <label for="component-filter" class="sr-only">Filter components</label>
+                    <input id="component-filter"
+                           x-model="query"
+                           type="search"
+                           placeholder="Filter components…"
+                           autocomplete="off"
+                           class="w-full rounded-control border border-box-border bg-input-bg px-3 py-1.5 text-sm placeholder:text-muted focus-ring">
+                </div>
+                <nav class="flex-1 overflow-y-auto px-3 py-4 text-sm">
+                    {% comment %}
+            nav-current is defined in app.css, where the reasoning lives: the
+            marker is a neutral tint and ink text, because the accent is a fill
+            token with no guaranteed contrast against the page.
+                    {% endcomment %}
+                    {% with current="nav-current" %}
+                        {% with here=request.resolver_match.url_name %}
+                            <ul class="mb-5 space-y-0.5" x-show="!query">
+                                <li><a href="{% url 'designsystem:index' %}"
+   class="block rounded-control px-3 py-1.5 font-medium hover:bg-ink-500/10 {% if here == 'index' %}{{ current }}{% endif %}">Overview</a></li>
+                                <li><a href="{% url 'designsystem:theming' %}"
+   class="block rounded-control px-3 py-1.5 font-medium hover:bg-ink-500/10 {% if here == 'theming' %}{{ current }}{% endif %}">Theming</a></li>
+                                <li><a href="{% url 'designsystem:tokens' %}"
+   class="block rounded-control px-3 py-1.5 font-medium hover:bg-ink-500/10 {% if here == 'tokens' %}{{ current }}{% endif %}">Tokens</a></li>
+                                <li><a href="{% url 'designsystem:print_lab' %}"
+   class="block rounded-control px-3 py-1.5 font-medium hover:bg-ink-500/10 {% if here == 'print_lab' %}{{ current }}{% endif %}">Print lab</a></li>
+                                {% comment %}
+                    The only link here that leaves the gallery. The shell extends
+                    the app's own base rather than this one, so there is no sidebar
+                    on the other side and no `here` to match — a current-state
+                    conditional on this row would be a branch that can never run.
+
+                    The arrow says as much, which its siblings do not need to. Not
+                    target="_blank" though: it is a page in the same project, and a
+                    new tab for something the back button handles is a tab the
+                    reader has to close.
+                                {% endcomment %}
+                                <li>
+                                    <a href="{% url 'designsystem:shell_home' %}"
+                                       class="flex items-center gap-1.5 rounded-control px-3 py-1.5 font-medium hover:bg-ink-500/10">
+                                        App shell
+                                        <c-n26.icon name="arrow-top-right-on-square"
+                                                    class="size-3.5 text-muted"
+                                                    stroke_width="2" />
+                                    </a>
+                                </li>
+                            </ul>
+                        {% endwith %}
+                        {% for group in groups %}
+                            <div class="mb-5" x-show="groupMatches({{ group.search_terms }})">
+                                {% comment %}
+                    The heading links to the group's section on the overview, so a
+                    category is somewhere you can go rather than just a label.
+                                {% endcomment %}
+                                <a href="{% url 'designsystem:index' %}#{{ group.anchor }}"
+                                   class="flex items-center gap-1.5 rounded-control px-3 pb-1.5 pt-1 text-[11px] font-semibold uppercase tracking-wider hover:text-ink-900 dark:hover:text-ink-100 {% if component.group == group.name %}text-ink-900 dark:text-ink-100{% else %}text-muted{% endif %}">
+                                    {{ group.name }}
+                                </a>
+                                <ul class="space-y-0.5">
+                                    {% for c in group.components %}
+                                        <li x-show="matches('{{ c.search_term }}')">
+                                            <a href="{% url 'designsystem:component' c.slug %}"
+                                               {% if component.slug == c.slug %}aria-current="page" data-current{% endif %}
+                                               class="flex items-center justify-between gap-2 rounded-control px-3 py-1.5 hover:bg-ink-500/10 {% if component.slug == c.slug %}{{ current }}{% endif %}">
+                                                <span>{{ c.slug }}</span>
+                                                {% if c.parts %}
+                                                    <span class="text-[10px] text-muted">+{{ c.parts|length }}</span>
+                                                {% endif %}
+                                            </a>
+                                        </li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        {% endfor %}
+                        <p x-show="query && !anyMatches()"
+                           x-cloak
+                           class="px-3 py-2 text-sm text-muted">
+                            Nothing matches “<span x-text="query"></span>”.
+                        </p>
+                    {% endwith %}
+                </nav>
+                <div class="border-t border-box-border px-5 py-3 text-xs text-muted">{{ component_count }} components</div>
+            </aside>
+            {# djlint:on #}
+            {# ------------------------------------------------------------------- main #}
+            {% comment %}
+    The header below is sticky, so anything else on the page that sticks has to
+    start beneath it — see --n26-sticky-top in <c-n26.collection-picker>. Declared here
+    rather than in app.css so the offset and the thing it clears stay in view of
+    each other, and it goes back to zero at lg, where the header does not exist.
+            {% endcomment %}
+            <div class="min-w-0 flex-1 [--n26-sticky-top:3.9375rem] lg:[--n26-sticky-top:0px]">
+                <header class="sticky top-0 z-30 flex items-center gap-3 border-b border-box-border bg-surface/80 px-5 py-3 backdrop-blur lg:hidden">
+                    <button type="button"
+                            @click="$dispatch('toggle-sidebar')"
+                            x-data
+                            class="rounded-control border border-box-border p-2 focus-ring"
+                            aria-label="Open navigation">
+                        <c-n26.icon name="bars-3" class="size-5" stroke_width="1.5" />
+                    </button>
+                    <span class="text-sm font-semibold">{% block mobile_title %}Design system{% endblock %}</span>
+                </header>
+                <main id="content" class="px-5 py-8 sm:px-8 lg:px-12">
+                    {% block content %}{% endblock %}
+                </main>
+            </div>
+        </div>
+        {# Toasts need a container present once; the demo on the toast page dispatches into it. #}
+        <c-ui.toast.container position="bottom-left" />
+        {# The kit's own theming devtool, on every page — theme while you browse. #}
+        <c-ui.theme-builder-widget position="bottom-right" storage_key="n26-theme-builder" />
+        <script>
+document.addEventListener('alpine:init', () => {
+    Alpine.data('sidebar', (allTerms) => ({
+        query: '',
+        open: false,
+        allTerms,
+
+        init() {
+            // On a deep link the current component can be far down a 41-item list,
+            // so bring it into view — but only within the nav, never by scrolling
+            // the page itself.
+            const current = this.$el.querySelector('[data-current]');
+            if (current) current.scrollIntoView({ block: 'nearest' });
+        },
+
+        matches(term) {
+            if (!this.query) return true;
+            return term.includes(this.query.trim().toLowerCase());
+        },
+
+        groupMatches(terms) {
+            return !this.query || terms.some((term) => this.matches(term));
+        },
+
+        anyMatches() {
+            return this.allTerms.some((term) => this.matches(term));
+        },
+    }));
+});
+        </script>
+        <script defer src="{% static 'django_cotton_ui/cotton-ui.min.js' %}"></script>
+        <script defer src="{% static 'designsystem/vendor/alpine-collapse.min.js' %}"></script>
+        <script defer src="{% static 'designsystem/vendor/alpine-focus.min.js' %}"></script>
+        <script defer src="{% static 'designsystem/vendor/alpine.min.js' %}"></script>
+        {% block scripts %}{% endblock %}
+    </body>
+</html>
