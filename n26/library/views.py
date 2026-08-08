@@ -413,10 +413,14 @@ def leaf(request, kind):
                     if suggestions is not None:
                         suggestions.apply(created)
             except IntegrityError:
+                # Not every kind calls its name "name" — the spec says
+                # which field an author reads as one, so the refusal
+                # lands on a field the form actually has.
+                named = spec.identity
                 form.add_error(
-                    "name",
+                    named,
                     f"A {model._meta.verbose_name} named "
-                    f"“{form.cleaned_data['name']}” already exists in this pack.",
+                    f"“{form.cleaned_data[named]}” already exists in this pack.",
                 )
             else:
                 messages.success(request, f"Created {created}.")

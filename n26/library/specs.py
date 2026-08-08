@@ -147,6 +147,11 @@ class Spec:
     #: where there is one, named here where there isn't — a stat has a
     #: short name and a full one, and a through row has neither.
     model: type = None
+    #: The field an author reads as this thing's name, and so where a
+    #: refusal about a duplicate belongs. Every creating kind but one
+    #: calls it ``name``; a stat is told apart by its full name, which
+    #: is what its uniqueness is derived from.
+    identity: str = "name"
 
     @property
     def name(self):
@@ -451,6 +456,7 @@ def _build_registry():
                 "is_modifier": Bool(source=(Stat, "is_modifier")),
             },
             model=Stat,
+            identity="full_name",
         ),
         Spec(
             authoring.create_statline_type,
