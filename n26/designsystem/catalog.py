@@ -936,6 +936,26 @@ GROUPS: list[Group] = [
                 ),
             ),
             Component(
+                slug="tab-links",
+                tag="c-n26.tab-links",
+                template="n26/tab_links.html",
+                summary="A tab strip whose tabs are links, for a choice the server answers.",
+                notes=(
+                    "The other kind of tab. c-ui.tabs switches panels already on the "
+                    "page; these navigate, because what is behind one is a whole "
+                    "render — which makes the choice a URL, so it is linkable, in the "
+                    "history and available to a browser that has run no JavaScript. "
+                    "That is also why a tab carries no count: only the current one has "
+                    "been fetched, and numbering the rest would cost a query per tab "
+                    "on a strip whose whole job is to offer more of them. Drawn as a "
+                    "nav with aria-current rather than role=tablist, which promises "
+                    "arrow keys and a panel that swaps underneath. It wraps rather "
+                    "than scrolling sideways, because names come from content and a "
+                    "horizontal scroller hides tabs past the edge of a phone behind a "
+                    "gesture nobody is told about."
+                ),
+            ),
+            Component(
                 slug="collection-picker",
                 tag="c-n26.collection-picker",
                 template="n26/collection_picker/index.html",

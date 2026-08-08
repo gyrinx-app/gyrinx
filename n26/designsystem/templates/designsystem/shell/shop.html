@@ -15,7 +15,8 @@ component's own page shows it working; this shows it working under a header.
     {% include 'designsystem/shell/_nav.html' with here='shop' %}
 {% endblock %}
 {% block content %}
-    <c-n26.page-header title="Trading post" lead="Buying for The Ashen Choir">
+    <c-n26.page-header title="Trading post"
+                       lead="Buying for The Ashen Choir — what you buy lands on this fighter's card.">
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
                 <c-ui.breadcrumbs.item href="{% url 'designsystem:shell_home' %}">Gangs</c-ui.breadcrumbs.item>
@@ -26,18 +27,33 @@ component's own page shows it working; this shows it working under a header.
             </c-ui.breadcrumbs>
         </c-slot>
     </c-n26.page-header>
-    <c-n26.collection-picker class="mt-6"
-                             :categories="trading_post_categories"
+    {% comment %}
+    Which list, above the filter bar: the coarse choice a reader makes before
+    any narrowing means anything. On the real screen each tab is a URL the
+    server answers; here they are anchors, so the strip can be looked at
+    without a database behind it.
+    {% endcomment %}
+    <c-n26.tab-links class="mt-6" label="Which list" :tabs="trading_post_tabs" />
+    <c-n26.collection-picker :categories="trading_post_categories"
                              :sections="trading_post_sections"
                              cost_floor="{{ trading_post_cost_floor }}"
                              cost_ceiling="{{ trading_post_cost_ceiling }}"
                              tp_ceiling="{{ trading_post_tp_ceiling }}"
                              noun="items">
         <c-slot name="filters">
-            <c-n26.search-bar :live="True" model="query" placeholder="Search the trading post" />
+            {% comment %}
+            Nested, like the real screen's: there the whole listing is one form
+            whose buttons buy, so the bar is a <div> inside it and narrows rows
+            already on the page rather than submitting anything.
+            {% endcomment %}
+            <c-n26.search-bar :live="True"
+                              :nested="True"
+                              model="query"
+                              placeholder="Search the trading post" />
             <div class="flex flex-wrap items-center gap-2">
                 <c-n26.filter-menu label="Category"
                                    name="category"
+                                   size="xs"
                                    :options="trading_post_category_options" />
                 <c-n26.range-menu label="Price"
                                   model_min="minCost"
@@ -46,6 +62,7 @@ component's own page shows it working; this shows it working under a header.
                                   max="{{ trading_post_cost_ceiling }}"
                                   step="5"
                                   suffix="¢"
+                                  size="xs"
                                   at_max_label="Any" />
                 <c-n26.range-menu label="Trade points"
                                   model="maxTradePoints"
@@ -53,9 +70,11 @@ component's own page shows it working; this shows it working under a header.
                                   max="{{ trading_post_tp_ceiling }}"
                                   step="1"
                                   prefix="≤ "
+                                  size="xs"
                                   at_min_label="Freely available"
                                   at_max_label="Any" />
                 <c-n26.toggle label="Exclusive"
+                              size="xs"
                               :checked="True"
                               @change="includeExclusive = $event.target.checked" />
             </div>

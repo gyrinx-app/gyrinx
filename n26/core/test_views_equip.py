@@ -14,6 +14,7 @@ from n26.core.browse import UNCATEGORISED
 from n26.core.models import Assignment, Gang
 from n26.core.operations import operation
 from n26.library.authoring import create_collection, create_wargear
+from n26.library.models import Collection
 
 pytestmark = pytest.mark.django_db
 
@@ -172,6 +173,155 @@ def test_the_chosen_list_is_url_state(client, tester, fighter, house_list):
     on_house = client.get(equip_url(fighter, house_list)).content.decode()
     assert "Knife" in on_house
     assert "Lho Sticks" not in on_house
+
+
+def test_each_list_is_a_tab_of_its_own(client, tester, fighter, house_list):
+    """The lists a fighter's built-ins carry, then the Trading Post — one
+    tab each, every one a link, and exactly one of them current."""
+    from n26.library.authoring import create_trading_post
+
+    create_wargear("Lho Sticks", price=5, trade_point_price=1)
+    create_trading_post()
+
+    client.force_login(tester)
+    tabs = client.get(equip_url(fighter, house_list)).context["collection_tabs"]
+    assert [tab["label"] for tab in tabs] == ["House List", "Trading Post"]
+    assert [tab["href"] for tab in tabs] == [
+        f"?list={house_list.pk}",
+        f"?list={Collection.objects.get(name='Trading Post').pk}",
+    ]
+    assert [tab["current"] for tab in tabs] == [True, False]
+
+
+def test_a_lone_list_draws_no_strip_and_the_lead_says_where_you_are(
+    client, tester, fighter, house_list
+):
+    """One list is not a choice. A strip of one tab would be a control that
+    does nothing, so the page says which list it is showing instead."""
+    client.force_login(tester)
+    response = client.get(equip_url(fighter))
+    assert len(response.context["collection_tabs"]) == 1
+    assert "House List" in response.context["lead"]
+    assert 'aria-label="Which list"' not in response.content.decode()
+
+
+def test_a_tab_drops_the_words_every_tab_shares(client, tester, gang, fighter):
+    """Every tab is a list to buy from, so a name that ends by saying so
+    spends the strip's width on the one word they all have. The full name
+    stays on the link for anyone who wants it."""
+    from n26.library.authoring import create_trading_post
+
+    nomads = create_collection(
+        "Ash Waste Nomads Equipment List", entries=[create_wargear("Rope", price=5)]
+    )
+    with operation(gang, actor=tester) as op:
+        op.assign(nomads, gang=gang)
+    create_trading_post()
+
+    client.force_login(tester)
+    body = client.get(equip_url(fighter, nomads)).content.decode()
+    assert ">Ash Waste Nomads<" in body
+    assert 'title="Ash Waste Nomads Equipment List"' in body
+
+
+def test_two_names_that_shorten_alike_keep_their_full_names():
+    """Two tabs reading the same word is worse than two long ones, and a
+    strip is read as a set — so the whole strip falls back together."""
+    from n26.core.views.equip import collection_tabs
+
+    class Shelf:
+        def __init__(self, name, pk):
+            self.name, self.pk = name, pk
+
+        def __str__(self):
+            return self.name
+
+    shelves = [Shelf("Orlock Equipment List", 1), Shelf("Orlock", 2)]
+    assert [tab["label"] for tab in collection_tabs(shelves, shelves[0])] == [
+        "Orlock Equipment List",
+        "Orlock",
+    ]
+
+
+def test_the_filter_bar_offers_nothing_to_submit(client, tester, fighter, house_list):
+    """The bar narrows rows already on the page, as you type. There is no
+    server search behind it, so a Search button would be a control that
+    cannot do anything — and a real submit would press the Buy form it sits
+    inside."""
+    client.force_login(tester)
+    body = client.get(equip_url(fighter, house_list)).content.decode()
+    assert 'role="search"' in body
+    # Every submit on this page buys something.
+    assert body.count('type="submit"') == body.count('name="thing"')
+
+
+def test_the_page_has_a_strip_for_the_list_and_a_strip_for_the_shelf(
+    client, tester, fighter, house_list
+):
+    """Two strips, choosing two different things. The upper one picks the
+    list and is links the server answers; the lower one picks which shelf
+    of that list is on screen and swaps it in the hand. Lose the lower one
+    and every shelf draws at once, one under the next."""
+    from n26.library.authoring import create_trading_post
+
+    create_trading_post()
+
+    client.force_login(tester)
+    body = client.get(equip_url(fighter, house_list)).content.decode()
+    assert 'aria-label="Which list"' in body
+    assert 'role="tablist"' in body
+    # The shelf strip is the picker's, so the sections must not also be
+    # drawing themselves as headings to open.
+    assert 'x-show="!tabbed"' in body
+
+
+def test_only_the_chosen_lists_rows_are_on_the_page(
+    client, tester, gang, fighter, house_list
+):
+    """One list's rows at a time. A tab that is not current has
+    contributed nothing to this render — a page carrying two lists' rows
+    is one that concatenated the strip instead of choosing from it."""
+    rope = create_wargear("Rope", price=5)
+    with operation(gang, actor=tester) as op:
+        op.assign(create_collection("Ash Waste", entries=[rope]), gang=gang)
+
+    client.force_login(tester)
+    body = client.get(equip_url(fighter, house_list)).content.decode()
+    assert "Knife" in body
+    # The other list is a tab, so its name is on the page; its stock is not.
+    assert "Ash Waste" in body
+    assert "Rope" not in body
+
+
+def test_a_category_named_with_an_ampersand_still_matches_the_filter(
+    client, tester, fighter, house_list
+):
+    """The picker keys its filter and its counts on the names the view
+    listed, and a name written into an HTML attribute comes back escaped.
+    Escaped, "Armour & field armour" matches nothing in that list: the
+    category counts zero, hides itself, and takes its rows off the page
+    with it. So the name the picker reads must be the name the view sent,
+    character for character."""
+    from n26.library.models import Category, Section, Wargear
+
+    section = Section.objects.create(name="Kit & gear", position=0)
+    category = Category.objects.create(
+        section=section, name="Armour & shields", position=0
+    )
+    knife = Wargear.objects.get(name="Knife")
+    knife.category = category
+    knife.save()
+
+    client.force_login(tester)
+    response = client.get(equip_url(fighter, house_list))
+    body = response.content.decode()
+    assert "Armour & shields" in response.context["categories"]
+    # Both sides write the name into an attribute, so both are escaped once
+    # and the browser hands Alpine the same two strings. Escaped twice, the
+    # category's copy would arrive with a literal "&amp;" in it and compare
+    # equal to nothing.
+    assert '"Armour &amp; shields"' in body
+    assert "&amp;amp;" not in body
 
 
 def test_every_registration_name_is_a_known_category(

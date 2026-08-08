@@ -22,18 +22,18 @@ list narrows as you type, so the answer is already on screen before anything is
 submitted. It also gains a clear button, which a submitting search does not need
 — you can see your query in the URL — and a live one very much does.
 
-*The submit button stays either way.* It used to be dropped on a live search, on
-the argument that there was nothing left to submit. That was right about the
-mechanics and wrong about the pattern: a search bar is a field and a button, and
-one that quietly loses its button on some pages teaches a reader that this is a
-different kind of control when it is the same one. The button also carries the
-form on a page where JavaScript has not run, which is the case the live version
-otherwise has no answer for.
+*The submit button appears exactly where pressing it does something.* That is a
+bar with somewhere to go: any bar that is not live, and a live one given an
+`action` — a page that can find things the current one is not showing, which is
+also the only version a reader with no JavaScript can use.
 
-So a live search is still a form. Given an `action` it submits as a GET like any
-other and the server answers; without one there is nowhere to go, and pressing
-Search commits a query that is already committed — so the submit is prevented
-rather than reloading the page to no effect.
+The other two cases have no destination, so they draw no button. A live bar with
+no `action` has its submit prevented, because committing a query that is already
+committed would reload the page to show the same rows. A nested one sits inside
+somebody else's form, and its button has to be a plain one so it does not press
+theirs. A button in either place looks like an action and is not one — and the
+bar is not really searching there: it narrows rows already on the page, as you
+type, with nothing to press.
 
   action, method — form target. Default GET to the current URL.
   name — query parameter. Default "q".
@@ -42,8 +42,8 @@ rather than reloading the page to no effect.
   :live — filter in place instead of submitting. Needs `model`.
   model — an Alpine expression to bind the field to, resolved in the
     surrounding scope: model="query" inside a component holding `query`.
-  :nested — this sits inside another <form>. Renders a <div> instead, and makes
-    the button type="button". Required, not cosmetic: see below.
+  :nested — this sits inside another <form>. Renders a <div> instead, and drops
+    the submit. Required, not cosmetic: see below.
 {% endcomment %}
 <c-vars
     action=""
@@ -68,17 +68,19 @@ bug rather than as invalid markup, because there was nothing in the DOM left to
 point at: `document.querySelectorAll('form')` returned one element and the
 `role="search"` was simply gone.
 
-So `nested` renders a <div> and turns the submit into a plain button. It has to
-turn it off — a type="submit" inside somebody else's form submits *their* form,
-which on the hire screen would hire whichever fighter the browser picked first.
+So `nested` renders a <div> and draws no submit at all. It cannot draw one — a
+type="submit" inside somebody else's form submits *their* form, which on the
+hire screen would hire whichever fighter the browser picked first.
 
 Live filtering is unaffected either way: the field binds to Alpine and the list
 narrows as you type, which is the only behaviour a nested search bar has.
 
 Not nested, it is a form either way. Live and with an action that is progressive
-enhancement — GET without JavaScript, filtering in place with it. Live and
-without one there is nowhere to submit to, so the submit is prevented: reloading
-the page to show the same rows would be worse than doing nothing.
+enhancement — GET without JavaScript, filtering in place with it, and the button
+is what carries the first case. Live and without one there is nowhere to submit
+to, so the submit is prevented and no button is drawn: reloading the page to
+show the same rows would be worse than doing nothing, and offering to is worse
+still.
 {% endcomment %}
 <{% if nested %}div{% else %}form{% endif %}
       {% if not nested %}action="{{ action }}" method="{{ method }}"{% endif %}
@@ -132,12 +134,22 @@ the page to show the same rows would be worse than doing nothing.
     </div>
 
     {% comment %}
-    type="button" when nested. A submit inside somebody else's form submits
-    theirs — on the hire screen that would post the hire form and buy whichever
-    fighter the browser reached first.
+    Only where it submits something. Nested, there is no form of ours to submit
+    and a real submit would post the page's — on the hire screen, hiring
+    whichever fighter the browser reached first. Live with no action, the
+    submit is prevented. Neither is a button; both would be a control that
+    looks like one.
     {% endcomment %}
-    <c-ui.button type="{% if nested %}button{% else %}submit{% endif %}"
-                 variant="primary" class="shrink-0">
-        {{ button_label }}
-    </c-ui.button>
+    {% comment %}
+    Nested twice over, because Django's `if` has no parentheses and this is
+    `not nested and (not live or action)` — flattened, the `or` would swallow
+    the nesting test and put a real submit inside the page's own form.
+    {% endcomment %}
+    {% if not nested %}
+        {% if not live or action %}
+            <c-ui.button type="submit" variant="primary" class="shrink-0">
+                {{ button_label }}
+            </c-ui.button>
+        {% endif %}
+    {% endif %}
 </{% if nested %}div{% else %}form{% endif %}>

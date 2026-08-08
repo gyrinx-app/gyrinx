@@ -29,8 +29,7 @@ breadcrumb above it has the gang as well, so nothing is lost.
     {% include 'n26/_nav.html' %}
 {% endblock %}
 {% block content %}
-    <c-n26.page-header title="Equip {{ miniature.name }}"
-                       lead="Buying for {{ gang.name }} — what you buy lands on this fighter's card.">
+    <c-n26.page-header title="Equip {{ miniature.name }}" lead="{{ lead }}">
         {% comment %}
         The heading is about the fighter, so this offers the gang's others —
         every row landing on this same screen for them. Equipping a gang is
@@ -58,103 +57,135 @@ breadcrumb above it has the gang as well, so nothing is lost.
         </c-slot>
     </c-n26.page-header>
     {% comment %}
-    Which list. Links, not client state: a list is a place you can be, so it
-    goes in the URL — linkable, back-button-friendly, and the server renders
-    the one you are on. One list draws no chooser; there is nothing to choose.
+    Which list, as the page's top-level choice: a fighter's own lists — the ones
+    their built-ins carry — then the Trading Post. Above the filter bar, because
+    choosing the list you are shopping is a larger decision than narrowing what
+    it shows, and the filters only ever mean anything within one of them.
+
+    Links, not client state: a list is a place you can be, so it goes in the URL
+    — linkable, back-button-friendly, and the server renders the one you are on.
+    One list draws no strip; there is nothing to choose, and the lead says where
+    you are.
     {% endcomment %}
-    {% if collections|length > 1 %}
-        <div class="mt-6 flex flex-wrap items-center gap-2">
-            {% for collection in collections %}
-                <c-ui.button size="sm"
-                             variant="{% if collection.pk == chosen.pk %}primary{% else %}default{% endif %}"
-                             href="?list={{ collection.pk }}">{{ collection }}</c-ui.button>
-            {% endfor %}
-        </div>
-    {% endif %}
     {% if chosen %}
-        <form method="post"
-              action="{% url 'n26-equip' miniature.pk %}?list={{ chosen.pk }}">
-            {% csrf_token %}
-            <c-n26.collection-picker class="mt-6"
-                                     :categories="categories"
-                                     :sections="sections"
-                                     cost_floor="{{ cost_floor }}"
-                                     cost_ceiling="{{ cost_ceiling }}"
-                                     tp_ceiling="{{ tp_ceiling }}"
-                                     noun="items">
-                <c-slot name="filters">
-                    <c-n26.search-bar :live="True"
-                                      :nested="True"
-                                      model="query"
-                                      placeholder="Search {{ chosen }}" />
-                    {% if category_options or cost_ceiling > cost_floor or has_trade_points or has_exclusive %}
-                        <div class="flex flex-wrap items-center gap-2">
-                            {% if category_options %}
-                                <c-n26.filter-menu label="Category" name="category" :options="category_options" />
-                            {% endif %}
-                            {% if cost_ceiling > cost_floor %}
-                                <c-n26.range-menu label="Price"
-                                                  model_min="minCost"
-                                                  model_max="maxCost"
-                                                  min="{{ cost_floor }}"
-                                                  max="{{ cost_ceiling }}"
-                                                  step="5"
-                                                  suffix="¢"
-                                                  at_max_label="Any" />
-                            {% endif %}
-                            {% if has_trade_points %}
-                                <c-n26.range-menu label="Trade points"
-                                                  model="maxTradePoints"
-                                                  min="0"
-                                                  max="{{ tp_ceiling }}"
-                                                  step="1"
-                                                  prefix="≤ "
-                                                  at_min_label="Freely available"
-                                                  at_max_label="Any" />
-                            {% endif %}
+        <div class="mt-6">
+            {% if collection_tabs|length > 1 %}
+                <c-n26.tab-links label="Which list" :tabs="collection_tabs" />
+            {% endif %}
+            <form method="post"
+                  action="{% url 'n26-equip' miniature.pk %}?list={{ chosen.pk }}">
+                {% csrf_token %}
+                {% comment %}
+                Sections keep their own strip, under the filters. The two
+                strips are choosing different things at different sizes: the
+                one above the bar picks which list you are shopping and costs
+                a page load, this one picks which shelf of that list is on
+                screen and costs nothing. Stacking the sections instead would
+                put a shelf's worth of rows between one heading and the next,
+                and a list with several shelves under one name would draw a
+                heading each — every one of them counting the same rows.
+                {% endcomment %}
+                <c-n26.collection-picker :categories="categories"
+                                         :sections="sections"
+                                         cost_floor="{{ cost_floor }}"
+                                         cost_ceiling="{{ cost_ceiling }}"
+                                         tp_ceiling="{{ tp_ceiling }}"
+                                         noun="items">
+                    <c-slot name="filters">
+                        <c-n26.search-bar :live="True"
+                                          :nested="True"
+                                          model="query"
+                                          placeholder="Search {{ chosen }}" />
+                        {% if category_options or cost_ceiling > cost_floor or has_trade_points or has_exclusive %}
                             {% comment %}
-                            Gated on its own flag, not on has_trade_points: an
-                            exclusive line has trade_points=None ("E" answers
-                            no numeric question), so an exclusive-only list
-                            has TP nothing to slide — and this toggle is the
-                            only way to filter what it does have.
+                            A size under the search field above them. These
+                            refine what the field returned rather than
+                            competing with it, and a row of full-height
+                            controls under a full-height input is two bars of
+                            chrome before the list gets a pixel.
                             {% endcomment %}
-                            {% if has_exclusive %}
-                                <c-n26.toggle label="Exclusive"
-                                              :checked="True"
-                                              @change="includeExclusive = $event.target.checked" />
-                            {% endif %}
-                        </div>
-                    {% endif %}
-                </c-slot>
-                {% for section_row in section_rows %}
-                    <c-n26.collection-picker.section name="{{ section_row.name }}" :open="section_row.first">
-                        {% for category in section_row.categories %}
-                            {% if category.name %}
-                                <c-n26.collection-picker.category name="{{ category.name }}">
+                            <div class="flex flex-wrap items-center gap-2">
+                                {% if category_options %}
+                                    <c-n26.filter-menu label="Category"
+                                                       name="category"
+                                                       size="xs"
+                                                       :options="category_options" />
+                                {% endif %}
+                                {% if cost_ceiling > cost_floor %}
+                                    <c-n26.range-menu label="Price"
+                                                      model_min="minCost"
+                                                      model_max="maxCost"
+                                                      min="{{ cost_floor }}"
+                                                      max="{{ cost_ceiling }}"
+                                                      step="5"
+                                                      suffix="¢"
+                                                      size="xs"
+                                                      at_max_label="Any" />
+                                {% endif %}
+                                {% if has_trade_points %}
+                                    <c-n26.range-menu label="Trade points"
+                                                      model="maxTradePoints"
+                                                      min="0"
+                                                      max="{{ tp_ceiling }}"
+                                                      step="1"
+                                                      prefix="≤ "
+                                                      size="xs"
+                                                      at_min_label="Freely available"
+                                                      at_max_label="Any" />
+                                {% endif %}
+                                {% comment %}
+                                Gated on its own flag, not on has_trade_points: an
+                                exclusive line has trade_points=None ("E" answers
+                                no numeric question), so an exclusive-only list
+                                has TP nothing to slide — and this toggle is the
+                                only way to filter what it does have.
+                                {% endcomment %}
+                                {% if has_exclusive %}
+                                    <c-n26.toggle label="Exclusive"
+                                                  size="xs"
+                                                  :checked="True"
+                                                  @change="includeExclusive = $event.target.checked" />
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                    </c-slot>
+                    {% comment %}
+                    Names are bound, not written into the attribute. A name
+                    with an ampersand in it — "Armour & field armour" — comes
+                    back from an attribute HTML-escaped, and the picker keys
+                    its filter and its counts on the string the view put in
+                    `categories`. The two would not match, and the whole
+                    category would count zero and hide itself.
+                    {% endcomment %}
+                    {% for section_row in section_rows %}
+                        <c-n26.collection-picker.section :name="section_row.name" :open="section_row.first">
+                            {% for category in section_row.categories %}
+                                {% if category.name %}
+                                    <c-n26.collection-picker.category :name="category.name">
+                                        {% for row in category.lines %}
+                                            {% include "n26/includes/equip_line.html" %}
+                                        {% endfor %}
+                                    </c-n26.collection-picker.category>
+                                {% else %}
+                                    {% comment %}
+                                    Unnamed home: rows sit straight inside the
+                                    section, the same convention as the hire page.
+                                    {% endcomment %}
                                     {% for row in category.lines %}
                                         {% include "n26/includes/equip_line.html" %}
                                     {% endfor %}
-                                </c-n26.collection-picker.category>
-                            {% else %}
-                                {% comment %}
-                                Unnamed home: rows sit straight inside the
-                                section, the same convention as the hire page.
-                                {% endcomment %}
-                                {% for row in category.lines %}
-                                    {% include "n26/includes/equip_line.html" %}
-                                {% endfor %}
-                            {% endif %}
-                        {% endfor %}
-                    </c-n26.collection-picker.section>
-                {% endfor %}
-            </c-n26.collection-picker>
-        </form>
+                                {% endif %}
+                            {% endfor %}
+                        </c-n26.collection-picker.section>
+                    {% endfor %}
+                </c-n26.collection-picker>
+            </form>
+        </div>
     {% else %}
         <p class="mt-6 text-muted">
             No equipment lists yet — this fighter has nothing to browse. Lists
             arrive with the gang's own content, or from the library's Trading
-            Post once it is sown.
+            Post once one is created.
         </p>
     {% endif %}
 {% endblock content %}

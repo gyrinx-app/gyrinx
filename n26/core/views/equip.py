@@ -52,6 +52,48 @@ def _parts_picked(data, key, line):
     return picked
 
 
+#: What a collection's name says at the end when it says what it is. Every
+#: tab in the strip is a list to buy from, so the words they all share are
+#: the ones worth dropping.
+LIST_SUFFIX = "equipment list"
+
+
+def _tab_label(collection):
+    """A collection's name, shortened for a strip of tabs.
+
+    "Ash Waste Nomads Equipment List" reads as "Ash Waste Nomads" with
+    nothing lost — the strip is a row of lists, so a name ending by
+    saying so spends the width every tab is short of on the one word
+    they all have. A name that is nothing but the suffix keeps it.
+    """
+    name = str(collection)
+    if not name.lower().endswith(LIST_SUFFIX):
+        return name
+    return name[: -len(LIST_SUFFIX)].strip(" -–—:") or name
+
+
+def collection_tabs(collections, chosen):
+    """One tab per collection, in the order a fighter reaches them.
+
+    Shortened names, unless two of them shorten to the same word: two
+    tabs reading alike is worse than two long ones, and the strip is
+    read as a set rather than a tab at a time, so the whole strip falls
+    back together.
+    """
+    labels = [_tab_label(collection) for collection in collections]
+    if len(set(labels)) != len(labels):
+        labels = [str(collection) for collection in collections]
+    return [
+        {
+            "label": label,
+            "title": str(collection),
+            "href": f"?list={collection.pk}",
+            "current": chosen is not None and collection.pk == chosen.pk,
+        }
+        for label, collection in zip(labels, collections, strict=True)
+    ]
+
+
 def _row(line):
     """One line as the template draws it: the identity its Buy submits,
     and its parts as tickable inputs.
@@ -186,6 +228,20 @@ def equip(request, pk):
         (section.name or UNCATEGORISED, section)
         for section in (view.sections if view is not None else [])
     ]
+    # Which list is being browsed is a tab when there are several. With
+    # one there is nothing to choose, so a strip of one tab would be a
+    # control that does nothing — the lead says where you are shopping
+    # instead.
+    tabs = collection_tabs(collections, chosen)
+    if len(tabs) > 1:
+        lead = f"Buying for {gang.name} — what you buy lands on this fighter's card."
+    elif chosen is not None:
+        lead = (
+            f"Buying for {gang.name} from {chosen} — what you buy lands on "
+            "this fighter's card."
+        )
+    else:
+        lead = f"Buying for {gang.name}."
     return render(
         request,
         "n26/equip.html",
@@ -193,7 +249,9 @@ def equip(request, pk):
             "miniature": miniature,
             "gang": gang,
             "collections": collections,
+            "collection_tabs": tabs,
             "chosen": chosen,
+            "lead": lead,
             # Each line paired with the key its Buy button submits and the
             # field name its parts tick under, so the template never
             # composes an identity the server would then have to guess at.

@@ -323,6 +323,37 @@ def trading_post() -> CollectionView:
     return CollectionView(name="Trading Post", sections=sections)
 
 
+class _Shelf:
+    """A stand-in for a Collection where only its name and key are read.
+
+    The tab strip is built by the shop screen's own function, so the
+    gallery shortens names by the rule the real page uses rather than by
+    a copy of it — and that function reads nothing else off a
+    collection.
+    """
+
+    def __init__(self, name, pk):
+        self.name = name
+        self.pk = pk
+
+    def __str__(self):
+        return self.name
+
+
+def _shop_tabs():
+    """The lists one fighter can buy from: two their built-ins carry, then
+    the Trading Post everyone reaches. Long names on purpose — that is
+    what the strip has to survive on a phone."""
+    from n26.core.views.equip import collection_tabs
+
+    shelves = [
+        _Shelf("Ash Waste Nomads Equipment List", "nomads"),
+        _Shelf("Dust Falls Trade Agreement Equipment List", "dust-falls"),
+        _Shelf("Trading Post", "post"),
+    ]
+    return collection_tabs(shelves, shelves[0])
+
+
 def trading_post_context():
     """The list view needs the shape of its data as well as the data.
 
@@ -360,6 +391,7 @@ def trading_post_context():
             {"value": name, "label": name} for name in categories
         ],
         "trading_post_in_stash": IN_STASH,
+        "trading_post_tabs": _shop_tabs(),
         "trading_post_cost_floor": min(line.credits for line in lines),
         "trading_post_cost_ceiling": max(line.credits for line in lines),
         # Exclusive lines are left out of the ceiling: "E" is not a number, and

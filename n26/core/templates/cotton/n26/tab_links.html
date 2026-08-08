@@ -1,0 +1,53 @@
+{% comment %}
+<c-n26.tab-links> — a strip of tabs that are links, one of them current.
+
+    <c-n26.tab-links label="Equipment lists" :tabs="collection_tabs" />
+
+A tab strip for a choice the server answers. Each tab is an <a>, so the choice
+is a URL: linkable, in the history, and made by a browser that has run no
+JavaScript. The kit's c-ui.tabs is the other kind — panels already on the page,
+switched in the hand — and cannot be this, because the thing behind a tab here
+is a whole render.
+
+Which is also why a tab carries no count. Only the current tab's contents have
+been fetched; a number on the others would mean building them too, and a strip
+that costs a query per tab is a strip that gets worse the more choices it
+offers. Counting belongs inside whatever the chosen tab drew.
+
+Drawn as a nav rather than with role="tablist": these navigate, and a reader
+told "tab" by a screen reader expects arrow keys and a panel that swaps under
+them. aria-current="page" says which one they are on.
+
+It wraps rather than scrolling sideways. Names come from content and can be
+long, and a horizontal scroller on a phone hides the tabs past the edge behind
+a gesture nobody is told about — two rows of tabs are plainer than one row with
+something off the end. A single name too long for the width truncates instead
+of pushing the strip wider than the page.
+
+The rule under the strip is drawn by the tabs themselves: every tab carries the
+same 2px bottom border and the row makes them one height, so the borders land
+on the same pixels as one continuous line — accent under the current tab, box
+border everywhere else. The trailing span carries it across the width the tabs
+do not fill.
+
+  :tabs — [{label, href, current, title}]. `title` is optional and is the full
+    name when `label` has been shortened to fit; it becomes the link's tooltip.
+  label — what the strip is choosing between, as its accessible name.
+{% endcomment %}
+<c-vars :tabs="[]" label="" class="" />
+
+<nav {{ attrs }}
+     aria-label="{{ label }}"
+     class="flex flex-wrap gap-x-1 {{ class }}">
+    {% for tab in tabs %}
+        <a href="{{ tab.href }}"
+           {% if tab.title and tab.title != tab.label %}title="{{ tab.title }}"{% endif %}
+           {% if tab.current %}aria-current="page"{% endif %}
+           class="flex min-h-11 max-w-full items-center border-b-2 px-3 text-sm no-underline focus-ring
+                  {% if tab.current %}border-accent font-semibold text-ink-900 dark:text-ink-100
+                  {% else %}border-box-border text-muted hover:text-ink-900 dark:hover:text-ink-100{% endif %}">
+            <span class="truncate">{{ tab.label }}</span>
+        </a>
+    {% endfor %}
+    <span aria-hidden="true" class="min-w-0 flex-1 border-b-2 border-box-border"></span>
+</nav>

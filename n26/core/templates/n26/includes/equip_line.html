@@ -50,11 +50,13 @@ and this list is long.
             `change` bubbles, and a listener per box is that much more work for
             the same answer.
             {% endcomment %}
+            {% comment %}
+            No heading over the boxes. Ticked rounds under a gun, priced and
+            named, say what they are — and a label saying so would print on
+            every armed row of a long list to tell a reader something the row
+            beneath it already told them.
+            {% endcomment %}
             <div @change="retotal($el)">
-                <div class="flex min-h-8 items-center gap-2 pt-1">
-                    <span class="text-xs font-semibold uppercase tracking-wide text-muted">Ammo and modes</span>
-                    <span class="text-xs text-muted">choose any</span>
-                </div>
                 {% for part in row.parts %}
                     {% comment %}
                     The whole line is the label, so the hit target is the row
