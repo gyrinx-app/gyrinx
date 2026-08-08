@@ -45,7 +45,8 @@ on from.
   action — where the form posts.
   gang — whose roster this is. Shown in the breadcrumb rather than under the
     heading, so the lead can say what the screen does instead.
-  heading — the title. "Hire a fighter" by default.
+  heading — the title. "Hire Fighters" by default: the screen holds a reader
+    through several hires, so the plural is the honest word for it.
   form — a Django form, for its non-field errors.
   breadcrumb — the trail above the title: the owner, then the gang.
   notice — what happened last time: the confirmation of a hire, or the refusal
@@ -55,7 +56,7 @@ on from.
 <c-vars
     action=""
     gang=""
-    heading="Hire a fighter"
+    heading="Hire Fighters"
     :form="None"
     class=""
 />

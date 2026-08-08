@@ -15,8 +15,8 @@ The demo's per-row "limited" marker is not here: it flags the rulebook's
 Champion/Brute/Hanger-on cap, which is not yet a fact the library records —
 drawing it from a hardcoded list would be a marker that lies.
 {% endcomment %}
-{% block head_title %}Hire a fighter{% endblock head_title %}
-{% block nav_heading %}Hire a fighter{% endblock nav_heading %}
+{% block head_title %}Hire Fighters{% endblock head_title %}
+{% block nav_heading %}Hire Fighters{% endblock nav_heading %}
 {% block nav_items %}
     {% include 'n26/_nav.html' %}
 {% endblock %}
@@ -59,7 +59,7 @@ be read in one.
                 </c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item href="{% url 'n26-gang' gang.pk %}">{{ gang.name }}</c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item :current="True">
-                    Hire
+                    Hire Fighters
                 </c-ui.breadcrumbs.item>
             </c-ui.breadcrumbs>
         </c-slot>

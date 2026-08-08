@@ -45,6 +45,16 @@ def test_draws_the_gang(client, tester, gang):
     assert str(gang.gang_type) in body
 
 
+def test_the_way_to_the_gang_list_is_named_for_what_it_offers(client, tester, gang):
+    """The screen it leads to holds a reader through several hires, so the
+    control says so. Hiring a vehicle is its own control and stays
+    singular — that one is a single act."""
+    client.force_login(tester)
+    body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
+    assert "Hire Fighters" in body
+    assert "Hire fighter" not in body
+
+
 def test_draws_each_member(client, tester, gang, make_profile, make_statline):
     """A hired fighter reaches the page as a card of its own."""
     profile = make_profile("Ganger", price=55)

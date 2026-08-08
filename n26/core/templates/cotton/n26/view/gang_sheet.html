@@ -42,7 +42,7 @@ row, which is what makes an eleven-fighter gang read as a wall.
   gangs_href — where the breadcrumb's "Gangs" goes.
   details — the detail list. The caller builds it, because which facts a gang has
     and what each one opens is the gang's business, not the layout's.
-  actions — the primary run: Hire fighter, Hire vehicle. What the screen is for.
+  actions — the primary run: Hire Fighters, Hire vehicle. What the screen is for.
   secondary_actions — the detours and the dangerous ones: Print, and a dropdown
     holding Delete. Kept apart from the primary run rather than sorted in with it.
   members — the fighter cards, drawn straight into the grid.
@@ -121,7 +121,7 @@ row, which is what makes an eleven-fighter gang read as a wall.
         This slot must be filled even if it were empty. c-n26.page-header renders
         `{% if actions %}`, and this view *also* has a slot called `actions` — so
         with nothing passed here the child resolved the parent's variable of the
-        same name and drew the gang's Hire fighter a second time, up beside the
+        same name and drew the gang's Hire Fighters a second time, up beside the
         title. Cotton slots are context variables, and a name is a name.
         {% endcomment %}
         <c-slot name="actions">

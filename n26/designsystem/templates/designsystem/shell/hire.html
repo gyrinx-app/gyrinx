@@ -8,12 +8,12 @@ row carries its own submit, and both are forms. Seeing them one nav-click apart
 is the only way to judge whether they read as the same application.
 
 It is also the page that tests the nav's heading against a scroll. The bar is
-sticky and the list is hundreds of rows, so "Hire a fighter" is still on screen
+sticky and the list is hundreds of rows, so "Hire Fighters" is still on screen
 when the h1 that says it has long since gone — which is the argument for putting
 it there.
 {% endcomment %}
-{% block head_title %}Hire a fighter{% endblock head_title %}
-{% block nav_heading %}Hire a fighter{% endblock nav_heading %}
+{% block head_title %}Hire Fighters{% endblock head_title %}
+{% block nav_heading %}Hire Fighters{% endblock nav_heading %}
 {% block nav_items %}
     {% include 'designsystem/shell/_nav.html' with here='hire' %}
 {% endblock %}
@@ -60,7 +60,7 @@ there can only be one.
                 </c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item href="{% url 'designsystem:shell_gang' %}">The Ashen Choir</c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item :current="True">
-                    Hire
+                    Hire Fighters
                 </c-ui.breadcrumbs.item>
             </c-ui.breadcrumbs>
         </c-slot>

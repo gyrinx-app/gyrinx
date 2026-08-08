@@ -24,8 +24,11 @@ into a <template> and revealed by Alpine. With the open state already decided
 by the server and no script running, it would draw nothing at all. So this is a
 native <dialog open> — a panel in the page's flow on its own, promoted to a real
 modal (top layer, backdrop, Escape, trapped focus) by showModal() where Alpine
-is there to call it. The `static` class is what it degrades to, and it is
-dropped at the moment the promotion succeeds.
+is there to call it. `static m-0` is what it degrades to: a panel sits in the
+flow at the top of the page, and both classes come off at the moment the
+promotion succeeds, because a modal is placed by the browser's own inset and
+needs `margin: auto` to sit in the middle of the screen rather than in its
+top-left corner.
 
 Escape closes a modal by itself, which would leave a list on screen while the
 URL still names a profile. So dismissing navigates: the close event and Cancel
@@ -58,20 +61,45 @@ both go to cancel_url, and the address bar keeps agreeing with the page.
 />
 
 {% comment %}
-The promotion is two steps because a dialog rendered with the `open` attribute
-is already open, and showModal() on an open dialog throws rather than upgrading
-it.
+The promotion takes the `open` attribute off before calling showModal(),
+because showModal() on a dialog that already has it throws instead of
+upgrading it.
 
-Closing first means a failed promotion would leave the dialog shut, which is
-worse than never having tried: the server decided this dialog is open, and the
-unpromoted panel in the page's flow is the whole fallback. So the promotion is
-guarded and reopens the panel if it does not take — `promoted` stays false, and
-the panel keeps the static presentation it renders with.
+It takes the attribute off rather than calling close(). close() is a
+dismissal — it fires a `close` event, and the handler below answers a close by
+navigating away, so a promotion that closed the dialog first would send the
+reader off this page on the way to opening the modal. Removing the attribute
+hides the panel without dismissing anything.
+
+The work is a method on the data rather than an expression in x-init because
+Alpine compiles a directive's value in expression position, where a `try`
+statement is a syntax error. Alpine reports that to the console and skips the
+directive, so a statement written inline is not a promotion that fails — it is
+a promotion that never runs, leaving the panel sitting above the page with
+nothing to say why.
+
+A promotion that does fail must not cost the reader the fallback: the server
+decided this dialog is open, and the panel in the page's flow is the whole of
+it with no script. So the attribute goes back on, `promoted` stays false, the
+panel keeps its in-flow presentation, and the exception is logged rather than
+swallowed.
 {% endcomment %}
 <dialog open
-        {% if modal %}x-data="{ promoted: false }"
-        x-init="try { if ($el.open) $el.close(); $el.showModal(); promoted = true } catch (e) { $el.open = true }"
-        :class="{ 'static': !promoted }"
+        {% if modal %}x-data="{
+            promoted: false,
+            promote(dialog) {
+                try {
+                    dialog.removeAttribute('open');
+                    dialog.showModal();
+                    this.promoted = true;
+                } catch (error) {
+                    console.error(error);
+                    dialog.setAttribute('open', '');
+                }
+            }
+        }"
+        x-init="promote($el)"
+        :class="{ 'static m-0': !promoted, 'm-auto': promoted }"
         @close="window.location = '{{ cancel_url }}'"{% endif %}
         aria-labelledby="hire-dialog-title"
         {{ attrs }}

@@ -128,6 +128,55 @@ def test_the_dialog_names_the_profile_and_its_price(client, tester, gang, ganger
     assert 'name="name"' in body
 
 
+def test_the_screen_offers_more_than_one_hire(client, tester, gang, ganger):
+    """A reader can hire a whole gang without leaving, so the heading, the
+    tab and the breadcrumb all say so rather than promising one fighter."""
+    client.force_login(tester)
+    body = client.get(hire_url(gang)).content.decode()
+    assert body.count("Hire Fighters") >= 3
+    assert "Hire a fighter" not in body
+
+
+def test_the_dialog_is_a_panel_a_reader_without_scripting_can_still_use(
+    client, tester, gang, ganger
+):
+    """Whether the dialog is open is the server's answer, so it arrives in
+    the HTML rather than behind a trigger. `static m-0` is how it draws
+    with no script running: a panel in the flow of the page, above the
+    list, which is the whole of the scriptless fallback.
+    """
+    client.force_login(tester)
+    body = client.get(dialog_url(gang, ganger)).content.decode()
+    assert "<dialog open" in body
+    assert "static m-0" in body
+
+
+def test_the_dialog_promotes_itself_by_calling_a_method(client, tester, gang, ganger):
+    """The promotion is a call, never statements written into the
+    directive. Alpine compiles a directive's value as an expression, and a
+    statement there is a syntax error it reports to the browser console
+    and nowhere else — the page would serve 200 with the panel sitting
+    unpromoted above the list and nothing to say why.
+
+    ``test_template_expressions`` guards that rule across the edition;
+    this pins the shape the dialog relies on.
+    """
+    client.force_login(tester)
+    body = client.get(dialog_url(gang, ganger)).content.decode()
+    assert 'x-init="promote($el)"' in body
+    assert "showModal()" in body
+
+
+def test_dismissing_the_dialog_navigates(client, tester, gang, ganger):
+    """Closing in place would leave the list on screen while the URL still
+    named a profile, so both Cancel and a dismissal go to the page with no
+    profile named — and the address bar keeps agreeing with the screen."""
+    client.force_login(tester)
+    body = client.get(dialog_url(gang, ganger)).content.decode()
+    assert f"window.location = '{hire_url(gang)}'" in body
+    assert f'href="{hire_url(gang)}"' in body
+
+
 def test_the_list_carries_no_dialog_until_one_is_asked_for(
     client, tester, gang, ganger
 ):
