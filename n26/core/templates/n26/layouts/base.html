@@ -251,14 +251,15 @@ banner, is_impersonating / impersonator, gtm_container_id, messages, user.
         {% endif %}
         {% block body %}
             <main id="content" class="n26-site-container flex-1 pt-4 pb-10">
-                {% if messages %}
-                    <div class="mb-4 flex flex-col gap-2">
-                        {% for message in messages %}
-                            <c-ui.alert variant="{% if message.level_tag == 'success' %}success{% elif message.level_tag == 'warning' %}warning{% elif message.level_tag == 'error' %}error{% else %}info{% endif %}"
-                                        dismissible="1">{{ message }}</c-ui.alert>
-                        {% endfor %}
-                    </div>
-                {% endif %}
+                {% comment %}
+                A block, so a page that needs its messages somewhere else can
+                empty this one and include the same partial where it wants
+                them. Reading the storage is what consumes it, so a page doing
+                that must empty this or the message draws twice.
+                {% endcomment %}
+                {% block messages %}
+                    {% include "n26/includes/messages.html" %}
+                {% endblock messages %}
                 {% block content %}
                 {% endblock content %}
             </main>

@@ -7,6 +7,8 @@ prove the ORM does.
 
 from dataclasses import dataclass, replace
 
+from django.utils.text import slugify
+
 from n26.core.browse import CategoryGroup, CollectionView, PricedLine, SectionGroup
 from n26.core.hire import STANDARD_OPTION_NAME, HireEntry, HireGroup, HireOption
 from n26.core.notes import INFO, WARNING, Note
@@ -885,6 +887,23 @@ def hire_list():
     return section_rows
 
 
+def hire_entry(value):
+    """The sample entry a press names, looked up by what the rows submit.
+
+    The shell's rows submit their slugified name, so pressing Hire on one
+    of three hundred can be answered with that one's dialog rather than a
+    fixed example that would name the wrong fighter.
+    """
+    if not value:
+        return None
+    for section_row in hire_list():
+        for category in section_row["categories"]:
+            for entry in category["entries"]:
+                if slugify(entry.name) == value:
+                    return entry
+    return None
+
+
 def hire_context():
     """What the hire view needs: the sections, and the ends of its one slider."""
     section_rows = hire_list()
@@ -911,6 +930,13 @@ def hire_context():
         ],
         "hire_price_floor": min(entry.base_price for entry in entries),
         "hire_price_ceiling": max(entry.base_price for entry in entries),
+        # What a press hands the name dialog: the row's answer, already
+        # given, riding to the next request as fields nobody has to retype.
+        "hire_dialog_choices": ["Chainsword"],
+        "hire_dialog_fields": [
+            {"name": "profile", "value": "ganger"},
+            {"name": "ganger:1", "value": "1"},
+        ],
         # What a real gang would supply. Shown, never enforced.
     }
 

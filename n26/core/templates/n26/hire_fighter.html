@@ -8,7 +8,8 @@ their shell twins. Edit them together.
 
 Every Hire button in the list is this form's submit, carrying which profile was
 pressed; the option inputs are scoped per-row by the picker. The view maps them
-back through the same derivation that drew them.
+back through the same derivation that drew them, and answers with the URL of
+this page with the name dialog open on that profile.
 
 The demo's per-row "limited" marker is not here: it flags the rulebook's
 Champion/Brute/Hanger-on cap, which is not yet a fact the library records —
@@ -19,10 +20,38 @@ drawing it from a hardcoded list would be a marker that lies.
 {% block nav_items %}
     {% include 'n26/_nav.html' %}
 {% endblock %}
+{% comment %}
+Emptied, and included again inside the form below. The confirmation of a hire
+belongs beside the list that hire was pressed in, not above the page heading —
+and the storage is consumed by whichever place reads it first, so it can only
+be read in one.
+{% endcomment %}
+{% block messages %}
+{% endblock messages %}
 {% block content %}
+    {% comment %}
+    Before the list, because with scripting off this is a panel in the flow of
+    the page rather than a modal over it, and a panel below three hundred rows
+    is one nobody finds. Where Alpine is there to promote it, its place in the
+    document stops mattering.
+    {% endcomment %}
+    {% if dialog %}
+        <c-n26.hire-dialog action="{% url 'n26-hire-fighter' gang.pk %}"
+                           profile="{{ dialog.profile }}"
+                           price="{{ dialog.price }}"
+                           :choices="dialog.choices"
+                           :fields="dialog.fields"
+                           cancel_url="{{ dialog.cancel_url }}"
+                           :form="form">
+            {% csrf_token %}
+        </c-n26.hire-dialog>
+    {% endif %}
     <c-n26.view.fighter-hire action="{% url 'n26-hire-fighter' gang.pk %}"
                              gang="{{ gang.name }}"
                              :form="form">
+        <c-slot name="notice">
+            {% include "n26/includes/messages.html" %}
+        </c-slot>
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
                 <c-ui.breadcrumbs.item>

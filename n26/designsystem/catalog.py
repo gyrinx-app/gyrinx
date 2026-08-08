@@ -1021,6 +1021,33 @@ GROUPS: list[Group] = [
                 ),
             ),
             Component(
+                slug="hire-dialog",
+                tag="c-n26.hire-dialog",
+                template="n26/hire_dialog.html",
+                summary="The one question a press leaves: what is this fighter called?",
+                needs=(ALPINE,),
+                notes=(
+                    "The only component here whose open state is a server "
+                    "state. The page draws it when the URL names a pressed "
+                    "profile, which is what makes the dialog a link, makes it "
+                    "survive a reload, and makes pressing Hire work with "
+                    "scripting off. c-ui.dialog is the other shape — a trigger "
+                    "beside content teleported into a <template> and revealed "
+                    "by Alpine — and with the answer already decided by the "
+                    "server and no script running it draws nothing at all. So "
+                    "this is a native <dialog open>: a panel in the flow of the "
+                    "page on its own, promoted to a real modal by showModal() "
+                    "where Alpine is there to call it, which brings the top "
+                    "layer, the backdrop, Escape and a focus trap without any "
+                    "of them being written here. Dismissing navigates rather "
+                    "than hiding, because a dialog closed in place would leave "
+                    "a list on screen while the URL still named a profile. The "
+                    "profile and its options are hidden fields, not controls: "
+                    "they were answered by the row, and the way to change them "
+                    "is to go back to it."
+                ),
+            ),
+            Component(
                 slug="choice-menu",
                 tag="c-n26.choice-menu",
                 template="n26/choice_menu.html",
@@ -1826,24 +1853,28 @@ GROUPS: list[Group] = [
                 slug="view-fighter-hire",
                 tag="c-n26.view.fighter-hire",
                 template="n26/view/fighter_hire.html",
-                summary="Name a fighter, then pick what they are.",
+                summary="Pick what a fighter is, one press at a time.",
                 needs=(ALPINE, KIT_JS, COLLAPSE, FOCUS),
                 notes=(
                     "Optimised for finding the profile and nothing else. "
                     "Everything above the list is there under protest, because "
                     "on a phone every row of chrome is a row of fighters you "
-                    "cannot see — so the form is two things, a name and the "
-                    "picker. The name comes first because that is the order the "
-                    "sentence goes in, and it is optional and says so: blocking "
-                    "a hire on naming would slow the common case, which is "
-                    "buying three Gangers and naming them once they have done "
+                    "cannot see — so the screen is a list, and nothing above it "
+                    "asks a question the reader has not reached yet. Naming is "
+                    "one of those questions: it is asked after the press, by "
+                    "c-n26.hire-dialog, because a name field at the top is a "
+                    "field answered once and then in the way, and blocking a "
+                    "hire on it would slow the common case, which is buying "
+                    "three Gangers and naming them once they have done "
                     "something worth naming. There is no submit button. Every "
                     "Hire in the list is this form's submit, carrying which "
                     "profile or which option was pressed, which is what the "
                     "row's `value` is for — and the form should not grow a "
                     "primary action of its own, because a Hire at the bottom of "
                     "a list of Hire buttons is a second answer to a question "
-                    "already answered."
+                    "already answered. A hire lands back here rather than on "
+                    "the gang sheet, so the notice slot draws the confirmation "
+                    "beside the list it was pressed in."
                 ),
             ),
             Component(
