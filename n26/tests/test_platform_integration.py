@@ -356,7 +356,7 @@ class TestTheNavigation:
         drawer = nav_drawer(client.get("/n26/authoring/").content.decode())
         positions = in_order(
             drawer,
-            ">Authoring</a>",
+            ">Content library</a>",
             ">Modifiers</a>",
             ">Foundations</a>",
             ">Ingest</a>",
