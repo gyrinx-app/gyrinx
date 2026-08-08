@@ -7,14 +7,22 @@ is the interface:
 * **plan**: rows → :class:`IngestPlan` — a list of :class:`Planned`
   objects saying exactly which library row each sheet line becomes,
   plus :class:`Problem` rows for everything that doesn't resolve.
-  Planning reads the database (to mark what already exists) but never
-  writes. ``plan.preview()`` derives the upload-preview payload:
-  counts by kind, worked examples (sheet row → planned objects), and
-  the problem list — plain data, JSON-able, per the
-  structures-before-renderers convention (CLAUDE.md).
+  Planning reads the database but never writes. It ends in one
+  **settling** pass (:func:`_settle`) that says, for every planned row,
+  whether the pack already holds it and what the sheets now say
+  differently: ``create``, ``update``, ``unchanged``, or ``resolved``
+  for a row that is not a sheet line at all but a lookup other lines
+  point at. ``plan.preview()`` derives the upload-preview payload:
+  counts by kind, the differences field by field, worked examples
+  (sheet row → planned objects), and the problem list — plain data,
+  JSON-able, per the structures-before-renderers convention
+  (CLAUDE.md).
 * **perform**: plan → rows, through the ``n26.library.authoring`` verbs,
   in dependency order, in one transaction. Perform never invents
-  anything the plan didn't say: the preview *is* the contract.
+  anything the plan didn't say: the preview *is* the contract, which
+  now covers changes as well as creations — an update writes exactly
+  the fields the preview named as changing, onto the row the preview
+  measured.
 
 Three standing rules are load-bearing here:
 
@@ -31,6 +39,12 @@ Three standing rules are load-bearing here:
   ``n26.library.standard_content`` — created from the foundations page, never
   re-declared here. Perform says which seed is missing rather than
   quietly planting its own.
+* **Nothing is lost quietly.** Four tables say what can be done with a
+  planned kind — :data:`PERFORM_ORDER`, :data:`SHEET_FIELDS`,
+  :data:`CREATORS`, :data:`UPDATERS` — and perform reads the whole plan
+  against them before writing anything, refusing by name if some of it
+  has nowhere to go. Forgetting one used to mean the rows were passed
+  over in silence and the upload reported success.
 
 **The sheets, and how they join.** Four of them, each with one job:
 

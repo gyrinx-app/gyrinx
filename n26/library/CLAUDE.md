@@ -101,10 +101,33 @@ Three stages: read (CSV → dicts), plan (→ an `IngestPlan` of frozen
 rows plus problems; reads the database, never writes), perform (executes
 exactly the plan, through the authoring verbs, in one transaction).
 **The preview is the contract** — what `plan.preview()` shows is what
-`perform()` does. Standing rules: resolve, never create, across sheets;
-built-ins are free; a missing seed row is a loud error, never quietly
-re-planted. A new planned kind must be added to `PERFORM_ORDER`, or
-`perform()` skips it without a word.
+`perform()` does, changes included. Standing rules: resolve, never
+create, across sheets; built-ins are free; a missing seed row is a loud
+error, never quietly re-planted.
+
+Planning ends in one settling pass that decides every row's action —
+`create`, `update`, `unchanged`, or `resolved` for a row that is only a
+lookup — and, for an update, names each field that differs. Planning
+and performing ask one function what counts as the same row
+(`find_existing`), because two statements of that drift and the drift
+is silent.
+
+A new planned kind means four tables, and `perform()` refuses a plan
+naming a kind missing from any of them rather than skipping it:
+
+- `PERFORM_ORDER` — where it falls in dependency order.
+- `SHEET_FIELDS` — what these sheets claim to know about it, split into
+  identity / updatable / ignored. The partition must cover every field
+  the planner puts in `fields`; a test proves it. A kind with nothing
+  updatable states the reason in `NEVER_UPDATED`.
+- `CREATORS` — how it is made, or a reason in `NEVER_CREATED`.
+- `UPDATERS` — how it is changed, for any kind with updatable fields.
+
+Sets each decide for themselves what happens to a member the sheet no
+longer names, and the deciding question is whether the set is somewhere
+hand-authored content lives: traits, a list's lines and a fighter's
+skill grid are replaced; built-in kit and restrictions are only added
+to, with a note saying what was kept.
 
 ## Comments
 
