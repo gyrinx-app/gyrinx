@@ -190,10 +190,7 @@ class DefaultAssignment(NamesAnAssignable, Content):
     )
     amount = models.PositiveIntegerField(
         default=0,
-        help_text=(
-            "The opening value, when this member is a counter — the 61 in "
-            '"Starting XP 61".'
-        ),
+        help_text=("The initial value for a counter"),
     )
     position = models.PositiveIntegerField(default=0)
 
