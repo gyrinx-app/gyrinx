@@ -26,6 +26,7 @@ from n26.tests.sandbox.test_ingest import (
 pytestmark = pytest.mark.django_db
 
 URL = "/n26/authoring/ingest/"
+CLEAR_URL = "/n26/authoring/ingest/clear/"
 
 
 @pytest.fixture
@@ -56,10 +57,16 @@ def sheets():
 
 
 class TestPreviewing:
-    def test_the_page_offers_every_sheet(self, author, client, foundation):
+    def test_the_page_offers_every_sheet_as_a_file_picker(
+        self, author, client, foundation
+    ):
+        """A field the dispatch does not recognise falls through to a
+        text box, which looks like a form and cannot take a file."""
         body = client.get(URL).content.decode()
         for field in ("equipment", "weapon_profiles", "equipment_lists", "profiles"):
             assert f'name="{field}"' in body
+        assert body.count('type="file"') == 4
+        assert 'enctype="multipart/form-data"' in body
 
     def test_a_preview_writes_nothing(self, author, client, foundation):
         body = client.post(URL, sheets()).content.decode()
@@ -122,17 +129,45 @@ Equipment List,Escher,Ranged weapons,Web weapons,Web pisol,,90,,x
 
 
 class TestTheDangerZone:
-    def test_it_says_what_it_would_take(self, author, client, foundation):
-        client.post(URL, {**sheets(), "apply": "1"})
+    """Undoing an import is its own page: it says what would go, and
+    only a post takes it."""
+
+    def test_the_ingest_page_only_links_to_it(self, author, client, foundation):
+        """Counting is real work, and a page that did it on every visit
+        would charge everyone for a button almost nobody presses."""
         body = client.get(URL).content.decode()
         assert "Danger zone" in body
-        assert "Delete all imported content" in body
+        assert CLEAR_URL in body
+        # The count belongs on the confirmation, not here.
+        assert "What would go" not in body
+
+    def test_it_says_what_would_go_before_taking_it(self, author, client, foundation):
+        client.post(URL, {**sheets(), "apply": "1"})
+
+        body = client.get(CLEAR_URL).content.decode()
+
+        assert "What would go" in body
+        assert "weapons" in body
+        assert Weapon.objects.count() == 6  # and looking took nothing
+
+    def test_the_count_is_what_actually_goes(self, author, client, foundation):
+        """A confirmation promising different numbers from the ones that
+        went would be worse than none — so both read one definition."""
+        from n26.library.ingest import count_imported
+
+        client.post(URL, {**sheets(), "apply": "1"})
+        promised = count_imported()
+
+        client.post(CLEAR_URL, follow=True)
+
+        assert promised["weapons"] == 6
+        assert count_imported() == {}
 
     def test_clearing_leaves_the_foundations_standing(self, author, client, foundation):
         client.post(URL, {**sheets(), "apply": "1"})
         assert Weapon.objects.exists()
 
-        client.post(URL, {"clear": "1"}, follow=True)
+        client.post(CLEAR_URL, follow=True)
 
         assert Weapon.objects.count() == 0
         assert Profile.objects.count() == 0
@@ -141,13 +176,16 @@ class TestTheDangerZone:
 
     def test_it_says_what_went(self, author, client, foundation):
         client.post(URL, {**sheets(), "apply": "1"})
-        body = client.post(URL, {"clear": "1"}, follow=True).content.decode()
+        body = client.post(CLEAR_URL, follow=True).content.decode()
         assert "Cleared" in body
         assert "weapons" in body
 
-    def test_clearing_an_empty_library_is_harmless(self, author, client, foundation):
-        body = client.post(URL, {"clear": "1"}, follow=True).content.decode()
-        assert "Nothing to clear" in body
+    def test_an_empty_library_offers_nothing_to_delete(
+        self, author, client, foundation
+    ):
+        body = client.get(CLEAR_URL).content.decode()
+        assert "Nothing to delete" in body
+        assert "Yes, delete" not in body
 
     def test_content_a_gang_holds_is_refused_in_words(self, author, client, foundation):
         """The content does not go out from under a gang holding it, and
@@ -166,7 +204,7 @@ class TestTheDangerZone:
         model = hire(gang, Profile.objects.get(name="Gang Queen"), "Yolanda")
         give_weapon(model, Weapon.objects.get(name="Autogun"))
 
-        body = client.post(URL, {"clear": "1"}, follow=True).content.decode()
+        body = client.post(CLEAR_URL, follow=True).content.decode()
 
         assert "protects it" in body
         assert Weapon.objects.exists()

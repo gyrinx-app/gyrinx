@@ -29,10 +29,6 @@ from django.utils.safestring import mark_safe
 from n26.library.forms import generate_form, statline_form_for, suggestion_form_for
 from n26.library.models.assignable import Family
 from n26.library.specs import specs
-from n26.library.standard_content import (
-    SKILLS_COLLECTION,
-    TRADING_POST_COLLECTION,
-)
 
 #: The leaf kinds the authoring surface offers, in menu order:
 #: url slug → (create verb, the model the page lists). The guard test
@@ -889,6 +885,7 @@ class IngestForm(forms.Form):
                 required=False,
                 label=name.replace("_", " ").capitalize(),
                 help_text=help_text,
+                widget=forms.ClearableFileInput(attrs={"accept": ".csv,text/csv"}),
             )
 
     def sheets(self):
@@ -946,34 +943,16 @@ def ingest(request):
     what Preview showed is what Import does. Nothing is kept between
     the two — an upload that is never imported leaves nothing behind.
 
-    The danger zone undoes an import. The sheets change while the
-    edition is being built, so being able to clear and re-import is
-    what makes a half-right spreadsheet safe to try.
+    Undoing an import is its own page. Counting what would go is real
+    work, and a page that did it on every visit would charge everyone
+    for a button almost nobody presses — but the greater part of the
+    reason is that nothing irreversible should happen on one click.
     """
-    from django.db.models import ProtectedError
-
-    from n26.library.ingest import clear_imported, perform, plan_ingest
+    from n26.library.ingest import perform, plan_ingest
 
     form = IngestForm()
     preview = None
     performed = None
-
-    if request.method == "POST" and "clear" in request.POST:
-        try:
-            with transaction.atomic():
-                gone = clear_imported()
-        except ProtectedError:
-            messages.error(
-                request,
-                "Some of this content is in a gang, which protects it. "
-                "Delete those gangs first — nothing was removed.",
-            )
-        else:
-            said = ", ".join(f"{count} {kind}" for kind, count in sorted(gone.items()))
-            messages.success(
-                request, f"Cleared {said}." if said else "Nothing to clear."
-            )
-        return redirect("authoring-ingest")
 
     if request.method == "POST":
         form = IngestForm(request.POST, request.FILES)
@@ -1007,31 +986,44 @@ def ingest(request):
     return render(
         request,
         "authoring/ingest.html",
-        {
-            "form": form,
-            "preview": preview,
-            "performed": performed,
-            "standing": _standing_content(),
-        },
+        {"form": form, "preview": preview, "performed": performed},
     )
 
 
-def _standing_content():
-    """What the library already holds of the kinds an import writes —
-    so the page says what a clear would take before anyone presses it."""
-    from n26.library.models import Profile, Wargear, Weapon
-    from n26.library.models.collection import Collection, CollectionEntry
+@staff_member_required
+def ingest_clear(request):
+    """Undo an import, having said first what that means.
 
-    lists = Collection.objects.exclude(
-        name__in=[SKILLS_COLLECTION, TRADING_POST_COLLECTION]
+    The count is the whole page: a confirmation that did not name what
+    it was about to take would be a checkbox with extra steps. Posting
+    is the act — a link can be followed by accident, and something has
+    to be irreversible somewhere.
+    """
+    from django.db.models import ProtectedError
+
+    from n26.library.ingest import clear_imported, count_imported
+
+    if request.method == "POST":
+        try:
+            with transaction.atomic():
+                gone = clear_imported()
+        except ProtectedError:
+            messages.error(
+                request,
+                "Some of this content is in a gang, which protects it. "
+                "Delete those gangs first — nothing was removed.",
+            )
+            return redirect("authoring-ingest-clear")
+        said = ", ".join(f"{count} {kind}" for kind, count in sorted(gone.items()))
+        messages.success(request, f"Cleared {said}." if said else "Nothing to clear.")
+        return redirect("authoring-ingest")
+
+    standing = count_imported()
+    return render(
+        request,
+        "authoring/ingest_clear.html",
+        {"standing": standing, "total": sum(standing.values())},
     )
-    return [
-        ("weapons", Weapon.objects.count()),
-        ("wargear", Wargear.objects.count()),
-        ("fighter profiles", Profile.objects.count()),
-        ("collections", lists.count()),
-        ("collection entries", CollectionEntry.objects.count()),
-    ]
 
 
 def _rows(model):

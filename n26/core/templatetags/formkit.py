@@ -28,6 +28,8 @@ def widget_kind(field):
         return "textarea"
     if isinstance(widget, widgets.NumberInput):
         return "number"
+    if isinstance(widget, widgets.FileInput):
+        return "file"
     return "text"
 
 

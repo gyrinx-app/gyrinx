@@ -151,17 +151,7 @@
                         description="Delete everything an import writes, leaving the foundations standing. The sheets change while the edition is being built, so clearing and importing again is how a half-right spreadsheet is safely tried."
                         class="mt-12">
         <div class="rounded-box border border-red-500/40 px-4 py-3">
-            <c-ui.table>
-                <tbody>
-                    {% for kind, count in standing %}
-                        <tr>
-                            <td>{{ kind }}</td>
-                            <td class="text-right tabular-nums">{{ count }}</td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </c-ui.table>
-            <c-n26.prose class="mt-3">
+            <c-n26.prose>
                 <p>
                     The rows the rulebook fixes stay: stats, statline shapes, the core
                     subtypes and skills, the gang types, the specialisations, the
@@ -169,12 +159,13 @@
                     gangs first, and nothing is removed in the meantime.
                 </p>
             </c-n26.prose>
-            <form method="post" class="mt-3">
-                {% csrf_token %}
-                <c-ui.button type="submit" name="clear" value="1" variant="danger" size="sm">
-                    Delete all imported content
-                </c-ui.button>
-            </form>
+            <c-ui.button href="{% url 'authoring-ingest-clear' %}"
+                         variant="danger"
+                         outlined
+                         size="sm"
+                         class="mt-3">
+                Delete all imported content…
+            </c-ui.button>
         </div>
     </c-n26.form-section>
 {% endblock content %}

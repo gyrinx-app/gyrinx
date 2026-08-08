@@ -1715,22 +1715,18 @@ class _Performer:
 # --- Clearing ------------------------------------------------------------------
 
 
-def clear_imported(pack=None):
-    """Delete everything an import writes, leaving standard content whole.
+def _imported(pack=None):
+    """What an import owns, as ``[(what it is, the rows)]`` in the order
+    they must go — entries before collections, statlines with their
+    owners, the taxonomy last.
 
-    The inverse of :func:`perform`, and it lives here because the module
-    that writes this content is the one that knows its extent. What
-    survives is exactly what the foundations page creates — so after a
-    clear, every standard-content seed still reports itself complete,
-    and importing the same sheets again produces the same rows. That
-    round trip is the point: it makes an import repeatable while the
-    spreadsheets are still changing.
+    One definition, so counting and deleting cannot disagree: a
+    confirmation screen that promised different numbers from the ones
+    that went would be worse than no screen.
 
-    Player data protects content it uses, so a gang holding an imported
-    weapon stops this with ``ProtectedError`` rather than taking the
-    weapon out from under it. Delete the gangs first.
-
-    Returns ``{kind: how many}`` for what went.
+    What is *not* here is the point. Standard content's own rows are
+    excluded by reading its lists rather than restating them, so the
+    two cannot drift, and a clear always leaves the foundations whole.
     """
     from django.apps import apps
 
@@ -1766,76 +1762,97 @@ def clear_imported(pack=None):
     scope = {} if pack is None else {"pack": pack}
     standard_skills = [s for skills in SKILL_SETS.values() for s in skills]
     standard_skills += INHERENT_SKILLS
-    gone = TallyCounter()
 
-    def sweep(label, queryset):
-        count = queryset.count()
-        if count:
-            queryset.delete()
-            gone[label] += count
-
+    profiles = Profile.objects.filter(**scope)
     # A modifier is reached through its carriers, so the ones an import
-    # made are found while the profiles it hung them on still exist.
-    # Left behind they would be matched by name on the next import and
-    # never re-attached, which is a placement quietly going missing.
-    imported_profiles = Profile.objects.filter(**scope)
-    orphaned = list(
-        Modifier.objects.filter(library_profile_set__in=imported_profiles)
+    # made are found while the profiles it hung them on still exist —
+    # which is why this is a list of keys and not a lazy queryset. Left
+    # behind, they would be matched by name on the next import and never
+    # re-attached, a placement quietly going missing.
+    hung_on_profiles = list(
+        Modifier.objects.filter(library_profile_set__in=profiles)
         .distinct()
         .values_list("pk", flat=True)
     )
 
-    # Entries before collections, collections before the things they
-    # list; statlines go with their owners by cascade.
-    sweep("collection entries", CollectionEntry.objects.filter(**scope))
-    sweep(
-        "collections",
-        Collection.objects.filter(**scope).exclude(
-            name__in=[SKILLS_COLLECTION, TRADING_POST_COLLECTION]
+    section = apps.get_model("library", "Section")
+    return [
+        ("collection entries", CollectionEntry.objects.filter(**scope)),
+        (
+            "collections",
+            Collection.objects.filter(**scope).exclude(
+                name__in=[SKILLS_COLLECTION, TRADING_POST_COLLECTION]
+            ),
         ),
-    )
-    sweep("fighter profiles", imported_profiles)
-    sweep("built-in sets", DefaultAssignmentSet.objects.filter(**scope))
-    sweep("modifiers", Modifier.objects.filter(pk__in=orphaned))
-    sweep("weapon profiles", WeaponProfile.objects.filter(**scope))
-    sweep("weapons", Weapon.objects.filter(**scope))
-    sweep("wargear", Wargear.objects.filter(**scope))
-    sweep("special rules", Rule.objects.filter(**scope))
-    sweep("weapon traits", Trait.objects.filter(**scope))
+        ("fighter profiles", profiles),
+        ("built-in sets", DefaultAssignmentSet.objects.filter(**scope)),
+        ("modifiers", Modifier.objects.filter(pk__in=hung_on_profiles)),
+        ("weapon profiles", WeaponProfile.objects.filter(**scope)),
+        ("weapons", Weapon.objects.filter(**scope)),
+        ("wargear", Wargear.objects.filter(**scope)),
+        ("special rules", Rule.objects.filter(**scope)),
+        ("weapon traits", Trait.objects.filter(**scope)),
+        (
+            "specialisations",
+            Specialisation.objects.filter(**scope).exclude(
+                name__in=[name for name, _ in SPECIALISATIONS]
+            ),
+        ),
+        ("skills", Skill.objects.filter(**scope).exclude(name__in=standard_skills)),
+        (
+            "subtypes",
+            Subtype.objects.filter(**scope).exclude(
+                name__in=FIGHTER_SUBTYPES + VEHICLE_SUBTYPES
+            ),
+        ),
+        ("gang types", GangType.objects.filter(**scope).exclude(name__in=GANG_TYPES)),
+        (
+            "categories",
+            Category.objects.filter(**scope).exclude(
+                section__name=SKILLS_SECTION,
+                name__in=[*SKILL_SETS, INHERENT_SET],
+            ),
+        ),
+        # A heading with nothing under it is not content. The skills one
+        # is standard and keeps its categories, so it never empties.
+        (
+            "sections",
+            section.objects.filter(**scope)
+            .exclude(name=SKILLS_SECTION)
+            .filter(categories__isnull=True),
+        ),
+    ]
 
-    # The taxonomy and the shared kinds: an import adds to these, so only
-    # what standard content does not name comes out.
-    sweep(
-        "specialisations",
-        Specialisation.objects.filter(**scope).exclude(
-            name__in=[name for name, _ in SPECIALISATIONS]
-        ),
-    )
-    sweep("skills", Skill.objects.filter(**scope).exclude(name__in=standard_skills))
-    sweep(
-        "subtypes",
-        Subtype.objects.filter(**scope).exclude(
-            name__in=FIGHTER_SUBTYPES + VEHICLE_SUBTYPES
-        ),
-    )
-    sweep("gang types", GangType.objects.filter(**scope).exclude(name__in=GANG_TYPES))
-    sweep(
-        "categories",
-        Category.objects.filter(**scope).exclude(
-            section__name=SKILLS_SECTION,
-            name__in=[*SKILL_SETS, INHERENT_SET],
-        ),
-    )
-    # A heading with nothing under it is not content; the skills one is
-    # standard and keeps its categories, so it never becomes empty.
-    section_model = apps.get_model("library", "Section")
-    sweep(
-        "sections",
-        section_model.objects.filter(**scope)
-        .exclude(name=SKILLS_SECTION)
-        .filter(categories__isnull=True),
-    )
-    return dict(gone)
+
+def count_imported(pack=None):
+    """How much a clear would take, as ``{what it is: how many}`` —
+    only the kinds that have anything."""
+    return {label: found for label, rows in _imported(pack) if (found := rows.count())}
+
+
+def clear_imported(pack=None):
+    """Delete everything an import writes, leaving standard content whole.
+
+    The inverse of :func:`perform`, and it lives here because the module
+    that writes this content is the one that knows its extent. After a
+    clear every standard-content seed still reports itself complete, and
+    importing the same sheets again lands in the same place. That round
+    trip is the point: it makes an import repeatable while the
+    spreadsheets are still changing.
+
+    Player data protects content it uses, so a gang holding an imported
+    weapon stops this with ``ProtectedError`` rather than taking the
+    weapon out from under it. Delete the gangs first.
+
+    Returns ``{what it was: how many}`` for what went.
+    """
+    gone = {}
+    for label, rows in _imported(pack):
+        found = rows.count()
+        if found:
+            rows.delete()
+            gone[label] = found
+    return gone
 
 
 def _missing(key):
