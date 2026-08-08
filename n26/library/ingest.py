@@ -28,7 +28,7 @@ Three standing rules are load-bearing here:
   the one on the Ironhead list).
 * **Ingest stands on standard content.** The statline shapes, profile
   types, XP counter and skill tiers a plan resolves against come from
-  ``n26.library.standard_content`` — sown from the foundations page, never
+  ``n26.library.standard_content`` — created from the foundations page, never
   re-declared here. Perform says which seed is missing rather than
   quietly planting its own.
 
@@ -54,7 +54,7 @@ share one, both are kept and told apart by the author-facing
 the books do not print.
 
 **Nothing here builds a Trading Post.** Membership there is *having a
-trade point price* — the post is two sweeps sown as standard content —
+trade point price* — the post is two sweeps created as standard content —
 so ingest's whole part in it is setting ``trade_point_price`` and
 ``is_exclusive`` from the sheet's ``TP`` column. The sheets keep those
 as one fact: ``Cost`` ``-`` and ``TP`` ``E`` always appear together,
@@ -506,7 +506,7 @@ def _plan_equipment(plan, rows, statlined=frozenset()):
     still homes under Grenades where the lists expect it.
 
     Nothing here builds a Trading Post. Membership there is *having a
-    trade point price* — the post is two sweeps sown as standard content
+    trade point price* — the post is two sweeps created as standard content
     — so setting the field is the whole job.
 
     Returns the prices found for named weapon profiles, keyed by ID: the
@@ -1376,7 +1376,7 @@ def perform(plan):
     :class:`IngestResult` whose counts match the preview's ``create``
     tallies — the preview is the contract.
 
-    Standard content must already be sown (the foundations page): the
+    Standard content must already exist (the foundations page): the
     statline shapes, profile types, XP counter and skill tiers are
     resolved by their standard names and a missing one is a loud
     LookupError, never quietly re-planted.
@@ -1404,11 +1404,11 @@ class _Performer:
 
     def _standard(self, model, what, **filters):
         """A standard-content row, by its fixed name. Missing means the
-        seed hasn't been sown — say which, don't plant it here."""
+        seed hasn't been created — say which, don't plant it here."""
         row = model.objects.filter(**filters).first()
         if row is None:
             raise LookupError(
-                f"{what} is not there — sow standard content first "
+                f"{what} is not there — create standard content first "
                 f"(the foundations page; library/standard_content.py)"
             )
         return row

@@ -139,8 +139,8 @@ def entry_key(collection_key, item_key):
 
 @pytest.fixture
 def foundation(default_pack):
-    """Standard content, sown exactly as the foundations page's buttons
-    would sow it (library/standard_content.py)."""
+    """Standard content, created exactly as the foundations page's
+    buttons would create it (library/standard_content.py)."""
     for item in STANDARD_CONTENT.values():
         item.create()
 
@@ -173,8 +173,8 @@ class TestStandardContentIsTheGround:
     def test_perform_names_the_missing_seed_rather_than_planting_it(
         self, default_pack, sheets
     ):
-        plan = plan_ingest(pack=None, **sheets)  # nothing sown
-        with pytest.raises(LookupError, match="sow standard content"):
+        plan = plan_ingest(pack=None, **sheets)  # nothing created
+        with pytest.raises(LookupError, match="create standard content"):
             perform(plan)
         assert Weapon.objects.count() == 0  # and the transaction held
 
@@ -396,11 +396,11 @@ class TestPreview:
     def test_notes_are_said_but_do_not_block(self, plan):
         preview = plan.preview()
         notes = [p for p in preview["problems"] if p["severity"] == "note"]
-        # A gang-wide cap is not a restriction on *use*, and a
-        # specialisation is something usable-by has no arm for. Both are
-        # said plainly and carried past, never bent into the wrong shape.
+        # A gang-wide cap is not a restriction on *use* at all, so it is
+        # said plainly and carried past rather than bent into the wrong
+        # shape. (A specialisation *is* expressible now, so it becomes a
+        # real restriction rather than a note — see TestProblems.)
         assert any("not a restriction on use" in n["message"] for n in notes)
-        assert any("names a specialisation" in n["message"] for n in notes)
         assert preview["ok"] is True
 
 
@@ -514,10 +514,11 @@ Malstrain,Alpha,Malstrain,5",4+,4+,3,3,2,4,2,5+,7,7,7,7,Fighter,Leader,25,110,,,
     ):
         """ "(Gunner specialist only)" names the field a Specialist chose,
         which is an arm of usable-by like a subtype — so it becomes a real
-        restriction, not a note."""
-        from n26.library import authoring
+        restriction, not a note. Gunner is standard content, so this needs
+        nothing authored by hand."""
+        from n26.library.models import Specialisation
 
-        gunner = authoring.create_specialisation("Gunner")
+        gunner = Specialisation.objects.get(name="Gunner")
         plan = plan_ingest(
             equipment=read_csv(EQUIPMENT_CSV),
             weapon_profiles=read_csv(WEAPON_PROFILES_CSV),
@@ -533,14 +534,21 @@ Malstrain,Alpha,Malstrain,5",4+,4+,3,3,2,4,2,5+,7,7,7,7,Fighter,Leader,25,110,,,
         assert str(fist.usable_by_selector()) == "has Gunner"
 
     def test_a_specialisation_the_pack_lacks_is_said_not_invented(self, foundation):
-        """Which specialisations exist is authored content — a restriction
-        string does not get to mint one."""
+        """Which specialisations exist is content — a restriction string
+        does not get to mint one. The eight the rules name are standard
+        content; a ninth the sheet invents is said, and stays unmade."""
         from n26.library.models import Specialisation
 
+        before = set(Specialisation.objects.values_list("name", flat=True))
         plan = plan_ingest(
             equipment=read_csv(EQUIPMENT_CSV),
             weapon_profiles=read_csv(WEAPON_PROFILES_CSV),
-            equipment_lists=read_csv(EQUIPMENT_LISTS_CSV),
+            equipment_lists=read_csv(
+                """
+Collection,Title,Section,Category,Name,Profile,Credits,Restrictions,ID
+Equipment List,Escher,Wargear,Personal equipment,Respirator,,15,Falconer specialist only,Respirator () (Personal equipment ← Wargear)
+"""
+            ),
         )
         assert plan.ok  # a note, never a block
         assert any(
@@ -548,7 +556,7 @@ Malstrain,Alpha,Malstrain,5",4+,4+,3,3,2,4,2,5+,7,7,7,7,Fighter,Leader,25,110,,,
             for p in plan.problems
         )
         perform(plan)
-        assert not Specialisation.objects.exists()
+        assert set(Specialisation.objects.values_list("name", flat=True)) == before
 
     def test_two_fighters_claiming_one_identity_are_refused(self, foundation):
         """Name and qualifier together are the identity. Two rows holding
@@ -684,7 +692,7 @@ class TestPerform:
         perform(plan)
         after = Category.objects.filter(section__name="Skills")
 
-        assert {"Agility", "Combat"} <= before  # sown, not invented here
+        assert {"Agility", "Combat"} <= before  # already there, not invented here
         assert set(after.values_list("name", flat=True)) == before
         assert after.filter(name="Agility").count() == 1
 
