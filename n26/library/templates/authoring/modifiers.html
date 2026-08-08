@@ -7,10 +7,10 @@
 {% endblock nav_items %}
 {% block content %}
     <c-n26.page-header title="Modifiers"
-                       lead="Every scope-and-effect pair in the pack — the payloads the carriers hang. Composed here, a modifier belongs to nothing yet; attach it from any carrier's page.">
+                       lead="Behaviours, defined by a scope and an effect.">
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
-                <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Authoring</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Content library</c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item :current="True">
                     Modifiers
                 </c-ui.breadcrumbs.item>
@@ -31,7 +31,7 @@
             </c-ui.table>
         {% else %}
             <c-ui.description>
-                None yet — compose the first one below.
+                None yet — build the first one below.
             </c-ui.description>
         {% endif %}
     </c-n26.form-section>

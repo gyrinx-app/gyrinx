@@ -3,14 +3,19 @@
     {{ verbose_name_plural|capfirst }}
 {% endblock head_title %}
 {% block content %}
-    <c-n26.page-header title="New {{ verbose_name }}">
+    <c-n26.page-header title="{{ verbose_name_plural|capfirst }}">
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
-                <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Authoring</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Content library</c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item :current="True">
                     {{ verbose_name_plural|capfirst }}
                 </c-ui.breadcrumbs.item>
             </c-ui.breadcrumbs>
+        </c-slot>
+        <c-slot name="actions">
+            <c-ui.button href="{% url 'authoring-create' kind %}" variant="primary">
+                New {{ verbose_name }}
+            </c-ui.button>
         </c-slot>
     </c-n26.page-header>
     {% if kind_help %}
@@ -18,45 +23,51 @@
             {% for paragraph in kind_help %}<p>{{ paragraph }}</p>{% endfor %}
         </c-n26.prose>
     {% endif %}
-    <form method="post" class="mt-6 max-w-xl space-y-5">
-        {% csrf_token %}
-        {% include "authoring/_form.html" %}
-        {% if suggestion_form %}
-            <c-n26.form-section title="Comes with"
-                                description="All optional — blank to skip."
-                                class="rounded-box border border-box-border p-4">
-                {% include "authoring/_form.html" with form=suggestion_form %}
-            </c-n26.form-section>
-        {% endif %}
-        <div class="flex justify-end">
-            <c-ui.button type="submit" variant="success">
-                Create {{ verbose_name }}
-            </c-ui.button>
-        </div>
-    </form>
-    <c-n26.form-section title="{{ verbose_name_plural|capfirst }} ({{ count }})"
-                        class="mt-10">
+    {% comment %}
+    The search narrows rows already on the page, which is the sanctioned
+    exception to keeping UI state in the URL: nothing here is rendered
+    differently by the server, and a half-typed query is not worth a
+    round trip or a place in history.
+
+    Rows register what they match on and then show themselves only while
+    it passes, the way the gang table's filter works — so the count and
+    the list are computed from one array and cannot disagree. Counting
+    visible rows out of the DOM instead would not be reactive: nothing
+    in that read mentions the query, so the number would never change.
+    {% endcomment %}
+    <div x-data="{ query: '', haystacks: [], register(haystack) { this.haystacks.push(haystack) }, matches(haystack) { const q = this.query.trim().toLowerCase(); return !q || haystack.includes(q); }, get shown() { return this.haystacks.filter(h => this.matches(h)).length }, }"
+         class="mt-8 flex flex-col gap-3">
         {% if rows %}
+            <c-n26.search-bar :live="True"
+                              model="query"
+                              placeholder="Search {{ verbose_name_plural }}" />
+            <p class="text-sm text-muted">
+                <span class="font-semibold text-ink-900 tabular-nums dark:text-ink-100"
+                      x-text="shown">{{ count }}</span>
+                of {{ count }} {{ verbose_name_plural }}
+            </p>
             <c-ui.table>
                 <tbody>
                     {% for row in rows %}
-                        <tr>
-                            <td>
-                                {% if has_detail %}
-                                    <c-n26.link href="{% url 'authoring-detail' kind row.pk %}">{{ row.label }}</c-n26.link>
-                                {% else %}
-                                    {{ row.label }}
-                                {% endif %}
+                        {# :hidden rather than x-show: a table row's own display value is not `block`. #}
+                        <tr x-data="{ haystack: '{{ row.search|escapejs }}' }"
+                            x-init="register(haystack)"
+                            :hidden="!matches(haystack)">
+                            <td class="whitespace-nowrap">
+                                <c-n26.link href="{% url 'authoring-detail' kind row.pk %}">{{ row.label }}</c-n26.link>
                             </td>
-                            <td class="text-right text-muted">{{ row.notes|join:" · " }}</td>
+                            <td class="w-full text-muted">{{ row.notes|join:" · " }}</td>
                         </tr>
                     {% endfor %}
                 </tbody>
             </c-ui.table>
+            <p x-show="shown === 0"
+               x-cloak
+               class="py-6 text-center text-sm text-muted">No {{ verbose_name_plural }} match that.</p>
         {% else %}
             <c-ui.description>
-                None yet.
+                None yet — the New {{ verbose_name }} button makes the first one.
             </c-ui.description>
         {% endif %}
-    </c-n26.form-section>
+    </div>
 {% endblock content %}

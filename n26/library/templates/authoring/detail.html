@@ -6,7 +6,7 @@
     <c-n26.page-header title="{{ thing }}">
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
-                <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Authoring</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Content library</c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item href="{% url 'authoring-leaf' kind %}">
                     {{ verbose_name_plural|capfirst }}
                 </c-ui.breadcrumbs.item>
@@ -16,10 +16,29 @@
             </c-ui.breadcrumbs>
         </c-slot>
     </c-n26.page-header>
+    {% if kind_help %}
+        <c-n26.prose class="mt-3 max-w-2xl">
+            {% for paragraph in kind_help %}<p>{{ paragraph }}</p>{% endfor %}
+        </c-n26.prose>
+    {% endif %}
     {% if thing.library_author_help %}
         <c-n26.prose class="mt-3 max-w-2xl">
             <p>{{ thing.library_author_help }}</p>
         </c-n26.prose>
+    {% endif %}
+    {% if edit_form %}
+        <c-n26.form-section title="This {{ verbose_name }}" class="mt-8">
+            <form method="post" class="max-w-xl space-y-5">
+                {% csrf_token %}
+                <input type="hidden" name="act" value="edit">
+                {% include "authoring/_form.html" with form=edit_form %}
+                <div class="flex justify-end">
+                    <c-ui.button type="submit" variant="success">
+                        Save changes
+                    </c-ui.button>
+                </div>
+            </form>
+        </c-n26.form-section>
     {% endif %}
     {% if has_parts %}
         <c-n26.form-section title="{{ part_verbose_name_plural|capfirst }}" class="mt-8">

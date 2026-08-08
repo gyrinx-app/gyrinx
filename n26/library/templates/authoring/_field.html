@@ -22,10 +22,14 @@ Takes `field` (a BoundField) and `form`.
                     :form="form"
                     name="{{ field.name }}"
                     for="{{ field.auto_id }}">
+            {# yesno, and a plain attribute rather than a : one: an #}
+            {# untouched field's value is None, which the switch prints #}
+            {# into JavaScript as `none` and throws on — and a : attribute #}
+            {# cannot carry a filter to fix it up. #}
             <c-ui.switch label=""
                          name="{{ field.html_name }}"
                          id="{{ field.auto_id }}"
-                         :checked="field.value" />
+                         checked="{{ field.value|yesno:'true,false,false' }}" />
         </c-ui.field>
     {% elif kind == "textarea" %}
         <c-ui.field data-field

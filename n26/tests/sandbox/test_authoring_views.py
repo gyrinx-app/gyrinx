@@ -57,9 +57,50 @@ class TestTheMenuIsBackedBySpecs:
         )
 
     @pytest.mark.parametrize("kind", sorted(LEAF_KINDS), ids=str)
+    def test_every_leaf_kind_reads_both_ways(self, kind):
+        """Editing writes a form's fields straight onto the row, using
+        the same spec that describes the creating verb. That only works
+        while every field names a column on the thing being made — a
+        field sourced from another model, or naming nothing, would be
+        silently dropped on save."""
+        from n26.library.specs import Conditions, Union
+
+        spec = specs()[LEAF_KINDS[kind]]
+        model = spec.creates
+        for name, kind_of_field in spec.fields.items():
+            assert not isinstance(kind_of_field, (Union, Conditions)), (
+                f"{kind}'s {name} is a {type(kind_of_field).__name__}, which "
+                f"has no single column to write back to. Editing would drop "
+                f"it — give the kind its own edit path before adding this."
+            )
+            source = getattr(kind_of_field, "source", None)
+            assert source is not None and source[0] is model, (
+                f"{kind}'s {name} is not a column on {model.__name__}, so "
+                f"editing cannot write it back. Point its source at the "
+                f"model the verb makes."
+            )
+
+    @pytest.mark.parametrize("kind", sorted(LEAF_KINDS), ids=str)
     def test_every_leaf_page_renders(self, kind, author, client, default_pack):
         response = client.get(f"/n26/authoring/{kind}/")
         assert response.status_code == 200
+
+    @pytest.mark.parametrize("kind", sorted(LEAF_KINDS), ids=str)
+    def test_every_kind_has_a_create_page(self, kind, author, client, default_pack):
+        response = client.get(f"/n26/authoring/{kind}/new/")
+        assert response.status_code == 200
+
+    @pytest.mark.parametrize("kind", sorted(LEAF_KINDS), ids=str)
+    def test_no_switch_is_handed_a_value_javascript_cannot_read(
+        self, kind, author, client, default_pack
+    ):
+        """A switch takes its opening state as a JavaScript literal. An
+        untouched field's value is None, and `none` is not one — it
+        throws on init, leaving a control that never reflects what it
+        is bound to and posts whatever the browser left in it."""
+        body = client.get(f"/n26/authoring/{kind}/new/").content.decode()
+        assert "switchInput(false, none)" not in body
+        assert "switchInput(false, None)" not in body
 
     @pytest.mark.parametrize("kind", sorted(LEAF_KINDS), ids=str)
     def test_every_leaf_page_renders_with_rows_in_it(
@@ -92,17 +133,61 @@ class TestTheIndex:
         assert "wargear" in body
 
 
+class TestTheListingIsForReading:
+    """A kind's own page documents the kind and lists every one of
+    them. Making one is a button to a page of its own; changing one is
+    the row itself."""
+
+    def test_it_documents_the_kind_and_offers_a_way_in(
+        self, author, client, default_pack
+    ):
+        body = client.get("/n26/authoring/rule/").content.decode()
+
+        # The model's own docstring is the documentation, as on the
+        # create page — a fragment of it with nothing HTML escapes.
+        assert "A named special rule on a fighter" in body
+        assert "/n26/authoring/rule/new/" in body
+
+    def test_it_carries_no_create_form(self, author, client, default_pack):
+        """The form moved to its own page. Left here it would post to a
+        view that no longer creates anything, and say nothing about
+        why."""
+        body = client.get("/n26/authoring/subtype/").content.decode()
+        assert 'name="qualifier"' not in body
+
+    def test_every_row_links_to_its_own_page(self, author, client, default_pack):
+        from n26.library.authoring import create_subtype
+
+        mounted = create_subtype("Mounted")
+        body = client.get("/n26/authoring/subtype/").content.decode()
+
+        assert f"/n26/authoring/subtype/{mounted.pk}/" in body
+
+    def test_a_row_carries_what_the_search_matches_on(
+        self, author, client, default_pack
+    ):
+        """The search narrows rows already on the page, so each row
+        brings its own haystack — name and notes, lowercased."""
+        from n26.library.authoring import create_rule
+
+        create_rule("Lead Ritual", annotation="Leader only")
+        body = client.get("/n26/authoring/rule/").content.decode()
+
+        assert "lead ritual" in body  # the haystack, beside the printed name
+        assert "Lead Ritual" in body
+
+
 class TestCreatingALeaf:
     def test_the_form_shows_the_models_own_words(self, author, client, default_pack):
         from n26.library.models import Rule
 
-        body = client.get("/n26/authoring/rule/").content.decode()
+        body = client.get("/n26/authoring/rule/new/").content.decode()
         assert str(Rule._meta.get_field("annotation").help_text) in body
 
     def test_a_valid_submit_performs_the_verb(self, author, client, default_pack):
         from n26.library.models import Subtype
 
-        response = client.post("/n26/authoring/subtype/", {"name": "Mounted"})
+        response = client.post("/n26/authoring/subtype/new/", {"name": "Mounted"})
         assert response.status_code == 302  # created, back to the page
 
         row = Subtype.objects.get(name="Mounted")
@@ -117,7 +202,7 @@ class TestCreatingALeaf:
 
         home = create_category("Personal Equipment", "Field Armour")
         response = client.post(
-            "/n26/authoring/wargear/",
+            "/n26/authoring/wargear/new/",
             {
                 "name": "Seven-pointed breastplate",
                 "price": "20",
@@ -134,7 +219,7 @@ class TestCreatingALeaf:
         from n26.library.models import Rule
 
         client.post(
-            "/n26/authoring/rule/",
+            "/n26/authoring/rule/new/",
             {"name": "Lead Ritual", "annotation": "Leader only"},
         )
         assert str(Rule.objects.get(name="Lead Ritual")) == "Lead Ritual (Leader only)"
@@ -142,8 +227,8 @@ class TestCreatingALeaf:
     def test_a_duplicate_name_refuses_in_words(self, author, client, default_pack):
         from n26.library.models import Subtype
 
-        client.post("/n26/authoring/subtype/", {"name": "Mounted"})
-        response = client.post("/n26/authoring/subtype/", {"name": "Mounted"})
+        client.post("/n26/authoring/subtype/new/", {"name": "Mounted"})
+        response = client.post("/n26/authoring/subtype/new/", {"name": "Mounted"})
 
         assert response.status_code == 200  # back on the form, not a 500
         assert "already exists in this pack" in response.content.decode()
@@ -156,8 +241,8 @@ class TestCreatingALeaf:
         from n26.library.models import Stat
 
         made = {"short_name": "M", "full_name": "Movement"}
-        client.post("/n26/authoring/stat/", made)
-        response = client.post("/n26/authoring/stat/", made)
+        client.post("/n26/authoring/stat/new/", made)
+        response = client.post("/n26/authoring/stat/new/", made)
 
         assert response.status_code == 200  # back on the form, not a 500
         body = response.content.decode()
@@ -168,10 +253,169 @@ class TestCreatingALeaf:
     def test_a_missing_name_refuses_in_words(self, author, client, default_pack):
         from n26.library.models import Counter
 
-        response = client.post("/n26/authoring/counter/", {"name": ""})
+        response = client.post("/n26/authoring/counter/new/", {"name": ""})
         assert response.status_code == 200
         assert "required" in response.content.decode()
         assert Counter.objects.count() == 0
+
+
+class TestEditingOne:
+    """A thing's own page is where it is changed. The form is the same
+    spec-generated one the create page uses, opened on a row that
+    already exists."""
+
+    def test_the_page_opens_the_form_on_what_is_there(
+        self, author, client, default_pack
+    ):
+        from n26.library.authoring import create_rule
+
+        rule = create_rule("Lead Ritual", annotation="Leader only")
+        body = client.get(f"/n26/authoring/rule/{rule.pk}/").content.decode()
+
+        assert 'value="Lead Ritual"' in body
+        assert 'value="Leader only"' in body
+
+    def test_a_change_is_saved(self, author, client, default_pack):
+        from n26.library.authoring import create_rule
+        from n26.library.models import Rule
+
+        rule = create_rule("Lead Ritual", annotation="Leader only")
+        response = client.post(
+            f"/n26/authoring/rule/{rule.pk}/",
+            {
+                "act": "edit",
+                "edit-name": "Lead Rite",
+                "edit-annotation": "Leaders only",
+            },
+        )
+
+        assert response.status_code == 302
+        rule.refresh_from_db()
+        assert rule.name == "Lead Rite"
+        assert rule.annotation == "Leaders only"
+        assert Rule.objects.count() == 1  # changed, not copied
+
+    def test_a_field_cleared_is_cleared(self, author, client, default_pack):
+        """Blanking an optional field has to reach the row — a save that
+        only wrote the fields an author touched would leave the old
+        annotation printing after the bracket was deleted."""
+        from n26.library.authoring import create_rule
+
+        rule = create_rule("Lead Ritual", annotation="Leader only")
+        client.post(
+            f"/n26/authoring/rule/{rule.pk}/",
+            {"act": "edit", "edit-name": "Lead Ritual", "edit-annotation": ""},
+        )
+
+        rule.refresh_from_db()
+        assert rule.annotation == ""
+
+    def test_a_duplicate_name_refuses_in_words(self, author, client, default_pack):
+        from n26.library.authoring import create_subtype
+
+        create_subtype("Mounted")
+        wyrd = create_subtype("Wyrd")
+        response = client.post(
+            f"/n26/authoring/subtype/{wyrd.pk}/",
+            {"act": "edit", "edit-name": "Mounted"},
+        )
+
+        assert response.status_code == 200  # back on the page, not a 500
+        assert "already exists in this pack" in response.content.decode()
+        wyrd.refresh_from_db()
+        assert wyrd.name == "Wyrd"  # and nothing was written
+
+    def test_editing_leaves_the_parts_alone(self, author, client, default_pack):
+        """A weapon's page carries its firing lines as well as its own
+        fields. Saving the one must not disturb the other."""
+        from n26.library.authoring import add_weapon_profile, create_weapon
+
+        weapon = create_weapon("Lasgun", price=15)
+        add_weapon_profile(weapon)
+        client.post(
+            f"/n26/authoring/weapon/{weapon.pk}/",
+            {
+                "act": "edit",
+                "edit-name": "Lasgun",
+                "edit-price": "20",
+                "edit-slots": "1",
+            },
+        )
+
+        weapon.refresh_from_db()
+        assert weapon.price == 20
+        assert weapon.profiles.count() == 1
+
+    def test_the_two_forms_on_a_page_do_not_share_a_control(
+        self, author, client, default_pack
+    ):
+        """A weapon's page draws its own fields and the fields that add
+        a firing line, and the two specs name fields alike. Sharing a
+        name means sharing an id, and two switches wired to one id
+        answer for each other: saving a weapon's price used to mark it
+        exclusive, because the *other* form's toggle was what the
+        browser read.
+        """
+        from n26.library.authoring import create_weapon
+
+        weapon = create_weapon("Lasgun", price=15)
+        body = client.get(f"/n26/authoring/weapon/{weapon.pk}/").content.decode()
+
+        assert body.count('id="id_is_exclusive"') <= 1, (
+            "Two controls share an id, so the browser cannot tell them "
+            "apart — give one of the forms a prefix."
+        )
+        assert 'name="edit-is_exclusive"' in body
+
+    def test_a_toggle_left_alone_stays_off(self, author, client, default_pack):
+        """Saving a weapon after changing only its price must not turn
+        on a switch nobody touched."""
+        from n26.library.authoring import create_weapon
+
+        weapon = create_weapon("Lasgun", price=15)
+        client.post(
+            f"/n26/authoring/weapon/{weapon.pk}/",
+            {
+                "act": "edit",
+                "edit-name": "Lasgun",
+                "edit-price": "20",
+                "edit-slots": "1",
+            },
+        )
+
+        weapon.refresh_from_db()
+        assert weapon.price == 20
+        assert weapon.is_exclusive is False
+
+    def test_a_switch_opens_on_the_value_it_has(self, author, client, default_pack):
+        """The switch is drawn by JavaScript from a state it is handed,
+        so a field that is on has to say so there — not only in the
+        checkbox underneath. An exclusive weapon whose page drew the
+        switch off would turn itself ordinary on the next save."""
+        from n26.library.authoring import create_weapon
+
+        weapon = create_weapon("Handbow", price=15, is_exclusive=True)
+        body = client.get(f"/n26/authoring/weapon/{weapon.pk}/").content.decode()
+
+        assert "switchInput(false, true)" in body
+
+    def test_an_exclusive_weapon_stays_exclusive(self, author, client, default_pack):
+        from n26.library.authoring import create_weapon
+
+        weapon = create_weapon("Handbow", price=15, is_exclusive=True)
+        client.post(
+            f"/n26/authoring/weapon/{weapon.pk}/",
+            {
+                "act": "edit",
+                "edit-name": "Handbow",
+                "edit-price": "20",
+                "edit-slots": "1",
+                "edit-is_exclusive": "on",
+            },
+        )
+
+        weapon.refresh_from_db()
+        assert weapon.is_exclusive is True
 
 
 class TestTheDoorIsStaffed:
@@ -208,12 +452,12 @@ class TestSectionsAndLastingEffects:
         from n26.library.models import Category, Section
 
         client.post(
-            "/n26/authoring/section/", {"name": "Ranged Weapons", "position": "0"}
+            "/n26/authoring/section/new/", {"name": "Ranged Weapons", "position": "0"}
         )
         heading = Section.objects.get(name="Ranged Weapons")
 
         client.post(
-            "/n26/authoring/category/",
+            "/n26/authoring/category/new/",
             {"name": "Auto/Stub Weapons", "section": str(heading.pk), "position": "1"},
         )
         made = Category.objects.get(name="Auto/Stub Weapons")
@@ -235,7 +479,7 @@ class TestSectionsAndLastingEffects:
     ):
         from n26.library.models import LastingEffect
 
-        client.post("/n26/authoring/lasting-effect/", {"name": "Humiliated"})
+        client.post("/n26/authoring/lasting-effect/new/", {"name": "Humiliated"})
         assert LastingEffect.objects.filter(name="Humiliated").exists()
 
         # One kind, two words: the label is the profile type's own.
@@ -274,7 +518,7 @@ class TestAuthorHelp:
         from n26.library.models import Subtype
 
         client.post(
-            "/n26/authoring/subtype/",
+            "/n26/authoring/subtype/new/",
             {
                 "name": "Wyrd",
                 "library_author_help": (
@@ -290,7 +534,7 @@ class TestAuthorHelp:
     def test_help_stays_optional(self, author, client, default_pack):
         from n26.library.models import Subtype
 
-        client.post("/n26/authoring/subtype/", {"name": "Mounted"})
+        client.post("/n26/authoring/subtype/new/", {"name": "Mounted"})
         assert Subtype.objects.get(name="Mounted").library_author_help == ""
 
 
@@ -380,7 +624,7 @@ class TestHelpRendersOnTheForm:
     def test_the_textarea_and_the_guardrail_are_on_the_page(
         self, author, client, default_pack
     ):
-        body = client.get("/n26/authoring/subtype/").content.decode()
+        body = client.get("/n26/authoring/subtype/new/").content.decode()
         assert "<textarea" in body
         assert "For content authors" in body
 
@@ -396,7 +640,7 @@ class TestTheCarriers:
         from n26.library.models import Hidden
 
         client.post(
-            "/n26/authoring/hidden/",
+            "/n26/authoring/hidden/new/",
             {
                 "name": "Deploys the Trazior",
                 "library_author_help": "Rides the option set that spawns the gun.",
@@ -409,15 +653,15 @@ class TestTheCarriers:
     def test_the_chosen_carriers(self, author, client, default_pack):
         from n26.library.models import Affiliation, Archetype
 
-        client.post("/n26/authoring/archetype/", {"name": "Brawler"})
-        client.post("/n26/authoring/affiliation/", {"name": "Clan House"})
+        client.post("/n26/authoring/archetype/new/", {"name": "Brawler"})
+        client.post("/n26/authoring/affiliation/new/", {"name": "Clan House"})
         assert Archetype.objects.filter(name="Brawler").exists()
         assert Affiliation.objects.filter(name="Clan House").exists()
 
     def test_a_specialisation(self, author, client, default_pack):
         from n26.library.models import Specialisation
 
-        client.post("/n26/authoring/specialisation/", {"name": "Medicate"})
+        client.post("/n26/authoring/specialisation/new/", {"name": "Medicate"})
         assert Specialisation.objects.filter(name="Medicate").exists()
 
     def test_a_skill_tree_needs_the_set_it_stands_for(
@@ -428,14 +672,14 @@ class TestTheCarriers:
 
         agility = create_category("Skills", "Agility")
         response = client.post(
-            "/n26/authoring/skill-tree/",
+            "/n26/authoring/skill-tree/new/",
             {"name": "Agility", "category": str(agility.pk)},
         )
         assert response.status_code == 302
         assert SkillTree.objects.get(name="Agility").category == agility
 
         # The token is meaningless without its home, so the form insists.
-        response = client.post("/n26/authoring/skill-tree/", {"name": "Nowhere"})
+        response = client.post("/n26/authoring/skill-tree/new/", {"name": "Nowhere"})
         assert response.status_code == 200
         assert "required" in response.content.decode()
         assert not SkillTree.objects.filter(name="Nowhere").exists()
@@ -517,7 +761,7 @@ class TestWeapons:
 
     def make_autogun(self, client, weapon_statline_type):
         response = client.post(
-            "/n26/authoring/weapon/",
+            "/n26/authoring/weapon/new/",
             {
                 "name": "Autogun",
                 "slots": "1",
@@ -712,7 +956,7 @@ class TestWeaponAccessories:
 
         las = create_category("Ranged Weapons", "Las Weapons")
         client.post(
-            "/n26/authoring/weapon-accessory/",
+            "/n26/authoring/weapon-accessory/new/",
             {
                 "name": "Focusing crystal",
                 "price": "30",
@@ -728,7 +972,7 @@ class TestWeaponAccessories:
         from n26.library.models import WeaponAccessory
 
         client.post(
-            "/n26/authoring/weapon-accessory/",
+            "/n26/authoring/weapon-accessory/new/",
             {
                 "name": "Suspensors",
                 "price": "60",
@@ -759,7 +1003,7 @@ class TestTheQualifier:
 
         for qualifier in ("Sumpkroc", "Psychoteric Wyrm"):
             client.post(
-                "/n26/authoring/weapon/",
+                "/n26/authoring/weapon/new/",
                 {
                     "name": "Ferocious jaws",
                     "qualifier": qualifier,
@@ -786,7 +1030,8 @@ class TestTheQualifier:
 
         for _ in range(2):
             response = client.post(
-                "/n26/authoring/subtype/", {"name": "Mounted", "qualifier": "beasts"}
+                "/n26/authoring/subtype/new/",
+                {"name": "Mounted", "qualifier": "beasts"},
             )
         assert response.status_code == 200
         assert "already exists" in response.content.decode()
@@ -826,7 +1071,7 @@ class TestAWeaponsOwnLine:
 
     def make_autogun(self, client, weapon_statline_type):
         client.post(
-            "/n26/authoring/weapon/",
+            "/n26/authoring/weapon/new/",
             {
                 "name": "Autogun",
                 "slots": "1",
@@ -1073,12 +1318,12 @@ class TestTheGangSurface:
         from n26.library.models import GangType, Profile
 
         client.post(
-            "/n26/authoring/gang-type/",
+            "/n26/authoring/gang-type/new/",
             {"name": "Escher", "starting_credits": "1000"},
         )
         escher = GangType.objects.get(name="Escher")
         response = client.post(
-            "/n26/authoring/profile/",
+            "/n26/authoring/profile/new/",
             {
                 "name": "Ganger",
                 "profile_type": str(person_type.pk),
@@ -1092,7 +1337,7 @@ class TestTheGangSurface:
         from n26.library.models import GangType
 
         response = client.post(
-            "/n26/authoring/gang-type/",
+            "/n26/authoring/gang-type/new/",
             {"name": "Escher", "starting_credits": "1000"},
         )
         assert response.status_code == 302
@@ -1122,7 +1367,7 @@ class TestTheGangSurface:
 
         _, ganger = self.make_ganger(client, person_type)
         client.post(
-            "/n26/authoring/collection/", {"name": "House Escher Equipment List"}
+            "/n26/authoring/collection/new/", {"name": "House Escher Equipment List"}
         )
         escher_list = Collection.objects.get(name="House Escher Equipment List")
 
@@ -1205,7 +1450,7 @@ class TestTheGangSurface:
         create_counter("XP")
         create_collection("House Escher Equipment List")
         create_subtype("Ganger")
-        body = client.get("/n26/authoring/profile/").content.decode()
+        body = client.get("/n26/authoring/profile/new/").content.decode()
         assert "Starting XP" in body
         assert "Equipment list" in body
         assert "Subtypes" in body
@@ -1230,7 +1475,7 @@ class TestTheGangSurface:
         specialist = create_subtype("Specialist")
 
         response = client.post(
-            "/n26/authoring/profile/",
+            "/n26/authoring/profile/new/",
             {
                 "name": "Ganger",
                 "profile_type": str(person_type.pk),
@@ -1275,7 +1520,7 @@ class TestTheCollectionPage:
     ):
         from n26.library.models import Collection
 
-        response = client.post("/n26/authoring/collection/", {"name": "House List"})
+        response = client.post("/n26/authoring/collection/new/", {"name": "House List"})
         made = Collection.objects.get(name="House List")
         assert response.status_code == 302
         assert response["Location"] == f"/n26/authoring/collection/{made.pk}/"
@@ -1326,7 +1571,7 @@ class TestTheCollectionPage:
         assert "Lasgun" not in client.get(page).content.decode()
 
         client.post(
-            "/n26/authoring/weapon/",
+            "/n26/authoring/weapon/new/",
             {"name": "Lasgun", "slots": "1", "price": "15", "trade_point_price": "1"},
         )
         assert "Lasgun" in client.get(page).content.decode()
@@ -1384,11 +1629,21 @@ class TestTheModifierSection:
         assert "does nothing special until" in body
         assert 'name="scope_kind"' in body  # step one is always offered
 
-    def test_a_foundation_kind_does_not(self, author, client, default_pack):
+    def test_a_foundation_kind_has_a_page_without_one(
+        self, author, client, default_pack
+    ):
+        """A stat is not an assignable, so nothing can be hung on it —
+        but it is still authored, so it still has a page to be edited
+        on."""
         from n26.library.authoring import create_stat
 
         stat = create_stat("M", "Movement", is_inches=True)
-        assert client.get(f"/n26/authoring/stat/{stat.pk}/").status_code == 404
+        response = client.get(f"/n26/authoring/stat/{stat.pk}/")
+
+        assert response.status_code == 200
+        body = response.content.decode()
+        assert 'name="edit-full_name"' in body  # the edit form
+        assert 'name="scope_kind"' not in body  # but no composer
 
     def test_step_two_renders_the_panes_the_kinds_call_for(
         self, rule, client, default_pack
