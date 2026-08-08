@@ -17,26 +17,31 @@ The gang's choices and counters are shown as settled facts. The library's row
 can open a picker that writes, and that picker does not exist — a Save button
 that saves nothing is worse than a value with no affordance at all.
 {% endcomment %}
+{% load badge_tags %}
 {% block head_title %}{{ sheet.name }}{% endblock head_title %}
 {% block nav_heading %}{{ sheet.name }}{% endblock nav_heading %}
 {% block nav_items %}
     {% include 'n26/_nav.html' %}
 {% endblock %}
 {% block content %}
+    {% badge_for gang.owner as owner_badge %}
     <c-n26.view.gang-sheet :sheet="sheet"
                            owner="{{ gang.owner.username }}"
                            owner_href="{% url 'n26-dashboard' %}"
-                           owner_flair_label="{% if gang.owner.is_staff %}Gyrinx staff{% endif %}"
+                           owner_flair_label="{{ owner_badge.description }}"
                            gangs_href="{% url 'n26-dashboard' %}">
         {% comment %}
-        The staff badge is a fact about the owner, so it is drawn from the owner
-        rather than always. No type_flair: the only house artwork in the set is
-        Goliath's, and hanging it on an Escher gang would be a badge that lies.
-        The type still reads as text — flair-link draws the name with no badge.
+        The badge is a fact about the owner, and which one they hold is the
+        platform's answer — supporter tier or staff, whichever they are entitled
+        to and have picked. The wording comes from there too, so this page never
+        guesses what someone else's badge means. No type_flair: the only house
+        artwork in the set is Goliath's, and hanging it on an Escher gang would
+        be a badge that lies. The type still reads as text — flair-link draws
+        the name with no badge.
         {% endcomment %}
-        {% if gang.owner.is_staff %}
+        {% if owner_badge %}
             <c-slot name="owner_flair">
-                <c-n26.flair.staff />
+                {% badge_svg owner_badge %}
             </c-slot>
         {% endif %}
         {% comment %}

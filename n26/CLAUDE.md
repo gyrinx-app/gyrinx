@@ -28,6 +28,14 @@ Concretely:
   exceptions: the dashboard reads `gyrinx.site.models.ChangelogEntry`,
   deferred inside the view, and `n26/tests/` may import platform pieces
   to test the seam. Do not add others.
+- **Templates may `{% load %}` a platform tag library** where the thing
+  it answers is genuinely the platform's and not an edition's — today
+  that is `badge_tags`, because which badge a person shows follows from
+  their supporter standing and staff flag, which belong to the account
+  rather than to either edition. The edition still draws it in its own
+  components (`<c-n26.user-link>`); what crosses is the answer, never
+  the markup. This is not a licence for Python imports: a tag library
+  loaded by name in a template is the whole of the dependency.
 - **`n26/core/models/` never imports `n26.library`.** It names library
   models by label string (`"library.Profile"`). This keeps the model graph
   one-way: core rows point at library rows, never the reverse.

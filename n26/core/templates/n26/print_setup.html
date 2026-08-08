@@ -31,9 +31,7 @@ and creating one are one screen, not two.
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
                 <c-ui.breadcrumbs.item>
-                    <c-n26.flair-link text="{{ gang.owner.username }}"
-                                      tone="current"
-                                      href="{% url 'n26-dashboard' %}" />
+                    <c-n26.user-link :user="gang.owner" tone="current" href="{% url 'n26-dashboard' %}" />
                 </c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item href="{% url 'n26-gang' gang.pk %}">{{ gang.name }}</c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item :current="True">

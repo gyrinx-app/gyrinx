@@ -1130,7 +1130,8 @@ GROUPS: list[Group] = [
                     Part(
                         "c-n26.flair.staff",
                         "n26/flair/staff.html",
-                        "The pixel-art staff badge. Fixed palette by design.",
+                        "The pixel-art staff badge, drawn from the platform's own "
+                        "badge asset. Fixed palette by design.",
                     ),
                     Part(
                         "c-n26.flair.house",
@@ -1138,6 +1139,25 @@ GROUPS: list[Group] = [
                         "The Goliath house icon. Drawn with currentColor, so it "
                         "follows the text.",
                     ),
+                ),
+            ),
+            Component(
+                slug="user-link",
+                tag="c-n26.user-link",
+                template="n26/user_link.html",
+                summary="A person's name with the badge they actually hold.",
+                notes=(
+                    "flair-link with the badge decided rather than passed in, "
+                    "because the alternative is every page deciding for itself and "
+                    "the pages disagreeing. Which mark someone shows belongs to the "
+                    "person, not to the screen they appear on: it is derived from "
+                    "their live supporter standing and staff flag against the "
+                    "platform's registry, plus their own pick among what that "
+                    "leaves them. Drawing it from is_staff — which one page did — "
+                    "gives every supporter no badge at all. There is no label prop "
+                    "for the same reason: the wording comes from the registry, so a "
+                    "call site cannot guess wrong about what someone else's badge "
+                    "means, and a new tier needs no edition change."
                 ),
             ),
             Component(
