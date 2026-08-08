@@ -51,3 +51,21 @@ class CreateGangForm(forms.Form):
         """``(value, label)`` pairs for the view component's select —
         the same rows the field validates against, said once."""
         return [(str(row.pk), str(row)) for row in self.fields["gang_type"].queryset]
+
+
+class HireFighterForm(forms.Form):
+    """The one real field on the hire screen.
+
+    Which profile — and which of its options — is not a field here: every
+    Hire button in the picker is the form's submit, carrying the profile,
+    and the option inputs are scoped per-row by the picker itself. The
+    view reads those directly, because their names are composed from the
+    rows on the page rather than declared anywhere a Form could know.
+    """
+
+    name = forms.CharField(
+        max_length=200,
+        required=False,
+        label="Name",
+        help_text="Optional — you can name them later.",
+    )

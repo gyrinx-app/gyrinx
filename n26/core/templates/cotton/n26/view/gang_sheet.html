@@ -138,8 +138,12 @@ row, which is what makes an eleven-fighter gang read as a wall.
     a phone. A row of actions that scrolls sideways hides the destructive one behind
     an edge, which is the wrong thing to hide behind an edge — better it wraps and
     the page gets a line taller.
+
+    Right-aligned, matching where the page keeps its other figures: the wealth
+    strip sits at the header's far end, and the buttons line up under it rather
+    than hanging off the title's edge with the width of the page between them.
     {% endcomment %}
-    <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+    <div class="flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
         <div class="flex flex-wrap items-center gap-2">
             {{ actions }}
         </div>

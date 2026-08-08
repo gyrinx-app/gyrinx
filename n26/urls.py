@@ -13,6 +13,10 @@ from n26.library import views as authoring_views
 urlpatterns = [
     path("", views.dashboard, name="n26-dashboard"),
     path("gangs/new/", views.create_gang, name="n26-create-gang"),
+    # After gangs/new/, which would otherwise resolve "new" as an id.
+    path("gangs/<str:pk>/", views.gang_sheet, name="n26-gang"),
+    path("gangs/<str:pk>/hire/", views.hire_fighter, name="n26-hire-fighter"),
+    path("fighters/<str:pk>/equip/", views.equip, name="n26-equip"),
     path("design/", include("n26.designsystem.urls")),
     path("authoring/", authoring_views.index, name="authoring-index"),
     path(

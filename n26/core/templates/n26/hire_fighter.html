@@ -1,0 +1,95 @@
+{% extends "n26/layouts/base.html" %}
+{% comment %}
+Hiring a fighter — the design system's picker over the real gang list.
+
+The gallery's shell version (designsystem/shell/hire.html) is this page with
+sample rows, the same relationship the dashboard and the gang sheet have to
+their shell twins. Edit them together.
+
+Every Hire button in the list is this form's submit, carrying which profile was
+pressed; the option inputs are scoped per-row by the picker. The view maps them
+back through the same derivation that drew them.
+
+The demo's per-row "limited" marker is not here: it flags the rulebook's
+Champion/Brute/Hanger-on cap, which is not yet a fact the library records —
+drawing it from a hardcoded list would be a marker that lies.
+{% endcomment %}
+{% block head_title %}Hire a fighter{% endblock head_title %}
+{% block nav_heading %}Hire a fighter{% endblock nav_heading %}
+{% block nav_items %}
+    {% include 'n26/_nav.html' %}
+{% endblock %}
+{% block content %}
+    <c-n26.view.fighter-hire action="{% url 'n26-hire-fighter' gang.pk %}"
+                             gang="{{ gang.name }}"
+                             :form="form">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item>
+                    <c-n26.flair-link text="{{ gang.owner.username }}"
+                                      tone="current"
+                                      href="{% url 'n26-dashboard' %}" />
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'n26-gang' gang.pk %}">{{ gang.name }}</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Hire
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% csrf_token %}
+        <c-n26.profile-picker :categories="categories"
+                              :sections="sections"
+                              cost_floor="{{ price_floor }}"
+                              cost_ceiling="{{ price_ceiling }}">
+            <c-slot name="filters">
+                <c-n26.search-bar :live="True"
+                                  :nested="True"
+                                  model="query"
+                                  placeholder="Search the gang list" />
+                {% if category_options or price_ceiling > price_floor %}
+                    <div class="flex flex-wrap items-center gap-2">
+                        {% if category_options %}
+                            <c-n26.filter-menu label="Category" name="category" :options="category_options" />
+                        {% endif %}
+                        {% if price_ceiling > price_floor %}
+                            <c-n26.range-menu label="Price"
+                                              model_min="minCost"
+                                              model_max="maxCost"
+                                              min="{{ price_floor }}"
+                                              max="{{ price_ceiling }}"
+                                              step="5"
+                                              suffix="¢"
+                                              at_max_label="Any" />
+                        {% endif %}
+                    </div>
+                {% endif %}
+            </c-slot>
+            {% comment %}
+            Profiles without a home category arrive in a section and category
+            with empty names — a content gap the library will fill, shown
+            rather than papered over. The rows still need a section around
+            them (an item registers against its section's name), but an
+            unnamed *category* is skipped: the section component documents
+            that items may sit straight inside one, and a blank category
+            header would be a heading saying nothing.
+            {% endcomment %}
+            {% for section_row in section_rows %}
+                <c-n26.collection-picker.section name="{{ section_row.section.name }}" :open="section_row.first">
+                    {% for category in section_row.section.categories %}
+                        {% if category.name %}
+                            <c-n26.collection-picker.category name="{{ category.name }}">
+                                {% for entry in category.entries %}
+                                    <c-n26.profile-picker.row :entry="entry" value="{{ entry.profile.pk }}" />
+                                {% endfor %}
+                            </c-n26.collection-picker.category>
+                        {% else %}
+                            {% for entry in category.entries %}
+                                <c-n26.profile-picker.row :entry="entry" value="{{ entry.profile.pk }}" />
+                            {% endfor %}
+                        {% endif %}
+                    {% endfor %}
+                </c-n26.collection-picker.section>
+            {% endfor %}
+        </c-n26.profile-picker>
+    </c-n26.view.fighter-hire>
+{% endblock content %}

@@ -183,6 +183,47 @@ def build_hire_list(gang_type):
     return [build_hire_entry(profile, index=index) for profile in profiles]
 
 
+def shelve_hire_list(entries):
+    """The hire list in sections of categories — the picker's shape.
+
+    Groups by each profile's home category (``Section`` heading, then
+    ``Category`` inside it), taxonomy order — the same derivation
+    ``browse._sectioned`` does for collections. Profiles without a home
+    gather at the end under empty headings: a content gap to show, not
+    an error to hide.
+    """
+
+    def order(entry):
+        category = entry.profile.category
+        # Section, then category, then the entry — each level fully keyed,
+        # so a category's entries stay contiguous and the grouping below
+        # can work on runs.
+        if category is None:
+            return (1, 0, "", 0, "", entry.base_price, entry.name)
+        return (
+            0,
+            category.section.position,
+            category.section.name.lower(),
+            category.position,
+            category.name.lower(),
+            entry.base_price,
+            entry.name,
+        )
+
+    section_rows = []
+    for entry in sorted(entries, key=order):
+        category = entry.profile.category
+        section_name = category.section.name if category else ""
+        category_name = category.name if category else ""
+        if not section_rows or section_rows[-1]["name"] != section_name:
+            section_rows.append({"name": section_name, "categories": []})
+        categories = section_rows[-1]["categories"]
+        if not categories or categories[-1]["name"] != category_name:
+            categories.append({"name": category_name, "entries": []})
+        categories[-1]["entries"].append(entry)
+    return section_rows
+
+
 def hireable_profiles(gang_type):
     """The profiles of a gang type, with everything a preview card needs."""
     from n26.library.models import Profile
@@ -197,7 +238,9 @@ def hireable_profiles(gang_type):
     )
     return (
         Profile.objects.filter(gang_type=gang_type)
-        .select_related("profile_type", "built_ins")
+        # category__section rides along for the shelving — without it,
+        # grouping a listing costs two queries per profile.
+        .select_related("profile_type", "built_ins", "category__section")
         .prefetch_related(
             "statline__stats__statline_type_stat__stat",
             *(f"built_ins__{path}" for path in members),

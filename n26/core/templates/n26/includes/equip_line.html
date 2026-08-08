@@ -1,0 +1,27 @@
+{% comment %}
+One buyable line: the picker's item with a Buy that submits the line's
+identity. Expects `row` — {"line": PricedLine, "key": "<label>:<pk>"} — from
+the equip view. An include rather than repeated inline, because the equip page
+draws it from two places (categorised and uncategorised rows) and a drifted
+copy would be a different till.
+
+Green Buy for the same reason Hire is green: it is the committing action and
+this form's only kind of submit. The type="submit"-through-attrs trick is the
+one profile-picker.row documents — the kit button renders {{ attrs }} before
+its own type="button", and HTML keeps the first of a duplicate pair.
+{% endcomment %}
+<c-n26.collection-picker.item name="{{ row.line.name }}"
+                              :cost="row.line.credits"
+                              :trade_points="row.line.trade_points"
+                              :exclusive="row.line.is_exclusive"
+                              :notes="row.line.notes">
+    <c-slot name="actions">
+        <c-ui.button size="sm"
+                     variant="success"
+                     type="submit"
+                     name="thing"
+                     value="{{ row.key }}">
+            Buy
+        </c-ui.button>
+    </c-slot>
+</c-n26.collection-picker.item>

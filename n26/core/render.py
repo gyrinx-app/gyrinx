@@ -204,6 +204,12 @@ class ModelCard:
     name: str
     rating: int
     statline: Statline
+    #: The miniature's pk, as a string, when this card draws a *stored*
+    #: model — what a renderer builds links from (Equip, Delete). Empty on
+    #: a hire preview or a gallery sample, which depict nobody: a card is
+    #: the same structure either way, and "" is how it says "nowhere to
+    #: link to".
+    id: str = ""
     #: The library entry it was hired from — "Escher Gang Queen". Shared
     #: content: many models across many gangs point at this one row.
     #: Blank when there is no profile to name, which a header draws as
@@ -385,6 +391,7 @@ def build_model_card(miniature, card=None, computed=None, assignment_set=None):
         card,
         computed=computed,
         name=miniature.name,
+        id=str(miniature.pk),
         owned_by=(miniature.owned_by.name if miniature.owned_by else None),
         xp=miniature.xp,
         xp_target=miniature.xp_target,
@@ -392,7 +399,7 @@ def build_model_card(miniature, card=None, computed=None, assignment_set=None):
 
 
 def card_to_model_card(
-    card, computed=None, *, name, owned_by=None, xp=0, xp_target=None
+    card, computed=None, *, name, id="", owned_by=None, xp=0, xp_target=None
 ):
     """Turn a card into the structure a renderer draws.
 
@@ -573,6 +580,7 @@ def card_to_model_card(
 
     return ModelCard(
         name=name,
+        id=id,
         rating=card.full_rating,
         # ``str`` rather than ``.name``: every other line on a card
         # reads a thing this way, so an annotation shows here as it
