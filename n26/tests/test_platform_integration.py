@@ -26,6 +26,7 @@ import pytest
 from django.contrib.auth.models import Group, User
 
 from gyrinx.middleware import N26_TESTERS_GROUP
+from n26.core.views.gangs import CHANGELOG_TAG
 
 pytestmark = pytest.mark.django_db
 
@@ -94,12 +95,40 @@ class TestTheDashboard:
         assert "Someone Else&#x27;s Problem" not in body
         assert "Someone Else" not in body
 
-    def test_the_changelog_lists_platform_entries(self, tester, client, default_pack):
-        from gyrinx.site.models import ChangelogEntry
 
-        ChangelogEntry.objects.create(
-            date="2026-08-07",
-            title="The Trading Post opened",
+def changelog_entry(title, *tags, body="", date="2026-08-07", owner=None):
+    """One entry in the site's changelog, wearing the tags named.
+
+    Tags are made on demand: the rows are a lookup table an admin adds
+    to, so a test asks for a name rather than for a row that exists.
+    """
+    from gyrinx.site.models import ChangelogEntry, ChangelogEntryTag
+
+    entry = ChangelogEntry.objects.create(
+        date=date, title=title, body=body, owner=owner
+    )
+    for name in tags:
+        tag, _ = ChangelogEntryTag.objects.get_or_create(name=name)
+        entry.tags.add(tag)
+    return entry
+
+
+class TestTheChangelogPanel:
+    """The changelog belongs to the site, and both editions' dashboards
+    read the same table — so this panel shows only what is tagged for
+    this edition.
+
+    An entry nobody tagged appears on neither dashboard. That is the
+    point of the tag: a reader here should not have to work out for
+    themselves which edition a change was about.
+    """
+
+    def test_it_lists_the_entries_tagged_for_this_edition(
+        self, tester, client, default_pack
+    ):
+        changelog_entry(
+            "The Trading Post opened",
+            CHANGELOG_TAG,
             body="<p>Everything with a <strong>TP price</strong> is there.</p>",
         )
         body = client.get("/n26/").content.decode()
@@ -107,12 +136,48 @@ class TestTheDashboard:
         assert "7 Aug" in body
         assert "<strong>TP price</strong>" in body  # rich text survives the sanitiser
 
-    def test_the_changelog_body_is_sanitised(self, tester, client, default_pack):
-        from gyrinx.site.models import ChangelogEntry
+    def test_it_leaves_out_the_other_editions_news_and_the_untagged(
+        self, tester, client, default_pack
+    ):
+        changelog_entry("Vehicles came to the old edition", "N23")
+        changelog_entry("Nobody said who this was for")
+        body = client.get("/n26/").content.decode()
+        assert "old edition" not in body
+        assert "Nobody said" not in body
 
-        ChangelogEntry.objects.create(
-            date="2026-08-07",
-            title="A careless entry",
+    def test_a_tag_spelled_in_another_case_is_the_same_tag(
+        self, tester, client, default_pack
+    ):
+        """Tag names are unique, but case-sensitively so — an admin can
+        make "n26" beside "N26" and would reasonably expect the entry to
+        show up here either way."""
+        changelog_entry("Written in lower case", CHANGELOG_TAG.lower())
+        assert "Written in lower case" in client.get("/n26/").content.decode()
+
+    def test_an_entry_wearing_two_spellings_is_still_one_entry(
+        self, tester, client, default_pack
+    ):
+        """Matching either spelling means an entry carrying both matches
+        the tag join twice; listed twice it would also eat two of the
+        five places the panel has."""
+        changelog_entry("Tagged twice over", CHANGELOG_TAG, CHANGELOG_TAG.lower())
+        body = client.get("/n26/").content.decode()
+        assert body.count("Tagged twice over") == 1
+
+    def test_it_says_there_is_nothing_rather_than_showing_a_bare_heading(
+        self, tester, client, default_pack
+    ):
+        """A heading with nothing under it reads as a section that
+        failed to load."""
+        changelog_entry("Not for this edition", "N23")
+        body = client.get("/n26/").content.decode()
+        assert "What&#x27;s new" in body
+        assert "Nothing new yet." in body
+
+    def test_the_body_is_sanitised(self, tester, client, default_pack):
+        changelog_entry(
+            "A careless entry",
+            CHANGELOG_TAG,
             body='<script>alert("no")</script><p>fine</p>',
         )
         body = client.get("/n26/").content.decode()
@@ -120,6 +185,37 @@ class TestTheDashboard:
         # the entry's payload — dropped with its content, not escaped.
         assert "alert" not in body
         assert "fine" in body
+
+    def test_the_panel_costs_the_same_queries_however_many_entries_exist(
+        self, tester, client, default_pack
+    ):
+        """The panel is one query for the page, not one per entry. The
+        tag filter is a join rather than a lookup per row, and nothing
+        drawn from an entry reaches past its own columns.
+
+        The entries are owned, as an entry written in the admin is: an
+        ownerless row follows no owner FK however carelessly a template
+        asks for one, so a test built from ownerless rows could not see
+        the commonest way this goes wrong.
+        """
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        # The first request of a session writes the session row and the
+        # rest update it, so measure only once that has happened.
+        client.get("/n26/")
+
+        for i in range(2):
+            changelog_entry(f"Entry {i}", CHANGELOG_TAG, owner=tester)
+        with CaptureQueriesContext(connection) as with_two:
+            assert client.get("/n26/").status_code == 200
+
+        for i in range(2, 10):
+            changelog_entry(f"Entry {i}", CHANGELOG_TAG, owner=tester)
+        with CaptureQueriesContext(connection) as with_ten:
+            assert client.get("/n26/").status_code == 200
+
+        assert len(with_ten.captured_queries) == len(with_two.captured_queries)
 
 
 TELEPORT = '<template x-teleport="body">'

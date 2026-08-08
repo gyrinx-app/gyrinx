@@ -6,6 +6,12 @@ from django.shortcuts import redirect, render
 
 from n26.core.views.permissions import _own_gang_or_404
 
+# The changelog belongs to the site and both editions read the same
+# table, so an entry reaches this dashboard only if someone tagged it for
+# this edition. An entry nobody tagged appears on neither dashboard: a
+# reader should not have to work out which edition a change was about.
+CHANGELOG_TAG = "N26"
+
 
 @login_required
 def dashboard(request):
@@ -18,6 +24,9 @@ def dashboard(request):
     facets — and its search box lands on the gangs page, so a query
     typed here and submitted is answered by the same view that answers
     ``/n26/gangs/?q=``.
+
+    The changelog is the site's, narrowed to the entries tagged for this
+    edition.
     """
     from gyrinx.site.models import ChangelogEntry
 
@@ -26,7 +35,15 @@ def dashboard(request):
         "n26/dashboard.html",
         {
             **_gang_table_context(request),
-            "changelog": ChangelogEntry.objects.filter(archived=False)[:5],
+            # Tag names are unique but case-sensitively so: "N26" and "n26"
+            # are two rows an admin can create, and an entry tagged with
+            # either is meant for this page. Matching both is also why the
+            # rows need deduplicating — an entry carrying both spellings
+            # matches the join twice and would otherwise be listed twice,
+            # taking two of the five places.
+            "changelog": ChangelogEntry.objects.filter(
+                archived=False, tags__name__iexact=CHANGELOG_TAG
+            ).distinct()[:5],
         },
     )
 

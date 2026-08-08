@@ -42,7 +42,7 @@ which can find gangs this tab never carried.
             </c-n26.gang-table>
         </c-slot>
         <c-slot name="changelog">
-            <c-n26.changelog>
+            <c-n26.changelog empty="Nothing new yet.">
                 {% for entry in changelog %}
                     <c-n26.changelog.entry title="{{ entry.title }}" date="{{ entry.date|date:'j M' }}" href="#">
                         {{ entry.body|safe_rich_text }}
