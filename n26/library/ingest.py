@@ -227,12 +227,15 @@ class ItemId:
 
 
 def _name_and_annotation(token):
-    """``"Ammo (5+)"`` → ``("Ammo", "5+")``; ``"Melee"`` → ``("Melee", "")``."""
-    token = _unsmart(re.sub(r"\s*\(", " (", token.strip()))
-    match = re.match(r"^(.*?)\s*\((.*)\)$", token)
-    if match:
-        return match.group(1), match.group(2)
-    return token, ""
+    """``"Ammo (5+)"`` → ``("Ammo", "5+")``; ``"Melee"`` → ``("Melee", "")``.
+
+    The authoring layer's rule, borrowed rather than restated: a person
+    typing ``Leash (3")`` into the admin and a sheet cell saying the
+    same must land on the same row (``authoring.split_annotation``).
+    """
+    from n26.library.authoring import split_annotation
+
+    return split_annotation(token)
 
 
 def _split_list(cell):
