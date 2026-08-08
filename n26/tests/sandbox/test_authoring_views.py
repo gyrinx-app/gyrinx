@@ -671,7 +671,11 @@ class TestFamilies:
             assert isinstance(getattr(model, "family", None), Family), kind
 
     def test_the_index_groups_by_family(self, author, client, default_pack):
+        # From the table down: the bar above it names every kind too, in
+        # its switcher, and a position read off the whole page would be
+        # measuring the chrome rather than the grouping.
         body = client.get("/n26/authoring/").content.decode()
+        body = body[body.index('scope="colgroup"') :]
         # One table, a group row per family, in declaration order. The
         # heading text where it lands, not the markup around it.
         positions = [
