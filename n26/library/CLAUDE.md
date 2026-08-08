@@ -8,7 +8,7 @@ models/          the content rows (Weapon, Skill, Profile, Collection, …)
 authoring.py     the verbs — the one API that writes content
 specs.py         each verb described as data (its fields, their types)
 forms.py         Django forms generated from the specs
-views.py         the staff authoring pages, driven by three registries
+views.py         the staff authoring pages, driven by small registries
 ingest.py        spreadsheets in → a previewable plan → rows out
 standard_content.py  the seed rows nobody authors, planted idempotently
 offers.py        what a kind declares about itself; forms derive the rest
@@ -74,9 +74,13 @@ Adding a verb means touching, in order:
 1. The verb in `authoring.py` (naming: `create_*` for new things,
    `add_*` for parts of a thing, `ef_*`/`op_*` for effects,
    `targets_*` for scopes, predicates read as predicates).
-2. A `Spec` in `specs.py` — discovering tests refuse a verb without one.
-3. `LEAF_KINDS` in `views.py` if it gets a page; `DETAIL_KINDS` if the
-   thing has parts added to it over time.
+2. A `Spec` in `specs.py` — discovering tests refuse a scope, effect,
+   or condition verb (`targets_*`, `ef_*`, `op_*`) without one; give
+   `create_*` and `add_*` verbs one too even though no guard forces it.
+3. The registries in `views.py`: `LEAF_KINDS` if it gets a page (and
+   `LEAF_DESCRIBE` for the page's blurb); `DETAIL_KINDS` if the thing
+   has parts added to it over time; `DETAIL_VIEWS` for a bespoke detail
+   page.
 
 Several parallel lists are deliberate extension points, each guarded by
 a check or a generated constraint (`ASSIGNABLE_FIELDS`, `SCOPE_FIELDS`,
@@ -85,9 +89,11 @@ is one line plus a migration plus deliberate thought — never quietly.
 
 Kinds declare, forms derive: `ATTACHMENT_ASKS` and
 `SUGGESTED_BUILT_INS` sit on the model class and `offers.py` computes
-what a form shows. No form may know a kind by name. (Note:
-`ATTACHMENT_ASKS` replaces rather than merges — a kind that declares
-its own must restate the inherited asks it still wants.)
+what a form shows — no form hardcodes a kind there (the inline-create
+shortcut for rules and subtypes in `forms.py` is the one deliberate
+exception). Note: `ATTACHMENT_ASKS` replaces rather than merges — a
+kind that declares its own must restate the inherited asks it still
+wants.
 
 ## Ingest
 
@@ -99,23 +105,6 @@ exactly the plan, through the authoring verbs, in one transaction).
 built-ins are free; a missing seed row is a loud error, never quietly
 re-planted. A new planned kind must be added to `PERFORM_ORDER`, or
 `perform()` skips it without a word.
-
-## The authoring templates
-
-`templates/authoring/` extends the edition's base layout and renders
-forms through a small dispatch chain: `_form.html` walks the fields,
-`_field.html` picks the right kit control from the widget's kind, using
-the filters in `n26/core/templatetags/formkit.py`. Rules:
-
-- The branches in `_field.html` exist because cotton attributes are
-  static per tag — a control that needs a marker attribute must be its
-  own branch, so unmarked controls never grow empty attributes.
-- The `data-union-*` attributes set by `forms.py` must survive the
-  dispatch byte-for-byte; the page's script and the tests read them.
-- Inside a kit field, shadow `label=""`, `description=""`, and
-  `error=""` explicitly — the kit declares them without defaults, and an
-  unshadowed lookup falls through to the include's context and draws
-  the field chrome twice.
 
 ## Comments
 

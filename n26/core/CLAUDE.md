@@ -6,7 +6,8 @@ stage has one job:
 ```
 models/        rows: Gang, Miniature, Assignment, LedgerEntry, Stash
 operations.py  the only writer — every change to player data goes through it
-card.py        loads a gang's rows into an in-memory tree, in one query
+card.py        loads a gang's rows into an in-memory tree, in a pinned
+               two queries
 effects.py     computes what the rules do to a card — pure, no queries
 render.py      plain dataclasses a template can draw (ModelCard, GangSheet)
 browse.py      collections as one rendered shape, whatever their species
@@ -51,11 +52,11 @@ underlying spec.
   came from.
 - **Mind the broadcast flag.** The gang's own rows ride every member's
   card (marked `broadcast=True`) so gang-wide rules reach them — they
-  draw no line and add no rating. Any new code walking a card's nodes
-  needs `if node.broadcast: continue` or it will double-count the
-  gang's kit onto every fighter.
+  draw no line, and gang rows carry no rating of their own. Any new code
+  walking a card's nodes needs `if node.broadcast: continue` or it will
+  double-count the gang's kit onto every fighter.
 - **Inform, never police.** Restrictions become `Note`s attached to
-  lines (`notes.py` — `about` is a real row, never a string). Nothing
+  lines (`notes.py` — `about` is a real object, never a string). Nothing
   blocks; `buy` deliberately never consults access.
 
 ## Wiring — steps that are easy to miss
@@ -65,7 +66,7 @@ underlying spec.
   on `Assignment`, and a migration. Startup checks (`n26.E001`/`E002`)
   refuse to boot if they disagree.
 - A new condition model must be named in its scope's `CONDITIONS` tuple
-  (`n26.E003`) or its rows are stored but never read.
+  (`n26.E003`/`E004`) or its rows are stored but never read.
 - `Has.as_q` needs a `register_lookup()` entry per (model, kind) pair,
   or it raises `NotExpressibleAsQuery`.
 - **`Assignment.save()` derives the denormalised roots.**
@@ -103,9 +104,10 @@ underlying spec.
     `django_cotton_ui` in `INSTALLED_APPS`; reordering silently reverts
     them.
 - **Every component opens with a `{% comment %}` block** (the tag, a
-  usage example, the reasoning, the props) **and declares its props in
-  `<c-vars>`** including `class=""`. The gallery reads both at runtime —
-  an undeclared prop is invisible in the docs.
+  usage example, the reasoning, the props), **and new components must
+  declare their public props in `<c-vars>`** — include `class=""` and
+  thread it through. The gallery reads both to build its docs, so an
+  undeclared prop is invisible there.
 - A new or renamed component must also be registered in
   `n26/designsystem/catalog.py` and given demos, or it will not appear
   in the gallery. See `n26/designsystem/CLAUDE.md`.
@@ -117,9 +119,9 @@ underlying spec.
 ## Tests
 
 Unit tests of one module's contract sit next to the code
-(`n26/core/test_*.py`, no `tests/` package). Anything that needs a gang
-and rulebook-shaped content belongs in `n26/tests/sandbox/` instead —
-see `n26/tests/CLAUDE.md`.
+(`n26/core/test_*.py` and `tests.py`, no `tests/` package). Anything
+that needs a gang and rulebook-shaped content belongs in
+`n26/tests/sandbox/` instead — see `n26/tests/CLAUDE.md`.
 
 ## Comments
 

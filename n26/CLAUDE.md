@@ -2,8 +2,8 @@
 
 n26 is a new edition of Gyrinx, built alongside the existing app rather than
 on top of it. It is mounted at `/n26/` and fenced behind the "N26 Testers"
-group (staff always pass; everyone else gets a 404 — the beta is invisible,
-not locked).
+group: staff and members pass, anonymous visitors are sent to log in, and
+other signed-in users get a 404 — the beta is invisible, not locked.
 
 ## The map
 
@@ -13,7 +13,7 @@ not locked).
 | `n26/core/` | Player data (gangs, models, assignments, the money ledger) and the pure-Python layers that turn rows into cards, sheets, and shop listings. |
 | `n26/designsystem/` | The living component gallery at `/n26/design/`. Documents the components; owns none of them. |
 | `n26/tests/` | Shared fixtures and the sandbox suites — whole slices of real rulebook content built and exercised end to end. |
-| `n26/design/` | The specification. These markdown files are where design decisions are recorded and argued. Read the relevant one before a non-trivial change; `glossary.md` defines the vocabulary the code, the admin, and the docs all share. |
+| `n26/design/` | The specification. These markdown files are where design decisions are recorded and argued. **Git-ignored — they exist only in the maintainer's checkout.** When present, read the relevant one before a non-trivial change (`glossary.md` defines the shared vocabulary); when absent, module docstrings are the next-best source. Code cites them as `design/foo.md`. |
 
 Each package has its own CLAUDE.md with the detailed rules. This file holds
 what is true everywhere.
@@ -23,10 +23,11 @@ what is true everywhere.
 The dependency direction is: `library` holds content, `core` reads it.
 Concretely:
 
-- **Nothing in `n26/` imports `n23.*` or `gyrinx.*`.** n26 is a parallel
-  edition, not a layer on the old one. (One deliberate exception exists:
-  the dashboard reads `gyrinx.site.models.ChangelogEntry`, deferred inside
-  the view. Do not add a second.)
+- **No app code in `n26/` imports `n23.*` or `gyrinx.*`.** n26 is a
+  parallel edition, not a layer on the old one. Two deliberate
+  exceptions: the dashboard reads `gyrinx.site.models.ChangelogEntry`,
+  deferred inside the view, and `n26/tests/` may import platform pieces
+  to test the seam. Do not add others.
 - **`n26/core/models/` never imports `n26.library`.** It names library
   models by label string (`"library.Profile"`). This keeps the model graph
   one-way: core rows point at library rows, never the reverse.
@@ -44,18 +45,22 @@ Concretely:
 
 ## Vocabulary rules
 
-- **The word "cost" is banned**, in field names, dataclass names, and
-  properties. It blurs two numbers that part company at the first
-  discount: a **price** (what a surface asks right now) and a **rating**
-  (what a purchase added to the gang's worth, pinned forever). A test
-  discovers and rejects offenders (`n26/tests/sandbox/test_money_words.py`).
+- **The word "cost" is banned.** It blurs two numbers that part company
+  at the first discount: a **price** (what a surface asks right now) and
+  a **rating** (what a purchase added to the gang's worth, pinned
+  forever). A test discovers and rejects offenders in stored fields and
+  player-facing structures (`n26/tests/sandbox/test_money_words.py`);
+  the ban also applies where the test cannot see — class names, template
+  props, sample data.
 - The Python class is `Miniature` (to avoid Django's `Model`); every
   user-facing word is "model".
 - "Profile" on its own means a hireable fighter entry. A weapon's firing
   line is a `WeaponProfile`.
 - Use the words in `n26/design/glossary.md`. If you need a term that is
   not there, that is a design conversation, not a naming choice.
-- British spelling throughout (`colour`, `Specialisation`).
+- British spelling in prose and our own names (`colour`,
+  `Specialisation`); names that mirror CSS or an installed package's API
+  keep that spelling (`css_color`, a kit component's `color=` prop).
 
 ## Design stances that hold everywhere
 
@@ -108,7 +113,9 @@ docstring or a `n26/design/` doc, referenced by filename. Citing a
 design doc is fine; citing a person, a date, or an issue number is not.
 
 Design docs under `n26/design/` may record who decided what and when —
-that is what they are for. Code comments may not.
+that is what they are for. Code comments may not. The rule applies to
+everything written from here on; a handful of older comments predate it
+and may be cleaned when touched.
 
 ## Tests
 
@@ -118,7 +125,8 @@ that is what they are for. Code comments may not.
 - n26 tests use classes as narrative headings and sentence-length test
   names. This deliberately differs from the platform's "module-level
   functions only" rule; do not "fix" it.
-- There is no repo-root conftest for n26 and there must never be one:
-  the host repo's conftest defines fixtures with the same names, and the
-  nearer file would win silently. Shared fixtures live in
+- Never add n26 fixtures to the repo-root conftest, and never create a
+  conftest above `n26/tests/` for them: the host repo's root conftest
+  defines fixtures with the same names (`make_statline`), and whichever
+  file is nearer wins silently. Shared fixtures live in
   `n26/tests/fixtures.py`.

@@ -11,15 +11,16 @@ components; it owns none of them — they live in
    runtime from its own `<c-vars>` block; its documentation panel is its
    own leading `{% comment %}` block. The catalog never restates props.
 
-Read `demos.py` (101 lines) first, then `introspect.py`.
+Read `demos.py` (a hundred lines) first, then `introspect.py`.
 
 ## Adding or changing a component
 
 1. Write the cotton template in `n26/core/templates/cotton/n26/` (or a
    directory with `index.html` plus part templates). Two things are
-   mandatory because the gallery reads them: a `<c-vars … />` block
-   declaring every public prop, and a leading `{% comment %}` block
-   documenting the component.
+   mandatory for new components because the gallery reads them: a
+   `<c-vars … />` block declaring every public prop, and a leading
+   `{% comment %}` block documenting the component. (A few existing
+   tiny components skip `<c-vars>`; don't copy that.)
 2. Register it in `catalog.py` in the right `Group` — slug, tag,
    template path, summary, notes, `Part(...)` entries for
    subcomponents, `needs=(…)` for runtime dependencies. Do not restate
@@ -83,7 +84,7 @@ broke when you tried. Write new ones in that register.
 A comment states a constraint, an invariant, or a consequence the code
 cannot show — briefly, in plain words. It must make sense to a reader
 who has never seen any earlier version of this code: no people, no
-tickets or PRs, no changelog narration. This app is currently the
-cleanest in the repo by that rule — keep it that way. Django `{# #}`
-comments are single-line only; multi-line prose uses `{% comment %}`
-(a multi-line `{# #}` renders as literal page text).
+tickets or PRs, no changelog narration. This app comes closest to that
+standard already — keep it that way. Django `{# #}` comments are
+single-line only; multi-line prose uses `{% comment %}` (a multi-line
+`{# #}` renders as literal page text).

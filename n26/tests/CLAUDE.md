@@ -3,17 +3,17 @@
 Three tiers, split by the kind of claim a test makes — not by which
 module changed:
 
-- **Colocated** (`n26/core/test_*.py`, `n26/library/test_*.py`) — unit
-  tests of one module's contract: field defaults, constraints, pure
-  functions. If it would still be true with no gang, no fighter, and no
-  rulebook, it belongs here.
+- **Colocated** (`n26/core/test_*.py`, `n26/library/test_*.py`, and
+  each app's `tests.py`) — unit tests of one module's contract: field
+  defaults, constraints, pure functions. If it would still be true with
+  no gang, no fighter, and no rulebook, it belongs here.
 - **`n26/tests/`** — the seam with the host platform. The only tests
   allowed to import from outside `n26.*` (the testers gate, the
   dashboard, the shell).
 - **`n26/tests/sandbox/`** — the bulk of the suite. Each file builds a
   slice of real rulebook content from scratch with the authoring verbs,
   founds a gang, plays with it, and asserts on the player-facing
-  structures. Sandbox files are executable design documents; most cite
+  structures. Sandbox files are executable design documents; many cite
   the `n26/design/` note they prove.
 
 ## The verbs
@@ -25,22 +25,26 @@ module changed:
   (`ef_adds`, `targets_model(has_subtypes(x))`, `attach_to=`); the old
   sandbox aliases exist only so existing suites read as written.
 - Player-side wrappers (`found_gang`, `hire`, `give_weapon`, `buy`,
-  `choose`, `tally`, `move`, `refund`, …) each open one
+  `choose`, `tally`, `move`, `refund`, …) wrap their writes in an
   `operation(...)` block. They default the actor to the gang's owner;
   the real API deliberately does not.
 
-**A sandbox test never reaches for the ORM directly.** The one file
-allowed to use `objects.create` is `test_content_authoring.py`, whose
-docstring exists to say so.
+**Prefer the verbs over the ORM.** Reach for `objects.create` in a
+sandbox test only where no verb covers the wiring — and check first,
+because verbs have grown to cover ground older tests built by hand.
+`test_content_authoring.py` alone uses the raw ORM throughout,
+deliberately: its docstring says it is the reference for what an ingest
+or the admin really does.
 
 ## Fixtures
 
 - Shared fixtures live in **`n26/tests/fixtures.py`** — an importable
   module, not a conftest. Each test-bearing tree has a one-line
-  conftest doing `from n26.tests.fixtures import *`. **Never create a
-  repo-root conftest and never flatten these**: the host repo's
-  conftest defines fixtures with the same names (`make_statline`), and
-  the nearer file wins silently.
+  conftest doing `from n26.tests.fixtures import *`. **Never add n26
+  fixtures to the repo-root conftest, and never flatten these into a
+  higher conftest**: the host repo's root conftest defines fixtures
+  with the same names (`make_statline`), and the nearer file wins
+  silently.
 - `fixtures.py` stays small. File-local fixtures composing the verbs
   are the norm — a sandbox file typically defines ten or so of its own.
 - Content shapes go in module-level data tables (a `GRID`, an
@@ -55,7 +59,9 @@ docstring exists to say so.
 ## Conventions
 
 - `pytestmark = pytest.mark.django_db` at module level, right after the
-  imports. Fixtures that need the database request `db`.
+  imports — or per-test decorators in files whose collection-time
+  discovery must stay database-free. Fixtures that need the database
+  request `db`.
 - Tests are grouped in bare classes used as narrative headings
   (`TestFoundingTheGang`), each with a docstring stating the contract.
   Test names are full sentences:
@@ -70,9 +76,10 @@ docstring exists to say so.
   on a few load-bearing substrings. Pick substrings the page can only
   contain if the behaviour worked — a test here once passed because a
   stylesheet happened to contain the word "complete".
-- Any test that spends money ends with `assert_reconciled(gang)`.
-- Query-count tests assert the count stays the same after adding more
-  fighters — never a bare magic number.
+- End any test that spends money with `assert_reconciled(gang)`.
+- For query counts, prefer asserting the count stays the same after
+  adding more fighters; a pinned literal count is acceptable for one
+  structure's fixed budget.
 - **Discovering guards, not lists.** A rule that must hold for every X
   enumerates the codebase by reflection, pairs with a
   `test_there_is_something_to_check`, and fails with prose saying what
