@@ -1,43 +1,9 @@
 {% load static %}
 {% comment %}
-The page shell for n26 — the whole document, head to footer.
-
-Derived from v1's n26/layouts/base.html, deliberately at the same template
-path so that `{% extends "n26/layouts/base.html" %}` keeps working verbatim
-on port and no consumer changes. v1's own comment says the two bases are siblings
-and that "n26 will not be [Bootstrap 5]" — divergence is the point — so this
-carries over the *structure* and drops the library.
-
-Same blocks, same names, same order: head_title, stylesheet, body, content,
-extra_body, extra_script. A template written against v1's base fits this one.
-
-What changed, and why:
-
-  Bootstrap is gone. The navbar, footer, banner and messages are the components
-  in this repo — <c-n26.site.nav>, <c-n26.site.footer>, <c-n26.site.announcement>,
-  <c-ui.alert> — so there is one place each of them is styled. bootstrap.bundle,
-  bootstrap-icons and core/js/index.js are all dropped: Alpine and the kit's own
-  JS do the interaction, and <c-n26.icon> draws the icons from n26/icons.py.
-
-  Theme switching no longer round-trips a cookie. v1 renders data-bs-theme on
-  <html> from request.COOKIES.theme_active so the server can get it right;
-  <c-ui.mode-toggle.head> instead sets the class before first paint from a
-  blocking script, which cannot flash and needs nothing from the request. The
-  theme_active cookie stops being load-bearing — worth knowing, because v1's
-  core/js/index.js writes it and this shell does not read it.
-
-  The Tag Manager container is a setting rather than a literal, which is v1's own
-  TODO ("use tag manager env variable"). No id, no script and no noscript iframe:
-  a shell that hard-codes an analytics id is a shell that cannot be run by anyone
-  else, and there is nothing to strip before this file goes anywhere public.
-
-What it deliberately does NOT carry, matching v1: the gang, campaign and
-customisation nav, the dice roller, and anything else that only means something
-inside an edition.
-
-Context it reads, all optional: banner (a site banner object: colour, icon, text,
-cta_url, cta_text, id), is_impersonating / impersonator, gtm_container_id, debug,
-messages, user.
+The n26 page shell. Block names and order match the platform base template
+(head_title, stylesheet, body, content, extra_body, extra_script) so templates
+written against it extend this one unchanged. Context it reads, all optional:
+banner, is_impersonating / impersonator, gtm_container_id, messages, user.
 {% endcomment %}<!DOCTYPE html>
 <html lang="en-gb">
     <head>
@@ -49,27 +15,18 @@ messages, user.
         <meta name="keywords" content="Necromunda, Gyrinx">
         <meta name="application-name" content="Gyrinx">
         {% comment %}
-        The mode before first paint. This has to come before the stylesheet, and
-        its storage_key and default have to match every <c-ui.mode-toggle> on the
-        page or the toggle and the document disagree about what mode it is in.
+        Must come before the stylesheet; storage_key and default must match
+        every <c-ui.mode-toggle> on the page.
         {% endcomment %}
         <c-ui.mode-toggle.head storage_key="theme" default="system" />
         {% comment %}
-        Mynor, from Typekit. The hints go first and cost nothing: dns-prefetch for
-        browsers that will not act on preconnect, preconnect to open the TLS
-        connection while the rest of the head is still parsing. crossorigin is
-        required — fonts are fetched anonymously, and without it the browser opens
-        a second connection and the preconnect is wasted.
+        crossorigin is required on the preconnect: fonts are fetched anonymously,
+        and without it the browser opens a second connection and the hint is wasted.
         {% endcomment %}
         <link rel="dns-prefetch" href="https://use.typekit.net">
         <link rel="preconnect" href="https://use.typekit.net" crossorigin>
         <link rel="stylesheet" href="https://use.typekit.net/rso6ezl.css">
         {% block favicon %}
-            {% comment %}
-            The paths v1 uses, unchanged, so the brand tree ports without editing
-            this file. They 404 in this repo until those assets arrive, which
-            costs nothing but a console line on a page that extends this shell.
-            {% endcomment %}
             <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
             <link rel="icon" href="/favicon.ico" type="image/x-icon">
             <link rel="apple-touch-icon-precomposed"
@@ -94,21 +51,12 @@ messages, user.
         {# djlint:off #}
         <title>{% spaceless %}{% block head_title %}{% endblock head_title %}{% endspaceless %} | Gyrinx</title>
         {# djlint:on #}
-        {% comment %}
-        The compiled stylesheet comes out of the designsystem app's static tree,
-        which is the only one this repo has — the same situation v1 notes about the
-        edition's. On port this becomes the platform's own path and nothing else
-        about this file changes.
-        {% endcomment %}
         {% block stylesheet %}
             <link rel="stylesheet" href="{% static 'designsystem/app.css' %}">
         {% endblock stylesheet %}
         {% comment %}
-        The measure, matched to the platform: bootstrap's containers cap at
-        1320px from 1400px up, and an n26 page should read as the same site
-        rather than a narrower one. Below that the design system's 75rem
-        keeps ruling, stated here so the variable resolves instead of
-        leaning on its fallback.
+        1320px from 1400px up matches the platform's container cap, so n26 pages
+        read as the same width as the rest of the site.
         {% endcomment %}
         <style>
             :root { --n26-site-width: 75rem; }
@@ -116,10 +64,6 @@ messages, user.
                 :root { --n26-site-width: 1320px; }
             }
         </style>
-        {% comment %}
-        Nothing when no container is configured, which is every environment that
-        is not production. v1 hard-codes the id and carries a TODO to do this.
-        {% endcomment %}
         {% if gtm_container_id %}
             {# djlint:off #}
             <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
@@ -132,20 +76,9 @@ messages, user.
         {% endif %}
     </head>
     {% comment %}
-    No colours here. app.css sets the body's background and text from the theme
-    tokens already, so repeating them as utilities would be a second place for the
-    page to disagree with the design system about what colour a page is.
-    {% endcomment %}
-    {% comment %}
-    --n26-sticky-top is how anything else that sticks knows where the top of the
-    window actually is. The nav is sticky and 3.5rem tall, so a filter bar that
-    stuck at 0 would slide underneath it and be invisible for the whole of a long
-    list — which is exactly what the trading post did the first time it was put in
-    this shell.
-
-    <c-n26.collection-picker> already reads this variable and defaults to 0, so
-    setting it once here is the whole fix, and a page with no sticky header needs
-    to do nothing.
+    --n26-sticky-top tells sticky descendants (e.g. <c-n26.collection-picker>)
+    where the viewport top really is: the nav is sticky and 3.5rem tall, so
+    anything that stuck at 0 would slide underneath it.
     {% endcomment %}
     {# djlint:off H021 — a CSS custom property children read; it must ride the element #}
     <body class="flex min-h-screen flex-col" style="--n26-sticky-top: 3.5rem">
@@ -158,22 +91,10 @@ messages, user.
             </noscript>
             {# djlint:on #}
         {% endif %}
-        {% comment %}
-        Hidden until focused, then a real control in the corner. Same job as v1's
-        .visually-hidden-focusable; the utilities are Tailwind's because that is
-        what this repo has.
-        {% endcomment %}
         <a href="#content"
            class="sr-only focus:not-sr-only focus:absolute focus:top-3 focus:left-3 focus:z-50 focus:rounded-control focus:bg-accent focus:px-3 focus:py-2 focus:text-accent-foreground">
             Skip to main content
         </a>
-        {% comment %}
-        The site banner. v1's colour names are this component's tones, except that
-        "danger" is the same word in both and "secondary" has no equivalent — a
-        banner nobody needs to read is a banner to delete rather than to grey out.
-        The dismiss beacon is the caller's business: on_dismiss takes the URL v1
-        posts to, so the component stays ignorant of how clicks are recorded.
-        {% endcomment %}
         {% if banner %}
             <c-n26.site.announcement tone="{{ banner.colour|default:'info' }}"
                                      icon="{{ banner.icon }}"
@@ -184,29 +105,12 @@ messages, user.
             </c-n26.site.announcement>
         {% endif %}
         {% comment %}
-        The header is dark on every page, whatever mode the rest of the page is
-        in — v1's navbar carries data-bs-theme="dark" for the same reason, and
-        this is the same decision in this system's terms.
+        The `dark` class keeps the header dark in both modes: it re-declares the
+        theme's dark tokens for the subtree and enables dark: utilities inside it.
 
-        `dark` as a class rather than a prop on the component: the custom variant
-        is `&:where(.dark, .dark *)`, so putting it on the bar makes every dark:
-        utility inside it apply *and* re-declares the theme's dark tokens for that
-        subtree. The brand picks it up too — .dark .n26-site-brand is already
-        there. Nothing in the component had to learn about it.
-
-        At the call site, not baked into <c-n26.site.nav>: a dark header is this
-        application's decision, and the component is still a navbar anyone can
-        put on a light page.
-        {% endcomment %}
-        {% comment %}
-        nav_heading is the page's own name in the bar, beside the wordmark.
-        Mostly empty; it earns itself on a form, where the page has a name and the
-        links are in the menu, so the middle of the bar is free to carry it.
-
-        The block goes *inside* a c-slot rather than into a heading="" attribute.
-        Cotton parses a component's attribute list before Django's block
-        machinery runs, so a block in an attribute renders as nothing at all and
-        does it silently — which it did, first time round.
+        The nav_heading block goes *inside* a c-slot, never into a heading=""
+        attribute: cotton parses attributes before Django's block machinery runs,
+        so a block in an attribute silently renders as nothing.
         {% endcomment %}
         <c-n26.site.nav title="Gyrinx" href="/" sticky="1" class="dark">
             <c-slot name="logo">
@@ -221,33 +125,19 @@ messages, user.
                 {% endblock nav_heading %}
             </c-slot>
             {% comment %}
-            The application's own nav, empty here. A base that hard-coded Gangs
-            and Campaigns would be a base only this application can use, and the
-            edition's links are exactly what v1's platform base leaves out.
-
-            A block rather than a slot, because a page extending this template can
-            fill a block and cannot fill a slot on a component the template owns.
+            A block rather than a slot: a page extending this template can fill
+            a block, but cannot fill a slot on a component the template owns.
             {% endcomment %}
             {% block nav_items %}
             {% endblock nav_items %}
             <c-slot name="actions">
                 <c-ui.mode-toggle storage_key="theme" size="sm" />
-                {% comment %}
-                v1's rule, kept: signed in you get your account, signed out you get
-                Sign In and Sign Up carrying ?next — except on the login and signup
-                pages themselves, where a next pointing back at the form you are
-                already looking at would send you round in a circle.
-                {% endcomment %}
                 {% if user.is_authenticated %}
                     {% comment %}
-                    A menu, because there is never only one thing here: account,
-                    admin for staff, and the way out. v1 links straight to the
-                    account page and hides sign-out a click deeper inside it.
-
-                    c-ui.dropdown.item, not c-ui.menu.item — they look identical
-                    and are not. menu.item calls selectOption(), which belongs to
-                    the combobox machinery and is not in a dropdown's scope, so it
-                    throws on click and the panel never closes.
+                    c-ui.dropdown.item, not c-ui.menu.item — menu.item calls
+                    selectOption(), which is combobox machinery outside a
+                    dropdown's scope, so it throws on click and the panel
+                    never closes.
                     {% endcomment %}
                     {% url 'admin:index' as admin_url_ %}
                     {% url 'account_logout' as logout_url_ %}
@@ -275,6 +165,10 @@ messages, user.
                 {% else %}
                     {% url 'account_login' as login_url_ %}
                     {% url 'account_signup' as signup_url_ %}
+                    {% comment %}
+                    No ?next on the login and signup pages themselves — it would
+                    point back at the form and send the user round in a circle.
+                    {% endcomment %}
                     {% if request.path != login_url_ and request.path != signup_url_ %}
                         {% with next_param=request.get_full_path|urlencode %}
                             <c-ui.button size="sm"
@@ -303,20 +197,11 @@ messages, user.
                 {% endif %}
             </c-slot>
         </c-n26.site.nav>
-        {% comment %}
-        Under the nav, not above it, and loud. Someone acting as another user needs
-        to be told on every page, and told that it is recorded — so this is the one
-        thing on the page that is allowed to be alarming.
-        {% endcomment %}
         {% if is_impersonating %}
             {% comment %}
-            The same component the site banner uses, on its loudest tone, rather
-            than a hand-rolled red bar — one place decides what a full-width notice
-            looks like, and this is the case that would otherwise drift from it.
-
-            Not dismissible, which is what that flag is for: someone acting as
-            another user has to be told on every page, and told it is recorded.
-            The way out is a POST, so it goes in `action` rather than being a CTA.
+            Deliberately not dismissible: an impersonation notice must show on
+            every page. Stopping is a POST, so it goes in the `action` slot
+            rather than being a CTA link.
             {% endcomment %}
             {% url 'core:impersonate-stop' as stop_url_ %}
             <c-n26.site.announcement tone="danger" dismissible="" id="impersonation-banner">
@@ -334,29 +219,10 @@ messages, user.
             </c-n26.site.announcement>
         {% endif %}
         {% block body %}
-            {% comment %}
-            flex-1 so a short page still pushes the footer to the bottom of the
-            window rather than leaving it floating mid-screen.
-            {% endcomment %}
-            {% comment %}
-            A little above, more below. It was py-6 md:py-10, which pushed every
-            page down by most of a thumb before its own header had said anything —
-            and a page opens with a breadcrumb and a name that already carry their
-            own space. Enough to keep the first line off the nav, no more.
-
-            Below stays generous: something has to separate the last row of a page
-            from the footer, and there is no header down there doing it.
-            {% endcomment %}
             <main id="content" class="n26-site-container flex-1 pt-4 pb-10">
                 {% if messages %}
                     <div class="mb-4 flex flex-col gap-2">
                         {% for message in messages %}
-                            {% comment %}
-                            debug maps to info rather than to a grey "secondary":
-                            this repo's alert has four variants and none of them is
-                            "quieter than the quiet one", and a debug message you
-                            cannot read is one you may as well not send.
-                            {% endcomment %}
                             <c-ui.alert variant="{% if message.level_tag == 'success' %}success{% elif message.level_tag == 'warning' %}warning{% elif message.level_tag == 'error' %}error{% else %}info{% endif %}"
                                         dismissible="1">{{ message }}</c-ui.alert>
                         {% endfor %}
@@ -395,9 +261,8 @@ messages, user.
                     </li>
                 </c-n26.site.footer.column>
                 {% comment %}
-                A literal &, not &amp;. Cotton reads an attribute value as text
-                and Django escapes it on the way out, so an entity written here
-                is escaped a second time and the page shows "&amp;".
+                A literal &, not &amp; — cotton reads the attribute as text and
+                Django escapes it on output, so an entity gets double-escaped.
                 {% endcomment %}
                 <c-n26.site.footer.column heading="Help & Documentation">
                     <li>
@@ -434,8 +299,7 @@ messages, user.
             </c-n26.site.footer>
         {% endblock footer %}
         {% comment %}
-        Vendored, not from a CDN, and deferred so none of it blocks the parse.
-        Order matters: the kit's factories have to be defined before Alpine walks
+        Order matters: the kit's factories must be defined before Alpine walks
         the document and evaluates an x-data that names one.
         {% endcomment %}
         <script defer src="{% static 'django_cotton_ui/cotton-ui.min.js' %}"></script>
