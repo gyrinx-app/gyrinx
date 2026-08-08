@@ -23,10 +23,17 @@ ENV DJANGO_SETTINGS_MODULE=${DJANGO_SETTINGS_MODULE:-gyrinx.settings}
 COPY pyproject.toml uv.lock /app/
 COPY scripts/ /app/scripts/
 COPY gyrinx/ /app/gyrinx/
-# The n23 edition apps (n23.core / n23.content). Copied separately because the
-# image is built from an explicit file list, not the whole tree — omit this and
-# the container starts without the edition installed, which no test catches.
+# The edition apps (n23.core / n23.content, n26.core / n26.library /
+# n26.designsystem). Copied separately because the image is built from an
+# explicit file list, not the whole tree — omit one and the container starts
+# without that edition installed.
+#
+# These must be copied *before* `uv sync` below. The editable install writes a
+# static `__editable___gyrinx_..._finder.py` whose module mapping is computed
+# from whatever top-level packages exist at install time, so a directory that
+# arrives after the sync is not importable however present its files are.
 COPY n23/ /app/n23/
+COPY n26/ /app/n26/
 # Game data files, unrelated to the n23 Python package above.
 COPY content/ /app/content/
 # Root-level static assets (favicon.ico) served by WhiteNoise via
