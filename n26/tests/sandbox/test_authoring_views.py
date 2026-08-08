@@ -45,6 +45,18 @@ class TestTheMenuIsBackedBySpecs:
         )
 
     @pytest.mark.parametrize("kind", sorted(LEAF_KINDS), ids=str)
+    def test_every_leaf_kind_can_say_which_field_is_its_name(self, kind):
+        """A duplicate is refused by writing the error onto the field an
+        author reads as the thing's name. A spec naming a field it does
+        not have would crash on that refusal instead of showing it."""
+        spec = specs()[LEAF_KINDS[kind]]
+        assert spec.identity in spec.fields, (
+            f"The {kind} spec says its name field is {spec.identity!r}, but "
+            f"its fields are {', '.join(spec.fields)}. Set identity= on the "
+            f"spec to whichever of those an author reads as the name."
+        )
+
+    @pytest.mark.parametrize("kind", sorted(LEAF_KINDS), ids=str)
     def test_every_leaf_page_renders(self, kind, author, client, default_pack):
         response = client.get(f"/n26/authoring/{kind}/")
         assert response.status_code == 200
@@ -136,6 +148,22 @@ class TestCreatingALeaf:
         assert response.status_code == 200  # back on the form, not a 500
         assert "already exists in this pack" in response.content.decode()
         assert Subtype.objects.filter(name="Mounted").count() == 1
+
+    def test_a_duplicate_stat_refuses_in_words_too(self, author, client, default_pack):
+        """A stat has no field called "name" — it has a short one and a
+        full one — and a second Movement used to crash the page rather
+        than say a Movement already existed."""
+        from n26.library.models import Stat
+
+        made = {"short_name": "M", "full_name": "Movement"}
+        client.post("/n26/authoring/stat/", made)
+        response = client.post("/n26/authoring/stat/", made)
+
+        assert response.status_code == 200  # back on the form, not a 500
+        body = response.content.decode()
+        assert "already exists in this pack" in body
+        assert "Movement" in body
+        assert Stat.objects.filter(full_name="Movement").count() == 1
 
     def test_a_missing_name_refuses_in_words(self, author, client, default_pack):
         from n26.library.models import Counter
