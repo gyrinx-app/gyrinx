@@ -14,6 +14,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils.text import slugify
 from django.views.decorators.http import require_POST
 
 from n26.core.preview import PreviewError, preview
@@ -268,11 +269,23 @@ def equip(request, pk):
                     if category.name
                 )
             ],
-            "sections": [section.name for section in sections if section.name],
+            # All-or-nothing, as on the hire page: tabs are the whole
+            # navigation once on, and an unnamed section can never be the
+            # active tab — mixed content would hide it.
+            "sections": (
+                [section.name for section in sections]
+                if sections and all(section.name for section in sections)
+                else []
+            ),
             "cost_floor": min((line.credits for line in lines), default=0),
             "cost_ceiling": max((line.credits for line in lines), default=0),
             "tp_ceiling": max(trade_points, default=0),
             "has_trade_points": bool(trade_points),
+            # Distinct from has_trade_points: an exclusive line has
+            # trade_points=None ("E" is not a number), so a list of
+            # exclusive-only items would otherwise never draw the toggle
+            # that is the only way to filter them.
+            "has_exclusive": any(line.is_exclusive for line in lines),
         },
     )
 
@@ -314,8 +327,15 @@ def hire_fighter(request, pk):
         if profile is not None and form.is_valid():
             entry = build_hire_entry(profile)
             chosen = []
+            # The row template scopes its option inputs with
+            # `value|slugify`, which lowercases the pk — so the keys must
+            # be read back through the same filter, or every option ticked
+            # in a real browser is silently ignored and the fighter buys
+            # as default. (A test posting the raw pk would pass anyway,
+            # which is exactly how that bug shipped the first time.)
+            scope = slugify(str(profile.pk))
             for group_index, group in enumerate(entry.groups):
-                picked = request.POST.getlist(f"{profile.pk}:{group_index}")
+                picked = request.POST.getlist(f"{scope}:{group_index}")
                 for value in picked:
                     try:
                         option = group.options[int(value)]
@@ -333,6 +353,12 @@ def hire_fighter(request, pk):
             except NotEnoughCredits as refusal:
                 messages.error(request, str(refusal))
                 return redirect("n26-hire-fighter", pk=gang.pk)
+            except ValueError:
+                # Two picks in a choose-one group, or a set the profile
+                # does not offer — resolve_selection refuses tampering
+                # the option indices cannot express. Same answer as a
+                # bad index: this is a broken link, not a rule to explain.
+                raise Http404("No such option") from None
             messages.success(request, f"Hired {miniature.name}.")
             return redirect("n26-gang", pk=gang.pk)
     else:
@@ -356,9 +382,17 @@ def hire_fighter(request, pk):
                 {"section": section_row, "first": index == 0}
                 for index, section_row in enumerate(section_rows)
             ],
-            # Tabs only when the content has real section headings — a
-            # single unnamed shelf would draw one blank tab.
-            "sections": [row["name"] for row in section_rows if row["name"]],
+            # Tabs only when *every* section is named. The tab strip is
+            # the picker's whole navigation once it is on: a section
+            # whose name is not in this list can never be the active tab,
+            # so mixed content — some profiles homed, some not — would
+            # serve the unnamed shelf in the HTML and make it unreachable.
+            # All-or-nothing keeps every row reachable either way.
+            "sections": (
+                [row["name"] for row in section_rows]
+                if section_rows and all(row["name"] for row in section_rows)
+                else []
+            ),
             # The picker's all-on category state. These are *registration*
             # names — an item in an unnamed category registers under its
             # section's name (possibly ""), and a list that omits that name

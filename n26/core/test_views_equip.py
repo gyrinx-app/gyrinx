@@ -188,6 +188,23 @@ def test_every_registration_name_is_a_known_category(
     assert registration_names <= set(response.context["categories"])
 
 
+def test_mixed_sections_fall_back_to_untabbed(client, tester, fighter, house_list):
+    """Same rule as the hire page: tabs only when every section is named,
+    or the homeless shelf is served but unreachable."""
+    from n26.library.models import Category, Section, Wargear
+
+    section = Section.objects.create(name="Armoury", position=0)
+    category = Category.objects.create(section=section, name="Blades", position=0)
+    sword = Wargear.objects.get(name="Sword")
+    sword.category = category
+    sword.save()
+    # The knife stays homeless.
+
+    client.force_login(tester)
+    response = client.get(equip_url(fighter, house_list))
+    assert response.context["sections"] == []
+
+
 def test_someone_elses_fighter_is_not_found(client, fighter):
     stranger = User.objects.create_user("stranger", is_staff=True)
     client.force_login(stranger)

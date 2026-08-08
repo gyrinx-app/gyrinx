@@ -65,7 +65,7 @@ TP-priced or exclusive lines to filter.
                                       :nested="True"
                                       model="query"
                                       placeholder="Search {{ chosen }}" />
-                    {% if category_options or cost_ceiling > cost_floor or has_trade_points %}
+                    {% if category_options or cost_ceiling > cost_floor or has_trade_points or has_exclusive %}
                         <div class="flex flex-wrap items-center gap-2">
                             {% if category_options %}
                                 <c-n26.filter-menu label="Category" name="category" :options="category_options" />
@@ -89,6 +89,15 @@ TP-priced or exclusive lines to filter.
                                                   prefix="≤ "
                                                   at_min_label="Freely available"
                                                   at_max_label="Any" />
+                            {% endif %}
+                            {% comment %}
+                            Gated on its own flag, not on has_trade_points: an
+                            exclusive line has trade_points=None ("E" answers
+                            no numeric question), so an exclusive-only list
+                            has TP nothing to slide — and this toggle is the
+                            only way to filter what it does have.
+                            {% endcomment %}
+                            {% if has_exclusive %}
                                 <c-n26.toggle label="Exclusive"
                                               :checked="True"
                                               @change="includeExclusive = $event.target.checked" />

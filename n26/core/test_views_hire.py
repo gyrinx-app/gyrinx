@@ -102,10 +102,16 @@ def test_an_option_maps_back_to_its_set(client, tester, gang, ganger):
     ganger.options.create(profile=ganger, group=group, default_set=fancy, position=1)
 
     client.force_login(tester)
-    # Group 0 is the synthesised "As standard"; the named group is 1.
+    # Group 0 is the synthesised "As standard"; the named group is 1. The
+    # key is slugified — lowercased — because that is what the template
+    # actually renders (`value|slugify` scopes the row's inputs). Posting
+    # the raw uppercase pk here would pass against a parser that no real
+    # browser can reach.
+    from django.utils.text import slugify
+
     response = client.post(
         hire_url(gang),
-        {"profile": str(ganger.pk), "name": "Vex", f"{ganger.pk}:1": "1"},
+        {"profile": str(ganger.pk), "name": "Vex", f"{slugify(str(ganger.pk))}:1": "1"},
     )
     assert response.status_code == 302
 
@@ -114,6 +120,72 @@ def test_an_option_maps_back_to_its_set(client, tester, gang, ganger):
     assert [row.default_set for row in chosen] == [fancy]
     gang.refresh_from_db()
     assert gang.credits == 120  # 200 - (55 + 25)
+
+
+def test_the_option_keys_match_what_the_template_renders(client, tester, gang, ganger):
+    """The rendered input names and the parser must agree on case.
+
+    The row template scopes inputs with `value|slugify`, which lowercases
+    the ULID; a parser reading the raw pk finds no keys, and every option
+    ticked in a real browser is silently dropped — the fighter hires as
+    default at base price, no error anywhere. So the page's HTML is the
+    fixture here: the name this asserts on is the name the parser reads.
+    """
+    from django.utils.text import slugify
+
+    group = OptionGroup.objects.create(profile=ganger, name="Armament", choose="one")
+    plain = DefaultAssignmentSet.objects.create(name="Knife", price=0)
+    ganger.options.create(profile=ganger, group=group, default_set=plain, position=0)
+
+    client.force_login(tester)
+    body = client.get(hire_url(gang)).content.decode()
+    assert f'name="{slugify(str(ganger.pk))}:1"' in body
+
+
+def test_a_double_pick_in_a_choose_one_group_is_refused(client, tester, gang, ganger):
+    """Radios stop this in a browser; a tampered POST naming two options
+    of a choose-one group must 404 like any other broken submission,
+    not 500 out of resolve_selection."""
+    from django.utils.text import slugify
+
+    group = OptionGroup.objects.create(profile=ganger, name="Armament", choose="one")
+    plain = DefaultAssignmentSet.objects.create(name="Knife", price=0)
+    fancy = DefaultAssignmentSet.objects.create(name="Chainsword", price=25)
+    ganger.options.create(profile=ganger, group=group, default_set=plain, position=0)
+    ganger.options.create(profile=ganger, group=group, default_set=fancy, position=1)
+
+    client.force_login(tester)
+    response = client.post(
+        hire_url(gang),
+        {
+            "profile": str(ganger.pk),
+            "name": "Vex",
+            f"{slugify(str(ganger.pk))}:1": ["0", "1"],
+        },
+    )
+    assert response.status_code == 404
+    assert not Miniature.objects.filter(membership__gang=gang).exists()
+
+
+def test_mixed_sections_fall_back_to_untabbed(
+    client, tester, gang, ganger, make_profile
+):
+    """Tabs are the picker's whole navigation once on, and only named
+    sections can be tabs — so content where some profiles have a home
+    and some do not must not tab, or the homeless shelf is served in
+    the HTML and unreachable in the UI."""
+    from n26.library.models import Category, Section
+
+    section = Section.objects.create(name="Gang List", position=0)
+    category = Category.objects.create(section=section, name="Champions", position=0)
+    homed = make_profile("Champion", price=95)
+    homed.category = category
+    homed.save()
+    # `ganger` stays homeless.
+
+    client.force_login(tester)
+    response = client.get(hire_url(gang))
+    assert response.context["sections"] == []
 
 
 def test_an_overspend_refuses_and_writes_nothing(client, tester, gang, make_profile):
