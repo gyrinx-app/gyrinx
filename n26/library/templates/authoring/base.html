@@ -1,4 +1,5 @@
 {% extends "n26/layouts/base.html" %}
+{% load authoring_nav %}
 {% comment %}
 The authoring shell: the edition's own layout, with the authoring nav
 and the one script the union pickers need. Everything this used to
@@ -12,6 +13,20 @@ a line below, so naming the area there is more use than repeating them.
 Pages that are a place of their own override this block.
 {% endcomment %}
 {% block nav_heading %}Content library{% endblock nav_heading %}
+{% comment %}
+Every authoring page offers the kinds of content from the bar. An author
+works down a list of kinds rather than down one kind, so Weapons from
+Categories should be one press wherever they are standing.
+
+The chevron on its own: the heading beside it has already named the page,
+and a switcher that repeated it would be furniture. `kind` is the slug of
+the kind being shown, and is empty on the pages that show none — those
+open the same list with nothing marked.
+{% endcomment %}
+{% block nav_switcher %}
+    {% kinds_switcher kind as bar_kinds_ %}
+    <c-n26.quick-switcher.of :switcher="bar_kinds_" />
+{% endblock nav_switcher %}
 {% comment %}
 The drawer holds this area's own pages rather than the app's. An author
 moving between Modifiers and Foundations all afternoon wants those in

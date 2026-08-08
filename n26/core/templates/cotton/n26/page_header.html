@@ -31,6 +31,10 @@ Quiet, and directly under the title with no gap of its own — it is what the th
 a fighter card draws between a name and its type line.
 
   title — the page's name. Rendered as the h1; there should be one per page.
+  trailing — a control immediately after the title, on its line and outside the
+    h1: a switcher to the page's siblings is the case it exists for. Outside,
+    because what goes here is a control rather than part of the page's name,
+    and inside the h1 it would be read out as one.
   leading — a mark before the title, inside the h1 and on its line: a gang's
     colour swatch, and nothing that carries meaning of its own, because whatever
     goes here is read out as part of the page's name. A slot rather than a
@@ -49,7 +53,7 @@ enclosing scope happens to have under that name, so a wrapper component with an
 `actions` slot of its own has it drawn up here as well as wherever the wrapper
 meant to put it. Declaring it gives the unfilled case a real default of "".
 {% endcomment %}
-<c-vars title="" lead="" actions="" class="" />
+<c-vars title="" lead="" actions="" trailing="" class="" />
 
 <div class="flex flex-col gap-1 {{ class }}">
     {% if breadcrumb %}<div class="mb-1">{{ breadcrumb }}</div>{% endif %}
@@ -62,7 +66,20 @@ meant to put it. Declaring it gives the unfilled case a real default of "".
             space on top of whatever gap the mark already carries. |safe puts
             back the marking .strip drops, so markup in the slot survives.
             {% endcomment %}
-            <h1 class="text-2xl font-semibold text-ink-900 dark:text-ink-100 sm:text-3xl">{{ leading.strip|safe }}{{ title }}</h1>
+            {% comment %}
+            The trailing control shares the title's row and sits on its baseline
+            rather than its centre: at sm:text-3xl a small button centred on the
+            title floats above the words beside it. It wraps under the title on a
+            narrow screen instead of shortening it.
+            {% endcomment %}
+            {% if trailing.strip %}
+                <div class="flex flex-wrap items-end gap-2">
+                    <h1 class="text-2xl font-semibold text-ink-900 dark:text-ink-100 sm:text-3xl">{{ leading.strip|safe }}{{ title }}</h1>
+                    <div class="pb-1">{{ trailing }}</div>
+                </div>
+            {% else %}
+                <h1 class="text-2xl font-semibold text-ink-900 dark:text-ink-100 sm:text-3xl">{{ leading.strip|safe }}{{ title }}</h1>
+            {% endif %}
             {% comment %}
             slot.strip, not slot: a header written across several lines with only
             named slots inside it still has a default slot holding the newlines

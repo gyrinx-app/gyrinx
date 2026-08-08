@@ -1,0 +1,41 @@
+{% comment %}
+<c-n26.quick-switcher.of> — a whole switcher from one object.
+
+    <c-n26.quick-switcher.of :switcher="nav_switcher" />
+
+The same control as <c-n26.quick-switcher>, handed a `Switcher` from
+n26/core/navigation.py instead of having its rows written out. Every surface
+that offers "the thing you are on, and its siblings" builds one of those in
+the view — which gangs, which kinds of content, which rows of a kind — and
+this is the one place that turns one into markup. A second call site writing
+the rows itself is a second place for the wording and the current-row marking
+to drift.
+
+Which variant is drawn is the structure's business, not the caller's: a
+switcher with no `label` is the chevron on its own, which is what a page whose
+heading already names the current thing passes (`switcher.unnamed`).
+
+  :switcher — the Switcher to draw. Its `items` are the destinations.
+  align — which edge of the trigger the panel hangs from: start or end.
+  min_width — the panel's minimum width, as a CSS length.
+{% endcomment %}
+<c-vars :switcher="None" align="start" min_width="16rem" class="" />
+
+<c-n26.quick-switcher label="{{ switcher.label }}"
+                      href="{{ switcher.href }}"
+                      icon="{{ switcher.icon }}"
+                      heading="{{ switcher.heading }}"
+                      menu_label="{{ switcher.menu_label }}"
+                      placeholder="{{ switcher.placeholder }}"
+                      empty="{{ switcher.empty }}"
+                      align="{{ align }}"
+                      min_width="{{ min_width }}"
+                      class="{{ class }}"
+                      {{ attrs }}>
+    {% for item in switcher.items %}
+        <c-n26.quick-switcher.item label="{{ item.label }}"
+                                   href="{{ item.href }}"
+                                   icon="{{ item.icon }}"
+                                   :current="item.current" />
+    {% endfor %}
+</c-n26.quick-switcher>

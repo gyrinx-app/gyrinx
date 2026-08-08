@@ -1,10 +1,24 @@
 {% extends "authoring/base.html" %}
+{% load authoring_nav %}
 {% block head_title %}
     {{ verbose_name_plural|capfirst }}
 {% endblock head_title %}
 {% block nav_heading %}{{ verbose_name_plural|capfirst }}{% endblock nav_heading %}
 {% block content %}
     <c-n26.page-header title="{{ verbose_name_plural|capfirst }}">
+        {% comment %}
+        Against the heading rather than out in the actions: this control is
+        about the word it sits beside — another kind of content — while the
+        actions to the right are about the kind you are already on.
+
+        Named differently from the switcher in the bar above, which offers
+        the same list: two controls announced identically tell a reader who
+        cannot see where they sit nothing about either.
+        {% endcomment %}
+        <c-slot name="trailing">
+            {% kinds_switcher kind menu_label="Switch to another kind of content" as header_kinds_ %}
+            <c-n26.quick-switcher.of :switcher="header_kinds_" />
+        </c-slot>
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
                 <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Content library</c-ui.breadcrumbs.item>

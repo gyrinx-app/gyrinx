@@ -4,11 +4,6 @@ from django import template
 
 register = template.Library()
 
-# The drawer is a shortcut, not the roster. The Gangs link directly above it
-# is the complete list, so a player with more than this many still reaches all
-# of them in one more press, and the drawer stays a glance rather than a scroll.
-DRAWER_GANGS = 10
-
 
 @register.simple_tag(takes_context=True)
 def drawer_gangs(context):
@@ -18,16 +13,28 @@ def drawer_gangs(context):
     edition's layout and nowhere else, and a processor would run this query
     for every page on the site, including the ones that have no drawer.
 
-    Anonymous visitors get an empty list, which the drawer reads as "no
-    section at all" rather than an empty heading.
+    The rows themselves — the cap, the ordering, and the memo that keeps this
+    and the bar's gang switcher to one query between them — belong to
+    ``n26.core.navigation``. Anonymous visitors get an empty list, which the
+    drawer reads as "no section at all" rather than an empty heading.
     """
-    from n26.core.models import Gang
+    from n26.core.navigation import owned_gangs
 
-    user = getattr(context.get("request"), "user", None)
-    if user is None or not user.is_authenticated:
+    request = context.get("request")
+    if request is None:
         return []
-    return list(
-        Gang.objects.filter(owner=user, archived=False)
-        .select_related("gang_type")
-        .order_by("name")[:DRAWER_GANGS]
-    )
+    return owned_gangs(request)
+
+
+@register.simple_tag(takes_context=True)
+def gang_switcher(context, gang):
+    """The bar's switcher on a screen that belongs to one gang.
+
+    A tag for the same reason the drawer's list is one: the rows are the
+    reader's own gangs, wanted only by the pages that draw the bar with a
+    gang in it, and read through the same memo — so a gang screen showing
+    both the drawer and this switcher still spends one query on them.
+    """
+    from n26.core.navigation import gang_switcher as build
+
+    return build(context["request"], gang)

@@ -1,10 +1,20 @@
 {% extends "authoring/base.html" %}
+{% load authoring_nav %}
 {% block head_title %}
     {{ thing }}
 {% endblock head_title %}
 {% block nav_heading %}{{ thing }}{% endblock nav_heading %}
 {% block content %}
     <c-n26.page-header title="{{ thing }}">
+        {% comment %}
+        The rows of this kind, so checking one against the next is a press
+        rather than a trip back to the listing. Capped, so a kind with three
+        hundred rows costs the page the same as a kind with three.
+        {% endcomment %}
+        <c-slot name="trailing">
+            {% siblings_switcher kind thing as siblings_ %}
+            <c-n26.quick-switcher.of :switcher="siblings_" />
+        </c-slot>
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
                 <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Content library</c-ui.breadcrumbs.item>
