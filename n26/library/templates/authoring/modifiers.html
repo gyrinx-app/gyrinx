@@ -2,6 +2,9 @@
 {% block head_title %}
     Modifiers
 {% endblock head_title %}
+{% block nav_items %}
+    {% include 'authoring/_nav.html' with here='modifiers' %}
+{% endblock nav_items %}
 {% block content %}
     <c-n26.page-header title="Modifiers"
                        lead="Every scope-and-effect pair in the pack — the payloads the carriers hang. Composed here, a modifier belongs to nothing yet; attach it from any carrier's page.">

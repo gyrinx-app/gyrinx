@@ -2,6 +2,9 @@
 {% block head_title %}
     Delete imported content
 {% endblock head_title %}
+{% block nav_items %}
+    {% include 'authoring/_nav.html' with here='ingest' %}
+{% endblock nav_items %}
 {% block content %}
     <c-n26.page-header title="Delete all imported content"
                        lead="Everything an import wrote goes. The foundations stay, so the next import starts from the same ground.">

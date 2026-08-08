@@ -2,6 +2,9 @@
 {% block head_title %}
     Ingest
 {% endblock head_title %}
+{% block nav_items %}
+    {% include 'authoring/_nav.html' with here='ingest' %}
+{% endblock nav_items %}
 {% block content %}
     <c-n26.page-header title="Ingest"
                        lead="The pre-ingest spreadsheets in, library rows out. Preview says exactly what an import would write; importing does that and nothing else.">

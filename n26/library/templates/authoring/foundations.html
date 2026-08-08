@@ -2,6 +2,9 @@
 {% block head_title %}
     Foundations
 {% endblock head_title %}
+{% block nav_items %}
+    {% include 'authoring/_nav.html' with here='foundations' %}
+{% endblock nav_items %}
 {% block content %}
     <c-n26.page-header title="Foundations"
                        lead="The things content is built from. Each has its own page; what the rulebook fixes can be filled in here in one go.">

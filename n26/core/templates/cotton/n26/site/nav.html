@@ -55,15 +55,26 @@ selectOption() the dropdown does not define.
   slot — the nav links, as <c-ui.navbar.item>. Always in the menu, and in the
     bar as well unless a heading has taken that space.
   logo — a slot, for a mark beside the title. Optional.
-  actions — the right-hand controls: theme toggle, account, sign in. They sit to
-    the left of the menu button, which stays outermost.
-  menu_label — the trigger's accessible name. "Menu" by default.
+  actions — the right-hand controls: theme toggle, sign in. They sit to the
+    left of the menu button, which stays outermost.
+  user_label — a signed-in user's name. Given one, the menu's trigger is the
+    name with a chevron rather than the bars icon: the account controls live
+    in the same menu as the navigation, so the name *is* the menu — two
+    buttons that each hold half of "where can I go" would make a reader
+    guess which half they want.
+  menu — a slot rendered under the navigation inside the menu, for the
+    account items: a separator, Your account, another separator, Sign out.
+    <c-ui.dropdown.item> works here (the whole panel is one dropdown), and
+    the caller draws the separators so a nav with no account section does
+    not end in a stray rule.
+  menu_label — the trigger's accessible name, and its tooltip.
   sticky — keep the bar at the top of the window as the page scrolls.
 {% endcomment %}
 <c-vars
     title=""
     href="/"
-    menu_label="Menu"
+    user_label=""
+    menu_label="Open navigation menu"
     sticky=""
     class=""
 />
@@ -136,12 +147,40 @@ selectOption() the dropdown does not define.
             {% endcomment %}
             <c-ui.dropdown align="end">
                 <c-slot name="trigger">
-                    <button type="button" aria-label="{{ menu_label }}"
-                            class="inline-flex cursor-pointer items-center gap-2 rounded-control p-2
-                                   text-ink-600 hover:bg-ink-100 focus-ring
-                                   dark:text-ink-300 dark:hover:bg-ink-800">
-                        <c-n26.icon name="bars-3" class="size-5" />
-                    </button>
+                    {% if user_label %}
+                        {% comment %}
+                        The name is the menu. One control holding both the
+                        navigation and the account items, because two buttons
+                        that each held half of "where can I go" made a reader
+                        guess which half they wanted.
+                        {% endcomment %}
+                        {% comment %}
+                        The ellipsis-and-chevron pair is the app's one spelling
+                        of "this button opens more" — the gang sheet's overflow
+                        and the model cards' draw it the same way.
+                        {% endcomment %}
+                        <button type="button"
+                                aria-label="{{ menu_label }}"
+                                title="{{ menu_label }}"
+                                class="inline-flex cursor-pointer items-center gap-1.5 rounded-control px-2.5 py-1.5
+                                       text-sm font-medium text-ink-600 hover:bg-ink-100 focus-ring
+                                       dark:text-ink-300 dark:hover:bg-ink-800">
+                            <span class="max-w-40 truncate">{{ user_label }}</span>
+                            <span class="n26-icon-only gap-0.5">
+                                <c-n26.icon name="ellipsis-vertical" class="size-4" />
+                                <c-n26.icon name="chevron-down" class="size-3" stroke_width="2.5" />
+                            </span>
+                        </button>
+                    {% else %}
+                        <button type="button"
+                                aria-label="{{ menu_label }}"
+                                title="{{ menu_label }}"
+                                class="inline-flex cursor-pointer items-center gap-2 rounded-control p-2
+                                       text-ink-600 hover:bg-ink-100 focus-ring
+                                       dark:text-ink-300 dark:hover:bg-ink-800">
+                            <c-n26.icon name="bars-3" class="size-5" />
+                        </button>
+                    {% endif %}
                 </c-slot>
 
                 {% comment %}
@@ -155,6 +194,7 @@ selectOption() the dropdown does not define.
                             [&>a]:text-ink-600 dark:[&>a]:text-ink-400
                             [&>a:hover]:bg-ink-100 dark:[&>a:hover]:bg-ink-800
                             [&>.is-current]:text-accent">{{ slot }}</nav>
+                {% if menu %}{{ menu }}{% endif %}
             </c-ui.dropdown>
         </div>
     </div>
