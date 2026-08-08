@@ -1,0 +1,40 @@
+{% comment %}
+<c-n26.divider> — a rule with words in it.
+
+    <c-n26.divider label="or set up a new print" />
+    <c-n26.divider label="printed earlier" icon="printer" />
+    <c-n26.divider />
+
+A separator that says why it separates. A bare rule between two blocks makes a
+reader work out the relationship; this one states it — "or …" is the usual
+shape, marking the second block as an alternative to the first rather than a
+continuation of it.
+
+The lines are flex-1 spans rather than an <hr> styled sideways, so the label
+sits in the rule without absolute positioning or a background patch over a
+line — which is the trick that breaks the moment the page behind it is not one
+flat colour.
+
+Muted and small on purpose: a divider is wayfinding, not content, and one that
+draws the eye competes with the headings it sits between. With no label and no
+icons it degrades to a plain rule.
+
+  label — the words in the gap. Optional.
+  icon — an icon before the label, by n26.icons name. Optional.
+  icon_after — the same, after. Optional.
+{% endcomment %}
+<c-vars label="" icon="" icon_after="" class="" />
+
+{% comment %}
+The gap only exists when something sits in it — with nothing to say, two
+gapped spans would draw a rule with a hole where the words were not.
+{% endcomment %}
+<div {{ attrs }}
+     role="separator"
+     class="flex items-center {% if label or icon or icon_after %}gap-3{% endif %} {{ class }}">
+    <span class="h-px flex-1 bg-box-border"></span>
+    {% if icon %}<c-n26.icon name="{{ icon }}" class="size-4 shrink-0 text-muted" />{% endif %}
+    {% if label %}<span class="shrink-0 text-sm text-muted">{{ label }}</span>{% endif %}
+    {% if icon_after %}<c-n26.icon name="{{ icon_after }}" class="size-4 shrink-0 text-muted" />{% endif %}
+    <span class="h-px flex-1 bg-box-border"></span>
+</div>

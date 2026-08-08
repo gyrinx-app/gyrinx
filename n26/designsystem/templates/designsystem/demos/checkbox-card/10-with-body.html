@@ -1,0 +1,25 @@
+{# title: A card with dependent controls #}
+{# note: The header toggles; the body stays live — and goes dead when the card is unticked. #}
+{# layout: col #}
+<c-n26.checkbox-card name="demo-models"
+                     value="vex"
+                     label="Vex"
+                     description="Escher Ganger"
+                     :checked="True">
+    <c-slot name="meta">
+        <span class="shrink-0 text-sm tabular-nums text-muted">85¢</span>
+    </c-slot>
+    <label class="flex min-h-9 cursor-pointer items-center gap-2.5 rounded-control px-1 hover:bg-ink-500/5">
+        <input type="checkbox"
+               checked
+               class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
+        <span class="min-w-0 flex-1 truncate text-sm text-ink-900 dark:text-ink-100">Lasgun</span>
+        <span class="shrink-0 text-xs tabular-nums text-muted">15¢</span>
+    </label>
+    <label class="flex min-h-9 cursor-pointer items-center gap-2.5 rounded-control px-1 hover:bg-ink-500/5">
+        <input type="checkbox"
+               class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
+        <span class="min-w-0 flex-1 truncate text-sm text-ink-900 dark:text-ink-100">Stiletto knife</span>
+        <span class="shrink-0 text-xs tabular-nums text-muted">20¢</span>
+    </label>
+</c-n26.checkbox-card>

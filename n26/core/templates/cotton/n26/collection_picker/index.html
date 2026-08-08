@@ -290,7 +290,13 @@ dispatches, and listens for `filter-reset` to be told.
                           x-text="countInSection(name)"></span>
                 </button>
             </template>
-            <span aria-hidden="true" class="min-w-0 flex-1 border-b-2 border-box-border"></span>
+            {% comment %}
+            order-last, because Alpine appends x-for clones at the end of the
+            container — so this span, written after the template, ends up
+            *before* the generated tabs in the DOM and was pushing the whole
+            strip to the right. Flex order puts it back where it reads.
+            {% endcomment %}
+            <span aria-hidden="true" class="order-last min-w-0 flex-1 border-b-2 border-box-border"></span>
         </div>
     {% endif %}
 

@@ -11,3 +11,11 @@ Takes `here` — "home" or "new-gang".
                   current="{% if here == 'home' %}1{% endif %}">Home</c-ui.navbar.item>
 <c-ui.navbar.item href="{% url 'n26-create-gang' %}"
                   current="{% if here == 'new-gang' %}1{% endif %}">Create a gang</c-ui.navbar.item>
+{% comment %}
+The way into the authoring section, for the people who may use it. The
+gate inside authoring is staff-only regardless — this only decides who
+sees the door.
+{% endcomment %}
+{% if user.is_staff %}
+    <c-ui.navbar.item href="{% url 'authoring-index' %}">Authoring</c-ui.navbar.item>
+{% endif %}

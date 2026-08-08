@@ -38,7 +38,7 @@ CSS multicol, which is the whole point of that component.
                                   type_line="{{ row.card.type_line }}"
                                   xp="{{ row.card.xp_display }}"
                                   class="n26-print-bleed" />
-            {% include "designsystem/print/_weapons.html" with card=row.card %}
+            <c-n26.print.weapons :card="row.card" />
             {% comment %} Skills, gear and choices, split into balanced columns in Python. {% endcomment %}
             <c-n26.print.columns class="n26-print-mt">
                 {% for column in row.columns %}

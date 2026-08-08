@@ -339,6 +339,8 @@
     text-size-adjust: 100%;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+
+    margin-bottom: var(--print-gutter, 4mm);
 }
 
 /* A fixed-height card is a column: content flows from the top, and anything the

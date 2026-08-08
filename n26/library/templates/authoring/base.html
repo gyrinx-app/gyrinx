@@ -8,12 +8,14 @@ layout owns; what remains is only what is authoring's.
 {% block nav_heading %}
     Authoring
 {% endblock nav_heading %}
+{% comment %}
+"index" is the default because every page without a bar item of its own —
+the kind leaves, the detail pages — is reached from the index, and a bar
+with nothing marked reads as a page that belongs nowhere. Pages with
+their own item override this block with their `here`.
+{% endcomment %}
 {% block nav_items %}
-    <c-ui.navbar.item href="{% url 'authoring-index' %}">Authoring</c-ui.navbar.item>
-    <c-ui.navbar.item href="{% url 'authoring-foundations' %}">Foundations</c-ui.navbar.item>
-    <c-ui.navbar.item href="{% url 'authoring-modifiers' %}">Modifiers</c-ui.navbar.item>
-    <c-ui.navbar.item href="{% url 'authoring-ingest' %}">Ingest</c-ui.navbar.item>
-    <c-ui.navbar.item href="{% url 'n26-dashboard' %}">App</c-ui.navbar.item>
+    {% include 'authoring/_nav.html' with here='index' %}
 {% endblock nav_items %}
 {% block extra_script %}
     <script>

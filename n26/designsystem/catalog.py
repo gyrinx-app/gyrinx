@@ -1219,6 +1219,45 @@ GROUPS: list[Group] = [
                 ),
             ),
             Component(
+                slug="checkbox-card",
+                tag="c-n26.checkbox-card",
+                template="n26/checkbox_card.html",
+                summary="A selectable card whose body stays interactive.",
+                needs=(ALPINE,),
+                notes=(
+                    "The kit's checkbox cards make the whole surface the toggle, "
+                    "which is right up until the card holds controls of its own — "
+                    "then a press on any of them would toggle the card. This one "
+                    "confines the toggle to its header and keeps the body live, "
+                    "which is the difference that justifies a second component; "
+                    "the presentation is deliberately the kit's, so the two read "
+                    "as one family. While unticked the body is dimmed and inert — "
+                    "choices inside an unselected card are choices about something "
+                    "that is not happening. inert stops interaction and focus but "
+                    "not submission, so an input that must not submit while the "
+                    "card is unticked binds :disabled to the `picked` the card "
+                    "puts in scope."
+                ),
+            ),
+            Component(
+                slug="divider",
+                tag="c-n26.divider",
+                template="n26/divider.html",
+                summary="A rule with words in it, saying why it separates.",
+                notes=(
+                    "A bare rule between two blocks makes a reader work out the "
+                    'relationship; this one states it — "or …" marks the block '
+                    "below as an alternative to the one above, not a continuation. "
+                    "The lines are flex spans rather than a styled <hr>, so the "
+                    "label sits in the rule without a background patch over a line "
+                    "— the trick that breaks the moment the page behind it is not "
+                    "one flat colour. Muted and small on purpose: a divider is "
+                    "wayfinding, not content, and one that draws the eye competes "
+                    "with the headings it sits between. With nothing to say it "
+                    "degrades to a plain rule."
+                ),
+            ),
+            Component(
                 slug="coming-soon",
                 tag="c-n26.coming-soon",
                 template="n26/coming_soon.html",
@@ -1596,6 +1635,12 @@ GROUPS: list[Group] = [
                         "n26/print/table.html",
                         "A long table whose header repeats on every page and whose "
                         "rows never split.",
+                    ),
+                    Part(
+                        "c-n26.print.weapons",
+                        "n26/print/weapons.html",
+                        "A card's weapon table: the model-card's naming rule, in "
+                        "the print table's clothes.",
                     ),
                     Part(
                         "c-n26.print.columns",

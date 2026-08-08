@@ -56,6 +56,13 @@ Takes `field` (a BoundField) and `form`.
         and an input that tried to say so would be refused. The file:
         classes style the button the browser draws inside the control,
         which no other input has.
+
+        The drag state is a counter, not a boolean: dragenter and
+        dragleave fire again for every child the drag crosses, so a
+        boolean flickers off mid-drag over the input's own button. Depth
+        only hits zero when the drag has truly left. The drop itself is
+        the input's native behaviour — nothing here handles the file,
+        it only says the target noticed you.
         {% endcomment %}
         <c-ui.field data-field
                     label="{{ label }}{% if field.field.required %} *{% endif %}"
@@ -64,11 +71,18 @@ Takes `field` (a BoundField) and `form`.
                     :form="form"
                     name="{{ field.name }}"
                     for="{{ field.auto_id }}">
-            <c-ui.input type="file"
-                        name="{{ field.html_name }}"
-                        id="{{ field.auto_id }}"
-                        accept="{{ field|widget_attr:'accept' }}"
-                        class="file:mr-3 file:rounded-control file:border-0 file:bg-ink-100 file:px-3 file:py-1 file:text-sm file:font-medium file:text-ink-700 dark:file:bg-ink-800 dark:file:text-ink-200" />
+            <div x-data="{ depth: 0 }"
+                 @dragenter.prevent="depth++"
+                 @dragleave="depth = Math.max(0, depth - 1)"
+                 @drop="depth = 0"
+                 :class="depth > 0 ? 'rounded-control ring-2 ring-accent bg-accent/5' : ''"
+                 class="transition-[background-color,box-shadow]">
+                <c-ui.input type="file"
+                            name="{{ field.html_name }}"
+                            id="{{ field.auto_id }}"
+                            accept="{{ field|widget_attr:'accept' }}"
+                            class="file:mr-3 file:rounded-control file:border-0 file:bg-ink-100 file:px-3 file:py-1 file:text-sm file:font-medium file:text-ink-700 dark:file:bg-ink-800 dark:file:text-ink-200" />
+            </div>
         </c-ui.field>
     {% elif kind == "select" or kind == "selectmultiple" %}
         <c-ui.field data-field

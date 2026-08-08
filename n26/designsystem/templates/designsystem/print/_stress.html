@@ -27,7 +27,7 @@ something in the grid has regressed.
                                   type_line="{{ row.card.type_line }}"
                                   xp="{{ row.card.xp_display }}"
                                   class="n26-print-bleed" />
-            {% include "designsystem/print/_weapons.html" with card=row.card %}
+            <c-n26.print.weapons :card="row.card" />
             <c-n26.print.columns class="n26-print-mt">
                 {% for column in row.columns %}
                     <c-n26.print.column>

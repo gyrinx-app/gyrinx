@@ -29,8 +29,10 @@ UI_ROOT = KIT_TEMPLATES / "ui"
 
 # This project's own Cotton components, which are documented exactly the same way:
 # they declare <c-vars> and explain themselves in a {% comment %}, so the gallery
-# reads them rather than being told about them.
-LOCAL_ROOT = Path(settings.BASE_DIR) / "templates" / "cotton"
+# reads them rather than being told about them. They live in the core app's
+# template tree — the edition mounts inside a larger repository, so BASE_DIR is
+# that repository's root, not the edition's.
+LOCAL_ROOT = Path(settings.BASE_DIR) / "n26" / "core" / "templates" / "cotton"
 
 # Our overrides of *kit* components. A kit component is asked for by a bare name
 # ("button.html") because UI_ROOT already ends in ui/, so this is the same name
