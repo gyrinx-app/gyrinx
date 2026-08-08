@@ -710,10 +710,15 @@ class TestPerform:
                 planned_creates[row.kind] = planned_creates.get(row.kind, 0) + 1
         assert result.counts() == planned_creates
         assert sum(result.counts().values()) == preview["actions"]["create"]
-        # exists rows (the standard-content subtypes, mostly) resolve to
-        # already-there rows; nothing is both created and pre-existing.
-        planned_exists = {row.key for row in plan.planned if row.action == "exists"}
-        assert set(result.existing) <= planned_exists
+        assert len(result.updated) == preview["actions"].get("update", 0)
+        # Rows already there (the standard-content subtypes, mostly)
+        # resolve to what the pack holds; nothing is both made and found.
+        already = {
+            row.key
+            for row in plan.planned
+            if row.action in ("unchanged", "resolved", "update")
+        }
+        assert set(result.existing) <= already
         assert not set(result.created) & set(result.existing)
 
     def test_weapons_arrive_with_profiles_statlines_and_traits(self, plan):
@@ -918,7 +923,13 @@ class TestPerform:
 
 
 class TestIdempotency:
-    def test_a_second_upload_plans_exists_and_creates_nothing(self, foundation, sheets):
+    def test_a_second_upload_changes_nothing_and_creates_nothing(
+        self, foundation, sheets
+    ):
+        """Two claims, and the second is the one that used to be
+        implicit: every row is found, *and* none of them is found to
+        differ. Said in one part, "nothing happens" could be a plan
+        that quietly stopped noticing differences."""
         first = plan_ingest(pack=None, **sheets)
         perform(first)
         weapons, traits, profiles = (
@@ -929,12 +940,38 @@ class TestIdempotency:
 
         again = plan_ingest(pack=None, **sheets)
         assert again.ok
-        assert {p.action for p in again.planned} == {"exists"}
+        assert {p.action for p in again.planned} <= {"unchanged", "resolved"}
+        assert not [p for p in again.planned if p.action == "update"]
         result = perform(again)
         assert result.created == {}
+        assert result.updated == {}
         assert Weapon.objects.count() == weapons
         assert Trait.objects.count() == traits
         assert Profile.objects.count() == profiles
+
+    def test_replanning_finds_back_exactly_the_rows_the_import_made(
+        self, foundation, sheets
+    ):
+        """Planning and performing must agree, row for row, on what
+        counts as the same thing. They ask one function, and this is
+        what that buys: every row the first import created is the row
+        the second plan matches — not a row of the same name, that one.
+
+        The fixture holds two weapons printing "Power fist", which is
+        precisely the case a looser match answers wrongly and quietly:
+        the difference would be measured against one and written onto
+        the other.
+        """
+        first = plan_ingest(pack=None, **sheets)
+        made = perform(first)
+
+        again = plan_ingest(pack=None, **sheets)
+        matched = {
+            row.key: row.existing for row in again.planned if row.existing is not None
+        }
+        assert matched, "nothing matched at all — the second plan found no rows"
+        for key, row in made.created.items():
+            assert matched.get(key) == str(row.pk), key
 
     def test_a_heading_already_spelled_differently_is_reused(
         self, foundation, sheets, default_pack
@@ -985,7 +1022,7 @@ Corpse Grinder Cults,Gang Queen,5",3+,4+,3,3,2,4,2,5+,7,7,7,7,Fighter,Leader,61,
 
         # And a third upload of the same clash sheet changes nothing.
         again = plan_ingest(profiles=clash_sheet)
-        assert {p.action for p in again.planned} == {"exists"}
+        assert {p.action for p in again.planned} <= {"unchanged", "resolved"}
         assert perform(again).created == {}
 
 

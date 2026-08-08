@@ -71,7 +71,8 @@
                 </c-ui.badge>
                 <span class="text-muted">
                     {{ preview.actions.create|default:0 }} to create,
-                    {{ preview.actions.exists|default:0 }} already there
+                    {{ preview.actions.update|default:0 }} to change,
+                    {{ preview.actions.unchanged|default:0 }} unchanged
                 </span>
             </div>
             <c-ui.table class="mt-4">

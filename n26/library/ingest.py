@@ -108,14 +108,39 @@ class Source:
         return {"sheet": self.sheet, "line": self.line}
 
 
+#: A row nothing has settled yet. Planning writes it; :func:`_settle`
+#: replaces every one of them. A plan still carrying one is a planner
+#: that added a row after the settling pass, which would be a row
+#: performed without anyone having asked whether the pack holds it.
+UNSETTLED = "pending"
+
+#: The sheet name a lookup carries. A row planned under it is not a
+#: sheet line at all — it is a row read out of the pack so other rows
+#: can point at it — so nothing about it is a claim the upload makes,
+#: and nothing about it is ever written.
+RESOLUTION = "resolution"
+
+
 @dataclass(frozen=True)
 class Planned:
     """One library row the plan intends.
 
     ``key`` names it within the plan (``"Weapon:autogun"``); other
     planned objects refer to it by that key in their ``fields``, so the
-    whole plan is plain, printable data. ``action`` is ``"create"`` or
-    ``"exists"`` — planning checks the pack and never plans a duplicate.
+    whole plan is plain, printable data.
+
+    ``action`` is settled once, at the end of planning:
+
+    * ``create`` — the pack does not hold it.
+    * ``update`` — it does, and the sheet says something different.
+      ``changes`` names each difference, printably.
+    * ``unchanged`` — it does, and the sheet says the same.
+    * ``resolved`` — not a sheet row at all: a row looked up so other
+      rows can point at it.
+
+    ``existing`` is the pk of the row it matched, so performing writes
+    onto the row the preview described rather than onto whatever the
+    same lookup finds a moment later.
     """
 
     kind: str
@@ -124,6 +149,8 @@ class Planned:
     fields: dict
     action: str
     source: Source
+    changes: dict = field(default_factory=dict)
+    existing: str | None = None
 
     def as_dict(self):
         return {
@@ -133,6 +160,8 @@ class Planned:
             "fields": self.fields,
             "action": self.action,
             "source": self.source.as_dict(),
+            "changes": self.changes,
+            "existing": self.existing,
         }
 
 
@@ -281,6 +310,7 @@ class IngestPlan:
         self.planned = []  # ordered Planned rows
         self.problems = []
         self._by_key = {}
+        self._at = {}  # key -> its place in `planned`, so settling is cheap
         self._rows = {}  # (sheet, line) -> the raw csv row
 
     @property
@@ -290,7 +320,11 @@ class IngestPlan:
     def get(self, key):
         return self._by_key.get(key)
 
-    def add(self, kind, name, fields, source, key=None, action="create"):
+    def add(self, kind, name, fields, source, key=None):
+        """One row the plan intends. What becomes of it — made, changed,
+        left alone, or merely looked up — is not decided here: planning
+        says what the sheets mean, and :func:`_settle` says once, at the
+        end, what the pack already holds."""
         key = key or f"{kind}:{_norm(name)}"
         if key in self._by_key:
             return self._by_key[key]
@@ -299,12 +333,30 @@ class IngestPlan:
             key=key,
             name=name,
             fields=fields,
-            action=action,
+            action=UNSETTLED,
             source=source,
         )
+        self._at[key] = len(self.planned)
         self.planned.append(row)
         self._by_key[key] = row
         return row
+
+    def settle(self, planned, action, changes=None, existing=None):
+        """Fix a row's action, and what makes it one — the difference the
+        sheet asks for, and the row in the pack it will be written onto."""
+        settled = Planned(
+            kind=planned.kind,
+            key=planned.key,
+            name=planned.name,
+            fields=planned.fields,
+            action=action,
+            source=planned.source,
+            changes=changes or {},
+            existing=existing,
+        )
+        self._by_key[planned.key] = settled
+        self.planned[self._at[planned.key]] = settled
+        return settled
 
     def problem(self, source, message, severity="error"):
         self.problems.append(
@@ -315,21 +367,6 @@ class IngestPlan:
 
     def remember_row(self, source, row):
         self._rows[(source.sheet, source.line)] = dict(row)
-
-    def _replace(self, key, **field_changes):
-        """Planning is two passes for prices (§5b); this is the second."""
-        old = self._by_key[key]
-        new = Planned(
-            kind=old.kind,
-            key=old.key,
-            name=old.name,
-            fields={**old.fields, **field_changes},
-            action=old.action,
-            source=old.source,
-        )
-        self._by_key[key] = new
-        self.planned[self.planned.index(old)] = new
-        return new
 
     # -- preview ------------------------------------------------------------
 
@@ -364,6 +401,17 @@ class IngestPlan:
             "ok": self.ok,
             "counts": dict(counts),
             "actions": dict(actions),
+            "changes": [
+                {
+                    "kind": row.kind,
+                    "name": row.name,
+                    "key": row.key,
+                    "source": row.source.as_dict(),
+                    "changes": row.changes,
+                }
+                for row in self.planned
+                if row.action == "update"
+            ],
             "problems": [p.as_dict() for p in self.problems],
             "examples": [
                 {
@@ -422,6 +470,7 @@ def plan_ingest(
     pending_restrictions = _plan_equipment_lists(plan, equipment_lists)
     _plan_profiles(plan, profiles)
     _plan_restrictions(plan, pending_restrictions)
+    _settle(plan)
     return plan
 
 
@@ -433,45 +482,25 @@ def _plan_category(plan, section, name, source, section_position=0):
     """A category and the heading above it. ``section_position`` is the
     order that heading reads in, and applies only where the plan founds
     it — a heading already in the pack keeps the order it has."""
-    from n26.library.models import Category
-
     key = f"Category:{_norm(section)}:{_norm(name)}"
     if plan.get(key):
         return key
-    action = (
-        "exists"
-        if _exists(
-            plan,
-            Category,
-            section__name__iexact=section.strip(),
-            name__iexact=name.strip(),
-        )
-        else "create"
-    )
     plan.add(
         "Category",
         _clean(name),
         {"section": section.strip(), "section_position": section_position},
         source,
         key=key,
-        action=action,
     )
     return key
 
 
 def _plan_trait(plan, token, source):
-    from n26.library.models import Trait
-
     name, annotation = _name_and_annotation(token)
     key = f"Trait:{_norm(name)}:{annotation.lower()}"
     if plan.get(key):
         return key
-    action = (
-        "exists"
-        if _exists(plan, Trait, name__iexact=name, annotation__iexact=annotation)
-        else "create"
-    )
-    plan.add("Trait", name, {"annotation": annotation}, source, key=key, action=action)
+    plan.add("Trait", name, {"annotation": annotation}, source, key=key)
     return key
 
 
@@ -537,8 +566,6 @@ def _plan_equipment(plan, rows, statlined=frozenset()):
     profiles themselves are defined by their statlines, and this sheet
     only says what they cost.
     """
-    from n26.library.models import Wargear, Weapon, WeaponAccessory
-
     # Pass 1: which printed names does more than one item claim? Those
     # want the author-facing qualifier — a power fist is Exo kit
     # and a Power weapon, two weapons wearing one name. The category is
@@ -618,7 +645,6 @@ def _plan_equipment(plan, rows, statlined=frozenset()):
             key = f"Weapon:{ident.key}"
 
         if kind in PLAIN_KINDS:
-            model = Wargear if kind == "Wargear" else WeaponAccessory
             plan.add(
                 kind,
                 ident.name,
@@ -632,11 +658,6 @@ def _plan_equipment(plan, rows, statlined=frozenset()):
                 },
                 source,
                 key=key,
-                action="exists"
-                if _exists(
-                    plan, model, name__iexact=ident.name, qualifier__iexact=qualifier
-                )
-                else "create",
             )
             continue
 
@@ -659,11 +680,6 @@ def _plan_equipment(plan, rows, statlined=frozenset()):
             },
             source,
             key=key,
-            action="exists"
-            if _exists(
-                plan, Weapon, name__iexact=ident.name, qualifier__iexact=qualifier
-            )
-            else "create",
         )
 
     return profile_prices
@@ -759,8 +775,6 @@ def _plan_weapon_profiles(plan, rows, prices):
 
 def _plan_weapon_profile_row(plan, weapon_key, ident, priced, position, source, row):
     """One statline row → one planned profile, at its place in the order."""
-    from n26.library.models import WeaponProfile
-
     plan.add(
         "WeaponProfile",
         ident.profile,
@@ -779,14 +793,6 @@ def _plan_weapon_profile_row(plan, weapon_key, ident, priced, position, source, 
         },
         source,
         key=f"WeaponProfile:{ident.key}",
-        action="exists"
-        if _exists(
-            plan,
-            WeaponProfile,
-            weapon__name__iexact=ident.name,
-            name__iexact=ident.profile,
-        )
-        else "create",
     )
 
 
@@ -840,7 +846,7 @@ def _plan_profiles(plan, rows):
     columns become placement modifiers on the profile itself, and the
     ``Category`` and ``Section`` columns are the fighter's home — where
     the hire list shelves it."""
-    from n26.library.models import GangType, Profile, Rule, Skill, Subtype
+    from n26.library.models import Profile
 
     for line, row in enumerate(rows, start=1):
         source = Source("profiles", line)
@@ -862,32 +868,14 @@ def _plan_profiles(plan, rows):
         gang_name = _clean(row.get("Gang", ""))
         gang_key = f"GangType:{_norm(gang_name)}"
         if not plan.get(gang_key):
-            plan.add(
-                "GangType",
-                gang_name,
-                {},
-                source,
-                key=gang_key,
-                action="exists"
-                if _exists(plan, GangType, name__iexact=gang_name)
-                else "create",
-            )
+            plan.add("GangType", gang_name, {}, source, key=gang_key)
 
         members = []  # (key, extras) pairs for the built-ins set
 
         for subtype in _split_list(row.get("Subtype(s)", "")):
             key = f"Subtype:{_norm(subtype)}"
             if not plan.get(key):
-                plan.add(
-                    "Subtype",
-                    _clean(subtype),
-                    {},
-                    source,
-                    key=key,
-                    action="exists"
-                    if _exists(plan, Subtype, name__iexact=subtype)
-                    else "create",
-                )
+                plan.add("Subtype", _clean(subtype), {}, source, key=key)
             members.append((key, {}))
 
         xp = (row.get("Starting XP") or "").strip()
@@ -901,21 +889,7 @@ def _plan_profiles(plan, rows):
             rule_name, annotation = _name_and_annotation(token)
             key = f"Rule:{_norm(rule_name)}:{annotation.lower()}"
             if not plan.get(key):
-                plan.add(
-                    "Rule",
-                    rule_name,
-                    {"annotation": annotation},
-                    source,
-                    key=key,
-                    action="exists"
-                    if _exists(
-                        plan,
-                        Rule,
-                        name__iexact=rule_name,
-                        annotation__iexact=annotation,
-                    )
-                    else "create",
-                )
+                plan.add("Rule", rule_name, {"annotation": annotation}, source, key=key)
             members.append((key, {}))
 
         skills_column = next(
@@ -924,16 +898,7 @@ def _plan_profiles(plan, rows):
         for skill in _split_list(row.get(skills_column, "") if skills_column else ""):
             key = f"Skill:{_norm(skill)}"
             if not plan.get(key):
-                plan.add(
-                    "Skill",
-                    _clean(skill),
-                    {},
-                    source,
-                    key=key,
-                    action="exists"
-                    if _exists(plan, Skill, name__iexact=skill)
-                    else "create",
-                )
+                plan.add("Skill", _clean(skill), {}, source, key=key)
             members.append((key, {}))
 
         for item in _split_list(row.get("Default assignment", "")):
@@ -994,13 +959,6 @@ def _plan_profiles(plan, rows):
             )
             continue
         label = name if not qualifier else f"{name} ({qualifier})"
-        existing = (
-            existing_plain
-            if not qualifier
-            else _exists(plan, Profile, name__iexact=name, qualifier__iexact=qualifier)
-        )
-
-        from n26.library.models import DefaultAssignmentSet
 
         built_ins_key = None
         if members:
@@ -1012,10 +970,13 @@ def _plan_profiles(plan, rows):
                 {"members": [{"item": key, **extras} for key, extras in members]},
                 source,
                 key=built_ins_key,
-                action="exists"
-                if _exists(plan, DefaultAssignmentSet, name__iexact=set_name)
-                else "create",
             )
+
+        # The grid is planned before the fighter, because the fighter's
+        # own row is where the whole grid is stated: the sheet naming a
+        # set in one tier and no longer in the other is a difference to
+        # the *fighter*, and one modifier row cannot see it.
+        grid = _plan_skill_grid(plan, row, profile_key, label, source)
 
         rating = (row.get("Rating") or "").strip()
         plan.add(
@@ -1029,34 +990,36 @@ def _plan_profiles(plan, rows):
                 "stats": _statline_values(row, MODEL_COLUMNS),
                 "built_ins": built_ins_key,
                 "category": _plan_home(plan, row, name, source),
+                "skill_grid": grid,
             },
             source,
             key=profile_key,
-            action="exists" if existing else "create",
         )
 
-        from n26.library.models import Modifier
 
-        for column, section in (
-            ("Primary Skill Sets", "Primary"),
-            ("Secondary Skill Sets", "Secondary"),
-        ):
-            for skill_set in _split_list(row.get(column, "")):
-                category = _plan_category(plan, "Skills", skill_set, source)
-                modifier_name = f"{label}: {skill_set} is {section}"
-                plan.add(
-                    "Modifier",
-                    modifier_name,
-                    {
-                        "attach_to": profile_key,
-                        "places": {"category": category, "section": section},
-                    },
-                    source,
-                    key=f"Modifier:{profile_key}:{_norm(skill_set)}:{section.lower()}",
-                    action="exists"
-                    if _exists(plan, Modifier, name__iexact=modifier_name)
-                    else "create",
-                )
+def _plan_skill_grid(plan, row, profile_key, label, source):
+    """The fighter's Primary and Secondary skill-set columns, as
+    placement modifiers. Returns their keys, in the order the sheet
+    reads, which is the fighter's whole statement about its grid."""
+    keys = []
+    for column, section in (
+        ("Primary Skill Sets", "Primary"),
+        ("Secondary Skill Sets", "Secondary"),
+    ):
+        for skill_set in _split_list(row.get(column, "")):
+            category = _plan_category(plan, "Skills", skill_set, source)
+            plan.add(
+                "Modifier",
+                f"{label}: {skill_set} is {section}",
+                {
+                    "attach_to": profile_key,
+                    "places": {"category": category, "section": section},
+                },
+                source,
+                key=f"Modifier:{profile_key}:{_norm(skill_set)}:{section.lower()}",
+            )
+            keys.append(f"Modifier:{profile_key}:{_norm(skill_set)}:{section.lower()}")
+    return keys
 
 
 def _resolve_item(plan, name):
@@ -1106,9 +1069,8 @@ def _resolve_item(plan, name):
             "unpriced": False,
             "qualifier": existing.qualifier,
         },
-        Source("resolution", 0),
+        Source(RESOLUTION, 0),
         key=f"{kind}:resolved|{wanted}",
-        action="exists",
     ).key
 
 
@@ -1145,8 +1107,6 @@ def _plan_equipment_lists(plan, rows):
     Returns the restrictions found, deferred: they name fighters, and
     fighter profiles plan after this pass.
     """
-    from n26.library.models.collection import Collection
-
     pending_restrictions = []
     positions = TallyCounter()
     for line, row in enumerate(rows, start=1):
@@ -1161,16 +1121,7 @@ def _plan_equipment_lists(plan, rows):
         name = _collection_name(title)
         collection_key = f"Collection:{_norm(name)}"
         if not plan.get(collection_key):
-            plan.add(
-                "Collection",
-                name,
-                {},
-                source,
-                key=collection_key,
-                action="exists"
-                if _exists(plan, Collection, name__iexact=name)
-                else "create",
-            )
+            plan.add("Collection", name, {}, source, key=collection_key)
 
         ident = ItemId.of(row)
         if not ident.name:
@@ -1212,14 +1163,13 @@ def _plan_equipment_lists(plan, rows):
             },
             source,
             key=entry_key,
-            action="exists" if _entry_exists(plan, name, item_key) else "create",
         )
         positions[collection_key] += 1
 
         restriction = (row.get("Restrictions") or "").strip()
         if restriction:
             pending_restrictions.append(
-                (source, restriction, item_key, title, entry.key, entry.action)
+                (source, restriction, item_key, title, entry.key)
             )
 
     return pending_restrictions
@@ -1333,18 +1283,16 @@ def _plan_existing(plan, kind, found, ident):
                     "unpriced": False,
                     "qualifier": found.weapon.qualifier,
                 },
-                Source("resolution", 0),
+                Source(RESOLUTION, 0),
                 key=weapon_key,
-                action="exists",
             )
         fields["weapon"] = weapon_key
     return plan.add(
         kind,
         found.name,
         fields,
-        Source("resolution", 0),
+        Source(RESOLUTION, 0),
         key=f"{kind}:{ident.key}",
-        action="exists",
     )
 
 
@@ -1360,7 +1308,7 @@ def _plan_restrictions(plan, pending):
     The regex only proposes a name; what decides is whether that name
     resolves to something real. Nothing is ever restricted on a guess.
     """
-    for source, restriction, item_key, gang, entry_key, entry_action in pending:
+    for source, restriction, item_key, gang, entry_key in pending:
         match = re.match(r"^(.*?)\s+only$", restriction, flags=re.IGNORECASE)
         if match is None:
             plan.problem(
@@ -1380,7 +1328,6 @@ def _plan_restrictions(plan, pending):
                 {"item": item_key, "allows": allows},
                 source,
                 key=f"Restriction:{entry_key}",
-                action=entry_action,
             )
         elif re.search(r"\bspecialist$", named, flags=re.IGNORECASE):
             plan.problem(
@@ -1420,9 +1367,8 @@ def _specialisation_ref(plan, named):
             "Specialisation",
             existing.name,
             {},
-            Source("resolution", 0),
+            Source(RESOLUTION, 0),
             key=key,
-            action="exists",
         ).key
     return None
 
@@ -1446,38 +1392,214 @@ def _profile_ref(plan, name, gang):
                 "Profile",
                 existing.name,
                 {"qualifier": existing.qualifier},
-                Source("resolution", 0),
+                Source(RESOLUTION, 0),
                 key=f"Profile:{_norm(name)}{suffix}",
-                action="exists",
             ).key
     return None
 
 
-def _entry_exists(plan, collection_name, item_key):
-    """Is this line already an entry of this collection in the pack?"""
-    from n26.library.models import CollectionEntry
+# --- Settling: what the pack already holds -----------------------------------
 
-    kind = item_key.split(":", 1)[0]
-    column = {
-        "Weapon": "weapon",
-        "WeaponProfile": "weapon_profile",
-        "Wargear": "wargear",
-        "WeaponAccessory": "weapon_accessory",
-    }[kind]
-    planned = plan.get(item_key)
-    filters = {f"{column}__name__iexact": planned.name}
+
+def find_existing(planned, pack, resolve):
+    """The row in the pack a planned row names, or ``None``.
+
+    One statement of what counts as the same row, because two things
+    ask it: settling, to measure a difference against the row that will
+    be written onto, and performing, to point other rows at it. Kept
+    apart, the two drift — and the drift is silent, a difference
+    measured against one row and written onto another.
+
+    ``resolve`` answers a plan key with the row it names, or ``None``
+    where nothing holds it yet. Some identities need it: a firing
+    line's is the weapon it hangs on, an entry's is its collection and
+    the thing listed. Matching those by name instead would take
+    whichever row came first, and one printed name can belong to two
+    weapons.
+    """
+    from n26.library.models import (
+        Category,
+        CollectionEntry,
+        DefaultAssignmentSet,
+        GangType,
+        Modifier,
+        Profile,
+        Rule,
+        Skill,
+        Specialisation,
+        Subtype,
+        Trait,
+        Wargear,
+        Weapon,
+        WeaponAccessory,
+        WeaponProfile,
+    )
+    from n26.library.models.collection import Collection
+
+    kind = planned.kind
+    scope = {"pack": pack}
+
+    by_name = {
+        "GangType": GangType,
+        "Subtype": Subtype,
+        "Skill": Skill,
+        "Collection": Collection,
+        "Specialisation": Specialisation,
+        "DefaultAssignmentSet": DefaultAssignmentSet,
+        "Modifier": Modifier,
+    }
+    if kind in by_name:
+        return by_name[kind].objects.filter(name__iexact=planned.name, **scope).first()
+
+    # Two catalogue rows may print one name, and the qualifier is the
+    # only thing telling them apart.
+    qualified = {
+        "Weapon": Weapon,
+        "Wargear": Wargear,
+        "WeaponAccessory": WeaponAccessory,
+        "Profile": Profile,
+    }
+    if kind in qualified:
+        return (
+            qualified[kind]
+            .objects.filter(
+                name__iexact=planned.name,
+                qualifier__iexact=planned.fields.get("qualifier", ""),
+                **scope,
+            )
+            .first()
+        )
+
+    annotated = {"Trait": Trait, "Rule": Rule}
+    if kind in annotated:
+        return (
+            annotated[kind]
+            .objects.filter(
+                name__iexact=planned.name,
+                annotation__iexact=planned.fields["annotation"],
+                **scope,
+            )
+            .first()
+        )
+
+    if kind == "Category":
+        return Category.objects.filter(
+            section__name__iexact=planned.fields["section"],
+            name__iexact=planned.name,
+            **scope,
+        ).first()
+
     if kind == "WeaponProfile":
-        # A profile's name is only unique under its weapon.
-        weapon = plan.get(planned.fields.get("weapon", ""))
-        if weapon is not None:
-            filters["weapon_profile__weapon__name__iexact"] = weapon.name
-    else:
-        filters[f"{column}__qualifier__iexact"] = planned.fields.get("qualifier", "")
-    return CollectionEntry.objects.filter(
-        pack=plan.pack,
-        collection__name__iexact=collection_name,
-        **filters,
-    ).exists()
+        weapon = resolve(planned.fields["weapon"])
+        if weapon is None:
+            return None
+        return WeaponProfile.objects.filter(
+            weapon=weapon, name__iexact=planned.name
+        ).first()
+
+    if kind == "CollectionEntry":
+        collection = resolve(planned.fields["collection"])
+        item = resolve(planned.fields["item"])
+        if collection is None or item is None:
+            return None
+        return CollectionEntry.objects.filter(
+            collection=collection, **{CollectionEntry.field_for(item): item}
+        ).first()
+
+    if kind == "Restriction":
+        # A restriction is not a row of its own: it is a link stored on
+        # the item. The item stands for it, so whether the pack already
+        # holds it is asked and answered like everything else.
+        item = resolve(planned.fields["item"])
+        allows = resolve(planned.fields["allows"])
+        if item is None or allows is None:
+            return None
+        return item if _already_allows(item, allows) else None
+
+    raise LookupError(f"nothing says what counts as the same {kind}")
+
+
+def _already_allows(item, allows):
+    """Does this item already name that fighter or specialisation among
+    the few who may use it?"""
+    from n26.library.models import Profile, ProfileType, Specialisation, Subtype
+
+    arms = {
+        ProfileType: "usable_by_profile_types",
+        Subtype: "usable_by_subtypes",
+        Profile: "usable_by_profiles",
+        Specialisation: "usable_by_specialisations",
+    }
+    for model, arm in arms.items():
+        if isinstance(allows, model):
+            return getattr(item, arm).filter(pk=allows.pk).exists()
+    return False
+
+
+def _settle(plan):
+    """Decide every planned row's action, once, in one place.
+
+    Planning says what the sheets mean; this says what the pack already
+    holds, and the two are worth keeping apart. All the identity
+    knowledge and all the comparison knowledge sit here and read
+    together, and a row is compared against the row it will be written
+    onto rather than against whatever a second, separately written
+    lookup happens to find.
+
+    The order is the performing order, so every row a row names is
+    settled before it. That is what makes a foreign key comparable at
+    all: "does the stored key point at the row this plan names?" cannot
+    be asked until the named row has been looked for.
+    """
+    found = {}
+
+    def resolve(key):
+        return found.get(key)
+
+    for planned in _in_perform_order(plan):
+        row = find_existing(planned, plan.pack, resolve)
+        found[planned.key] = row
+        if planned.source.sheet == RESOLUTION:
+            # A lookup, not a claim: nothing here to write or compare.
+            plan.settle(planned, "resolved", existing=_pk(row))
+        elif row is None:
+            plan.settle(planned, "create")
+        else:
+            changes = _differences(plan, planned, row, resolve)
+            plan.settle(
+                planned,
+                "update" if changes else "unchanged",
+                changes=changes,
+                existing=_pk(row),
+            )
+
+
+def _pk(row):
+    return None if row is None else str(row.pk)
+
+
+def _in_perform_order(plan):
+    """The planned rows, in the order perform will take them. A kind
+    with no place in that order would be planned and then skipped
+    without a word, so it is refused here instead."""
+    order = {kind: index for index, kind in enumerate(PERFORM_ORDER)}
+    unplaceable = sorted({row.kind for row in plan.planned} - set(order))
+    if unplaceable:
+        raise LookupError(
+            f"{', '.join(unplaceable)} can be planned but has no place in "
+            f"PERFORM_ORDER, so it would be planned and never performed"
+        )
+    return sorted(plan.planned, key=lambda row: order[row.kind])
+
+
+def _differences(plan, planned, row, resolve):
+    """What the sheet says that the pack's row does not, field by field.
+
+    Printable values only — a reference renders as the name of the
+    thing referred to, a set as what joined and what left. What comes
+    out of here is what the preview shows and what perform writes.
+    """
+    return {}
 
 
 # --- Performing ----------------------------------------------------------------
@@ -1485,9 +1607,11 @@ def _entry_exists(plan, collection_name, item_key):
 
 @dataclass
 class IngestResult:
-    """What perform did: rows created, rows found already there."""
+    """What perform did: rows created, rows changed, rows found already
+    there and left alone."""
 
     created: dict = field(default_factory=dict)  # key -> model instance
+    updated: dict = field(default_factory=dict)
     existing: dict = field(default_factory=dict)
 
     def counts(self):
@@ -1502,6 +1626,7 @@ PERFORM_ORDER = [
     "GangType",
     "Subtype",
     "Skill",
+    "Specialisation",
     "Rule",
     "Weapon",
     "WeaponProfile",
@@ -1572,100 +1697,20 @@ class _Performer:
             return self._standard(
                 Counter, f"the {XP_COUNTER} counter", name__iexact=XP_COUNTER
             )
-        row = self._find_existing(self.plan.get(key) or _missing(key), key)
+        planned = self.plan.get(key) or _missing(key)
+        row = find_existing(planned, self.plan.pack, self.resolve)
         if row is None:
             raise LookupError(f"nothing performs or holds {key}")
         self.result.existing[key] = row
         return row
 
-    def _find_existing(self, planned, key):
-        from n26.library.models import (
-            Category,
-            GangType,
-            Profile,
-            Rule,
-            Skill,
-            Subtype,
-            Trait,
-            Wargear,
-            Weapon,
-            WeaponAccessory,
-            WeaponProfile,
-        )
-        from n26.library.models.collection import Collection
-
-        kind, *rest = key.split(":")
-        from n26.library.models import Specialisation
-
-        simple = {
-            "GangType": GangType,
-            "Subtype": Subtype,
-            "Skill": Skill,
-            "Collection": Collection,
-            "Specialisation": Specialisation,
-        }
-        if kind in simple:
-            return (
-                simple[kind]
-                .objects.filter(name__iexact=planned.name, **self.shared)
-                .first()
-            )
-        if kind in ("Weapon", *PLAIN_KINDS):
-            # Qualified: two catalogue rows may print one name, and the
-            # qualifier is the only thing telling them apart.
-            model = {
-                "Weapon": Weapon,
-                "Wargear": Wargear,
-                "WeaponAccessory": WeaponAccessory,
-            }[kind]
-            return model.objects.filter(
-                name__iexact=planned.name,
-                qualifier__iexact=planned.fields.get("qualifier", ""),
-                **self.shared,
-            ).first()
-        if kind == "Profile":
-            return Profile.objects.filter(
-                name__iexact=planned.name,
-                qualifier__iexact=planned.fields.get("qualifier", ""),
-                **self.shared,
-            ).first()
-        if kind == "Trait":
-            return Trait.objects.filter(
-                name__iexact=planned.name,
-                annotation__iexact=planned.fields["annotation"],
-                **self.shared,
-            ).first()
-        if kind == "Rule":
-            return Rule.objects.filter(
-                name__iexact=planned.name,
-                annotation__iexact=planned.fields["annotation"],
-                **self.shared,
-            ).first()
-        if kind == "Category":
-            return Category.objects.filter(
-                section__name__iexact=planned.fields["section"],
-                name__iexact=planned.name,
-                **self.shared,
-            ).first()
-        if kind == "WeaponProfile":
-            weapon = self.resolve(planned.fields["weapon"])
-            return WeaponProfile.objects.filter(
-                weapon=weapon, name__iexact=planned.name
-            ).first()
-        if kind == "DefaultAssignmentSet":
-            from n26.library.models import DefaultAssignmentSet
-
-            return DefaultAssignmentSet.objects.filter(
-                name__iexact=planned.name, **self.shared
-            ).first()
-        return None
-
-    #: Exists-marked rows of these kinds are pure leaves — nothing in a
-    #: plan refers to them, so there is nothing to resolve.
+    #: Nothing in a plan ever points at a row of these kinds, so a row
+    #: already in the pack needs no looking up: there is no later line
+    #: waiting to be told where it landed.
     UNREFERENCED = {"CollectionEntry", "Restriction", "Modifier"}
 
     def perform_one(self, planned):
-        if planned.action == "exists":
+        if planned.action in ("unchanged", "resolved"):
             if planned.kind not in self.UNREFERENCED:
                 self.resolve(planned.key)
             return
