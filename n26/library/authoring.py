@@ -539,13 +539,14 @@ def create_counter(name, qualifier="", library_author_help="", **kwargs):
 
 
 def restrict_use(thing, *allowed):
-    """Who may use this — pass ProfileType, Subtype or Profile rows.
+    """Who may use this — ProfileType, Subtype, Profile or Specialisation.
 
     ``restrict_use(wyld_bow, wyld_runner)`` is "Wyld bow (Wyld Runner
     only)": a whole fighter entry, which is how a shared house list
-    narrows a few of its lines.
+    narrows a few of its lines. ``restrict_use(rad_beamer, gunner)`` is
+    "(Gunner specialist only)" — the field a Specialist chose.
     """
-    from n26.library.models import Profile, ProfileType, Subtype
+    from n26.library.models import Profile, ProfileType, Specialisation, Subtype
 
     for item in allowed:
         if isinstance(item, ProfileType):
@@ -554,6 +555,8 @@ def restrict_use(thing, *allowed):
             thing.usable_by_subtypes.add(item)
         elif isinstance(item, Profile):
             thing.usable_by_profiles.add(item)
+        elif isinstance(item, Specialisation):
+            thing.usable_by_specialisations.add(item)
         else:
             raise ValueError(f"{type(item).__name__} cannot restrict use")
     return thing

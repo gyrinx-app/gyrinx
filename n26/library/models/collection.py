@@ -322,6 +322,7 @@ class CollectionSelector(Content):
                 "usable_by_profile_types",
                 "usable_by_subtypes",
                 "usable_by_profiles",
+                "usable_by_specialisations",
             )
         if self.with_trade_point_price and hasattr(model, "profiles"):
             found = found.prefetch_related(

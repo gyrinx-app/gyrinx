@@ -311,7 +311,7 @@ class TestPlanning:
         entry = plan.get(entry_key(CAWDOR_LIST, FRAG_LANCE))
         assert entry.fields["collection"] == CAWDOR_LIST
         restriction = plan.get(f"Restriction:{entry.key}")
-        assert restriction.fields["profile"] == "Profile:way-brethren"
+        assert restriction.fields["allows"] == "Profile:way-brethren"
 
         # A listing that names a Profile sells one firing line of a gun.
         assert plan.get(entry_key(GOLIATH_LIST, WARP_ROUND))
@@ -508,6 +508,47 @@ Malstrain,Alpha,Malstrain,5",4+,4+,3,3,2,4,2,5+,7,7,7,7,Fighter,Leader,25,110,,,
             "Genestealer Cults"
         )
         assert plan.get("Profile:alpha:malstrain").fields["qualifier"] == "Malstrain"
+
+    def test_a_specialist_restriction_resolves_to_a_specialisation(
+        self, foundation, default_pack
+    ):
+        """ "(Gunner specialist only)" names the field a Specialist chose,
+        which is an arm of usable-by like a subtype — so it becomes a real
+        restriction, not a note."""
+        from n26.library import authoring
+
+        gunner = authoring.create_specialisation("Gunner")
+        plan = plan_ingest(
+            equipment=read_csv(EQUIPMENT_CSV),
+            weapon_profiles=read_csv(WEAPON_PROFILES_CSV),
+            equipment_lists=read_csv(EQUIPMENT_LISTS_CSV),
+        )
+        assert plan.ok
+        restriction = plan.get(f"Restriction:{entry_key(GOLIATH_LIST, EXO_FIST)}")
+        assert restriction.fields["allows"] == "Specialisation:gunner"
+
+        perform(plan)
+        fist = Weapon.objects.get(name="Power fist", qualifier="Exo weapons")
+        assert list(fist.usable_by_specialisations.all()) == [gunner]
+        assert str(fist.usable_by_selector()) == "has Gunner"
+
+    def test_a_specialisation_the_pack_lacks_is_said_not_invented(self, foundation):
+        """Which specialisations exist is authored content — a restriction
+        string does not get to mint one."""
+        from n26.library.models import Specialisation
+
+        plan = plan_ingest(
+            equipment=read_csv(EQUIPMENT_CSV),
+            weapon_profiles=read_csv(WEAPON_PROFILES_CSV),
+            equipment_lists=read_csv(EQUIPMENT_LISTS_CSV),
+        )
+        assert plan.ok  # a note, never a block
+        assert any(
+            "names a specialisation the pack does not hold" in p.message
+            for p in plan.problems
+        )
+        perform(plan)
+        assert not Specialisation.objects.exists()
 
     def test_two_fighters_claiming_one_identity_are_refused(self, foundation):
         """Name and qualifier together are the identity. Two rows holding

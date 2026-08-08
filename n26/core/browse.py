@@ -158,11 +158,15 @@ def browse(collection, terms=EQUIPMENT_LIST):
         "skill__usable_by_profile_types",
         "skill__usable_by_subtypes",
         "skill__usable_by_profiles",
+        "skill__usable_by_specialisations",
         "power__usable_by_profile_types",
         "power__usable_by_subtypes",
         "power__usable_by_profiles",
+        "power__usable_by_specialisations",
         "weapon__usable_by_profiles",
+        "weapon__usable_by_specialisations",
         "wargear__usable_by_profiles",
+        "wargear__usable_by_specialisations",
     )
     for entry in entries:
         thing = entry.assignable
@@ -274,6 +278,7 @@ def with_use_notes(view, fighter):
                     *line.thing.usable_by_profiles.all(),
                     *line.thing.usable_by_profile_types.all(),
                     *line.thing.usable_by_subtypes.all(),
+                    *line.thing.usable_by_specialisations.all(),
                 ]
                 note = Note(
                     text="usable by " + " or ".join(str(a) for a in allowed) + " only",

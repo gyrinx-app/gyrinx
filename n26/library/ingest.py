@@ -1206,47 +1206,80 @@ def _resolve_by_id(plan, ident):
 def _plan_restrictions(plan, pending):
     """The deferred restrictions pass: fighter profiles exist by now.
 
-    Three shapes turn up and only one has a home. "<Fighter> only"
-    narrows an item to a profile, which ``UsableBy`` holds. A
-    specialisation ("Gunner specialist only") names something
-    ``UsableBy`` has no arm for, and a gang-wide cap ("Max one per
-    gang") is not a restriction on *use* at all. Both are said and
-    carried past rather than quietly dropped or bent into the wrong
-    mechanism.
+    Three shapes turn up. "<Fighter> only" narrows an item to a profile
+    and "<X> specialist only" to a specialisation — both are arms of
+    ``UsableBy``, so both become real restrictions. A gang-wide cap
+    ("Max one per gang") is not a restriction on *use* at all, so it is
+    said and carried past rather than bent into the wrong mechanism.
+
+    The regex only proposes a name; what decides is whether that name
+    resolves to something real. Nothing is ever restricted on a guess.
     """
     for source, restriction, item_key, gang, entry_key, entry_action in pending:
         match = re.match(r"^(.*?)\s+only$", restriction, flags=re.IGNORECASE)
-        profile_ref = match and _profile_ref(plan, match.group(1), gang)
-        if profile_ref:
-            plan.add(
-                "Restriction",
-                f"{plan.get(item_key).name} ({restriction})",
-                {"item": item_key, "profile": profile_ref},
-                source,
-                key=f"Restriction:{entry_key}",
-                action=entry_action,
-            )
-        elif match and re.search(r"specialist$", match.group(1), flags=re.IGNORECASE):
-            plan.problem(
-                source,
-                f"restriction {restriction!r} names a specialisation, which "
-                f"usable-by cannot express yet — imported without it",
-                severity="note",
-            )
-        elif match:
-            plan.problem(
-                source,
-                f"restriction {restriction!r} names a fighter no sheet "
-                f"defines and the pack does not hold — imported without it",
-                severity="note",
-            )
-        else:
+        if match is None:
             plan.problem(
                 source,
                 f"restriction {restriction!r} is not a restriction on use — "
                 f"imported without it (§5c)",
                 severity="note",
             )
+            continue
+
+        named = match.group(1)
+        allows = _profile_ref(plan, named, gang) or _specialisation_ref(plan, named)
+        if allows:
+            plan.add(
+                "Restriction",
+                f"{plan.get(item_key).name} ({restriction})",
+                {"item": item_key, "allows": allows},
+                source,
+                key=f"Restriction:{entry_key}",
+                action=entry_action,
+            )
+        elif re.search(r"\bspecialist$", named, flags=re.IGNORECASE):
+            plan.problem(
+                source,
+                f"restriction {restriction!r} names a specialisation the "
+                f"pack does not hold — author it and upload again; "
+                f"imported without it",
+                severity="note",
+            )
+        else:
+            plan.problem(
+                source,
+                f"restriction {restriction!r} names a fighter no sheet "
+                f"defines and the pack does not hold — imported without it",
+                severity="note",
+            )
+
+
+def _specialisation_ref(plan, named):
+    """The specialisation a restriction names: "Gunner specialist" is the
+    Gunner specialisation, the field a Specialist chose.
+
+    Resolve, never create — which specialisations exist is authored
+    content, and a restriction string is not allowed to invent one.
+    """
+    from n26.library.models import Specialisation
+
+    bare = re.sub(r"\s*\bspecialist$", "", named, flags=re.IGNORECASE).strip()
+    if not bare or _norm(bare) == _norm(named):
+        return None  # only the "<X> specialist" shape names one
+
+    key = f"Specialisation:{_norm(bare)}"
+    if plan.get(key):
+        return key
+    if existing := _exists(plan, Specialisation, name__iexact=bare):
+        return plan.add(
+            "Specialisation",
+            existing.name,
+            {},
+            Source("resolution", 0),
+            key=key,
+            action="exists",
+        ).key
+    return None
 
 
 def _profile_ref(plan, name, gang):
@@ -1414,11 +1447,14 @@ class _Performer:
         from n26.library.models.collection import Collection
 
         kind, *rest = key.split(":")
+        from n26.library.models import Specialisation
+
         simple = {
             "GangType": GangType,
             "Subtype": Subtype,
             "Skill": Skill,
             "Collection": Collection,
+            "Specialisation": Specialisation,
         }
         if kind in simple:
             return (
@@ -1630,9 +1666,11 @@ class _Performer:
     def _create_restriction(self, planned):
         from n26.library import authoring
 
+        # The verb routes by the kind of thing allowed — a profile, a
+        # specialisation — so the plan need only name it.
         return authoring.restrict_use(
             self.resolve(planned.fields["item"]),
-            self.resolve(planned.fields["profile"]),
+            self.resolve(planned.fields["allows"]),
         )
 
     def _create_modifier(self, planned):
