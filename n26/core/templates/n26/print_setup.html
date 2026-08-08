@@ -2,6 +2,11 @@
 {% comment %}
 Choosing what a print includes, before the paper is committed.
 
+The frame is <c-n26.form-page>'s — the one wrapper every form screen shares,
+so this page holds the same measure and rhythm as create-gang and hire rather
+than inventing a third. The saved setups ride inside it as a section of links,
+above the form fields they are the alternative to.
+
 Saved configs come first — each is one press to print again, which is the
 whole reason configs have names. The form under them describes a new run:
 name (optional — naming is what saves it), the two toggles, and a card per
@@ -9,8 +14,8 @@ model with its weapons as checkboxes. Everything starts ticked, because the
 common print is the whole gang and the screen should cost nothing when that
 is what you want.
 
-Loading a saved config (?list on equip, ?config= here) pre-fills the same
-form — editing a config and creating one are one screen, not two.
+Loading a saved config (?config=) pre-fills the same form — editing a config
+and creating one are one screen, not two.
 {% endcomment %}
 {% block head_title %}Print {{ gang.name }}{% endblock head_title %}
 {% block nav_heading %}Print {{ gang.name }}{% endblock nav_heading %}
@@ -18,8 +23,11 @@ form — editing a config and creating one are one screen, not two.
     {% include 'n26/_nav.html' %}
 {% endblock %}
 {% block content %}
-    <c-n26.page-header title="Print {{ gang.name }}"
-                       lead="Pick what goes on paper. Name the setup to keep it for next time.">
+    <c-n26.form-page action="{% url 'n26-print-setup' gang.pk %}"
+                     title="Print {{ gang.name }}"
+                     lead="Pick what goes on paper. Name the setup to keep it for next time."
+                     submit_label="Print"
+                     submit_variant="primary">
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
                 <c-ui.breadcrumbs.item>
@@ -33,121 +41,163 @@ form — editing a config and creating one are one screen, not two.
                 </c-ui.breadcrumbs.item>
             </c-ui.breadcrumbs>
         </c-slot>
-    </c-n26.page-header>
-    {% if saved %}
-        <div class="mt-6">
-            <h2 class="text-sm font-semibold text-ink-900 dark:text-ink-100">Saved setups</h2>
-            <div class="mt-2 flex flex-col divide-y divide-box-border rounded-box border border-box-border">
-                {% for config in saved %}
-                    <div class="flex flex-wrap items-center gap-2 p-3">
-                        <div class="min-w-0 flex-1">
-                            <p class="font-medium text-ink-900 dark:text-ink-100">{{ config.name }}</p>
-                            <p class="text-sm text-muted">
-                                {{ config.miniatures.count }} fighter{{ config.miniatures.count|pluralize }}
-                                {% if not config.include_header %}· no header{% endif %}
-                                {% if not config.include_stash %}· no stash{% endif %}
-                            </p>
-                        </div>
-                        <div class="flex shrink-0 items-center gap-2">
-                            <c-ui.button size="sm"
-                                         variant="default"
-                                         href="{% url 'n26-print-setup' gang.pk %}?config={{ config.pk }}">Edit</c-ui.button>
-                            <c-ui.button size="sm"
-                                         variant="primary"
-                                         href="{% url 'n26-print' gang.pk %}?config={{ config.pk }}">Print</c-ui.button>
-                        </div>
-                    </div>
-                {% endfor %}
-            </div>
-            <p class="mt-4 text-sm text-muted">Or set up a new print below.</p>
-        </div>
-    {% endif %}
-    <form method="post"
-          action="{% url 'n26-print-setup' gang.pk %}"
-          class="mt-6 flex max-w-2xl flex-col gap-4">
         {% csrf_token %}
-        <c-ui.field label="Setup name"
-                    description="Optional — a named setup is saved and listed here for next time."
-                    for="print-name">
-            <c-ui.input id="print-name"
-                        name="name"
-                        autocomplete="off"
-                        value="{{ setup_name }}" />
-        </c-ui.field>
-        {% comment %}
-        Plain inputs, as the picker rows use — the kit's checkbox is wired
-        for its own group scope and these are two independent toggles.
-        {% endcomment %}
-        <div class="flex flex-col gap-1">
-            <label class="flex min-h-9 cursor-pointer items-center gap-2.5">
-                <input type="checkbox"
-                       name="include_header"
-                       {% if include_header %}checked{% endif %}
-                       class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
-                <span class="text-sm text-ink-900 dark:text-ink-100">Include the gang header</span>
-            </label>
-            <label class="flex min-h-9 cursor-pointer items-center gap-2.5">
-                <input type="checkbox"
-                       name="include_stash"
-                       {% if include_stash %}checked{% endif %}
-                       class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
-                <span class="text-sm text-ink-900 dark:text-ink-100">Include the stash</span>
-            </label>
-        </div>
-        {% comment %}
-        A card per model, the checkbox on its header row and the weapons
-        beneath. The grid mirrors the gang sheet's — as the screen widens the
-        answer is more cards abreast, not wider cards.
-        {% endcomment %}
-        <div class="grid auto-rows-min grid-cols-1 gap-4 md:grid-cols-2">
-            {% for card in sheet.models %}
-                <c-ui.card padding="none">
-                    <c-slot name="header">
-                        <label class="flex min-h-11 cursor-pointer items-center gap-2.5 px-3 py-2">
-                            <input type="checkbox"
-                                   name="fighters"
-                                   value="{{ card.id }}"
-                                   {% if card.id in ticked_models %}checked{% endif %}
-                                   class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
-                            <span class="min-w-0 flex-1">
-                                <span class="block truncate font-semibold text-ink-900 dark:text-ink-100">{{ card.name }}</span>
-                                {% if card.profile_name %}<span class="block truncate text-sm text-muted">{{ card.profile_name }}</span>{% endif %}
-                            </span>
-                            <span class="shrink-0 text-sm tabular-nums text-muted">{{ card.rating }}¢</span>
-                        </label>
-                    </c-slot>
-                    {% if card.weapons %}
-                        <div class="flex flex-col px-3 py-2">
-                            {% for weapon in card.weapons %}
-                                {% comment %}
-                                Only stored weapons can be chosen — a computed
-                                line has no assignment to key on, and there are
-                                none of those today. The guard keeps a future
-                                one from rendering an unsubmittable box.
-                                {% endcomment %}
-                                {% if weapon.id %}
-                                    <label class="flex min-h-9 cursor-pointer items-center gap-2.5 rounded-control px-1 hover:bg-ink-500/5">
-                                        <input type="checkbox"
-                                               name="weapons"
-                                               value="{{ weapon.id }}"
-                                               {% if weapon.id in ticked_weapons %}checked{% endif %}
-                                               class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
-                                        <span class="min-w-0 flex-1 truncate text-sm text-ink-900 dark:text-ink-100">{{ weapon.name }}</span>
-                                        <span class="shrink-0 text-xs tabular-nums text-muted">{{ weapon.total_rating }}¢</span>
-                                    </label>
-                                {% endif %}
-                            {% endfor %}
+        {% if saved %}
+            {% comment %}
+            Its own heading at the section scale, not a form-section title:
+            this block is the page's other half, not a group of fields, and
+            it reads as a peer of "New setup" below the divider.
+            {% endcomment %}
+            <section class="space-y-4">
+                <h2 class="text-xl font-semibold text-ink-900 dark:text-ink-100">Previously printed</h2>
+                <div class="flex flex-col divide-y divide-box-border rounded-box border border-box-border">
+                    {% for config in saved %}
+                        <div class="flex flex-wrap items-center gap-2 p-3">
+                            <div class="min-w-0 flex-1">
+                                <p class="font-medium text-ink-900 dark:text-ink-100">{{ config.name }}</p>
+                                <p class="text-sm text-muted">
+                                    {{ config.miniatures.count }} model{{ config.miniatures.count|pluralize }}
+                                    {% if not config.include_header %}· no header{% endif %}
+                                    {% if not config.include_stash %}· no stash{% endif %}
+                                </p>
+                            </div>
+                            <div class="flex shrink-0 items-center gap-2">
+                                <c-ui.button size="sm"
+                                             variant="default"
+                                             href="{% url 'n26-print-setup' gang.pk %}?config={{ config.pk }}">Edit</c-ui.button>
+                                <c-ui.button size="sm"
+                                             variant="primary"
+                                             href="{% url 'n26-print' gang.pk %}?config={{ config.pk }}">Print</c-ui.button>
+                            </div>
                         </div>
-                    {% else %}
-                        <p class="px-3 py-2 text-sm text-muted">No weapons.</p>
-                    {% endif %}
-                </c-ui.card>
-            {% endfor %}
-        </div>
-        <div class="flex items-center gap-2">
-            <c-ui.button variant="primary" type="submit">
-                Print
-            </c-ui.button>
-        </div>
-    </form>
+                    {% endfor %}
+                </div>
+            </section>
+            <c-n26.divider label="or set up a new print" icon="printer" />
+        {% endif %}
+        <c-n26.form-section title="{% if saved %}New setup{% else %}Setup{% endif %}">
+            <c-ui.field label="Setup name"
+                        description="Optional — a named setup is saved and listed here for next time."
+                        for="print-name">
+                <c-ui.input id="print-name"
+                            name="name"
+                            autocomplete="off"
+                            value="{{ setup_name }}" />
+            </c-ui.field>
+            {% comment %}
+            Plain inputs, as the picker rows use — the kit's checkbox is wired
+            for its own group scope and these are two independent toggles.
+            {% endcomment %}
+            <div class="flex flex-col gap-1">
+                <label class="flex min-h-9 cursor-pointer items-center gap-2.5">
+                    <input type="checkbox"
+                           name="include_header"
+                           {% if include_header %}checked{% endif %}
+                           class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
+                    <span class="text-sm text-ink-900 dark:text-ink-100">Include the gang header</span>
+                </label>
+                <label class="flex min-h-9 cursor-pointer items-center gap-2.5">
+                    <input type="checkbox"
+                           name="include_stash"
+                           {% if include_stash %}checked{% endif %}
+                           class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
+                    <span class="text-sm text-ink-900 dark:text-ink-100">Include the stash</span>
+                </label>
+            </div>
+        </c-n26.form-section>
+        <c-n26.form-section title="Models"
+                            description="Tick who gets a card, and which of their weapons show on it.">
+            {% comment %}
+            A card per model, the checkbox on its header row and the weapons
+            beneath. Two columns inside the form's measure — as the screen
+            widens the answer is more cards abreast, not wider cards.
+
+            The footer's two figures recompute on every change, the same
+            pattern as the hire rows' running total: presentation of state
+            already on the page, which is the one job Alpine is allowed.
+            A model's checkbox carries its weaponless rating and each weapon
+            its own, so the crew total is base plus ticked weapons — an
+            unticked model contributes nothing, weapons included, exactly as
+            it prints. One change listener on the wrapper rather than one
+            per box: change bubbles, and the recount is one walk either way.
+            {% endcomment %}
+            <div x-data="{ slots: 0, total: 0, retotal() { let slots = 0, total = 0; for (const model of $el.querySelectorAll('input[name=fighters]:checked')) { total += Number(model.dataset.base); for (const weapon of $el.querySelectorAll('input[name=weapons][data-model=' + CSS.escape(model.value) + ']:checked')) { total += Number(weapon.dataset.rating); slots += Number(weapon.dataset.slots); } } this.slots = slots; this.total = total; } }"
+                 x-init="retotal()"
+                 @change="retotal()"
+                 class="space-y-4">
+                <div class="grid auto-rows-min grid-cols-1 gap-4 md:grid-cols-2">
+                    {% for row in model_rows %}
+                        <c-ui.card padding="none">
+                            <c-slot name="header">
+                                <label class="flex min-h-11 cursor-pointer items-center gap-2.5 px-3 py-2">
+                                    <input type="checkbox"
+                                           name="fighters"
+                                           value="{{ row.card.id }}"
+                                           data-base="{{ row.base_rating }}"
+                                           {% if row.card.id in ticked_models %}checked{% endif %}
+                                           class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
+                                    <span class="min-w-0 flex-1">
+                                        <span class="block truncate font-semibold text-ink-900 dark:text-ink-100">{{ row.card.name }}</span>
+                                        {% if row.card.profile_name %}
+                                            <span class="block truncate text-sm text-muted">{{ row.card.profile_name }}</span>
+                                        {% endif %}
+                                    </span>
+                                    <span class="shrink-0 text-sm tabular-nums text-muted">{{ row.card.rating }}¢</span>
+                                </label>
+                            </c-slot>
+                            {% if row.card.weapons %}
+                                <div class="flex flex-col px-3 py-2">
+                                    {% for weapon in row.card.weapons %}
+                                        {% comment %}
+                                        Only stored weapons can be chosen — a computed
+                                        line has no assignment to key on, and there are
+                                        none of those today. The guard keeps a future
+                                        one from rendering an unsubmittable box.
+                                        {% endcomment %}
+                                        {% if weapon.id %}
+                                            <label class="flex min-h-9 cursor-pointer items-center gap-2.5 rounded-control px-1 hover:bg-ink-500/5">
+                                                <input type="checkbox"
+                                                       name="weapons"
+                                                       value="{{ weapon.id }}"
+                                                       data-model="{{ row.card.id }}"
+                                                       data-rating="{{ weapon.total_rating }}"
+                                                       data-slots="{{ weapon.slots }}"
+                                                       {% if weapon.id in ticked_weapons %}checked{% endif %}
+                                                       class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
+                                                <span class="min-w-0 flex-1 truncate text-sm text-ink-900 dark:text-ink-100">{{ weapon.name }}</span>
+                                                {% if weapon.slots != 1 %}
+                                                    <span class="shrink-0 text-xs text-muted">{{ weapon.slots }} slot{{ weapon.slots|pluralize }}</span>
+                                                {% endif %}
+                                                <span class="shrink-0 text-xs tabular-nums text-muted">{{ weapon.total_rating }}¢</span>
+                                            </label>
+                                        {% endif %}
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <p class="px-3 py-2 text-sm text-muted">No weapons.</p>
+                            {% endif %}
+                        </c-ui.card>
+                    {% endfor %}
+                </div>
+                {% comment %}
+                The reckoning: what the ticked selection weighs. Slots first
+                because it is the rulebook's constraint, the total last
+                because it is the number a reader carries away. Informing,
+                never policing — nothing here blocks a print.
+                {% endcomment %}
+                <div class="flex flex-wrap items-center justify-end gap-x-6 gap-y-1 text-sm">
+                    <span class="text-muted">
+                        Slots
+                        <span class="ml-1 font-medium tabular-nums text-ink-900 dark:text-ink-100"
+                              x-text="slots">0</span>
+                    </span>
+                    <span class="text-muted">
+                        Crew total
+                        <span class="ml-1 font-medium tabular-nums text-ink-900 dark:text-ink-100"
+                              x-text="total + '¢'">0¢</span>
+                    </span>
+                </div>
+            </div>
+        </c-n26.form-section>
+    </c-n26.form-page>
 {% endblock content %}

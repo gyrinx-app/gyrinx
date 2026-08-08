@@ -1219,6 +1219,24 @@ GROUPS: list[Group] = [
                 ),
             ),
             Component(
+                slug="divider",
+                tag="c-n26.divider",
+                template="n26/divider.html",
+                summary="A rule with words in it, saying why it separates.",
+                notes=(
+                    "A bare rule between two blocks makes a reader work out the "
+                    'relationship; this one states it — "or …" marks the block '
+                    "below as an alternative to the one above, not a continuation. "
+                    "The lines are flex spans rather than a styled <hr>, so the "
+                    "label sits in the rule without a background patch over a line "
+                    "— the trick that breaks the moment the page behind it is not "
+                    "one flat colour. Muted and small on purpose: a divider is "
+                    "wayfinding, not content, and one that draws the eye competes "
+                    "with the headings it sits between. With nothing to say it "
+                    "degrades to a plain rule."
+                ),
+            ),
+            Component(
                 slug="coming-soon",
                 tag="c-n26.coming-soon",
                 template="n26/coming_soon.html",

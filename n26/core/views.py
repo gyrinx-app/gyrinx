@@ -429,6 +429,17 @@ def print_setup(request, pk):
         {
             "gang": gang,
             "sheet": sheet,
+            # What each model is worth with no weapons ticked — the live
+            # crew total starts here and adds ticked weapons back on the
+            # client. Derived server-side so the template only reads it.
+            "model_rows": [
+                {
+                    "card": card,
+                    "base_rating": card.rating
+                    - sum(weapon.total_rating for weapon in card.weapons),
+                }
+                for card in sheet.models
+            ],
             "saved": gang.print_configs.exclude(name=""),
             # Resolved here, not in the template: `loaded.include_header`
             # on a None resolves to the empty string, which default_if_none
