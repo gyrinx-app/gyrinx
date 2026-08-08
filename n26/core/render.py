@@ -123,6 +123,11 @@ class WeaponProfileLine:
 class WeaponLine:
     name: str
     base_rating: int
+    #: The assignment's pk, as a string, when this line draws a stored
+    #: weapon — what a selection UI keys its checkboxes on. Empty on a
+    #: hire preview, whose weapons exist on no ledger and cannot be
+    #: selected for anything.
+    id: str = ""
     profiles: list[WeaponProfileLine] = field(default_factory=list)
     #: Accessories hung off this weapon — a sight, suspensors.
     accessories: list[AssignableLine] = field(default_factory=list)
@@ -476,6 +481,9 @@ def card_to_model_card(
             )
         return WeaponLine(
             name=node.name,
+            # A stored weapon carries its assignment; a preview's exists on
+            # no ledger and keys nothing, which "" is how a line says.
+            id=str(node.assignment.pk) if node.assignment is not None else "",
             base_rating=node.rating,
             profiles=profiles,
             accessories=[

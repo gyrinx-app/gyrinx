@@ -17,6 +17,8 @@ urlpatterns = [
     path("gangs/<str:pk>/", views.gang_sheet, name="n26-gang"),
     path("gangs/<str:pk>/hire/", views.hire_fighter, name="n26-hire-fighter"),
     path("fighters/<str:pk>/equip/", views.equip, name="n26-equip"),
+    path("gangs/<str:pk>/print/setup/", views.print_setup, name="n26-print-setup"),
+    path("gangs/<str:pk>/print/", views.print_gang, name="n26-print"),
     path("design/", include("n26.designsystem.urls")),
     path("authoring/", authoring_views.index, name="authoring-index"),
     path(

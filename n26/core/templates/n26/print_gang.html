@@ -1,0 +1,106 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en-gb">
+    <head>
+        <meta charset="utf-8">
+        {% comment %}
+        A bare document, not the app shell. This URL is the print target
+        itself — what a phone opens and what the print dialog turns into
+        paper — so it carries no nav, no footer and no theme widget, which
+        would all be hidden again by print rules and each a way for the
+        printed artefact to differ from the previewed one. The lab's sheet
+        page (designsystem/print_sheet.html) establishes the pattern.
+        {% endcomment %}
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="description" content="A printable gang sheet.">
+        <title>Print — {{ gang.name }}</title>
+        <link rel="stylesheet" href="{% static 'designsystem/app.css' %}">
+    </head>
+    <body>
+        <c-n26.print.sheet fit="1" scroll="1">
+            {% if include_header %}
+                {% comment %}
+                The gang's own block: what it is called, what it is, what it is
+                worth. A card like any other so it obeys the same fragmentation
+                rules — it must arrive on paper whole, not straddle the fold.
+                {% endcomment %}
+                <c-n26.print.card title="{{ sheet.name }}"
+                                  subtitle="{{ sheet.gang_type }}"
+                                  badge="{{ sheet.wealth }}¢">
+                    <c-n26.print.columns>
+                        <c-n26.print.column>
+                            <c-n26.print.entry label="Rating">
+                                {{ sheet.rating }}¢
+                            </c-n26.print.entry>
+                            <c-n26.print.entry label="Credits">
+                                {{ sheet.credits }}¢
+                            </c-n26.print.entry>
+                        </c-n26.print.column>
+                        <c-n26.print.column>
+                            <c-n26.print.entry label="Stash">
+                                {{ sheet.stash_rating }}¢
+                            </c-n26.print.entry>
+                            <c-n26.print.entry label="Wealth">
+                                {{ sheet.wealth }}¢
+                            </c-n26.print.entry>
+                        </c-n26.print.column>
+                    </c-n26.print.columns>
+                </c-n26.print.card>
+            {% endif %}
+            {% if include_stash and sheet.stash %}
+                <c-n26.print.card title="Stash" badge="{{ sheet.stash_rating }}¢">
+                    <c-n26.print.table>
+                        <c-slot name="head">
+                            <tr>
+                                <th>Item</th>
+                                <th>Kind</th>
+                                {# djlint:off H021 — print column widths live on the cells #}
+                                <th style="width: 18%" class="is-centered">Rating</th>
+                                {# djlint:on #}
+                            </tr>
+                        </c-slot>
+                        {% for line in sheet.stash %}
+                            <tr>
+                                <td>{{ line.name }}</td>
+                                <td>{{ line.kind|capfirst }}</td>
+                                <td class="is-centered">{{ line.rating }}¢</td>
+                            </tr>
+                        {% endfor %}
+                    </c-n26.print.table>
+                </c-n26.print.card>
+            {% endif %}
+            {% comment %}
+            The fighters, two-up. The composition is the lab's cards specimen
+            (designsystem/print/_cards.html) over real rows — auto-height
+            cards, because a home print wants no scissors: the next card
+            starts where this one ends.
+            {% endcomment %}
+            <c-n26.print.grid columns="2" gutter="4mm">
+                {% for row in rows %}
+                    <c-n26.print.card title="{{ row.card.name }}"
+                                      subtitle="{{ row.card.profile_name }}"
+                                      badge="{{ row.card.rating }}¢">
+                        <c-n26.print.statline :statline="row.card.statline"
+                                              type_line="{{ row.card.type_line }}"
+                                              xp="{{ row.card.xp_display }}"
+                                              class="n26-print-bleed" />
+                        {% if row.card.weapons %}
+                            <c-n26.print.weapons :card="row.card" />
+                        {% endif %}
+                        <c-n26.print.columns class="n26-print-mt">
+                            {% for column in row.columns %}
+                                <c-n26.print.column>
+                                    {% for group in column %}
+                                        <c-n26.print.entry label="{{ group.label }}">
+                                            {{ group.text }}
+                                        </c-n26.print.entry>
+                                    {% endfor %}
+                                </c-n26.print.column>
+                            {% endfor %}
+                        </c-n26.print.columns>
+                    </c-n26.print.card>
+                {% endfor %}
+            </c-n26.print.grid>
+        </c-n26.print.sheet>
+    </body>
+</html>

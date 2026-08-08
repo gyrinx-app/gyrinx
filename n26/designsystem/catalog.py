@@ -1598,6 +1598,12 @@ GROUPS: list[Group] = [
                         "rows never split.",
                     ),
                     Part(
+                        "c-n26.print.weapons",
+                        "n26/print/weapons.html",
+                        "A card's weapon table: the model-card's naming rule, in "
+                        "the print table's clothes.",
+                    ),
+                    Part(
                         "c-n26.print.columns",
                         "n26/print/columns.html",
                         "Side-by-side columns, filled server-side — never CSS "

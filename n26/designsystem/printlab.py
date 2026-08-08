@@ -24,7 +24,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 
-from n26.core.printing import balance_columns, estimate_lines
+from n26.core.printing import (  # noqa: F401 — re-exported for the lab's callers
+    DetailGroup,
+    balance_columns,
+    detail_columns,
+    detail_groups,
+    estimate_lines,
+)
 
 from . import sampledata
 
@@ -186,61 +192,10 @@ def _trim(number: float) -> str:
 # ------------------------------------------------------------------ specimens
 
 
-@dataclass(frozen=True)
-class DetailGroup:
-    """A labelled run of text, sized well enough to balance columns with.
-
-    The height is an estimate and openly so — it ranks two candidate splits
-    against each other, and being out by a line only matters in a case that was
-    already near-balanced.
-    """
-
-    label: str
-    text: str
-
-    #: Roughly what fits on a line of a half-width card column at 2.4mm type.
-    #: Measured from the rendered output rather than derived, because the
-    #: alternative is modelling a font.
-    chars_per_line: int = 30
-
-    @property
-    def height(self) -> int:
-        return estimate_lines(self.text, self.chars_per_line, self.label)
-
-
-def detail_groups(card) -> list[DetailGroup]:
-    """A model card's loose assignables, as labelled runs.
-
-    Choices are folded in with their kind as the label, so an unresolved one
-    still occupies its row and prints as a blank to be filled in — information,
-    not an error, and on paper an empty slot is a useful thing to see.
-    """
-    groups = []
-    if card.skills:
-        groups.append(DetailGroup("Skills", ", ".join(s.name for s in card.skills)))
-    if card.rules:
-        groups.append(DetailGroup("Rules", ", ".join(r.name for r in card.rules)))
-    if card.powers:
-        groups.append(DetailGroup("Powers", ", ".join(p.name for p in card.powers)))
-    if card.equipment:
-        groups.append(DetailGroup("Gear", ", ".join(e.name for e in card.equipment)))
-    for choice in card.choices:
-        groups.append(DetailGroup(choice.kind_label.title(), choice.chosen or "—"))
-    if card.collections:
-        groups.append(
-            DetailGroup("Buys from", ", ".join(c.name for c in card.collections))
-        )
-    for effect in card.effects:
-        # "(when taken)" on paper as on screen. A printed card is read away from
-        # the application, so an effect that has not happened yet has to say so
-        # on the page or it reads as something the model already does.
-        tense = "" if effect.happened else " (when taken)"
-        groups.append(DetailGroup("Effect", f"{effect.description}{tense}"))
-    return groups
-
-
-def detail_columns(card, columns: int = 2) -> list[list[DetailGroup]]:
-    return balance_columns(detail_groups(card), columns)
+# DetailGroup, detail_groups and detail_columns live in n26.core.printing —
+# the real print pages need them, and core cannot import the gallery. The
+# names are re-exported here so the lab's templates and context read the
+# same either way.
 
 
 def specimen_cards(count: int) -> list:

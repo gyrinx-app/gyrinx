@@ -1,0 +1,153 @@
+{% extends "n26/layouts/base.html" %}
+{% comment %}
+Choosing what a print includes, before the paper is committed.
+
+Saved configs come first — each is one press to print again, which is the
+whole reason configs have names. The form under them describes a new run:
+name (optional — naming is what saves it), the two toggles, and a card per
+model with its weapons as checkboxes. Everything starts ticked, because the
+common print is the whole gang and the screen should cost nothing when that
+is what you want.
+
+Loading a saved config (?list on equip, ?config= here) pre-fills the same
+form — editing a config and creating one are one screen, not two.
+{% endcomment %}
+{% block head_title %}Print {{ gang.name }}{% endblock head_title %}
+{% block nav_heading %}Print {{ gang.name }}{% endblock nav_heading %}
+{% block nav_items %}
+    {% include 'n26/_nav.html' %}
+{% endblock %}
+{% block content %}
+    <c-n26.page-header title="Print {{ gang.name }}"
+                       lead="Pick what goes on paper. Name the setup to keep it for next time.">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item>
+                    <c-n26.flair-link text="{{ gang.owner.username }}"
+                                      tone="current"
+                                      href="{% url 'n26-dashboard' %}" />
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'n26-gang' gang.pk %}">{{ gang.name }}</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Print
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+    </c-n26.page-header>
+    {% if saved %}
+        <div class="mt-6">
+            <h2 class="text-sm font-semibold text-ink-900 dark:text-ink-100">Saved setups</h2>
+            <div class="mt-2 flex flex-col divide-y divide-box-border rounded-box border border-box-border">
+                {% for config in saved %}
+                    <div class="flex flex-wrap items-center gap-2 p-3">
+                        <div class="min-w-0 flex-1">
+                            <p class="font-medium text-ink-900 dark:text-ink-100">{{ config.name }}</p>
+                            <p class="text-sm text-muted">
+                                {{ config.miniatures.count }} fighter{{ config.miniatures.count|pluralize }}
+                                {% if not config.include_header %}· no header{% endif %}
+                                {% if not config.include_stash %}· no stash{% endif %}
+                            </p>
+                        </div>
+                        <div class="flex shrink-0 items-center gap-2">
+                            <c-ui.button size="sm"
+                                         variant="default"
+                                         href="{% url 'n26-print-setup' gang.pk %}?config={{ config.pk }}">Edit</c-ui.button>
+                            <c-ui.button size="sm"
+                                         variant="primary"
+                                         href="{% url 'n26-print' gang.pk %}?config={{ config.pk }}">Print</c-ui.button>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+            <p class="mt-4 text-sm text-muted">Or set up a new print below.</p>
+        </div>
+    {% endif %}
+    <form method="post"
+          action="{% url 'n26-print-setup' gang.pk %}"
+          class="mt-6 flex max-w-2xl flex-col gap-4">
+        {% csrf_token %}
+        <c-ui.field label="Setup name"
+                    description="Optional — a named setup is saved and listed here for next time."
+                    for="print-name">
+            <c-ui.input id="print-name"
+                        name="name"
+                        autocomplete="off"
+                        value="{{ setup_name }}" />
+        </c-ui.field>
+        {% comment %}
+        Plain inputs, as the picker rows use — the kit's checkbox is wired
+        for its own group scope and these are two independent toggles.
+        {% endcomment %}
+        <div class="flex flex-col gap-1">
+            <label class="flex min-h-9 cursor-pointer items-center gap-2.5">
+                <input type="checkbox"
+                       name="include_header"
+                       {% if include_header %}checked{% endif %}
+                       class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
+                <span class="text-sm text-ink-900 dark:text-ink-100">Include the gang header</span>
+            </label>
+            <label class="flex min-h-9 cursor-pointer items-center gap-2.5">
+                <input type="checkbox"
+                       name="include_stash"
+                       {% if include_stash %}checked{% endif %}
+                       class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
+                <span class="text-sm text-ink-900 dark:text-ink-100">Include the stash</span>
+            </label>
+        </div>
+        {% comment %}
+        A card per model, the checkbox on its header row and the weapons
+        beneath. The grid mirrors the gang sheet's — as the screen widens the
+        answer is more cards abreast, not wider cards.
+        {% endcomment %}
+        <div class="grid auto-rows-min grid-cols-1 gap-4 md:grid-cols-2">
+            {% for card in sheet.models %}
+                <c-ui.card padding="none">
+                    <c-slot name="header">
+                        <label class="flex min-h-11 cursor-pointer items-center gap-2.5 px-3 py-2">
+                            <input type="checkbox"
+                                   name="fighters"
+                                   value="{{ card.id }}"
+                                   {% if card.id in ticked_models %}checked{% endif %}
+                                   class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
+                            <span class="min-w-0 flex-1">
+                                <span class="block truncate font-semibold text-ink-900 dark:text-ink-100">{{ card.name }}</span>
+                                {% if card.profile_name %}<span class="block truncate text-sm text-muted">{{ card.profile_name }}</span>{% endif %}
+                            </span>
+                            <span class="shrink-0 text-sm tabular-nums text-muted">{{ card.rating }}¢</span>
+                        </label>
+                    </c-slot>
+                    {% if card.weapons %}
+                        <div class="flex flex-col px-3 py-2">
+                            {% for weapon in card.weapons %}
+                                {% comment %}
+                                Only stored weapons can be chosen — a computed
+                                line has no assignment to key on, and there are
+                                none of those today. The guard keeps a future
+                                one from rendering an unsubmittable box.
+                                {% endcomment %}
+                                {% if weapon.id %}
+                                    <label class="flex min-h-9 cursor-pointer items-center gap-2.5 rounded-control px-1 hover:bg-ink-500/5">
+                                        <input type="checkbox"
+                                               name="weapons"
+                                               value="{{ weapon.id }}"
+                                               {% if weapon.id in ticked_weapons %}checked{% endif %}
+                                               class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
+                                        <span class="min-w-0 flex-1 truncate text-sm text-ink-900 dark:text-ink-100">{{ weapon.name }}</span>
+                                        <span class="shrink-0 text-xs tabular-nums text-muted">{{ weapon.total_rating }}¢</span>
+                                    </label>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="px-3 py-2 text-sm text-muted">No weapons.</p>
+                    {% endif %}
+                </c-ui.card>
+            {% endfor %}
+        </div>
+        <div class="flex items-center gap-2">
+            <c-ui.button variant="primary" type="submit">
+                Print
+            </c-ui.button>
+        </div>
+    </form>
+{% endblock content %}

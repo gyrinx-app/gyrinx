@@ -1,5 +1,7 @@
 {% comment %}
-The weapon table, shared by the specimens that show a fighter card.
+<c-n26.print.weapons> — a card's weapon table, on paper.
+
+    <c-n26.print.weapons :card="card" />
 
 Two rows per profile, matching <c-n26.model-card>: the stats on the name's row,
 the traits on their own line beneath it, indented past the name column so they
@@ -11,13 +13,14 @@ Worth the change on paper more than on screen. As a column, traits got 22% of a
 lines and made every weapon three rows tall regardless. Given the full width
 they take one line, and the stat columns get the space back.
 
-A partial rather than a component: it is specimen scaffolding for the lab, and
-the only thing in it that is not plain markup is the weapon/profile naming rule,
-which is <c-n26.model-card>'s rule rather than the print family's. If a real
-gang sheet ever wants this, that is the point to promote it.
+The weapon/profile naming rule is <c-n26.model-card>'s rule, carried by
+WeaponLine (own_line / named_profiles) so the screen card, the text card and
+this one cannot drift.
 
-Takes `card` — a n26.render.ModelCard.
+  :card — a n26.render.ModelCard whose weapons to draw.
 {% endcomment %}
+<c-vars :card="None" class="" />
+
 {% comment %}
 No top margin: it sits directly on the statline's bottom rule, so the two read
 as one block of statistics rather than two tables near each other.
