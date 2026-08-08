@@ -162,7 +162,7 @@ n23/core/static/core/scss/
 ### Build Process
 
 ```bash
-# Compile SCSS to CSS
+# Build the stylesheets for both editions
 npm run css
 
 # Watch for changes and rebuild
@@ -171,6 +171,24 @@ npm run watch
 # Lint SCSS
 npm run css-lint
 ```
+
+`npm run css` builds one stylesheet per edition, and `npm run watch` rebuilds
+both when a template or stylesheet changes:
+
+| Edition | Source                                | Output                                          |
+| ------- | ------------------------------------- | ----------------------------------------------- |
+| n23     | `n23/core/static/core/scss/` (Sass)   | `n23/core/static/core/css/styles.css`            |
+| n26     | `n26/designsystem/assets/app.css` (Tailwind) | `n26/designsystem/static/designsystem/app.css` |
+
+Both outputs are generated: gitignored, built into the Docker image, and never
+committed. `./scripts/dev.sh` builds them on startup, so you only need to run
+`npm run css` by hand if you are not using it.
+
+n26's build scans the edition's templates for the classes it emits, which is why
+editing a template — not just a stylesheet — changes its output. The directories
+it scans are named explicitly at the top of `app.css`; automatic detection is
+switched off, because it reaches the whole repository and pulls n23's Bootstrap
+class names into n26's stylesheet.
 
 ### Custom Styling Approach
 

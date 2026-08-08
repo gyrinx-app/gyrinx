@@ -9,10 +9,11 @@
     "css-compile": "sass --style compressed --source-map --embed-sources --no-error-css --load-path=node_modules n23/core/static/core/scss/:n23/core/static/core/css/",
     "css-lint": "stylelint n23/core/static/core/scss/",
     "css-prefix": "postcss --replace n23/core/static/core/css/*.css --use autoprefixer --map",
-    "css": "npm-run-all css-compile css-prefix",
+    "css-n26": "tailwindcss --input n26/designsystem/assets/app.css --output n26/designsystem/static/designsystem/app.css --minify",
+    "css": "npm-run-all css-compile css-prefix css-n26",
     "server": "sirv --dev --no-clear --port 3000",
     "start": "npm-run-all --parallel watch server",
-    "watch": "nodemon -e html,scss -x \"npm run css\"",
+    "watch": "nodemon -e html,scss,css --ignore \"n23/core/static/core/css/\" --ignore \"n26/designsystem/static/\" -x \"npm run css\"",
     "test": "npm-run-all css-lint css",
     "js-fmt": "prettier --write \"**/*.js\"",
     "fmt": "prettier --write \"**/*.{js,mjs,css,scss,json,yaml,yml}\"",
@@ -33,6 +34,7 @@
   },
   "devDependencies": {
     "@github/markdownlint-github": "^0.8.3",
+    "@tailwindcss/cli": "^4.3.3",
     "autoprefixer": "^10.5.4",
     "markdown-it": "^14.3.0",
     "markdownlint-cli2": "^0.23.1",
@@ -45,6 +47,7 @@
     "sass": "^1.102.0",
     "sirv-cli": "^3.0.1",
     "stylelint": "^16.26.1",
-    "stylelint-config-twbs-bootstrap": "^16.1.0"
+    "stylelint-config-twbs-bootstrap": "^16.1.0",
+    "tailwindcss": "^4.3.3"
   }
 }
