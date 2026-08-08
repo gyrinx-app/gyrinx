@@ -1,0 +1,63 @@
+{% comment %}
+<c-n26.radio-cards.card> — one option in a <c-n26.radio-cards> grid.
+
+    <c-n26.radio-cards.card name="gang_type" value="01ABC…" label="Escher (HoB)"
+                            description="Founding budget 1,000¢" :checked="True">
+        <c-slot name="flair"><c-n26.flair.gang-type :icon="type.icon" /></c-slot>
+        <c-slot name="meta">6 entries</c-slot>
+    </c-n26.radio-cards.card>
+
+A sibling of <c-n26.checkbox-card> rather than a mode of it, because the two
+differ where it counts. A checkbox card's body goes dim and inert while the card
+is unticked — choices inside an unselected card are choices about something that
+is not happening. In a group where exactly one thing is picked, every card but
+one is unpicked at all times, so the same treatment would grey out every option
+the reader is trying to compare and make the group read as disabled. This card
+has no dependent body and nothing goes dim: an option not yet chosen is not off.
+
+It also cannot own its state the way the checkbox card does. One-of-many is the
+browser's rule over a shared `name`, not something a card can decide about
+itself — which is the other half of why this is its own component, and why there
+is no JavaScript here at all. The whole card is the label, so a press anywhere on
+it selects; the radio stays visible, because a group of cards with no controls in
+them does not look like a question.
+
+  name — shared across every card in the group. This is what makes it a group.
+  value — what this card submits.
+  checked — whether this is the chosen one. The server decides; on a redisplay
+    it is whatever came back.
+  label — the option's name.
+  description — the muted line under it. Optional.
+  flair — a badge after the label, sized in em by <c-n26.flair-link>. Optional.
+  meta — a slot at the far end of the header: a price, a count. Optional.
+{% endcomment %}
+<c-vars name="" value="" :checked="False" label="" description="" class="" />
+
+{% comment %}
+has-[:checked] rather than Alpine: the selected card is styled from the state of
+the real input inside it, so the page is correct before any script runs and stays
+correct if none ever does. The accent border and tint are the kit's checkbox-card
+presentation, so a form using both reads as one family.
+{% endcomment %}
+<label {{ attrs }}
+       class="flex cursor-pointer items-start gap-3 rounded-box border-2 border-ink-200 p-4
+              transition-[background-color,border-color] hover:bg-ink-500/5
+              has-[:checked]:border-accent has-[:checked]:bg-accent/5
+              dark:border-ink-700 {{ class }}">
+    <input type="radio"
+           name="{{ name }}"
+           value="{{ value }}"
+           {% if checked %}checked{% endif %}
+           class="mt-0.5 size-5 shrink-0 accent-[var(--color-accent)] focus-ring">
+    <span class="min-w-0 flex-1">
+        {% comment %}
+        The badge rides through flair-link, which sizes it in em and keeps it out
+        of the underline — the same placement it gets in a heading or a table
+        cell, so a gang type looks the same here as it does on the gang's sheet.
+        tone="current" because the card's title has already picked its colour.
+        {% endcomment %}
+        <span class="block truncate text-base font-semibold text-ink-900 dark:text-ink-100"><c-n26.flair-link text="{{ label }}" tone="current">{{ flair }}</c-n26.flair-link></span>
+        {% if description %}<span class="block truncate text-muted">{{ description }}</span>{% endif %}
+    </span>
+    {% if meta %}{{ meta }}{% endif %}
+</label>

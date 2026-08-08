@@ -11,9 +11,10 @@
             </c-slot>
             {% for gang in dashboard_gangs %}
                 <c-n26.gang-table.row name="{{ gang.name }}"
-                                      type="{{ gang.gang_type }}"
+                                      type="{{ gang.type }}"
+                                      :type_icon="gang.type_icon"
                                       colour="{{ gang.colour }}"
-                                      :sheet="gang"
+                                      :sheet="gang.sheet"
                                       href="#"
                                       print_href="#" />
             {% endfor %}

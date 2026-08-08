@@ -1,0 +1,14 @@
+{# title: No badges, no detail, and a wider card #}
+{# note: A card is a label and nothing else is required, so a set of plain choices reads as a row of buttons that stay pressed. `min` widens the track floor, which is how a set of sentence-long labels gets fewer per row without anybody naming a column count. #}
+{# layout: col #}
+<c-n26.radio-cards label="What this list is for" min="20rem">
+    <c-n26.radio-cards.card name="demo-purpose"
+                            value="campaign"
+                            label="A campaign gang"
+                            description="Spends credits, keeps a ledger, carries its wounds between games."
+                            :checked="True" />
+    <c-n26.radio-cards.card name="demo-purpose"
+                            value="oneoff"
+                            label="A one-off list"
+                            description="Built to a budget for a single game and then forgotten." />
+</c-n26.radio-cards>

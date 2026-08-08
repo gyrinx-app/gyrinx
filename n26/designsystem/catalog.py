@@ -1161,6 +1161,14 @@ GROUPS: list[Group] = [
                         "The Goliath house icon. Drawn with currentColor, so it "
                         "follows the text.",
                     ),
+                    Part(
+                        "c-n26.flair.gang-type",
+                        "n26/flair/gang_type.html",
+                        "A gang type's own artwork, sanitised on the way out. The "
+                        "only badge here that is content rather than a drawing we "
+                        "ship — so the only one that can be absent, and the only "
+                        "one that is untrusted.",
+                    ),
                 ),
             ),
             Component(
@@ -1285,6 +1293,41 @@ GROUPS: list[Group] = [
                     "never emits one built from a variable. The grid is "
                     "auto-fill, so how many fit a row is not a decision anybody "
                     "has to maintain."
+                ),
+            ),
+            Component(
+                slug="radio-cards",
+                tag="c-n26.radio-cards",
+                template="n26/radio_cards/index.html",
+                summary="Pick exactly one of a handful of things, as a grid of cards.",
+                parts=(
+                    Part(
+                        "c-n26.radio-cards.card",
+                        "n26/radio_cards/card.html",
+                        "One option: a radio, a name, a badge and a line of detail.",
+                        required=True,
+                    ),
+                ),
+                notes=(
+                    "A sibling of checkbox-card rather than a mode of it. That "
+                    "card dims and inerts its body while unticked, because "
+                    "choices inside an unselected card are choices about "
+                    "something that is not happening — but in a group where "
+                    "exactly one thing is picked, every card but one is "
+                    "unpicked at all times, so the same treatment would grey "
+                    "out the options the reader is trying to compare and make "
+                    "the whole group read as disabled. It also cannot own its "
+                    "state: one-of-many is the browser's rule over a shared "
+                    "name, not something a card decides about itself. Cards "
+                    "and not a select for the colour picker's reason — a "
+                    "dropdown makes you open it, read the options and close it "
+                    "again to weigh two of them — and because an option is one "
+                    "string, so a badge and a line of detail have nowhere to "
+                    "go. Selected state is has-[:checked] on the label rather "
+                    "than script, so the page is right before anything runs "
+                    "and stays right if nothing ever does. The grid is "
+                    "auto-fill off a track floor, so how many fit a row "
+                    "follows from how wide a card has to be to stay readable."
                 ),
             ),
             Component(

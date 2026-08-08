@@ -1,4 +1,6 @@
 {# title: After a failed submit #}
-{# note: The same view handed a bound form that did not validate. Real Django errors, read off form.errors by c-ui.field — the name was left empty and the credits typed as a negative. Nothing in the view knows about either: what a reader typed comes back because the fields read form.<field>.value, and the messages appear because the field was given the form. #}
+{# note: The same view handed a bound form that did not validate. Real Django errors, read off form.errors — the name was left empty and the credits typed as a negative. Nothing in the view knows about either: what a reader typed comes back because the fields read form.<field>.value, and the messages appear because the field was given the form. The type they had picked is still picked, because the card list carries which one it was. #}
 {# layout: full #}
-<c-n26.view.create-gang action="#" :form="failed_create_gang_form" :gang_types="gang_types" />
+<c-n26.view.create-gang action="#"
+                        :form="failed_create_gang_form"
+                        :gang_types="failed_gang_types" />

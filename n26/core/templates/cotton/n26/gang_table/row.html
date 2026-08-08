@@ -24,13 +24,15 @@ you came to the list.
 
   name — the gang's. The link, and the accessible name for the whole row.
   type — its gang type, under the name.
+  type_icon — the gang type's stored artwork, as SVG source. Empty draws nothing,
+    which is the case a list of mixed types has to survive.
   colour — the gang's colour, as a mark before the name. Empty draws nothing, so a
     column of names where few gangs have one keeps its left edge.
   :sheet — a n26.render.GangSheet, for <c-n26.wealth>.
   href — where the row goes. The edit screen, since that is what a row is for.
   print_href — the print button's destination. Omitted, no print button.
 {% endcomment %}
-<c-vars name="" type="" colour="" :sheet="None" href="" print_href="" class="" />
+<c-vars name="" type="" type_icon="" colour="" :sheet="None" href="" print_href="" class="" />
 
 <div x-data="{ facets: {
         type: {{ type|json_dumps }},
@@ -63,7 +65,17 @@ you came to the list.
            class="n26-row-link rounded-control text-base font-semibold text-ink-900 focus-ring dark:text-ink-100">
             <c-n26.color-swatch color="{{ colour }}" />{{ name }}
         </a>
-        <p class="text-sm text-muted">{{ type }}</p>
+        {% comment %}
+        The badge rides through flair-link, outside the anchor above: the row's
+        accessible name is the gang's name, and a piece of artwork repeating the
+        type in the middle of it would say the type twice. No href — the type is
+        not somewhere to go — so flair-link draws a span.
+        {% endcomment %}
+        <p class="text-sm text-muted">
+            <c-n26.flair-link text="{{ type }}" tone="current">
+                <c-n26.flair.gang-type :icon="type_icon" />
+            </c-n26.flair-link>
+        </p>
     </div>
 
     {% comment %}

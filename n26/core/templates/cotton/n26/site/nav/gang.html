@@ -15,10 +15,11 @@ layout template knowing any of the classes.
   href — the gang's sheet.
   name — the gang's name.
   type — the gang type, shown under the name. Optional.
+  type_icon — the gang type's stored artwork, as SVG source. Empty draws nothing.
   colour — the gang's colour, as a mark before the name. Empty draws nothing, so
     a drawer of gangs where few have one keeps its left edge.
 {% endcomment %}
-<c-vars href="#" name="" type="" colour="" class="" />
+<c-vars href="#" name="" type="" type_icon="" colour="" class="" />
 
 <a href="{{ href }}"
    {{ attrs }}
@@ -31,5 +32,12 @@ layout template knowing any of the classes.
     type line below still starts at the row's left edge.
     {% endcomment %}
     <span class="truncate text-sm text-ink-700 dark:text-ink-300"><c-n26.color-swatch color="{{ colour }}" />{{ name }}</span>
-    {% if type %}<span class="truncate text-xs text-ink-500 dark:text-ink-400">{{ type }}</span>{% endif %}
+    {% comment %}
+    The badge goes on the type line rather than the name line: it says what the
+    gang is, which is what that line is for, and the row is already an anchor
+    whose accessible name should stay the gang's own.
+    {% endcomment %}
+    {% if type %}
+        <span class="truncate text-xs text-ink-500 dark:text-ink-400"><c-n26.flair-link text="{{ type }}" tone="current"><c-n26.flair.gang-type :icon="type_icon" /></c-n26.flair-link></span>
+    {% endif %}
 </a>

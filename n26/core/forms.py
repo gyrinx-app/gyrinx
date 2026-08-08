@@ -48,9 +48,39 @@ class CreateGangForm(forms.Form):
     )
 
     def gang_type_choices(self):
-        """``(value, label)`` pairs for the view component's select —
-        the same rows the field validates against, said once."""
-        return [(str(row.pk), str(row)) for row in self.fields["gang_type"].queryset]
+        """The cards the view draws for ``gang_type``, one per row.
+
+        The same rows the field validates against, said once. Each is a
+        dict rather than a ``(value, label)`` pair because a card shows
+        more than a select option can: the type's badge, and the budget
+        it founds a gang with. ``checked`` is computed here and not in
+        the template — a redisplay after a failed submit has to re-check
+        whatever came back, and comparing a submitted string to a primary
+        key is the kind of thing a template does wrong quietly.
+        """
+        submitted = str(self["gang_type"].value() or "")
+        return [
+            {
+                "value": str(row.pk),
+                "label": str(row),
+                "icon": row.icon,
+                "description": _founding_budget(row.starting_credits),
+                "checked": str(row.pk) == submitted,
+            }
+            for row in self.fields["gang_type"].queryset
+        ]
+
+
+def _founding_budget(credits):
+    """The line under a gang type's name on the create form.
+
+    Blank starting credits is not zero and not a default — it means the
+    game's usual budget applies — so a type that states nothing says
+    nothing rather than claiming a number it does not have.
+    """
+    if credits is None:
+        return ""
+    return f"Founding budget {credits:,}¢"
 
 
 class HireFighterForm(forms.Form):

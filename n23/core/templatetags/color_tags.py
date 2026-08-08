@@ -5,7 +5,7 @@ from django.core.cache import cache
 from django.utils.html import conditional_escape, format_html
 from django.utils.safestring import mark_safe
 
-from n23.content.svg import sanitize_house_icon_svg
+from gyrinx.svg import sanitize_inline_svg
 
 register = template.Library()
 
@@ -82,7 +82,9 @@ def _house_icon_svg(icon, extra_classes):
     try:
         with icon.open("rb") as fh:
             raw = fh.read().decode("utf-8")
-        svg = sanitize_house_icon_svg(raw, extra_classes=extra_classes)
+        svg = sanitize_inline_svg(
+            raw, root_class="house-icon", extra_classes=extra_classes
+        )
     except OSError, ValueError, UnicodeDecodeError:
         svg = ""
 
@@ -110,6 +112,6 @@ def house_icon(house, extra_classes=""):
         return ""
 
     svg = _house_icon_svg(icon, extra_classes)
-    # nosec B703 B308 - svg is sanitised by sanitize_house_icon_svg (bleach
+    # nosec B703 B308 - svg is sanitised by sanitize_inline_svg (bleach
     # allowlist) before reaching here; raw upload content never marked safe.
     return mark_safe(svg) if svg else ""  # nosec B703 B308

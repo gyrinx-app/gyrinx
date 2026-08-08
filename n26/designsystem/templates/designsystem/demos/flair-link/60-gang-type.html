@@ -1,0 +1,14 @@
+{# title: A gang type's own artwork #}
+{# note: The badges above are drawings this repository ships. This one is content: an author stored the SVG against a gang type, so it is untrusted and goes through the platform's allowlist before it is drawn. The second line is a type that has none — nothing renders and nothing is held open for it, which is what a list of mixed types needs. #}
+{# layout: col #}
+<c-n26.flair-link text="Goliath (HoC)" href="/design/">
+    <c-n26.flair.gang-type :icon="sample_gang_icon" />
+</c-n26.flair-link>
+<c-n26.flair-link text="Underhive Outcasts" href="/design/">
+    <c-n26.flair.gang-type icon="" />
+</c-n26.flair-link>
+<p class="text-xl">
+    <c-n26.flair-link text="And it scales with the line">
+        <c-n26.flair.gang-type :icon="sample_gang_icon" />
+    </c-n26.flair-link>
+</p>

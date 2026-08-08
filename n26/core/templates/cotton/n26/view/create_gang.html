@@ -11,9 +11,12 @@ chrome, no routing — just the part between the nav and the footer.
 
 This is the first proper form in the library and the others should look like it:
 a heading, a line of help under it, then fields in titled groups, then one
-primary action at the end. Everything is c-ui.field over a kit control, so the
-label, the help text and the error all come from one place and cannot drift apart
-per screen the way hand-rolled markup does.
+primary action at the end. A single control is c-ui.field over a kit control, so
+the label, the help text and the error all come from one place and cannot drift
+apart per screen the way hand-rolled markup does. A group of controls answering
+one question is a fieldset with a legend instead — two of the four fields here
+are that, and they draw their own label so the reader is not told the group's
+name by a <label> pointing at one member of it.
 
 Two groups rather than one run of four, and the split is not arbitrary — it is
 required and optional. A reader can stop after the first group and have a gang;
@@ -41,7 +44,8 @@ The frame — the measure, the spacing, the header and that footer — is
   form — a bound or unbound Django form. c-ui.field reads labels, help text and
     errors straight off it, so a redisplay after a failed submit needs nothing
     added here.
-  gang_types — the options for the type select, as (value, label) pairs.
+  gang_types — the type cards, each a dict of value, label, description, icon
+    (the type's stored artwork, or empty) and checked.
   heading — the title. "Create a gang" by default.
   submit_label — the primary button's wording.
   breadcrumb — the trail above the title. Passed through to form-page.
@@ -84,27 +88,35 @@ frame had already drifted to two widths and two rhythms.
                         value="{{ form.name.value|default:'' }}" />
         </c-ui.field>
 
-        <c-ui.field label="Gang type *"
-                    description="What the gang is, which fixes who you can hire and what they may carry."
-                    error="x" :form="form" name="gang_type" for="gang-type">
-            <c-ui.select.native id="gang-type" name="gang_type"
-                                placeholder="Choose a type"
-                                value="{{ form.gang_type.value|default:'' }}">
-                {% comment %}
-                The conditional sits inside the quoted value rather than around
-                the attribute. Cotton parses a component's attribute list before
-                Django runs, so a bare {% if %} emitting a whole attribute breaks
-                tag detection — and `:selected="a == b"` is not a comparison
-                Cotton evaluates, it resolves as a variable and comes back truthy
-                for every option, which selects all of them and leaves the
-                browser showing the first. That is the bug this shape avoids.
-                {% endcomment %}
-                {% for value, label in gang_types %}
-                    <c-ui.select.option value="{{ value }}"
-                                        selected="{% if value == form.gang_type.value %}1{% endif %}">{{ label }}</c-ui.select.option>
-                {% endfor %}
-            </c-ui.select.native>
-        </c-ui.field>
+        {% comment %}
+        Cards rather than a select. The type is the one answer on this form the
+        reader may not already know — it fixes who they can hire and what those
+        fighters may carry for the life of the gang — and a dropdown makes them
+        open it, read the list and close it again to weigh two of them. Cards
+        put the whole set on the page at once, with room for the badge that
+        names each one at a glance and the budget it founds with, neither of
+        which fits in a select option's single string.
+
+        The grid is <c-n26.radio-cards>: native radios over a shared name, so
+        the browser enforces the one choice and the form posts with no script.
+        `checked` is decided by the form, so a redisplay after a failed submit
+        comes back with the reader's pick still made.
+        {% endcomment %}
+        <c-n26.radio-cards label="Gang type *"
+                           description="What the gang is, which fixes who you can hire and what they may carry."
+                           :form="form" name="gang_type">
+            {% for type in gang_types %}
+                <c-n26.radio-cards.card name="gang_type"
+                                        value="{{ type.value }}"
+                                        label="{{ type.label }}"
+                                        description="{{ type.description }}"
+                                        :checked="type.checked">
+                    <c-slot name="flair">
+                        <c-n26.flair.gang-type :icon="type.icon" />
+                    </c-slot>
+                </c-n26.radio-cards.card>
+            {% endfor %}
+        </c-n26.radio-cards>
     </c-n26.form-section>
 
     <c-n26.form-section title="Setup"

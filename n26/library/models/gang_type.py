@@ -30,6 +30,23 @@ class GangType(Content, Assignable):
 
     family = Family.GANG
 
+    # Markup in the row rather than an uploaded file: artwork is authored
+    # content and travels with the pack that holds it, so it belongs in the
+    # same table as the name it decorates and needs no bucket to be readable.
+    # It is untrusted for the same reason any other authored text is — it is
+    # sanitised on the way out, never on the way in, so tightening the
+    # allowlist re-secures what is already stored.
+    icon = models.TextField(
+        blank=True,
+        default="",
+        help_text=(
+            "SVG markup for the gang type's badge, drawn beside its name "
+            "wherever the gang is listed. Paste the whole <svg> element; draw "
+            "it in one colour and it will follow the surrounding text. Leave "
+            "blank and nothing is drawn."
+        ),
+    )
+
     starting_credits = models.PositiveIntegerField(
         null=True,
         blank=True,

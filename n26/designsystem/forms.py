@@ -2,6 +2,8 @@ from django import forms
 
 from n26.core.widgets import RichText
 
+from . import sampledata
+
 #: The gang types offered on the create form. The real one reads
 #: ``n26.library.GangType``; a gallery has to render on an empty database, so this
 #: is the same list the dashboard's filter uses, kept here rather than imported
@@ -16,6 +18,46 @@ GANG_TYPES = [
     ("van-saar", "Van Saar (HoA)"),
     ("venators", "Venators (AN)"),
 ]
+
+#: Which of them carry artwork, and one deliberately does not — a grid where
+#: every card has a badge cannot show whether an empty one collapses or leaves a
+#: hole. The drawing is the one gang icon this repository owns.
+GANG_TYPE_ICONS = {"goliath": sampledata.SAMPLE_GANG_ICON}
+
+#: What each founds with, for the line under the card's name. Two of them state
+#: nothing, because a blank budget is a real answer and the card has to be able
+#: to say nothing rather than claim a number.
+GANG_TYPE_BUDGETS = {
+    "ash-waste-nomads": 1000,
+    "delaque": 1000,
+    "escher": 1000,
+    "goliath": 1000,
+    "ironhead-squats": 1200,
+    "van-saar": 1000,
+}
+
+
+def gang_type_cards(chosen=""):
+    """The create form's type cards, in the shape the real form builds.
+
+    The gallery renders on an empty database, so these are literals — but the
+    keys and the ordering are the real ones, because a demo that took a
+    different shape from the view's own context would let the two drift.
+    """
+    return [
+        {
+            "value": value,
+            "label": label,
+            "icon": GANG_TYPE_ICONS.get(value, ""),
+            "description": (
+                f"Founding budget {GANG_TYPE_BUDGETS[value]:,}¢"
+                if value in GANG_TYPE_BUDGETS
+                else ""
+            ),
+            "checked": value == chosen,
+        }
+        for value, label in GANG_TYPES
+    ]
 
 
 class CreateGangForm(forms.Form):
@@ -109,7 +151,11 @@ def create_gang_context():
     return {
         "create_gang_form": create_gang_form(),
         "failed_create_gang_form": failed_create_gang_form(),
-        "gang_types": GANG_TYPES,
+        "gang_types": gang_type_cards(),
+        # The redisplay demo has to come back with the reader's pick still made,
+        # which is the whole reason `checked` is a field on a card rather than a
+        # comparison the template does.
+        "failed_gang_types": gang_type_cards(chosen="escher"),
         "hire_fighter_form": hire_fighter_form(),
     }
 

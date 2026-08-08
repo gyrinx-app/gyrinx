@@ -70,7 +70,7 @@ def test_icon_is_sanitised_through_tag(content_house, settings, tmp_path):
 def test_svg_read_and_sanitised_once_then_cached(house_with_icon):
     cache.clear()
     with mock.patch(
-        "n23.core.templatetags.color_tags.sanitize_house_icon_svg",
+        "n23.core.templatetags.color_tags.sanitize_inline_svg",
         return_value="<svg class='house-icon'></svg>",
     ) as sanitiser:
         _render(house_with_icon)

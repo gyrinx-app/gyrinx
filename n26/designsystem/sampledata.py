@@ -380,6 +380,10 @@ def context():
     return {
         "houses": HOUSES,
         "gang_owner": OWNER,
+        # Every demo that draws a gang type's badge needs the artwork as a
+        # string, because that is what the library stores and what the component
+        # sanitises. One name for it, so the demos cannot show two drawings.
+        "sample_gang_icon": SAMPLE_GANG_ICON,
         "sorts": SORTS,
         "statuses": STATUSES,
         "lists": LISTS,
@@ -1079,6 +1083,24 @@ def gang_sheet_context():
 # worth. Only the four figures matter here; a dashboard row draws nothing else.
 
 
+#: Stand-in artwork for a gang type, in the shape an author would paste into the
+#: library: one <svg>, drawn in a single colour so it takes the colour of the
+#: text it sits beside. Plainly ours rather than any house's, because what these
+#: pages show is that a badge appears at all — and that a type without one leaves
+#: no gap.
+SAMPLE_GANG_ICON = (
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">'
+    '<path d="M12 2 3 6v6c0 5.1 3.8 8.8 9 10 5.2-1.2 9-4.9 9-10V6l-9-4Zm0 2.2 '
+    '7 3.1V12c0 4.1-2.9 7.1-7 8.1-4.1-1-7-4-7-8.1V7.3l7-3.1Z"/>'
+    '<path d="M9 9h6v2H9Zm2 3h2v5h-2Z"/></svg>'
+)
+
+#: Which sample gang types carry artwork, keyed by the name a row shows. Only
+#: one does, deliberately: a table where every row has a badge cannot show
+#: whether a row without one keeps the column's left edge.
+GANG_TYPE_ICONS = {"Goliath (HoC)": SAMPLE_GANG_ICON}
+
+
 def _gang_summary(name, gang_type, rating, credits, stash_rating, colour=""):
     return GangSheet(
         name=name,
@@ -1145,9 +1167,24 @@ CHANGELOG = [
 
 
 def dashboard_context():
-    """What the dashboard needs: the gangs, their types, and the changelog."""
+    """What the dashboard needs: the gangs, their types, and the changelog.
+
+    A row is a dict wrapping its sheet rather than the sheet itself: what a row
+    draws beside a gang's type is that type's artwork, which is a fact about the
+    library's row and not about what this gang is worth. Keeping it out of
+    GangSheet keeps markup out of the renderer's dataclasses.
+    """
     return {
-        "dashboard_gangs": GANGS,
+        "dashboard_gangs": [
+            {
+                "sheet": gang,
+                "name": gang.name,
+                "type": gang.gang_type,
+                "colour": gang.colour,
+                "type_icon": GANG_TYPE_ICONS.get(gang.gang_type, ""),
+            }
+            for gang in GANGS
+        ],
         # Deduplicated in order rather than sorted: the filter reads better in the
         # order the reader already saw the types down the list.
         "dashboard_types": [

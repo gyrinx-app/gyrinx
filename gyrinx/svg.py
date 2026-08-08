@@ -1,14 +1,21 @@
-"""Sanitisation for admin-uploaded SVG house icons.
+"""Sanitisation for stored SVG artwork that is drawn inline.
 
-Uploaded SVGs are untrusted: they can carry ``<script>`` elements, ``on*``
-event handlers, ``<foreignObject>`` HTML payloads and ``javascript:`` URLs.
-Because house icons are rendered *inline* (so ``fill: currentColor`` can match
-the surrounding text colour), we cannot lean on the browser treating them as an
-opaque ``<img>``. We therefore sanitise the markup with an explicit SVG
-allowlist before it is ever marked safe.
+Platform-owned rather than an edition's: what is safe to put in a page is a
+property of SVG and of the browser, not of any one game's content model. Both
+editions store small pieces of artwork somebody typed or uploaded, and two
+allowlists that drift apart is the one outcome nobody wants from a security
+boundary.
 
-Sanitisation runs at render time (cached), not upload time, so tightening the
-allowlist later re-secures content that is already stored.
+Stored SVGs are untrusted: they can carry ``<script>`` elements, ``on*`` event
+handlers, ``<foreignObject>`` HTML payloads and ``javascript:`` URLs. Artwork
+that is drawn *inline* — so ``fill: currentColor`` can match the surrounding
+text colour — cannot lean on the browser treating it as an opaque ``<img>``, so
+the markup goes through an explicit SVG allowlist before it is ever marked safe.
+
+Sanitisation runs at render time, not at save time, so tightening the allowlist
+later re-secures content that is already stored. Callers cache the result; this
+module does not, because what makes a good cache key depends on where the
+markup came from.
 
 Implementation note: ``bleach`` produces correctly-cased SVG markup (it
 preserves ``viewBox`` and other camelCase attributes), so we keep its output
@@ -49,10 +56,10 @@ SVG_ALLOWED_TAGS = {
 def _use_attr_allowed(tag, name, value):
     """Attribute filter for ``<use>``: only same-document fragment ``href``.
 
-    Allowing arbitrary ``href`` on ``<use>`` would let an uploaded icon
-    reference external resources (``<use href="https://…">``), causing clients
-    to fetch third-party content when the inline icon renders. Restrict ``href``
-    to fragment-only references (``#id``) and otherwise fall back to the shared
+    Allowing arbitrary ``href`` on ``<use>`` would let stored artwork reference
+    external resources (``<use href="https://…">``), causing clients to fetch
+    third-party content when the inline icon renders. Restrict ``href`` to
+    fragment-only references (``#id``) and otherwise fall back to the shared
     geometry/presentation allowlist.
     """
     if name == "href":
@@ -65,8 +72,8 @@ def _use_attr_allowed(tag, name, value):
 # omitted to avoid a CSS attack surface — icons colour themselves via fill.
 # ``id`` is allowed so internal references resolve (``<use href="#x">``,
 # ``fill="url(#grad)"``, clipPath/mask targets); without it those refs would
-# silently break. Ids from different icons can collide in the DOM, but that's a
-# cosmetic risk acceptable for this alpha-gated, monochrome-icon feature.
+# silently break. Ids from different icons can collide in the DOM, which is a
+# cosmetic risk accepted for monochrome artwork of this size.
 _PRESENTATION_ATTRS = [
     "id",
     "fill",
@@ -145,14 +152,25 @@ def _find_attr(attrs, name):
     return None
 
 
-def sanitize_house_icon_svg(raw: str, extra_classes: str = "") -> str:
-    """Return inline-safe SVG markup for a house icon, or ``""`` if unusable.
+def sanitize_inline_svg(
+    raw: str, *, root_class: str = "", extra_classes: str = ""
+) -> str:
+    """Return inline-safe SVG markup, or ``""`` if the input is unusable.
 
     Strips scripts/event handlers/foreign content via a bleach allowlist, then
     normalises the root ``<svg>``: removes hardcoded ``width``/``height`` (so
     CSS sizing wins), guarantees a ``viewBox`` for correct scaling, applies
-    ``fill="currentColor"`` so the icon matches surrounding text, and tags it
-    ``class="house-icon"`` + ``aria-hidden="true"``.
+    ``fill="currentColor"`` so the icon matches surrounding text, and marks it
+    ``aria-hidden="true"`` — the artwork repeats a name the page already says.
+
+    ``root_class`` is the caller's own hook for styling the artwork it stores;
+    ``extra_classes`` is per-call. Both land on the root tag, which is rebuilt
+    from scratch, so nothing in the stored markup can override them.
+
+    An empty return means "draw nothing": the input was blank, was not an SVG
+    at all, or could not be scaled reliably. Callers must render no markup in
+    that case rather than a placeholder — artwork nobody supplied should hold
+    no space.
     """
     if not raw:
         return ""
@@ -190,23 +208,22 @@ def sanitize_house_icon_svg(raw: str, extra_classes: str = "") -> str:
             return ""
         view_box = f"0 0 {w:g} {h:g}"
 
-    classes = ["house-icon"]
-    if extra_classes:
-        classes.extend(extra_classes.split())
+    classes = root_class.split() + extra_classes.split()
 
     preserve = _find_attr(attrs, "preserveAspectRatio")
 
     # Rebuild the root start tag with a curated attribute set. Width/height are
-    # intentionally dropped (CSS controls size); fill/class/role/aria are set by
-    # us so they can't be overridden by the upload.
+    # intentionally dropped (CSS controls size); fill/class/role/aria are set
+    # here so the stored markup cannot override them.
     parts = [
         f'xmlns="{_SVG_NS}"',
         f'viewBox="{view_box}"',
-        f'class="{" ".join(classes)}"',
         'fill="currentColor"',
         'role="img"',
         'aria-hidden="true"',
     ]
+    if classes:
+        parts.insert(2, f'class="{" ".join(classes)}"')
     if preserve:
         parts.insert(2, f'preserveAspectRatio="{preserve}"')
 

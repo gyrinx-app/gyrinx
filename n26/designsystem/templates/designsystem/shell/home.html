@@ -34,9 +34,10 @@ the bottom.
                     the thing worth seeing.
                     {% endcomment %}
                     <c-n26.gang-table.row name="{{ gang.name }}"
-                                          type="{{ gang.gang_type }}"
+                                          type="{{ gang.type }}"
+                                          :type_icon="gang.type_icon"
                                           colour="{{ gang.colour }}"
-                                          :sheet="gang"
+                                          :sheet="gang.sheet"
                                           href="{% url 'designsystem:shell_gang' %}"
                                           print_href="{% url 'designsystem:print_lab' %}" />
                 {% endfor %}

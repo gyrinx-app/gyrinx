@@ -605,6 +605,10 @@ def _build_registry():
             {
                 "name": Text(source=(GangType, "name")),
                 "starting_credits": Int(source=(GangType, "starting_credits")),
+                # A paragraph field because the value is a block of SVG source.
+                # Nothing on an ingest sheet carries artwork, so this is
+                # authored here and only here.
+                "icon": Text(source=(GangType, "icon"), long=True),
                 "qualifier": Text(source=(GangType, "qualifier")),
                 "library_author_help": Text(
                     source=(GangType, "library_author_help"), long=True

@@ -52,6 +52,7 @@ def create_pack(name, slug=None, **kwargs):
 def create_gang_type(
     name,
     starting_credits=None,
+    icon="",
     qualifier="",
     library_author_help="",
     **kwargs,
@@ -59,6 +60,7 @@ def create_gang_type(
     return GangType.objects.create(
         name=name,
         starting_credits=starting_credits,
+        icon=icon,
         qualifier=qualifier,
         library_author_help=library_author_help,
         **kwargs,

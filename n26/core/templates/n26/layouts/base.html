@@ -169,6 +169,7 @@ banner, is_impersonating / impersonator, gtm_container_id, messages, user.
                         <c-n26.site.nav.gang href="{% url 'n26-gang' gang.pk %}"
                                              name="{{ gang.name }}"
                                              type="{{ gang.gang_type }}"
+                                             :type_icon="gang.gang_type.icon"
                                              colour="{{ gang.colour }}" />
                     {% endfor %}
                 </c-slot>
