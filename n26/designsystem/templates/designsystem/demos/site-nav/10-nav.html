@@ -1,6 +1,6 @@
 {# title: The bar #}
 {# layout: full #}
-{# note: Burger, brand, then the page's own name after a middle dot. Press the burger for the places the app has and the reader's own gangs; press the name on the right for the account. Narrow the window to see the page name step aside — the brand and the controls are what a phone has room for. #}
+{# note: Burger, brand, then the page — as a switcher, because a page that is one of something should offer the others where it names itself. Press the burger for the places the app has and the reader's own gangs; press the name on the right for the account, where the colour scheme lives. Narrow the window to see the wordmark step aside and the page stay. #}
 {% load static %}
 <c-n26.site.nav title="Gyrinx"
                 href="#"
@@ -14,7 +14,7 @@
              class="size-6">
     </c-slot>
     <c-slot name="heading">
-        The Ashen Choir
+        <c-n26.quick-switcher.of :switcher="sample_switcher" />
     </c-slot>
     <c-ui.navbar.item href="#" current="1">
         Home
@@ -31,13 +31,13 @@
                              type="Goliath"
                              :type_icon="sample_gang_icon" />
     </c-slot>
-    <c-slot name="actions">
-        <c-ui.mode-toggle storage_key="n26-theme" default="system" size="sm" />
-    </c-slot>
     <c-slot name="menu">
         <c-ui.dropdown.item href="#">
             Your account
         </c-ui.dropdown.item>
+        <c-ui.dropdown.group label="Theme">
+            <c-n26.site.nav.theme storage_key="n26-theme" />
+        </c-ui.dropdown.group>
         <c-ui.dropdown.separator />
         <c-ui.dropdown.item href="#" variant="danger">
             Sign out

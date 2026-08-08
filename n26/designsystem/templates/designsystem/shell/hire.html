@@ -13,7 +13,9 @@ when the h1 that says it has long since gone — which is the argument for putti
 it there.
 {% endcomment %}
 {% block head_title %}Hire Fighters{% endblock head_title %}
-{% block nav_heading %}Hire Fighters{% endblock nav_heading %}
+{% block nav_switcher %}
+    <c-n26.quick-switcher.of :switcher="sample_switcher" />
+{% endblock nav_switcher %}
 {% block nav_items %}
     {% include 'designsystem/shell/_nav.html' with here='hire' %}
 {% endblock %}

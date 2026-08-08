@@ -376,6 +376,36 @@ def trading_post_context():
 OWNER = "tom"
 
 
+def nav_context():
+    """The bar's gang switcher, built as the real screens build it.
+
+    The application's version comes from a query; this is the same structure
+    with fixed rows, so the shell pages and the demos draw the control the
+    app draws with no database behind them.
+    """
+    from n26.core.navigation import Switcher, SwitcherItem
+
+    return {
+        "sample_switcher": Switcher(
+            label="The Ashen Choir",
+            href="#the-ashen-choir",
+            heading="Your gangs",
+            menu_label="Switch to another gang",
+            placeholder="Search gangs",
+            empty="No gangs match",
+            items=(
+                SwitcherItem(
+                    label="The Ashen Choir", href="#the-ashen-choir", current=True
+                ),
+                SwitcherItem(label="Gravebolt Kin", href="#gravebolt-kin"),
+                SwitcherItem(label="Pit of Teeth", href="#pit-of-teeth"),
+                SwitcherItem(label="The Rust Sermon", href="#the-rust-sermon"),
+                SwitcherItem(label="Salt and Iron", href="#salt-and-iron"),
+            ),
+        )
+    }
+
+
 def context():
     return {
         "houses": HOUSES,
@@ -387,6 +417,7 @@ def context():
         "sorts": SORTS,
         "statuses": STATUSES,
         "lists": LISTS,
+        **nav_context(),
         **trading_post_context(),
         **hire_context(),
         **gang_sheet_context(),

@@ -1706,6 +1706,12 @@ GROUPS: list[Group] = [
                         "one you are on.",
                         required=True,
                     ),
+                    Part(
+                        "c-n26.quick-switcher.of",
+                        "n26/quick_switcher/of.html",
+                        "The whole control from one Switcher structure, which is "
+                        "how the application draws every one of them.",
+                    ),
                 ),
             ),
             Component(
@@ -1889,13 +1895,27 @@ GROUPS: list[Group] = [
                     "list be drawn in the drawer and again in the noscript strip "
                     "under the bar. That strip is not decoration: Alpine builds "
                     "the drawer out of a <template>, so with no script the panel "
-                    "does not exist and the links would be nowhere."
+                    "does not exist and the links would be nowhere. What narrows "
+                    "away is the wordmark, not the page: the mark beside it is "
+                    "still a link home, and a word naming the site on every screen "
+                    "of the site is the least of what a phone's bar can hold — so "
+                    "the page's name, and the switcher that acts on it, survive to "
+                    "the narrowest width. The colour scheme moved out of the bar "
+                    "into the account menu for the same reason: it is pressed once "
+                    "in a reader's life and was holding a row of space the page "
+                    "wants on every screen."
                 ),
                 parts=(
                     Part(
                         "c-n26.site.nav.gang",
                         "n26/site/nav/gang.html",
                         "One of the reader's own gangs, in the drawer.",
+                    ),
+                    Part(
+                        "c-n26.site.nav.theme",
+                        "n26/site/nav/theme.html",
+                        "Light, dark or the machine's own setting, as rows in the "
+                        "account menu.",
                     ),
                 ),
             ),

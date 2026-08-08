@@ -20,7 +20,9 @@ On screen it keeps the chrome, which is the point: this is what a player sees
 before they press the button.
 {% endcomment %}
 {% block head_title %}Print — {{ gang.name }}{% endblock head_title %}
-{% block nav_heading %}Print {{ gang.name }}{% endblock nav_heading %}
+{% block nav_switcher %}
+    <c-n26.quick-switcher.of :switcher="sample_switcher" />
+{% endblock nav_switcher %}
 {% block nav_items %}
     {% include 'designsystem/shell/_nav.html' with here='print' %}
 {% endblock %}

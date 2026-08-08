@@ -239,6 +239,7 @@ def shell_hire(request):
         "designsystem/shell/hire.html",
         {
             "banner": _SHELL_BANNER,
+            **sampledata.nav_context(),
             "gang_owner": sampledata.OWNER,
             "hire_entry": sampledata.hire_entry(request.GET.get("hire")),
             **create_gang_context(),
@@ -259,6 +260,7 @@ def shell_gang(request):
         "designsystem/shell/gang.html",
         {
             "banner": _SHELL_BANNER,
+            **sampledata.nav_context(),
             **sampledata.gang_sheet_context(),
             **sampledata.dashboard_context(),
         },
@@ -282,6 +284,7 @@ def shell_print(request):
         "designsystem/shell/print.html",
         {
             "banner": _SHELL_BANNER,
+            **sampledata.nav_context(),
             **printlab.sheet_context(printlab.Options.from_request(request)),
             **sampledata.gang_sheet_context(),
         },
@@ -298,7 +301,11 @@ def shell_shop(request):
     return render(
         request,
         "designsystem/shell/shop.html",
-        {"banner": _SHELL_BANNER, **sampledata.trading_post_context()},
+        {
+            "banner": _SHELL_BANNER,
+            **sampledata.nav_context(),
+            **sampledata.trading_post_context(),
+        },
     )
 
 

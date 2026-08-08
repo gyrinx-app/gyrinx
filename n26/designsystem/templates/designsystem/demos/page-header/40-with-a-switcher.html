@@ -1,0 +1,14 @@
+{# title: With a switcher beside the title #}
+{# note: The trailing slot: a control about the thing the title names, on the title's line and outside the h1 — inside, it would be read out as part of the page's name. A page whose heading has already said which thing this is passes the switcher with no label of its own, leaving the chevron. #}
+<c-n26.page-header title="Categories" lead="Where a thing sits in the trading post.">
+    <c-slot name="trailing">
+        <c-n26.quick-switcher heading="Kinds of content"
+                              menu_label="Switch to another kind of content"
+                              placeholder="Search kinds">
+            <c-n26.quick-switcher.item label="Categories" href="#categories" :current="True" />
+            <c-n26.quick-switcher.item label="Sections" href="#sections" />
+            <c-n26.quick-switcher.item label="Weapons" href="#weapons" />
+            <c-n26.quick-switcher.item label="Wargear" href="#wargear" />
+        </c-n26.quick-switcher>
+    </c-slot>
+</c-n26.page-header>

@@ -15,7 +15,7 @@
                  class="size-6">
         </c-slot>
         <c-slot name="heading">
-            The Ashen Choir
+            <c-n26.quick-switcher.of :switcher="sample_switcher" />
         </c-slot>
         <c-ui.navbar.item href="#" current="1">
             Home
@@ -27,13 +27,13 @@
         <c-slot name="gangs">
             <c-n26.site.nav.gang href="#" name="The Ashen Choir" type="Escher" colour="violet" />
         </c-slot>
-        <c-slot name="actions">
-            <c-ui.mode-toggle storage_key="n26-theme" default="system" size="sm" />
-        </c-slot>
         <c-slot name="menu">
             <c-ui.dropdown.item href="#">
                 Your account
             </c-ui.dropdown.item>
+            <c-ui.dropdown.group label="Theme">
+                <c-n26.site.nav.theme storage_key="n26-theme" />
+            </c-ui.dropdown.group>
             <c-ui.dropdown.separator />
             <c-ui.dropdown.item href="#" variant="danger">
                 Sign out

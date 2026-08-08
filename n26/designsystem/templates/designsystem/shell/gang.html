@@ -8,7 +8,9 @@ under a nav, above a footer, and with a banner over the lot — the spacing betw
 a page and its chrome is not visible in either one alone.
 {% endcomment %}
 {% block head_title %}{{ gang.name }}{% endblock head_title %}
-{% block nav_heading %}{{ gang.name }}{% endblock nav_heading %}
+{% block nav_switcher %}
+    <c-n26.quick-switcher.of :switcher="sample_switcher" />
+{% endblock nav_switcher %}
 {% block nav_items %}
     {% include 'designsystem/shell/_nav.html' with here='gang' %}
 {% endblock %}
