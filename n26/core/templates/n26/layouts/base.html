@@ -208,6 +208,18 @@ banner, is_impersonating / impersonator, gtm_container_id, messages, user.
                         Your account
                     </c-ui.dropdown.item>
                     {% comment %}
+                    The colour scheme, in the menu rather than in the bar. It is
+                    pressed once and then never again, and the row of the bar it
+                    used to sit in is wanted by the page's name and the switcher
+                    beside it on every screen.
+
+                    The group's own label is the break above it; a separator as
+                    well would say the same thing twice.
+                    {% endcomment %}
+                    <c-ui.dropdown.group label="Theme">
+                        <c-n26.site.nav.theme storage_key="theme" />
+                    </c-ui.dropdown.group>
+                    {% comment %}
                     The doors into the admin and into content authoring, kept
                     together and out of the drawer: the drawer is for the
                     places every reader has, and writing content is something
@@ -239,8 +251,14 @@ banner, is_impersonating / impersonator, gtm_container_id, messages, user.
                 </c-slot>
             {% endif %}
             <c-slot name="actions">
-                <c-ui.mode-toggle storage_key="theme" size="sm" />
+                {% comment %}
+                A visitor with no account menu still needs somewhere to change
+                the scheme, so for them the toggle stays in the bar — where
+                there is room for it, the sign-in buttons being the only other
+                thing they carry.
+                {% endcomment %}
                 {% if not user.is_authenticated %}
+                    <c-ui.mode-toggle storage_key="theme" size="sm" />
                     {% url 'account_login' as login_url_ %}
                     {% url 'account_signup' as signup_url_ %}
                     {% comment %}

@@ -37,7 +37,9 @@ so someone who learns where the links live on a phone would have to learn again
 on a laptop.
 
 The account menu stays outermost on the right, where signing in or out — which
-adds and removes buttons — cannot shift it.
+adds and removes buttons — cannot shift it. It is also where the controls a
+reader touches once and never again live, the colour scheme among them: the
+bar's one row of horizontal space belongs to what the page is.
 
   --- what it kept from the kit ---
 
@@ -59,11 +61,12 @@ there: the Gangs link in that same list is the whole roster.
   href — where the brand links to.
   logo — a slot, for a mark beside the title. Drawn in the bar and again at the
     top of the drawer. Optional.
-  heading — a slot: the page's own name, after a middle dot. A slot rather than
-    an attribute because the base template fills it from a block, and a block
-    inside a Cotton attribute never runs. Tested with `.strip`, because a page
-    leaving the block empty still passes the newlines around it and Django
-    counts whitespace as truthy.
+  heading — a slot: the page's own name, after a middle dot, and whatever
+    control belongs to it — a switcher to the page's siblings goes here. A slot
+    rather than an attribute because the base template fills it from a block,
+    and a block inside a Cotton attribute never runs. Tested with `.strip`,
+    because a page leaving the block empty still passes the newlines around it
+    and Django counts whitespace as truthy.
   slot — the drawer's links, as <c-ui.navbar.item>. Whichever area the page
     belongs to supplies its own; the current one marks itself.
   gangs — a slot under the links, for the reader's own gangs as
@@ -149,23 +152,30 @@ there: the Gangs link in that same list is the whole roster.
             </c-slot>
         </c-ui.drawer>
 
+        {% comment %}
+        The wordmark is what goes when the window narrows, and the mark beside
+        it stays. Below sm the bar is: a logo that is still a link home, and
+        then the page — which is where the reader is and what the switcher
+        beside it acts on. A word that says the name of the site on every
+        screen of the site is the least of what a phone's bar can hold.
+        {% endcomment %}
         <a href="{{ href }}" class="n26-site-brand shrink-0 focus-ring">
             {% if logo %}{{ logo }}{% endif %}
-            {% if title %}<span>{{ title }}</span>{% endif %}
+            {% if title %}<span class="hidden sm:inline">{{ title }}</span>{% endif %}
         </a>
 
         {% comment %}
         Truncates rather than wraps or pushes: the bar is a fixed 14 units tall,
         and a long page name should lose its end rather than move the controls.
 
-        Below md the name and its dot are both hidden — the brand and the
-        controls already fill the bar, and the page's own h1 is a thumb's width
-        underneath saying the same thing.
+        The dot separates the page from the wordmark, so it goes when the
+        wordmark does: on a phone there is nothing on its left to separate the
+        name from.
         {% endcomment %}
         {% if heading.strip %}
-            <span class="hidden min-w-0 items-center gap-2 md:flex">
-                <span aria-hidden="true" class="text-ink-400 dark:text-ink-600">·</span>
-                <span class="min-w-0 truncate text-ink-600 dark:text-ink-400">{{ heading }}</span>
+            <span class="flex min-w-0 items-center gap-2">
+                <span aria-hidden="true" class="hidden text-ink-400 sm:inline dark:text-ink-600">·</span>
+                <span class="flex min-w-0 items-center gap-1 truncate text-ink-600 dark:text-ink-400">{{ heading }}</span>
             </span>
         {% endif %}
 

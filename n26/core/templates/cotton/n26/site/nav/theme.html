@@ -1,0 +1,84 @@
+{% comment %}
+<c-n26.site.nav.theme> — light, dark, or whatever the machine is set to.
+
+    <c-ui.dropdown.group label="Theme">
+        <c-n26.site.nav.theme storage_key="theme" />
+    </c-ui.dropdown.group>
+
+Three rows in the account menu rather than a control in the bar. Picking a
+colour scheme is something a reader does once and then never again, and the
+top bar has one row of space that a page's own name and its switcher want
+every time. The rows are written out rather than left to the kit's own menu
+variant because that variant is a dropdown, and a dropdown opened from inside
+a dropdown is two panels fighting over the same outside click.
+
+  --- three named states, not a flip ---
+
+A two-way toggle can say "dark" but cannot say "the same as everything else on
+this machine", which is the state most readers are already in and the only one
+that keeps following the machine after the choice. So the third row exists, and
+each row says which it is instead of the reader having to work out what
+pressing would do.
+
+`menuitemradio` because that is what these are: one of three, inside a menu,
+with the current one announced as checked. The tick is drawn for the same
+reason it is drawn in the switcher — as a picture of what aria-checked has
+already said, not instead of it.
+
+The menu is left open on a press. A reader picking a scheme is usually
+comparing, and closing the panel would mean reopening it to see the other one.
+
+  storage_key — where the choice is kept. Must match the <c-ui.mode-toggle.head>
+    in the page's head, or the first paint disagrees with the stored choice.
+{% endcomment %}
+<c-vars storage_key="theme" class="" />
+
+{% comment %}
+The kit's toggle in its headless form: none of its own controls, but all of
+its behaviour — the stored choice, the media query it follows in system mode,
+and the class on <html> every other part of the page reads. `mode` and `set()`
+below live in its scope.
+{% endcomment %}
+<c-ui.mode-toggle variant="headless" storage_key="{{ storage_key }}">
+    <div {{ attrs }} class="{{ class }}">
+        <button type="button"
+                role="menuitemradio"
+                @click="set('light')"
+                :aria-checked="mode === 'light'"
+                class="flex w-full items-center gap-3 rounded-control px-4 py-2 text-left text-sm
+                       text-ink-700 transition-colors hover:bg-ink-100
+                       focus-visible:bg-ink-100 focus-visible:outline-none
+                       dark:text-ink-300 dark:hover:bg-ink-800 dark:focus-visible:bg-ink-800">
+            <span class="flex-1">Light</span>
+            <span x-cloak x-show="mode === 'light'">
+                <c-n26.icon name="check" class="size-4 shrink-0 text-accent" />
+            </span>
+        </button>
+        <button type="button"
+                role="menuitemradio"
+                @click="set('dark')"
+                :aria-checked="mode === 'dark'"
+                class="flex w-full items-center gap-3 rounded-control px-4 py-2 text-left text-sm
+                       text-ink-700 transition-colors hover:bg-ink-100
+                       focus-visible:bg-ink-100 focus-visible:outline-none
+                       dark:text-ink-300 dark:hover:bg-ink-800 dark:focus-visible:bg-ink-800">
+            <span class="flex-1">Dark</span>
+            <span x-cloak x-show="mode === 'dark'">
+                <c-n26.icon name="check" class="size-4 shrink-0 text-accent" />
+            </span>
+        </button>
+        <button type="button"
+                role="menuitemradio"
+                @click="set('system')"
+                :aria-checked="mode === 'system'"
+                class="flex w-full items-center gap-3 rounded-control px-4 py-2 text-left text-sm
+                       text-ink-700 transition-colors hover:bg-ink-100
+                       focus-visible:bg-ink-100 focus-visible:outline-none
+                       dark:text-ink-300 dark:hover:bg-ink-800 dark:focus-visible:bg-ink-800">
+            <span class="flex-1">System</span>
+            <span x-cloak x-show="mode === 'system'">
+                <c-n26.icon name="check" class="size-4 shrink-0 text-accent" />
+            </span>
+        </button>
+    </div>
+</c-ui.mode-toggle>
