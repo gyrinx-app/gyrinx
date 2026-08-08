@@ -62,39 +62,45 @@ is the cheaper of the two prices.
 The panel is placed against the trigger, and a trigger can sit anywhere — the
 middle of a phone's top bar, the end of a toolbar. Hung from the trigger's edge
 and left alone, a panel wider than the space beside it runs off the window and
-the far half of the list is unreachable. Two rules together stop that, and they
-divide as CSS and script usually should: the width is CSS, the place is script.
+the far half of the list is unreachable.
 
-The width is capped at the window less a small gutter, so a long gang name can
-never make a panel too wide to fit however narrow the screen. `min_width` is
-capped the same way, because a minimum wider than the window would beat the cap.
+The kit hangs its panel absolutely inside a wrapper the size of the chevron,
+and that wrapper is the trouble: an absolutely positioned box is offered its
+containing block's width, so every measurement made in there is made against a
+box a couple of dozen pixels wide, and anything that shifts the panel — an
+offset, a margin — feeds back into the width being measured. The fix is to
+take the panel out of that box altogether: `fit` makes it fixed, so the window
+itself is the containing block, and places it outright — an explicit left and
+top computed from the switcher's own rectangle and clamped into the window
+with a small gutter. A fixed box is also outside every scrolling ancestor's
+overflow, so a panel mid-placement can never widen the page or hand it a
+horizontal scrollbar.
 
-The place is then clamped into the window with that same gutter — nudged in
-from whichever edge it crosses, rather than flipped to the trigger's other side.
-Flipping only helps a trigger near an edge, and does nothing for one in the
-middle of a narrow screen with a panel wider than either side of it; clamping
-covers both, and it is one behaviour to hold in your head instead of two.
+Clamped in from whichever edge it crosses, rather than flipped to the
+trigger's other side: flipping only helps a trigger near an edge, and does
+nothing for one in the middle of a narrow screen with a panel wider than
+either side of it. Clamping covers both. Vertically the panel does flip —
+above the trigger when there is no room below and more room above — because
+covering the trigger is worse than swapping sides, and sideways there is no
+second side to swap to.
 
-The nudge is a margin, which the kit's placement never writes, so the two do
-not fight: it repositions on open, on scroll and on resize.
+The width is measured with the panel parked at the gutter, where the window
+offers it all the room the clamp could ever leave it, so the number read is
+the content's own and not an artefact of where the last fit put the panel.
+It is capped at the window less the gutters; `min_width` is capped the same
+way, because a minimum wider than the window would beat the cap.
 
-The margin is cleared before anything is measured, which is what makes each
-nudge an answer rather than a correction to the last one. An absolutely
-positioned box is offered its containing block's width less its own margins, so
-a margin left over from last time can change the width the measurement reads —
-and a width that came out of the previous answer would compound. Cleared first,
-the answer does not depend on the answer before it: a window that widens again
-gets a nudge of nothing, and the panel goes back to hanging off its trigger.
+The kit still writes its own offsets — on open, on scroll, on resize — and
+they are wrong for a fixed box. They are also never painted: every event that
+makes the kit write is an event this component refits on, its listeners are
+registered after the kit's, and both ride a frame — so the fit lands after
+the kit's write, inside the same frame, before the frame is drawn.
 
-What is measured is the box the kit positions against and the panel's layout
-width. Neither of those moves while the panel is opening — the anchor is
-outside the panel, and a layout width is not something a transition can change
-— and the panel's own rectangle, which would be, is never read.
-
-What the measurement does need is a panel that has been laid out at all. A
+What the placement does need is a panel that has been laid out at all. A
 press that lands in a frame before that has happened finds a box of no width;
-the placement comes back a frame later rather than giving up, because a panel
-left where the kit put it is a panel off the side of a narrow screen.
+the placement comes back a frame later rather than giving up. Until it has
+been placed once, the panel is kept invisible — the moments between gaining
+layout and being placed would otherwise show it wherever the kit left it.
 
   --- filtering ---
 
@@ -153,8 +159,8 @@ order, and Tab-then-Enter works with the panel's script and without it.
     because on its own the chevron has no words beside it to borrow.
   placeholder — the filter's placeholder, and its accessible name.
   empty — what to show when the filter matches nothing.
-  align — which edge of the trigger the panel hangs from: start or end. Either
-    way the panel is kept inside the window.
+  align — which edge of the switcher the panel hangs from: start or end.
+    Either way the panel is kept inside the window.
   min_width — the panel's minimum width, as a CSS length. Capped at the width of
     the window.
   slot — the destinations, as <c-n26.quick-switcher.item>.
@@ -169,7 +175,7 @@ order, and Tab-then-Enter works with the panel's script and without it.
         align="start"
         min_width="16rem"
         class="" />
-<div {{ attrs }} class="inline-block max-w-full {{ class }}">
+<div {{ attrs }} data-quick-switcher class="inline-block max-w-full {{ class }}">
     <c-n26.button-group>
         {% comment %}
         Ghost, both halves. A switcher sits beside a page's own name, where a
@@ -250,11 +256,11 @@ order, and Tab-then-Enter works with the panel's script and without it.
             keystroke should narrow the list rather than land nowhere. It then
             stays there — see the key handling below.
 
-            `fit` keeps the panel on the screen. It reaches one element up,
-            because the box the kit places is the one this scope sits inside,
-            and one further for the trigger it was placed against; anything
-            wrapped around this div would break that and must move the method
-            with it. The window listener rides a frame so it lands after the
+            `fit` places the panel. It reaches one element up, because the
+            panel is the box this scope sits inside, and out to the component's
+            own root — marked data-quick-switcher — for the rectangle the panel
+            is placed against; anything wrapped around this div must keep both
+            reachable. The window listeners ride a frame so they land after the
             kit's own repositioning, which takes one too. A hidden panel has no
             width to measure and nowhere to be, so it is left alone.
 
@@ -334,30 +340,59 @@ order, and Tab-then-Enter works with the panel's script and without it.
                          // up and it is only ever placed on the second open,
                          // once a previous open has left it with layout.
                          // Bounded, and only while open, so a panel that never
-                         // gains width cannot spin.
+                         // gains width cannot spin. Invisible until placed, so
+                         // the frames spent waiting never show it wherever the
+                         // kit's own writes left it.
                          if (!panel.offsetWidth) {
                              if (this.dropdownMenu && this.tries < 30) {
                                  this.tries += 1;
+                                 panel.style.visibility = 'hidden';
                                  requestAnimationFrame(() => this.fit());
+                             } else {
+                                 panel.style.visibility = '';
                              }
                              return;
                          }
                          this.tries = 0;
-                         // Cleared before anything is measured, so every fit
-                         // starts from where the panel would sit with no nudge
-                         // at all. Left on, the margin moves the box this reads
-                         // and each fit becomes a correction to the last one —
-                         // the panel walks further in every time it is opened.
-                         panel.style.marginLeft = '';
-                         panel.style.marginRight = '';
+                         const gap = 4;
                          const room = document.documentElement.clientWidth;
-                         const against = panel.parentElement.getBoundingClientRect();
+                         const drop = document.documentElement.clientHeight;
+                         const anchor = panel.closest('[data-quick-switcher]').getBoundingClientRect();
+                         // Fixed, so the window is the panel's containing
+                         // block: the width it is offered no longer depends on
+                         // where it sits, and a box mid-placement cannot widen
+                         // the page. The kit's own offsets are overwritten
+                         // outright — every event that makes it write is one
+                         // this refits on, afterwards, in the same frame.
+                         panel.style.position = 'fixed';
+                         // The cap uses the same measured width as the clamp:
+                         // 100vw counts a scrollbar the window's usable width
+                         // does not, and the difference is exactly a panel at
+                         // full cap poking out by a scrollbar.
+                         panel.style.maxWidth = room - 2 * this.gutter + 'px';
+                         panel.style.right = 'auto';
+                         panel.style.bottom = 'auto';
+                         panel.style.transform = '';
+                         // Parked at the gutter to be measured, where the
+                         // window offers all the room the clamp could ever
+                         // leave it, so the width read is the content's own
+                         // and not an artefact of the previous placement.
+                         panel.style.left = this.gutter + 'px';
+                         panel.style.top = '0px';
                          const width = panel.offsetWidth;
-                         const side = panel.style.right ? 'right' : 'left';
-                         const at = side === 'right' ? against.right - width : against.left;
-                         const nudge = Math.max(this.gutter, Math.min(at, room - this.gutter - width)) - at;
-                         panel.style.marginLeft = side === 'right' ? '' : nudge + 'px';
-                         panel.style.marginRight = side === 'right' ? -nudge + 'px' : '';
+                         const at = '{{ align }}' === 'end' ? anchor.right - width : anchor.left;
+                         panel.style.left = Math.max(this.gutter, Math.min(at, room - this.gutter - width)) + 'px';
+                         // Below the switcher, unless only above has the room:
+                         // sideways the panel is clamped, but vertically there
+                         // is a whole second side to use before covering
+                         // anything.
+                         const height = panel.offsetHeight;
+                         const below = drop - anchor.bottom - gap;
+                         const above = anchor.top - gap;
+                         panel.style.top = (height > below && above > below
+                             ? Math.max(this.gutter, anchor.top - gap - height)
+                             : anchor.bottom + gap) + 'px';
+                         panel.style.visibility = '';
                      },
                      init() {
                          this.$watch('dropdownMenu', open => {
@@ -370,10 +405,18 @@ order, and Tab-then-Enter works with the panel's script and without it.
                          this.$watch('query', () => {
                              if (!this.visible.some(row => row.id === this.active)) this.active = '';
                          });
-                         this.refit = () => requestAnimationFrame(() => this.fit());
+                         // Scroll as well as resize: a fixed box stays put
+                         // while the switcher scrolls away from under it, and
+                         // both are events the kit writes its own offsets on —
+                         // each write needs a fit landing after it.
+                         this.refit = () => { if (this.dropdownMenu) requestAnimationFrame(() => this.fit()) };
                          window.addEventListener('resize', this.refit);
+                         window.addEventListener('scroll', this.refit, true);
                      },
-                     destroy() { window.removeEventListener('resize', this.refit) },
+                     destroy() {
+                         window.removeEventListener('resize', this.refit);
+                         window.removeEventListener('scroll', this.refit, true);
+                     },
                  }"
                  class="flex max-w-[calc(100vw-1rem)] flex-col">
                 {% comment %}
