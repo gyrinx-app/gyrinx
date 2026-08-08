@@ -16,6 +16,7 @@ from simple_history.models import HistoricalRecords
 
 from gyrinx.base_models import AppBase
 from gyrinx.history_aware_manager import HistoryAwareManager
+from gyrinx.models import Base
 from gyrinx.site import icons as banner_icons
 
 logger = logging.getLogger(__name__)
@@ -611,6 +612,33 @@ def notify_many(
     return created
 
 
+class ChangelogEntryTag(Base):
+    """A label an entry can carry — an edition ("N23", "N26"), say.
+
+    A lookup table rather than a choices field so tags can be added in the
+    admin without a deploy. Entries wear any number of them. Plain ``Base``
+    rather than ``AppBase`` — like :class:`~gyrinx.pages.models.FlatPageVisibility`,
+    a site-wide lookup row has no meaningful owner, and an owner FK's CASCADE
+    would delete shared tags with the staff account that created them.
+    """
+
+    name = models.CharField(
+        max_length=100,
+        unique=True,
+        help_text="The tag as shown, e.g. 'N26'.",
+    )
+
+    history = HistoricalRecords()
+
+    class Meta:
+        verbose_name = "changelog entry tag"
+        verbose_name_plural = "changelog entry tags"
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
 class ChangelogEntry(AppBase):
     """One dated entry in the site changelog.
 
@@ -626,7 +654,17 @@ class ChangelogEntry(AppBase):
         blank=True,
         help_text="The detail, as rich text. Keep it short — a dashboard lists many.",
     )
+    tags = models.ManyToManyField(
+        ChangelogEntryTag,
+        blank=True,
+        related_name="entries",
+        help_text="Labels for filtering, e.g. the edition the change belongs to.",
+    )
 
+    # Tag membership is deliberately not history-tracked (no ``m2m_fields``):
+    # entries are edited in the admin, whose LogEntry already records the
+    # change, and m2m tracking would write extra full-body historical rows
+    # per save for no additional audit value.
     history = HistoricalRecords()
 
     class Meta:

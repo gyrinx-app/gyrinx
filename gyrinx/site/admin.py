@@ -19,6 +19,7 @@ from django.urls import path
 
 from gyrinx.site.models import (
     ChangelogEntry,
+    ChangelogEntryTag,
     Notification,
     NotificationType,
     notify_many,
@@ -30,6 +31,7 @@ User = get_user_model()
 
 __all__ = [
     "ChangelogEntryAdmin",
+    "ChangelogEntryTagAdmin",
     "NotificationAdmin",
     "NotificationAdminForm",
     "BroadcastForm",
@@ -167,14 +169,29 @@ class NotificationAdmin(admin.ModelAdmin):
         return render(request, "admin/gyrinxsite/notification/broadcast.html", context)
 
 
+@admin.register(ChangelogEntryTag)
+class ChangelogEntryTagAdmin(admin.ModelAdmin):
+    list_display = ("name",)
+    search_fields = ("name",)
+
+
 @admin.register(ChangelogEntry)
 class ChangelogEntryAdmin(admin.ModelAdmin):
     """Write the changelog where everything else is written: the body is
     rich text through the same TinyMCE the rest of the admin uses."""
 
-    list_display = ("date", "title")
+    list_display = ("date", "title", "tag_names")
+    list_filter = ("tags",)
     ordering = ("-date", "-created")
     search_fields = ("title",)
+    filter_horizontal = ("tags",)
     formfield_overrides = {
         models.TextField: {"widget": TinyMCEWithUpload},
     }
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).prefetch_related("tags")
+
+    @admin.display(description="Tags")
+    def tag_names(self, obj):
+        return ", ".join(tag.name for tag in obj.tags.all())

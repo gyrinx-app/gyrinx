@@ -26,12 +26,28 @@ from gyrinx.analytics.models import Event
 from gyrinx.analytics.registry import growth_series
 from gyrinx.maintenance.models import Backfill
 from gyrinx.maintenance.registry import all_operations, operations
-from gyrinx.site.models import Banner, ImpersonationLog, Notification
+from gyrinx.site.models import (
+    Banner,
+    ChangelogEntry,
+    ChangelogEntryTag,
+    ImpersonationLog,
+    Notification,
+)
 from gyrinx.site.registry import broadcast_audiences
 
 
 @pytest.mark.parametrize(
-    "model", [Event, UserProfile, Banner, ImpersonationLog, Notification, Backfill]
+    "model",
+    [
+        Event,
+        UserProfile,
+        Banner,
+        ImpersonationLog,
+        Notification,
+        Backfill,
+        ChangelogEntry,
+        ChangelogEntryTag,
+    ],
 )
 def test_moved_model_is_still_registered_in_admin(model):
     assert model in admin.site._registry, (
