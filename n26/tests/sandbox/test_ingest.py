@@ -29,6 +29,9 @@ from n26.library.models import (
     Category,
     Profile,
     Rule,
+    Skill,
+    Specialisation,
+    Subtype,
     Trait,
     Wargear,
     Weapon,
@@ -802,3 +805,99 @@ Corpse Grinder Cults,Gang Queen,5",3+,4+,3,3,2,4,2,5+,7,7,7,7,Fighter,Leader,61,
         again = plan_ingest(profiles=clash_sheet)
         assert {p.action for p in again.planned} == {"exists"}
         assert perform(again).created == {}
+
+
+class TestClearing:
+    """Undoing an import, so the next one starts from the same ground.
+
+    The spreadsheets change under us while the edition is being built,
+    so importing has to be repeatable: create, look, clear, create
+    again. What survives a clear is exactly what the foundations page
+    creates.
+    """
+
+    def test_clearing_leaves_the_foundations_standing(self, foundation, sheets):
+        from n26.library.ingest import clear_imported
+
+        perform(plan_ingest(pack=None, **sheets))
+        assert Weapon.objects.exists()
+
+        clear_imported()
+
+        # Every seed still says it is whole — the one contract that
+        # keeps this from being "delete the library".
+        for key, seed in STANDARD_CONTENT.items():
+            assert seed.status() == "complete", key
+
+    def test_clearing_takes_the_imported_content_away(self, foundation, sheets):
+        from n26.library.ingest import clear_imported
+        from n26.library.models.collection import Collection, CollectionEntry
+
+        perform(plan_ingest(pack=None, **sheets))
+        gone = clear_imported()
+
+        assert Weapon.objects.count() == 0
+        assert Wargear.objects.count() == 0
+        assert Profile.objects.count() == 0
+        assert Trait.objects.count() == 0
+        assert CollectionEntry.objects.count() == 0
+        assert not Collection.objects.filter(name__endswith="Equipment List").exists()
+        assert gone["weapons"] == 6
+
+        # The standard collections are not an import's to remove.
+        assert Collection.objects.filter(name="Trading Post").exists()
+        assert Collection.objects.filter(name="Skills & Powers").exists()
+        # Nor the skills, subtypes and gang types the rulebook fixes.
+        assert Skill.objects.filter(name="Catfall").exists()
+        assert Subtype.objects.filter(name="Leader").exists()
+        assert Specialisation.objects.filter(name="Gunner").exists()
+
+    def test_import_clear_import_lands_in_the_same_place(self, foundation, sheets):
+        """The round trip the whole thing is for."""
+        from n26.library.ingest import clear_imported
+
+        def census():
+            return {
+                model.__name__: model.objects.count()
+                for model in (Weapon, Wargear, Profile, Trait, Skill, Subtype)
+            }
+
+        perform(plan_ingest(pack=None, **sheets))
+        first = census()
+
+        clear_imported()
+        perform(plan_ingest(pack=None, **sheets))
+
+        assert census() == first
+
+    def test_a_gang_using_the_content_stops_the_clear(self, foundation, sheets):
+        """Player data protects what it uses: the content does not go out
+        from under a gang that holds it."""
+        from django.db.models import ProtectedError
+
+        from n26.library.ingest import clear_imported
+
+        perform(plan_ingest(pack=None, **sheets))
+        _found_a_gang_holding_a_weapon()
+
+        with pytest.raises(ProtectedError):
+            clear_imported()
+        assert Weapon.objects.exists()  # and the transaction held
+
+
+def _found_a_gang_holding_a_weapon():
+    from django.contrib.auth.models import User
+
+    from n26.library.models import GangType, Profile, Weapon
+
+    from .actions import found_gang, give_weapon, hire
+
+    owner = User.objects.create_user("clearing-tester")
+    gang = found_gang(
+        "Clearing",
+        GangType.objects.get(name="Escher"),
+        owner=owner,
+        budget=1000,
+    )
+    model = hire(gang, Profile.objects.get(name="Gang Queen"), "Yolanda")
+    give_weapon(model, Weapon.objects.get(name="Autogun"))

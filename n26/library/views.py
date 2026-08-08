@@ -17,6 +17,7 @@ import inspect
 import re
 from collections import Counter
 
+from django import forms
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
 from django.db import IntegrityError, transaction
@@ -28,6 +29,10 @@ from django.utils.safestring import mark_safe
 from n26.library.forms import generate_form, statline_form_for, suggestion_form_for
 from n26.library.models.assignable import Family
 from n26.library.specs import specs
+from n26.library.standard_content import (
+    SKILLS_COLLECTION,
+    TRADING_POST_COLLECTION,
+)
 
 #: The leaf kinds the authoring surface offers, in menu order:
 #: url slug → (create verb, the model the page lists). The guard test
@@ -859,6 +864,174 @@ def foundations(request):
             ],
         },
     )
+
+
+#: The sheets an upload may carry, in the order they are planned:
+#: form field → (what the planner calls it, what it holds).
+INGEST_SHEETS = [
+    ("equipment", "The catalogue: one row per thing the game sells, with its price."),
+    ("weapon_profiles", "The statlines, and nothing else."),
+    ("equipment_lists", "A named list per gang, one entry per line."),
+    ("profiles", "The fighters."),
+]
+
+
+class IngestForm(forms.Form):
+    """Four optional CSVs. Optional because a partial upload is a real
+    thing to want — the statlines alone, to fix a column — and because
+    what a missing sheet costs is said in the preview rather than
+    refused here."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for name, help_text in INGEST_SHEETS:
+            self.fields[name] = forms.FileField(
+                required=False,
+                label=name.replace("_", " ").capitalize(),
+                help_text=help_text,
+            )
+
+    def sheets(self):
+        """The uploaded files, read into rows the planner takes."""
+        from n26.library.ingest import read_csv
+
+        found = {}
+        for name, _ in INGEST_SHEETS:
+            upload = self.cleaned_data.get(name)
+            if upload:
+                found[name] = read_csv(upload.read().decode("utf-8-sig"))
+        return found
+
+
+def _problems_by_shape(problems):
+    """Problems grouped by what they are, not by which line hit them.
+
+    A hundred problems are usually five kinds of problem, and a list
+    that says so is a morning's work rather than a wall. The quoted
+    names come out of the message to make the shape; the lines they
+    happened on are kept beside it.
+    """
+    shapes = {}
+    for problem in problems:
+        shape = problem.message
+        for quote in ("'", '"'):
+            parts = shape.split(quote)
+            if len(parts) > 2:
+                shape = f"{parts[0]}{quote}…{quote}{parts[-1]}"
+        key = (problem.severity, shape)
+        entry = shapes.setdefault(
+            key,
+            {"severity": problem.severity, "shape": shape, "count": 0, "examples": []},
+        )
+        entry["count"] += 1
+        if len(entry["examples"]) < 4:
+            entry["examples"].append(
+                {
+                    "where": f"{problem.sheet}:{problem.line}",
+                    "message": problem.message,
+                }
+            )
+    return sorted(
+        shapes.values(),
+        key=lambda e: (e["severity"] != "error", -e["count"]),
+    )
+
+
+@staff_member_required
+def ingest(request):
+    """Spreadsheets in, a preview, then the rows.
+
+    Two buttons over one set of files, because the preview *is* the
+    contract: planning the same sheets twice says the same thing, so
+    what Preview showed is what Import does. Nothing is kept between
+    the two — an upload that is never imported leaves nothing behind.
+
+    The danger zone undoes an import. The sheets change while the
+    edition is being built, so being able to clear and re-import is
+    what makes a half-right spreadsheet safe to try.
+    """
+    from django.db.models import ProtectedError
+
+    from n26.library.ingest import clear_imported, perform, plan_ingest
+
+    form = IngestForm()
+    preview = None
+    performed = None
+
+    if request.method == "POST" and "clear" in request.POST:
+        try:
+            with transaction.atomic():
+                gone = clear_imported()
+        except ProtectedError:
+            messages.error(
+                request,
+                "Some of this content is in a gang, which protects it. "
+                "Delete those gangs first — nothing was removed.",
+            )
+        else:
+            said = ", ".join(f"{count} {kind}" for kind, count in sorted(gone.items()))
+            messages.success(
+                request, f"Cleared {said}." if said else "Nothing to clear."
+            )
+        return redirect("authoring-ingest")
+
+    if request.method == "POST":
+        form = IngestForm(request.POST, request.FILES)
+        if form.is_valid():
+            sheets = form.sheets()
+            if not sheets:
+                messages.error(request, "Choose at least one sheet.")
+            else:
+                plan = plan_ingest(**sheets)
+                preview = plan.preview(examples=2)
+                preview["shapes"] = _problems_by_shape(plan.problems)
+                preview["errors"] = sum(
+                    1 for p in plan.problems if p.severity == "error"
+                )
+                preview["notes"] = len(plan.problems) - preview["errors"]
+                if "apply" in request.POST:
+                    if not plan.ok:
+                        messages.error(
+                            request,
+                            f"{preview['errors']} problem(s) block this upload — "
+                            f"nothing was written.",
+                        )
+                    else:
+                        with transaction.atomic():
+                            performed = perform(plan).counts()
+                        messages.success(
+                            request,
+                            f"Imported {sum(performed.values())} rows.",
+                        )
+
+    return render(
+        request,
+        "authoring/ingest.html",
+        {
+            "form": form,
+            "preview": preview,
+            "performed": performed,
+            "standing": _standing_content(),
+        },
+    )
+
+
+def _standing_content():
+    """What the library already holds of the kinds an import writes —
+    so the page says what a clear would take before anyone presses it."""
+    from n26.library.models import Profile, Wargear, Weapon
+    from n26.library.models.collection import Collection, CollectionEntry
+
+    lists = Collection.objects.exclude(
+        name__in=[SKILLS_COLLECTION, TRADING_POST_COLLECTION]
+    )
+    return [
+        ("weapons", Weapon.objects.count()),
+        ("wargear", Wargear.objects.count()),
+        ("fighter profiles", Profile.objects.count()),
+        ("collections", lists.count()),
+        ("collection entries", CollectionEntry.objects.count()),
+    ]
 
 
 def _rows(model):

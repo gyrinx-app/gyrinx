@@ -1712,5 +1712,131 @@ class _Performer:
         )
 
 
+# --- Clearing ------------------------------------------------------------------
+
+
+def clear_imported(pack=None):
+    """Delete everything an import writes, leaving standard content whole.
+
+    The inverse of :func:`perform`, and it lives here because the module
+    that writes this content is the one that knows its extent. What
+    survives is exactly what the foundations page creates — so after a
+    clear, every standard-content seed still reports itself complete,
+    and importing the same sheets again produces the same rows. That
+    round trip is the point: it makes an import repeatable while the
+    spreadsheets are still changing.
+
+    Player data protects content it uses, so a gang holding an imported
+    weapon stops this with ``ProtectedError`` rather than taking the
+    weapon out from under it. Delete the gangs first.
+
+    Returns ``{kind: how many}`` for what went.
+    """
+    from django.apps import apps
+
+    from n26.library.models import (
+        Category,
+        DefaultAssignmentSet,
+        GangType,
+        Modifier,
+        Profile,
+        Rule,
+        Skill,
+        Specialisation,
+        Subtype,
+        Trait,
+        Wargear,
+        Weapon,
+        WeaponProfile,
+    )
+    from n26.library.models.collection import Collection, CollectionEntry
+    from n26.library.standard_content import (
+        FIGHTER_SUBTYPES,
+        GANG_TYPES,
+        INHERENT_SET,
+        INHERENT_SKILLS,
+        SKILL_SETS,
+        SKILLS_COLLECTION,
+        SKILLS_SECTION,
+        SPECIALISATIONS,
+        TRADING_POST_COLLECTION,
+        VEHICLE_SUBTYPES,
+    )
+
+    scope = {} if pack is None else {"pack": pack}
+    standard_skills = [s for skills in SKILL_SETS.values() for s in skills]
+    standard_skills += INHERENT_SKILLS
+    gone = TallyCounter()
+
+    def sweep(label, queryset):
+        count = queryset.count()
+        if count:
+            queryset.delete()
+            gone[label] += count
+
+    # A modifier is reached through its carriers, so the ones an import
+    # made are found while the profiles it hung them on still exist.
+    # Left behind they would be matched by name on the next import and
+    # never re-attached, which is a placement quietly going missing.
+    imported_profiles = Profile.objects.filter(**scope)
+    orphaned = list(
+        Modifier.objects.filter(library_profile_set__in=imported_profiles)
+        .distinct()
+        .values_list("pk", flat=True)
+    )
+
+    # Entries before collections, collections before the things they
+    # list; statlines go with their owners by cascade.
+    sweep("collection entries", CollectionEntry.objects.filter(**scope))
+    sweep(
+        "collections",
+        Collection.objects.filter(**scope).exclude(
+            name__in=[SKILLS_COLLECTION, TRADING_POST_COLLECTION]
+        ),
+    )
+    sweep("fighter profiles", imported_profiles)
+    sweep("built-in sets", DefaultAssignmentSet.objects.filter(**scope))
+    sweep("modifiers", Modifier.objects.filter(pk__in=orphaned))
+    sweep("weapon profiles", WeaponProfile.objects.filter(**scope))
+    sweep("weapons", Weapon.objects.filter(**scope))
+    sweep("wargear", Wargear.objects.filter(**scope))
+    sweep("special rules", Rule.objects.filter(**scope))
+    sweep("weapon traits", Trait.objects.filter(**scope))
+
+    # The taxonomy and the shared kinds: an import adds to these, so only
+    # what standard content does not name comes out.
+    sweep(
+        "specialisations",
+        Specialisation.objects.filter(**scope).exclude(
+            name__in=[name for name, _ in SPECIALISATIONS]
+        ),
+    )
+    sweep("skills", Skill.objects.filter(**scope).exclude(name__in=standard_skills))
+    sweep(
+        "subtypes",
+        Subtype.objects.filter(**scope).exclude(
+            name__in=FIGHTER_SUBTYPES + VEHICLE_SUBTYPES
+        ),
+    )
+    sweep("gang types", GangType.objects.filter(**scope).exclude(name__in=GANG_TYPES))
+    sweep(
+        "categories",
+        Category.objects.filter(**scope).exclude(
+            section__name=SKILLS_SECTION,
+            name__in=[*SKILL_SETS, INHERENT_SET],
+        ),
+    )
+    # A heading with nothing under it is not content; the skills one is
+    # standard and keeps its categories, so it never becomes empty.
+    section_model = apps.get_model("library", "Section")
+    sweep(
+        "sections",
+        section_model.objects.filter(**scope)
+        .exclude(name=SKILLS_SECTION)
+        .filter(categories__isnull=True),
+    )
+    return dict(gone)
+
+
 def _missing(key):
     raise LookupError(f"plan never mentions {key}")

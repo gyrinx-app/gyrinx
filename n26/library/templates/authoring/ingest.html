@@ -1,0 +1,180 @@
+{% extends "authoring/base.html" %}
+{% block head_title %}
+    Ingest
+{% endblock head_title %}
+{% block content %}
+    <c-n26.page-header title="Ingest"
+                       lead="The pre-ingest spreadsheets in, library rows out. Preview says exactly what an import would write; importing does that and nothing else.">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Authoring</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Ingest
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+    </c-n26.page-header>
+    <c-n26.form-section title="The sheets"
+                        description="Every sheet is optional — upload the ones that changed. The two buttons take the same files: Preview writes nothing, Import writes what Preview showed."
+                        class="mt-8">
+        <form method="post" enctype="multipart/form-data" class="space-y-4">
+            {% csrf_token %}
+            {% include "authoring/_form.html" %}
+            <div class="flex items-center gap-3">
+                <c-ui.button type="submit" variant="default">
+                    Preview
+                </c-ui.button>
+                <c-ui.button type="submit" name="apply" value="1" variant="success">
+                    Import
+                </c-ui.button>
+            </div>
+        </form>
+    </c-n26.form-section>
+    {% if performed %}
+        <c-n26.form-section title="Imported" class="mt-10">
+            <c-ui.table>
+                <thead>
+                    <tr>
+                        <th scope="col" class="w-full">Kind</th>
+                        <th scope="col" class="text-right">Created</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for kind, count in performed.items %}
+                        <tr>
+                            <td>{{ kind }}</td>
+                            <td class="text-right tabular-nums">{{ count }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </c-ui.table>
+        </c-n26.form-section>
+    {% endif %}
+    {% if preview %}
+        <c-n26.form-section title="What this upload says" class="mt-10">
+            <div class="flex flex-wrap items-center gap-2">
+                {% if preview.ok %}
+                    <c-ui.badge color="green" size="sm">
+                        nothing blocking
+                    </c-ui.badge>
+                {% else %}
+                    <c-ui.badge color="red" size="sm">
+                        {{ preview.errors }} blocking
+                    </c-ui.badge>
+                {% endif %}
+                <c-ui.badge color="amber" size="sm">
+                    {{ preview.notes }} noted
+                </c-ui.badge>
+                <span class="text-muted">
+                    {{ preview.actions.create|default:0 }} to create,
+                    {{ preview.actions.exists|default:0 }} already there
+                </span>
+            </div>
+            <c-ui.table class="mt-4">
+                <thead>
+                    <tr>
+                        <th scope="col" class="w-full">Kind</th>
+                        <th scope="col" class="text-right">Rows</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for kind, count in preview.counts.items %}
+                        <tr>
+                            <td>{{ kind }}</td>
+                            <td class="text-right tabular-nums">{{ count }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </c-ui.table>
+        </c-n26.form-section>
+        {% if preview.shapes %}
+            <c-n26.form-section title="Problems"
+                                description="Grouped by what they are rather than where they happened — a long list is usually a few kinds of thing. A blocking problem stops the whole import; a noted one is carried past and said here."
+                                class="mt-10">
+                <c-ui.table>
+                    <tbody>
+                        {% for shape in preview.shapes %}
+                            <tr>
+                                <td>
+                                    <div class="flex items-start gap-2">
+                                        {% if shape.severity == "error" %}
+                                            <c-ui.badge color="red" size="sm">
+                                                blocking
+                                            </c-ui.badge>
+                                        {% else %}
+                                            <c-ui.badge color="amber" size="sm">
+                                                noted
+                                            </c-ui.badge>
+                                        {% endif %}
+                                        <span class="text-muted tabular-nums">×{{ shape.count }}</span>
+                                        <span class="text-ink-900 dark:text-ink-100">{{ shape.shape }}</span>
+                                    </div>
+                                    <ul class="mt-1 space-y-0.5">
+                                        {% for example in shape.examples %}
+                                            <li class="text-sm text-muted">
+                                                <span class="tabular-nums">{{ example.where }}</span>
+                                                — {{ example.message }}
+                                            </li>
+                                        {% endfor %}
+                                    </ul>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </c-ui.table>
+            </c-n26.form-section>
+        {% endif %}
+        {% if preview.examples %}
+            <c-n26.form-section title="Worked rows"
+                                description="A sheet line, and every library row it becomes."
+                                class="mt-10">
+                {% for example in preview.examples %}
+                    <div class="rounded-box border border-box-border px-4 py-3">
+                        <div class="text-sm font-medium text-ink-900 dark:text-ink-100">
+                            {{ example.source.sheet }}:{{ example.source.line }}
+                        </div>
+                        <ul class="mt-2 space-y-0.5">
+                            {% for created in example.creates %}
+                                <li class="text-sm text-muted">
+                                    {{ created.kind }}
+                                    {% if created.name %}— {{ created.name }}{% endif %}
+                                    <span class="text-xs">({{ created.action }})</span>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                {% endfor %}
+            </c-n26.form-section>
+        {% endif %}
+    {% endif %}
+    <c-n26.form-section title="Danger zone"
+                        description="Delete everything an import writes, leaving the foundations standing. The sheets change while the edition is being built, so clearing and importing again is how a half-right spreadsheet is safely tried."
+                        class="mt-12">
+        <div class="rounded-box border border-red-500/40 px-4 py-3">
+            <c-ui.table>
+                <tbody>
+                    {% for kind, count in standing %}
+                        <tr>
+                            <td>{{ kind }}</td>
+                            <td class="text-right tabular-nums">{{ count }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </c-ui.table>
+            <c-n26.prose class="mt-3">
+                <p>
+                    The rows the rulebook fixes stay: stats, statline shapes, the core
+                    subtypes and skills, the gang types, the specialisations, the
+                    Trading Post. Content a gang is holding is protected — delete those
+                    gangs first, and nothing is removed in the meantime.
+                </p>
+            </c-n26.prose>
+            <form method="post" class="mt-3">
+                {% csrf_token %}
+                <c-ui.button type="submit" name="clear" value="1" variant="danger" size="sm">
+                    Delete all imported content
+                </c-ui.button>
+            </form>
+        </div>
+    </c-n26.form-section>
+{% endblock content %}
