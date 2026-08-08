@@ -128,6 +128,28 @@ class TestFoundingAGang:
         assert "Leave blank to spend as much as you like." in body
         assert str(gang_type) in body  # the library's rows, not a fixture list
 
+    def test_the_submit_button_is_the_editions_green(
+        self, tester, client, default_pack, gang_type
+    ):
+        """The button that brings a thing into existence is `success` —
+        a variant only the edition's cotton/ui/button.html knows. The
+        package's own button shadowed it once (app order decides which
+        template wins), and it failed by rendering the default colour
+        with no error, which is what this pins."""
+        body = client.get("/n26/gangs/new/").content.decode()
+        assert "bg-green-700" in body
+
+    def test_the_shell_carries_the_platform_brand_and_measure(
+        self, tester, client, default_pack
+    ):
+        """The nav draws the platform's own logo from the platform's
+        static tree, and the page states its width variable rather than
+        leaning on the fallback — matched to bootstrap's 1301px cap so
+        an n26 page reads as the same site."""
+        body = client.get("/n26/").content.decode()
+        assert "platform/img/brand/logo-gold-transparent-bg.svg" in body
+        assert "--n26-site-width: 1301px" in body
+
     def test_a_valid_submit_founds_a_real_gang(
         self, tester, client, default_pack, gang_type
     ):

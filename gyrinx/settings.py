@@ -153,6 +153,13 @@ INSTALLED_APPS = [
     # processor — including `notifications`, which issues an uncached COUNT.
     # Measured: 20 components = 21 queries with it on, 1 with it off.
     "django_cotton",
+    # The n26 edition's core sits ABOVE django_cotton_ui on purpose: the app
+    # template loader takes the first match in INSTALLED_APPS order, and
+    # n26/core/templates/cotton/ui/ overrides a handful of the package's
+    # components (button gains the `success` variant, and error, label and
+    # description carry the edition's words). In the edition's home repo a
+    # root DIRS entry did this job; here order is the mechanism.
+    "n26.core",
     # Cotton UI components (<c-forms.field> and friends), used by the n26
     # edition. Must come after django_cotton, whose loader it relies on.
     "django_cotton_ui",
@@ -161,11 +168,10 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "n23.core",
     "n23.content",
-    # The n26 edition: player-side core, the content library, and its
-    # design system. Labels are pinned in each apps.py (n26, library,
-    # designsystem) — the n26.core module deliberately does NOT take the
-    # label "core", which n23 owns.
-    "n26.core",
+    # The rest of the n26 edition (core is above, beside the cotton apps):
+    # the content library and the design system. Labels are pinned in each
+    # apps.py (n26, library, designsystem) — the n26.core module deliberately
+    # does NOT take the label "core", which n23 owns.
     "n26.library",
     "n26.designsystem",
     "gyrinx.accounts",

@@ -104,6 +104,19 @@ messages, user.
             <link rel="stylesheet" href="{% static 'designsystem/app.css' %}">
         {% endblock stylesheet %}
         {% comment %}
+        The measure, matched to the platform: bootstrap's containers cap at
+        1320px from 1400px up, and an n26 page should read as the same site
+        rather than a narrower one. Below that the design system's 75rem
+        keeps ruling, stated here so the variable resolves instead of
+        leaning on its fallback.
+        {% endcomment %}
+        <style>
+            :root { --n26-site-width: 75rem; }
+            @media (min-width: 1400px) {
+                :root { --n26-site-width: 1320px; }
+            }
+        </style>
+        {% comment %}
         Nothing when no container is configured, which is every environment that
         is not production. v1 hard-codes the id and carries a TODO to do this.
         {% endcomment %}
@@ -197,7 +210,7 @@ messages, user.
         {% endcomment %}
         <c-n26.site.nav title="Gyrinx" href="/" sticky="1" class="dark">
             <c-slot name="logo">
-                <img src="{% static 'n26/gyrinx-logo.svg' %}"
+                <img src="{% static 'platform/img/brand/logo-gold-transparent-bg.svg' %}"
                      alt=""
                      width="24"
                      height="24"
@@ -360,7 +373,7 @@ messages, user.
                 <c-n26.site.footer.column>
                     <c-slot name="lead">
                         <a href="/" class="n26-site-brand focus-ring" aria-label="Gyrinx">
-                            <img src="{% static 'n26/gyrinx-logo.svg' %}"
+                            <img src="{% static 'platform/img/brand/logo-gold-transparent-bg.svg' %}"
                                  alt=""
                                  width="24"
                                  height="24"
@@ -412,7 +425,7 @@ messages, user.
                     <c-slot name="content">
                         <a href="https://patreon.com/Gyrinx"
                            class="n26-img-tilt block rounded-box focus-ring">
-                            <img src="{% static 'n26/support-card.svg' %}"
+                            <img src="{% static 'platform/img/patreon.png' %}"
                                  alt="Support Gyrinx on Patreon"
                                  class="w-full rounded-box border border-box-border">
                         </a>
