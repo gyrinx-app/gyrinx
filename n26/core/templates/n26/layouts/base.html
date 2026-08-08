@@ -176,8 +176,8 @@ banner, is_impersonating / impersonator, gtm_container_id, messages, user.
             {% comment %}
             The account menu: what you are signed in as, the doors only staff
             have, and the way out. Each separator is drawn by the section
-            below it, so the staff section leaving takes its rule with it and
-            nobody sees two in a row.
+            below it, so a section that is not there leaves no rule behind
+            and nobody sees two in a row.
 
             c-ui.dropdown.item, not c-ui.menu.item — menu.item calls
             selectOption(), which is combobox machinery outside a dropdown's
@@ -187,7 +187,13 @@ banner, is_impersonating / impersonator, gtm_container_id, messages, user.
                 <c-slot name="menu">
                     {% url 'admin:index' as admin_url_ %}
                     {% url 'account_logout' as logout_url_ %}
-                    <c-ui.dropdown.item href="/account/">
+                    {% comment %}
+                    The account page belongs to the site rather than to either
+                    edition, so it is named rather than spelled out: a name
+                    that stops resolving raises here, while a path that stops
+                    existing quietly serves a 404 nobody notices.
+                    {% endcomment %}
+                    <c-ui.dropdown.item href="{% url 'core:account_home' %}">
                         Your account
                     </c-ui.dropdown.item>
                     {% comment %}
@@ -196,17 +202,22 @@ banner, is_impersonating / impersonator, gtm_container_id, messages, user.
                     places every reader has, and writing content is something
                     a handful of accounts do. The gate inside authoring is
                     staff-only regardless — this only decides who sees it.
+
+                    The heading is the break between them and the account
+                    items above; a rule as well would say the same thing
+                    twice.
                     {% endcomment %}
                     {% if user.is_staff %}
-                        <c-ui.dropdown.separator />
-                        {% if admin_url_ %}
-                            <c-ui.dropdown.item href="{{ admin_url_ }}">
-                                Admin
+                        <c-ui.dropdown.group label="Staff only">
+                            {% if admin_url_ %}
+                                <c-ui.dropdown.item href="{{ admin_url_ }}">
+                                    Admin
+                                </c-ui.dropdown.item>
+                            {% endif %}
+                            <c-ui.dropdown.item href="{% url 'authoring-index' %}">
+                                Content Library
                             </c-ui.dropdown.item>
-                        {% endif %}
-                        <c-ui.dropdown.item href="{% url 'authoring-index' %}">
-                            Content Library
-                        </c-ui.dropdown.item>
+                        </c-ui.dropdown.group>
                     {% endif %}
                     {% if logout_url_ %}
                         <c-ui.dropdown.separator />

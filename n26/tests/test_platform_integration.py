@@ -330,21 +330,43 @@ class TestTheNavigation:
     ):
         menu = account_menu(client.get("/n26/").content.decode())
         positions = in_order(
-            menu, "Your account", "Admin", "Content Library", "Sign out"
+            menu, "Your account", "Staff only", "Admin", "Content Library", "Sign out"
         )
         assert positions == sorted(positions)
-        assert menu.count('role="separator"') == 2
+        # Only the way out draws a rule; the staff doors have a heading.
+        assert menu.count('role="separator"') == 1
+
+    def test_your_account_goes_to_the_page_that_is_actually_there(
+        self, staff, client, default_pack
+    ):
+        """The account page is the site's, shared by both editions, and
+        it is named rather than spelled out — a hand-written path can be
+        wrong for as long as nobody clicks it."""
+        from django.urls import reverse
+
+        menu = account_menu(client.get("/n26/").content.decode())
+        assert f'href="{reverse("core:account_home")}"' in menu
+        assert client.get(reverse("core:account_home")).status_code == 200
+
+    def test_the_staff_doors_say_they_are_staff_only(self, staff, client, default_pack):
+        """A heading over them, so someone who has these doors knows at
+        a glance which of their menu the person beside them does not
+        have. The kit uppercases it, so the label is written as prose."""
+        menu = account_menu(client.get("/n26/").content.decode())
+        assert "Staff only" in menu
+        positions = in_order(menu, "Staff only", "Admin")
+        assert positions == sorted(positions)
 
     def test_nobody_else_is_shown_a_door_they_cannot_open(
         self, tester, client, default_pack
     ):
         """A tester who is not staff is refused by both pages anyway, so
-        an item they can only bounce off is noise — and the rule above
-        those two goes with them, rather than leaving a reader two rules
-        in a row."""
+        an item they can only bounce off is noise — and the heading over
+        those two goes with them, rather than labelling nothing."""
         menu = account_menu(client.get("/n26/").content.decode())
         assert "Admin" not in menu
         assert "Content Library" not in menu
+        assert "Staff only" not in menu
         assert menu.count('role="separator"') == 1
 
     def test_the_authoring_area_puts_its_own_pages_in_the_drawer(
