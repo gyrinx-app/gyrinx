@@ -227,7 +227,7 @@ class TestPlanning:
     def test_one_printed_name_two_weapons_are_told_apart(self, plan):
         # A power fist is Exo kit and a Power weapon: two weapons wearing
         # one name, kept apart by the category the sheet files them under
-        # and by the author-facing qualifier (§6a).
+        # and by the author-facing qualifier.
         assert plan.get(POWER_FIST).fields["qualifier"] == "Power weapons"
         assert plan.get(EXO_FIST).fields["qualifier"] == "Exo weapons"
         assert plan.get(POWER_FIST).fields["price"] == 0  # "-", list-priced

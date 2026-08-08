@@ -50,7 +50,7 @@ Section)``, which :class:`ItemId` parses. Resolution goes through that,
 never through the name alone: eight weapons share a printed name across
 categories, so a name is not an identity. Where two catalogue rows do
 share one, both are kept and told apart by the author-facing
-``qualifier`` (§6a) — renaming would put a word on a player's card that
+``qualifier`` — renaming would put a word on a player's card that
 the books do not print.
 
 **Nothing here builds a Trading Post.** Membership there is *having a
@@ -530,7 +530,7 @@ def _plan_equipment(plan, rows, statlined=frozenset()):
     from n26.library.models import Wargear, Weapon
 
     # Pass 1: which printed names does more than one item claim? Those
-    # want the author-facing qualifier (§6a) — a power fist is Exo kit
+    # want the author-facing qualifier — a power fist is Exo kit
     # and a Power weapon, two weapons wearing one name. The category is
     # how the sheet tells them apart, so it is what qualifies them.
     claims = {}
@@ -907,7 +907,7 @@ def _plan_profiles(plan, rows):
             members.append((resolved, {}))
 
         # Two gangs printing the same fighter name is normal, and the
-        # qualifier (§6a) is how the library holds both — author-facing
+        # qualifier is how the library holds both — author-facing
         # only, the card prints the name alone. The sheet may name the
         # qualifier itself; where it doesn't, the first row keeps the
         # bare name and a second gang's is qualified with its gang.
