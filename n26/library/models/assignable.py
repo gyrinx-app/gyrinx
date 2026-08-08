@@ -780,6 +780,11 @@ class Rule(Content, Assignable):
     only — the rule's text is copyrighted and is never stored (CLAUDE.md).
     A rule that also *does* something the app can compute carries ordinary
     modifiers.
+
+    The annotation is part of the identity, exactly as it is for a
+    ``Trait``: a rule that comes in variants — a leash at several
+    distances — is several rows sharing one printed name, not one row
+    that cannot decide.
     """
 
     family = Family.BASE
@@ -787,11 +792,12 @@ class Rule(Content, Assignable):
     class Meta:
         verbose_name = "special rule"
         verbose_name_plural = "special rules"
-        ordering = ["name"]
+        ordering = ["name", "annotation"]
         constraints = [
             models.UniqueConstraint(
                 "pack",
                 Lower("name"),
+                Lower("annotation"),
                 Lower("qualifier"),
                 name="rule_unique_per_pack",
             ),

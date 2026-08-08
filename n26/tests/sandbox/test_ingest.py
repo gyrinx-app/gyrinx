@@ -28,6 +28,7 @@ from n26.library.ingest import ItemId, perform, plan_ingest, read_csv
 from n26.library.models import (
     Category,
     Profile,
+    Rule,
     Trait,
     Wargear,
     Weapon,
@@ -454,7 +455,10 @@ Ranged weapons,Web weapons,Web pistol,,,8",16",3,-,1,Web,x
         assert "sells no such thing" in plan.problems[0].message
         assert not [p for p in plan.planned if p.kind == "Weapon"]
 
-    def test_an_unresolvable_built_in_is_a_problem(self, foundation):
+    def test_an_unresolvable_built_in_does_not_block_the_fighter(self, foundation):
+        """Built-in-only kit — exo-suits, hunting rigs, natural weapons —
+        is never sold, so no sheet defines it. The fighter is still worth
+        having, so this is said and the fighter arrives without it."""
         plan = plan_ingest(
             profiles=read_csv(
                 """
@@ -463,10 +467,13 @@ Escher,Wyld Runner,6",4+,4+,3,3,1,4,1,6+,6,7,7,6,Fighter,Prospect,4,25,,,Exo-sui
 """
             )
         )
-        assert not plan.ok
-        assert "resolve, never create" in plan.problems[0].message
+        assert plan.ok  # a note, not an error
+        assert "imported without it" in plan.problems[0].message
+        assert plan.get("Profile:wyld runner") is not None
 
-    def test_two_rules_sharing_a_name_hit_the_5d_wall(self, foundation):
+    def test_a_rule_in_variants_is_several_rules(self, foundation):
+        """A leash at two distances is two rules sharing a printed name,
+        exactly as a trait is — the annotation is part of the identity."""
         plan = plan_ingest(
             profiles=read_csv(
                 """
@@ -476,8 +483,47 @@ Delaque,Psychoteric Wyrm,4",4+,6+,3,3,2,3,1,6+,7,7,7,7,Fighter,"Beast, Pet",,50,
 """
             )
         )
+        assert plan.ok
+        assert plan.get('Rule:leash:3"').fields["annotation"] == '3"'
+        assert plan.get('Rule:leash:6"').fields["annotation"] == '6"'
+
+        perform(plan)
+        leashes = Rule.objects.filter(name="Leash").order_by("annotation")
+        assert [r.annotation for r in leashes] == ['3"', '6"']
+
+    def test_the_sheet_may_name_the_qualifier_itself(self, foundation):
+        """Where the sheet says which qualifier a fighter takes, that is
+        used verbatim — inference is only the fallback."""
+        plan = plan_ingest(
+            profiles=read_csv(
+                """
+Gang,Name,Qualifier,M,WS,BS,S,T,W,I,A,Sv,Ld,Cl,Wil,Int,Type,Subtype(s),Starting XP,Rating,Special Rules,Default skills,Default assignment,Primary Skill Sets,Secondary Skill Sets
+Genestealer Cults,Alpha,Genestealer Cults,5",4+,4+,3,3,2,4,2,5+,7,7,7,7,Fighter,Leader,25,110,,,,,
+Malstrain,Alpha,Malstrain,5",4+,4+,3,3,2,4,2,5+,7,7,7,7,Fighter,Leader,25,110,,,,,
+"""
+            )
+        )
+        assert plan.ok
+        assert plan.get("Profile:alpha:genestealer cults").fields["qualifier"] == (
+            "Genestealer Cults"
+        )
+        assert plan.get("Profile:alpha:malstrain").fields["qualifier"] == "Malstrain"
+
+    def test_two_fighters_claiming_one_identity_are_refused(self, foundation):
+        """Name and qualifier together are the identity. Two rows holding
+        both would be one row — and the second would vanish into the
+        first — so the plan says so rather than quietly losing a fighter."""
+        plan = plan_ingest(
+            profiles=read_csv(
+                """
+Gang,Name,Qualifier,M,WS,BS,S,T,W,I,A,Sv,Ld,Cl,Wil,Int,Type,Subtype(s),Starting XP,Rating,Special Rules,Default skills,Default assignment,Primary Skill Sets,Secondary Skill Sets
+Genestealer Cults,Alpha,Genestealer Cults,5",4+,4+,3,3,2,4,2,5+,7,7,7,7,Fighter,Leader,25,110,,,,,
+Malstrain,Alpha,Genestealer Cults,5",4+,4+,3,3,2,4,2,5+,7,7,7,7,Fighter,Leader,25,110,,,,,
+"""
+            )
+        )
         assert not plan.ok
-        assert "§5d" in plan.problems[0].message
+        assert "need different qualifiers" in plan.problems[0].message
 
     def test_a_row_with_no_type_is_sent_back_to_its_own_sheet(self, foundation):
         plan = plan_ingest(

@@ -777,7 +777,6 @@ def _plan_profiles(plan, rows):
     grid columns become placement modifiers on the profile itself."""
     from n26.library.models import GangType, Profile, Rule, Skill, Subtype
 
-    rule_names_seen = {}
     for line, row in enumerate(rows, start=1):
         source = Source("profiles", line)
         plan.remember_row(source, row)
@@ -831,18 +830,11 @@ def _plan_profiles(plan, rows):
             members.append(("Counter:xp", {"amount": int(xp)}))
 
         for token in _split_list(row.get("Special Rules", "")):
+            # A rule's annotation is part of its identity, as a trait's
+            # is: Leash (3") and Leash (9") are two rules sharing a
+            # printed name, and both must exist.
             rule_name, annotation = _name_and_annotation(token)
             key = f"Rule:{_norm(rule_name)}:{annotation.lower()}"
-            clash = rule_names_seen.get(_norm(rule_name))
-            if clash is not None and clash != annotation.lower():
-                plan.problem(
-                    source,
-                    f"rule {rule_name!r} appears with annotations "
-                    f"({clash!r}, {annotation.lower()!r}) but rules are "
-                    f"unique on name alone — needs the §5d migration",
-                )
-                continue
-            rule_names_seen[_norm(rule_name)] = annotation.lower()
             if not plan.get(key):
                 plan.add(
                     "Rule",
@@ -851,7 +843,12 @@ def _plan_profiles(plan, rows):
                     source,
                     key=key,
                     action="exists"
-                    if _exists(plan, Rule, name__iexact=rule_name)
+                    if _exists(
+                        plan,
+                        Rule,
+                        name__iexact=rule_name,
+                        annotation__iexact=annotation,
+                    )
                     else "create",
                 )
             members.append((key, {}))
@@ -877,19 +874,25 @@ def _plan_profiles(plan, rows):
         for item in _split_list(row.get("Default assignment", "")):
             resolved = _resolve_item(plan, item)
             if resolved is None:
+                # Built-in-only kit — hunting rigs, exo-suits, natural
+                # weapons — is never sold, so no sheet defines it. The
+                # fighter is still worth having, so this is said and
+                # carried past; the fighter simply arrives without it.
                 plan.problem(
                     source,
                     f"{name!r} comes with {item!r}, which no sheet defines "
-                    f"and the pack does not hold — built-ins resolve, "
-                    f"never create",
+                    f"and the pack does not hold — imported without it "
+                    f"(built-ins resolve, never create)",
+                    severity="note",
                 )
                 continue
             members.append((resolved, {}))
 
         # Two gangs printing the same fighter name is normal, and the
-        # qualifier (§6a) is how the library holds both. The first row
-        # keeps the bare name; a second gang's row is qualified with its
-        # gang's name — author-facing only, the card prints the name alone.
+        # qualifier (§6a) is how the library holds both — author-facing
+        # only, the card prints the name alone. The sheet may name the
+        # qualifier itself; where it doesn't, the first row keeps the
+        # bare name and a second gang's is qualified with its gang.
         plain_key = f"Profile:{_norm(name)}"
         planned_plain = plan.get(plain_key)
         existing_plain = _exists(plan, Profile, name__iexact=name, qualifier__iexact="")
@@ -900,8 +903,8 @@ def _plan_profiles(plan, rows):
         else:
             name_holder = None
 
-        qualifier = ""
-        if name_holder is not None and name_holder != gang_key:
+        qualifier = _clean(row.get("Qualifier") or "")
+        if not qualifier and name_holder is not None and name_holder != gang_key:
             qualifier = gang_name
             plan.problem(
                 source,
@@ -912,6 +915,19 @@ def _plan_profiles(plan, rows):
             )
 
         profile_key = plain_key if not qualifier else f"{plain_key}:{_norm(qualifier)}"
+        # Name and qualifier together are the identity, so two rows
+        # claiming both are one row as far as the library is concerned —
+        # and the second would vanish into the first. Say so instead.
+        if (clash := plan.get(profile_key)) is not None:
+            said = f"{name!r} qualified {qualifier!r}" if qualifier else repr(name)
+            plan.problem(
+                source,
+                f"{said} is already taken by "
+                f"{clash.source.sheet}:{clash.source.line} — a name and its "
+                f"qualifier are one identity, so these two fighters need "
+                f"different qualifiers",
+            )
+            continue
         label = name if not qualifier else f"{name} ({qualifier})"
         existing = (
             existing_plain
@@ -1429,7 +1445,11 @@ class _Performer:
                 **self.shared,
             ).first()
         if kind == "Rule":
-            return Rule.objects.filter(name__iexact=planned.name, **self.shared).first()
+            return Rule.objects.filter(
+                name__iexact=planned.name,
+                annotation__iexact=planned.fields["annotation"],
+                **self.shared,
+            ).first()
         if kind == "Category":
             return Category.objects.filter(
                 section__name__iexact=planned.fields["section"],
