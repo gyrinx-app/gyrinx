@@ -93,7 +93,8 @@
             <tbody>
                 {% for entry in kinds %}
                     <tr>
-                        <td>
+                        {# nowrap: the summary column takes the squeeze, never the name #}
+                        <td class="whitespace-nowrap">
                             <c-n26.link href="{% url 'authoring-leaf' entry.kind %}">{{ entry.verbose_name|capfirst }}</c-n26.link>
                         </td>
                         <td class="w-full text-muted">{{ entry.summary }}</td>
