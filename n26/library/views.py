@@ -915,12 +915,26 @@ def foundations(request):
 
 
 #: The sheets an upload may carry, in the order they are planned:
-#: form field → (what the planner calls it, what it holds).
+#: ``(what the planner calls it, the sheet's own name, what it holds)``.
+#: The two names differ where the spreadsheet's heading is not the
+#: planner's word for the sheet — an author looks for the heading.
 INGEST_SHEETS = [
-    ("equipment", "The catalogue: one row per thing the game sells, with its price."),
-    ("weapon_profiles", "The statlines, and nothing else."),
-    ("equipment_lists", "A named list per gang, one entry per line."),
-    ("profiles", "The fighters."),
+    (
+        "equipment",
+        "Equipment",
+        "The catalogue: one row per thing the game sells, with its price.",
+    ),
+    ("weapon_profiles", "Weapon profiles", "The statlines, and nothing else."),
+    (
+        "equipment_lists",
+        "Equipment lists",
+        "A named list per gang, one entry per line.",
+    ),
+    (
+        "profiles",
+        "All Profiles",
+        "The fighters, each with the heading and category it is hired under.",
+    ),
 ]
 
 
@@ -932,10 +946,10 @@ class IngestForm(forms.Form):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        for name, help_text in INGEST_SHEETS:
+        for name, label, help_text in INGEST_SHEETS:
             self.fields[name] = forms.FileField(
                 required=False,
-                label=name.replace("_", " ").capitalize(),
+                label=label,
                 help_text=help_text,
                 widget=forms.ClearableFileInput(attrs={"accept": ".csv,text/csv"}),
             )
@@ -945,7 +959,7 @@ class IngestForm(forms.Form):
         from n26.library.ingest import read_csv
 
         found = {}
-        for name, _ in INGEST_SHEETS:
+        for name, _label, _help in INGEST_SHEETS:
             upload = self.cleaned_data.get(name)
             if upload:
                 found[name] = read_csv(upload.read().decode("utf-8-sig"))

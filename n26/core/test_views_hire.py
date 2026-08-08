@@ -188,6 +188,26 @@ def test_mixed_sections_fall_back_to_untabbed(
     assert response.context["sections"] == []
 
 
+def test_the_gang_list_tab_comes_before_the_supplementary_one(
+    client, tester, gang, make_profile
+):
+    """The headings are tabs in the order the sections carry, not the
+    order the profiles were written: a gang's own list reads first,
+    everyone hired beside it after."""
+    from n26.library.models import Category, Section
+
+    supplementary = Section.objects.create(name="Supplementary Fighters", position=1)
+    gang_list = Section.objects.create(name="Gang List", position=0)
+    beasts = Category.objects.create(section=supplementary, name="Beasts", position=0)
+    gangers = Category.objects.create(section=gang_list, name="Gangers", position=0)
+    make_profile("Sumpkroc", price=65, category=beasts)
+    make_profile("Ganger", price=55, category=gangers)
+
+    client.force_login(tester)
+    response = client.get(hire_url(gang))
+    assert response.context["sections"] == ["Gang List", "Supplementary Fighters"]
+
+
 def test_an_overspend_refuses_and_writes_nothing(client, tester, gang, make_profile):
     expensive = make_profile("Gang Queen", price=500)
 

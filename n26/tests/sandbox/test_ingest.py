@@ -14,8 +14,8 @@ Each stage is verified on its own interface (design/ingest.md §8):
 The fixture sheets are miniatures of the real pre-ingest worksheets,
 column for column: the **equipment** catalogue (what exists, and its
 price), the **weapon profiles** (statlines only), the **equipment
-lists** (a named collection per Title) and the **gang list profiles**
-(the fighters). They join on the ID the sheets compute,
+lists** (a named collection per Title) and **All Profiles** (the
+fighters). They join on the ID the sheets compute,
 ``Name (Profile) (Category ← Section)``, which is why the fixture holds
 two different weapons both called "Power fist".
 """
@@ -91,10 +91,10 @@ Equipment List,Escher,Wargear,Weapon accessories,Telescopic sight,,20,,Telescopi
 """
 
 PROFILES_CSV = """
-Gang,Name,M,WS,BS,S,T,W,I,A,Sv,Ld,Cl,Wil,Int,Type,Subtype(s),Starting XP,Rating,Special Rules,Default skills (nb i have not listed skills applied by subtype),Default assignment,Primary Skill Sets,Secondary Skill Sets
-Escher,Gang Queen,6",3+,3+,3,3,3,4,2,5+,8,8,7,7,Fighter,Leader,61,120,Witch,Catfall,,"Agility, Combat",Cunning
-Cawdor,Way-Brethren,5",4+,4+,3,3,1,4,1,6+,6,6,6,6,Fighter,"Ganger, Specialist",13,45,,,,Combat,"Agility, Shooting"
-Goliath,Sumpkroc,4",4+,-,4,4,2,2,1,5+,4,4,4,4,Fighter,"Beast, Pet",,65,,,Ferocious jaws,,
+Gang,Section,Category,Name,M,WS,BS,S,T,W,I,A,Sv,Ld,Cl,Wil,Int,Type,Subtype(s),Starting XP,Rating,Special Rules,Default skills (nb i have not listed skills applied by subtype),Default assignment,Primary Skill Sets,Secondary Skill Sets
+Escher,,Leaders,Gang Queen,6",3+,3+,3,3,3,4,2,5+,8,8,7,7,Fighter,Leader,61,120,Witch,Catfall,,"Agility, Combat",Cunning
+Cawdor,Gang List,Gangers,Way-Brethren,5",4+,4+,3,3,1,4,1,6+,6,6,6,6,Fighter,"Ganger, Specialist",13,45,,,,Combat,"Agility, Shooting"
+Goliath,Supplementary Fighters,Beasts,Sumpkroc,4",4+,-,4,4,2,2,1,5+,4,4,4,4,Fighter,"Beast, Pet",,65,,,Ferocious jaws,,
 """
 
 
@@ -321,6 +321,33 @@ class TestPlanning:
         assert "Rule:witch:" in members
         assert "Skill:catfall" in members
         assert {"item": "Counter:xp", "amount": 61} in built_ins.fields["members"]
+
+    def test_a_fighter_is_homed_where_the_sheet_says(self, plan):
+        """The hire list groups by each fighter's home category, so the
+        sheet's Category and Section are what shelve it."""
+        queen = plan.get("Profile:gang queen")
+        assert queen.fields["category"] == "Category:gang list:leaders"
+
+        croc = plan.get("Profile:sumpkroc")
+        assert croc.fields["category"] == "Category:supplementary fighters:beasts"
+        assert plan.get(croc.fields["category"]).fields["section"] == (
+            "Supplementary Fighters"
+        )
+
+    def test_a_blank_section_means_the_gang_list(self, plan):
+        # The sheet spells out Supplementary Fighters and leaves the
+        # ordinary case empty, so an empty cell is the gang's own list.
+        home = plan.get(plan.get("Profile:gang queen").fields["category"])
+        assert home.fields["section"] == "Gang List"
+
+    def test_the_gang_list_reads_before_the_supplementary_fighters(self, plan):
+        assert plan.get("Category:gang list:leaders").fields["section_position"] == 0
+        assert (
+            plan.get("Category:supplementary fighters:beasts").fields[
+                "section_position"
+            ]
+            == 1
+        )
 
     def test_built_ins_resolve_against_the_catalogue(self, plan):
         croc = plan.get("Profile:sumpkroc")
@@ -614,7 +641,30 @@ Malstrain,Alpha,Genestealer Cults,5",4+,4+,3,3,2,4,2,5+,7,7,7,7,Fighter,Leader,2
             )
         )
         assert not plan.ok
-        assert "need different qualifiers" in plan.problems[0].message
+        assert any("need different qualifiers" in p.message for p in plan.problems)
+
+    def test_a_fighter_with_no_category_arrives_ungrouped(self, foundation):
+        """A sheet that has not said where a fighter belongs is the
+        ordinary state while the edition is being written, so the
+        fighter is imported anyway — the hire list gathers the homeless
+        at the end, and the note says which ones they are."""
+        plan = plan_ingest(
+            profiles=read_csv(
+                """
+Gang,Section,Category,Name,M,WS,BS,S,T,W,I,A,Sv,Ld,Cl,Wil,Int,Type,Subtype(s),Starting XP,Rating,Special Rules,Default skills,Default assignment,Primary Skill Sets,Secondary Skill Sets
+Escher,,,Gang Queen,6",3+,3+,3,3,3,4,2,5+,8,8,7,7,Fighter,Leader,61,120,,,,,
+"""
+            )
+        )
+        assert plan.ok  # said, not refused
+        note = plan.problems[0]
+        assert note.severity == "note"
+        assert "arrives ungrouped" in note.message
+        assert plan.get("Profile:gang queen").fields["category"] is None
+        assert not [p for p in plan.planned if p.kind == "Category"]
+
+        perform(plan)
+        assert Profile.objects.get(name="Gang Queen").category is None
 
     def test_a_row_with_no_type_is_sent_back_to_its_own_sheet(self, foundation):
         plan = plan_ingest(
@@ -688,6 +738,34 @@ class TestPerform:
         placement = queen.modifiers.get(name="Gang Queen: Agility is Primary")
         assert placement.places_category.category.name == "Agility"
         assert placement.places_category.section.name == "Primary"
+
+    def test_profiles_arrive_homed_under_their_heading(self, plan):
+        """A fighter's home is what the hire list shelves it by, and the
+        two headings have a reading order: the gang's own list, then
+        everyone hired beside it."""
+        perform(plan)
+        queen = Profile.objects.get(name="Gang Queen")
+        assert queen.category.name == "Leaders"
+        assert queen.category.section.name == "Gang List"
+        assert queen.category.section.position == 0
+
+        croc = Profile.objects.get(name="Sumpkroc")
+        assert croc.category.section.name == "Supplementary Fighters"
+        assert croc.category.section.position == 1
+
+    def test_the_equipment_headings_keep_their_own_order(self, plan):
+        """Only the two fighter headings are numbered. Everything the
+        catalogue founds sorts by name, and an import must not renumber
+        it on its way past."""
+        from n26.library.models import Section
+
+        perform(plan)
+        assert [
+            section.position
+            for section in Section.objects.filter(
+                name__in=["Ranged weapons", "Close combat weapons", "Wargear"]
+            )
+        ] == [0, 0, 0]
 
     def test_built_ins_attach_at_price_zero_whatever_the_lists_say(self, plan):
         perform(plan)
@@ -989,6 +1067,28 @@ Escher,Scout,6",4+,4+,3,3,1,4,1,6+,6,7,7,6,Fighter,Ganger,4,25,,,Farsight,Agilit
 
         assert plan.ok
         assert any("imported without it" in p.message for p in plan.problems)
+
+
+class TestTheUploadPage:
+    """The page an author uploads from calls each sheet what the
+    spreadsheet calls it — the field names are the planner's words, and
+    an author looking for a file goes by the heading on the tab."""
+
+    def test_the_upload_asks_for_the_sheets_by_their_own_names(
+        self, client, default_pack
+    ):
+        from django.contrib.auth.models import User
+        from django.urls import reverse
+
+        client.force_login(User.objects.create_user("author", is_staff=True))
+        body = client.get(reverse("authoring-ingest")).content.decode()
+        assert "All Profiles" in body
+        assert "Equipment lists" in body
+
+    def test_the_form_labels_the_profiles_field_with_the_sheet_name(self):
+        from n26.library.views import IngestForm
+
+        assert IngestForm().fields["profiles"].label == "All Profiles"
 
 
 class TestClearing:
