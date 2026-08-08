@@ -5,10 +5,11 @@ import tempfile
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
+from django.core.exceptions import ImproperlyConfigured
 from django.db import connections
 
 from .settings import *  # noqa: F403
-from .settings import APP_LOGGER_ROOTS, BASE_DIR, MIDDLEWARE, STORAGES
+from .settings import APP_LOGGER_ROOTS, BASE_DIR, INSTALLED_APPS, MIDDLEWARE, STORAGES
 from .settings import LOGGING as BASE_LOGGING
 
 logger = logging.getLogger(__name__)
@@ -21,6 +22,22 @@ WHITENOISE_AUTOREFRESH = True
 # every component guard in exactly the place they are supposed to catch things.
 COTTON_STRICT_COMPONENTS = True
 
+# Cotton's autoconfig substitutes its own template loader chain, wrapped in
+# Django's cached.Loader — which Django would have left out under DEBUG had it
+# built the chain itself. Swapping in this subclass lets the autoconfig do its
+# work and then takes the caching back out, per CACHE_TEMPLATES below. The rewrite
+# has to happen from an app config because the autoconfig runs after settings and
+# overwrites anything declared here. See gyrinx/cotton_dev.py.
+if "django_cotton" not in INSTALLED_APPS:
+    raise ImproperlyConfigured(
+        "Expected 'django_cotton' in INSTALLED_APPS so development could swap in "
+        "gyrinx.cotton_dev.UncachedCottonConfig; it isn't there."
+    )
+INSTALLED_APPS = [
+    "gyrinx.cotton_dev.UncachedCottonConfig" if app == "django_cotton" else app
+    for app in INSTALLED_APPS
+]
+
 # pytest is always imported before Django settings load when any pytest launcher
 # is driving the process (plain pytest, pytest-xdist workers, ptw, IDE runners,
 # CI shells), and never under runserver/management commands. The previous
@@ -30,6 +47,13 @@ COTTON_STRICT_COMPONENTS = True
 # pytest-only settings (like the admin MFA gate below) to their production
 # values for the whole suite.
 _UNDER_PYTEST = "pytest" in sys.modules
+
+# Serve templates from disk, so editing one shows on the next request instead of
+# on the next restart — and a template-only edit touches no .py file, so the
+# autoreloader is no help. The suite is the exception: nothing edits a template
+# mid-run, the same templates render thousands of times, and reading them fresh
+# costs the template-heavy suites about a quarter of their CPU time.
+CACHE_TEMPLATES = _UNDER_PYTEST
 
 # Disable debug toolbar in tests - prevents 'djdt' namespace errors when tests
 # use @override_settings(DEBUG=True). pytest-xdist workers set RUN_MAIN env var.

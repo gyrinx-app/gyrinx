@@ -19,10 +19,15 @@ def cotton_is_wired_up(app_configs, **kwargs):
 
     This check turns that into a deploy-time failure.
     """
+    from django.apps import apps
     from django.conf import settings
 
     errors = []
-    if "django_cotton" not in settings.INSTALLED_APPS:
+    # Asked of the app registry rather than the INSTALLED_APPS strings, because
+    # development substitutes its own AppConfig subclass for the "django_cotton"
+    # entry to drop the cached template loader (see gyrinx/cotton_dev.py). The app
+    # is still installed under the same name; only the entry that names it differs.
+    if not apps.is_installed("django_cotton"):
         errors.append(
             Error(
                 "django_cotton is not in INSTALLED_APPS.",

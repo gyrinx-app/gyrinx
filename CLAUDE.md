@@ -99,6 +99,11 @@ Each git worktree gets its own Postgres database and Django port, started with a
 - Main worktree uses `gyrinx_main` database (port 8000) — this is the template with curated test data
 - Child worktrees get `gyrinx_wt_{hash}` databases forked via `CREATE DATABASE ... TEMPLATE`
 - Ports are deterministic per worktree path (range 8100-9599)
+- **Template edits apply on the next request — no restart.** Django's `cached.Loader` is
+  taken back out of the chain that django-cotton's autoconfig builds (`CACHE_TEMPLATES` in
+  `settings_dev.py`, `gyrinx/cotton_dev.py`). Production and the test suite keep it. If
+  template edits ever stop showing again, that is the first thing to check — a template-only
+  edit touches no `.py` file, so the autoreloader will not save you.
 - **Each child worktree gets its own `.venv` with `gyrinx` editable-installed from that worktree**, so
   `import gyrinx` always resolves to worktree-local code (new migrations, new models, etc.). Without this,
   `manage migrate` from a child worktree silently misses new migrations and `pytest` fails with

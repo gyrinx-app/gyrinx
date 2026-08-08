@@ -290,9 +290,13 @@ def test_literal_btn_variants_are_in_the_design_system_set():
 #      rendering as literal text with HTTP 200.
 # --------------------------------------------------------------------------
 def test_cotton_is_wired_up():
+    from django.apps import apps
     from django.conf import settings
 
-    assert "django_cotton" in settings.INSTALLED_APPS
+    # The app registry, not the INSTALLED_APPS strings: development names cotton
+    # through its own AppConfig subclass to drop the cached template loader
+    # (gyrinx/cotton_dev.py). Same app, same name, different entry.
+    assert apps.is_installed("django_cotton")
     builtins = settings.TEMPLATES[0]["OPTIONS"].get("builtins", [])
     assert any("cotton" in b for b in builtins), builtins
 
