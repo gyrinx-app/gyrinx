@@ -184,15 +184,25 @@ selectOption() the dropdown does not define.
                 </c-slot>
 
                 {% comment %}
-                The menu's own styling of the same items — the kit's stacked
-                mobile-panel treatment, which is what these rows were before the
-                burger became a permanent control.
+                Styled to match <c-ui.dropdown.item> exactly — same padding,
+                same size, same ink — because these links and the account
+                items below them are one list to a reader, and only Sign out
+                should look different from its neighbours. They cannot *be*
+                dropdown items: the same slot is drawn in the bar too, where
+                a navbar item is a bare <a> its container styles, which is
+                what lets one list render two ways.
+
+                The current page keeps the accent, and takes the weight with
+                it — it is the one row here that is a state rather than a
+                destination.
                 {% endcomment %}
-                <nav class="flex flex-col gap-1
-                            [&>a]:text-sm [&>a]:font-medium [&>a]:transition-colors
-                            [&>a]:rounded-control [&>a]:px-3 [&>a]:py-2
-                            [&>a]:text-ink-600 dark:[&>a]:text-ink-400
+                <nav class="flex flex-col
+                            [&>a]:flex [&>a]:items-center [&>a]:gap-3
+                            [&>a]:rounded-control [&>a]:px-4 [&>a]:py-2
+                            [&>a]:text-sm [&>a]:transition-colors
+                            [&>a]:text-ink-700 dark:[&>a]:text-ink-300
                             [&>a:hover]:bg-ink-100 dark:[&>a:hover]:bg-ink-800
+                            [&>.is-current]:font-medium
                             [&>.is-current]:text-accent">{{ slot }}</nav>
                 {% if menu %}{{ menu }}{% endif %}
             </c-ui.dropdown>
