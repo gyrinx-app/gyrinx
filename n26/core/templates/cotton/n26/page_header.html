@@ -42,7 +42,14 @@ a fighter card draws between a name and its type line.
     rather than squeezing it: a title that truncates to make room for a button is
     the wrong thing to have shortened.
 {% endcomment %}
-<c-vars title="" lead="" class="" />
+{% comment %}
+`actions` is declared even though it is only ever filled as a slot. An
+undeclared slot name is not empty when nobody fills it — it is whatever the
+enclosing scope happens to have under that name, so a wrapper component with an
+`actions` slot of its own has it drawn up here as well as wherever the wrapper
+meant to put it. Declaring it gives the unfilled case a real default of "".
+{% endcomment %}
+<c-vars title="" lead="" actions="" class="" />
 
 <div class="flex flex-col gap-1 {{ class }}">
     {% if breadcrumb %}<div class="mb-1">{{ breadcrumb }}</div>{% endif %}

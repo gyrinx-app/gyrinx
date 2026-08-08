@@ -8,10 +8,10 @@ What was judged there is what ships here, so the two should be edited together.
 
   --- what is not wired yet ---
 
-The per-card Cards item and both Deletes have no routes. They are drawn
-anyway, at "#", so the screen keeps the shape the library settled on and the
-gaps are visible rather than quietly designed around. Each becomes a url tag
-as its feature lands — Hire, Equip and Print already have.
+The per-card Cards and Delete items have no routes. They are drawn anyway, at
+"#", so the screen keeps the shape the library settled on and the gaps are
+visible rather than quietly designed around. Each becomes a url tag as its
+feature lands — Hire, Equip, Print and the gang's own Delete already have.
 
 The gang's choices and counters are shown as settled facts. The library's row
 can open a picker that writes, and that picker does not exist — a Save button
@@ -95,7 +95,12 @@ that saves nothing is worse than a value with no affordance at all.
                             </span>
                         </c-ui.button>
                     </c-slot>
-                    <c-ui.dropdown.item variant="danger" href="#">
+                    {% comment %}
+                    A page that asks, not the act: following this link deletes
+                    nothing, and the POST it leads to is the only thing that
+                    does. Behind the second press because it cannot be undone.
+                    {% endcomment %}
+                    <c-ui.dropdown.item variant="danger" href="{% url 'n26-delete-gang' gang.pk %}">
                         Delete gang
                     </c-ui.dropdown.item>
                 </c-ui.dropdown>

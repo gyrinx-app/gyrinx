@@ -1,0 +1,71 @@
+{% extends "n26/layouts/base.html" %}
+{% comment %}
+The question asked before a gang is deleted, at an address of its own.
+
+A page rather than a scripted prompt, for the same reason the hire dialog is a
+page: it survives a reload, Back is a real answer, and it works with scripting
+switched off. Nothing here changes anything — the form's POST is the act, and
+following the link that leads here is not.
+
+The frame is <c-n26.form-page>'s, so the measure, the heading scale and the
+footer rule match every other screen that asks for a decision. What is unusual
+is the footer: `submit_label` would draw the green button that ends a creating
+form, and this form ends by taking something away, so the actions slot supplies
+the pair instead — the way out first, the destructive act last and marked.
+
+The alert is warning rather than error: an error reports something that already
+went wrong, and nothing has yet.
+{% endcomment %}
+{% block head_title %}Delete {{ gang.name }}{% endblock head_title %}
+{% block nav_heading %}Delete {{ gang.name }}{% endblock nav_heading %}
+{% block nav_items %}
+    {% include 'n26/_nav.html' %}
+{% endblock %}
+{% block content %}
+    {% comment %}
+    The lead identifies rather than warns: a reader arriving here from a
+    dropdown needs to know which gang the press caught before they read what
+    the press does. Type, roster and rating are the three facts that tell two
+    similarly named gangs apart.
+    {% endcomment %}
+    <c-n26.form-page action="{% url 'n26-delete-gang' gang.pk %}"
+                     title="Delete {{ gang.name }}?"
+                     lead="{{ gang.gang_type }} — {{ roster }} fighter{{ roster|pluralize }}, {{ gang.rating }}¢ rating.">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item>
+                    <c-n26.user-link :user="gang.owner" tone="current" href="{% url 'n26-dashboard' %}" />
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'n26-gang' gang.pk %}">{{ gang.name }}</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Delete
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% csrf_token %}
+        {% comment %}
+        What is true, and only what is true. The gang stops being anywhere a
+        player can reach it and they cannot put it back — so the wording says
+        both of those and stops. It does not promise the gang is destroyed,
+        and it does not hint at somebody who could undo it: a reader who is
+        told either one has been told something this app does not do.
+        {% endcomment %}
+        <c-ui.alert variant="warning" title="You cannot undo this">
+            Deleting takes {{ gang.name }} out of your gangs. It stops appearing in
+            your list, in the drawer and in search, and its sheet, its hire and
+            equip pages and its print setup stop opening. Its fighters and
+            everything they carry go with it. You will not be able to bring it back.
+        </c-ui.alert>
+        <c-slot name="actions">
+            {% comment %}
+            Cancel is a link back to the sheet, not a form control: leaving is
+            not a submission, and a reader who presses it should land where
+            they were rather than on a page this form chose for them.
+            {% endcomment %}
+            <c-ui.button variant="default" href="{% url 'n26-gang' gang.pk %}">Cancel</c-ui.button>
+            <c-ui.button type="submit" variant="danger">
+                Delete gang
+            </c-ui.button>
+        </c-slot>
+    </c-n26.form-page>
+{% endblock content %}

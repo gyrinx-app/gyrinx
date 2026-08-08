@@ -14,13 +14,20 @@ what makes it a move rather than a change.
 
 from n26.core.views.api import preview_view
 from n26.core.views.equip import equip
-from n26.core.views.gangs import create_gang, dashboard, gang_sheet, gangs
+from n26.core.views.gangs import (
+    create_gang,
+    dashboard,
+    delete_gang,
+    gang_sheet,
+    gangs,
+)
 from n26.core.views.hire import hire_fighter
 from n26.core.views.printing import print_gang, print_setup
 
 __all__ = [
     "create_gang",
     "dashboard",
+    "delete_gang",
     "equip",
     "gang_sheet",
     "gangs",

@@ -161,3 +161,46 @@ def create_gang(request):
         "n26/create_gang.html",
         {"form": form, "gang_types": form.gang_type_choices()},
     )
+
+
+@login_required
+def delete_gang(request, pk):
+    """Deleting a gang: the question at its own address, then the act.
+
+    GET asks and changes nothing; the POST from that page archives. Two
+    steps rather than one because the press is not reversible by the
+    player who made it, and because a link that deleted what it pointed
+    at would be deleted by anything that follows links.
+
+    Archiving is the whole of it — the gang stops being listed, stops
+    being searched, stops being drawn in the drawer, and its own pages
+    stop opening, because every one of those readers already asks for
+    live gangs only. Nothing underneath is touched: an assignment's
+    rating and a ledger entry's paid credits are true statements about
+    what happened, and they stay true whether or not the roster they
+    describe is still on show.
+
+    The confirmation counts the roster because the name alone is a weak
+    thing to check a decision against, and a reader with two gangs of
+    similar names deserves a second fact.
+    """
+    from n26.core.models import Miniature
+
+    gang = _own_gang_or_404(request, pk)
+    if request.method == "POST":
+        gang.archive()
+        messages.success(request, f"Deleted {gang.name}.")
+        return redirect("n26-gangs")
+
+    return render(
+        request,
+        "n26/delete_gang.html",
+        {
+            "gang": gang,
+            # Live memberships only: a fighter already off the roster is
+            # not one of the things this press takes away.
+            "roster": Miniature.objects.filter(
+                membership__gang=gang, membership__archived=False
+            ).count(),
+        },
+    )
