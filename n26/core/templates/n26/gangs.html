@@ -8,6 +8,9 @@ cannot come to disagree about what a gang row shows. What differs is the
 room: here the list has the page to itself rather than two thirds of a
 column beside the changelog.
 
+This is also where a search lands: both tables submit here, so `?q=` is
+a link someone can keep, and the page says what it searched for.
+
 Founding is the page's action, in the header, because a list of gangs is
 where someone goes when they want one more.
 {% endcomment %}
@@ -23,9 +26,12 @@ where someone goes when they want one more.
                 <c-ui.button variant="primary" href="{% url 'n26-create-gang' %}">Create Gang</c-ui.button>
             </c-slot>
         </c-n26.page-header>
-        <c-n26.gang-table :type_options="gang_type_options" noun="gangs">
+        <c-n26.gang-table :type_options="gang_type_options"
+                          noun="gangs"
+                          action="{% url 'n26-gangs' %}"
+                          :query="query">
             <c-slot name="empty">
-                {% if gangs %}
+                {% if gangs or query %}
                     No gangs match that. Try a shorter search.
                 {% else %}
                     No gangs yet — founding one takes a minute.

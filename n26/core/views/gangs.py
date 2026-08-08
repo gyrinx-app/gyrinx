@@ -14,8 +14,10 @@ def dashboard(request):
     Assembled entirely from the design system's components — the view
     supplies rows and the components draw them, so this page and the
     gallery's shell can only drift by someone editing the library. The
-    gang search and the type filter are the gang-table's own; the rows
-    just register their facets.
+    type filter is the gang-table's own — the rows just register their
+    facets — and its search box lands on the gangs page, so a query
+    typed here and submitted is answered by the same view that answers
+    ``/n26/gangs/?q=``.
     """
     from gyrinx.site.models import ChangelogEntry
 
@@ -44,21 +46,36 @@ def gangs(request):
 
 def _gang_table_context(request):
     """The rows and facets <c-n26.gang-table> needs: the viewer's own
-    gangs, and the types present among them for the filter."""
+    gangs, narrowed by ``?q=`` when there is one, and the types present
+    among what survives.
+
+    Name and gang type are searched because they are the two things a row
+    shows, and the two the table's own in-page filter reads — a query that
+    works in the box works after pressing Search.
+
+    The matching is the platform's ``search_queryset``: full-text plus a
+    substring fallback on every field, so "scav" finds "Scavvies". It
+    knows nothing about either edition, and writing a second one here is
+    how the two come to disagree about what a search means.
+    """
+    from gyrinx.querysets import search_queryset
     from n26.core.models import Gang
 
+    query = request.GET.get("q", "").strip()
     owned = (
         Gang.objects.filter(owner=request.user, archived=False)
         .select_related("gang_type", "stash")
         .order_by("name")
     )
+    found = search_queryset(owned, query, ["name", "gang_type__name"])
     return {
-        "gangs": owned,
+        "gangs": found,
+        "query": query,
         # Deduplicated in order rather than sorted: the filter reads
         # better in the order the reader saw the types down the list.
         "gang_type_options": [
             {"value": name, "label": name}
-            for name in dict.fromkeys(str(gang.gang_type) for gang in owned)
+            for name in dict.fromkeys(str(gang.gang_type) for gang in found)
         ],
     }
 

@@ -24,10 +24,20 @@ The dependency direction is: `library` holds content, `core` reads it.
 Concretely:
 
 - **No app code in `n26/` imports `n23.*` or `gyrinx.*`.** n26 is a
-  parallel edition, not a layer on the old one. Two deliberate
+  parallel edition, not a layer on the old one. Three deliberate
   exceptions: the dashboard reads `gyrinx.site.models.ChangelogEntry`,
-  deferred inside the view, and `n26/tests/` may import platform pieces
-  to test the seam. Do not add others.
+  deferred inside the view; the gangs view searches with
+  `gyrinx.querysets.search_queryset`; and `n26/tests/` may import
+  platform pieces to test the seam. Do not add others.
+- **`gyrinx.querysets` is the one platform module n26 code may call.**
+  It is model-agnostic — full text plus a substring fallback over
+  whatever fields it is handed, knowing nothing about either edition,
+  in the way the ORM does not. What crosses is a queryset of n26's own
+  rows, filtered; nothing platform-shaped comes back. The alternative
+  is a second search here, and two editions that quietly come to
+  disagree about what "scav" matches. This does not extend to the rest
+  of `gyrinx.*`: a helper qualifies only if it would read the same
+  written against any model in any edition.
 - **Templates may `{% load %}` a platform tag library** where the thing
   it answers is genuinely the platform's and not an edition's — today
   that is `badge_tags`, because which badge a person shows follows from
