@@ -7,6 +7,8 @@ link, a current row that says so without relying on the tick, and a chevron
 that has a name of its own when there is nothing beside it to borrow one from.
 """
 
+import re
+
 from django.template import Context, Template
 from django_cotton.compiler_regex import CottonCompiler
 
@@ -25,6 +27,11 @@ def render(source: str) -> str:
     it.
     """
     return Template(CottonCompiler().process(source)).render(Context({}))
+
+
+def panel() -> str:
+    """The whole component, drawn with two destinations in it."""
+    return render(f"<c-n26.quick-switcher>{ITEMS}</c-n26.quick-switcher>")
 
 
 class TestTheLeadingLink:
@@ -150,3 +157,152 @@ class TestStayingOnTheScreen:
         html = render(f"<c-n26.quick-switcher>{ITEMS}</c-n26.quick-switcher>")
         strip = html.split("<noscript>")[1]
         assert "max-w-full" in strip
+
+
+class TestMovingThroughItFromTheKeyboard:
+    """Open, two letters, Down, Enter — and the reader's hands never leave the
+    filter box. Nothing a server-rendered test can do presses a key, so what is
+    pinned here is the wiring each step of that journey stands on. Every piece
+    can be dropped in an edit and leave a page that still serves 200 with a
+    switcher whose arrow keys do nothing."""
+
+    def test_the_filter_box_is_what_answers_the_keys(self):
+        """Focus lands in the box when the panel opens and stays there, so the
+        box is the only element a keystroke reaches. A handler anywhere else
+        would never see one."""
+        html = panel()
+        assert 'x-ref="filter"' in html
+        assert '@keydown="keys($event)"' in html
+
+    def test_the_arrows_move_the_highlight_rather_than_the_focus(self):
+        """The dropdown this panel sits inside answers an arrow key by putting
+        real focus on a row, which takes the caret out of the box mid-word.
+        Keeping the key from it is what leaves the reader still typing."""
+        html = panel()
+        assert "event.key === 'ArrowDown' || event.key === 'ArrowUp'" in html
+        assert "event.stopPropagation();" in html
+        assert "this.move(event.key === 'ArrowDown' ? 1 : -1);" in html
+
+    def test_home_and_end_stay_with_the_caret(self):
+        """The panel would spend them on the list; while the box has focus they
+        belong to the words being typed."""
+        html = panel()
+        assert "event.key === 'Home' || event.key === 'End'" in html
+
+    def test_the_highlight_walks_only_the_rows_the_filter_is_showing(self):
+        """A position in the whole list counts rows the query has hidden, and
+        lands the highlight on one of them — Enter then goes to a destination
+        that is not on the screen."""
+        html = panel()
+        assert (
+            "get visible() { return this.items.filter(row => this.matches(row)) },"
+            in html
+        )
+        assert "const rows = this.visible;" in html
+
+    def test_a_highlight_the_query_has_just_hidden_is_dropped(self):
+        """Typing narrows the list under a highlight that was already placed.
+        Left alone, Enter would still reach the row it named."""
+        html = panel()
+        assert "this.$watch('query'" in html
+        assert (
+            "if (!this.visible.some(row => row.id === this.active)) this.active = '';"
+            in html
+        )
+
+    def test_moving_the_highlight_scrolls_it_into_view(self):
+        """The list is given less height than its rows need, so the row the
+        highlight moved to is often below the fold of it."""
+        html = panel()
+        assert "rows[to].el.scrollIntoView({ block: 'nearest' });" in html
+        assert "max-h-72 overflow-y-auto" in html
+
+    def test_enter_presses_the_highlighted_row_s_own_link(self):
+        """The same path the pointer takes: the panel's click handler closes
+        it and the browser navigates, with nothing said twice."""
+        html = panel()
+        assert "row.el.click();" in html
+
+    def test_escape_empties_a_filter_that_has_something_in_it_before_closing(self):
+        """A filter with a query in it is the smaller thing to undo. A second
+        press still leaves."""
+        html = panel()
+        assert (
+            "if (this.query) { this.query = ''; this.active = '' } else { this.close() }"
+            in html
+        )
+
+    def test_nothing_is_highlighted_until_a_key_asks_for_it(self):
+        """The top row is usually the thing the reader is already on, so a
+        highlight sitting there on open offers Enter as a way back to where
+        they are — and competes with the tick already saying which row that
+        is. Each open starts with the highlight cleared along with the
+        query."""
+        html = panel()
+        assert "active: ''," in html
+        assert "this.query = '';\n                             this.active = '';" in html
+
+    def test_the_highlighted_row_is_named_aloud_by_the_control_that_has_focus(self):
+        """A tint is a highlight only sighted readers have. The box keeps
+        focus and names the row instead, so what is spoken and what is
+        tinted are the same row."""
+        html = panel()
+        assert ':aria-activedescendant="active || null"' in html
+        assert ":aria-controls=\"$id('n26-switcher') + '-list'\"" in html
+        # The name has to reach something: the list the box points at, and
+        # rows carrying the ids it names.
+        assert ":id=\"$id('n26-switcher') + '-list'\"" in html
+        assert html.count(':id="id"') >= 2
+
+    def test_the_box_and_the_rows_mint_their_ids_from_one_root(self):
+        """`$id` counts per element left to itself, so the box would point at
+        a list id nothing on the page has."""
+        html = panel()
+        assert "x-id=\"['n26-switcher']\"" in html
+        assert "this.$id('n26-switcher') + '-option-'" in html
+
+    def test_the_pointer_moves_the_highlight_as_well(self):
+        """A fill under the pointer and a highlight somewhere else are two
+        answers to where Enter goes, and Enter can only take one of them."""
+        html = panel()
+        assert html.count('@mouseenter="highlight(id)"') >= 2
+
+    def test_the_rows_stay_reachable_without_any_of_this(self):
+        """None of the above is how the list is reached: every destination is
+        a real link in the HTML, in the panel and in the scriptless strip."""
+        html = panel()
+        assert html.count('href="/n26/gangs/2/"') == 2
+
+
+ALPINE_ATTR = re.compile(r'(?:x-data|x-init|x-effect|@[\w.]+|:[\w:.-]+)="([^"]*)"')
+
+
+def alpine_expressions(html: str) -> list[str]:
+    """Every directive value on the page that Alpine will compile."""
+    return ALPINE_ATTR.findall(html)
+
+
+class TestTheDirectivesCompile:
+    """Alpine compiles a directive's value as JavaScript and reports a syntax
+    error to the browser console and nowhere else. The page still serves 200,
+    with the directive silently skipped — so the failures this catches are
+    invisible to every other test here."""
+
+    def test_there_is_something_to_check(self):
+        """The guard below is worth nothing if the panel stops carrying
+        commented JavaScript, which is how it would quietly pass forever."""
+        assert any("//" in expr for expr in alpine_expressions(panel()))
+
+    def test_no_comment_swallows_the_expression_it_sits_in(self):
+        """A `//` comment runs to the end of its line. Fold a commented
+        expression onto one line — an editor, a formatter, a careless rewrite —
+        and everything after the first comment becomes part of it, leaving a
+        directive that is a syntax error and a switcher whose keys do
+        nothing."""
+        for expr in alpine_expressions(panel()):
+            for comment in re.finditer(r"(?<!:)//", expr):
+                assert "\n" in expr[comment.start() :], (
+                    "a // comment in an Alpine directive has no newline after "
+                    "it, so the rest of the expression is commented out:\n"
+                    f"{expr}"
+                )
