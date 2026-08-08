@@ -124,12 +124,29 @@ class _AuthoringMultipleChoiceField(forms.ModelMultipleChoiceField):
         return getattr(obj, "authoring_label", None) or str(obj)
 
 
+def _labelled(model):
+    """A picker's option queryset, with what the labels read joined in.
+
+    Several kinds say themselves through a foreign key — a category
+    names its section, a section its collection — so a picker labelling
+    each option one row at a time costs a query per choice. Joining
+    every forward relation keeps the option list to one query whatever
+    the kind.
+    """
+    related = [
+        field.name
+        for field in model._meta.get_fields()
+        if field.concrete and (field.many_to_one or field.one_to_one)
+    ]
+    return model.objects.select_related(*related)
+
+
 def _form_fields(spec, name, kind):
     """The Django form field(s) one spec field becomes."""
     if isinstance(kind, One):
         return {
             name: _AuthoringChoiceField(
-                queryset=kind.model.objects.all(),
+                queryset=_labelled(kind.model),
                 required=_is_required(spec, name),
                 help_text=kind.help,
             )
@@ -137,7 +154,7 @@ def _form_fields(spec, name, kind):
     if isinstance(kind, Many):
         return {
             name: _AuthoringMultipleChoiceField(
-                queryset=kind.model.objects.all(),
+                queryset=_labelled(kind.model),
                 required=_is_required(spec, name),
                 help_text=kind.help,
             )
@@ -192,7 +209,7 @@ def _form_fields(spec, name, kind):
 
         for option, label in kind.over.items():
             fields[f"{name}_{option}"] = _AuthoringChoiceField(
-                queryset=_model_class(label.split(".")[-1]).objects.all(),
+                queryset=_labelled(_model_class(label.split(".")[-1])),
                 required=False,
                 label=spoken(option).capitalize(),
                 widget=forms.Select(attrs=member_attrs(option)),

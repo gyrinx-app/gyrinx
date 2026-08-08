@@ -234,6 +234,15 @@ def _reading_sentences(modifiers):
         ]
 
     select, prefetch = [], []
+    # Two hops where a sentence reads through an intermediate row: a
+    # placement or a choice names a section, and a section says itself
+    # as "name (collection)". Derivation below stops at one hop, so
+    # these are listed the way card.py lists its deep paths — without
+    # them a page of placements fetches one collection per row.
+    select += [
+        "places_category__section__collection",
+        "offers_choice__from_section__collection",
+    ]
     for half in (*SCOPE_FIELDS, *EFFECT_FIELDS):
         select.append(half)
         related = Modifier._meta.get_field(half).related_model
@@ -332,6 +341,33 @@ LEAF_DESCRIBE = {
 }
 
 
+def _profile_listing(rows):
+    """What ``_describe_profile`` walks, loaded for the whole listing at
+    once — per row it reads two foreign keys and the built-ins' members,
+    which unhinted is a handful of queries times every profile in the
+    library."""
+    from django.db.models import Prefetch
+
+    from n26.library.models import DefaultAssignment
+
+    return rows.select_related("gang_type", "profile_type").prefetch_related(
+        Prefetch(
+            "built_ins__members",
+            queryset=DefaultAssignment.objects.select_related(
+                *DefaultAssignment.ASSIGNABLE_FIELDS
+            ),
+        )
+    )
+
+
+#: Kinds whose describer — or whose own name — reads beyond the row.
+LEAF_LISTING_HINTS = {
+    "profile": _profile_listing,
+    # A category says itself as "section: name".
+    "category": lambda rows: rows.select_related("section"),
+}
+
+
 def _spec_for(kind):
     verb_name = LEAF_KINDS.get(kind)
     if verb_name is None:
@@ -409,9 +445,10 @@ def leaf(request, kind):
     spec = _spec_for(kind)
     model = _model_for(spec)
     describe = LEAF_DESCRIBE.get(kind, _describe_row)
+    hint = LEAF_LISTING_HINTS.get(kind, lambda rows: rows)
 
     rows = []
-    for row in _rows(model):
+    for row in hint(_rows(model)):
         label, notes = _label_for(row), describe(row)
         rows.append(
             {

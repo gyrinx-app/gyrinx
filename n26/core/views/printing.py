@@ -52,7 +52,7 @@ def _print_rows(gang, miniatures, weapon_ids=None):
     about which guns clutter the card, so every wargear row of the
     gang's joins the selected set before it filters anything.
     """
-    from n26.core.card import build_card, build_modifier_index
+    from n26.core.card import build_card, build_gang_card, build_modifier_index
     from n26.core.effects import compute
     from n26.core.models import Assignment
     from n26.core.printing import detail_columns
@@ -65,10 +65,24 @@ def _print_rows(gang, miniatures, weapon_ids=None):
         ).values_list("pk", flat=True)
         selection = _Selection(set(weapon_ids) | set(wargear))
 
+    # One fetch for the whole run and one modifier index shared by every
+    # card: a card build pays for its queries mostly in planning, so a
+    # print that built each model's card alone would cost seconds on a
+    # full roster.
+    gang_card = build_gang_card(gang, with_statlines=True, assignment_set=selection)
+    cards = gang_card.members
+    index = build_modifier_index(
+        [node.assignable for card in cards.values() for node in card.all_nodes()]
+        + [node.assignable for node in gang_card.all_nodes()]
+    )
+
     rows = []
     for miniature in miniatures:
-        card = build_card(miniature, with_statlines=True, assignment_set=selection)
-        index = build_modifier_index([node.assignable for node in card.all_nodes()])
+        card = cards.get(miniature.pk)
+        if card is None:
+            # A roster model with no rows of its own still gets a card —
+            # built alone, which is the rare path, not the norm.
+            card = build_card(miniature, with_statlines=True, assignment_set=selection)
         model_card = build_model_card(
             miniature, card=card, computed=compute(card, index)
         )

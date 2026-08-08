@@ -107,7 +107,17 @@ def equip(request, pk):
     miniature = _own_miniature_or_404(request, pk)
     gang = miniature.gang
 
-    collections = [access.collection for access in collections_for(miniature)]
+    # One card build serves the whole page: which lists this fighter can
+    # browse and how usable each line is are both read off the same
+    # computed card.
+    card = build_card(miniature)
+    index = build_modifier_index([node.assignable for node in card.all_nodes()])
+    computed = compute(card, index)
+
+    collections = [
+        access.collection
+        for access in collections_for(miniature, card=card, computed=computed)
+    ]
     # Pinned to the default pack: collection names are only unique per
     # pack, so a homebrew pack's own "Trading Post" must not shadow the
     # standard one here. A pack's post reaches a fighter the way any list
@@ -129,9 +139,7 @@ def equip(request, pk):
 
     view = None
     if chosen is not None:
-        card = build_card(miniature)
-        index = build_modifier_index([node.assignable for node in card.all_nodes()])
-        view = with_use_notes(browse(chosen), usability_for(compute(card, index)))
+        view = with_use_notes(browse(chosen), usability_for(computed))
 
     if request.method == "POST" and view is not None:
         key = request.POST.get("thing", "")

@@ -393,13 +393,17 @@ def _forest(rows):
     return roots
 
 
-def build_gang_card(gang, with_statlines=True):
+def build_gang_card(gang, with_statlines=True, assignment_set=None):
     """The gang's own card, its stash, and every member's card.
 
     The same fetch family as ever: one query for everything hosted under
     the gang except the stash, plus one for its contents — kept
     apart because stash rows belong on no member's card and nothing in
     them broadcasts (storage, not facts about anyone).
+
+    An ``assignment_set`` filters every member's card through the same
+    seam ``build_card`` uses — a selection of equipment roots that may
+    span the whole gang, as a print run's ticked weapons do.
     """
     grouped = {}
     shared = []
@@ -424,7 +428,9 @@ def build_gang_card(gang, with_statlines=True):
             )
         ),
         members={
-            miniature_id: assemble(None, rows, broadcast=shared)
+            miniature_id: assemble(
+                None, rows, assignment_set=assignment_set, broadcast=shared
+            )
             for miniature_id, rows in grouped.items()
         },
     )
@@ -518,13 +524,14 @@ def build_modifier_index(assignables, max_depth=3):
     """Load every modifier reachable from these assignables, and from what
     they grant, and from what *those* grant.
 
-    A fixed number of queries — one per assignable kind per level of the
-    grant chain — regardless of how many models or how much kit. ``compute``
-    then runs entirely off this, touching the database not at all.
+    A fixed number of queries regardless of how many models or how much
+    kit: one narrow query per assignable kind per level, then one small
+    query per relation the modifiers' sentences read. ``compute`` then
+    runs entirely off this, touching the database not at all.
     """
     from django.db.models import Prefetch, prefetch_related_objects
 
-    from n26.library.models import CounterAtLeast, Modifier
+    from n26.library.models import CounterAtLeast
     from n26.library.models.modifier import (
         EFFECT_FIELDS,
         GRANTABLE_FIELDS,
@@ -572,21 +579,28 @@ def build_modifier_index(assignables, max_depth=3):
         if not by_model:
             break
 
+        # The attachment rows first — one narrow query per kind, onto the
+        # objects we already hold. What the modifiers' halves read is then
+        # hydrated once, over the distinct modifiers of the whole level:
+        # a small query per path. Joining every path into each kind's
+        # fetch instead would make a many-join select whose *planning*
+        # costs more than all of these run in.
+        for things in by_model.values():
+            prefetch_related_objects(things, "modifiers")
+        hydrated = {}
+        for things in by_model.values():
+            for thing in things:
+                for modifier in thing.modifiers.all():
+                    hydrated.setdefault(modifier.pk, modifier)
+        prefetch_related_objects(list(hydrated.values()), *related, *also_prefetch)
+
         granted = []
         for things in by_model.values():
-            # One query per kind, straight onto the objects we already hold —
-            # re-fetching them would double the count for nothing.
-            prefetch_related_objects(
-                things,
-                Prefetch(
-                    "modifiers",
-                    queryset=Modifier.objects.select_related(*related).prefetch_related(
-                        *also_prefetch
-                    ),
-                ),
-            )
             for thing in things:
-                modifiers = list(thing.modifiers.all())
+                # A row reached from two kinds must resolve to the one
+                # hydrated instance, or the other copy answers compute
+                # with the lazy queries it is forbidden to make.
+                modifiers = [hydrated[m.pk] for m in thing.modifiers.all()]
                 index.add(thing, modifiers)
                 for modifier in modifiers:
                     granted_thing = getattr(modifier.effect, "thing", None)

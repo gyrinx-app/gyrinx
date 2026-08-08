@@ -35,14 +35,21 @@ class CollectionAccess:
         return str(self.collection)
 
 
-def collections_for(miniature):
+def collections_for(miniature, card=None, computed=None):
     """Every collection this fighter can browse, in discovery order:
     their own, then their gang's, then computed grants. First mention of
     a collection wins, so duplicates collapse towards the more direct
-    source."""
-    card = build_card(miniature)
-    index = build_modifier_index([node.assignable for node in card.all_nodes()])
-    computed = compute(card, index)
+    source.
+
+    A caller that already built this fighter's card — and computed it —
+    passes both, and this reads them instead of paying for the same
+    build twice.
+    """
+    if card is None:
+        card = build_card(miniature)
+    if computed is None:
+        index = build_modifier_index([node.assignable for node in card.all_nodes()])
+        computed = compute(card, index)
 
     found = {}
 
