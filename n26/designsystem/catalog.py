@@ -1623,41 +1623,6 @@ GROUPS: list[Group] = [
                 ),
             ),
             Component(
-                slug="action-links",
-                tag="c-n26.action-links",
-                template="n26/action_links.html",
-                summary="A run of links separated by middle dots.",
-                notes=(
-                    "The dots are drawn by CSS on every child but the first, not "
-                    "written at each call site — so adding, reordering or "
-                    "permission-hiding a link cannot leave a stray separator behind. "
-                    "The icon slot is one icon for the whole run, which is the shape "
-                    "these rows usually take."
-                ),
-                parts=(
-                    Part(
-                        "c-n26.action-link",
-                        "n26/action_link.html",
-                        "One link in the run, with an optional icon and a danger tone.",
-                        required=True,
-                    ),
-                ),
-            ),
-        ],
-    ),
-    Group(
-        "Print",
-        (
-            "Paper, which is a different medium and behaves like one. These are the "
-            "only components in the library that are not about a screen, and the "
-            "constraints are much tighter: fixed physical sizes in millimetres, a "
-            "page fold you do not control, and engines — iOS Safari above all — that "
-            "quietly ignore the layout you asked for. The rule that governs the whole "
-            "family is that a printed grid must not be a CSS grid, or a flexbox: "
-            "neither takes part in WebKit page fragmentation, so break-inside: avoid "
-            "is discarded without a word and a card comes off the printer in two "
-            "halves. Read the top of print.css before changing any of it."
-            Component(
                 slug="quick-switcher",
                 tag="c-n26.quick-switcher",
                 template="n26/quick_switcher/index.html",
@@ -1700,6 +1665,41 @@ GROUPS: list[Group] = [
                     ),
                 ),
             ),
+            Component(
+                slug="action-links",
+                tag="c-n26.action-links",
+                template="n26/action_links.html",
+                summary="A run of links separated by middle dots.",
+                notes=(
+                    "The dots are drawn by CSS on every child but the first, not "
+                    "written at each call site — so adding, reordering or "
+                    "permission-hiding a link cannot leave a stray separator behind. "
+                    "The icon slot is one icon for the whole run, which is the shape "
+                    "these rows usually take."
+                ),
+                parts=(
+                    Part(
+                        "c-n26.action-link",
+                        "n26/action_link.html",
+                        "One link in the run, with an optional icon and a danger tone.",
+                        required=True,
+                    ),
+                ),
+            ),
+        ],
+    ),
+    Group(
+        "Print",
+        (
+            "Paper, which is a different medium and behaves like one. These are the "
+            "only components in the library that are not about a screen, and the "
+            "constraints are much tighter: fixed physical sizes in millimetres, a "
+            "page fold you do not control, and engines — iOS Safari above all — that "
+            "quietly ignore the layout you asked for. The rule that governs the whole "
+            "family is that a printed grid must not be a CSS grid, or a flexbox: "
+            "neither takes part in WebKit page fragmentation, so break-inside: avoid "
+            "is discarded without a word and a card comes off the printer in two "
+            "halves. Read the top of print.css before changing any of it."
         ),
         [
             Component(
