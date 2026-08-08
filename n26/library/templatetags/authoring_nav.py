@@ -98,6 +98,6 @@ def siblings_switcher(kind, thing):
         placeholder=f"Search {plural}",
         empty=f"No {plural} match",
         items=with_current(
-            [item(row) for row in _rows(model)[:NAV_SIBLINGS]], item(thing)
+            [item(row) for row in _rows(model, kind)[:NAV_SIBLINGS]], item(thing)
         ),
     )

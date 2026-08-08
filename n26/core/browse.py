@@ -165,10 +165,12 @@ def browse(collection, terms=EQUIPMENT_LIST):
                 ),
             )
 
-    entries = collection.entries.select_related(
+    # Prefetch paths rather than joins: joined, the kinds and their
+    # category chains make a select wide enough that planning it costs
+    # more than running it, and a kind no entry names never queries.
+    entries = collection.entries.prefetch_related(
         *ENTRY_ASSIGNABLE_FIELDS,
         *(f"{name}__category__section" for name in ENTRY_ASSIGNABLE_FIELDS),
-    ).prefetch_related(
         # Use-restriction lists, for the kinds that carry them — so
         # noting a whole listing costs no extra queries.
         "skill__usable_by_profile_types",

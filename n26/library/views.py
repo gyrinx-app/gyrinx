@@ -81,14 +81,19 @@ def _describe_weapon_profile(profile):
 
 def _statline_summary(owner):
     """A statline as one short string — 'SR 8"  LR 24"' — so a page can
-    show what was typed without rebuilding the card machinery."""
+    show what was typed without rebuilding the card machinery.
+
+    Reads the stats with ``.all()`` and sorts in Python, so a page that
+    prefetched them (the parts hints below) summarises a whole listing
+    without a query per line.
+    """
     statline = getattr(owner, "statline", None)
     if statline is None:
         return ""
     return "  ".join(
         f"{stat.short_name} {stat.formatted_value}"
-        for stat in statline.stats.select_related("statline_type_stat__stat").order_by(
-            "statline_type_stat__position"
+        for stat in sorted(
+            statline.stats.all(), key=lambda stat: stat.statline_type_stat.position
         )
     )
 
@@ -121,18 +126,35 @@ def _describe_built_in(member):
     return _label_for(thing), notes
 
 
+def _weapon_parts(parts):
+    """What ``_describe_weapon_profile`` reads, loaded for every line at
+    once — unhinted, each profile fetches its weapon, its statline's
+    stats and its traits on its own."""
+    return parts.select_related("weapon", "statline").prefetch_related(
+        "statline__stats__statline_type_stat__stat", "traits"
+    )
+
+
+def _built_in_parts(parts):
+    from n26.library.models import DefaultAssignment
+
+    return parts.prefetch_related(*DefaultAssignment.ASSIGNABLE_FIELDS)
+
+
 DETAIL_KINDS = {
     "weapon": {
         "verb": "add_weapon_profile",
         "parts": "profiles",
         "statline": True,
         "describe": _describe_weapon_profile,
+        "parts_hint": _weapon_parts,
     },
     "statline-type": {
         "verb": "add_stat_to_statline_type",
         "parts": "stats",
         "statline": False,
         "describe": _describe_statline_stat,
+        "parts_hint": lambda parts: parts.select_related("stat"),
     },
     # The words are overridden because the part model is a
     # DefaultAssignment — accurate, and nothing an author says.
@@ -143,6 +165,7 @@ DETAIL_KINDS = {
         "describe": _describe_built_in,
         "parts_label": "comes with",
         "part_name": "built-in",
+        "parts_hint": _built_in_parts,
     },
 }
 
@@ -222,6 +245,11 @@ def _reading_sentences(modifiers):
     a condition lists. Unhinted that is several queries per row. The
     paths are derived from the fields rather than listed, so a new
     scope, effect or condition kind is covered the day it is added.
+
+    Everything loads as prefetch paths, not joins: joined together the
+    paths make a select wide enough that Postgres spends longer
+    planning it than running it, while each path alone is a small
+    query — and a path no row uses never reaches the database.
     """
     from n26.library.models import Modifier
     from n26.library.models.modifier import EFFECT_FIELDS, SCOPE_FIELDS
@@ -233,32 +261,29 @@ def _reading_sentences(modifiers):
             if field.concrete and (field.many_to_one or field.one_to_one)
         ]
 
-    select, prefetch = [], []
     # Two hops where a sentence reads through an intermediate row: a
     # placement or a choice names a section, and a section says itself
     # as "name (collection)". Derivation below stops at one hop, so
     # these are listed the way card.py lists its deep paths — without
     # them a page of placements fetches one collection per row.
-    select += [
+    paths = [
         "places_category__section__collection",
         "offers_choice__from_section__collection",
     ]
     for half in (*SCOPE_FIELDS, *EFFECT_FIELDS):
-        select.append(half)
+        paths.append(half)
         related = Modifier._meta.get_field(half).related_model
-        select.extend(f"{half}__{name}" for name in forward_relations(related))
-        # Conditions hang off their scope the other way round, so they
-        # are fetched separately rather than joined.
+        paths.extend(f"{half}__{name}" for name in forward_relations(related))
         for condition in getattr(related, "CONDITIONS", ()):
             model = related._meta.get_field(condition).related_model
-            prefetch.append(f"{half}__{condition}")
-            prefetch.extend(
+            paths.append(f"{half}__{condition}")
+            paths.extend(
                 f"{half}__{condition}__{field.name}"
                 for field in model._meta.get_fields()
                 if field.concrete and (field.many_to_one or field.many_to_many)
             )
 
-    return modifiers.select_related(*select).prefetch_related(*prefetch)
+    return modifiers.prefetch_related(*paths)
 
 
 def _label_for(row):
@@ -445,10 +470,9 @@ def leaf(request, kind):
     spec = _spec_for(kind)
     model = _model_for(spec)
     describe = LEAF_DESCRIBE.get(kind, _describe_row)
-    hint = LEAF_LISTING_HINTS.get(kind, lambda rows: rows)
 
     rows = []
-    for row in hint(_rows(model)):
+    for row in _rows(model, kind):
         label, notes = _label_for(row), describe(row)
         rows.append(
             {
@@ -617,7 +641,9 @@ def detail(request, kind, pk):
                 {"label": label, "notes": notes}
                 for label, notes in (
                     detail_of["describe"](part)
-                    for part in getattr(thing, detail_of["parts"]).all()
+                    for part in detail_of.get("parts_hint", lambda parts: parts)(
+                        getattr(thing, detail_of["parts"]).all()
+                    )
                 )
             ],
             "form": form,
@@ -869,7 +895,7 @@ def collection_page(request, pk):
         sections.append({"name": section.name, "categories": categories})
 
     entries = []
-    for entry in collection.entries.select_related(*ENTRY_ASSIGNABLE_FIELDS):
+    for entry in collection.entries.prefetch_related(*ENTRY_ASSIGNABLE_FIELDS):
         notes = []
         if entry.price_override is not None:
             notes.append(f"{entry.price_override}cr here")
@@ -1204,17 +1230,22 @@ def ingest_clear(request):
     )
 
 
-def _rows(model):
+def _rows(model, kind=None):
     """Every row of a kind, in the order an author wants to read them.
 
     Not by recency: a listing is for checking content, and thirty-nine
     skills entered in one go would hide all but the last few. Kinds
     that sort into the taxonomy read set by set, and within a set by
     the number they are rolled on.
+
+    With ``kind``, what that kind's labels and describers read is
+    loaded up front (``LEAF_LISTING_HINTS``) — every reader of a set of
+    rows wants the hints, so they live here rather than in each caller.
     """
     rows = model.objects.all()
     if any(field.name == "category" for field in model._meta.get_fields()):
-        return rows.select_related("category").order_by(
+        rows = rows.select_related("category").order_by(
             "category__position", "category__name", "position", "name"
         )
-    return rows  # the model's own ordering — a stat has no "name" at all
+    hint = LEAF_LISTING_HINTS.get(kind)
+    return hint(rows) if hint else rows

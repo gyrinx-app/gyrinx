@@ -2103,3 +2103,224 @@ class TestTheModifiersPage:
             compose(f"Grants {index}")
         with django_assert_num_queries(len(few), exact=False):
             assert client.get("/n26/authoring/modifiers/").status_code == 200
+
+
+class TestAuthoringPagesDoNotScaleQueriesWithContent:
+    """More rows must mean more bytes on a page, never more round trips.
+
+    Every authoring surface reads a set of rows and walks something off
+    each one — a label through its section, a profile through its
+    built-ins, a firing line through its statline. Each walk must be
+    loaded with the set, so the budget is measured small and asserted
+    unchanged after the content grows.
+    """
+
+    def assert_flat(self, client, url, grow, django_assert_num_queries):
+        """Grow, measure, grow again, and hold the line."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        grow(range(3))
+        with CaptureQueriesContext(connection) as few:
+            assert client.get(url).status_code == 200
+        grow(range(3, 12))
+        with django_assert_num_queries(len(few), exact=False):
+            assert client.get(url).status_code == 200
+
+    def test_the_profile_listing_reads_flat_however_many_profiles(
+        self,
+        author,
+        client,
+        default_pack,
+        person_type,
+        gang_type,
+        django_assert_num_queries,
+    ):
+        """The listing names each profile's list access — read through
+        its built-ins — so those load with the listing, not per row."""
+        from n26.library.authoring import (
+            add_built_in,
+            create_collection,
+            create_profile,
+        )
+
+        house_list = create_collection("House List")
+
+        def grow(indices):
+            for index in indices:
+                profile = create_profile(f"Fighter {index}", person_type, gang_type)
+                add_built_in(profile, house_list)
+
+        self.assert_flat(
+            client, "/n26/authoring/profile/", grow, django_assert_num_queries
+        )
+
+    def test_the_category_listing_and_a_category_page_read_flat(
+        self, author, client, default_pack, django_assert_num_queries
+    ):
+        """A category says itself as "section: name", on the listing and
+        in the sibling switcher on every category's own page."""
+        import itertools
+
+        from n26.library.authoring import create_category, create_section
+
+        fresh = itertools.count()
+        made = []
+
+        def grow(indices):
+            for _ in indices:
+                index = next(fresh)
+                section = create_section(f"Section {index}", position=index)
+                made.append(create_category(section, f"Category {index}"))
+
+        grow(range(3))
+        first = made[0]
+        self.assert_flat(
+            client,
+            f"/n26/authoring/category/{first.pk}/",
+            grow,
+            django_assert_num_queries,
+        )
+        self.assert_flat(
+            client, "/n26/authoring/category/", grow, django_assert_num_queries
+        )
+
+    def test_a_weapon_page_reads_flat_however_many_firing_lines(
+        self, author, client, default_pack, django_assert_num_queries
+    ):
+        """Each line shows its typed stats and its traits; the page
+        loads them with the lines."""
+        from n26.library.authoring import (
+            add_weapon_profile,
+            create_stat,
+            create_statline_type,
+            create_trait,
+            create_weapon,
+            set_statline,
+        )
+
+        shape = create_statline_type(
+            "Ranged", stats=[create_stat("R", "Range", is_inches=True)]
+        )
+        weapon = create_weapon("Gun", statline_type=shape)
+        rapid = create_trait("Rapid Fire")
+
+        def grow(indices):
+            for index in indices:
+                line = add_weapon_profile(
+                    weapon, f"ammo {index}", price=5, traits=[rapid]
+                )
+                set_statline(line, range=8)
+
+        self.assert_flat(
+            client,
+            f"/n26/authoring/weapon/{weapon.pk}/",
+            grow,
+            django_assert_num_queries,
+        )
+
+    def test_a_statline_shape_page_reads_flat_however_many_stats(
+        self, author, client, default_pack, django_assert_num_queries
+    ):
+        from n26.library.authoring import (
+            add_stat_to_statline_type,
+            create_stat,
+            create_statline_type,
+        )
+
+        shape = create_statline_type("Vehicle")
+
+        def grow(indices):
+            for index in indices:
+                add_stat_to_statline_type(
+                    shape, create_stat(f"S{index}", f"Stat {index}")
+                )
+
+        self.assert_flat(
+            client,
+            f"/n26/authoring/statline-type/{shape.pk}/",
+            grow,
+            django_assert_num_queries,
+        )
+
+    def test_a_profile_page_reads_flat_however_many_built_ins(
+        self,
+        author,
+        client,
+        default_pack,
+        person_type,
+        gang_type,
+        django_assert_num_queries,
+    ):
+        from n26.library.authoring import add_built_in, create_profile, create_wargear
+
+        profile = create_profile("Champion", person_type, gang_type)
+
+        def grow(indices):
+            for index in indices:
+                add_built_in(profile, create_wargear(f"Kit {index}"))
+
+        self.assert_flat(
+            client,
+            f"/n26/authoring/profile/{profile.pk}/",
+            grow,
+            django_assert_num_queries,
+        )
+
+    def test_a_collection_page_reads_flat_however_many_entries(
+        self, author, client, default_pack, django_assert_num_queries
+    ):
+        from n26.library.authoring import create_collection, create_wargear
+
+        collection = create_collection("House List")
+
+        def grow(indices):
+            from n26.library.models import CollectionEntry
+
+            for index in indices:
+                CollectionEntry.objects.create(
+                    collection=collection,
+                    assignable=create_wargear(f"Ware {index}"),
+                    position=index,
+                )
+
+        self.assert_flat(
+            client,
+            f"/n26/authoring/collection/{collection.pk}/",
+            grow,
+            django_assert_num_queries,
+        )
+
+    def test_placement_modifiers_do_not_mean_more_queries(
+        self, author, client, default_pack, django_assert_num_queries
+    ):
+        """A placement's sentence reads two hops — its section, that
+        section's collection — the deepest walk any modifier makes."""
+        from n26.library.authoring import (
+            attach_modifiers_to,
+            create_category,
+            create_collection,
+            create_rule,
+            create_section,
+            ef_places,
+            modifier,
+            section_of,
+            targets_model,
+        )
+
+        collection = create_collection("Skills & Powers")
+        tier = section_of(collection, "Primary", 0)
+
+        def grow(indices):
+            for index in indices:
+                section = create_section(f"Shelf {index}", position=index)
+                made = modifier(
+                    f"Places {index}",
+                    targets_model(),
+                    ef_places(create_category(section, f"Cat {index}"), tier),
+                )
+                attach_modifiers_to(create_rule(f"Rule {index}"), [made])
+
+        self.assert_flat(
+            client, "/n26/authoring/modifiers/", grow, django_assert_num_queries
+        )
