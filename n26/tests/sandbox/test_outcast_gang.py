@@ -1,7 +1,7 @@
 """Founding an Outcast gang: archetypes, affiliations, chosen carriers.
 
-From Tom's photos of the 2026 Outcast gang list, tables spot-checked
-(design/outcasts.md). The shape inverts the Venator one: where a
+Follows the 2026 Outcast gang list (design/outcasts.md). The shape
+inverts the Venator one: where a
 Venator slot carries the meaning and the pick names a tree, an Outcast
 gang picks a **carrier** — an ``Archetype``, an ``Affiliation`` —
 whose whole payload rides the pick as ordinary modifiers. The mapping table lives

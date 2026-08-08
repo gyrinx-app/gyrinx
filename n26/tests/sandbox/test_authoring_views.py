@@ -481,7 +481,7 @@ def weapon_statline_type(make_stat):
 
 class TestWeapons:
     """A weapon is the first thing with parts: the gun, then its firing
-    lines. Transcribed here exactly as the book's table prints it —
+    lines. Built here exactly as the book's table prints it —
     Autogun, then its warp round at +10."""
 
     def make_autogun(self, client, weapon_statline_type):

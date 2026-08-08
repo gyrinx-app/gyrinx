@@ -1,9 +1,5 @@
 """Founding House Escher, from a real 2026 gang list.
 
-Transcribed from four photographed pages and used as the verification
-target for the gang-type work (design/gang-type.md). What the list
-actually prints, and what each part lands on here:
-
 * **one House Escher Equipment List**, named once and referred to by
   every fighter entry — so it belongs to the *gang type*, arrives
   gang-hosted at founding, and nobody assigns it by hand;

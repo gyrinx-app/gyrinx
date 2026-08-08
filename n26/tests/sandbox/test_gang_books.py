@@ -1,9 +1,8 @@
 """Gang book concepts (Gangs of the Underhive / Outlands), built for real.
 
-Source: Tom's transcription (2026-08-06) of the leaked gang book
-elements — rules names and behaviour only, wording stays in the book.
-This suite takes the most structurally demanding concepts in those
-pages and builds each from shipped pieces, no new machinery:
+Rules names and behaviour only — the wording stays in the book. This
+suite takes the most structurally demanding concepts in those books
+and builds each from shipped pieces, no new machinery:
 
 * **Chaos Corruption** (the corrupted-gang pattern, shared by
   Genestealer and Malstrain corruption): a founding-time gang choice
