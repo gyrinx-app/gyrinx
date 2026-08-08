@@ -59,6 +59,8 @@ Weapon,Close combat weapons,Natural weapons,Ferocious jaws,,-,E,Ferocious jaws (
 Wargear,Wargear,Personal equipment,Respirator,,15,1,Respirator () (Personal equipment ← Wargear)
 Wargear,Wargear,Pets,Phelynx,,-,E,Phelynx () (Pets ← Wargear)
 Wargear,Wargear,Grenades,Frag grenades,,30,2,Frag grenades () (Grenades ← Wargear)
+Weapon Accessory,Wargear,Weapon accessories,Telescopic sight,,20,1,Telescopic sight () (Weapon accessories ← Wargear)
+Weapon Accessory,Wargear,Weapon accessories,Suspensors,,40,E,Suspensors () (Weapon accessories ← Wargear)
 """
 
 WEAPON_PROFILES_CSV = """
@@ -85,6 +87,7 @@ Equipment List,Goliath,Wargear,Personal equipment,Respirator,,20,,Respirator () 
 Equipment List,Goliath,Ranged weapons,Auto/stub weapons,Autogun,,20,,Autogun () (Auto/stub weapons ← Ranged weapons)
 Equipment List,Goliath,Ranged weapons,Auto/stub weapons,Autogun,warp round,10,,Autogun (warp round) (Auto/stub weapons ← Ranged weapons)
 Equipment List,Goliath,Close combat weapons,Exo weapons,Power fist,,105,Gunner specialist only,Power fist () (Exo weapons ← Close combat weapons)
+Equipment List,Escher,Wargear,Weapon accessories,Telescopic sight,,20,,Telescopic sight () (Weapon accessories ← Wargear)
 """
 
 PROFILES_CSV = """
@@ -127,6 +130,12 @@ RESPIRATOR = catalogue_key(
     "Wargear", "Respirator", category="Personal equipment", section=GEAR
 )
 PHELYNX = catalogue_key("Wargear", "Phelynx", category="Pets", section=GEAR)
+SIGHT = catalogue_key(
+    "WeaponAccessory", "Telescopic sight", category="Weapon accessories", section=GEAR
+)
+SUSPENSORS = catalogue_key(
+    "WeaponAccessory", "Suspensors", category="Weapon accessories", section=GEAR
+)
 # Typed Wargear on the sheet, but it has a firing line — so a weapon.
 FRAG_GRENADES = catalogue_key(
     "Weapon", "Frag grenades", category="Grenades", section=GEAR
@@ -258,6 +267,26 @@ class TestPlanning:
         assert own.fields["stats"]["LR"] == '6"'
         assert own.fields["position"] == 0
 
+    def test_an_accessory_is_its_own_kind(self, plan):
+        """A sight bolts onto a weapon rather than being carried, which
+        is a different table and a different thing on a card — so the
+        sheet says which, and it is not filed as wargear."""
+        sight = plan.get(SIGHT)
+        assert sight.kind == "WeaponAccessory"
+        assert sight.fields["price"] == 20
+        assert sight.fields["trade_point_price"] == 1
+        assert sight.fields["category"] == "Category:wargear:weapon accessories"
+
+        # And "E" reads the same on an accessory as on anything else.
+        assert plan.get(SUSPENSORS).fields["is_exclusive"] is True
+        assert plan.get(SUSPENSORS).fields["trade_point_price"] is None
+
+        assert not [
+            p
+            for p in plan.planned
+            if p.name == "Telescopic sight" and p.kind == "Wargear"
+        ]
+
     def test_ordinary_wargear_stays_wargear(self, plan):
         # Only a firing line makes the difference — a respirator has none.
         assert plan.get(RESPIRATOR).kind == "Wargear"
@@ -357,7 +386,8 @@ class TestPreview:
         assert preview["counts"]["Profile"] == 3
         assert preview["counts"]["Wargear"] == 2
         assert preview["counts"]["Collection"] == 3
-        assert preview["counts"]["CollectionEntry"] == 10
+        assert preview["counts"]["CollectionEntry"] == 11
+        assert preview["counts"]["WeaponAccessory"] == 2
         assert preview["actions"]["create"] == sum(
             1 for p in plan.planned if p.action == "create"
         )
@@ -708,6 +738,29 @@ class TestPerform:
         assert set(after.values_list("name", flat=True)) == before
         assert after.filter(name="Agility").count() == 1
 
+    def test_an_accessory_arrives_bolted_to_nothing_in_particular(self, plan):
+        """It lands in its own table, priced, and fitting anything —
+        which weapons it may bolt onto is not in the sheets, so it is
+        narrowed by hand afterwards rather than guessed at here."""
+        from n26.library.models import WeaponAccessory
+
+        perform(plan)
+        sight = WeaponAccessory.objects.get(name="Telescopic sight")
+        assert sight.price == 20
+        assert sight.trade_point_price == 1
+        assert sight.category.name == "Weapon accessories"
+        assert sight.fits_category is None
+        assert sight.fits_asterisked is False
+
+        # It is a listable thing like any other, so a list may offer it.
+        escher = Collection.objects.get(name="Escher Equipment List")
+        assert CollectionEntry.objects.filter(
+            collection=escher, weapon_accessory=sight
+        ).exists()
+
+        # And an exclusive one keeps out of the Trading Post.
+        assert WeaponAccessory.objects.get(name="Suspensors").is_exclusive is True
+
     def test_the_trading_post_fills_itself(self, plan):
         """Ingest builds no Trading Post, and the post is full anyway.
 
@@ -729,6 +782,9 @@ class TestPerform:
         }
         assert "Autogun" in swept  # TP 0 — free there, but offered
         assert "Respirator" in swept  # TP 1
+        # An accessory is bought there as readily as the gun it bolts
+        # onto, so its own sweep is part of what makes the post.
+        assert "Telescopic sight" in swept
         assert "Frag lance" not in swept  # TP "E" — list only
         assert "Phelynx" not in swept
 
@@ -872,6 +928,67 @@ Equipment List,Cawdor,Ranged weapons,Somewhere else,Frag lance,,35,,x
         assert only_lists.ok
         assert not [p for p in only_lists.problems if p.severity == "error"]
         assert [p.kind for p in only_lists.planned if p.kind == "Weapon"] == ["Weapon"]
+
+
+class TestBuiltInsResolveByNameAlone:
+    """A fighter's built-in kit prints a bare name and no category, so
+    this is the one place resolution cannot use the sheets' ID — and
+    the one place a shared name has to be refused rather than guessed."""
+
+    FIGHTER = """
+Gang,Name,M,WS,BS,S,T,W,I,A,Sv,Ld,Cl,Wil,Int,Type,Subtype(s),Starting XP,Rating,Special Rules,Default skills,Default assignment,Primary Skill Sets,Secondary Skill Sets
+Escher,Scout,6",4+,4+,3,3,1,4,1,6+,6,7,7,6,Fighter,Ganger,4,25,,,Farsight,Agility,
+"""
+
+    def test_one_of_a_name_resolves_whatever_kind_it_is(self, foundation, default_pack):
+        from n26.library import authoring
+
+        accessory = authoring.create_weapon_accessory("Farsight", price=15)
+        plan = plan_ingest(profiles=read_csv(self.FIGHTER))
+
+        assert plan.ok
+        built_ins = plan.get(plan.get("Profile:scout").fields["built_ins"])
+        # The set also holds the subtype and the opening XP; the kit is
+        # whatever resolved to a catalogue row.
+        kit = [
+            plan.get(member["item"]).name
+            for member in built_ins.fields["members"]
+            if member["item"].startswith(("Weapon", "Wargear"))
+        ]
+        assert kit == [accessory.name]
+
+    def test_a_name_two_kinds_share_is_refused(self, foundation, default_pack):
+        """A sight and a piece of wargear may print one name. Answering
+        by whichever kind is looked up first is no answer."""
+        from n26.library import authoring
+
+        authoring.create_wargear("Farsight", price=10)
+        authoring.create_weapon_accessory("Farsight", price=15)
+
+        plan = plan_ingest(profiles=read_csv(self.FIGHTER))
+
+        assert plan.ok  # a note — the fighter still arrives
+        assert any("imported without it" in p.message for p in plan.problems)
+        # The fighter keeps its subtype and XP; only the kit is missing.
+        built_ins = plan.get(plan.get("Profile:scout").fields["built_ins"])
+        assert not [
+            member
+            for member in built_ins.fields["members"]
+            if member["item"].startswith(("Weapon", "Wargear"))
+        ]
+
+    def test_two_rows_of_one_kind_are_refused_too(self, foundation, default_pack):
+        """Same trap within a kind: a qualifier is what tells them
+        apart, and a bare name does not carry one."""
+        from n26.library import authoring
+
+        authoring.create_wargear("Farsight", price=10, qualifier="Escher")
+        authoring.create_wargear("Farsight", price=15, qualifier="Cawdor")
+
+        plan = plan_ingest(profiles=read_csv(self.FIGHTER))
+
+        assert plan.ok
+        assert any("imported without it" in p.message for p in plan.problems)
 
 
 class TestClearing:

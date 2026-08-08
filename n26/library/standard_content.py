@@ -450,12 +450,38 @@ def _check_specialisations():
     return present, 2 * len(names)
 
 
-def _create_trading_post():
-    from n26.library.authoring import create_trading_post
-    from n26.library.models import Collection
+def trading_post_sweeps():
+    """Every kind the post sells: whatever a fighter can buy with Trade
+    Points. An accessory is bought there as readily as the gun it bolts
+    onto, so a kind missing from here is a shelf nobody can reach."""
+    from n26.library.models import Wargear, Weapon, WeaponAccessory
 
-    if not Collection.objects.filter(name=TRADING_POST_COLLECTION).exists():
-        create_trading_post(TRADING_POST_COLLECTION)
+    return (Weapon, Wargear, WeaponAccessory)
+
+
+def _create_trading_post():
+    """The post, and one sweep per kind it sells.
+
+    Tops up rather than skipping: a post built before a kind existed is
+    the ordinary state of a library that has been running a while, and
+    leaving it short would quietly keep those items off the shelf.
+    """
+    from django.contrib.contenttypes.models import ContentType
+
+    from n26.library.authoring import create_trading_post
+    from n26.library.models import Collection, CollectionSelector
+
+    post = Collection.objects.filter(name=TRADING_POST_COLLECTION).first()
+    if post is None:
+        create_trading_post(TRADING_POST_COLLECTION, contains=trading_post_sweeps())
+        return
+    for position, model in enumerate(trading_post_sweeps()):
+        CollectionSelector.objects.get_or_create(
+            collection=post,
+            of_kind=ContentType.objects.get_for_model(model),
+            with_trade_point_price=True,
+            defaults={"position": position},
+        )
 
 
 def _check_trading_post():
@@ -467,7 +493,7 @@ def _check_trading_post():
         collection__name=TRADING_POST_COLLECTION,
         with_trade_point_price=True,
     )
-    return present, 3  # the collection and its two sweeps
+    return present, 1 + len(trading_post_sweeps())
 
 
 def _create_gang_types():

@@ -744,12 +744,12 @@ class TestTradingPostMembership:
         """The prefetch strategy under test: the count follows the
         post's *definition*, never its size. One for the selector rows,
         one per sweep, one for the weapon sweep's nested profiles, four
-        use-restriction prefetches per sweep (type, subtype, profile,
-        specialisation), one for the entries."""
+        use-restriction prefetches for each sweep whose kind can carry
+        them (an accessory cannot), one for the entries."""
         from n26.tests.sandbox.actions import create_trading_post
 
         post = create_trading_post()
-        with django_assert_num_queries(13):
+        with django_assert_num_queries(14):
             view = browse(post, TRADING_POST)
             for line in view.all_lines():
                 for part in line.parts:
@@ -771,4 +771,5 @@ class TestTradingPostMembership:
         assert sweeps == [
             "every weapon with a TP price",
             "every wargear with a TP price",
+            "every weapon accessory with a TP price",
         ]

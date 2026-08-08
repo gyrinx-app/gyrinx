@@ -475,8 +475,14 @@ def _plan_trait(plan, token, source):
 EQUIPMENT_KINDS = {
     "weapon": "Weapon",
     "wargear": "Wargear",
+    "weapon accessory": "WeaponAccessory",
     "weapon profile": "WeaponProfile",
 }
+
+#: The kinds that are a name, a home and a price and nothing more. They
+#: differ only in which table they land in, so they are planned by one
+#: branch rather than one apiece.
+PLAIN_KINDS = ("Wargear", "WeaponAccessory")
 
 
 def _prices(row):
@@ -527,7 +533,7 @@ def _plan_equipment(plan, rows, statlined=frozenset()):
     profiles themselves are defined by their statlines, and this sheet
     only says what they cost.
     """
-    from n26.library.models import Wargear, Weapon
+    from n26.library.models import Wargear, Weapon, WeaponAccessory
 
     # Pass 1: which printed names does more than one item claim? Those
     # want the author-facing qualifier — a power fist is Exo kit
@@ -607,9 +613,10 @@ def _plan_equipment(plan, rows, statlined=frozenset()):
             kind = "Weapon"
             key = f"Weapon:{ident.key}"
 
-        if kind == "Wargear":
+        if kind in PLAIN_KINDS:
+            model = Wargear if kind == "Wargear" else WeaponAccessory
             plan.add(
-                "Wargear",
+                kind,
                 ident.name,
                 {
                     "category": category,
@@ -623,7 +630,7 @@ def _plan_equipment(plan, rows, statlined=frozenset()):
                 key=key,
                 action="exists"
                 if _exists(
-                    plan, Wargear, name__iexact=ident.name, qualifier__iexact=qualifier
+                    plan, model, name__iexact=ident.name, qualifier__iexact=qualifier
                 )
                 else "create",
             )
@@ -1021,30 +1028,47 @@ def _resolve_item(plan, name):
     rows share cannot be resolved that way and is refused rather than
     guessed at.
     """
-    from n26.library.models import Wargear, Weapon
+    from n26.library.models import Wargear, Weapon, WeaponAccessory
 
     wanted = _norm(name)
     hits = [
         planned
         for planned in plan.planned
-        if planned.kind in ("Weapon", "Wargear") and _norm(planned.name) == wanted
+        if planned.kind in ("Weapon", *PLAIN_KINDS) and _norm(planned.name) == wanted
     ]
     if len(hits) == 1:
         return hits[0].key
     if len(hits) > 1:
         return None  # ambiguous by name; the ID is what tells them apart
 
-    for kind, model in (("Weapon", Weapon), ("Wargear", Wargear)):
-        if existing := _exists(plan, model, name__iexact=_clean(name)):
-            return plan.add(
-                kind,
-                existing.name,
-                {"price": existing.price, "unpriced": False},
-                Source("resolution", 0),
-                key=f"{kind}:resolved|{wanted}",
-                action="exists",
-            ).key
-    return None
+    # Every kind at once, and every row of each: a sight and a piece of
+    # wargear may print one name, as may two rows of one kind told apart
+    # by their qualifier. Taking the first would answer by the order
+    # these are asked in, which is no answer at all.
+    found = [
+        (kind, row)
+        for kind, model in (
+            ("Weapon", Weapon),
+            ("Wargear", Wargear),
+            ("WeaponAccessory", WeaponAccessory),
+        )
+        for row in model.objects.filter(pack=plan.pack, name__iexact=_clean(name))
+    ]
+    if len(found) != 1:
+        return None
+    kind, existing = found[0]
+    return plan.add(
+        kind,
+        existing.name,
+        {
+            "price": existing.price,
+            "unpriced": False,
+            "qualifier": existing.qualifier,
+        },
+        Source("resolution", 0),
+        key=f"{kind}:resolved|{wanted}",
+        action="exists",
+    ).key
 
 
 #: What the ``Collection`` column says these rows build. One kind today;
@@ -1191,7 +1215,12 @@ def _resolve_by_id(plan, ident):
     pack's alone does it fall back to that, which is what lets a
     hand-authored item filed under its own category still be found.
     """
-    from n26.library.models import Wargear, Weapon, WeaponProfile
+    from n26.library.models import (
+        Wargear,
+        Weapon,
+        WeaponAccessory,
+        WeaponProfile,
+    )
 
     if ident.profile:
         candidates = [
@@ -1213,6 +1242,12 @@ def _resolve_by_id(plan, ident):
         candidates = [
             ("Weapon", Weapon, {"name__iexact": ident.name}, homed),
             ("Wargear", Wargear, {"name__iexact": ident.name}, homed),
+            (
+                "WeaponAccessory",
+                WeaponAccessory,
+                {"name__iexact": ident.name},
+                homed,
+            ),
         ]
 
     for kind, _model, _by_name, _home in candidates:
@@ -1386,6 +1421,7 @@ def _entry_exists(plan, collection_name, item_key):
         "Weapon": "weapon",
         "WeaponProfile": "weapon_profile",
         "Wargear": "wargear",
+        "WeaponAccessory": "weapon_accessory",
     }[kind]
     planned = plan.get(item_key)
     filters = {f"{column}__name__iexact": planned.name}
@@ -1429,6 +1465,7 @@ PERFORM_ORDER = [
     "Weapon",
     "WeaponProfile",
     "Wargear",
+    "WeaponAccessory",
     "DefaultAssignmentSet",
     "Profile",
     "Collection",
@@ -1511,6 +1548,7 @@ class _Performer:
             Trait,
             Wargear,
             Weapon,
+            WeaponAccessory,
             WeaponProfile,
         )
         from n26.library.models.collection import Collection
@@ -1531,10 +1569,14 @@ class _Performer:
                 .objects.filter(name__iexact=planned.name, **self.shared)
                 .first()
             )
-        if kind in ("Weapon", "Wargear"):
+        if kind in ("Weapon", *PLAIN_KINDS):
             # Qualified: two catalogue rows may print one name, and the
             # qualifier is the only thing telling them apart.
-            model = Weapon if kind == "Weapon" else Wargear
+            model = {
+                "Weapon": Weapon,
+                "Wargear": Wargear,
+                "WeaponAccessory": WeaponAccessory,
+            }[kind]
             return model.objects.filter(
                 name__iexact=planned.name,
                 qualifier__iexact=planned.fields.get("qualifier", ""),
@@ -1667,6 +1709,23 @@ class _Performer:
         from n26.library import authoring
 
         return authoring.create_wargear(
+            planned.name,
+            price=planned.fields["price"],
+            trade_point_price=planned.fields["trade_point_price"],
+            is_exclusive=planned.fields["is_exclusive"],
+            qualifier=planned.fields.get("qualifier", ""),
+            category=self.resolve(planned.fields["category"]),
+            **self.shared,
+        )
+
+    def _create_weaponaccessory(self, planned):
+        from n26.library import authoring
+
+        # What an accessory fits — a category of weapon, or the
+        # asterisked ones — is not in the sheets, so it arrives fitting
+        # anything and is narrowed by hand. Importing it as unrestricted
+        # is the honest reading of a column that does not exist.
+        return authoring.create_weapon_accessory(
             planned.name,
             price=planned.fields["price"],
             trade_point_price=planned.fields["trade_point_price"],
@@ -1812,6 +1871,7 @@ def _imported(pack=None):
         Trait,
         Wargear,
         Weapon,
+        WeaponAccessory,
         WeaponProfile,
     )
     from n26.library.models.collection import Collection, CollectionEntry
@@ -1887,6 +1947,7 @@ def _imported(pack=None):
         ("weapon profiles", WeaponProfile.objects.filter(**scope)),
         ("weapons", Weapon.objects.filter(**scope)),
         ("wargear", Wargear.objects.filter(**scope)),
+        ("weapon accessories", WeaponAccessory.objects.filter(**scope)),
         ("special rules", Rule.objects.filter(**scope)),
         ("weapon traits", Trait.objects.filter(**scope)),
         (
