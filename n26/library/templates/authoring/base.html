@@ -28,17 +28,18 @@ open the same list with nothing marked.
     <c-n26.quick-switcher.of :switcher="bar_kinds_" />
 {% endblock nav_switcher %}
 {% comment %}
-The drawer holds this area's own pages rather than the app's. An author
-moving between Modifiers and Foundations all afternoon wants those in
-the one control, and "App" at the end of the list is the way back out.
+The same drawer as the rest of the app, with this page marked in it: the
+authoring pages are a section of the one list rather than a list of their
+own, so the way back to a gang is the gang's own name and not a link
+called "App".
 
-"index" is the default because every page without an item of its own —
-the kind leaves, the detail pages — is reached from the index, and a
-drawer with nothing marked reads as a page that belongs nowhere. Pages
+"library" is the default because every page without an item of its own —
+the kind leaves, the detail pages — is reached from the library index, and
+a drawer with nothing marked reads as a page that belongs nowhere. Pages
 with their own item override this block with their `here`.
 {% endcomment %}
 {% block nav_items %}
-    {% include 'authoring/_nav.html' with here='index' %}
+    {% include 'n26/_nav.html' with here='library' %}
 {% endblock nav_items %}
 {% block extra_script %}
     <script>

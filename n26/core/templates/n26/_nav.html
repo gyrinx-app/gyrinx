@@ -5,6 +5,11 @@ one: two copies of the same links is two places for one to drift. The
 gallery's version (designsystem/shell/_nav.html) points at the shell walk;
 this one points at the pages that write.
 
+The same list on every screen, authoring included. A drawer that changed with
+the area meant an author had to know which half of the app they were standing
+in before they could tell what pressing the burger would give them — and the
+way back to a gang was a link called "App" rather than the gang's own name.
+
 Campaigns and Content Packs are words rather than links: neither has a page
 yet, and the dashboard's tabs for them say the same thing. A link that lands
 nowhere teaches a reader to distrust the rest of the list, where a plain word
@@ -13,7 +18,26 @@ costs nothing and is true.
 Making a gang is an action rather than a place, and it has a button on both
 pages that would list it.
 
-Takes `here` — "home" or "gangs".
+  --- the authoring section ---
+
+Its own group under the app's places, drawn only for staff. Writing content is
+something a handful of accounts do, and a heading over the four is what keeps
+them from reading as four more places everyone has.
+
+The rule is drawn above the section by the section itself, so a reader without
+these pages gets neither a heading nor a stray line where they would have been.
+It is called Authoring rather than anything with "staff" in it: the account
+menu already has a "Staff only" group, and two differently-populated sections
+under one name is worse than naming this one after what is in it.
+
+Modifiers before Foundations: modifiers are what an author comes back to day
+after day, and foundations are the rows you plant once.
+
+Takes `here` — "home" or "gangs" on the app's side; "library", "modifiers",
+"foundations" or "ingest" on the authoring side. The authoring pages with no
+item of their own — the kind leaves, the detail pages — pass "library": they
+are reached from the library index, and a drawer with nothing marked reads as
+a page that belongs nowhere.
 {% endcomment %}
 <c-ui.navbar.item href="{% url 'n26-dashboard' %}"
                   current="{% if here == 'home' %}1{% endif %}">Home</c-ui.navbar.item>
@@ -21,3 +45,21 @@ Takes `here` — "home" or "gangs".
                   current="{% if here == 'gangs' %}1{% endif %}">Gangs</c-ui.navbar.item>
 <span>Campaigns <span class="text-xs tracking-wide uppercase">Soon</span></span>
 <span>Content Packs <span class="text-xs tracking-wide uppercase">Soon</span></span>
+{% if user.is_staff %}
+    {% comment %}
+    The rule and the heading are drawn inside the same list as the links, not
+    in a section of their own, so the links keep the styling the container
+    gives its own children — and the scriptless strip under the bar, which
+    draws this list a second time, gets the group without knowing about it.
+    {% endcomment %}
+    <div class="mx-2 my-2 h-px bg-ink-200 dark:bg-ink-800" role="separator"></div>
+    <h2 class="px-3 pb-1 text-xs font-medium tracking-wide text-ink-500 uppercase dark:text-ink-400">Authoring</h2>
+    <c-ui.navbar.item href="{% url 'authoring-index' %}"
+                      current="{% if here == 'library' %}1{% endif %}">Content library</c-ui.navbar.item>
+    <c-ui.navbar.item href="{% url 'authoring-modifiers' %}"
+                      current="{% if here == 'modifiers' %}1{% endif %}">Modifiers</c-ui.navbar.item>
+    <c-ui.navbar.item href="{% url 'authoring-foundations' %}"
+                      current="{% if here == 'foundations' %}1{% endif %}">Foundations</c-ui.navbar.item>
+    <c-ui.navbar.item href="{% url 'authoring-ingest' %}"
+                      current="{% if here == 'ingest' %}1{% endif %}">Ingest</c-ui.navbar.item>
+{% endif %}

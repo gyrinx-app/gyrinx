@@ -109,6 +109,19 @@ class TestTheBadgeBesideAName:
         body = client.get("/n26/gangs/new/").content.decode()
         assert FLAIR_WRAPPER not in body
 
+    def test_the_account_menu_names_the_reader_and_marks_them(
+        self, supporter, client, default_pack
+    ):
+        """The bar's button drops the name on a phone, so the menu behind
+        it is the only place left that says which account this is — and
+        the badge goes with the name, out of the same registry rather
+        than out of a second guess made here."""
+        body = client.get("/n26/gangs/new/").content.decode()
+        bar = body[: body.index("</header>")]
+        menu = bar[bar.index('role="menu"') :]
+        assert "patron" in menu
+        assert badge_svg(GUILDER).strip() in menu
+
     def test_the_badge_says_what_the_registry_says_it_means(
         self, supporter, client, default_pack
     ):
@@ -158,9 +171,15 @@ class TestTheOwnerOfAGang:
         """The house artwork in the set is one house's, and nothing in
         the library records which drawing a gang type owns — so a gang
         carries its type as text and no mark. The only badge on the
-        sheet is the owner's."""
+        sheet is the owner's.
+
+        Counted below the bar: the chrome names the signed-in reader at
+        the top of the account menu and draws their badge there too,
+        which is a fact about the account rather than about this gang.
+        """
         body = client.get(f"/n26/gangs/{gang.pk}/").content.decode()
-        assert body.count(FLAIR_WRAPPER) == 1
+        sheet = body.split("</header>")[-1]
+        assert sheet.count(FLAIR_WRAPPER) == 1
 
 
 class TestNoPageDecidesForItself:

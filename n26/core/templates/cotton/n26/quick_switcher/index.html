@@ -76,12 +76,19 @@ middle of a narrow screen with a panel wider than either side of it; clamping
 covers both, and it is one behaviour to hold in your head instead of two.
 
 The nudge is a margin, which the kit's placement never writes, so the two do
-not fight: it repositions on open, on scroll and on resize, and the margin
-survives each time. It is worked out afresh from where the kit put the panel —
-the trigger's box and the panel's layout width, never the panel's own
-rectangle, which its opening transition is in the middle of changing. So the
-answer does not depend on the answer before it: a window that widens again
-gets a nudge of nothing, and the panel goes back to hanging off its trigger.
+not fight: it repositions on open, on scroll and on resize.
+
+**The margin is cleared before anything is measured.** That is what makes each
+nudge an answer rather than a correction to the last one: the margin moves the
+box the measurement reads, so measuring with it still applied compounds, and a
+panel opened three times walks three steps further in. Cleared first, the
+measurement is always of where the panel would sit unaided, and the answer does
+not depend on the answer before it — a window that widens again gets a nudge of
+nothing, and the panel goes back to hanging off its trigger.
+
+What is measured is the trigger's box and the panel's layout width, never the
+panel's own rectangle, which its opening transition is in the middle of
+changing.
 
   --- filtering ---
 
@@ -98,8 +105,9 @@ go somewhere and the list you left behind is not the list you want next.
     leaves the chevron on its own.
   href — where that link goes.
   icon — a c-n26.icon name drawn before the label.
-  heading — what the panel is for, at the top of it, and the chevron's
-    accessible name unless menu_label says otherwise.
+  heading — what the panel is for. Spoken, not drawn: it is the chevron's
+    accessible name unless menu_label says otherwise, and appears nowhere on
+    screen.
   menu_label — the chevron's accessible name and tooltip. It needs its own,
     because on its own the chevron has no words beside it to borrow.
   placeholder — the filter's placeholder, and its accessible name.
@@ -216,6 +224,7 @@ go somewhere and the list you left behind is not the list you want next.
                      query: '',
                      items: [],
                      gutter: 8,
+                     tries: 0,
                      refit: null,
                      register(facets) { this.items.push(facets) },
                      matches(facets) {
@@ -225,7 +234,28 @@ go somewhere and the list you left behind is not the list you want next.
                      get shown() { return this.items.filter(f => this.matches(f)).length },
                      fit() {
                          const panel = this.$el.parentElement;
-                         if (!panel.offsetWidth) return;
+                         // A panel that is still opening has no width to
+                         // measure. Coming back next frame rather than giving
+                         // up is what places it the FIRST time it opens: give
+                         // up and it is only ever placed on the second open,
+                         // once a previous open has left it with layout.
+                         // Bounded, and only while open, so a panel that never
+                         // gains width cannot spin.
+                         if (!panel.offsetWidth) {
+                             if (this.dropdownMenu && this.tries < 30) {
+                                 this.tries += 1;
+                                 requestAnimationFrame(() => this.fit());
+                             }
+                             return;
+                         }
+                         this.tries = 0;
+                         // Cleared before anything is measured, so every fit
+                         // starts from where the panel would sit with no nudge
+                         // at all. Left on, the margin moves the box this reads
+                         // and each fit becomes a correction to the last one —
+                         // the panel walks further in every time it is opened.
+                         panel.style.marginLeft = '';
+                         panel.style.marginRight = '';
                          const room = document.documentElement.clientWidth;
                          const against = panel.parentElement.getBoundingClientRect();
                          const width = panel.offsetWidth;
@@ -248,13 +278,12 @@ go somewhere and the list you left behind is not the list you want next.
                  class="flex max-w-[calc(100vw-1rem)] flex-col">
 
                 {% comment %}
-                A label rather than a heading. The panel is already named by the
-                trigger it hangs from, and a real heading inside a menu
-                announces a structure the menu does not have.
+                No title strip. The panel is already named by the trigger it
+                hangs from and by the placeholder in its own filter, so a line
+                repeating the same words costs a row of the list to say what
+                the reader just pressed. `heading` still names the chevron for
+                anything reading the page aloud — it is spoken, not drawn.
                 {% endcomment %}
-                <p class="border-b border-box-border px-3 py-2 text-xs font-medium tracking-wide
-                          text-ink-500 uppercase dark:text-ink-400">{{ heading }}</p>
-
                 <div class="border-b border-box-border p-2">
                     <c-ui.input type="search"
                                 size="sm"
@@ -298,8 +327,6 @@ go somewhere and the list you left behind is not the list you want next.
     {% endcomment %}
     <noscript>
         <div class="mt-2 w-72 max-w-full overflow-hidden rounded-box border border-box-border">
-            <p class="border-b border-box-border px-3 py-2 text-xs font-medium tracking-wide
-                      text-ink-500 uppercase dark:text-ink-400">{{ heading }}</p>
             <div class="-mb-px">{{ slot }}</div>
         </div>
     </noscript>

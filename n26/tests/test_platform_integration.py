@@ -463,11 +463,32 @@ class TestTheNavigation:
     ):
         menu = account_menu(client.get("/n26/").content.decode())
         positions = in_order(
-            menu, "Your account", "Staff only", "Admin", "Content Library", "Sign out"
+            menu,
+            "boss",
+            "Your account",
+            "Staff only",
+            "Admin",
+            "Content Library",
+            "Sign out",
         )
         assert positions == sorted(positions)
-        # Only the way out draws a rule; the staff doors have a heading.
-        assert menu.count('role="separator"') == 1
+        # Two rules: one under the name at the top, one over the way out.
+        # The staff doors have a heading instead.
+        assert menu.count('role="separator"') == 2
+
+    def test_the_menu_says_who_you_are_signed_in_as(self, staff, client, default_pack):
+        """The bar's own button drops the name on a phone, where the width
+        belongs to the page, and this is where it goes instead — otherwise
+        there is nowhere on a narrow screen that answers which account you
+        are using. The badge is the account's own, from the platform's
+        registry, so this edition never guesses what someone's mark means."""
+        menu = account_menu(client.get("/n26/").content.decode())
+        name = menu.index("boss")
+        assert name < menu.index("Your account")
+        # A line rather than an item: the door to the account page is
+        # directly below it, and a name that led to the same place would be
+        # two doors to one room.
+        assert 'href="/n26/accounts/' not in menu[:name]
 
     def test_your_account_goes_to_the_page_that_is_actually_there(
         self, staff, client, default_pack
@@ -500,26 +521,110 @@ class TestTheNavigation:
         assert "Admin" not in menu
         assert "Content Library" not in menu
         assert "Staff only" not in menu
-        assert menu.count('role="separator"') == 1
+        # The name's rule and the way out's, and no third one left behind by
+        # the section they do not have.
+        assert menu.count('role="separator"') == 2
 
-    def test_the_authoring_area_puts_its_own_pages_in_the_drawer(
+    def test_the_drawer_is_the_same_list_wherever_you_are(
         self, staff, client, default_pack
     ):
-        """The drawer draws whatever the area gave it, so an author
-        moving between the authoring pages gets those in the one
-        control, with App at the end as the way back out."""
+        """One drawer, on both sides of the app. An author standing in the
+        content library reaches a gang by its own name rather than by a link
+        called "App", and does not have to know which half of the app they
+        are in to know what the burger will give them."""
         drawer = nav_drawer(client.get("/n26/authoring/").content.decode())
         positions = in_order(
             drawer,
+            ">Home</a>",
+            ">Gangs</a>",
+            "Authoring",
             ">Content library</a>",
             ">Modifiers</a>",
             ">Foundations</a>",
             ">Ingest</a>",
-            ">App</a>",
         )
         assert positions == sorted(positions)
-        assert ">Home</a>" not in drawer
-        assert ">Gangs</a>" not in drawer
+        assert ">App</a>" not in drawer
+
+    def test_the_authoring_pages_are_a_section_of_their_own(
+        self, staff, client, default_pack
+    ):
+        """Grouped under a heading rather than mixed in with the places
+        everyone has: writing content is something a handful of accounts do,
+        and four more unlabelled rows would read as four more places."""
+        drawer = nav_drawer(client.get("/n26/").content.decode())
+        assert "Authoring" in drawer
+        # Named for what is in it. "Staff only" is the account menu's group,
+        # and one name over two differently-populated sections is worse than
+        # two names.
+        assert "Staff only" not in drawer
+
+    def test_nobody_else_sees_the_authoring_section_or_its_rule(
+        self, tester, client, default_pack
+    ):
+        """A tester who is not staff is turned away by those pages anyway.
+        The heading goes with them, and so does the rule above it — a
+        section draws its own break, so an absent one leaves no line."""
+        drawer = nav_drawer(client.get("/n26/").content.decode())
+        assert "Authoring" not in drawer
+        assert ">Modifiers</a>" not in drawer
+        assert 'role="separator"' not in drawer
+
+    def test_the_drawer_marks_the_page_on_either_side(
+        self, staff, client, default_pack
+    ):
+        """The current page is a state rather than a destination and takes
+        the accent, and it has to keep doing that now one list covers both
+        areas."""
+
+        def anchor_for(drawer, label):
+            """The opening tag of the link with this text."""
+            return drawer.split(f">{label}</a>")[0].rsplit("<a", 1)[-1]
+
+        app = anchor_for(nav_drawer(client.get("/n26/").content.decode()), "Home")
+        assert 'aria-current="page"' in app
+        assert "is-current" in app
+
+        authoring = anchor_for(
+            nav_drawer(client.get("/n26/authoring/modifiers/").content.decode()),
+            "Modifiers",
+        )
+        assert 'aria-current="page"' in authoring
+        assert "is-current" in authoring
+
+    def test_the_authoring_pages_are_in_the_scriptless_strip_too(
+        self, staff, client, default_pack
+    ):
+        """Alpine builds the drawer out of a template that never runs, and
+        the account menu is a dropdown that needs it as well — so with no
+        script the strip under the bar is the only way to these pages."""
+        strip = nav_noscript(client.get("/n26/").content.decode())
+        assert ">Modifiers</a>" in strip
+
+    def test_the_drawer_costs_an_authoring_page_no_extra_query(
+        self, staff, client, default_pack, gang_type, make_profile
+    ):
+        """The reader's gangs are one capped read for the whole page. The
+        authoring pages draw the same drawer as everything else now, so the
+        thing to check is that it is still one read and not one per
+        section."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from n26.core.navigation import NAV_SIBLINGS
+        from n26.tests.sandbox.actions import found_gang
+
+        found_gang("The Bad Girls", gang_type, owner=staff)
+        client.get("/n26/authoring/")
+
+        with CaptureQueriesContext(connection) as captured:
+            assert client.get("/n26/authoring/").status_code == 200
+        capped = [
+            query
+            for query in captured.captured_queries
+            if f"LIMIT {NAV_SIBLINGS}" in query["sql"] and "n26_gang" in query["sql"]
+        ]
+        assert len(capped) == 1
 
     def test_a_page_names_itself_in_the_bar_and_keeps_its_links(
         self, staff, client, default_pack

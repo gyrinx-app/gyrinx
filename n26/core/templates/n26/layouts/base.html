@@ -158,12 +158,21 @@ banner, is_impersonating / impersonator, gtm_container_id, messages, user.
                 {% endblock nav_switcher %}
             </c-slot>
             {% comment %}
-            A block rather than a slot: a page extending this template can fill
-            a block, but cannot fill a slot on a component the template owns.
-            Whichever area the page belongs to fills it with its own links, so
-            an author browsing the authoring pages gets an authoring drawer.
+            One list of places, on every screen the edition has. The block
+            exists so a page can say which of them it is — it overrides with
+            the same include and its own `here` — and not so an area can swap
+            the list for one of its own: a drawer whose contents depend on
+            which half of the app you are standing in is one you have to open
+            to find out what it is this time.
+
+            A block rather than a slot, because a page extending this template
+            can fill a block and cannot fill a slot on a component the
+            template owns. The default is filled here rather than left empty,
+            so a page that says nothing still gets the drawer everything else
+            has.
             {% endcomment %}
             {% block nav_items %}
+                {% include 'n26/_nav.html' %}
             {% endblock nav_items %}
             {% comment %}
             The reader's own gangs, under the places the app has: a gang is
@@ -201,11 +210,41 @@ banner, is_impersonating / impersonator, gtm_container_id, messages, user.
                     {% url 'admin:index' as admin_url_ %}
                     {% url 'account_logout' as logout_url_ %}
                     {% comment %}
+                    Who you are, at the top of the menu about you. The bar's
+                    own button drops the name below sm — the width belongs to
+                    the page there — and this is where it goes instead, so
+                    there is one press between a reader and the answer to
+                    which account they are signed in as. Drawn at every width
+                    rather than only the narrow ones: a menu whose first line
+                    appears and disappears with the window is one nobody
+                    learns the shape of.
+
+                    A line, not an item: it goes nowhere, because "Your
+                    account" directly below it is that door and two doors to
+                    one room is one too many. So it takes the surrounding text
+                    colour and no underline — accent and a hover rule would
+                    promise a press that does nothing.
+
+                    The badge is whichever one the account actually holds,
+                    from the platform's registry: supporter standing and staff
+                    flag are the account's business rather than this edition's,
+                    and c-n26.user-link is what asks.
+                    {% endcomment %}
+                    <div class="flex items-center gap-2 px-4 pt-2 pb-1 text-sm font-medium text-ink-900 dark:text-ink-100">
+                        <c-n26.user-link :user="user" tone="current" underline="none" />
+                    </div>
+                    {% comment %}
                     The account page belongs to the site rather than to either
                     edition, so it is named rather than spelled out: a name
                     that stops resolving raises here, while a path that stops
                     existing quietly serves a 404 nobody notices.
+
+                    The rule belongs to this item and not to the line above
+                    it, which is the discipline the whole menu follows: a
+                    section draws the break above itself, so nothing can be
+                    left holding a rule with nothing under it.
                     {% endcomment %}
+                    <c-ui.dropdown.separator />
                     <c-ui.dropdown.item href="{% url 'core:account_home' %}">
                         Your account
                     </c-ui.dropdown.item>

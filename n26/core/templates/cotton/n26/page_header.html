@@ -67,15 +67,13 @@ meant to put it. Declaring it gives the unfilled case a real default of "".
             back the marking .strip drops, so markup in the slot survives.
             {% endcomment %}
             {% comment %}
-            The trailing control shares the title's row and sits on its baseline
-            rather than its centre: at sm:text-3xl a small button centred on the
-            title floats above the words beside it. It wraps under the title on a
-            narrow screen instead of shortening it.
+            The trailing control shares the title's row, centred on it. It wraps
+            under the title on a narrow screen instead of shortening it.
             {% endcomment %}
             {% if trailing.strip %}
-                <div class="flex flex-wrap items-end gap-2">
+                <div class="flex flex-wrap items-center gap-2">
                     <h1 class="text-2xl font-semibold text-ink-900 dark:text-ink-100 sm:text-3xl">{{ leading.strip|safe }}{{ title }}</h1>
-                    <div class="pb-1">{{ trailing }}</div>
+                    <div>{{ trailing }}</div>
                 </div>
             {% else %}
                 <h1 class="text-2xl font-semibold text-ink-900 dark:text-ink-100 sm:text-3xl">{{ leading.strip|safe }}{{ title }}</h1>
