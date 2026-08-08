@@ -13,7 +13,7 @@ other signed-in users get a 404 — the beta is invisible, not locked.
 | `n26/core/` | Player data (gangs, models, assignments, the money ledger) and the pure-Python layers that turn rows into cards, sheets, and shop listings. |
 | `n26/designsystem/` | The living component gallery at `/n26/design/`. Documents the components; owns none of them. |
 | `n26/tests/` | Shared fixtures and the sandbox suites — whole slices of real rulebook content built and exercised end to end. |
-| `n26/design/` | The specification. These markdown files are where design decisions are recorded and argued. **Git-ignored — they exist only in the maintainer's checkout.** When present, read the relevant one before a non-trivial change (`glossary.md` defines the shared vocabulary); when absent, module docstrings are the next-best source. Code cites them as `design/foo.md`. |
+| `n26/design/` | The specification. These markdown files are where design decisions are recorded and argued. **Not committed — they exist only in the maintainer's checkout.** When present, read the relevant one before a non-trivial change (`glossary.md` defines the shared vocabulary); when absent, module docstrings are the next-best source. Code cites them as `design/foo.md`. |
 
 Each package has its own CLAUDE.md with the detailed rules. This file holds
 what is true everywhere.
