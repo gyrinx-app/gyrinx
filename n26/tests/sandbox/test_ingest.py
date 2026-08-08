@@ -59,6 +59,8 @@ Weapon,Close combat weapons,Natural weapons,Ferocious jaws,,-,E,Ferocious jaws (
 Wargear,Wargear,Personal equipment,Respirator,,15,1,Respirator () (Personal equipment ← Wargear)
 Wargear,Wargear,Pets,Phelynx,,-,E,Phelynx () (Pets ← Wargear)
 Wargear,Wargear,Grenades,Frag grenades,,30,2,Frag grenades () (Grenades ← Wargear)
+Weapon Accessory,Wargear,Weapon accessories,Telescopic sight,,20,1,Telescopic sight () (Weapon accessories ← Wargear)
+Weapon Accessory,Wargear,Weapon accessories,Suspensors,,40,E,Suspensors () (Weapon accessories ← Wargear)
 """
 
 WEAPON_PROFILES_CSV = """
@@ -85,6 +87,7 @@ Equipment List,Goliath,Wargear,Personal equipment,Respirator,,20,,Respirator () 
 Equipment List,Goliath,Ranged weapons,Auto/stub weapons,Autogun,,20,,Autogun () (Auto/stub weapons ← Ranged weapons)
 Equipment List,Goliath,Ranged weapons,Auto/stub weapons,Autogun,warp round,10,,Autogun (warp round) (Auto/stub weapons ← Ranged weapons)
 Equipment List,Goliath,Close combat weapons,Exo weapons,Power fist,,105,Gunner specialist only,Power fist () (Exo weapons ← Close combat weapons)
+Equipment List,Escher,Wargear,Weapon accessories,Telescopic sight,,20,,Telescopic sight () (Weapon accessories ← Wargear)
 """
 
 PROFILES_CSV = """
@@ -127,6 +130,12 @@ RESPIRATOR = catalogue_key(
     "Wargear", "Respirator", category="Personal equipment", section=GEAR
 )
 PHELYNX = catalogue_key("Wargear", "Phelynx", category="Pets", section=GEAR)
+SIGHT = catalogue_key(
+    "WeaponAccessory", "Telescopic sight", category="Weapon accessories", section=GEAR
+)
+SUSPENSORS = catalogue_key(
+    "WeaponAccessory", "Suspensors", category="Weapon accessories", section=GEAR
+)
 # Typed Wargear on the sheet, but it has a firing line — so a weapon.
 FRAG_GRENADES = catalogue_key(
     "Weapon", "Frag grenades", category="Grenades", section=GEAR
@@ -258,6 +267,26 @@ class TestPlanning:
         assert own.fields["stats"]["LR"] == '6"'
         assert own.fields["position"] == 0
 
+    def test_an_accessory_is_its_own_kind(self, plan):
+        """A sight bolts onto a weapon rather than being carried, which
+        is a different table and a different thing on a card — so the
+        sheet says which, and it is not filed as wargear."""
+        sight = plan.get(SIGHT)
+        assert sight.kind == "WeaponAccessory"
+        assert sight.fields["price"] == 20
+        assert sight.fields["trade_point_price"] == 1
+        assert sight.fields["category"] == "Category:wargear:weapon accessories"
+
+        # And "E" reads the same on an accessory as on anything else.
+        assert plan.get(SUSPENSORS).fields["is_exclusive"] is True
+        assert plan.get(SUSPENSORS).fields["trade_point_price"] is None
+
+        assert not [
+            p
+            for p in plan.planned
+            if p.name == "Telescopic sight" and p.kind == "Wargear"
+        ]
+
     def test_ordinary_wargear_stays_wargear(self, plan):
         # Only a firing line makes the difference — a respirator has none.
         assert plan.get(RESPIRATOR).kind == "Wargear"
@@ -357,7 +386,8 @@ class TestPreview:
         assert preview["counts"]["Profile"] == 3
         assert preview["counts"]["Wargear"] == 2
         assert preview["counts"]["Collection"] == 3
-        assert preview["counts"]["CollectionEntry"] == 10
+        assert preview["counts"]["CollectionEntry"] == 11
+        assert preview["counts"]["WeaponAccessory"] == 2
         assert preview["actions"]["create"] == sum(
             1 for p in plan.planned if p.action == "create"
         )
@@ -708,6 +738,29 @@ class TestPerform:
         assert set(after.values_list("name", flat=True)) == before
         assert after.filter(name="Agility").count() == 1
 
+    def test_an_accessory_arrives_bolted_to_nothing_in_particular(self, plan):
+        """It lands in its own table, priced, and fitting anything —
+        which weapons it may bolt onto is not in the sheets, so it is
+        narrowed by hand afterwards rather than guessed at here."""
+        from n26.library.models import WeaponAccessory
+
+        perform(plan)
+        sight = WeaponAccessory.objects.get(name="Telescopic sight")
+        assert sight.price == 20
+        assert sight.trade_point_price == 1
+        assert sight.category.name == "Weapon accessories"
+        assert sight.fits_category is None
+        assert sight.fits_asterisked is False
+
+        # It is a listable thing like any other, so a list may offer it.
+        escher = Collection.objects.get(name="Escher Equipment List")
+        assert CollectionEntry.objects.filter(
+            collection=escher, weapon_accessory=sight
+        ).exists()
+
+        # And an exclusive one keeps out of the Trading Post.
+        assert WeaponAccessory.objects.get(name="Suspensors").is_exclusive is True
+
     def test_the_trading_post_fills_itself(self, plan):
         """Ingest builds no Trading Post, and the post is full anyway.
 
@@ -729,6 +782,9 @@ class TestPerform:
         }
         assert "Autogun" in swept  # TP 0 — free there, but offered
         assert "Respirator" in swept  # TP 1
+        # An accessory is bought there as readily as the gun it bolts
+        # onto, so its own sweep is part of what makes the post.
+        assert "Telescopic sight" in swept
         assert "Frag lance" not in swept  # TP "E" — list only
         assert "Phelynx" not in swept
 

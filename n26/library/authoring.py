@@ -219,6 +219,7 @@ def create_weapon_accessory(
     name,
     price=0,
     trade_point_price=None,
+    is_exclusive=False,
     category=None,
     fits_category=None,
     fits_asterisked=False,
@@ -235,6 +236,7 @@ def create_weapon_accessory(
         name=name,
         price=price,
         trade_point_price=trade_point_price,
+        is_exclusive=is_exclusive,
         category=category,
         fits_category=fits_category,
         fits_asterisked=fits_asterisked,
@@ -719,11 +721,18 @@ def create_trading_post(name="Trading Post", contains=None, entries=(), **kwargs
     hand — plus entries for anything it prices its own way. Nothing
     here is about charging: browse it with ``browse(post, TRADING_POST)``
     and the *terms* charge Trade Points."""
-    from n26.library.models import CollectionSelector, Wargear, Weapon
+    from n26.library.models import CollectionSelector
 
     shared = {"pack": kwargs["pack"]} if "pack" in kwargs else {}
     collection = create_collection(name, entries=entries, **kwargs)
-    sweeps = contains if contains is not None else (Weapon, Wargear)
+    if contains is None:
+        # What the post sells is standard content's to say, so a bare
+        # call builds the real one rather than a subset that quietly
+        # leaves a kind off the shelf.
+        from n26.library.standard_content import trading_post_sweeps
+
+        contains = trading_post_sweeps()
+    sweeps = contains
     for position, sweep in enumerate(sweeps):
         model, category = sweep if isinstance(sweep, tuple) else (sweep, None)
         CollectionSelector.of(
