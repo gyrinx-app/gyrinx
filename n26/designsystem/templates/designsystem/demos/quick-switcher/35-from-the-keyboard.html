@@ -1,0 +1,20 @@
+{# title: Reaching a row without the mouse #}
+{# note: Open it and the caret is already in the filter box. Down and Up move the highlight; Enter goes to the highlighted row; Escape empties the box when there is something in it, and closes the panel when there is not. So "gaunt", Down, Enter is one destination away without your hands leaving where you were typing. Nothing is highlighted on open, because the top row is the gang you are already on. The highlight only ever walks rows the filter is showing, and scrolls itself into view. The caret never leaves the box: the box names the highlighted row with aria-activedescendant, so a screen reader hears the row the tint is on. Hovering a row moves the highlight there too, so there is only ever one answer to where Enter goes. Tab still walks the rows as the plain links they are. #}
+<c-n26.quick-switcher label="The Ashen Choir"
+                      href="#the-ashen-choir"
+                      icon="star"
+                      heading="Switch gang"
+                      placeholder="Search gangs"
+                      empty="No gang by that name"
+                      min_width="18rem">
+    <c-n26.quick-switcher.item label="The Ashen Choir" href="#the-ashen-choir" :current="True" />
+    <c-n26.quick-switcher.item label="Pit of Teeth" href="#pit-of-teeth" />
+    <c-n26.quick-switcher.item label="The Rust Sermon" href="#the-rust-sermon" />
+    <c-n26.quick-switcher.item label="Rustwater Kin" href="#rustwater-kin" />
+    <c-n26.quick-switcher.item label="Sump Dogs" href="#sump-dogs" />
+    <c-n26.quick-switcher.item label="The Long Quiet" href="#the-long-quiet" />
+    <c-n26.quick-switcher.item label="Cinder Wake" href="#cinder-wake" />
+    <c-n26.quick-switcher.item label="Nine Bells" href="#nine-bells" />
+    <c-n26.quick-switcher.item label="The Gaunt Parade" href="#the-gaunt-parade" />
+    <c-n26.quick-switcher.item label="Salt and Iron" href="#salt-and-iron" />
+</c-n26.quick-switcher>
