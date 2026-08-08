@@ -1114,6 +1114,7 @@ def _plan_equipment_lists(plan, rows):
     """
     pending_restrictions = []
     positions = TallyCounter()
+    listed = {}  # collection key -> the entry keys this upload names
     for line, row in enumerate(rows, start=1):
         source = Source("equipment_lists", line)
         plan.remember_row(source, row)
@@ -1126,7 +1127,17 @@ def _plan_equipment_lists(plan, rows):
         name = _collection_name(title)
         collection_key = f"Collection:{_norm(name)}"
         if not plan.get(collection_key):
-            plan.add("Collection", name, {}, source, key=collection_key)
+            # The list's contents are its own field, filled in as
+            # the rest of the sheet is read: a line leaving the sheet
+            # is a statement about the list, and no single entry can
+            # see it.
+            plan.add(
+                "Collection",
+                name,
+                {"entries": listed.setdefault(collection_key, [])},
+                source,
+                key=collection_key,
+            )
 
         ident = ItemId.of(row)
         if not ident.name:
@@ -1169,6 +1180,7 @@ def _plan_equipment_lists(plan, rows):
             source,
             key=entry_key,
         )
+        listed[collection_key].append(entry_key)
         positions[collection_key] += 1
 
         restriction = (row.get("Restrictions") or "").strip()
@@ -1448,7 +1460,7 @@ SHEET_FIELDS = {
     "Subtype": Fields(),
     "Skill": Fields(),
     "Specialisation": Fields(),
-    "Collection": Fields(),
+    "Collection": Fields(updatable=("entries",)),
     "Weapon": Fields(
         identity=("qualifier",),
         updatable=(
@@ -1524,10 +1536,15 @@ NEVER_UPDATED = {
     "Subtype": "the sheets know a subtype by name and say nothing else about it",
     "Skill": "the sheets know a skill by name and say nothing else about it",
     "Specialisation": "which specialisations exist is authored, never imported",
-    "Collection": "a list is its name; what is on it is its entries",
     "Restriction": "a restriction is the pairing itself — the item, and who may use it",
     "Modifier": "a placement is the pairing itself — the fighter, the set and the tier",
 }
+
+#: Fields settled in a second pass, because comparing them needs rows
+#: the first pass has not looked for yet. A collection settles before
+#: its entries — an entry's identity is its collection and the thing
+#: listed — so what its entries matched is not known until after.
+SETTLED_LATE = {"entries"}
 
 #: How each updatable field is compared and written. A **scalar** is
 #: its own value; a **reference** is another planned row, compared by
@@ -1544,6 +1561,7 @@ FIELD_SHAPES = {
     "category": "reference",
     "gang_type": "reference",
     "built_ins": "reference",
+    "entries": "set",
     "stats": "set",
     "traits": "set",
     "members": "set",
@@ -1727,6 +1745,101 @@ def _settle(plan):
                 existing=_pk(row),
             )
 
+    _settle_contents(plan, found)
+    _note_restrictions_the_sheet_no_longer_names(plan, found)
+
+
+def _settle_contents(plan, found):
+    """A second, smaller pass: what a list this upload mentions holds
+    that the upload no longer names.
+
+    It cannot be part of the first pass. A collection is settled before
+    its entries, because an entry's identity is its collection and the
+    thing listed — so when the collection is settled, what its entries
+    matched has not been looked for yet, and that is exactly what this
+    needs.
+
+    Scoped to the lists the upload mentions, and that scoping is the
+    whole care here: "delete the entries nothing planned" would empty
+    every other gang's list on an upload of one gang's.
+    """
+    matched = {}
+    for planned in plan.planned:
+        if planned.kind == "CollectionEntry" and planned.existing:
+            matched.setdefault(planned.fields["collection"], set()).add(
+                planned.existing
+            )
+
+    for planned in plan.planned:
+        if planned.kind != "Collection" or "entries" not in planned.fields:
+            continue
+        collection = found.get(planned.key)
+        if collection is None:
+            continue  # founded by this upload: it holds only what this says
+        gone = [
+            entry
+            for entry in collection.entries.all()
+            if str(entry.pk) not in matched.get(planned.key, ())
+        ]
+        if not gone:
+            continue
+        plan.settle(
+            planned,
+            "update",
+            changes={
+                **planned.changes,
+                "entries": {"removed": sorted(str(entry.assignable) for entry in gone)},
+            },
+            existing=planned.existing,
+        )
+
+
+def _note_restrictions_the_sheet_no_longer_names(plan, found):
+    """Say which fighters an item is still restricted to that no line of
+    this upload names — and retract none of them.
+
+    A restriction is stored on the *item*, so it is shared by every list
+    that carries that item. One list dropping "<Fighter> only" cannot be
+    read as retracting it, because another list may be the reason it is
+    there. Add-only, and the note is how an author finds the ones to
+    take off by hand.
+    """
+    from n26.library.models.assignable import UsableBy
+
+    wanted, where = {}, {}
+    for planned in plan.planned:
+        if planned.kind == "CollectionEntry":
+            wanted.setdefault(planned.fields["item"], set())
+            where.setdefault(planned.fields["item"], planned.source)
+        elif planned.kind == "Restriction":
+            allows = found.get(planned.fields["allows"])
+            if allows is not None:
+                wanted.setdefault(planned.fields["item"], set()).add(
+                    (type(allows).__name__, allows.pk)
+                )
+
+    for item_key, named in wanted.items():
+        item = found.get(item_key)
+        # Not everything listable can be narrowed: a firing line is
+        # bought through the weapon, which is where the restriction is.
+        if not isinstance(item, UsableBy):
+            continue
+        stored = [
+            *item.usable_by_profiles.all(),
+            *item.usable_by_specialisations.all(),
+        ]
+        unnamed = [row for row in stored if (type(row).__name__, row.pk) not in named]
+        if not unnamed:
+            continue
+        said = ", ".join(sorted(str(row) for row in unnamed))
+        plan.problem(
+            where[item_key],
+            f"{item} is restricted to {said} in the pack, which no line of "
+            f"this upload names — nothing was retracted, because the "
+            f"restriction is on the item and other lists may be its reason",
+            severity="note",
+        )
+
 
 def _pk(row):
     return None if row is None else str(row.pk)
@@ -1758,7 +1871,7 @@ def _differences(plan, planned, row, resolve):
     """
     changes = {}
     for name in SHEET_FIELDS[planned.kind].updatable:
-        if name not in planned.fields:
+        if name not in planned.fields or name in SETTLED_LATE:
             continue
         shape = FIELD_SHAPES[name]
         if shape == "scalar":
@@ -1926,7 +2039,7 @@ def _built_ins_difference(plan, planned, row, resolve):
     So the sheet may add, and what it no longer names is said instead.
     """
     stored = {member.assignable.pk: member for member in row.members.all()}
-    added, changed = [], []
+    added, changed, named = [], [], set()
     for member in planned.fields["members"]:
         said = _planned_said(plan, member["item"])
         thing = resolve(member["item"])
@@ -1934,9 +2047,26 @@ def _built_ins_difference(plan, planned, row, resolve):
         if held is None:
             added.append(said)
             continue
+        named.add(thing.pk)
         amount = member.get("amount", 0)
         if held.amount != amount:
             changed.append(f"{said} {held.amount} → {amount}")
+
+    # What the sheet has stopped naming stays, and is said instead. An
+    # author who meant to take it off has to, which is annoying and
+    # honest; the alternative deletes the hand-added kit on every
+    # re-upload and cannot be undone from the sheets.
+    dropped = [member for pk, member in stored.items() if pk not in named]
+    if dropped:
+        plan.problem(
+            planned.source,
+            f"{planned.name} still comes with "
+            f"{', '.join(sorted(str(member.assignable) for member in dropped))}, "
+            f"which this sheet no longer names — kept, because built-in kit "
+            f"no sheet defines is added by hand",
+            severity="note",
+        )
+
     difference = {}
     if added:
         difference["added"] = sorted(added)
@@ -2248,6 +2378,28 @@ class _Performer:
                 if modifier.scope is not None:
                     modifier.scope.delete()
 
+    def _update_collection(self, planned):
+        """A list, with the lines the sheet stopped carrying taken off.
+
+        The equipment-lists sheet is the whole statement about a list,
+        so a line that has gone from it has gone from the list. Only
+        the lists this upload mentions are touched — the settling pass
+        scoped that, and it is the difference between reading one gang's
+        sheet and emptying every other gang's list.
+        """
+        row = self._the_row_the_preview_described(planned)
+        if "entries" not in planned.changes:
+            return row
+        kept = {
+            self.plan.get(key).existing
+            for key in planned.fields["entries"]
+            if self.plan.get(key).existing
+        }
+        for entry in row.entries.all():
+            if str(entry.pk) not in kept:
+                entry.delete()
+        return row
+
     def _update_defaultassignmentset(self, planned):
         """A fighter's built-in kit, added to.
 
@@ -2554,6 +2706,7 @@ UPDATERS = {
     "Profile": "_update_profile",
     "DefaultAssignmentSet": "_update_defaultassignmentset",
     "CollectionEntry": "_update_collectionentry",
+    "Collection": "_update_collection",
 }
 
 

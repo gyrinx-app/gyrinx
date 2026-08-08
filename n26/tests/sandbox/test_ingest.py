@@ -1482,6 +1482,131 @@ class TestApplyingWhatChanged:
         assert Weapon.objects.filter(name="Autogun").exists()
 
 
+class TestWhatASheetStopsNaming:
+    """Each set answers the same question for itself: what happens to a
+    member the sheet no longer names?
+
+    The deciding question is whether the set is somewhere hand-authored
+    content lives. A list's lines and a fighter's skill grid are wholly
+    the sheets'. A fighter's built-in kit is not — the kit no sheet
+    defines is added by hand, precisely because an import cannot bring
+    it — and a restriction is stored on the item, shared by every list
+    that carries it.
+    """
+
+    @pytest.fixture
+    def imported(self, foundation, sheets):
+        perform(plan_ingest(pack=None, **sheets))
+        return sheets
+
+    def test_a_line_dropped_from_a_list_leaves_it(self, imported):
+        plan = plan_ingest(
+            **{
+                **imported,
+                "equipment_lists": read_csv(
+                    EQUIPMENT_LISTS_CSV.replace(
+                        "Equipment List,Escher,Wargear,Personal equipment,"
+                        "Respirator,,15,,Respirator () (Personal equipment ← Wargear)\n",
+                        "",
+                    )
+                ),
+            }
+        )
+        escher = plan.get(ESCHER_LIST)
+        assert escher.action == "update"
+        assert escher.changes == {"entries": {"removed": ["Respirator"]}}
+
+        perform(plan)
+        listed = {
+            str(entry.assignable)
+            for entry in Collection.objects.get(
+                name="Escher Equipment List"
+            ).entries.all()
+        }
+        assert "Respirator" not in listed
+        assert "Autogun" in listed
+        # ...and the item itself is untouched: other lists sell it.
+        assert Wargear.objects.filter(name="Respirator").exists()
+
+    def test_one_gangs_upload_leaves_every_other_gangs_list_alone(self, imported):
+        """The trap in scoping this. A partial upload is a real thing to
+        want — one gang's list, to fix a price — and "delete the entries
+        nothing planned" would empty every list the upload was silent
+        about."""
+        before = {
+            collection.name: collection.entries.count()
+            for collection in Collection.objects.all()
+        }
+        perform(
+            plan_ingest(
+                equipment_lists=read_csv(
+                    """
+Collection,Title,Section,Category,Name,Profile,Credits,Restrictions,ID
+Equipment List,Cawdor,Wargear,Personal equipment,Respirator,,15,,x
+Equipment List,Cawdor,Close combat weapons,Lances,Frag lance,,35,Way-Brethren only,y
+"""
+                )
+            )
+        )
+        after = {
+            collection.name: collection.entries.count()
+            for collection in Collection.objects.all()
+        }
+        assert after == before
+
+    def test_built_in_kit_the_sheet_drops_is_kept_and_said(self, imported):
+        """An author adds the exo-suit no sheet defines. The next export
+        of the fighter's row cannot possibly name it, and must not take
+        it off."""
+        from n26.library import authoring
+
+        queen = Profile.objects.get(name="Gang Queen")
+        exo_suit = authoring.create_wargear("Exo-suit", price=0)
+        authoring.add_built_in(queen, exo_suit)
+
+        plan = plan_ingest(**imported)
+        perform(plan)
+
+        assert "Exo-suit" in {
+            str(member.assignable) for member in queen.built_ins.members.all()
+        }
+        assert any(
+            "Exo-suit" in problem.message and problem.severity == "note"
+            for problem in plan.problems
+        )
+
+    def test_a_restriction_the_sheet_drops_is_kept_and_said(self, imported):
+        """Restrictions are stored on the item, so they are shared by
+        every list carrying it. One list falling silent is not a
+        retraction — another list may be the reason it is there."""
+        without = read_csv(EQUIPMENT_LISTS_CSV.replace("Way-Brethren only", ""))
+        plan = plan_ingest(**{**imported, "equipment_lists": without})
+        perform(plan)
+
+        lance = Weapon.objects.get(name="Frag lance")
+        assert [p.name for p in lance.usable_by_profiles.all()] == ["Way-Brethren"]
+        assert any(
+            "nothing was retracted" in problem.message for problem in plan.problems
+        )
+
+    def test_a_blank_stat_cell_leaves_the_stored_value_alone(self, imported):
+        """A blank cell is the sheet declining to say, not saying the
+        characteristic is empty. Read the other way, half-filled columns
+        would wipe a statline on their way past."""
+        blanked = read_csv(
+            WEAPON_PROFILES_CSV.replace(
+                'Autogun,,,8",24",3,-,1,Rapid Fire (1)',
+                'Autogun,,,8",,3,-,1,Rapid Fire (1)',
+            )
+        )
+        plan = plan_ingest(**{**imported, "weapon_profiles": blanked})
+        assert plan.get(AUTOGUN_OWN).action == "unchanged"
+
+        perform(plan)
+        own = Weapon.objects.get(name="Autogun").profiles.get(name="")
+        assert own.statline.as_dict()["long_range"] == '24"'
+
+
 class TestNothingIsLostQuietly:
     """The registries a planned row must appear in, discovered rather
     than listed. Every one of them can be forgotten, and forgetting any
