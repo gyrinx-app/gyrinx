@@ -287,7 +287,6 @@ class TestTheNavigation:
             bar,
             'aria-label="Open navigation menu"',
             "n26-site-brand",
-            "·",
             "Home",
         )
         assert positions == sorted(positions)

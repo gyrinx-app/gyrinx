@@ -178,13 +178,9 @@ there: the Gangs link in that same list is the whole roster.
         Truncates rather than wraps or pushes: the bar is a fixed 14 units tall,
         and a long page name should lose its end rather than move the controls.
 
-        The dot separates the page from the wordmark, so it goes when the
-        wordmark does: on a phone there is nothing on its left to separate the
-        name from.
         {% endcomment %}
         {% if heading.strip or switcher.strip %}
             <span class="flex min-w-0 items-center gap-2">
-                <span aria-hidden="true" class="hidden text-ink-400 sm:inline dark:text-ink-600">·</span>
                 {% comment %}
                 The name is truncated inside a box of its own and the control
                 is outside it. Truncating means hiding the overflow, and a
