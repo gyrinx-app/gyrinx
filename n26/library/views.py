@@ -1007,11 +1007,22 @@ def ingest_clear(request):
         try:
             with transaction.atomic():
                 gone = clear_imported()
-        except ProtectedError:
+        except ProtectedError as protected:
+            # Anything may hold imported content: a gang that bought a
+            # weapon, an authored modifier that names a trait. Saying
+            # which is the difference between a dead end and a next
+            # step, so the holders are counted by kind and named.
+            holders = Counter(
+                str(type(held)._meta.verbose_name)
+                for held in protected.protected_objects
+            )
+            said = ", ".join(
+                f"{count} {kind}" for kind, count in sorted(holders.items())
+            )
             messages.error(
                 request,
-                "Some of this content is in a gang, which protects it. "
-                "Delete those gangs first — nothing was removed.",
+                f"Nothing was removed. Some of this content is held by "
+                f"{said}, which protects it — remove those first.",
             )
             return redirect("authoring-ingest-clear")
         said = ", ".join(f"{count} {kind}" for kind, count in sorted(gone.items()))

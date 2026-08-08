@@ -411,7 +411,11 @@ class TestPreview:
 
 
 class TestProblems:
-    def test_an_unknown_weapon_on_a_list_is_a_problem_not_a_weapon(self, foundation):
+    def test_an_unknown_item_on_a_list_is_left_off_not_invented(self, foundation):
+        """A list naming something nothing defines arrives without it —
+        the hand-built items are authored before an import, so this is
+        the ordinary state until they are, not a reason to refuse the
+        rest of the upload."""
         plan = plan_ingest(
             equipment_lists=read_csv(
                 """
@@ -420,11 +424,15 @@ Equipment List,Escher,Ranged weapons,Web weapons,Web pisol,,90,,x
 """
             )
         )
-        assert not plan.ok
+        assert plan.ok  # said, not refused
         assert "Web pisol" in plan.problems[0].message
+        assert "arrives without it" in plan.problems[0].message
         assert not [p for p in plan.planned if p.kind == "Weapon"]
-        with pytest.raises(ValueError, match="Web pisol"):
-            perform(plan)
+
+        perform(plan)
+        from n26.library.models.collection import CollectionEntry
+
+        assert CollectionEntry.objects.count() == 0
 
     def test_a_priced_own_line_is_refused(self, foundation):
         # A weapon's own firing line is bought with the weapon, so it
@@ -455,7 +463,7 @@ Ranged weapons,Web weapons,Web pistol,,,8",16",3,-,1,Web,x
             )
         )
         assert plan.ok  # a note, not an error
-        assert "sells no such thing" in plan.problems[0].message
+        assert "defines no such thing" in plan.problems[0].message
         assert not [p for p in plan.planned if p.kind == "Weapon"]
 
     def test_an_unresolvable_built_in_does_not_block_the_fighter(self, foundation):
@@ -587,7 +595,7 @@ Chaos Helot Cult,2-5,,4+,,4,5,2,3,2,5+,,,,,,,,,,,,,
             )
         )
         assert not plan.ok
-        assert "§6b" in plan.problems[0].message
+        assert "another sheet" in plan.problems[0].message
 
 
 # --- Stage 3: plan → rows ------------------------------------------------------
@@ -792,7 +800,9 @@ Corpse Grinder Cults,Gang Queen,5",3+,4+,3,3,2,4,2,5+,7,7,7,7,Fighter,Leader,61,
         planned = clash.get("Profile:gang queen:corpse grinder cults")
         assert planned.action == "create"
         assert planned.fields["qualifier"] == "Corpse Grinder Cults"
-        assert any(p.severity == "note" and "§6a" in p.message for p in clash.problems)
+        assert any(
+            p.severity == "note" and "qualified" in p.message for p in clash.problems
+        )
 
         perform(clash)
         both = Profile.objects.filter(name="Gang Queen").order_by("qualifier")

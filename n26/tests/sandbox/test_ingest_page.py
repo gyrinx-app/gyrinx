@@ -100,22 +100,43 @@ class TestImporting:
         assert "Imported" in body
 
     def test_a_blocking_problem_writes_nothing(self, author, client, foundation):
-        """An equipment list naming something no sheet defines cannot be
-        honoured, so the whole upload waits rather than landing in half."""
-        lists = """
-Collection,Title,Section,Category,Name,Profile,Credits,Restrictions,ID
-Equipment List,Escher,Ranged weapons,Web weapons,Web pisol,,90,,x
+        """A catalogue row typed as a priced firing line but naming no
+        profile would lose its price on the way in, so the upload waits
+        rather than landing something wrong."""
+        equipment = """
+Assignable,Section,Category,Name,Profile,Cost,TP,ID
+Weapon,Close combat weapons,Lances,Frag lance,,-,E,x
+Weapon Profile,Close combat weapons,Lances,Frag lance,,45,E,y
 """
         response = client.post(
             URL,
-            {"equipment_lists": upload(lists, "lists.csv"), "apply": "1"},
+            {"equipment": upload(equipment, "equipment.csv"), "apply": "1"},
             follow=True,
         )
         body = response.content.decode()
 
-        assert Collection.objects.filter(name="Escher Equipment List").count() == 0
+        assert Weapon.objects.count() == 0
         assert "block this upload" in body
-        assert "Web pisol" in body  # and says which line
+        assert "names no Profile" in body  # and says which line
+
+    def test_a_list_line_nothing_defines_is_left_off_not_refused(
+        self, author, client, foundation
+    ):
+        """The list arrives one entry short, said in the report — the
+        rest of a good upload is not held back for it."""
+        lists = """
+Collection,Title,Section,Category,Name,Profile,Credits,Restrictions,ID
+Equipment List,Escher,Ranged weapons,Web weapons,Web pisol,,90,,x
+"""
+        body = client.post(
+            URL,
+            {"equipment_lists": upload(lists, "lists.csv"), "apply": "1"},
+            follow=True,
+        ).content.decode()
+
+        assert "Web pisol" in body
+        assert "arrives without it" in body
+        assert "block this upload" not in body
 
     def test_importing_twice_creates_nothing_the_second_time(
         self, author, client, foundation
@@ -207,6 +228,8 @@ class TestTheDangerZone:
         body = client.post(CLEAR_URL, follow=True).content.decode()
 
         assert "protects it" in body
+        assert "Nothing was removed" in body
+        assert "assignment" in body  # names what holds it, not a guess
         assert Weapon.objects.exists()
 
 

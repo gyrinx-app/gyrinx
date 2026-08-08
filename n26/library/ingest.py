@@ -136,8 +136,21 @@ class Planned:
 
 @dataclass(frozen=True)
 class Problem:
-    """One thing the plan cannot do. ``severity`` "error" blocks perform;
-    "note" is said in the preview and carried past."""
+    """One thing the plan cannot do.
+
+    The line between the two severities is what proceeding would *do*.
+    An **error** would write something wrong, or names a state that is
+    never legitimate — two fighters claiming one identity, a priced row
+    whose price would silently vanish. A **note** means the upload
+    writes less than the sheet asked for and says so: a list line naming
+    an item nothing defines, a statline for nothing in the catalogue, a
+    restriction the model has no arm for. Nothing incorrect is written
+    either way; the difference is whether waiting is the right answer.
+
+    Most shortfalls are notes, because refusing a thousand good rows
+    over three the sheets are not ready for helps nobody — and the
+    report is where they are dealt with.
+    """
 
     sheet: str
     line: int
@@ -671,7 +684,7 @@ def _plan_weapon_profiles(plan, rows, prices):
             plan.problem(
                 source,
                 f"{ItemId.of(row).printed!r} has a Sub-profile — a weapon "
-                f"within a weapon is hand-authored, not imported (§7b)",
+                f"within a weapon is hand-authored, not imported",
             )
             continue
 
@@ -690,8 +703,9 @@ def _plan_weapon_profiles(plan, rows, prices):
             plan.problem(
                 source,
                 f"{ident.printed!r} has a statline, but the equipment "
-                f"sheet sells no such thing — ignored (resolve, never "
-                f"create, §7b)",
+                f"sheet defines no such thing — ignored, because an "
+                f"import resolves what the sheets name and never "
+                f"invents it",
                 severity="note",
             )
             continue
@@ -793,7 +807,7 @@ def _plan_profiles(plan, rows):
             plan.problem(
                 source,
                 f"{name!r} has no Type — a rolled-statline or supplementary "
-                f"row that belongs on another sheet (§6b)",
+                f"row that belongs on another sheet",
             )
             continue
 
@@ -912,7 +926,7 @@ def _plan_profiles(plan, rows):
             plan.problem(
                 source,
                 f"profile {name!r} is also another gang's — this one is "
-                f"qualified {qualifier!r} (§6a); authors see the qualifier, "
+                f"qualified {qualifier!r}; authors see the qualifier, "
                 f"players never do",
                 severity="note",
             )
@@ -1101,9 +1115,11 @@ def _plan_equipment_lists(plan, rows):
         if item_key is None:
             plan.problem(
                 source,
-                f"{title} sells {ident.printed!r}, which the equipment sheet "
-                f"does not define and the pack does not hold — resolve, "
-                f"never create (§7b)",
+                f"{title} lists {ident.printed!r}, which the equipment "
+                f"sheet does not define and the pack does not hold — "
+                f"this list arrives without it. Author the item first "
+                f"if it is one of the hand-built ones",
+                severity="note",
             )
             continue
 
@@ -1221,7 +1237,7 @@ def _plan_restrictions(plan, pending):
             plan.problem(
                 source,
                 f"restriction {restriction!r} is not a restriction on use — "
-                f"imported without it (§5c)",
+                f"imported without it",
                 severity="note",
             )
             continue
