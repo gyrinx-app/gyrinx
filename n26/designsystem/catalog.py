@@ -1657,6 +1657,49 @@ GROUPS: list[Group] = [
             "neither takes part in WebKit page fragmentation, so break-inside: avoid "
             "is discarded without a word and a card comes off the printer in two "
             "halves. Read the top of print.css before changing any of it."
+            Component(
+                slug="quick-switcher",
+                tag="c-n26.quick-switcher",
+                template="n26/quick_switcher/index.html",
+                summary=(
+                    "What you are looking at, joined to a filtered list of what "
+                    "you could look at instead."
+                ),
+                needs=(ALPINE, KIT_JS, FOCUS),
+                notes=(
+                    "The leading link is optional and that is the whole shape of "
+                    "the API: half the places that want a switcher already name "
+                    "the current thing in a heading a foot away, and repeating it "
+                    "in a button is furniture. With no label the chevron is the "
+                    "only child of the button group, which rounds both its ends "
+                    "rather than leaving a shape cut in half. The panel is the "
+                    "kit's dropdown, so Escape, the outside click, the placement "
+                    "and arrow-key movement are all its. A native <details> was "
+                    "the alternative — it opens with no script and would need no "
+                    "second copy of the list — and it was not taken because the "
+                    "joining is done by CSS matching button and a, and a <summary> "
+                    "is neither: the chevron would take none of the group's radius "
+                    "or border handling, and everything the dropdown gets right "
+                    "would have to be rebuilt beside it. The price of that choice "
+                    "is a <noscript> strip drawing the same destinations flat, "
+                    "which is what the navigation drawer already does. Filtering "
+                    "narrows rows that are already on the page and never asks the "
+                    "server; the rows register their own text, so the count behind "
+                    "the empty message and the list itself are one array. Rows "
+                    "carry their own bottom rule rather than the list dividing "
+                    "between them, because a divide counts hidden rows and the "
+                    "first one left showing would draw a rule under nothing."
+                ),
+                parts=(
+                    Part(
+                        "c-n26.quick-switcher.item",
+                        "n26/quick_switcher/item.html",
+                        "One destination: icon, label, and a tick when it is the "
+                        "one you are on.",
+                        required=True,
+                    ),
+                ),
+            ),
         ),
         [
             Component(

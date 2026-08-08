@@ -1,0 +1,207 @@
+{% comment %}
+<c-n26.quick-switcher> — the thing you are looking at, and a short way to its
+siblings.
+
+    <c-n26.quick-switcher label="The Ashen Choir" href="/n26/gangs/1/"
+                          icon="star" heading="Switch gang"
+                          placeholder="Search gangs">
+        <c-n26.quick-switcher.item label="The Ashen Choir" href="/n26/gangs/1/"
+                                   :current="True" />
+        <c-n26.quick-switcher.item label="Pit of Teeth" href="/n26/gangs/2/" />
+    </c-n26.quick-switcher>
+
+Two controls joined into one: a link that says what you are on and goes to it,
+and a chevron that opens the list of everything you could be on instead. The
+pair reads as a single object — this thing, and the others like it — which is
+what a switcher is. A breadcrumb tells you where you are; this tells you where
+you are and offers the alternatives in the same gesture.
+
+  --- the link is optional, and that is the point ---
+
+Drop `label` and only the chevron renders. Some places already name the current
+thing a line above, in a heading a switcher would only repeat; others sit in a
+row of controls where the name has nowhere to go. So the identifier is a
+variant, not a fixture, and the chevron alone is a whole control: with one
+child, the button group rounds both its ends rather than leaving a shape cut in
+half.
+
+  --- with no script ---
+
+The panel is the kit's dropdown, which Alpine reveals; until it runs, the panel
+is hidden. So the same items are drawn again in a <noscript> strip beneath, as
+the navigation drawer does. Every destination in the list is a real <a> in the
+HTML either way — the filter only narrows what is already on the page, and
+nothing here is fetched.
+
+A native <details> would open on its own and need no second copy. It was not
+used because the joining is: the button group's rules match `button` and `a`,
+and a <summary> is neither, so the chevron would take none of the radius or
+border handling and this component would have to re-implement it — along with
+Escape, the outside click and arrow-key movement, all of which the dropdown
+already has right. The strip is the cheaper of the two prices.
+
+  --- filtering ---
+
+The box narrows the rows already in the panel and nothing else: no request, no
+change to what the server would have rendered. Items register their own facets
+on init and show themselves only while those pass, so the empty message and the
+list are computed from one array and cannot disagree — the same arrangement the
+gang table uses.
+
+The query is cleared each time the panel opens, because a switcher is opened to
+go somewhere and the list you left behind is not the list you want next.
+
+  label — the current thing's name, on the leading link. Empty draws no link and
+    leaves the chevron on its own.
+  href — where that link goes.
+  icon — a c-n26.icon name drawn before the label.
+  heading — what the panel is for, at the top of it, and the chevron's
+    accessible name unless menu_label says otherwise.
+  menu_label — the chevron's accessible name and tooltip. It needs its own,
+    because on its own the chevron has no words beside it to borrow.
+  placeholder — the filter's placeholder, and its accessible name.
+  empty — what to show when the filter matches nothing.
+  align — which edge of the trigger the panel hangs from: start or end.
+  min_width — the panel's minimum width, as a CSS length.
+  slot — the destinations, as <c-n26.quick-switcher.item>.
+{% endcomment %}
+<c-vars
+    label=""
+    href=""
+    icon=""
+    heading="Switch"
+    menu_label=""
+    placeholder="Search"
+    empty="No matches"
+    align="start"
+    min_width="16rem"
+    class=""
+/>
+
+<div {{ attrs }} class="inline-block {{ class }}">
+    <c-n26.button-group>
+        {% comment %}
+        Ghost, both halves. A switcher sits beside a page's own name, where a
+        filled or bordered pair would read as the loudest thing on the screen;
+        ghost keeps the pressable area and gives the ink back to the heading.
+        The two hover fills meet with no seam because the group has already
+        squared the corners between them.
+        {% endcomment %}
+        {% if label %}
+            <c-ui.button variant="ghost" size="sm" href="{{ href }}">
+                <span class="flex items-center gap-1.5">
+                    {% if icon %}
+                        <c-n26.icon name="{{ icon }}" class="size-4 shrink-0 text-ink-500 dark:text-ink-400" />
+                    {% endif %}
+                    <span class="min-w-0 max-w-48 truncate">{{ label }}</span>
+                </span>
+            </c-ui.button>
+        {% endif %}
+
+        <c-ui.dropdown align="{{ align }}" min_width="{{ min_width }}">
+            <c-slot name="trigger">
+                {% comment %}
+                The chevron is named rather than left to the label beside it:
+                the label is optional, and a control whose accessible name
+                disappears with a neighbour is a control that is sometimes just
+                "button".
+
+                aria-expanded is bound rather than written, because the panel's
+                open state lives in the dropdown's Alpine scope and a static
+                attribute would say "closed" forever.
+                {% endcomment %}
+                <c-ui.button variant="ghost"
+                             size="sm"
+                             aria-label="{{ menu_label|default:heading }}"
+                             title="{{ menu_label|default:heading }}"
+                             aria-haspopup="menu"
+                             ::aria-expanded="dropdownMenu">
+                    <span class="n26-icon-only">
+                        <c-n26.icon name="chevron-down"
+                                    class="size-3 transition-transform"
+                                    stroke_width="2.5"
+                                    ::class="{ 'rotate-180': dropdownMenu }" />
+                    </span>
+                </c-ui.button>
+            </c-slot>
+
+            {% comment %}
+            The panel's own scope. `matches` is read by every item and `shown`
+            by the empty message, so what the list does and what the message
+            says are one computation.
+
+            Focus moves to the filter as the panel opens: a switcher is opened
+            because you know roughly what you are looking for, and the first
+            keystroke should narrow the list rather than land nowhere. Arrow
+            keys move from there into the items — that part is the dropdown's.
+            {% endcomment %}
+            <div x-data="{
+                     query: '',
+                     items: [],
+                     register(facets) { this.items.push(facets) },
+                     matches(facets) {
+                         const q = this.query.trim().toLowerCase();
+                         return !q || facets.search.includes(q);
+                     },
+                     get shown() { return this.items.filter(f => this.matches(f)).length },
+                 }"
+                 x-init="$watch('dropdownMenu', open => {
+                     query = '';
+                     if (open) $nextTick(() => $refs.filter.focus());
+                 })"
+                 class="flex flex-col">
+
+                {% comment %}
+                A label rather than a heading. The panel is already named by the
+                trigger it hangs from, and a real heading inside a menu
+                announces a structure the menu does not have.
+                {% endcomment %}
+                <p class="border-b border-box-border px-3 py-2 text-xs font-medium tracking-wide
+                          text-ink-500 uppercase dark:text-ink-400">{{ heading }}</p>
+
+                <div class="border-b border-box-border p-2">
+                    <c-ui.input type="search"
+                                size="sm"
+                                placeholder="{{ placeholder }}"
+                                aria-label="{{ placeholder }}"
+                                autocomplete="off"
+                                x-ref="filter"
+                                x-model="query">
+                        <c-slot name="left_addon">
+                            <c-n26.icon name="magnifying-glass" class="size-4" stroke_width="1.5" />
+                        </c-slot>
+                    </c-ui.input>
+                </div>
+
+                {% comment %}
+                Pulled up by a pixel, so the rule under the last row lands on
+                the panel's own edge instead of beside it. Each row draws its
+                own rule (see the item), which is what keeps filtering from
+                stranding one at the top of the list.
+                {% endcomment %}
+                <div class="-mb-px max-h-72 overflow-y-auto">{{ slot }}</div>
+
+                {% comment %}
+                x-cloak, so a reader with no script never sees a line about a
+                filter they do not have.
+                {% endcomment %}
+                <p x-show="shown === 0"
+                   x-cloak
+                   class="px-3 py-4 text-center text-sm text-muted">{{ empty }}</p>
+            </div>
+        </c-ui.dropdown>
+    </c-n26.button-group>
+
+    {% comment %}
+    The same destinations, drawn flat for a reader whose browser ran no script
+    and therefore has no panel to open. No filter box with them: a filter that
+    cannot filter is a field that swallows typing and does nothing.
+    {% endcomment %}
+    <noscript>
+        <div class="mt-2 w-72 overflow-hidden rounded-box border border-box-border">
+            <p class="border-b border-box-border px-3 py-2 text-xs font-medium tracking-wide
+                      text-ink-500 uppercase dark:text-ink-400">{{ heading }}</p>
+            <div class="-mb-px">{{ slot }}</div>
+        </div>
+    </noscript>
+</div>

@@ -1,0 +1,11 @@
+{# title: The whole group #}
+{# note: The link says what you are on and goes to it; the chevron opens the rest. The row you are on is ticked, tinted, and carries aria-current — the tick is the picture of a fact the markup states outright. #}
+<c-n26.quick-switcher label="The Ashen Choir"
+                      href="#the-ashen-choir"
+                      icon="star"
+                      heading="Switch gang"
+                      placeholder="Search gangs">
+    <c-n26.quick-switcher.item label="The Ashen Choir" href="#the-ashen-choir" :current="True" />
+    <c-n26.quick-switcher.item label="Pit of Teeth" href="#pit-of-teeth" />
+    <c-n26.quick-switcher.item label="The Rust Sermon" href="#the-rust-sermon" />
+</c-n26.quick-switcher>

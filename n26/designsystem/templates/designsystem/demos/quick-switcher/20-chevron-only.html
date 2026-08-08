@@ -1,0 +1,9 @@
+{# title: The chevron on its own #}
+{# note: Leave out label and the leading link is not drawn. The chevron is then the only child of the group, so it rounds on both sides rather than looking like the surviving half of a pair — and it keeps an accessible name of its own, since there is no longer a word beside it to borrow. #}
+<c-n26.quick-switcher heading="Switch gang"
+                      menu_label="Switch gang"
+                      placeholder="Search gangs">
+    <c-n26.quick-switcher.item label="The Ashen Choir" href="#the-ashen-choir" :current="True" />
+    <c-n26.quick-switcher.item label="Pit of Teeth" href="#pit-of-teeth" />
+    <c-n26.quick-switcher.item label="The Rust Sermon" href="#the-rust-sermon" />
+</c-n26.quick-switcher>
