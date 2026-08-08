@@ -394,7 +394,12 @@ def plan_ingest(
     from n26.library.models import get_default_pack
 
     plan = IngestPlan(pack or get_default_pack())
-    profile_prices = _plan_equipment(plan, equipment)
+    # The catalogue pass needs to know which things have a firing line,
+    # because that is what decides whether a "Wargear" row is really a
+    # weapon (see _plan_equipment). The statlines themselves are planned
+    # after, once there is something for them to hang on.
+    statlined = {ItemId.of(row).key for row in weapon_profiles}
+    profile_prices = _plan_equipment(plan, equipment, statlined)
     _plan_weapon_profiles(plan, weapon_profiles, profile_prices)
     pending_restrictions = _plan_equipment_lists(plan, equipment_lists)
     _plan_profiles(plan, profiles)
@@ -481,13 +486,21 @@ def _prices(row):
     }
 
 
-def _plan_equipment(plan, rows):
+def _plan_equipment(plan, rows, statlined=frozenset()):
     """The equipment sheet: the catalogue, and the only place a price lives.
 
     One row per thing the game sells, typed by its ``Assignable``
     column — a weapon, a piece of wargear, or one of a weapon's priced
     firing lines. Statlines arrive on the weapon profiles sheet; this
     pass fixes identity, home and price.
+
+    **Grenades.** The sheet types them Wargear, and the game calls them
+    that for one reason: they do not count against the weapons a fighter
+    is holding. But a thing with a firing line is a weapon — it has a
+    range, a strength, traits — so a Wargear row that ``statlined``
+    knows becomes a Weapon taking **no slots**, which is precisely the
+    fact "wargear" was standing in for. Its category is untouched, so it
+    still homes under Grenades where the lists expect it.
 
     Nothing here builds a Trading Post. Membership there is *having a
     trade point price* — the post is two sweeps sown as standard content
@@ -568,6 +581,15 @@ def _plan_equipment(plan, rows):
 
         category = _plan_category(plan, ident.section, ident.category, source)
 
+        # A grenade: typed Wargear because it does not count against the
+        # weapons held, but it has a firing line, so it is a weapon that
+        # takes no slots. Slots carry the fact the typing was standing in
+        # for; the category is left alone, so it still homes as Wargear.
+        holds_no_slot = kind == "Wargear" and ident.key in statlined
+        if holds_no_slot:
+            kind = "Weapon"
+            key = f"Weapon:{ident.key}"
+
         if kind == "Wargear":
             plan.add(
                 "Wargear",
@@ -600,8 +622,11 @@ def _plan_equipment(plan, rows):
                 "unpriced": priced["unpriced"],
                 "trade_point_price": priced["trade_point_price"],
                 "is_exclusive": priced["is_exclusive"],
-                # Asterisked weapons take two hands on the card.
-                "slots": 2 if "*" in (row.get("Name") or "") else 1,
+                # No slot at all for a grenade; two hands for an
+                # asterisked weapon; one for everything else.
+                "slots": 0
+                if holds_no_slot
+                else (2 if "*" in (row.get("Name") or "") else 1),
                 "statline_type": WEAPON_STATLINE,  # standard content's name
             },
             source,
@@ -655,24 +680,17 @@ def _plan_weapon_profiles(plan, rows, prices):
         weapon_key = f"Weapon:{ident.parent.key}"
         weapon = plan.get(weapon_key)
         if weapon is None:
-            # Nothing is created either way, so both of these are said and
-            # carried past rather than blocking an otherwise good upload.
-            if plan.get(f"Wargear:{ident.parent.key}"):
-                plan.problem(
-                    source,
-                    f"{ident.printed!r} is typed Wargear on the equipment "
-                    f"sheet, and wargear carries no statline — imported "
-                    f"without it. A thing with a firing line is a Weapon",
-                    severity="note",
-                )
-            else:
-                plan.problem(
-                    source,
-                    f"{ident.printed!r} has a statline, but the equipment "
-                    f"sheet sells no such thing — ignored (resolve, never "
-                    f"create, §7b)",
-                    severity="note",
-                )
+            # Nothing is created either way, so this is said and carried
+            # past rather than blocking an otherwise good upload. (A row
+            # the catalogue types Wargear cannot land here: having a
+            # statline is what makes it a weapon — see _plan_equipment.)
+            plan.problem(
+                source,
+                f"{ident.printed!r} has a statline, but the equipment "
+                f"sheet sells no such thing — ignored (resolve, never "
+                f"create, §7b)",
+                severity="note",
+            )
             continue
 
         key = f"WeaponProfile:{ident.key}"

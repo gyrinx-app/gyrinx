@@ -53,6 +53,7 @@ Weapon,Close combat weapons,Exo weapons,Power fist,,105,2,Power fist () (Exo wea
 Weapon,Close combat weapons,Natural weapons,Ferocious jaws,,-,E,Ferocious jaws () (Natural weapons ← Close combat weapons)
 Wargear,Wargear,Personal equipment,Respirator,,15,1,Respirator () (Personal equipment ← Wargear)
 Wargear,Wargear,Pets,Phelynx,,-,E,Phelynx () (Pets ← Wargear)
+Wargear,Wargear,Grenades,Frag grenades,,30,2,Frag grenades () (Grenades ← Wargear)
 """
 
 WEAPON_PROFILES_CSV = """
@@ -64,6 +65,7 @@ Close combat weapons,Lances,Frag lance,spent,,E,-,S,-,1,"Heavy, Melee",Frag lanc
 Close combat weapons,Power weapons,Power fist,,,E,-,S+2,-2,2,"Melee, Power Pack",Power fist () (Power weapons ← Close combat weapons)
 Close combat weapons,Exo weapons,Power fist,,,E,-,S+2,-2,2,Melee,Power fist () (Exo weapons ← Close combat weapons)
 Close combat weapons,Natural weapons,Ferocious jaws,,,E,-,S,-1,1,"Melee, Rending (6+)",Ferocious jaws () (Natural weapons ← Close combat weapons)
+Wargear,Grenades,Frag grenades,,,-,6",3,-,1,Grenade,Frag grenades () (Grenades ← Wargear)
 """
 
 EQUIPMENT_LISTS_CSV = """
@@ -120,6 +122,10 @@ RESPIRATOR = catalogue_key(
     "Wargear", "Respirator", category="Personal equipment", section=GEAR
 )
 PHELYNX = catalogue_key("Wargear", "Phelynx", category="Pets", section=GEAR)
+# Typed Wargear on the sheet, but it has a firing line — so a weapon.
+FRAG_GRENADES = catalogue_key(
+    "Weapon", "Frag grenades", category="Grenades", section=GEAR
+)
 
 ESCHER_LIST = "Collection:escher equipment list"
 CAWDOR_LIST = "Collection:cawdor equipment list"
@@ -178,7 +184,7 @@ class TestStandardContentIsTheGround:
 class TestPlanning:
     def test_a_file_becomes_rows(self):
         rows = read_csv(WEAPON_PROFILES_CSV)
-        assert len(rows) == 7
+        assert len(rows) == 8
         assert rows[0]["Name"] == "Autogun"
         assert rows[0]["SR"] == '8"'
 
@@ -221,6 +227,36 @@ class TestPlanning:
         assert plan.get(EXO_FIST).fields["qualifier"] == "Exo weapons"
         assert plan.get(POWER_FIST).fields["price"] == 0  # "-", list-priced
         assert plan.get(EXO_FIST).fields["price"] == 105
+
+    def test_a_grenade_is_a_weapon_that_takes_no_slot(self, plan):
+        """The sheet types grenades Wargear for one reason: they do not
+        count against the weapons a fighter holds. But a thing with a
+        firing line is a weapon, so it arrives as one — and slots 0
+        carries the fact the typing was standing in for."""
+        grenade = plan.get(FRAG_GRENADES)
+        assert grenade.kind == "Weapon"
+        assert grenade.fields["slots"] == 0
+        assert grenade.fields["price"] == 30
+        assert grenade.fields["trade_point_price"] == 2
+
+        # Nothing was left behind as wargear under the same name...
+        assert not [
+            p for p in plan.planned if p.kind == "Wargear" and p.name == "Frag grenades"
+        ]
+        # ...and it still homes where the lists expect to find it.
+        assert grenade.fields["category"] == "Category:wargear:grenades"
+
+        # Its statline came across, on the weapon's own unnamed line.
+        own = plan.get(
+            f"WeaponProfile:{ItemId('Frag grenades', '', 'Grenades', GEAR).key}"
+        )
+        assert own.fields["stats"]["LR"] == '6"'
+        assert own.fields["position"] == 0
+
+    def test_ordinary_wargear_stays_wargear(self, plan):
+        # Only a firing line makes the difference — a respirator has none.
+        assert plan.get(RESPIRATOR).kind == "Wargear"
+        assert plan.get(PHELYNX).kind == "Wargear"
 
     def test_the_tp_column_is_the_whole_trading_post_story(self, plan):
         # "E" is never-sold-there; a digit is its price there. Nothing
@@ -311,8 +347,8 @@ class TestPreview:
     def test_the_preview_counts_what_the_upload_creates(self, plan):
         preview = plan.preview()
         assert preview["ok"] is True
-        assert preview["counts"]["Weapon"] == 5  # two of them named "Power fist"
-        assert preview["counts"]["WeaponProfile"] == 7
+        assert preview["counts"]["Weapon"] == 6  # two named "Power fist"; one a grenade
+        assert preview["counts"]["WeaponProfile"] == 8
         assert preview["counts"]["Profile"] == 3
         assert preview["counts"]["Wargear"] == 2
         assert preview["counts"]["Collection"] == 3
