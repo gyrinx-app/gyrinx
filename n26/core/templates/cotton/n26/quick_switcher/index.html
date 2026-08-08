@@ -78,17 +78,23 @@ covers both, and it is one behaviour to hold in your head instead of two.
 The nudge is a margin, which the kit's placement never writes, so the two do
 not fight: it repositions on open, on scroll and on resize.
 
-**The margin is cleared before anything is measured.** That is what makes each
-nudge an answer rather than a correction to the last one: the margin moves the
-box the measurement reads, so measuring with it still applied compounds, and a
-panel opened three times walks three steps further in. Cleared first, the
-measurement is always of where the panel would sit unaided, and the answer does
-not depend on the answer before it — a window that widens again gets a nudge of
-nothing, and the panel goes back to hanging off its trigger.
+The margin is cleared before anything is measured, which is what makes each
+nudge an answer rather than a correction to the last one. An absolutely
+positioned box is offered its containing block's width less its own margins, so
+a margin left over from last time can change the width the measurement reads —
+and a width that came out of the previous answer would compound. Cleared first,
+the answer does not depend on the answer before it: a window that widens again
+gets a nudge of nothing, and the panel goes back to hanging off its trigger.
 
-What is measured is the trigger's box and the panel's layout width, never the
-panel's own rectangle, which its opening transition is in the middle of
-changing.
+What is measured is the box the kit positions against and the panel's layout
+width. Neither of those moves while the panel is opening — the anchor is
+outside the panel, and a layout width is not something a transition can change
+— and the panel's own rectangle, which would be, is never read.
+
+What the measurement does need is a panel that has been laid out at all. A
+press that lands in a frame before that has happened finds a box of no width;
+the placement comes back a frame later rather than giving up, because a panel
+left where the kit put it is a panel off the side of a narrow screen.
 
   --- filtering ---
 
