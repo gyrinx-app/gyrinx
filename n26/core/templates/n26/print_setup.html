@@ -112,85 +112,97 @@ and creating one are one screen, not two.
             beneath. Two columns inside the form's measure — as the screen
             widens the answer is more cards abreast, not wider cards.
 
-            The footer's two figures recompute on every change, the same
-            pattern as the hire rows' running total: presentation of state
-            already on the page, which is the one job Alpine is allowed.
-            A model's checkbox carries its weaponless rating and each weapon
-            its own, so the crew total is base plus ticked weapons — an
-            unticked model contributes nothing, weapons included, exactly as
-            it prints. One change listener on the wrapper rather than one
-            per box: change bubbles, and the recount is one walk either way.
+            Two live reckonings, both the hire rows' running-total pattern —
+            presentation of state already on the page, the one job Alpine is
+            allowed. Each card counts its own ticked weapons' slots against
+            the book's per-card budget, going loud past it without blocking
+            anything: informing, never policing. The section's footer sums a
+            crew total — each model's weaponless rating plus its ticked
+            weapons, so an unticked model contributes nothing, weapons
+            included, exactly as it prints. One change listener per scope
+            rather than one per box: change bubbles, and either recount is
+            one walk.
             {% endcomment %}
-            <div x-data="{ slots: 0, total: 0, retotal() { let slots = 0, total = 0; for (const model of $el.querySelectorAll('input[name=fighters]:checked')) { total += Number(model.dataset.base); for (const weapon of $el.querySelectorAll('input[name=weapons][data-model=' + CSS.escape(model.value) + ']:checked')) { total += Number(weapon.dataset.rating); slots += Number(weapon.dataset.slots); } } this.slots = slots; this.total = total; } }"
+            <div x-data="{ total: 0, retotal() { let total = 0; for (const model of $el.querySelectorAll('input[name=fighters]:checked')) { total += Number(model.dataset.base); for (const weapon of $el.querySelectorAll('input[name=weapons][data-model=' + CSS.escape(model.value) + ']:checked')) { total += Number(weapon.dataset.rating); } } this.total = total; } }"
                  x-init="retotal()"
                  @change="retotal()"
                  class="space-y-4">
                 <div class="grid auto-rows-min grid-cols-1 gap-4 md:grid-cols-2">
                     {% for row in model_rows %}
-                        <c-ui.card padding="none">
-                            <c-slot name="header">
-                                <label class="flex min-h-11 cursor-pointer items-center gap-2.5 px-3 py-2">
-                                    <input type="checkbox"
-                                           name="fighters"
-                                           value="{{ row.card.id }}"
-                                           data-base="{{ row.base_rating }}"
-                                           {% if row.card.id in ticked_models %}checked{% endif %}
-                                           class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
-                                    <span class="min-w-0 flex-1">
-                                        <span class="block truncate font-semibold text-ink-900 dark:text-ink-100">{{ row.card.name }}</span>
-                                        {% if row.card.profile_name %}
-                                            <span class="block truncate text-sm text-muted">{{ row.card.profile_name }}</span>
+                        <div x-data="{ slots: 0, recount() { this.slots = [...$el.querySelectorAll('input[name=weapons]:checked')].reduce((used, weapon) => used + Number(weapon.dataset.slots), 0) } }"
+                             x-init="recount()"
+                             @change="recount()">
+                            <c-ui.card padding="none">
+                                <c-slot name="header">
+                                    <label class="flex min-h-11 cursor-pointer items-center gap-2.5 px-3 py-2">
+                                        <input type="checkbox"
+                                               name="fighters"
+                                               value="{{ row.card.id }}"
+                                               data-base="{{ row.base_rating }}"
+                                               {% if row.card.id in ticked_models %}checked{% endif %}
+                                               class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
+                                        <span class="min-w-0 flex-1">
+                                            <span class="block truncate font-semibold text-ink-900 dark:text-ink-100">{{ row.card.name }}</span>
+                                            {% if row.card.profile_name %}
+                                                <span class="block truncate text-sm text-muted">{{ row.card.profile_name }}</span>
+                                            {% endif %}
+                                        </span>
+                                        {% if row.card.weapons %}
+                                            {% comment %}
+                                            The card's slot spend against the book's
+                                            budget, loud past it. title says which
+                                            number this is — the bare fraction reads
+                                            as anything.
+                                            {% endcomment %}
+                                            <span class="shrink-0 text-xs tabular-nums"
+                                                  :class="slots > {{ slot_budget }} ? 'font-medium text-amber-600 dark:text-amber-400' : 'text-muted'"
+                                                  title="Weapon slots used of the {{ slot_budget }} on a card"
+                                                  x-text="slots + '/{{ slot_budget }} slots'"></span>
                                         {% endif %}
-                                    </span>
-                                    <span class="shrink-0 text-sm tabular-nums text-muted">{{ row.card.rating }}¢</span>
-                                </label>
-                            </c-slot>
-                            {% if row.card.weapons %}
-                                <div class="flex flex-col px-3 py-2">
-                                    {% for weapon in row.card.weapons %}
-                                        {% comment %}
+                                        <span class="shrink-0 text-sm tabular-nums text-muted">{{ row.card.rating }}¢</span>
+                                    </label>
+                                </c-slot>
+                                {% if row.card.weapons %}
+                                    <div class="flex flex-col px-3 py-2">
+                                        {% for weapon in row.card.weapons %}
+                                            {% comment %}
                                         Only stored weapons can be chosen — a computed
                                         line has no assignment to key on, and there are
                                         none of those today. The guard keeps a future
                                         one from rendering an unsubmittable box.
-                                        {% endcomment %}
-                                        {% if weapon.id %}
-                                            <label class="flex min-h-9 cursor-pointer items-center gap-2.5 rounded-control px-1 hover:bg-ink-500/5">
-                                                <input type="checkbox"
-                                                       name="weapons"
-                                                       value="{{ weapon.id }}"
-                                                       data-model="{{ row.card.id }}"
-                                                       data-rating="{{ weapon.total_rating }}"
-                                                       data-slots="{{ weapon.slots }}"
-                                                       {% if weapon.id in ticked_weapons %}checked{% endif %}
-                                                       class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
-                                                <span class="min-w-0 flex-1 truncate text-sm text-ink-900 dark:text-ink-100">{{ weapon.name }}</span>
-                                                {% if weapon.slots != 1 %}
-                                                    <span class="shrink-0 text-xs text-muted">{{ weapon.slots }} slot{{ weapon.slots|pluralize }}</span>
-                                                {% endif %}
-                                                <span class="shrink-0 text-xs tabular-nums text-muted">{{ weapon.total_rating }}¢</span>
-                                            </label>
-                                        {% endif %}
-                                    {% endfor %}
-                                </div>
-                            {% else %}
-                                <p class="px-3 py-2 text-sm text-muted">No weapons.</p>
-                            {% endif %}
-                        </c-ui.card>
+                                            {% endcomment %}
+                                            {% if weapon.id %}
+                                                <label class="flex min-h-9 cursor-pointer items-center gap-2.5 rounded-control px-1 hover:bg-ink-500/5">
+                                                    <input type="checkbox"
+                                                           name="weapons"
+                                                           value="{{ weapon.id }}"
+                                                           data-model="{{ row.card.id }}"
+                                                           data-rating="{{ weapon.total_rating }}"
+                                                           data-slots="{{ weapon.slots }}"
+                                                           {% if weapon.id in ticked_weapons %}checked{% endif %}
+                                                           class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
+                                                    <span class="min-w-0 flex-1 truncate text-sm text-ink-900 dark:text-ink-100">{{ weapon.name }}</span>
+                                                    {% if weapon.slots != 1 %}
+                                                        <span class="shrink-0 text-xs text-muted">{{ weapon.slots }} slot{{ weapon.slots|pluralize }}</span>
+                                                    {% endif %}
+                                                    <span class="shrink-0 text-xs tabular-nums text-muted">{{ weapon.total_rating }}¢</span>
+                                                </label>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </div>
+                                {% else %}
+                                    <p class="px-3 py-2 text-sm text-muted">No weapons.</p>
+                                {% endif %}
+                            </c-ui.card>
+                        </div>
                     {% endfor %}
                 </div>
                 {% comment %}
-                The reckoning: what the ticked selection weighs. Slots first
-                because it is the rulebook's constraint, the total last
-                because it is the number a reader carries away. Informing,
-                never policing — nothing here blocks a print.
+                What the ticked selection weighs, where the eye finishes the
+                grid. Slots are each card's own affair above; this is the one
+                figure that spans them.
                 {% endcomment %}
                 <div class="flex flex-wrap items-center justify-end gap-x-6 gap-y-1 text-sm">
-                    <span class="text-muted">
-                        Slots
-                        <span class="ml-1 font-medium tabular-nums text-ink-900 dark:text-ink-100"
-                              x-text="slots">0</span>
-                    </span>
                     <span class="text-muted">
                         Crew total
                         <span class="ml-1 font-medium tabular-nums text-ink-900 dark:text-ink-100"

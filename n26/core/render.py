@@ -25,6 +25,12 @@ from n26.library.models import (
     WeaponProfile,
 )
 
+#: The book's weapon slots on one card. Each weapon takes its own
+#: ``slots`` against this budget — asterisked weapons two, grenades none.
+#: Shown wherever a selection is being weighed; never enforced, because
+#: we inform rather than police.
+WEAPON_SLOTS_PER_CARD = 3
+
 
 @dataclass(frozen=True)
 class Provenance:

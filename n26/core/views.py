@@ -409,6 +409,8 @@ def print_setup(request, pk):
         config.assignments.set(weapons)
         return redirect(f"{reverse('n26-print', args=[gang.pk])}?config={config.pk}")
 
+    from n26.core.render import WEAPON_SLOTS_PER_CARD
+
     loaded = _config_for(request, gang)
     sheet = render_gang(gang)
     if loaded is not None:
@@ -449,6 +451,7 @@ def print_setup(request, pk):
             "include_stash": loaded.include_stash if loaded else True,
             "ticked_models": ticked_models,
             "ticked_weapons": ticked_weapons,
+            "slot_budget": WEAPON_SLOTS_PER_CARD,
         },
     )
 
