@@ -1,24 +1,25 @@
-"""The site banner, translated from the platform's vocabulary into ours.
+"""The site banner, resolved into this edition's terms.
 
-`Banner` is platform-owned and older than this edition: it stores its icon as
-a Bootstrap Icons class and its colour as a Bootstrap contextual colour, both
-of which the n23 templates hand straight to Bootstrap. n26 has neither — its
-icons are the hand-kept set in core/icons.py and its announcement takes one of
-five tones — so the two attributes have to be translated on the way in.
+`Banner` is platform-owned and shown by every edition, so it stores neither a
+drawing nor a colour but a pair of keys: an icon meaning ("news") and a
+Bootstrap contextual colour. The first is edition-neutral by design and each
+edition looks it up in its own set; the second is Bootstrap's vocabulary, which
+n26 does not share, so it is mapped onto the announcement's five tones.
 
-Doing it here rather than in the template keeps the mapping somewhere it can be
-read and tested, and keeps the shell to one filter per attribute.
+Doing both here rather than in the template keeps the mappings somewhere they
+can be read and tested, and keeps the shell to one filter per attribute.
 
-Both filters are total: any value at all, including the ones nobody has typed
-yet, resolves to something the components accept. That is the point of them. A
-live banner set to an icon this edition does not have took every n26 page down
-with a KeyError, because the icon component raises on an unknown name — which
-is right for a name a template author wrote, and wrong for one an admin typed.
+Both filters are total. Any value at all — including a key written before the
+choices existed, or one retired from the table since — resolves to something
+the components accept. That matters because <c-n26.icon> raises on a name it
+does not have, which is right for a name a template author wrote and fatal for
+one that arrived from a database column: it once took every page of the
+edition down at once.
 """
 
 from django import template
 
-from n26.core import icons
+from gyrinx.site import icons as banner_icons
 
 register = template.Library()
 
@@ -48,11 +49,12 @@ def banner_tone(colour):
 
 
 @register.filter
-def banner_icon(name):
-    """The icon name for a banner's Bootstrap icon class.
+def banner_icon(key):
+    """This edition's icon name for a banner's icon key.
 
-    Empty when there is no equivalent, which leaves <c-n26.site.announcement>
-    to draw the icon its tone implies — a better answer than no icon at all,
-    since the bar's colour and its icon are meant to say the same thing.
+    Empty when the key has no drawing here, which leaves
+    <c-n26.site.announcement> to draw the icon its tone implies — a better
+    answer than no icon at all, since the bar's colour and its icon are meant
+    to say the same thing.
     """
-    return icons.from_bootstrap(name or "")
+    return banner_icons.n26_name(key or "")

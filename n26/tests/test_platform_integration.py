@@ -122,11 +122,11 @@ class TestTheDashboard:
 class TestTheSiteBanner:
     """The platform's banner, drawn in this edition's terms.
 
-    Banner is older than n26 and stores Bootstrap: a Bootstrap Icons
-    class and a Bootstrap contextual colour. n26 has neither vocabulary,
-    so the shell translates both — and the translation has to be total,
-    because the values come from a text field in the admin rather than
-    from anything a template author wrote.
+    Banner is platform-owned and shown by every edition, so it stores an
+    icon *meaning* rather than a drawing, and each edition resolves that
+    meaning in its own set. The colour is still Bootstrap's vocabulary,
+    which n26 does not share, so the shell maps it onto the
+    announcement's five tones.
     """
 
     @pytest.fixture
@@ -140,14 +140,33 @@ class TestTheSiteBanner:
 
         return make
 
-    def test_an_icon_this_edition_does_not_have_is_dropped_not_fatal(
+    def test_a_key_is_drawn_from_this_editions_own_set(
         self, tester, client, default_pack, live_banner
     ):
-        """The regression: a live banner set to bi-blockquote-left took
-        down every page under /n26/ with a KeyError out of the icon
-        registry, because the icon component raises on an unknown name.
-        Raising is right for a name in a template and wrong for one an
-        admin typed, so the shell now resolves it before it gets there.
+        """info's default icon is information-circle, so asking for
+        success against an info bar proves the key was resolved rather
+        than the tone's fallback being used."""
+        from n26.core import icons
+
+        live_banner(icon="success", colour="info")
+
+        body = client.get("/n26/").content.decode()
+        assert icons.ICONS["check-circle"][0] in body
+        assert icons.ICONS["information-circle"][0] not in body
+
+    def test_a_key_with_no_drawing_here_is_not_fatal(
+        self, tester, client, default_pack, live_banner
+    ):
+        """The regression that started this. A live banner set to
+        bi-blockquote-left took every page under /n26/ down with a
+        KeyError out of the icon registry, which raises on a name it
+        does not have — right for a name a template author wrote, fatal
+        for one that arrived from a database column.
+
+        The select box makes such a value unlikely rather than
+        impossible: a row written before the choices existed, a key
+        retired from the table, a banner restored from history. None of
+        those is worth a 500, so the lookup stays total.
         """
         live_banner(icon="bi-blockquote-left", colour="primary")
 
@@ -155,7 +174,7 @@ class TestTheSiteBanner:
         assert response.status_code == 200
         assert "N26 support is coming." in response.content.decode()
 
-    def test_a_dropped_icon_leaves_the_one_the_tone_implies(
+    def test_an_unresolved_key_leaves_the_icon_the_tone_implies(
         self, tester, client, default_pack, live_banner
     ):
         """Not "no icon": the bar's colour and its icon say the same
@@ -163,24 +182,10 @@ class TestTheSiteBanner:
         """
         from n26.core import icons
 
-        live_banner(icon="bi-blockquote-left", colour="danger")
+        live_banner(icon="nonsense", colour="danger")
 
         body = client.get("/n26/").content.decode()
         assert icons.ICONS["exclamation-triangle"][0] in body
-
-    def test_an_icon_with_an_equivalent_is_translated(
-        self, tester, client, default_pack, live_banner
-    ):
-        """Where the two sets do agree, the author's choice survives —
-        info's default is information-circle, so a check proves the
-        alias ran rather than the fallback."""
-        from n26.core import icons
-
-        live_banner(icon="bi-check-circle", colour="info")
-
-        body = client.get("/n26/").content.decode()
-        assert icons.ICONS["check-circle"][0] in body
-        assert icons.ICONS["information-circle"][0] not in body
 
     def test_a_bootstrap_colour_becomes_an_announcement_tone(
         self, tester, client, default_pack, live_banner
@@ -204,32 +209,28 @@ class TestTheSiteBanner:
         assert 'data-tone="info"' in body
 
 
-class TestTheBootstrapIconAliases:
-    def test_every_alias_points_at_an_icon_that_exists(self):
-        """The table is only useful while its targets are real, and a
-        rename in the registry would otherwise turn one into a 500 on
-        whichever page uses it."""
+class TestTheSharedIconKeys:
+    """gyrinx/site/icons.py names an n26 icon for every key, as a string,
+    because the platform may not import an edition package. Nothing but
+    this test keeps that column honest."""
+
+    def test_every_key_names_an_icon_this_edition_actually_has(self):
+        from gyrinx.site import icons as banner_icons
         from n26.core import icons
 
         missing = {
-            source: target
-            for source, target in icons.BOOTSTRAP_ALIASES.items()
-            if target not in icons.ICONS
+            entry.key: entry.n26
+            for entry in banner_icons.BANNER_ICONS
+            if entry.n26 not in icons.ICONS
         }
         assert not missing
 
-    def test_an_unknown_name_resolves_to_nothing_rather_than_raising(self):
-        from n26.core import icons
+    def test_the_lookup_is_total(self):
+        from gyrinx.site import icons as banner_icons
 
-        assert icons.from_bootstrap("bi-blockquote-left") == ""
-        assert icons.from_bootstrap("") == ""
-        assert icons.from_bootstrap("not an icon at all") == ""
-
-    def test_our_own_names_pass_straight_through(self):
-        """So a caller need not know which vocabulary it is holding."""
-        from n26.core import icons
-
-        assert icons.from_bootstrap("check-circle") == "check-circle"
+        assert banner_icons.n26_name("nonsense") == ""
+        assert banner_icons.n26_name("") == ""
+        assert banner_icons.n26_name(None) == ""
 
 
 class TestFoundingAGang:

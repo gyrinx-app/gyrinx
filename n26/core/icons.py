@@ -171,64 +171,6 @@ LOCAL = frozenset({"pencil", "arrow-up-tray", "printer", "star"})
 # stroke_width means nothing on a solid icon and is ignored.
 SOLID = frozenset({"github", "discord"})
 
-# Bootstrap Icons names that mean the same thing as one of ours.
-#
-# The platform stores icon names as Bootstrap Icons classes — Banner.icon is
-# documented as one, and the n23 templates render it as `<i class="{{ icon }}">`
-# against a font this edition does not load. n26 draws from ICONS above, so a
-# name arriving from that vocabulary has to be translated or dropped; what it
-# must never do is reach paths() and raise, which is what took every n26 page
-# down when a live banner was set to bi-blockquote-left.
-#
-# Deliberately short. It covers what a site banner actually reaches for, and
-# everything else resolves to "" so the caller falls back to something sensible
-# of its own. Growing it to chase Bootstrap's ~2,000 icons would be pretending
-# to a correspondence that mostly does not exist.
-BOOTSTRAP_ALIASES: dict[str, str] = {
-    "bi-info-circle": "information-circle",
-    "bi-info-circle-fill": "information-circle",
-    "bi-exclamation-triangle": "exclamation-triangle",
-    "bi-exclamation-triangle-fill": "exclamation-triangle",
-    "bi-check-circle": "check-circle",
-    "bi-check-circle-fill": "check-circle",
-    "bi-check": "check",
-    "bi-bell": "bell",
-    "bi-bell-fill": "bell",
-    "bi-star": "star",
-    "bi-star-fill": "star",
-    "bi-heart": "heart",
-    "bi-heart-fill": "heart",
-    "bi-truck": "truck",
-    "bi-gear": "cog-6-tooth",
-    "bi-gear-fill": "cog-6-tooth",
-    "bi-search": "magnifying-glass",
-    "bi-pencil": "pencil",
-    "bi-printer": "printer",
-    "bi-github": "github",
-    "bi-discord": "discord",
-    "bi-arrow-right": "arrow-right",
-    "bi-plus": "plus",
-    "bi-dash": "minus",
-    "bi-x": "x-mark",
-    "bi-x-lg": "x-mark",
-}
-
-
-def from_bootstrap(name: str) -> str:
-    """Our name for a Bootstrap Icons name, or "" if we have no equivalent.
-
-    Never raises. This is the seam where data typed into the admin — rather
-    than a name written by whoever wrote the template — becomes an icon, and
-    a banner someone set to an icon we happen not to have should be a banner
-    without an icon, not a 500 on every page of the edition.
-
-    A name already in our own vocabulary passes through, so a caller need not
-    know which of the two it is holding.
-    """
-    if name in ICONS:
-        return name
-    return BOOTSTRAP_ALIASES.get(name, "")
-
 
 def paths(name: str) -> list[str]:
     """The subpaths for `name`, or a loud error naming what is available.
