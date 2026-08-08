@@ -341,6 +341,43 @@ class GeneratedForm(forms.Form):
             data["conditions"] = list(conditions)
         return self.spec.compile(data)
 
+    @classmethod
+    def opened_on(cls, thing, data=None, prefix="edit"):
+        """The same form, filled in from a row that already exists.
+
+        A creating spec describes its verb's parameters, and for the
+        leaf kinds every one of those names a column on the thing the
+        verb makes — so the spec reads both ways, and editing needs no
+        second description of a kind. A guard holds that true
+        (tests/sandbox/test_authoring_views.py).
+
+        Prefixed, because a thing's page carries the form that adds a
+        part as well as this one, and the two specs name fields alike:
+        unprefixed, a weapon's page draws two inputs called
+        ``is_exclusive`` sharing one id, and the switches cross-wire —
+        saving the weapon marks it exclusive because the other form's
+        control answered for it.
+        """
+        initial = {
+            name: getattr(thing, name)
+            for name in cls.spec.fields
+            if hasattr(thing, name)
+        }
+        return cls(data, initial=initial, prefix=prefix)
+
+    def apply_to(self, thing):
+        """Write this valid form's fields onto an existing row.
+
+        The verb is for making things; changing one is a write to the
+        columns the spec already names. Values the form does not carry
+        are left alone rather than blanked.
+        """
+        for name in self.spec.fields:
+            if name in self.fields:
+                setattr(thing, name, self.cleaned_data.get(name))
+        thing.save()
+        return thing
+
 
 def generate_form(spec):
     """A plain Django ``Form`` subclass for one verb, from its spec.

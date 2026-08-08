@@ -10,7 +10,7 @@ that belongs nowhere. "App" is the way back out and is never current —
 it is not an authoring page.
 {% endcomment %}
 <c-ui.navbar.item href="{% url 'authoring-index' %}"
-                  current="{% if here == 'index' %}1{% endif %}">Authoring</c-ui.navbar.item>
+                  current="{% if here == 'index' %}1{% endif %}">Content library</c-ui.navbar.item>
 <c-ui.navbar.item href="{% url 'authoring-foundations' %}"
                   current="{% if here == 'foundations' %}1{% endif %}">Foundations</c-ui.navbar.item>
 <c-ui.navbar.item href="{% url 'authoring-modifiers' %}"

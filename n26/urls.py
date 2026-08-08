@@ -38,6 +38,13 @@ urlpatterns = [
         name="authoring-ingest-clear",
     ),
     path("authoring/<slug:kind>/", authoring_views.leaf, name="authoring-leaf"),
+    # Before the pk route: "new" is a perfectly good primary key as far
+    # as the pattern is concerned, and the first match wins.
+    path(
+        "authoring/<slug:kind>/new/",
+        authoring_views.create,
+        name="authoring-create",
+    ),
     path(
         "authoring/<slug:kind>/<str:pk>/",
         authoring_views.detail,

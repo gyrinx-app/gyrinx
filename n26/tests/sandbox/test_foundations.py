@@ -238,7 +238,7 @@ class TestTheFoundationPages:
 
     def test_a_stat_has_its_own_page(self, author, client, default_pack):
         client.post(
-            "/n26/authoring/stat/",
+            "/n26/authoring/stat/new/",
             {"short_name": "Ht", "full_name": "Heat"},
         )
         assert Stat.objects.get(full_name="Heat").short_name == "Ht"
@@ -262,7 +262,7 @@ class TestTheFoundationPages:
         """Print order is the whole point of a shape, and a multi-select
         cannot express it — so the shape is created bare and its stats
         are added one by one, each landing at the end."""
-        response = client.post("/n26/authoring/statline-type/", {"name": "Vehicle"})
+        response = client.post("/n26/authoring/statline-type/new/", {"name": "Vehicle"})
         shape = StatlineType.objects.get(name="Vehicle")
         assert response["Location"] == f"/n26/authoring/statline-type/{shape.pk}/"
 
@@ -284,7 +284,7 @@ class TestTheFoundationPages:
         prefix every row with the shape's own name."""
         from n26.library.authoring import create_stat
 
-        client.post("/n26/authoring/statline-type/", {"name": "Model"})
+        client.post("/n26/authoring/statline-type/new/", {"name": "Model"})
         shape = StatlineType.objects.get(name="Model")
         client.post(
             f"/n26/authoring/statline-type/{shape.pk}/",
@@ -308,7 +308,7 @@ class TestTheFoundationPages:
     def test_a_shape_can_mark_where_a_group_starts(self, author, client, default_pack):
         from n26.library.authoring import create_stat
 
-        client.post("/n26/authoring/statline-type/", {"name": "Fighter"})
+        client.post("/n26/authoring/statline-type/new/", {"name": "Fighter"})
         shape = StatlineType.objects.get(name="Fighter")
         client.post(
             f"/n26/authoring/statline-type/{shape.pk}/",
@@ -340,7 +340,7 @@ class TestSeededContentIsUsable:
 
         weapon_shape = StatlineType.objects.get(name=WEAPON_STATLINE)
         client.post(
-            "/n26/authoring/weapon/",
+            "/n26/authoring/weapon/new/",
             {
                 "name": "Lasgun",
                 "slots": "1",

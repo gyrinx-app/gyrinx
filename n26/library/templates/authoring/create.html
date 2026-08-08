@@ -1,0 +1,41 @@
+{% extends "authoring/base.html" %}
+{% block head_title %}
+    New {{ verbose_name }}
+{% endblock head_title %}
+{% block content %}
+    <c-n26.page-header title="New {{ verbose_name }}">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Content library</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-leaf' kind %}">
+                    {{ verbose_name_plural|capfirst }}
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    New
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+    </c-n26.page-header>
+    {% if kind_help %}
+        <c-n26.prose class="mt-3 max-w-2xl">
+            {% for paragraph in kind_help %}<p>{{ paragraph }}</p>{% endfor %}
+        </c-n26.prose>
+    {% endif %}
+    <form method="post" class="mt-6 max-w-xl space-y-5">
+        {% csrf_token %}
+        {% include "authoring/_form.html" %}
+        {% if suggestion_form %}
+            <c-n26.form-section title="Comes with"
+                                description="All optional — blank to skip."
+                                class="rounded-box border border-box-border p-4">
+                {% include "authoring/_form.html" with form=suggestion_form %}
+            </c-n26.form-section>
+        {% endif %}
+        <div class="flex items-center justify-end gap-3">
+            <c-n26.link href="{% url 'authoring-leaf' kind %}">Cancel</c-n26.link>
+            <c-ui.button type="submit" variant="success">
+                Create {{ verbose_name }}
+            </c-ui.button>
+        </div>
+    </form>
+{% endblock content %}

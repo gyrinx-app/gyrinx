@@ -1,0 +1,127 @@
+{% comment %}
+OVERRIDE of django_cotton_ui's cotton/ui/switch/impl.html. Identical to the
+shipped template except for how the hidden checkbox is bound.
+
+  --- what was wrong ---
+
+The kit binds the checkbox with `x-bind="input"`, an object holding
+`x-model.boolean`. Applied that way the model never reflects onto the element:
+once Alpine initialises the component the checkbox reads `checked` and stays
+that way, whether the switch was started on or off, and whichever way the state
+moves afterwards. The visible track follows `switchOn` correctly, so the control
+looks right and posts the opposite.
+
+A form is what makes that dangerous rather than cosmetic. Saving a weapon after
+editing its price marked it exclusive, because the box under the switch had been
+checked since load and nobody could see it.
+
+  --- why it stayed hidden ---
+
+Every form in the app was unbound until things could be edited, and an unbound
+field's value is `None`, which renders `switchInput(false, none)` — `none` is
+not a JavaScript literal, so the component threw on init and never bound
+anything. The plain unchecked input underneath was what got posted, which is the
+right answer for the wrong reason. The first form opened on a saved row is the
+first one where Alpine got far enough to be wrong.
+
+  --- the change ---
+
+`x-model="switchOn"` on the element itself, which is the ordinary Alpine
+spelling and reflects both ways, plus the `x-ref` and `:disabled` the bind
+object was also supplying. No `.boolean`: that modifier casts a string value,
+and this state is already a boolean.
+
+  --- upstream ---
+
+Delete this file if the kit fixes its binding, and check the rest of the
+template against the shipped one when you do — everything below the input is a
+verbatim copy and will drift.
+{% endcomment %}
+<c-vars
+    name=""
+    class=""
+    value="on"
+    :disabled="False"
+    :checked="False"
+    :accent="True"
+    size="md"
+    :size_classes="{
+        'xs': 'h-4 w-7',
+        'sm': 'h-5 w-9',
+        'md': 'h-6 w-11',
+        'lg': 'h-7 w-14',
+        'xl': 'h-8 w-16',
+        '2xl': 'h-9 w-[4.5rem]'
+    }"
+    :indicator_classes="{
+        'xs': 'h-3 w-3',
+        'sm': 'h-4 w-4',
+        'md': 'h-5 w-5',
+        'lg': 'h-6 w-6',
+        'xl': 'h-7 w-7',
+        '2xl': 'h-8 w-8'
+    }"
+/>
+
+<div x-data='switchInput({{ disabled|lower }}, {{ checked|lower }})' class="inline-flex items-center">
+    {% comment %}Hidden checkbox input for form submission{% endcomment %}
+    <input
+        type="checkbox"
+        name="{{ name }}"
+        value="{{ value }}"
+        {% if disabled %}disabled{% endif %}
+        {{ attrs }}
+        class="sr-only"
+        x-ref="input"
+        x-model="switchOn"
+        :disabled="disabled"
+    />
+
+    {% comment %}Switch toggle button{% endcomment %}
+    <button
+        type="button"
+        role="switch"
+        x-bind="trigger"
+        class="relative inline-flex items-center rounded-full focus-ring
+               {{ size_classes|get_item:size }}
+               {% if disabled %}opacity-50 cursor-not-allowed{% else %}cursor-pointer{% endif %}
+               {{ class }}"
+        :class="{
+            'transition-colors': ready,
+            {% if accent %}
+            'bg-accent': switchOn,
+            {% else %}
+            'bg-[var(--color-accent-muted,currentColor)]': switchOn,
+            {% endif %}
+            'bg-ink-200 dark:bg-ink-700': !switchOn
+        }"
+    >
+        <span
+            class="inline-block transform rounded-full bg-white dark:bg-ink-900 shadow-lg
+                   {{ indicator_classes|get_item:size }}"
+            :class="{
+                'transition-transform': ready,
+                {% comment %}On-position is symmetric: track - thumb - 0.125rem, so the right gap matches the 0.125rem top/bottom/left gap.{% endcomment %}
+                {% if size == 'xs' %}
+                'translate-x-[0.875rem]': switchOn,
+                'translate-x-0.5': !switchOn
+                {% elif size == 'sm' %}
+                'translate-x-[1.125rem]': switchOn,
+                'translate-x-0.5': !switchOn
+                {% elif size == 'lg' %}
+                'translate-x-[1.875rem]': switchOn,
+                'translate-x-0.5': !switchOn
+                {% elif size == 'xl' %}
+                'translate-x-[2.125rem]': switchOn,
+                'translate-x-0.5': !switchOn
+                {% elif size == '2xl' %}
+                'translate-x-[2.375rem]': switchOn,
+                'translate-x-0.5': !switchOn
+                {% else %}
+                'translate-x-[1.375rem]': switchOn,
+                'translate-x-0.5': !switchOn
+                {% endif %}
+            }"
+        ></span>
+    </button>
+</div>

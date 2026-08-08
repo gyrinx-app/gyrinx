@@ -156,11 +156,19 @@ def _carries_modifiers(kind):
 
 
 def _has_detail(kind):
-    """Whether this kind's listing rows link to a page of their own —
-    a parts-and-add-form page (DETAIL_KINDS), a kind's own view
-    (DETAIL_VIEWS, defined below the views themselves), or any
-    assignable's modifier section."""
-    return kind in DETAIL_KINDS or kind in DETAIL_VIEWS or _carries_modifiers(kind)
+    """Whether this kind's rows have a page of their own.
+
+    Every authored kind does: a row's page is where it is edited, and
+    the parts (DETAIL_KINDS), a kind's own view (DETAIL_VIEWS, defined
+    below the views themselves) and an assignable's modifier section
+    are what some of them add on top of that.
+    """
+    return (
+        kind in LEAF_KINDS
+        or kind in DETAIL_KINDS
+        or kind in DETAIL_VIEWS
+        or _carries_modifiers(kind)
+    )
 
 
 #: The most empty condition rows a composer will offer at once. The
@@ -392,13 +400,51 @@ def index(request):
 
 @staff_member_required
 def leaf(request, kind):
-    """One leaf kind: its recent rows, and the form that makes one more."""
+    """One leaf kind: what it is, and every one of them.
+
+    Reading and writing are separate pages. This one is the list an
+    author checks content against, so it holds no form — making one is
+    a button, and changing one is the row itself.
+    """
+    spec = _spec_for(kind)
+    model = _model_for(spec)
+    describe = LEAF_DESCRIBE.get(kind, _describe_row)
+
+    rows = []
+    for row in _rows(model):
+        label, notes = _label_for(row), describe(row)
+        rows.append(
+            {
+                "pk": row.pk,
+                "label": label,
+                "notes": notes,
+                # What the in-page search reads. Lowercased here so the
+                # comparison is a plain substring test in the browser.
+                "search": " ".join([label, *notes]).lower(),
+            }
+        )
+
+    return render(
+        request,
+        "authoring/leaf.html",
+        {
+            "kind": kind,
+            "verbose_name": model._meta.verbose_name,
+            "verbose_name_plural": model._meta.verbose_name_plural,
+            "kind_help": kind_help(model),
+            "rows": rows,
+            "count": len(rows),
+        },
+    )
+
+
+@staff_member_required
+def create(request, kind):
+    """The form that makes one more of a leaf kind, on its own page."""
     spec = _spec_for(kind)
     model = _model_for(spec)
     form_class = generate_form(spec)
     suggestion_class = suggestion_form_for(model)
-
-    describe = LEAF_DESCRIBE.get(kind, _describe_row)
 
     if request.method == "POST":
         form = form_class(request.POST)
@@ -425,16 +471,14 @@ def leaf(request, kind):
                 )
             else:
                 messages.success(request, f"Created {created}.")
-                if _has_detail(kind):
-                    return redirect("authoring-detail", kind=kind, pk=created.pk)
-                return redirect("authoring-leaf", kind=kind)
+                return redirect("authoring-detail", kind=kind, pk=created.pk)
     else:
         form = form_class()
         suggestions = suggestion_class(prefix="suggested") if suggestion_class else None
 
     return render(
         request,
-        "authoring/leaf.html",
+        "authoring/create.html",
         {
             "kind": kind,
             "verbose_name": model._meta.verbose_name,
@@ -442,16 +486,6 @@ def leaf(request, kind):
             "kind_help": kind_help(model),
             "form": form,
             "suggestion_form": suggestions,
-            "rows": [
-                {
-                    "pk": row.pk,
-                    "label": _label_for(row),
-                    "notes": describe(row),
-                }
-                for row in _rows(model)
-            ],
-            "has_detail": _has_detail(kind),
-            "count": model.objects.count(),
         },
     )
 
@@ -478,15 +512,33 @@ def detail(request, kind, pk):
     thing = get_object_or_404(model, pk=pk)
     detail_of = DETAIL_KINDS.get(kind)
     with_modifiers = _carries_modifiers(kind)
-    if detail_of is None and not with_modifiers:
-        raise Http404(f"{kind} has no page of its own")
 
     composer = None
     act = request.POST.get("act", "")
-    if request.method == "POST" and act and with_modifiers:
+    if request.method == "POST" and act and with_modifiers and act != "edit":
         response, composer = _modifier_action(request, kind, thing, act)
         if response is not None:
             return response
+
+    edit_class = generate_form(spec)
+    if request.method == "POST" and act == "edit":
+        edit_form = edit_class.opened_on(thing, request.POST)
+        if edit_form.is_valid():
+            try:
+                with transaction.atomic():
+                    edit_form.apply_to(thing)
+            except IntegrityError:
+                named = spec.identity
+                edit_form.add_error(
+                    named,
+                    f"A {model._meta.verbose_name} named "
+                    f"“{edit_form.cleaned_data[named]}” already exists in this pack.",
+                )
+            else:
+                messages.success(request, f"Saved {thing}.")
+                return redirect("authoring-detail", kind=kind, pk=pk)
+    else:
+        edit_form = edit_class.opened_on(thing)
 
     if detail_of is not None:
         part_spec = specs()[detail_of["verb"]]
@@ -545,7 +597,7 @@ def detail(request, kind, pk):
             "thing": thing,
             "verbose_name": model._meta.verbose_name,
             "verbose_name_plural": model._meta.verbose_name_plural,
-            "kind_help": kind_help(model),
+            "edit_form": edit_form,
             **part_context,
             **(
                 _modifier_section(request, thing, composer)

@@ -81,6 +81,11 @@ Concretely:
   the URL. The exception: Alpine may narrow or reorder content already
   on the page (filtering a table, a sidebar search) — presentation only,
   nothing the server would render differently.
+- **A `success` button ends a form; a `primary` button starts one.**
+  Green is the commit — Save, Create, Add this thing. A control that
+  opens a form or goes to one is `primary`, however creative the thing
+  it leads to: "New weapon" at the top of a listing begins the journey
+  that "Create weapon" finishes.
 - Python 3.14 is required, not just supported — some files use syntax
   that will not parse on older versions.
 

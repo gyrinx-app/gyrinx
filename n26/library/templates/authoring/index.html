@@ -1,14 +1,13 @@
 {% extends "authoring/base.html" %}
 {% block head_title %}
-    Authoring
+    Content library
 {% endblock head_title %}
 {% block content %}
-    <c-n26.page-header title="Content authoring"
-                       lead="The leaves: the fundamental things everything else references." />
+    <c-n26.page-header title="Content library"
+                       lead="Manage the core objects of the N26 content library." />
     <c-n26.prose class="mt-2">
         <p>
-            Start at <c-n26.link href="{% url 'authoring-foundations' %}">Foundations</c-n26.link>
-            if the library is empty — stats and statline shapes are created there.
+            To set up behaviours, head to <c-n26.link href="{% url 'authoring-modifiers' %}">Modifiers</c-n26.link>.
         </p>
     </c-n26.prose>
     {% comment %}
