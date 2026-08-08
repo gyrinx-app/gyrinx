@@ -295,15 +295,16 @@ class TestFamilies:
 
     def test_the_index_groups_by_family(self, author, client, default_pack):
         body = client.get("/n26/authoring/").content.decode()
-        # Every family has pages now, and they read in declaration order.
-        # The heading text, not its markup — the section component owns that.
+        # One table, a group row per family, in declaration order. The
+        # heading text where it lands, not the markup around it.
         positions = [
-            body.index(f">{label}</h2>") for label in ("Base", "Model", "Gear", "Gang")
+            re.search(rf'scope="colgroup".*?>\s*{label}\s*<', body, re.S).start()
+            for label in ("Base", "Model", "Gear", "Gang")
         ]
         assert positions == sorted(positions)
         # A kind sits under its family.
-        assert body.index(">Gear</h2>") < body.index("wargear")
-        assert body.index(">Gang</h2>") < body.index("archetype")
+        assert positions[2] < body.index("wargear")
+        assert positions[3] < body.index("archetype")
 
     def test_the_family_table(self):
         """The grouping as agreed, pinned so it changes deliberately."""

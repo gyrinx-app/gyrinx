@@ -11,29 +11,43 @@
             if the library is empty — stats and statline shapes are created there.
         </p>
     </c-n26.prose>
-    {% for family in families %}
-        <c-n26.form-section title="{{ family.label }}" class="mt-8">
-            <c-ui.table>
-                <thead>
+    {% comment %}
+    One table, a tbody per family, rather than a table per family: column
+    widths are a table's own, so separate tables mean every family sizes
+    its Kind column to its own longest name and nothing lines up down the
+    page. The family heading is a row spanning the width, which is what
+    scope="colgroup" says out loud.
+    {% endcomment %}
+    <c-ui.table class="mt-8">
+        <thead>
+            <tr>
+                <th scope="col">Kind</th>
+                <th scope="col" class="w-full">What it is</th>
+                <th scope="col" class="text-right">Rows</th>
+            </tr>
+        </thead>
+        {% for family in families %}
+            <tbody>
+                <tr>
+                    {# The ! wins over the kit's [&_th] colour rule, which #}
+                    {# out-specifies a plain utility on the cell itself. #}
+                    <th scope="colgroup"
+                        colspan="3"
+                        class="bg-ink-100 font-semibold! text-ink-900! dark:bg-ink-800 dark:text-ink-100!">
+                        {{ family.label }}
+                    </th>
+                </tr>
+                {% for entry in family.kinds %}
                     <tr>
-                        <th scope="col">Kind</th>
-                        <th scope="col" class="w-full">What it is</th>
-                        <th scope="col" class="text-right">Rows</th>
+                        {# nowrap: the summary column takes the squeeze, never the name #}
+                        <td class="whitespace-nowrap">
+                            <c-n26.link href="{% url 'authoring-leaf' entry.kind %}">{{ entry.verbose_name|capfirst }}</c-n26.link>
+                        </td>
+                        <td>{{ entry.summary }}</td>
+                        <td class="text-right tabular-nums">{{ entry.count }}</td>
                     </tr>
-                </thead>
-                <tbody>
-                    {% for entry in family.kinds %}
-                        <tr>
-                            {# nowrap: the summary column takes the squeeze, never the name #}
-                            <td class="whitespace-nowrap">
-                                <c-n26.link href="{% url 'authoring-leaf' entry.kind %}">{{ entry.verbose_name|capfirst }}</c-n26.link>
-                            </td>
-                            <td>{{ entry.summary }}</td>
-                            <td class="text-right tabular-nums">{{ entry.count }}</td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </c-ui.table>
-        </c-n26.form-section>
-    {% endfor %}
+                {% endfor %}
+            </tbody>
+        {% endfor %}
+    </c-ui.table>
 {% endblock content %}
