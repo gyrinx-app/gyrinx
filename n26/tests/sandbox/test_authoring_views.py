@@ -1518,3 +1518,80 @@ class TestTheModifierSection:
         body = client.get(f"/n26/authoring/weapon/{gun.pk}/").content.decode()
         assert "Add a weapon profile" in body
         assert "does nothing special until" in body
+
+
+class TestTheModifiersPage:
+    """The standalone page: every modifier in the pack listed with its
+    sentences and carrier count, and the composer with nothing to
+    attach to — what it makes is reusable by construction."""
+
+    def test_it_lists_every_modifier_with_its_reach(self, author, client, default_pack):
+        from n26.library.authoring import (
+            attach_modifiers_to,
+            create_rule,
+            create_subtype,
+            ef_adds,
+            modifier,
+            targets_model,
+        )
+
+        shared = modifier(
+            "Grants Mounted", targets_model(), ef_adds(create_subtype("Mounted"))
+        )
+        attach_modifiers_to(create_rule("Cutter"), [shared])
+        modifier("Grants Wyrd", targets_model(), ef_adds(create_subtype("Wyrd")))
+
+        body = client.get("/n26/authoring/modifiers/").content.decode()
+        assert "Grants Mounted" in body
+        assert "adds Mounted" in body
+        assert "on 1 carrier" in body
+        assert "reusable — attached nowhere yet" in body
+
+    def test_composing_here_attaches_nowhere(self, author, client, default_pack):
+        from n26.library.authoring import create_subtype
+        from n26.library.models import Modifier
+
+        mounted = create_subtype("Mounted")
+        response = client.post(
+            "/n26/authoring/modifiers/",
+            {
+                "scope_kind": "targets_model",
+                "effect_kind": "ef_adds",
+                "what-thing_kind": "subtype",
+                "what-thing_subtype": str(mounted.pk),
+                **TestTheModifierSection.NO_CONDITIONS,
+            },
+        )
+        assert response.status_code == 302
+        (made,) = Modifier.objects.all()
+        # Reusable by construction: no carrier anywhere holds it.
+        from n26.library.views import _carrier_count
+
+        assert _carrier_count(made) == 0
+
+    def test_the_two_step_flow_works_here_too(self, author, client, default_pack):
+        body = client.get(
+            "/n26/authoring/modifiers/"
+            "?scope_kind=targets_weapons&effect_kind=ef_adds&chips=1"
+        ).content.decode()
+        assert 'name="what-thing_kind"' in body
+        assert 'name="conditions-0-kind"' in body
+        # No keep-reusable switch: there is nothing to attach to.
+        assert 'name="keep_reusable"' not in body
+
+    def test_a_refusal_stays_on_the_page_in_words(self, author, client, default_pack):
+        from n26.library.authoring import create_trait
+
+        melee = create_trait("Melee")
+        response = client.post(
+            "/n26/authoring/modifiers/",
+            {
+                "scope_kind": "targets_model",
+                "effect_kind": "ef_adds",
+                "what-thing_kind": "trait",
+                "what-thing_trait": str(melee.pk),
+                **TestTheModifierSection.NO_CONDITIONS,
+            },
+        )
+        assert response.status_code == 200
+        assert "cannot apply" in response.content.decode()

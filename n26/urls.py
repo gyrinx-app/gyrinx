@@ -20,6 +20,11 @@ urlpatterns = [
     path("design/", include("n26.designsystem.urls")),
     path("authoring/", authoring_views.index, name="authoring-index"),
     path(
+        "authoring/modifiers/",
+        authoring_views.modifiers,
+        name="authoring-modifiers",
+    ),
+    path(
         "authoring/foundations/",
         authoring_views.foundations,
         name="authoring-foundations",

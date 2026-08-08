@@ -533,12 +533,40 @@ def _modifier_action(request, kind, thing, act):
     return redirect("authoring-detail", kind=kind, pk=thing.pk), None
 
 
+def _composer_state(request, attach_to=None, bound_composer=None):
+    """The composer as the URL describes it: closed, open at the named
+    kinds, or bound with errors after a refused submit. Shared by the
+    carrier pages and the standalone modifiers page."""
+    from n26.library.forms import ModifierComposerForm
+
+    scope_kind = request.POST.get("scope_kind", request.GET.get("scope_kind", ""))
+    effect_kind = request.POST.get("effect_kind", request.GET.get("effect_kind", ""))
+    try:
+        chips = max(0, int(request.GET.get("chips", 0)))
+    except ValueError:
+        chips = 0
+
+    composer = bound_composer
+    if composer is None and scope_kind in specs() and effect_kind in specs():
+        composer = ModifierComposerForm.unbound(
+            scope_kind, effect_kind, attach_to=attach_to, chips=chips
+        )
+
+    return {
+        "kind_picker": ModifierComposerForm(
+            initial={"scope_kind": scope_kind, "effect_kind": effect_kind}
+        ),
+        "composer": composer,
+        "composer_scope": scope_kind,
+        "composer_effect": effect_kind,
+        "composer_chips": chips,
+    }
+
+
 def _modifier_section(request, thing, bound_composer=None):
     """Everything the modifiers section draws: what hangs here (with
     its sentences and how shared it is), what could be attached, and
-    the composer — closed, open at the kinds the URL names, or bound
-    with errors after a refused submit."""
-    from n26.library.forms import ModifierComposerForm
+    the composer."""
     from n26.library.models import Modifier
 
     rows = []
@@ -558,31 +586,60 @@ def _modifier_section(request, thing, bound_composer=None):
         for modifier in Modifier.objects.exclude(pk__in=[m.pk for m in attached])
     ]
 
-    scope_kind = request.POST.get("scope_kind", request.GET.get("scope_kind", ""))
-    effect_kind = request.POST.get("effect_kind", request.GET.get("effect_kind", ""))
-    try:
-        chips = max(0, int(request.GET.get("chips", 0)))
-    except ValueError:
-        chips = 0
-
-    composer = bound_composer
-    if composer is None and scope_kind in specs() and effect_kind in specs():
-        composer = ModifierComposerForm.unbound(
-            scope_kind, effect_kind, attach_to=thing, chips=chips
-        )
-
     return {
         "with_modifiers": True,
         "modifier_rows": rows,
         "attachable_modifiers": attachable,
-        "kind_picker": ModifierComposerForm(
-            initial={"scope_kind": scope_kind, "effect_kind": effect_kind}
-        ),
-        "composer": composer,
-        "composer_scope": scope_kind,
-        "composer_effect": effect_kind,
-        "composer_chips": chips,
+        **_composer_state(request, attach_to=thing, bound_composer=bound_composer),
     }
+
+
+@staff_member_required
+def modifiers(request):
+    """The modifiers themselves: every one in the pack, and the
+    composer with nothing to attach to — what it makes is reusable by
+    construction, waiting in every carrier page's attach picker."""
+    from n26.library.forms import ModifierComposerForm
+    from n26.library.models import Modifier
+
+    bound = None
+    if request.method == "POST":
+        bound = ModifierComposerForm(request.POST, attach_to=None)
+        if bound.is_valid():
+            try:
+                with transaction.atomic():
+                    made = bound.save()
+            except IntegrityError:
+                bound.add_error(
+                    "name",
+                    "A modifier with that name already exists in this pack.",
+                )
+            else:
+                messages.success(
+                    request,
+                    f"Composed {made.name} — attach it from any carrier's page.",
+                )
+                return redirect("authoring-modifiers")
+
+    rows = []
+    for modifier in Modifier.objects.all():
+        carriers = _carrier_count(modifier)
+        notes = [str(modifier.scope), str(modifier.effect)]
+        notes.append(
+            f"on {carriers} carrier{'' if carriers == 1 else 's'}"
+            if carriers
+            else "reusable — attached nowhere yet"
+        )
+        rows.append({"label": modifier.name, "notes": notes})
+
+    return render(
+        request,
+        "authoring/modifiers.html",
+        {
+            "rows": rows,
+            **_composer_state(request, bound_composer=bound),
+        },
+    )
 
 
 def _tp_words(line):

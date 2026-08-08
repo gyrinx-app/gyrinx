@@ -1,0 +1,62 @@
+{% comment %}
+The two-step composer, shared by every carrier page and the standalone
+modifiers page. Step one is a GET so the chosen kinds live in the URL —
+step two survives a refresh, and "add a condition" is a plain link.
+
+Takes kind_picker, composer, composer_scope, composer_effect,
+composer_chips, and show_keep_reusable (the standalone page hides the
+switch: with nothing to attach to, everything it makes is reusable).
+{% endcomment %}
+<c-n26.form-section title="Compose a new one"
+                    description="Pick who it reaches and what it does; the fields for both follow."
+                    class="rounded-box border border-box-border p-4">
+    {% comment %}
+    Step one, as a GET: the chosen kinds live in the URL, so
+    step two survives a refresh and "add a condition" can be
+    a plain link. Only once both kinds are chosen does the
+    composer itself render.
+    {% endcomment %}
+    <form method="get" class="max-w-xl space-y-4">
+        {% include "authoring/_field.html" with form=kind_picker field=kind_picker.scope_kind %}
+        {% include "authoring/_field.html" with form=kind_picker field=kind_picker.effect_kind %}
+        <div class="flex justify-end">
+            <c-ui.button type="submit" size="sm">
+                Continue
+            </c-ui.button>
+        </div>
+    </form>
+    {% if composer %}
+        <form method="post" class="max-w-xl space-y-5">
+            {% csrf_token %}
+            <input type="hidden" name="act" value="compose">
+            <input type="hidden" name="scope_kind" value="{{ composer_scope }}">
+            <input type="hidden" name="effect_kind" value="{{ composer_effect }}">
+            <c-ui.error :form="composer" name="__all__" />
+            <c-n26.form-section title="Who it reaches">
+                {% include "authoring/_form.html" with form=composer.who_form %}
+                {% if composer.condition_formset %}
+                    {{ composer.condition_formset.management_form }}
+                    {% for chip in composer.condition_formset %}
+                        <div class="rounded-box border border-box-border p-3">{% include "authoring/_form.html" with form=chip %}</div>
+                    {% endfor %}
+                    <c-n26.link href="?scope_kind={{ composer_scope }}&effect_kind={{ composer_effect }}&chips={{ composer_chips|add:1 }}"
+                                tone="muted">
+                        Add a condition
+                    </c-n26.link>
+                {% endif %}
+            </c-n26.form-section>
+            <c-n26.form-section title="What it does">
+                {% include "authoring/_form.html" with form=composer.what_form %}
+            </c-n26.form-section>
+            {% include "authoring/_field.html" with form=composer field=composer.name %}
+            {% if show_keep_reusable %}
+                {% include "authoring/_field.html" with form=composer field=composer.keep_reusable %}
+            {% endif %}
+            <div class="flex justify-end">
+                <c-ui.button type="submit" variant="success">
+                    Compose modifier
+                </c-ui.button>
+            </div>
+        </form>
+    {% endif %}
+</c-n26.form-section>
