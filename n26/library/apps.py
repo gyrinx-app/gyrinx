@@ -8,3 +8,6 @@ class LibraryConfig(AppConfig):
     #: care about, not import paths.
     name = "n26.library"
     label = "library"
+    #: Edition-prefixed for the admin index, as on N26Config. Display
+    #: only — the label above is the contract.
+    verbose_name = "N26 · Library"
