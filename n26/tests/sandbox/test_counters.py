@@ -100,6 +100,32 @@ class TestTheTally:
         assert kinds.count("tallied") == 1
 
 
+class TestWhatTheCardShows:
+    """The XP cell on a card is the counter's value — one number, not two.
+
+    A fighter hired with "Starting XP 61" printed on their entry read
+    0 XP on their card while the counter beside it said 61.
+    """
+
+    def test_a_hired_fighters_card_opens_at_their_starting_xp(self, gang, queen):
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        card, _ = drawn(yolanda)
+
+        assert card.xp == 61
+        assert card.xp_display == "61/–"
+
+    def test_the_card_follows_the_tally(self, gang, queen):
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        tally(xp_row(yolanda), +5)
+
+        assert drawn(yolanda)[0].xp == 66
+
+    def test_a_counter_is_not_drawn_as_a_piece_of_equipment(self, gang, queen):
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+
+        assert [line.name for line in drawn(yolanda)[0].equipment] == []
+
+
 class TestEffectsHangOffValues:
     def test_below_the_threshold_nothing_shows(self, gang, queen):
         yolanda = hire_with_option(gang, queen, "Yolanda")
