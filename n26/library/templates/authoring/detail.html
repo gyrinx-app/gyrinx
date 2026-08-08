@@ -21,53 +21,158 @@
             <p>{{ thing.library_author_help }}</p>
         </c-n26.prose>
     {% endif %}
-    <c-n26.form-section title="{{ part_verbose_name_plural|capfirst }}" class="mt-8">
-        {% if parts %}
-            <c-ui.table>
-                <tbody>
-                    {% for part in parts %}
-                        <tr>
-                            <td>{{ part.label }}</td>
-                            <td class="text-right text-muted">{{ part.notes|join:" · " }}</td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </c-ui.table>
-        {% else %}
-            <c-ui.description>
-                None yet.
-            </c-ui.description>
-        {% endif %}
-    </c-n26.form-section>
-    <c-n26.form-section title="Add a {{ part_verbose_name }}" class="mt-10">
-        {% if part_help %}
-            <c-n26.prose class="max-w-2xl">
-                {% for paragraph in part_help %}<p>{{ paragraph }}</p>{% endfor %}
-            </c-n26.prose>
-        {% endif %}
-        <form method="post" class="max-w-xl space-y-5">
-            {% csrf_token %}
-            {% include "authoring/_form.html" %}
-            {% if statline_form %}
-                <c-n26.form-section title="{{ thing.statline_type }}"
-                                    class="rounded-box border border-box-border p-4">
-                    <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                        {% for field in statline_form %}
-                            {% include "authoring/_field.html" with form=statline_form %}
+    {% if has_parts %}
+        <c-n26.form-section title="{{ part_verbose_name_plural|capfirst }}" class="mt-8">
+            {% if parts %}
+                <c-ui.table>
+                    <tbody>
+                        {% for part in parts %}
+                            <tr>
+                                <td>{{ part.label }}</td>
+                                <td class="text-right text-muted">{{ part.notes|join:" · " }}</td>
+                            </tr>
                         {% endfor %}
-                    </div>
-                </c-n26.form-section>
-            {% elif wants_statline %}
+                    </tbody>
+                </c-ui.table>
+            {% else %}
                 <c-ui.description>
-                    This {{ verbose_name }} has no statline shape set, so its
-                    {{ part_verbose_name_plural }} carry no stats.
+                    None yet.
                 </c-ui.description>
             {% endif %}
-            <div class="flex justify-end">
-                <c-ui.button type="submit" variant="success">
-                    Add {{ part_verbose_name }}
-                </c-ui.button>
-            </div>
-        </form>
-    </c-n26.form-section>
+        </c-n26.form-section>
+        <c-n26.form-section title="Add a {{ part_verbose_name }}" class="mt-10">
+            {% if part_help %}
+                <c-n26.prose class="max-w-2xl">
+                    {% for paragraph in part_help %}<p>{{ paragraph }}</p>{% endfor %}
+                </c-n26.prose>
+            {% endif %}
+            <form method="post" class="max-w-xl space-y-5">
+                {% csrf_token %}
+                {% include "authoring/_form.html" %}
+                {% if statline_form %}
+                    <c-n26.form-section title="{{ thing.statline_type }}"
+                                        class="rounded-box border border-box-border p-4">
+                        <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                            {% for field in statline_form %}
+                                {% include "authoring/_field.html" with form=statline_form %}
+                            {% endfor %}
+                        </div>
+                    </c-n26.form-section>
+                {% elif wants_statline %}
+                    <c-ui.description>
+                        This {{ verbose_name }} has no statline shape set, so its
+                        {{ part_verbose_name_plural }} carry no stats.
+                    </c-ui.description>
+                {% endif %}
+                <div class="flex justify-end">
+                    <c-ui.button type="submit" variant="success">
+                        Add {{ part_verbose_name }}
+                    </c-ui.button>
+                </div>
+            </form>
+        </c-n26.form-section>
+    {% endif %}
+    {% if with_modifiers %}
+        <c-n26.form-section title="Modifiers"
+                            description="What this {{ verbose_name }} does once assigned — each modifier is one scope and one effect, computed onto cards."
+                            class="mt-10">
+            {% if modifier_rows %}
+                <c-ui.table>
+                    <tbody>
+                        {% for row in modifier_rows %}
+                            <tr>
+                                <td class="whitespace-nowrap">{{ row.label }}</td>
+                                <td class="w-full text-muted">{{ row.notes|join:" · " }}</td>
+                                <td class="text-right">
+                                    <form method="post">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="act" value="detach">
+                                        <input type="hidden" name="modifier" value="{{ row.pk }}">
+                                        <c-ui.button type="submit" size="sm" variant="ghost">
+                                            Detach
+                                        </c-ui.button>
+                                    </form>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </c-ui.table>
+            {% else %}
+                <c-ui.description>
+                    None yet — the {{ verbose_name }} does nothing special until a modifier hangs here.
+                </c-ui.description>
+            {% endif %}
+            {% if attachable_modifiers %}
+                <form method="post" class="flex max-w-xl items-end gap-3">
+                    {% csrf_token %}
+                    <input type="hidden" name="act" value="attach">
+                    <div class="grow">
+                        <c-ui.field data-field label="Attach an existing modifier" for="attach-modifier">
+                            <c-ui.select.native name="modifier" id="attach-modifier" placeholder="Pick a modifier">
+                                {% for mod in attachable_modifiers %}
+                                    <c-ui.select.option value="{{ mod.pk }}">
+                                        {{ mod.label }}
+                                    </c-ui.select.option>
+                                {% endfor %}
+                            </c-ui.select.native>
+                        </c-ui.field>
+                    </div>
+                    <c-ui.button type="submit">
+                        Attach
+                    </c-ui.button>
+                </form>
+            {% endif %}
+            <c-n26.form-section title="Compose a new one"
+                                description="Pick who it reaches and what it does; the fields for both follow."
+                                class="rounded-box border border-box-border p-4">
+                {% comment %}
+                Step one, as a GET: the chosen kinds live in the URL, so
+                step two survives a refresh and "add a condition" can be
+                a plain link. Only once both kinds are chosen does the
+                composer itself render.
+                {% endcomment %}
+                <form method="get" class="max-w-xl space-y-4">
+                    {% include "authoring/_field.html" with form=kind_picker field=kind_picker.scope_kind %}
+                    {% include "authoring/_field.html" with form=kind_picker field=kind_picker.effect_kind %}
+                    <div class="flex justify-end">
+                        <c-ui.button type="submit" size="sm">
+                            Continue
+                        </c-ui.button>
+                    </div>
+                </form>
+                {% if composer %}
+                    <form method="post" class="max-w-xl space-y-5">
+                        {% csrf_token %}
+                        <input type="hidden" name="act" value="compose">
+                        <input type="hidden" name="scope_kind" value="{{ composer_scope }}">
+                        <input type="hidden" name="effect_kind" value="{{ composer_effect }}">
+                        <c-ui.error :form="composer" name="__all__" />
+                        <c-n26.form-section title="Who it reaches">
+                            {% include "authoring/_form.html" with form=composer.who_form %}
+                            {% if composer.condition_formset %}
+                                {{ composer.condition_formset.management_form }}
+                                {% for chip in composer.condition_formset %}
+                                    <div class="rounded-box border border-box-border p-3">{% include "authoring/_form.html" with form=chip %}</div>
+                                {% endfor %}
+                                <c-n26.link href="?scope_kind={{ composer_scope }}&effect_kind={{ composer_effect }}&chips={{ composer_chips|add:1 }}"
+                                            tone="muted">
+                                    Add a condition
+                                </c-n26.link>
+                            {% endif %}
+                        </c-n26.form-section>
+                        <c-n26.form-section title="What it does">
+                            {% include "authoring/_form.html" with form=composer.what_form %}
+                        </c-n26.form-section>
+                        {% include "authoring/_field.html" with form=composer field=composer.name %}
+                        {% include "authoring/_field.html" with form=composer field=composer.keep_reusable %}
+                        <div class="flex justify-end">
+                            <c-ui.button type="submit" variant="success">
+                                Compose modifier
+                            </c-ui.button>
+                        </div>
+                    </form>
+                {% endif %}
+            </c-n26.form-section>
+        </c-n26.form-section>
+    {% endif %}
 {% endblock content %}

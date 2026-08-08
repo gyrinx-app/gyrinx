@@ -415,16 +415,18 @@ def condition_chip_form(kinds):
     return type("ConditionChipForm", (forms.Form,), attrs)
 
 
-def condition_formset_for(spec, data=None, prefix="conditions"):
+def condition_formset_for(spec, data=None, prefix="conditions", extra=0):
     """The formset of condition chips a scope form carries, or ``None``
-    for scopes that take no conditions."""
+    for scopes that take no conditions. ``extra`` is how many empty
+    chips to draw — the composer page carries it in the URL, so "add a
+    condition" is a link and the state survives a refresh."""
     kinds = next(
         (kind.kinds for kind in spec.fields.values() if isinstance(kind, Conditions)),
         None,
     )
     if kinds is None:
         return None
-    formset_class = forms.formset_factory(condition_chip_form(kinds), extra=0)
+    formset_class = forms.formset_factory(condition_chip_form(kinds), extra=extra)
     return formset_class(data, prefix=prefix)
 
 
@@ -517,12 +519,41 @@ def suggestion_form_for(kind_model):
 # --- The modifier composer ----------------------------------------------------
 
 
+#: Which model each scope verb writes — the label source for the
+#: composer's WHO select. SCOPE_PRODUCES guards the key set by drift
+#: test, so a new scope verb shows up here or shows up loudly.
+SCOPE_MODELS = {
+    "targets_model": "TargetsMiniature",
+    "targets_weapons": "TargetsWeapons",
+    "targets_attached_weapon": "TargetsAttachedWeapon",
+    "targets_gang": "TargetsGang",
+}
+
+
+def _verb_label(name, model_label):
+    """A verb choice as an author reads it — the model's own verbose
+    name ("targets the model"), the verb name when nothing better is
+    known."""
+    if model_label is None:
+        return name
+    model = _model_class(model_label)
+    return str(model._meta.verbose_name)
+
+
 def _scope_choices():
-    return [(name, name) for name in specs() if name.startswith("targets_")]
+    return [
+        (name, _verb_label(name, SCOPE_MODELS.get(name)))
+        for name in specs()
+        if name.startswith("targets_")
+    ]
 
 
 def _effect_choices():
-    return [(name, name) for name in specs() if name.startswith(("ef_", "op_"))]
+    return [
+        (name, _verb_label(name, EFFECT_MODELS.get(name)))
+        for name in specs()
+        if name.startswith(("ef_", "op_"))
+    ]
 
 
 class ModifierComposerForm(forms.Form):
@@ -540,17 +571,18 @@ class ModifierComposerForm(forms.Form):
     where the auto-name is the modifier's own sentence.
     """
 
-    scope_kind = forms.ChoiceField(choices=_scope_choices)
-    effect_kind = forms.ChoiceField(choices=_effect_choices)
+    scope_kind = forms.ChoiceField(choices=_scope_choices, label="Who it reaches")
+    effect_kind = forms.ChoiceField(choices=_effect_choices, label="What it does")
     name = forms.CharField(
         required=False,
         help_text="Blank writes the modifier's own sentence as its name.",
     )
     keep_reusable = forms.BooleanField(
         required=False,
+        label="Keep reusable",
         help_text=(
-            "Save without attaching, so attach_modifiers_to can hang it "
-            "on several carriers later."
+            "Save without attaching here, so it can be attached to "
+            "several carriers later."
         ),
     )
 
@@ -561,6 +593,25 @@ class ModifierComposerForm(forms.Form):
         self.who_form = None
         self.what_form = None
         self.condition_formset = None
+
+    @classmethod
+    def unbound(cls, scope_kind, effect_kind, *, attach_to=None, chips=0):
+        """The composer ready to draw, before anything is submitted.
+
+        The bound path builds its panes in ``clean()`` from the posted
+        kinds; a page rendering step two of the flow has no data yet,
+        only the kinds carried in the URL. ``chips`` is how many empty
+        condition rows to offer — also URL state, so "add a condition"
+        is a plain link.
+        """
+        form = cls(
+            attach_to=attach_to,
+            initial={"scope_kind": scope_kind, "effect_kind": effect_kind},
+        )
+        form.who_form = generate_form(specs()[scope_kind])(prefix="who")
+        form.what_form = generate_form(specs()[effect_kind])(prefix="what")
+        form.condition_formset = condition_formset_for(specs()[scope_kind], extra=chips)
+        return form
 
     def clean(self):
         cleaned = super().clean()

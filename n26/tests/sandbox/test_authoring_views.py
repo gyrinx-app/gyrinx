@@ -1323,3 +1323,198 @@ class TestTheCollectionPage:
         assert "10cr here" in body  # the entry's own price, in the definition
         assert "priced by this list" in body  # and marked in the preview
         assert ">E<" in body  # the heirloom's TP cell
+
+
+class TestTheModifierSection:
+    """Every assignable kind's page carries its modifiers: what hangs
+    here in scope-and-effect sentences, an attach picker for reusables,
+    and the two-step composer — kinds first (carried in the URL, so
+    step two survives a refresh), then the panes those kinds call for.
+    The section is derived from the mixin's M2M, never enumerated, so
+    a new assignable kind gets it without anyone remembering to say so.
+    """
+
+    #: The empty condition formset's bookkeeping, present on every
+    #: compose POST the way the browser would send it.
+    NO_CONDITIONS = {
+        "conditions-TOTAL_FORMS": "0",
+        "conditions-INITIAL_FORMS": "0",
+        "conditions-MIN_NUM_FORMS": "0",
+        "conditions-MAX_NUM_FORMS": "1000",
+    }
+
+    @pytest.fixture
+    def rule(self, author, default_pack):
+        from n26.library.authoring import create_rule
+
+        return create_rule("Immovable Brutes")
+
+    def test_a_carrier_kind_gets_a_page_with_the_section(
+        self, rule, client, default_pack
+    ):
+        body = client.get(f"/n26/authoring/rule/{rule.pk}/").content.decode()
+        assert "does nothing special until" in body
+        assert 'name="scope_kind"' in body  # step one is always offered
+
+    def test_a_foundation_kind_does_not(self, author, client, default_pack):
+        from n26.library.authoring import create_stat
+
+        stat = create_stat("M", "Movement", is_inches=True)
+        assert client.get(f"/n26/authoring/stat/{stat.pk}/").status_code == 404
+
+    def test_step_two_renders_the_panes_the_kinds_call_for(
+        self, rule, client, default_pack
+    ):
+        body = client.get(
+            f"/n26/authoring/rule/{rule.pk}/"
+            "?scope_kind=targets_model&effect_kind=ef_changes_stat"
+        ).content.decode()
+        assert 'name="what-stat"' in body
+        assert 'name="what-amount"' in body
+        assert 'name="who-when_directly_assigned"' in body
+
+    def test_composing_attaches_here(self, rule, client, default_pack):
+        from n26.library.authoring import create_subtype
+
+        mounted = create_subtype("Mounted")
+        response = client.post(
+            f"/n26/authoring/rule/{rule.pk}/",
+            {
+                "act": "compose",
+                "scope_kind": "targets_model",
+                "effect_kind": "ef_adds",
+                "what-thing_kind": "subtype",
+                "what-thing_subtype": str(mounted.pk),
+                **self.NO_CONDITIONS,
+            },
+        )
+        assert response.status_code == 302
+
+        (modifier,) = rule.modifiers.all()
+        assert str(modifier.effect) == "adds Mounted"
+        body = client.get(f"/n26/authoring/rule/{rule.pk}/").content.decode()
+        assert "adds Mounted" in body
+
+    def test_a_condition_narrows_the_scope(self, rule, client, default_pack):
+        from n26.library.authoring import create_subtype
+
+        champion = create_subtype("Champion")
+        mounted = create_subtype("Mounted")
+        response = client.post(
+            f"/n26/authoring/rule/{rule.pk}/",
+            {
+                "act": "compose",
+                "scope_kind": "targets_model",
+                "effect_kind": "ef_adds",
+                "what-thing_kind": "subtype",
+                "what-thing_subtype": str(mounted.pk),
+                **self.NO_CONDITIONS,
+                "conditions-TOTAL_FORMS": "1",
+                "conditions-0-kind": "has_subtypes",
+                "conditions-0-subtypes": [str(champion.pk)],
+            },
+        )
+        assert response.status_code == 302
+        (modifier,) = rule.modifiers.all()
+        assert "Champion" in str(modifier.scope)
+
+    def test_adding_a_condition_is_a_link_not_a_widget(
+        self, rule, client, default_pack
+    ):
+        """URL-driven: chips rides the query string, so the empty chip
+        survives a refresh and needs no JavaScript."""
+        body = client.get(
+            f"/n26/authoring/rule/{rule.pk}/"
+            "?scope_kind=targets_model&effect_kind=ef_adds&chips=1"
+        ).content.decode()
+        assert 'name="conditions-0-kind"' in body
+        assert "chips=2" in body  # the next link is already offered
+
+    def test_an_incompatible_pair_refuses_in_words(self, rule, client, default_pack):
+        from n26.library.authoring import create_trait
+
+        melee = create_trait("Melee")
+        response = client.post(
+            f"/n26/authoring/rule/{rule.pk}/",
+            {
+                "act": "compose",
+                "scope_kind": "targets_model",
+                "effect_kind": "ef_adds",
+                "what-thing_kind": "trait",
+                "what-thing_trait": str(melee.pk),
+                **self.NO_CONDITIONS,
+            },
+        )
+        assert response.status_code == 200
+        assert "cannot apply" in response.content.decode()
+        assert rule.modifiers.count() == 0
+
+    def test_attach_existing_then_detach(self, rule, client, default_pack):
+        from n26.library.authoring import (
+            attach_modifiers_to,
+            create_hidden,
+            create_subtype,
+            ef_adds,
+            modifier,
+            targets_model,
+        )
+
+        shared = modifier(
+            "Grants Mounted", targets_model(), ef_adds(create_subtype("Mounted"))
+        )
+        other = create_hidden("Corruption token")
+        attach_modifiers_to(other, [shared])
+
+        response = client.post(
+            f"/n26/authoring/rule/{rule.pk}/",
+            {"act": "attach", "modifier": str(shared.pk)},
+        )
+        assert response.status_code == 302
+        assert list(rule.modifiers.all()) == [shared]
+
+        body = client.get(f"/n26/authoring/rule/{rule.pk}/").content.decode()
+        assert "also on 1 other carrier" in body
+
+        response = client.post(
+            f"/n26/authoring/rule/{rule.pk}/",
+            {"act": "detach", "modifier": str(shared.pk)},
+        )
+        assert response.status_code == 302
+        assert rule.modifiers.count() == 0
+        # Detached, not destroyed: the other carrier keeps it.
+        assert list(other.modifiers.all()) == [shared]
+
+    def test_keep_reusable_saves_without_attaching(self, rule, client, default_pack):
+        from n26.library.authoring import create_subtype
+        from n26.library.models import Modifier
+
+        mounted = create_subtype("Mounted")
+        response = client.post(
+            f"/n26/authoring/rule/{rule.pk}/",
+            {
+                "act": "compose",
+                "scope_kind": "targets_model",
+                "effect_kind": "ef_adds",
+                "what-thing_kind": "subtype",
+                "what-thing_subtype": str(mounted.pk),
+                "keep_reusable": "on",
+                **self.NO_CONDITIONS,
+            },
+        )
+        assert response.status_code == 302
+        assert rule.modifiers.count() == 0
+        (made,) = Modifier.objects.all()
+        # …and the page now offers it in the attach picker.
+        body = client.get(f"/n26/authoring/rule/{rule.pk}/").content.decode()
+        assert "Attach an existing modifier" in body
+        assert made.name in body
+
+    def test_the_weapon_page_keeps_its_parts_and_gains_the_section(
+        self, author, client, default_pack, weapon_statline_type
+    ):
+        from n26.library.authoring import create_weapon
+
+        gun = create_weapon("Autogun", statline_type=weapon_statline_type)
+        body = client.get(f"/n26/authoring/weapon/{gun.pk}/").content.decode()
+        assert "Add a weapon profile" in body
+        assert "does nothing special until" in body

@@ -145,11 +145,42 @@ DETAIL_KINDS = {
 }
 
 
+def _carries_modifiers(kind):
+    """Whether this kind's rows can carry modifiers — true for every
+    assignable (the mixin's M2M is the tell), never for the foundation
+    shapes. Derived, not enumerated: a new assignable kind gets its
+    modifier section without anyone remembering to say so."""
+    return hasattr(_model_for(_spec_for(kind)), "modifiers")
+
+
 def _has_detail(kind):
     """Whether this kind's listing rows link to a page of their own —
-    a parts-and-add-form page (DETAIL_KINDS) or a kind's own view
-    (DETAIL_VIEWS, defined below the views themselves)."""
-    return kind in DETAIL_KINDS or kind in DETAIL_VIEWS
+    a parts-and-add-form page (DETAIL_KINDS), a kind's own view
+    (DETAIL_VIEWS, defined below the views themselves), or any
+    assignable's modifier section."""
+    return kind in DETAIL_KINDS or kind in DETAIL_VIEWS or _carries_modifiers(kind)
+
+
+def _assignable_models():
+    """Every concrete kind that can carry modifiers."""
+    from django.apps import apps
+
+    return [
+        model
+        for model in apps.get_app_config("library").get_models()
+        if hasattr(model, "modifiers")
+    ]
+
+
+def _carrier_count(modifier):
+    """How many things carry this modifier, across every kind. The
+    kinds share no table, so this is one count per kind — fine at
+    authoring-page scale, and the number is what stops an author
+    editing a shared modifier thinking it is theirs alone."""
+    return sum(
+        model.objects.filter(modifiers=modifier).count()
+        for model in _assignable_models()
+    )
 
 
 def _label_for(row):
@@ -381,43 +412,45 @@ def detail(request, kind, pk):
     model = _model_for(spec)
     thing = get_object_or_404(model, pk=pk)
     detail_of = DETAIL_KINDS.get(kind)
-    if detail_of is None:
-        raise Http404(f"{kind} has no parts to add")
-    part_spec = specs()[detail_of["verb"]]
-    part_model = _model_for(part_spec)
-    form_class = generate_form(part_spec)
-    statline_class = (
-        statline_form_for(thing.statline_type)
-        if detail_of["statline"] and thing.statline_type
-        else None
-    )
+    with_modifiers = _carries_modifiers(kind)
+    if detail_of is None and not with_modifiers:
+        raise Http404(f"{kind} has no page of its own")
 
-    if request.method == "POST":
-        form = form_class(request.POST)
-        statline_form = statline_class(request.POST) if statline_class else None
-        forms_valid = form.is_valid() and (
-            statline_form is None or statline_form.is_valid()
+    composer = None
+    act = request.POST.get("act", "")
+    if request.method == "POST" and act and with_modifiers:
+        response, composer = _modifier_action(request, kind, thing, act)
+        if response is not None:
+            return response
+
+    if detail_of is not None:
+        part_spec = specs()[detail_of["verb"]]
+        part_model = _model_for(part_spec)
+        form_class = generate_form(part_spec)
+        statline_class = (
+            statline_form_for(thing.statline_type)
+            if detail_of["statline"] and thing.statline_type
+            else None
         )
-        if forms_valid:
-            with transaction.atomic():
-                part = part_spec.verb(thing, **form.verb_data())
-                if statline_form is not None:
-                    statline_form.save(part)
-            said, _ = detail_of["describe"](part)
-            messages.success(request, f"Added {said}.")
-            return redirect("authoring-detail", kind=kind, pk=pk)
-    else:
-        form = form_class()
-        statline_form = statline_class() if statline_class else None
-
-    return render(
-        request,
-        "authoring/detail.html",
-        {
-            "kind": kind,
-            "thing": thing,
-            "verbose_name": model._meta.verbose_name,
-            "kind_help": kind_help(model),
+        if request.method == "POST" and not act:
+            form = form_class(request.POST)
+            statline_form = statline_class(request.POST) if statline_class else None
+            forms_valid = form.is_valid() and (
+                statline_form is None or statline_form.is_valid()
+            )
+            if forms_valid:
+                with transaction.atomic():
+                    part = part_spec.verb(thing, **form.verb_data())
+                    if statline_form is not None:
+                        statline_form.save(part)
+                said, _ = detail_of["describe"](part)
+                messages.success(request, f"Added {said}.")
+                return redirect("authoring-detail", kind=kind, pk=pk)
+        else:
+            form = form_class()
+            statline_form = statline_class() if statline_class else None
+        part_context = {
+            "has_parts": True,
             "part_verbose_name": detail_of.get(
                 "part_name", part_model._meta.verbose_name
             ),
@@ -435,8 +468,121 @@ def detail(request, kind, pk):
             ],
             "form": form,
             "statline_form": statline_form,
+        }
+    else:
+        part_context = {"has_parts": False}
+
+    return render(
+        request,
+        "authoring/detail.html",
+        {
+            "kind": kind,
+            "thing": thing,
+            "verbose_name": model._meta.verbose_name,
+            "kind_help": kind_help(model),
+            **part_context,
+            **(
+                _modifier_section(request, thing, composer)
+                if with_modifiers
+                else {"with_modifiers": False}
+            ),
         },
     )
+
+
+def _modifier_action(request, kind, thing, act):
+    """One modifier action against a carrier: compose, attach, detach.
+
+    Returns ``(response, composer)`` — a redirect when the action
+    landed, or ``(None, bound_form)`` when a compose refused and the
+    page should redraw with its errors in place.
+    """
+    from n26.library import authoring
+    from n26.library.forms import ModifierComposerForm
+    from n26.library.models import Modifier
+
+    if act == "compose":
+        composer = ModifierComposerForm(request.POST, attach_to=thing)
+        if composer.is_valid():
+            try:
+                with transaction.atomic():
+                    made = composer.save()
+            except IntegrityError:
+                composer.add_error(
+                    "name",
+                    "A modifier with that name already exists in this pack — "
+                    "attach the existing one instead, or pick another name.",
+                )
+                return None, composer
+            if composer.cleaned_data.get("keep_reusable"):
+                messages.success(request, f"Saved {made.name} as a reusable modifier.")
+            else:
+                messages.success(request, f"Attached {made.name}.")
+            return redirect("authoring-detail", kind=kind, pk=thing.pk), None
+        return None, composer
+
+    modifier = get_object_or_404(Modifier, pk=request.POST.get("modifier", ""))
+    if act == "attach":
+        authoring.attach_modifiers_to(thing, [modifier])
+        messages.success(request, f"Attached {modifier.name}.")
+    elif act == "detach":
+        authoring.detach_modifier(thing, modifier)
+        messages.success(request, f"Detached {modifier.name} — it still exists.")
+    else:
+        raise Http404(f"No such action: {act}")
+    return redirect("authoring-detail", kind=kind, pk=thing.pk), None
+
+
+def _modifier_section(request, thing, bound_composer=None):
+    """Everything the modifiers section draws: what hangs here (with
+    its sentences and how shared it is), what could be attached, and
+    the composer — closed, open at the kinds the URL names, or bound
+    with errors after a refused submit."""
+    from n26.library.forms import ModifierComposerForm
+    from n26.library.models import Modifier
+
+    rows = []
+    attached = list(thing.modifiers.all())
+    for modifier in attached:
+        others = _carrier_count(modifier) - 1
+        notes = [str(modifier.scope), str(modifier.effect)]
+        if others:
+            notes.append(f"also on {others} other carrier{'' if others == 1 else 's'}")
+        rows.append({"pk": modifier.pk, "label": modifier.name, "notes": notes})
+
+    attachable = [
+        {
+            "pk": modifier.pk,
+            "label": f"{modifier.name} — {modifier.scope}: {modifier.effect}",
+        }
+        for modifier in Modifier.objects.exclude(pk__in=[m.pk for m in attached])
+    ]
+
+    scope_kind = request.POST.get("scope_kind", request.GET.get("scope_kind", ""))
+    effect_kind = request.POST.get("effect_kind", request.GET.get("effect_kind", ""))
+    try:
+        chips = max(0, int(request.GET.get("chips", 0)))
+    except ValueError:
+        chips = 0
+
+    composer = bound_composer
+    if composer is None and scope_kind in specs() and effect_kind in specs():
+        composer = ModifierComposerForm.unbound(
+            scope_kind, effect_kind, attach_to=thing, chips=chips
+        )
+
+    return {
+        "with_modifiers": True,
+        "modifier_rows": rows,
+        "attachable_modifiers": attachable,
+        "kind_picker": ModifierComposerForm(
+            initial={"scope_kind": scope_kind, "effect_kind": effect_kind}
+        ),
+        "composer": composer,
+        "composer_scope": scope_kind,
+        "composer_effect": effect_kind,
+        "composer_chips": chips,
+    }
 
 
 def _tp_words(line):
