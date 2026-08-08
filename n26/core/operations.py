@@ -491,16 +491,23 @@ class Operation:
         The get-out is unchanged: pass ``thing`` with no line and any
         price you like — off-list, hand-set, the owner's call.
 
-        ``holder`` is a model or the gang's stash: buying into the stash
-        is the same purchase with a different destination, and a
-        stashed weapon keeps its free profiles so it moves onto a model
-        whole.
+        ``holder`` is a model, the gang's stash, or an assignment the
+        purchase hangs off. Buying into the stash is the same purchase
+        with a different destination, and a stashed weapon keeps its free
+        profiles so it moves onto a model whole. Buying onto an
+        assignment is how a weapon's paid ammo is bought: a profile
+        belongs to one particular gun, not to the fighter carrying it.
         """
-        from n26.core.models import Stash
+        from n26.core.models import Assignment, Stash
         from n26.library.models import Weapon
         from n26.library.models.collection import price_of
 
-        host = {"stash": holder} if isinstance(holder, Stash) else {"miniature": holder}
+        if isinstance(holder, Stash):
+            host = {"stash": holder}
+        elif isinstance(holder, Assignment):
+            host = {"parent": holder}
+        else:
+            host = {"miniature": holder}
 
         if line is not None:
             thing = line.thing

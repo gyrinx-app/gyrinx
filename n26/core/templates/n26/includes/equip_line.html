@@ -1,20 +1,86 @@
 {% comment %}
 One buyable line: the picker's item with a Buy that submits the line's
-identity. Expects `row` — {"line": PricedLine, "key": "<label>:<pk>"} — from
-the equip view. An include rather than repeated inline, because the equip page
-draws it from two places (categorised and uncategorised rows) and a drifted
-copy would be a different till.
+identity. Expects `row` — {"line": PricedLine, "key": "<label>:<pk>",
+"parts_field": …, "parts": [{"index", "line", "name"}]} — from the equip view.
+An include rather than repeated inline, because the equip page draws it from two
+places (categorised and uncategorised rows) and a drifted copy would be a
+different till.
 
 Green Buy for the same reason Hire is green: it is the committing action and
 this form's only kind of submit. The type="submit"-through-attrs trick is the
 one profile-picker.row documents — the kit button renders {{ attrs }} before
 its own type="button", and HTML keeps the first of a duplicate pair.
+
+  --- a weapon's ammo ---
+
+Paid ammo and firing modes are checkboxes under the gun, not lines of their own,
+because that is what they are: a profile belongs to one particular weapon, so
+buying one is a way of buying that weapon rather than a second trip to the
+shelf. Same shape as profile-picker.row's option groups, and read back the same
+way — indices into the row the server re-derives.
+
+The price on the row then has to move with the boxes, since a fixed number
+beside controls that change it is worse than no number. Each input carries its
+own surcharge and the total is the base plus every checked one; parts add rather
+than replace, so there is no default to subtract the way a hire's one-of group
+has. Read off the DOM rather than mirrored into Alpine: the numbers are already
+next to the inputs that decide whether they count.
+
+A partless row passes no `state` and no `price` slot, so it keeps the plain
+rendered price and gains no bindings. Most rows on a long list have no parts,
+and this list is long.
 {% endcomment %}
 <c-n26.collection-picker.item name="{{ row.line.name }}"
                               :cost="row.line.credits"
                               :trade_points="row.line.trade_points"
                               :exclusive="row.line.is_exclusive"
-                              :notes="row.line.notes">
+                              :notes="row.line.notes"
+                              state="{% if row.parts %}total: {{ row.line.credits }}, base: {{ row.line.credits }}, retotal($el) { this.total = [...$el.querySelectorAll('input[data-price]:checked')] .reduce((sum, input) => sum + Number(input.dataset.price), this.base); }{% endif %}">
+    {% if row.parts %}
+        {% comment %}
+        The live total, in the same column a fixed price would occupy.
+        tabular-nums so the digits do not jitter as it changes.
+        {% endcomment %}
+        <c-slot name="price">
+            <span class="tabular-nums" x-text="total + '¢'">{{ row.line.credits }}¢</span>
+        </c-slot>
+        <c-slot name="rows">
+            {% comment %}
+            One change listener for the whole block rather than one per input:
+            `change` bubbles, and a listener per box is that much more work for
+            the same answer.
+            {% endcomment %}
+            <div @change="retotal($el)">
+                <div class="flex min-h-8 items-center gap-2 pt-1">
+                    <span class="text-xs font-semibold uppercase tracking-wide text-muted">Ammo and modes</span>
+                    <span class="text-xs text-muted">choose any</span>
+                </div>
+                {% for part in row.parts %}
+                    {% comment %}
+                    The whole line is the label, so the hit target is the row
+                    rather than a control the width of a fingertip — this list
+                    is read on a phone.
+
+                    The surcharge follows the name rather than sitting in the
+                    price column: that column is followed by a Buy button and
+                    this line is not, and a number an inch out from the one it
+                    modifies reads as a mistake. It is also a different kind of
+                    number — "+10¢" is what ticking this adds, and the only
+                    figure anyone is charged is the row's total above.
+                    {% endcomment %}
+                    <label class="flex min-h-9 cursor-pointer items-center gap-2 rounded-control py-0.5 hover:bg-ink-500/5">
+                        <input type="checkbox"
+                               name="{{ row.parts_field }}"
+                               value="{{ part.index }}"
+                               data-price="{{ part.line.credits }}"
+                               class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
+                        <span class="min-w-0 text-sm text-ink-900 dark:text-ink-100 sm:truncate">{{ part.name }}</span>
+                        <span class="shrink-0 text-xs text-muted">+{{ part.line.credits }}¢</span>
+                    </label>
+                {% endfor %}
+            </div>
+        </c-slot>
+    {% endif %}
     <c-slot name="actions">
         <c-ui.button size="sm"
                      variant="success"

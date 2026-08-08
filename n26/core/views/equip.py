@@ -2,7 +2,9 @@
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.http import Http404
 from django.shortcuts import redirect, render
+from django.utils.text import slugify
 
 from n26.core.views.permissions import _own_miniature_or_404
 
@@ -12,6 +14,60 @@ def _thing_key(thing):
     submit. Model label plus pk, the same pair ``browse`` dedupes on,
     because a pk alone is ambiguous across the assignable tables."""
     return f"{thing._meta.label_lower}:{thing.pk}"
+
+
+def _parts_field(key):
+    """The input name the tickable parts of one line share.
+
+    Scoped by the line, because one form holds the whole listing: without
+    it, ticking warp rounds on the autogun row would arrive with the stub
+    gun's press. Slugified, because that is what the template renders —
+    read the raw key back and every box ticked in a real browser is
+    silently ignored while a test posting the raw key still passes.
+    """
+    return f"{slugify(key)}:parts"
+
+
+def _parts_picked(data, key, line):
+    """The parts a submission ticked on this line, in the order drawn.
+
+    Values are indices into the line the server has just re-derived, so a
+    tampered form can name nothing the listing does not offer. A repeated
+    index is refused as well: a checkbox cannot be ticked twice, and one
+    press was never an order for two of the same ammo.
+    """
+    picked, seen = [], set()
+    for value in data.getlist(_parts_field(key)):
+        # isdigit before int: a negative index is a real index from the
+        # far end, so "-1" would quietly resolve to another part rather
+        # than being refused like every other index the line lacks.
+        if not value.isdigit():
+            raise Http404("No such option")
+        index = int(value)
+        if index >= len(line.parts) or index in seen:
+            raise Http404("No such option")
+        seen.add(index)
+        picked.append(line.parts[index])
+    return picked
+
+
+def _row(line):
+    """One line as the template draws it: the identity its Buy submits,
+    and its parts as tickable inputs.
+
+    A part prints its bare name — "warp round", not "warp round
+    (Autogun)" — because it is drawn under the gun that already says so.
+    """
+    key = _thing_key(line.thing)
+    return {
+        "line": line,
+        "key": key,
+        "parts_field": _parts_field(key),
+        "parts": [
+            {"index": index, "line": part, "name": part.thing.name}
+            for index, part in enumerate(line.parts)
+        ],
+    }
 
 
 @login_required
@@ -29,6 +85,12 @@ def equip(request, pk):
     list. Browsed on equipment-list terms for now — Trade Points are
     shown, not charged, because a TP budget is a session concept that
     does not exist yet.
+
+    A weapon's paid ammo and firing modes are ticked on the weapon's own
+    row and bought with it, in the same operation and onto the same gun.
+    One press, one purchase, however many boxes are ticked: ammo is a way
+    the gun you are buying is built, not a second thing on the shelf.
+    Ammo for a gun a fighter already owns has no route here yet.
 
     A purchase stays on the page: kitting out a fighter is a run of
     purchases, and the breadcrumb is the way back.
@@ -81,13 +143,25 @@ def equip(request, pk):
             # list itself is the answer either way.
             messages.error(request, "That item is not on this list.")
             return redirect(back)
+        picked = _parts_picked(request.POST, key, line)
         try:
             with operation(gang, actor=request.user) as op:
-                op.buy(miniature, line=line)
+                bought = op.buy(miniature, line=line)
+                # Onto the gun, not onto the fighter: a profile belongs to
+                # one particular weapon, and it is the same till either
+                # way, so the price charged is the one the row quoted.
+                for part in picked:
+                    op.buy(bought, line=part)
         except NotEnoughCredits as refusal:
             messages.error(request, str(refusal))
             return redirect(back)
-        messages.success(request, f"Bought {line.name} for {miniature.name}.")
+        if picked:
+            extras = ", ".join(part.thing.name for part in picked)
+            messages.success(
+                request, f"Bought {line.name} with {extras} for {miniature.name}."
+            )
+        else:
+            messages.success(request, f"Bought {line.name} for {miniature.name}.")
         return redirect(back)
 
     lines = list(view.all_lines()) if view is not None else []
@@ -103,8 +177,9 @@ def equip(request, pk):
             "gang": gang,
             "collections": collections,
             "chosen": chosen,
-            # Each line paired with the key its Buy button submits, so the
-            # template never composes an identity of its own.
+            # Each line paired with the key its Buy button submits and the
+            # field name its parts tick under, so the template never
+            # composes an identity the server would then have to guess at.
             "section_rows": [
                 {
                     "name": section.name,
@@ -112,10 +187,7 @@ def equip(request, pk):
                     "categories": [
                         {
                             "name": category.name,
-                            "lines": [
-                                {"line": line, "key": _thing_key(line.thing)}
-                                for line in category.lines
-                            ],
+                            "lines": [_row(line) for line in category.lines],
                         }
                         for category in section.categories
                     ],

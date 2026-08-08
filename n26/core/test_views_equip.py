@@ -205,6 +205,157 @@ def test_mixed_sections_fall_back_to_untabbed(client, tester, fighter, house_lis
     assert response.context["sections"] == []
 
 
+@pytest.fixture
+def gun_list(gang, tester):
+    """A list with a gun that has ammo: one paid round and one free
+    firing mode, which comes with the gun and is never for sale."""
+    from n26.library.authoring import add_weapon_profile, create_weapon
+
+    autogun = create_weapon("Autogun", profiles=[("", 0)], price=20)
+    add_weapon_profile(autogun, name="warp round", price=10)
+    add_weapon_profile(autogun, name="fully automatic", price=0)
+    collection = create_collection("Armoury", entries=[autogun])
+    with operation(gang, actor=tester) as op:
+        op.assign(collection, gang=gang)
+    return collection
+
+
+def parts_field(thing):
+    """The input name the view's own derivation produces, spelt out
+    rather than imported: a test that asks the code under test what it
+    named its fields cannot catch the code renaming them."""
+    from django.utils.text import slugify
+
+    return f"{slugify(key_of(thing))}:parts"
+
+
+def test_the_ammo_input_is_named_what_the_server_reads(
+    client, tester, fighter, gun_list
+):
+    """Asserted on the rendered HTML, not on a hand-built POST. The
+    scope is slugified, and reading the raw key back would ignore every
+    box ticked in a real browser while a test posting the raw key still
+    passed."""
+    from n26.library.models import Weapon
+
+    autogun = Weapon.objects.get(name="Autogun")
+    client.force_login(tester)
+    body = client.get(equip_url(fighter, gun_list)).content.decode()
+
+    assert f'name="{parts_field(autogun)}"' in body
+    assert 'value="0"' in body
+    # The surcharge the live total reads off the input, so the number
+    # beside the Buy button cannot drift from the one that is charged.
+    assert 'data-price="10"' in body
+    # The bare name: the row is drawn under the gun, which has already
+    # said which gun it is.
+    assert "warp round" in body
+    assert "fully automatic" not in body
+
+
+def test_ticking_ammo_buys_it_onto_the_gun(client, tester, gang, fighter, gun_list):
+    from n26.core.reconcile import assert_reconciled
+    from n26.library.models import Weapon, WeaponProfile
+
+    autogun = Weapon.objects.get(name="Autogun")
+    warp = WeaponProfile.objects.get(name="warp round")
+    client.force_login(tester)
+    response = client.post(
+        equip_url(fighter, gun_list),
+        {"thing": key_of(autogun), parts_field(autogun): "0"},
+    )
+    assert response.status_code == 302
+
+    gun = Assignment.objects.get(weapon=autogun)
+    ammo = Assignment.objects.get(weapon_profile=warp)
+    # On the gun, not on the fighter: a profile belongs to one weapon.
+    assert ammo.parent == gun
+    assert ammo.miniature_root == fighter
+
+    gang.refresh_from_db()
+    assert gang.credits == 70  # 100 - 20 - 10
+    assert_reconciled(gang)
+
+
+def test_the_gun_alone_costs_what_it_says(client, tester, gang, fighter, gun_list):
+    """No box ticked, no surcharge — and the free mode still rides along
+    with the gun, unbought."""
+    from n26.core.reconcile import assert_reconciled
+    from n26.library.models import Weapon, WeaponProfile
+
+    autogun = Weapon.objects.get(name="Autogun")
+    client.force_login(tester)
+    client.post(equip_url(fighter, gun_list), {"thing": key_of(autogun)})
+
+    gang.refresh_from_db()
+    assert gang.credits == 80
+    free = WeaponProfile.objects.get(name="fully automatic")
+    assert Assignment.objects.filter(weapon_profile=free).count() == 1
+    assert_reconciled(gang)
+
+
+@pytest.mark.parametrize("tampered", ["1", "-1", "nonsense", ""])
+def test_an_index_the_row_does_not_offer_is_refused(
+    client, tester, gang, fighter, gun_list, tampered
+):
+    """The row offers one part, at index 0. Anything else is a broken
+    link rather than a rule to explain, and it buys nothing at all —
+    not even the gun."""
+    from n26.library.models import Weapon
+
+    autogun = Weapon.objects.get(name="Autogun")
+    client.force_login(tester)
+    response = client.post(
+        equip_url(fighter, gun_list),
+        {"thing": key_of(autogun), parts_field(autogun): tampered},
+    )
+    assert response.status_code == 404
+    assert not Assignment.objects.filter(weapon=autogun).exists()
+    gang.refresh_from_db()
+    assert gang.credits == 100
+
+
+def test_the_same_ammo_twice_is_refused(client, tester, gang, fighter, gun_list):
+    """A checkbox cannot be ticked twice, so a repeated index is a
+    tampered form — and one press was never an order for two rounds."""
+    from n26.library.models import Weapon
+
+    autogun = Weapon.objects.get(name="Autogun")
+    client.force_login(tester)
+    response = client.post(
+        equip_url(fighter, gun_list),
+        {"thing": key_of(autogun), parts_field(autogun): ["0", "0"]},
+    )
+    assert response.status_code == 404
+    assert not Assignment.objects.filter(weapon=autogun).exists()
+    gang.refresh_from_db()
+    assert gang.credits == 100
+
+
+def test_ammo_ticked_on_one_row_does_not_ride_another_press(
+    client, tester, gang, fighter, gun_list
+):
+    """One form holds the whole listing, so the fields are scoped by
+    line. Buying something else while the gun's box is ticked buys only
+    the something else."""
+    from n26.library.models import Weapon, WeaponProfile
+
+    autogun = Weapon.objects.get(name="Autogun")
+    knife = create_wargear("Knife", price=10)
+    gun_list.entries.create(wargear=knife)
+
+    client.force_login(tester)
+    client.post(
+        equip_url(fighter, gun_list),
+        {"thing": key_of(knife), parts_field(autogun): "0"},
+    )
+
+    warp = WeaponProfile.objects.get(name="warp round")
+    assert not Assignment.objects.filter(weapon_profile=warp).exists()
+    gang.refresh_from_db()
+    assert gang.credits == 90
+
+
 def test_someone_elses_fighter_is_not_found(client, fighter):
     stranger = User.objects.create_user("stranger", is_staff=True)
     client.force_login(stranger)

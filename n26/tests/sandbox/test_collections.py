@@ -773,3 +773,91 @@ class TestTradingPostMembership:
             "every wargear with a TP price",
             "every weapon accessory with a TP price",
         ]
+
+
+class TestAmmoRidesUnderTheGun:
+    """A gun's paid ammo and firing modes are parts of the gun's line, on
+    a curated equipment list as much as on a swept trading post.
+
+    Which profiles ride is the same question either way: named, because a
+    blank profile is the weapon's own firing line rather than an
+    alternative to it; paid, because a free one already comes with the
+    weapon and selling it would put the same ammo on the gun twice.
+    """
+
+    @pytest.fixture
+    def autogun(self, taxonomy):
+        from n26.library.authoring import add_weapon_profile
+
+        weapon = create_weapon(
+            "Autogun",
+            profiles=[("", 0)],
+            price=20,
+            trade_point_price=0,
+            category=taxonomy["auto"],
+        )
+        add_weapon_profile(weapon, name="warp round", price=10, trade_point_price=4)
+        add_weapon_profile(weapon, name="fully automatic", price=0)
+        return weapon
+
+    def test_a_curated_entry_carries_its_guns_ammo(self, autogun):
+        """What a player saw: a house equipment list is curated entries
+        throughout, and a gun on one offered no ammo at all."""
+        house = create_collection("House List", entries=[autogun])
+        (line,) = browse(house).all_lines()
+
+        (warp,) = line.parts
+        assert warp.thing.name == "warp round"
+        assert warp.credits == 10
+
+    def test_a_free_mode_is_never_offered_for_sale(self, autogun):
+        """It rides along with the gun already, so a player who bought it
+        would be given a second copy of a profile they already have."""
+        house = create_collection("House List", entries=[autogun])
+        (line,) = browse(house).all_lines()
+
+        assert [part.thing.name for part in line.parts] == ["warp round"]
+
+    def test_a_lists_own_price_does_not_reprice_the_ammo(self, autogun):
+        """An entry's override replaces the gun's own price and nothing
+        else — the rule ``price_with(base=…)`` follows everywhere."""
+        house = create_collection(
+            "House List", entries=[(autogun, {"price_override": 15})]
+        )
+        (line,) = browse(house).all_lines()
+
+        assert line.credits == 15
+        assert line.parts[0].credits == 10
+
+    def test_a_longer_list_costs_no_more_queries_to_browse(self, taxonomy):
+        """The ammo prefetch follows the list's definition, not its
+        length: one query for every gun's profiles, however many guns."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from n26.library.authoring import add_weapon_profile
+
+        def arsenal(count):
+            guns = []
+            for index in range(count):
+                gun = create_weapon(
+                    f"Gun {count}-{index}",
+                    profiles=[("", 0)],
+                    price=10,
+                    category=taxonomy["auto"],
+                )
+                add_weapon_profile(gun, name="hot shot", price=5)
+                guns.append(gun)
+            return guns
+
+        small = create_collection("Small", entries=arsenal(2))
+        big = create_collection("Big", entries=arsenal(12))
+
+        def measure(collection):
+            with CaptureQueriesContext(connection) as captured:
+                for line in browse(collection).all_lines():
+                    for part in line.parts:
+                        str(part.thing)
+            return len(captured.captured_queries)
+
+        assert measure(small) == measure(big)

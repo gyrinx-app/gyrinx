@@ -74,9 +74,10 @@ class PricedLine:
     #: later "over your weapon slots". One channel, not a flag per rule;
     #: see ``n26.core.notes``. Empty on unexamined views: default open.
     notes: tuple = ()
-    #: Nested lines riding this one — a weapon's TP-priced ammo rows,
-    #: printed under the gun the way the book's table does. Each part is
-    #: itself a PricedLine, so the till buys one the same way.
+    #: Nested lines riding this one — a weapon's paid ammo and firing
+    #: modes, printed under the gun the way the book's table does. Each
+    #: part is itself a PricedLine, so the till buys one the same way:
+    #: onto the gun's own assignment, which is what a profile hangs off.
     parts: tuple = ()
 
     @property
@@ -127,10 +128,17 @@ def browse(collection, terms=EQUIPMENT_LIST):
     the listing); curated entries always show — they are the author's
     explicit word.
 
-    A fixed number of queries: one for the entries, one per selector row
-    — the count follows the collection's *definition*, never its size.
+    A fixed number of queries: the entries with their prefetches, plus
+    one per selector row — the count follows the collection's
+    *definition*, never its size.
     """
-    from n26.library.models.collection import ENTRY_ASSIGNABLE_FIELDS
+    from django.db.models import Prefetch
+
+    from n26.library.models.collection import (
+        ENTRY_ASSIGNABLE_FIELDS,
+        TRADEABLE_PROFILES,
+        paid_profiles,
+    )
 
     lines = {}
 
@@ -167,6 +175,15 @@ def browse(collection, terms=EQUIPMENT_LIST):
         "weapon__usable_by_specialisations",
         "wargear__usable_by_profiles",
         "wargear__usable_by_specialisations",
+        # A curated gun carries its ammo the same way a swept one does.
+        # An equipment list prices in credits, so what it offers is
+        # everything paid — a TP price is the Trading Post's question,
+        # not this list's.
+        Prefetch(
+            "weapon__profiles",
+            queryset=paid_profiles(),
+            to_attr=TRADEABLE_PROFILES,
+        ),
     )
     for entry in entries:
         thing = entry.assignable
@@ -180,6 +197,7 @@ def browse(collection, terms=EQUIPMENT_LIST):
                 is_exclusive=price.is_exclusive,
                 entry=entry,
                 charges_trade_points=terms.charges_trade_points,
+                parts=_part_lines(thing, terms),
             ),
         )
 
@@ -187,10 +205,10 @@ def browse(collection, terms=EQUIPMENT_LIST):
 
 
 def _part_lines(thing, terms):
-    """The nested lines a swept thing carries — a weapon's TP-priced
-    ammo rows, prefetched by the selector (``tradeable_profiles``) so a
-    whole listing's parts cost one query. Things without the prefetch
-    simply have no parts."""
+    """The nested lines a thing carries — a weapon's paid ammo and firing
+    modes, prefetched to ``tradeable_profiles`` by whichever side found
+    it, so a whole listing's parts cost one query. Things without the
+    prefetch simply have no parts."""
     parts = []
     for part in getattr(thing, "tradeable_profiles", ()):
         price = price_of(part)

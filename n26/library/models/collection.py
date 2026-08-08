@@ -109,6 +109,33 @@ def price_of(assignable, entry=None):
     )
 
 
+#: Where a browse hangs a weapon's buyable profiles. One attribute name
+#: for both species of collection, so a curated list and a sweep cannot
+#: come to disagree about what rides under a gun.
+TRADEABLE_PROFILES = "tradeable_profiles"
+
+
+def paid_profiles(with_trade_point_price=False):
+    """A weapon's named, paid profiles — the rows a listing prints under
+    the gun.
+
+    Named, because a blank profile is the weapon's own firing line rather
+    than an alternative to it. Paid, because a free profile already rides
+    along with the weapon wherever it goes: selling one would put the
+    same ammo on the gun twice.
+
+    ``with_trade_point_price`` narrows to what a trading trip deals in —
+    membership at a Trading Post is having a TP price, and a sweep that
+    said so means it of the ammo as well as of the gun.
+    """
+    from n26.library.models.assignable import WeaponProfile
+
+    found = WeaponProfile.objects.filter(price__gt=0).exclude(name="")
+    if with_trade_point_price:
+        found = found.filter(trade_point_price__isnull=False)
+    return found
+
+
 class Collection(Content, Assignable):
     """A named, directly addressable view onto the assignables.
 
@@ -304,13 +331,13 @@ class CollectionSelector(Content):
         list legitimately carries them.
 
         A TP-narrowed sweep over weapons also prefetches each weapon's
-        TP-priced named profiles to ``tradeable_profiles`` — the ammo
+        paid, TP-priced profiles to ``tradeable_profiles`` — the ammo
         rows the Trading Post prints under the gun. One query for the
         whole sweep, so browsing stays a fixed number of queries.
         """
         from django.db.models import Prefetch
 
-        from n26.library.models.assignable import UsableBy, WeaponProfile
+        from n26.library.models.assignable import UsableBy
 
         model = self.of_kind.model_class()
         found = model.objects.filter(self.as_selector().as_q(model)).select_related(
@@ -328,10 +355,8 @@ class CollectionSelector(Content):
             found = found.prefetch_related(
                 Prefetch(
                     "profiles",
-                    queryset=WeaponProfile.objects.filter(
-                        trade_point_price__isnull=False
-                    ).exclude(name=""),
-                    to_attr="tradeable_profiles",
+                    queryset=paid_profiles(with_trade_point_price=True),
+                    to_attr=TRADEABLE_PROFILES,
                 )
             )
         if not include_exclusive:
