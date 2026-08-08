@@ -119,6 +119,120 @@ class TestTheDashboard:
         assert "fine" in body
 
 
+class TestTheSiteBanner:
+    """The platform's banner, drawn in this edition's terms.
+
+    Banner is platform-owned and shown by every edition, so it stores an
+    icon *meaning* rather than a drawing, and each edition resolves that
+    meaning in its own set. The colour is still Bootstrap's vocabulary,
+    which n26 does not share, so the shell maps it onto the
+    announcement's five tones.
+    """
+
+    @pytest.fixture
+    def live_banner(self):
+        from gyrinx.site.models import Banner
+
+        def make(**kwargs):
+            return Banner.objects.create(
+                text="N26 support is coming.", is_live=True, **kwargs
+            )
+
+        return make
+
+    def test_a_key_is_drawn_from_this_editions_own_set(
+        self, tester, client, default_pack, live_banner
+    ):
+        """info's default icon is information-circle, so asking for
+        success against an info bar proves the key was resolved rather
+        than the tone's fallback being used."""
+        from n26.core import icons
+
+        live_banner(icon="success", colour="info")
+
+        body = client.get("/n26/").content.decode()
+        assert icons.ICONS["check-circle"][0] in body
+        assert icons.ICONS["information-circle"][0] not in body
+
+    def test_a_key_with_no_drawing_here_is_not_fatal(
+        self, tester, client, default_pack, live_banner
+    ):
+        """The regression that started this. A live banner set to
+        bi-blockquote-left took every page under /n26/ down with a
+        KeyError out of the icon registry, which raises on a name it
+        does not have — right for a name a template author wrote, fatal
+        for one that arrived from a database column.
+
+        The select box makes such a value unlikely rather than
+        impossible: a row written before the choices existed, a key
+        retired from the table, a banner restored from history. None of
+        those is worth a 500, so the lookup stays total.
+        """
+        live_banner(icon="bi-blockquote-left", colour="primary")
+
+        response = client.get("/n26/")
+        assert response.status_code == 200
+        assert "N26 support is coming." in response.content.decode()
+
+    def test_an_unresolved_key_leaves_the_icon_the_tone_implies(
+        self, tester, client, default_pack, live_banner
+    ):
+        """Not "no icon": the bar's colour and its icon say the same
+        thing, and a coloured bar with nothing in it reads as a mistake.
+        """
+        from n26.core import icons
+
+        live_banner(icon="nonsense", colour="danger")
+
+        body = client.get("/n26/").content.decode()
+        assert icons.ICONS["exclamation-triangle"][0] in body
+
+    def test_a_bootstrap_colour_becomes_an_announcement_tone(
+        self, tester, client, default_pack, live_banner
+    ):
+        """primary is not one of the five tones. Left untranslated it
+        rendered data-tone="primary", which no rule matches, so the bar
+        silently kept the default blue — right by luck, and wrong the
+        moment the colour was secondary or dark."""
+        live_banner(colour="primary")
+
+        body = client.get("/n26/").content.decode()
+        assert 'data-tone="info"' in body
+        assert 'data-tone="primary"' not in body
+
+    def test_a_colourless_banner_still_gets_a_tone(
+        self, tester, client, default_pack, live_banner
+    ):
+        live_banner(colour="")
+
+        body = client.get("/n26/").content.decode()
+        assert 'data-tone="info"' in body
+
+
+class TestTheSharedIconKeys:
+    """gyrinx/site/icons.py names an n26 icon for every key, as a string,
+    because the platform may not import an edition package. Nothing but
+    this test keeps that column honest."""
+
+    def test_every_key_names_an_icon_this_edition_actually_has(self):
+        from gyrinx.site import icons as banner_icons
+        from n26.core import icons
+
+        missing = {
+            entry.key: entry.n26
+            for entry in banner_icons.BANNER_ICONS
+            if entry.n26 not in icons.ICONS
+        }
+        assert not missing
+
+    def test_the_lookup_is_total(self):
+        from gyrinx.site import icons as banner_icons
+
+        assert banner_icons.n26_name("nonsense") == ""
+        assert banner_icons.n26_name("") == ""
+        assert banner_icons.n26_name(None) == ""
+
+
 class TestFoundingAGang:
     def test_the_form_page_renders_from_the_design_system(
         self, tester, client, default_pack, gang_type

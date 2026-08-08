@@ -16,6 +16,7 @@ from simple_history.models import HistoricalRecords
 
 from gyrinx.base_models import AppBase
 from gyrinx.history_aware_manager import HistoryAwareManager
+from gyrinx.site import icons as banner_icons
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +39,11 @@ class Banner(AppBase):
     icon = models.CharField(
         max_length=50,
         blank=True,
-        help_text="Bootstrap icon class (e.g., 'bi-info-circle')",
+        choices=banner_icons.CHOICES,
+        help_text=(
+            "What kind of thing the banner is saying. Each edition draws it "
+            "from its own icon set — see gyrinx/site/icons.py."
+        ),
     )
     colour = models.CharField(
         max_length=20,
@@ -72,6 +77,18 @@ class Banner(AppBase):
     def __str__(self):
         status = "LIVE" if self.is_live else "Draft"
         return f"[{status}] {self.text[:50]}..."
+
+    @property
+    def bootstrap_icon(self) -> str:
+        """The Bootstrap Icons class for this banner, or "" for no icon.
+
+        A property rather than a template filter because Bootstrap is the
+        platform's own stack, not an edition's: platform templates can ask the
+        model directly. n26 does not get an equivalent — it resolves the same
+        key through its own filter, so that this model never has to know an
+        edition's icon names.
+        """
+        return banner_icons.bootstrap_class(self.icon)
 
     def save(self, *args, **kwargs):
         # If this banner is being set to live, turn off all other live banners

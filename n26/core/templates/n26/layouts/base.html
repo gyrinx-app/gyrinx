@@ -1,4 +1,5 @@
 {% load static %}
+{% load banner %}
 {% comment %}
 The n26 page shell. Block names and order match the platform base template
 (head_title, stylesheet, body, content, extra_body, extra_script) so templates
@@ -95,9 +96,17 @@ banner, is_impersonating / impersonator, gtm_container_id, messages, user.
            class="sr-only focus:not-sr-only focus:absolute focus:top-3 focus:left-3 focus:z-50 focus:rounded-control focus:bg-accent focus:px-3 focus:py-2 focus:text-accent-foreground">
             Skip to main content
         </a>
+        {% comment %}
+        Both attributes go through a filter because Banner is platform-owned and
+        speaks Bootstrap: its icon is a Bootstrap Icons class and its colour a
+        Bootstrap contextual colour, neither of which this edition has. See
+        core/templatetags/banner.py — passing banner.icon straight to the icon
+        component 500s the whole edition the moment someone sets a banner to an
+        icon n26 does not draw.
+        {% endcomment %}
         {% if banner %}
-            <c-n26.site.announcement tone="{{ banner.colour|default:'info' }}"
-                                     icon="{{ banner.icon }}"
+            <c-n26.site.announcement tone="{{ banner.colour|banner_tone }}"
+                                     icon="{{ banner.icon|banner_icon }}"
                                      cta_text="{{ banner.cta_text }}"
                                      cta_url="{{ banner.cta_url }}"
                                      id="site-banner-{{ banner.id }}">
