@@ -49,7 +49,6 @@ This document describes the Bootstrap Icons (v1.x) used throughout the applicati
 | **Decrement** | `bi-dash` | Decrease values (inline) |
 | **Return** | `bi-arrow-return-left` | Return to previous state |
 | **Flag/Mark** | `bi-flag` | Mark or flag items |
-| **Embed** | `bi-person-bounding-box` | Embed functionality |
 | **Add Fighter** | `bi-person-add` | Add fighter specifically |
 | **Approve** | `bi-person-check` | User approval |
 

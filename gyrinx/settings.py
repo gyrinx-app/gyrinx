@@ -489,7 +489,7 @@ DISABLED_CONTENT_SECURITY_POLICY = {
         "script-src": [
             "'self'",
             "'unsafe-inline'",  # Required for TinyMCE and inline scripts
-            "https://cdn.jsdelivr.net",  # Bootstrap JS and iframe-resizer
+            "https://cdn.jsdelivr.net",  # Bootstrap JS
             "https://www.googletagmanager.com",  # Google Tag Manager
             "https://www.google-analytics.com",  # Google Analytics
             "https://cdn-cookieyes.com",  # CookieYes consent management

@@ -411,9 +411,4 @@ patterns = [
         fighter_state.list_fighter_remove_injury,
         name="list-fighter-injury-remove",
     ),
-    path(
-        "list/<id>/fighter/<fighter_id>/embed",
-        fighter_crud.embed_list_fighter,
-        name="list-fighter-embed",
-    ),
 ]

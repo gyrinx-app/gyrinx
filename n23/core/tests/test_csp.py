@@ -1,5 +1,4 @@
 import pytest
-from django.contrib.auth.models import User
 from django.test import Client
 from django.urls import reverse
 
@@ -96,39 +95,3 @@ def test_csp_security_directives():
 
     # Block all mixed content should be enabled
     assert "block-all-mixed-content" in csp_header
-
-
-@pytest.mark.django_db
-@pytest.mark.skip
-def test_embed_view_allows_iframe():
-    """Test that embed views can be loaded in iframes."""
-    from n23.content.models import ContentFighter, ContentHouse
-    from n23.core.models import List, ListFighter
-
-    # Create test data
-    user = User.objects.create_user(username="testuser", password="testpass")
-    house = ContentHouse.objects.create(name="Test House")
-    content_fighter = ContentFighter.objects.create(
-        type="Test Fighter",
-        category="JUVE",  # Use a valid category
-        house=house,
-    )
-    lst = List.objects.create(name="Test List", owner=user, content_house=house)
-    fighter = ListFighter.objects.create(
-        name="Test Fighter",
-        list=lst,
-        content_fighter=content_fighter,
-        owner=user,
-    )
-
-    client = Client()
-    response = client.get(reverse("core:list-fighter-embed", args=[lst.id, fighter.id]))
-
-    assert response.status_code == 200
-
-    # Check CSP allows embedding
-    csp_header = response["Content-Security-Policy"]
-    assert "frame-ancestors *" in csp_header
-
-    # Check iframe-resizer script is in the content
-    assert "iframe-resizer" in response.content.decode()

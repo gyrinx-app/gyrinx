@@ -9,7 +9,6 @@ from django.http import HttpRequest, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from django.views import generic
-from django.views.decorators.clickjacking import xframe_options_exempt
 
 from gyrinx import messages
 from gyrinx.analytics.models import EventNoun, EventVerb, log_event
@@ -644,53 +643,6 @@ def delete_list_fighter(request, id, fighter_id):
         request,
         "core/list_fighter_delete.html",
         {"fighter": fighter, "list": lst, "fighter_cost": fighter_cost},
-    )
-
-
-@xframe_options_exempt
-def embed_list_fighter(request, id, fighter_id):
-    """
-    Display a single :model:`core.ListFighter` object in an embedded view.
-
-    **Context**
-
-    ``fighter``
-        The requested :model:`core.ListFighter` object.
-    ``list``
-        The :model:`core.List` that owns this fighter.
-
-    **Template**
-
-    :template:`core/list_fighter_embed.html`
-    """
-    lst = get_clean_list_or_404(List, id=id)
-    fighter = get_object_or_404(
-        ListFighter.objects.with_related_data(),
-        id=fighter_id,
-        list=lst,
-        owner=lst.owner,
-    )
-
-    # Log the embed view event
-    log_event(
-        user=request.user
-        if hasattr(request, "user") and request.user.is_authenticated
-        else None,
-        noun=EventNoun.LIST_FIGHTER,
-        verb=EventVerb.VIEW,
-        object=fighter,
-        request=request,
-        list_id=str(lst.id),
-        list_name=lst.name,
-        fighter_id=str(fighter.id),
-        fighter_name=fighter.name,
-        embed=True,
-    )
-
-    return render(
-        request,
-        "core/list_fighter_embed.html",
-        {"fighter": fighter, "list": lst},
     )
 
 
