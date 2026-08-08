@@ -90,6 +90,13 @@
     </c-n26.form-section>
     <c-n26.form-section title="Pages" class="mt-10">
         <c-ui.table>
+            <thead>
+                <tr>
+                    <th scope="col">Page</th>
+                    <th scope="col" class="w-full">What it is</th>
+                    <th scope="col" class="text-right">Rows</th>
+                </tr>
+            </thead>
             <tbody>
                 {% for entry in kinds %}
                     <tr>
@@ -97,7 +104,7 @@
                         <td class="whitespace-nowrap">
                             <c-n26.link href="{% url 'authoring-leaf' entry.kind %}">{{ entry.verbose_name|capfirst }}</c-n26.link>
                         </td>
-                        <td class="w-full text-muted">{{ entry.summary }}</td>
+                        <td class="text-muted">{{ entry.summary }}</td>
                         <td class="text-right tabular-nums">{{ entry.count }}</td>
                     </tr>
                 {% endfor %}

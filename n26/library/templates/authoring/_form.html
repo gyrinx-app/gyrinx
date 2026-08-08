@@ -5,10 +5,35 @@ global form renderer — the other edition's markup. This walks the same
 fields and hands each to the dispatch include, so what an author sees
 is the design system and nothing else.
 
+The qualifier and the library author help ride every assignable form
+but almost no submission needs them, so they fold behind a collapse —
+closed by default, open when either arrived with an error, because a
+refusal hidden inside a closed box reads as a form that will not
+submit for no reason.
+
 Takes `form`.
 {% endcomment %}
 <c-ui.error :form="form" name="__all__" />
 {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
 {% for field in form.visible_fields %}
-    {% include "authoring/_field.html" %}
+    {% if field.name != "qualifier" and field.name != "library_author_help" %}
+        {% include "authoring/_field.html" %}
+    {% endif %}
 {% endfor %}
+{% if form.qualifier or form.library_author_help %}
+    <div class="rounded-box border border-box-border px-4 py-3">
+        {% firstof form.qualifier.errors form.library_author_help.errors as extras_open %}
+        {% if extras_open %}
+            <c-ui.collapse :expanded="True"
+                           trigger_text="Qualifier and author help — only if you need them"
+                           trigger_class="inline-flex items-center gap-1.5 text-sm font-medium text-muted">
+                {% include "authoring/_extras.html" %}
+            </c-ui.collapse>
+        {% else %}
+            <c-ui.collapse trigger_text="Qualifier and author help — only if you need them"
+                           trigger_class="inline-flex items-center gap-1.5 text-sm font-medium text-muted">
+                {% include "authoring/_extras.html" %}
+            </c-ui.collapse>
+        {% endif %}
+    </div>
+{% endif %}

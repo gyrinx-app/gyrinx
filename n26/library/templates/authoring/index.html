@@ -14,6 +14,13 @@
     {% for family in families %}
         <c-n26.form-section title="{{ family.label }}" class="mt-8">
             <c-ui.table>
+                <thead>
+                    <tr>
+                        <th scope="col">Kind</th>
+                        <th scope="col" class="w-full">What it is</th>
+                        <th scope="col" class="text-right">Rows</th>
+                    </tr>
+                </thead>
                 <tbody>
                     {% for entry in family.kinds %}
                         <tr>
@@ -21,7 +28,7 @@
                             <td class="whitespace-nowrap">
                                 <c-n26.link href="{% url 'authoring-leaf' entry.kind %}">{{ entry.verbose_name|capfirst }}</c-n26.link>
                             </td>
-                            <td class="w-full">{{ entry.summary }}</td>
+                            <td>{{ entry.summary }}</td>
                             <td class="text-right tabular-nums">{{ entry.count }}</td>
                         </tr>
                     {% endfor %}
