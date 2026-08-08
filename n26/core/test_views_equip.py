@@ -193,6 +193,50 @@ def test_each_list_is_a_tab_of_its_own(client, tester, fighter, house_list):
     assert [tab["current"] for tab in tabs] == [True, False]
 
 
+def test_the_strip_holds_this_fighters_list_and_no_other_houses(
+    client, tester, gang, make_profile, make_statline
+):
+    """A pack holds every house's equipment list at once. Which of them a
+    fighter can buy from is a fact about the fighter — the collection
+    their built-ins carry — and never a fact about the pack: a Squats
+    fighter offered the Van Saar list is being shown the library rather
+    than their own kit.
+
+    "Skills & Powers" is the case that makes the difference load-bearing.
+    It is a Collection and not an equipment list, so a strip built by
+    asking the pack for its collections would offer it as somewhere to
+    shop; a strip built from the fighter cannot.
+    """
+    from n26.library.authoring import add_built_in, create_trading_post
+
+    for house in ["Van Saar", "Orlock", "Escher", "Goliath", "Delaque"]:
+        create_collection(
+            f"{house} Equipment List", entries=[create_wargear(f"{house} Kit", price=5)]
+        )
+    create_collection("Skills & Powers", entries=[create_wargear("Psy Focus", price=5)])
+    ours = create_collection(
+        "Ironhead Squats Equipment List",
+        entries=[create_wargear("Las-cutter", price=10)],
+    )
+    create_wargear("Lho Sticks", price=5, trade_point_price=1)
+    create_trading_post()
+
+    # The built-in has to be on the profile before the hire: hiring is
+    # what turns a profile's built-ins into the fighter's own rows, and a
+    # fighter hired before the list was attached never receives it.
+    profile = make_profile("Charter Master", price=0)
+    make_statline(profile, movement=4, weapon_skill=3, toughness=4)
+    add_built_in(profile, ours)
+    with operation(gang, actor=tester) as op:
+        fighter = op.hire(profile, "Grum")
+
+    assert Collection.objects.count() == 8
+
+    client.force_login(tester)
+    tabs = client.get(equip_url(fighter)).context["collection_tabs"]
+    assert [tab["label"] for tab in tabs] == ["Ironhead Squats", "Trading Post"]
+
+
 def test_a_lone_list_draws_no_strip_and_the_lead_says_where_you_are(
     client, tester, fighter, house_list
 ):
