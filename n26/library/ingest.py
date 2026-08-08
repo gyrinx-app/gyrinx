@@ -120,6 +120,11 @@ UNSETTLED = "pending"
 #: and nothing about it is ever written.
 RESOLUTION = "resolution"
 
+#: The plan key for a fighter's opening XP. The counter itself is
+#: standard content, so it is never planned — it is named as a member
+#: of a built-ins set and resolved by its fixed name.
+XP_MEMBER = "Counter:xp"
+
 
 @dataclass(frozen=True)
 class Planned:
@@ -880,7 +885,7 @@ def _plan_profiles(plan, rows):
 
         xp = (row.get("Starting XP") or "").strip()
         if xp.isdigit() and int(xp):
-            members.append(("Counter:xp", {"amount": int(xp)}))
+            members.append((XP_MEMBER, {"amount": int(xp)}))
 
         for token in _split_list(row.get("Special Rules", "")):
             # A rule's annotation is part of its identity, as a trait's
@@ -1401,6 +1406,151 @@ def _profile_ref(plan, name, gang):
 # --- Settling: what the pack already holds -----------------------------------
 
 
+@dataclass(frozen=True)
+class Fields:
+    """What a sheet claims to know about one kind, split three ways.
+
+    ``identity`` is what the lookup matched on, so it agrees by
+    construction and is never a difference. ``updatable`` is what a
+    re-upload may rewrite. ``ignored`` says, deliberately, that a
+    planned field is not a claim about a row the pack already holds —
+    a planning-time hint, or something that only applies where the row
+    is being founded.
+    """
+
+    identity: tuple = ()
+    updatable: tuple = ()
+    ignored: tuple = ()
+
+    def all(self):
+        return {*self.identity, *self.updatable, *self.ignored}
+
+
+#: What these four spreadsheets are authoritative about, per kind.
+#:
+#: This is a statement about the *sheets*, not about the content: a
+#: second importer reading different columns would claim different
+#: things, and the model stays the authority on what is valid either
+#: way. Every field the planner puts in a row's ``fields`` appears in
+#: exactly one of the three lists, and a test proves the partition is
+#: total — a new planned field then fails a test rather than being
+#: quietly left out of every difference.
+SHEET_FIELDS = {
+    "Category": Fields(
+        identity=("section",),
+        # A heading's reading order applies only where this upload
+        # founds it; one already in the pack keeps the order it has.
+        ignored=("section_position",),
+    ),
+    "Trait": Fields(identity=("annotation",)),
+    "Rule": Fields(identity=("annotation",)),
+    "GangType": Fields(),
+    "Subtype": Fields(),
+    "Skill": Fields(),
+    "Specialisation": Fields(),
+    "Collection": Fields(),
+    "Weapon": Fields(
+        identity=("qualifier",),
+        updatable=(
+            "price",
+            "trade_point_price",
+            "is_exclusive",
+            "slots",
+            "category",
+        ),
+        # "unpriced" is how the catalogue says "the lists price this",
+        # which the entry pass reads and nothing stores. The statline
+        # shape is standard content, fixed for every weapon there is.
+        ignored=("unpriced", "statline_type"),
+    ),
+    "Wargear": Fields(
+        identity=("qualifier",),
+        updatable=("price", "trade_point_price", "is_exclusive", "category"),
+        ignored=("unpriced",),
+    ),
+    "WeaponAccessory": Fields(
+        identity=("qualifier",),
+        updatable=("price", "trade_point_price", "is_exclusive", "category"),
+        ignored=("unpriced",),
+    ),
+    "WeaponProfile": Fields(
+        identity=("weapon",),
+        updatable=(
+            "price",
+            "trade_point_price",
+            "is_exclusive",
+            "position",
+            "stats",
+            "traits",
+        ),
+        # A firing line has no qualifier of its own — its weapon tells
+        # it apart from the other weapon of the same name.
+        ignored=("unpriced", "qualifier"),
+    ),
+    "Profile": Fields(
+        identity=("qualifier",),
+        updatable=(
+            "price",
+            "category",
+            "gang_type",
+            "built_ins",
+            "stats",
+            "skill_grid",
+        ),
+        # A fighter's type decides the shape of its statline, so
+        # changing it would leave every stored value belonging to a
+        # shape the fighter no longer has. That is an authoring
+        # decision, not something a re-upload makes on the way past.
+        ignored=("profile_type",),
+    ),
+    "DefaultAssignmentSet": Fields(updatable=("members",)),
+    "CollectionEntry": Fields(
+        identity=("collection", "item"),
+        updatable=("position", "price_override"),
+    ),
+    "Restriction": Fields(identity=("item", "allows")),
+    "Modifier": Fields(identity=("attach_to", "places")),
+}
+
+#: Kinds a re-upload never rewrites, and why. A kind with nothing
+#: updatable must say so here: "there is nothing to change" is a claim
+#: worth making out loud, and the alternative is an empty list nobody
+#: can tell from an oversight.
+NEVER_UPDATED = {
+    "Category": "a category is its name and the heading above it, and both are its identity",
+    "Trait": "a trait is a name and an annotation, and both are its identity",
+    "Rule": "a rule is a name and an annotation, and both are its identity",
+    "GangType": "the sheets know a gang by name and say nothing else about it",
+    "Subtype": "the sheets know a subtype by name and say nothing else about it",
+    "Skill": "the sheets know a skill by name and say nothing else about it",
+    "Specialisation": "which specialisations exist is authored, never imported",
+    "Collection": "a list is its name; what is on it is its entries",
+    "Restriction": "a restriction is the pairing itself — the item, and who may use it",
+    "Modifier": "a placement is the pairing itself — the fighter, the set and the tier",
+}
+
+#: How each updatable field is compared and written. A **scalar** is
+#: its own value; a **reference** is another planned row, compared by
+#: asking whether the stored key points at the row this plan names; a
+#: **set** is a collection of members, each kind of set with its own
+#: rule about what happens to members the sheet no longer names.
+FIELD_SHAPES = {
+    "price": "scalar",
+    "trade_point_price": "scalar",
+    "is_exclusive": "scalar",
+    "slots": "scalar",
+    "position": "scalar",
+    "price_override": "scalar",
+    "category": "reference",
+    "gang_type": "reference",
+    "built_ins": "reference",
+    "stats": "set",
+    "traits": "set",
+    "members": "set",
+    "skill_grid": "set",
+}
+
+
 def find_existing(planned, pack, resolve):
     """The row in the pack a planned row names, or ``None``.
 
@@ -1554,6 +1704,10 @@ def _settle(plan):
     found = {}
 
     def resolve(key):
+        if key == XP_MEMBER:
+            from n26.library.models import Counter
+
+            return Counter.objects.filter(name__iexact=XP_COUNTER).first()
         return found.get(key)
 
     for planned in _in_perform_order(plan):
@@ -1596,10 +1750,234 @@ def _differences(plan, planned, row, resolve):
     """What the sheet says that the pack's row does not, field by field.
 
     Printable values only — a reference renders as the name of the
-    thing referred to, a set as what joined and what left. What comes
-    out of here is what the preview shows and what perform writes.
+    thing referred to, a set as what joined and what left. This is what
+    the preview shows, and the fields it names are exactly the fields
+    perform writes; perform takes the values themselves from
+    ``planned.fields``, so that the two cannot describe different
+    writes.
     """
-    return {}
+    changes = {}
+    for name in SHEET_FIELDS[planned.kind].updatable:
+        if name not in planned.fields:
+            continue
+        shape = FIELD_SHAPES[name]
+        if shape == "scalar":
+            difference = _scalar_difference(planned, row, name)
+        elif shape == "reference":
+            difference = _reference_difference(plan, planned, row, name, resolve)
+        else:
+            difference = _set_difference(plan, planned, row, name, resolve)
+        if difference:
+            changes[name] = difference
+    return changes
+
+
+def _scalar_difference(planned, row, name):
+    wanted = planned.fields[name]
+    stored = getattr(row, name)
+    if wanted == stored:
+        return None
+    return {"from": stored, "to": wanted}
+
+
+def _reference_difference(plan, planned, row, name, resolve):
+    """A foreign key, compared without ever asking a stored row what
+    the plan would have called it.
+
+    The question is only "does the stored key point at the row this
+    plan names?", so it is asked in that direction: resolve the key,
+    and compare. A key the upload is about to found resolves to
+    nothing, and that is a difference rather than a match — it is about
+    to point somewhere that does not exist yet.
+
+    Naming nothing is not the same as naming nothing in particular: a
+    blank cell is the sheet declining to say, exactly as a blank stat
+    cell is, so what the row already points at stays.
+    """
+    key = planned.fields[name]
+    if not key:
+        return None
+    wanted = resolve(key)
+    if wanted is not None and wanted.pk == getattr(row, f"{name}_id"):
+        return None
+    return {
+        "from": _said(getattr(row, name)),
+        "to": _planned_said(plan, key),
+    }
+
+
+def _said(row):
+    """A row, as a person would name it in a report."""
+    return None if row is None else str(row)
+
+
+def _planned_said(plan, key):
+    """A plan key, as the thing it names.
+
+    Read alongside :func:`_said`, so the two sides of a difference are
+    named the same way whether or not the pack holds them yet — which
+    is the whole use of it, since half of what a change names is a row
+    the upload has not made.
+    """
+    if not key:
+        return None
+    if key == XP_MEMBER:
+        return XP_COUNTER
+    planned = plan.get(key)
+    if planned is None:
+        return key
+    if planned.kind == "Category":
+        return f"{planned.fields['section']}: {planned.name}"
+    annotation = planned.fields.get("annotation")
+    if annotation:
+        return f"{planned.name} ({annotation})"
+    return planned.name or key
+
+
+def _set_difference(plan, planned, row, name, resolve):
+    """A collection of members: what joins, what leaves, what shifts.
+
+    Each set has its own answer to "what about a member the sheet no
+    longer names", and the deciding question is whether the set is
+    somewhere hand-authored content lives (3.6 of the design note).
+    Traits and the skill grid are wholly the sheets'; a fighter's
+    built-in kit is not, and a statline's blank cell is the sheet
+    declining to say rather than saying nothing is there.
+    """
+    if name == "stats":
+        return _stat_difference(planned, row)
+    if name == "traits":
+        return _members_difference(
+            wanted=[
+                (_planned_said(plan, key), resolve(key))
+                for key in planned.fields["traits"]
+            ],
+            stored=list(row.traits.all()),
+            retract=True,
+        )
+    if name == "members":
+        return _built_ins_difference(plan, planned, row, resolve)
+    return _grid_difference(plan, planned, row, resolve)
+
+
+def _members_difference(wanted, stored, retract):
+    """What joined the set and what left it.
+
+    ``wanted`` pairs each member's printable name with the row in the
+    pack it means, which is ``None`` for one this upload is about to
+    make — and a member that does not exist yet is necessarily
+    joining, which is why the name has to be carried alongside the row
+    rather than read off it.
+
+    ``retract`` says whether leaving is something this set does at all.
+    """
+    wanted_pks = {row.pk for _, row in wanted if row is not None}
+    stored_pks = {member.pk for member in stored}
+    added = [said for said, row in wanted if row is None or row.pk not in stored_pks]
+    removed = [str(member) for member in stored if member.pk not in wanted_pks]
+    difference = {}
+    if added:
+        difference["added"] = sorted(added)
+    if removed and retract:
+        difference["removed"] = sorted(removed)
+    return difference
+
+
+def _stat_difference(planned, row):
+    """The sheet's stat cells against the stored ones.
+
+    A blank cell is the sheet saying nothing about that characteristic,
+    not saying it is empty — the planner drops blanks, and what is
+    dropped is left exactly as the pack has it.
+    """
+    columns = MODEL_COLUMNS if planned.kind == "Profile" else WEAPON_COLUMNS
+    stored = _stored_stats(row)
+    from n26.library.models import Stat
+
+    changed = []
+    for column, full in columns:
+        wanted = planned.fields["stats"].get(column)
+        if wanted is None:
+            continue
+        was = stored.get(Stat.derive_field_name(full))
+        if was == wanted:
+            continue
+        changed.append(f"{column} {was if was is not None else '—'} → {wanted}")
+    return {"changed": changed} if changed else {}
+
+
+def _stored_stats(row):
+    """The row's statline, as ``{field name: the value as stored}``.
+    The raw value, not the formatted one: a sheet cell and a stored
+    cell must be comparable as the same kind of thing."""
+    statline = getattr(row, "statline", None)
+    if statline is None:
+        return {}
+    return {stat.field_name: stat.value for stat in statline.ordered_stats()}
+
+
+def _built_ins_difference(plan, planned, row, resolve):
+    """A fighter's built-in kit: what the sheet adds, and never what it
+    stops naming.
+
+    This is where hand-authored content actually lives — the kit no
+    sheet defines, added by hand precisely because an import could not
+    bring it. Replacing the set would delete exactly that, every time.
+    So the sheet may add, and what it no longer names is said instead.
+    """
+    stored = {member.assignable.pk: member for member in row.members.all()}
+    added, changed = [], []
+    for member in planned.fields["members"]:
+        said = _planned_said(plan, member["item"])
+        thing = resolve(member["item"])
+        held = None if thing is None else stored.get(thing.pk)
+        if held is None:
+            added.append(said)
+            continue
+        amount = member.get("amount", 0)
+        if held.amount != amount:
+            changed.append(f"{said} {held.amount} → {amount}")
+    difference = {}
+    if added:
+        difference["added"] = sorted(added)
+    if changed:
+        difference["changed"] = sorted(changed)
+    return difference
+
+
+def _grid_difference(plan, planned, row, resolve):
+    """A fighter's skill grid: the sets it may take, and in which tier.
+
+    Wholly the sheet's, and the tier is part of what is said — a set
+    moving from Primary to Secondary is one placement leaving and
+    another arriving. Left add-only, the fighter would end up with the
+    set in both tiers, which is a wrong card rather than an untidy one.
+    """
+    # The one reference that points the other way: a placement hangs on
+    # the fighter, so the fighter settles first and the placements are
+    # not yet in hand. They can be looked up regardless — a placement's
+    # identity is its name and depends on nothing being settled.
+    wanted = [
+        (_planned_said(plan, key), find_existing(plan.get(key), plan.pack, resolve))
+        for key in planned.fields["skill_grid"]
+    ]
+    return _members_difference(wanted, _placements(row), retract=True)
+
+
+def _placements(profile):
+    """The placement modifiers on this fighter that shelve a skill set.
+
+    Only those: a fighter may carry modifiers doing anything at all,
+    and an import's statement about the grid is not a statement about
+    the rest of them.
+    """
+    return [
+        modifier
+        for modifier in profile.modifiers.filter(
+            places_category__isnull=False
+        ).select_related("places_category__section__collection")
+        if modifier.places_category.section.collection.name == SKILLS_COLLECTION
+    ]
 
 
 # --- Performing ----------------------------------------------------------------
@@ -1691,7 +2069,7 @@ class _Performer:
             return self.result.created[key]
         if key in self.result.existing:
             return self.result.existing[key]
-        if key == "Counter:xp":
+        if key == XP_MEMBER:
             from n26.library.models import Counter
 
             return self._standard(

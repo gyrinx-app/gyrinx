@@ -1000,6 +1000,57 @@ def _problems_by_shape(problems):
     )
 
 
+def _changes_by_shape(changes, examples=6):
+    """Differences grouped by what changed, not by which row changed it.
+
+    A thousand corrected prices are one fact about the upload and a
+    thousand lines nobody reads. Grouping by the kind and the fields
+    that moved says the fact; a few worked examples under each show
+    what it looks like, and the count says how far it goes.
+    """
+    shapes = {}
+    for change in changes:
+        moved = tuple(sorted(change["changes"]))
+        key = (change["kind"], moved)
+        entry = shapes.setdefault(
+            key,
+            {
+                "kind": change["kind"],
+                "shape": f"{change['kind']} — {', '.join(moved)}",
+                "count": 0,
+                "examples": [],
+            },
+        )
+        entry["count"] += 1
+        if len(entry["examples"]) < examples:
+            entry["examples"].append(
+                {
+                    "name": change["name"] or change["key"],
+                    "said": "; ".join(
+                        _difference_said(field, change["changes"][field])
+                        for field in moved
+                    ),
+                }
+            )
+    return sorted(shapes.values(), key=lambda entry: -entry["count"])
+
+
+def _difference_said(field, difference):
+    """One field's difference, in a line — "price 20 → 25", "traits
+    + Unwieldy − Rapid Fire (1)"."""
+    if "to" in difference:
+        return f"{field} {_value_said(difference['from'])} → {_value_said(difference['to'])}"
+    parts = []
+    for mark, name in (("+", "added"), ("−", "removed"), ("~", "changed")):
+        for said in difference.get(name, ()):
+            parts.append(f"{mark} {said}")
+    return f"{field} {' '.join(parts)}"
+
+
+def _value_said(value):
+    return "—" if value is None or value == "" else value
+
+
 @staff_member_required
 def ingest(request):
     """Spreadsheets in, a preview, then the rows.
@@ -1034,6 +1085,16 @@ def ingest(request):
                     1 for p in plan.problems if p.severity == "error"
                 )
                 preview["notes"] = len(plan.problems) - preview["errors"]
+                preview["diffs"] = _changes_by_shape(preview["changes"])
+                # Uploading last year's export over this year's content
+                # is the realistic accident, and it is invisible row by
+                # row and unmistakable in the aggregate.
+                held = preview["actions"].get("update", 0) + preview["actions"].get(
+                    "unchanged", 0
+                )
+                preview["mostly_changed"] = (
+                    held > 0 and preview["actions"].get("update", 0) * 2 > held
+                )
                 if "apply" in request.POST:
                     if not plan.ok:
                         messages.error(

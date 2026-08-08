@@ -1026,6 +1026,310 @@ Corpse Grinder Cults,Gang Queen,5",3+,4+,3,3,2,4,2,5+,7,7,7,7,Fighter,Leader,61,
         assert perform(again).created == {}
 
 
+def edited(csv, was, now):
+    """One of the fixture sheets with a line rewritten — the way a
+    spreadsheet changes between two exports."""
+    assert was in csv, was
+    return read_csv(csv.replace(was, now, 1))
+
+
+class TestSpottingWhatChanged:
+    """A sheet is re-exported with a correction in it. The upload has
+    to see the correction — and see only the correction.
+
+    Every case here was, before there was any such thing as an update,
+    a row silently skipped. The worst of them were not skips at all but
+    litter: the row a change implied (a new category, a new trait) was
+    made, and the row that should have pointed at it was passed over,
+    so the pack gained taxonomy nothing referred to.
+    """
+
+    @pytest.fixture
+    def imported(self, foundation, sheets):
+        perform(plan_ingest(pack=None, **sheets))
+        return sheets
+
+    def test_a_corrected_price_is_a_change_to_the_weapon(self, imported):
+        plan = plan_ingest(
+            **{
+                **imported,
+                "equipment": edited(
+                    EQUIPMENT_CSV, ",Autogun,,20,0,", ",Autogun,,25,0,"
+                ),
+            }
+        )
+        autogun = plan.get(AUTOGUN)
+        assert autogun.action == "update"
+        assert autogun.changes == {"price": {"from": 20, "to": 25}}
+
+    def test_a_weapon_moved_to_another_category_is_a_change_of_home(self, imported):
+        plan = plan_ingest(
+            **{
+                **imported,
+                "equipment": edited(
+                    EQUIPMENT_CSV,
+                    "Wargear,Wargear,Personal equipment,Respirator",
+                    "Wargear,Wargear,Pets,Respirator",
+                ),
+            }
+        )
+        moved = plan.get(
+            catalogue_key("Wargear", "Respirator", category="Pets", section=GEAR)
+        )
+        assert moved.action == "update"
+        assert moved.changes["category"] == {
+            "from": "Wargear: Personal equipment",
+            "to": "Wargear: Pets",
+        }
+
+    def test_a_rewritten_firing_line_changes_its_traits_and_its_stats(self, imported):
+        plan = plan_ingest(
+            **{
+                **imported,
+                "weapon_profiles": edited(
+                    WEAPON_PROFILES_CSV,
+                    '8",24",3,-,1,Rapid Fire (1)',
+                    '8",24",4,-,1,"Rapid Fire (2), Unwieldy"',
+                ),
+            }
+        )
+        own = plan.get(AUTOGUN_OWN)
+        assert own.action == "update"
+        assert own.changes["stats"] == {"changed": ["Str 3 → 4"]}
+        assert own.changes["traits"]["added"] == ["Rapid Fire (2)", "Unwieldy"]
+        assert own.changes["traits"]["removed"] == ["Rapid Fire (1)"]
+
+    def test_a_new_special_rule_joins_the_fighters_built_ins(self, imported):
+        plan = plan_ingest(
+            **{
+                **imported,
+                "profiles": edited(
+                    PROFILES_CSV,
+                    "Fighter,Leader,61,120,Witch,",
+                    'Fighter,Leader,61,120,"Witch, Overseer",',
+                ),
+            }
+        )
+        built_ins = plan.get("DefaultAssignmentSet:gang queen built-ins")
+        assert built_ins.action == "update"
+        assert built_ins.changes == {"members": {"added": ["Overseer"]}}
+
+    def test_a_relisted_price_is_a_change_to_the_entry(self, imported):
+        plan = plan_ingest(
+            **{
+                **imported,
+                "equipment_lists": edited(
+                    EQUIPMENT_LISTS_CSV,
+                    "Goliath,Wargear,Personal equipment,Respirator,,20,",
+                    "Goliath,Wargear,Personal equipment,Respirator,,40,",
+                ),
+            }
+        )
+        entry = plan.get(entry_key(GOLIATH_LIST, RESPIRATOR))
+        assert entry.action == "update"
+        assert entry.changes == {"price_override": {"from": 20, "to": 40}}
+
+    def test_a_restriction_added_later_is_planned_on_its_own_terms(self, imported):
+        """The entry is already there, so nothing about *it* changes.
+        The restriction is a separate fact about the item, and it is
+        made — where before it inherited the entry's "already there"
+        and was never applied at all."""
+        plan = plan_ingest(
+            **{
+                **imported,
+                "equipment_lists": edited(
+                    EQUIPMENT_LISTS_CSV,
+                    "Escher,Ranged weapons,Auto/stub weapons,Autogun,,20,,",
+                    "Escher,Ranged weapons,Auto/stub weapons,Autogun,,20,Way-Brethren only,",
+                ),
+            }
+        )
+        entry = plan.get(entry_key(ESCHER_LIST, AUTOGUN))
+        assert entry.action == "unchanged"
+        assert plan.get(f"Restriction:{entry.key}").action == "create"
+
+    def test_a_skill_set_moved_between_tiers_leaves_the_tier_it_left(self, imported):
+        """The live wrong-card case: adding the new placement without
+        retracting the old one leaves the fighter with Combat in both
+        tiers, which is not a tidiness problem — it is a fighter who
+        can buy the same skills twice as cheaply as the book allows."""
+        plan = plan_ingest(
+            **{
+                **imported,
+                "profiles": edited(
+                    PROFILES_CSV,
+                    ',Combat,"Agility, Shooting"',
+                    ',,"Agility, Shooting, Combat"',
+                ),
+            }
+        )
+        brethren = plan.get("Profile:way-brethren")
+        assert brethren.action == "update"
+        assert brethren.changes["skill_grid"] == {
+            "added": ["Way-Brethren: Combat is Secondary"],
+            "removed": ["Way-Brethren: Combat is Primary"],
+        }
+
+    def test_a_fighter_given_a_home_is_rehomed_and_the_category_is_not_orphaned(
+        self, foundation, sheets
+    ):
+        """The case the whole thing was for. A fighter imported with no
+        Category, then a Category added to the sheet: the category row
+        arrives, and before this the fighter that should point at it
+        was skipped — so the pack gained a heading nothing was filed
+        under.
+        """
+        homeless = read_csv(PROFILES_CSV.replace(",Leaders,Gang Queen", ",,Gang Queen"))
+        perform(plan_ingest(**{**sheets, "profiles": homeless}))
+        assert Profile.objects.get(name="Gang Queen").category is None
+
+        plan = plan_ingest(**sheets)
+        queen = plan.get("Profile:gang queen")
+        assert queen.action == "update"
+        assert queen.changes["category"] == {"from": None, "to": "Gang List: Leaders"}
+
+
+class TestThePreviewShowsTheDifference:
+    """A count of changes is not a contract. What the preview owes an
+    author is the difference itself, field by field — because pressing
+    Import applies all of it, and "145 to change" is not something
+    anybody can agree to."""
+
+    @pytest.fixture
+    def changed(self, foundation, sheets):
+        # Grenades are on no list, so the correction stays one fact.
+        perform(plan_ingest(pack=None, **sheets))
+        return plan_ingest(
+            **{
+                **sheets,
+                "equipment": edited(
+                    EQUIPMENT_CSV, ",Frag grenades,,30,2,", ",Frag grenades,,35,2,"
+                ),
+            }
+        )
+
+    def test_the_preview_names_every_field_that_would_change(self, changed):
+        preview = changed.preview()
+        assert preview["actions"]["update"] == 1
+        assert preview["changes"] == [
+            {
+                "kind": "Weapon",
+                "name": "Frag grenades",
+                "key": FRAG_GRENADES,
+                "source": {"sheet": "equipment", "line": 9},
+                "changes": {"price": {"from": 30, "to": 35}},
+            }
+        ]
+
+    def test_a_corrected_reference_price_reaches_the_lists_that_agreed_with_it(
+        self, foundation, sheets
+    ):
+        """An entry stores nothing where it agrees with the catalogue,
+        so the two can only disagree afterwards by the entry taking on
+        the old price as its own. That is the sheets' meaning — Escher
+        still charges 20 for an autogun the catalogue now prices at 25 —
+        and it is worth seeing in the preview rather than discovering
+        on a card."""
+        perform(plan_ingest(pack=None, **sheets))
+        plan = plan_ingest(
+            **{
+                **sheets,
+                "equipment": edited(
+                    EQUIPMENT_CSV, ",Autogun,,20,0,", ",Autogun,,25,0,"
+                ),
+            }
+        )
+        assert plan.get(AUTOGUN).changes == {"price": {"from": 20, "to": 25}}
+        assert plan.get(entry_key(ESCHER_LIST, AUTOGUN)).changes == {
+            "price_override": {"from": None, "to": 20}
+        }
+
+    def test_the_preview_is_still_plain_data(self, changed):
+        parsed = json.loads(json.dumps(changed.preview()))
+        assert parsed["changes"] == changed.preview()["changes"]
+
+    def test_the_page_groups_changes_by_what_changed(self, changed):
+        from n26.library.views import _changes_by_shape
+
+        grouped = _changes_by_shape(changed.preview()["changes"])
+        assert grouped == [
+            {
+                "kind": "Weapon",
+                "shape": "Weapon — price",
+                "count": 1,
+                "examples": [{"name": "Frag grenades", "said": "price 30 → 35"}],
+            }
+        ]
+
+
+class TestNothingIsLostQuietly:
+    """The registries a planned row must appear in, discovered rather
+    than listed. Every one of them can be forgotten, and forgetting any
+    of them loses work without saying so: a kind absent from the
+    performing order is planned and skipped, a field absent from the
+    partition is planned and never compared.
+    """
+
+    def test_there_is_something_to_check(self, plan):
+        assert {p.kind for p in plan.planned} >= {
+            "Weapon",
+            "WeaponProfile",
+            "Profile",
+            "CollectionEntry",
+            "Modifier",
+        }
+
+    def test_every_plannable_kind_has_a_place_in_the_performing_order(self, plan):
+        from n26.library.ingest import PERFORM_ORDER
+
+        assert {p.kind for p in plan.planned} <= set(PERFORM_ORDER)
+
+    def test_every_plannable_kind_says_what_the_sheets_know_about_it(self, plan):
+        from n26.library.ingest import PERFORM_ORDER, SHEET_FIELDS
+
+        assert set(PERFORM_ORDER) == set(SHEET_FIELDS)
+
+    def test_a_kind_with_nothing_updatable_says_why(self):
+        from n26.library.ingest import NEVER_UPDATED, SHEET_FIELDS
+
+        silent = {kind for kind, f in SHEET_FIELDS.items() if not f.updatable}
+        assert silent == set(NEVER_UPDATED), (
+            "a kind a re-upload never rewrites must carry the reason in "
+            "NEVER_UPDATED, so 'there is nothing to change' cannot be "
+            "confused with an oversight"
+        )
+
+    def test_the_partition_covers_every_field_a_plan_carries(self, plan):
+        """The one silence this design could introduce: a new planned
+        field that no list mentions is planned, written on creation, and
+        then never noticed again on any re-upload."""
+        from n26.library.ingest import SHEET_FIELDS
+
+        unclassified = set()
+        for row in plan.planned:
+            known = SHEET_FIELDS[row.kind].all()
+            unclassified |= {
+                f"{row.kind}.{name}" for name in row.fields if name not in known
+            }
+        assert not unclassified, (
+            f"{sorted(unclassified)} — put each in exactly one of the kind's "
+            f"identity / updatable / ignored lists in SHEET_FIELDS"
+        )
+
+    def test_no_field_is_in_two_lists_at_once(self):
+        from n26.library.ingest import SHEET_FIELDS
+
+        for kind, fields in SHEET_FIELDS.items():
+            named = [*fields.identity, *fields.updatable, *fields.ignored]
+            assert len(named) == len(set(named)), kind
+
+    def test_every_updatable_field_says_what_shape_it_is(self):
+        from n26.library.ingest import FIELD_SHAPES, SHEET_FIELDS
+
+        updatable = {name for f in SHEET_FIELDS.values() for name in f.updatable}
+        assert updatable == set(FIELD_SHAPES)
+
+
 class TestResolvingAgainstThePack:
     """A partial upload — a list on its own, say — resolves against what
     the pack already holds rather than what this run planned."""

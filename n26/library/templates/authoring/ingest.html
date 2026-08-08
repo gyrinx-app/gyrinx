@@ -92,6 +92,42 @@
                 </tbody>
             </c-ui.table>
         </c-n26.form-section>
+        {% if preview.diffs %}
+            <c-n26.form-section title="What would change"
+                                description="Rows the pack already holds that these sheets now describe differently. Grouped by what changed; importing writes exactly these fields and nothing else."
+                                class="mt-10">
+                {% if preview.mostly_changed %}
+                    <c-ui.alert variant="warning"
+                                title="More than half the rows this upload recognises would change"
+                                class="mb-4">
+                        That is what uploading the wrong export looks like. Check the
+                        files before importing.
+                    </c-ui.alert>
+                {% endif %}
+                <c-ui.table>
+                    <tbody>
+                        {% for diff in preview.diffs %}
+                            <tr>
+                                <td>
+                                    <div class="flex items-start gap-2">
+                                        <span class="text-muted tabular-nums">×{{ diff.count }}</span>
+                                        <span class="text-ink-900 dark:text-ink-100">{{ diff.shape }}</span>
+                                    </div>
+                                    <ul class="mt-1 space-y-0.5">
+                                        {% for example in diff.examples %}
+                                            <li class="text-sm text-muted">{{ example.name }} — {{ example.said }}</li>
+                                        {% endfor %}
+                                        {% if diff.count > diff.examples|length %}
+                                            <li class="text-sm text-muted">…and {{ diff.count|add:"-6" }} more</li>
+                                        {% endif %}
+                                    </ul>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </c-ui.table>
+            </c-n26.form-section>
+        {% endif %}
         {% if preview.shapes %}
             <c-n26.form-section title="Problems"
                                 description="Grouped by what they are rather than where they happened — a long list is usually a few kinds of thing. A blocking problem stops the whole import; a noted one is carried past and said here."
