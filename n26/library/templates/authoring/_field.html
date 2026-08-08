@@ -1,0 +1,118 @@
+{% load formkit %}
+{% comment %}
+One bound field, dispatched onto the kit control its widget wants.
+
+The branches exist because cotton attributes are static per tag: a
+control that carries union markers (data-union-kind on the kind select,
+data-union-of + data-union-member on member pickers and their asks) is
+its own tag, so an unmarked control never grows empty marker
+attributes. The markers themselves come off the widget attrs the form
+layer set — the base layout's script and the tests read them wherever
+they land, so they must survive this dispatch byte-for-byte.
+
+Takes `field` (a BoundField) and `form`.
+{% endcomment %}
+{% with kind=field|widget_kind label=field.label|capfirst help=field.help_text %}
+    {% if kind == "checkbox" %}
+        <c-ui.field data-field
+                    variant="toggle"
+                    label="{{ label }}"
+                    description="{{ help }}"
+                    error="x"
+                    :form="form"
+                    name="{{ field.name }}"
+                    for="{{ field.auto_id }}">
+            <c-ui.switch label=""
+                         name="{{ field.html_name }}"
+                         id="{{ field.auto_id }}"
+                         :checked="field.value" />
+        </c-ui.field>
+    {% elif kind == "textarea" %}
+        <c-ui.field data-field
+                    label="{{ label }}{% if field.field.required %} *{% endif %}"
+                    description="{{ help }}"
+                    error="x"
+                    :form="form"
+                    name="{{ field.name }}"
+                    for="{{ field.auto_id }}">
+            {% comment %}
+            label/description/error shadowed empty: the kit declares them
+            without defaults, so an unshadowed lookup falls through to
+            this include's context and draws the field chrome twice.
+            {% endcomment %}
+            <c-ui.textarea label=""
+                           description=""
+                           error=""
+                           badge=""
+                           name="{{ field.html_name }}"
+                           id="{{ field.auto_id }}"
+                           height="xs">
+                {{ field.value|default:'' }}
+            </c-ui.textarea>
+        </c-ui.field>
+    {% elif kind == "select" or kind == "selectmultiple" %}
+        <c-ui.field data-field
+                    label="{{ label }}{% if field.field.required %} *{% endif %}"
+                    description="{{ help }}"
+                    error="x"
+                    :form="form"
+                    name="{{ field.name }}"
+                    for="{{ field.auto_id }}">
+            {% if field|widget_attr:"data-union-kind" %}
+                <c-ui.select.native name="{{ field.html_name }}"
+                                    id="{{ field.auto_id }}"
+                                    placeholder=""
+                                    data-union-kind="{{ field|widget_attr:'data-union-kind' }}">
+                    {% include "authoring/_options.html" %}
+                </c-ui.select.native>
+            {% elif field|widget_attr:"data-union-of" %}
+                <c-ui.select.native name="{{ field.html_name }}"
+                                    id="{{ field.auto_id }}"
+                                    placeholder=""
+                                    data-union-of="{{ field|widget_attr:'data-union-of' }}"
+                                    data-union-member="{{ field|widget_attr:'data-union-member' }}">
+                    {% include "authoring/_options.html" %}
+                </c-ui.select.native>
+            {% elif kind == "selectmultiple" %}
+                {% comment %}
+                multiple rides the attrs passthrough (size would shadow
+                the kit's size-class key); the browser draws the list box.
+                {% endcomment %}
+                <c-ui.select.native name="{{ field.html_name }}"
+                                    id="{{ field.auto_id }}"
+                                    placeholder=""
+                                    multiple>
+                    {% include "authoring/_options.html" %}
+                </c-ui.select.native>
+            {% else %}
+                <c-ui.select.native name="{{ field.html_name }}" id="{{ field.auto_id }}" placeholder="">
+                    {% include "authoring/_options.html" %}
+                </c-ui.select.native>
+            {% endif %}
+        </c-ui.field>
+    {% else %}
+        <c-ui.field data-field
+                    label="{{ label }}{% if field.field.required %} *{% endif %}"
+                    description="{{ help }}"
+                    error="x"
+                    :form="form"
+                    name="{{ field.name }}"
+                    for="{{ field.auto_id }}">
+            {% if field|widget_attr:"data-union-of" %}
+                <c-ui.input type="{% if kind == 'number' %}number{% else %}text{% endif %}"
+                            name="{{ field.html_name }}"
+                            id="{{ field.auto_id }}"
+                            value="{{ field.value|default:'' }}"
+                            placeholder="{{ field|widget_attr:'placeholder' }}"
+                            data-union-of="{{ field|widget_attr:'data-union-of' }}"
+                            data-union-member="{{ field|widget_attr:'data-union-member' }}" />
+            {% else %}
+                <c-ui.input type="{% if kind == 'number' %}number{% else %}text{% endif %}"
+                            name="{{ field.html_name }}"
+                            id="{{ field.auto_id }}"
+                            value="{{ field.value|default:'' }}"
+                            placeholder="{{ field|widget_attr:'placeholder' }}" />
+            {% endif %}
+        </c-ui.field>
+    {% endif %}
+{% endwith %}

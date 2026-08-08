@@ -1,0 +1,14 @@
+{% load formkit %}
+{% comment %}
+The options of one select field, selected state included — shared by
+every select branch of the dispatch. `selected_values` stringifies the
+bound value(s) so single and multiple selects ask the same question.
+
+Takes `field`.
+{% endcomment %}
+{% with picked=field|selected_values %}
+    {% for value, text in field.field.choices %}
+        <c-ui.select.option value="{{ value }}"
+                            selected="{% if value|stringformat:'s' in picked %}1{% endif %}">{{ text }}</c-ui.select.option>
+    {% endfor %}
+{% endwith %}

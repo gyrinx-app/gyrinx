@@ -1,0 +1,36 @@
+{% extends "authoring/base.html" %}
+{% block head_title %}
+    Modifiers
+{% endblock head_title %}
+{% block content %}
+    <c-n26.page-header title="Modifiers"
+                       lead="Every scope-and-effect pair in the pack — the payloads the carriers hang. Composed here, a modifier belongs to nothing yet; attach it from any carrier's page.">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Authoring</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Modifiers
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+    </c-n26.page-header>
+    <c-n26.form-section title="Every modifier" class="mt-8">
+        {% if rows %}
+            <c-ui.table>
+                <tbody>
+                    {% for row in rows %}
+                        <tr>
+                            <td class="whitespace-nowrap">{{ row.label }}</td>
+                            <td class="w-full text-muted">{{ row.notes|join:" · " }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </c-ui.table>
+        {% else %}
+            <c-ui.description>
+                None yet — compose the first one below.
+            </c-ui.description>
+        {% endif %}
+    </c-n26.form-section>
+    <div class="mt-10">{% include "authoring/_composer.html" with show_keep_reusable=False %}</div>
+{% endblock content %}

@@ -1,44 +1,128 @@
 {% extends "authoring/base.html" %}
-{% block title %}{{ thing }}{% endblock %}
+{% block head_title %}
+    {{ thing }}
+{% endblock head_title %}
 {% block content %}
-    <p class="count"><a href="{% url 'authoring-leaf' kind %}">← all {{ verbose_name }}s</a></p>
-    <h1>{{ thing }}</h1>
-    {% if thing.library_author_help %}<p>{{ thing.library_author_help }}</p>{% endif %}
-    <h2>{{ part_verbose_name_plural|capfirst }}</h2>
-    {% if parts %}
-        <table>
-            <tbody>
-                {% for part in parts %}
-                    <tr>
-                        <td>{{ part.label }}</td>
-                        <td class="count">{{ part.notes|join:" · " }}</td>
-                    </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    {% else %}
-        <p class="count">None yet.</p>
+    <c-n26.page-header title="{{ thing }}">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Authoring</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-leaf' kind %}">
+                    {{ verbose_name_plural|capfirst }}
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    {{ thing }}
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+    </c-n26.page-header>
+    {% if thing.library_author_help %}
+        <c-n26.prose class="mt-3 max-w-2xl">
+            <p>{{ thing.library_author_help }}</p>
+        </c-n26.prose>
     {% endif %}
-    <h2>Add a {{ part_verbose_name }}</h2>
-    {% if part_help %}
-        <div class="kind-help">
-            {% for paragraph in part_help %}<p>{{ paragraph|safe }}</p>{% endfor %}
-        </div>
+    {% if has_parts %}
+        <c-n26.form-section title="{{ part_verbose_name_plural|capfirst }}" class="mt-8">
+            {% if parts %}
+                <c-ui.table>
+                    <tbody>
+                        {% for part in parts %}
+                            <tr>
+                                <td>{{ part.label }}</td>
+                                <td class="text-right text-muted">{{ part.notes|join:" · " }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </c-ui.table>
+            {% else %}
+                <c-ui.description>
+                    None yet.
+                </c-ui.description>
+            {% endif %}
+        </c-n26.form-section>
+        <c-n26.form-section title="Add a {{ part_verbose_name }}" class="mt-10">
+            {% if part_help %}
+                <c-n26.prose class="max-w-2xl">
+                    {% for paragraph in part_help %}<p>{{ paragraph }}</p>{% endfor %}
+                </c-n26.prose>
+            {% endif %}
+            <form method="post" class="max-w-xl space-y-5">
+                {% csrf_token %}
+                {% include "authoring/_form.html" %}
+                {% if statline_form %}
+                    <c-n26.form-section title="{{ thing.statline_type }}"
+                                        class="rounded-box border border-box-border p-4">
+                        <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                            {% for field in statline_form %}
+                                {% include "authoring/_field.html" with form=statline_form %}
+                            {% endfor %}
+                        </div>
+                    </c-n26.form-section>
+                {% elif wants_statline %}
+                    <c-ui.description>
+                        This {{ verbose_name }} has no statline shape set, so its
+                        {{ part_verbose_name_plural }} carry no stats.
+                    </c-ui.description>
+                {% endif %}
+                <div class="flex justify-end">
+                    <c-ui.button type="submit" variant="success">
+                        Add {{ part_verbose_name }}
+                    </c-ui.button>
+                </div>
+            </form>
+        </c-n26.form-section>
     {% endif %}
-    <form method="post">
-        {% csrf_token %}
-        {{ form.as_div }}
-        {% if statline_form %}
-            <fieldset class="statline">
-                <legend>{{ thing.statline_type }}</legend>
-                {{ statline_form.as_div }}
-            </fieldset>
-        {% elif wants_statline %}
-            <p class="count">
-                This {{ verbose_name }} has no statline shape set, so its
-                {{ part_verbose_name_plural }} carry no stats.
-            </p>
-        {% endif %}
-        <button type="submit">Add {{ part_verbose_name }}</button>
-    </form>
-{% endblock %}
+    {% if with_modifiers %}
+        <c-n26.form-section title="Modifiers"
+                            description="What this {{ verbose_name }} does once assigned — each modifier is one scope and one effect, computed onto cards."
+                            class="mt-10">
+            {% if modifier_rows %}
+                <c-ui.table>
+                    <tbody>
+                        {% for row in modifier_rows %}
+                            <tr>
+                                <td class="whitespace-nowrap">{{ row.label }}</td>
+                                <td class="w-full text-muted">{{ row.notes|join:" · " }}</td>
+                                <td class="text-right">
+                                    <form method="post">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="act" value="detach">
+                                        <input type="hidden" name="modifier" value="{{ row.pk }}">
+                                        <c-ui.button type="submit" size="sm" variant="ghost">
+                                            Detach
+                                        </c-ui.button>
+                                    </form>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </c-ui.table>
+            {% else %}
+                <c-ui.description>
+                    None yet — the {{ verbose_name }} does nothing special until a modifier hangs here.
+                </c-ui.description>
+            {% endif %}
+            {% if attachable_modifiers %}
+                <form method="post" class="flex max-w-xl items-end gap-3">
+                    {% csrf_token %}
+                    <input type="hidden" name="act" value="attach">
+                    <div class="grow">
+                        <c-ui.field data-field label="Attach an existing modifier" for="attach-modifier">
+                            <c-ui.select.native name="modifier" id="attach-modifier" placeholder="Pick a modifier">
+                                {% for mod in attachable_modifiers %}
+                                    <c-ui.select.option value="{{ mod.pk }}">
+                                        {{ mod.label }}
+                                    </c-ui.select.option>
+                                {% endfor %}
+                            </c-ui.select.native>
+                        </c-ui.field>
+                    </div>
+                    <c-ui.button type="submit">
+                        Attach
+                    </c-ui.button>
+                </form>
+            {% endif %}
+            {% include "authoring/_composer.html" with show_keep_reusable=True %}
+        </c-n26.form-section>
+    {% endif %}
+{% endblock content %}

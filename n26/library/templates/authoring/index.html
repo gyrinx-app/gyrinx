@@ -1,26 +1,53 @@
 {% extends "authoring/base.html" %}
-{% block title %}Authoring{% endblock %}
+{% block head_title %}
+    Authoring
+{% endblock head_title %}
 {% block content %}
-    <h1>Content authoring</h1>
-    <p>
-        The leaves: the fundamental things everything else references.
-        Start at <a href="{% url 'authoring-foundations' %}">Foundations</a> if the
-        library is empty — stats and statline shapes are created there.
-    </p>
-    {% for family in families %}
-        <h2>{{ family.label }}</h2>
-        <table>
+    <c-n26.page-header title="Content authoring"
+                       lead="The leaves: the fundamental things everything else references." />
+    <c-n26.prose class="mt-2">
+        <p>
+            Start at <c-n26.link href="{% url 'authoring-foundations' %}">Foundations</c-n26.link>
+            if the library is empty — stats and statline shapes are created there.
+        </p>
+    </c-n26.prose>
+    {% comment %}
+    One table, a tbody per family, rather than a table per family: column
+    widths are a table's own, so separate tables mean every family sizes
+    its Kind column to its own longest name and nothing lines up down the
+    page. The family heading is a row spanning the width, which is what
+    scope="colgroup" says out loud.
+    {% endcomment %}
+    <c-ui.table class="mt-8">
+        <thead>
+            <tr>
+                <th scope="col">Kind</th>
+                <th scope="col" class="w-full">What it is</th>
+                <th scope="col" class="text-right">Rows</th>
+            </tr>
+        </thead>
+        {% for family in families %}
             <tbody>
+                <tr>
+                    {# The ! wins over the kit's [&_th] colour rule, which #}
+                    {# out-specifies a plain utility on the cell itself. #}
+                    <th scope="colgroup"
+                        colspan="3"
+                        class="bg-ink-100 font-semibold! text-ink-900! dark:bg-ink-800 dark:text-ink-100!">
+                        {{ family.label }}
+                    </th>
+                </tr>
                 {% for entry in family.kinds %}
                     <tr>
-                        <td>
-                            <a href="{% url 'authoring-leaf' entry.kind %}">{{ entry.verbose_name|capfirst }}</a>
-                            <span class="summary">{{ entry.summary|safe }}</span>
+                        {# nowrap: the summary column takes the squeeze, never the name #}
+                        <td class="whitespace-nowrap">
+                            <c-n26.link href="{% url 'authoring-leaf' entry.kind %}">{{ entry.verbose_name|capfirst }}</c-n26.link>
                         </td>
-                        <td class="count">{{ entry.count }}</td>
+                        <td>{{ entry.summary }}</td>
+                        <td class="text-right tabular-nums">{{ entry.count }}</td>
                     </tr>
                 {% endfor %}
             </tbody>
-        </table>
-    {% endfor %}
-{% endblock %}
+        {% endfor %}
+    </c-ui.table>
+{% endblock content %}

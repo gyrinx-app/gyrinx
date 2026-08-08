@@ -922,3 +922,10 @@ def attach_modifiers_to(assignable, modifiers):
     """Hang already-built (reusable) modifiers on a further carrier."""
     assignable.modifiers.add(*modifiers)
     return assignable
+
+
+def detach_modifier(assignable, modifier):
+    """Take a modifier off one carrier. The modifier itself survives —
+    it may hang on other carriers, or wait as a reusable."""
+    assignable.modifiers.remove(modifier)
+    return assignable

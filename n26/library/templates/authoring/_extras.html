@@ -1,0 +1,16 @@
+{% comment %}
+The two fields every assignable form carries but almost no submission
+needs: the qualifier (telling apart two same-named things) and the
+library author help. Grouped so _form.html can fold them behind one
+collapse, expanded only when one of them has an error to show.
+
+Takes `form`.
+{% endcomment %}
+<div class="mt-4 space-y-5">
+    {% if form.qualifier %}
+        {% include "authoring/_field.html" with field=form.qualifier %}
+    {% endif %}
+    {% if form.library_author_help %}
+        {% include "authoring/_field.html" with field=form.library_author_help %}
+    {% endif %}
+</div>

@@ -1,40 +1,62 @@
 {% extends "authoring/base.html" %}
-{% block title %}{{ verbose_name_plural|capfirst }}{% endblock %}
+{% block head_title %}
+    {{ verbose_name_plural|capfirst }}
+{% endblock head_title %}
 {% block content %}
-    <h1>New {{ verbose_name }}</h1>
+    <c-n26.page-header title="New {{ verbose_name }}">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Authoring</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    {{ verbose_name_plural|capfirst }}
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+    </c-n26.page-header>
     {% if kind_help %}
-        <div class="kind-help">
-            {% for paragraph in kind_help %}<p>{{ paragraph|safe }}</p>{% endfor %}
-        </div>
+        <c-n26.prose class="mt-3 max-w-2xl">
+            {% for paragraph in kind_help %}<p>{{ paragraph }}</p>{% endfor %}
+        </c-n26.prose>
     {% endif %}
-    <form method="post">
+    <form method="post" class="mt-6 max-w-xl space-y-5">
         {% csrf_token %}
-        {{ form.as_div }}
+        {% include "authoring/_form.html" %}
         {% if suggestion_form %}
-            <fieldset class="suggestions">
-                <legend>Comes with — blank to skip</legend>
-                {{ suggestion_form.as_div }}
-            </fieldset>
+            <c-n26.form-section title="Comes with"
+                                description="All optional — blank to skip."
+                                class="rounded-box border border-box-border p-4">
+                {% include "authoring/_form.html" with form=suggestion_form %}
+            </c-n26.form-section>
         {% endif %}
-        <button type="submit">Create {{ verbose_name }}</button>
+        <div class="flex justify-end">
+            <c-ui.button type="submit" variant="success">
+                Create {{ verbose_name }}
+            </c-ui.button>
+        </div>
     </form>
-    <h2>{{ verbose_name_plural|capfirst }} <span class="count">({{ count }})</span></h2>
-    {% if rows %}
-        <table>
-            <tbody>
-                {% for row in rows %}
-                    <tr>
-                        <td>
-                            {% if has_detail %}
-                                <a href="{% url 'authoring-detail' kind row.pk %}">{{ row.label }}</a>
-                {% else %}{{ row.label }}{% endif %}
-                    </td>
-                    <td class="count">{{ row.notes|join:" · " }}</td>
-                    </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    {% else %}
-        <p class="count">None yet.</p>
-    {% endif %}
-{% endblock %}
+    <c-n26.form-section title="{{ verbose_name_plural|capfirst }} ({{ count }})"
+                        class="mt-10">
+        {% if rows %}
+            <c-ui.table>
+                <tbody>
+                    {% for row in rows %}
+                        <tr>
+                            <td>
+                                {% if has_detail %}
+                                    <c-n26.link href="{% url 'authoring-detail' kind row.pk %}">{{ row.label }}</c-n26.link>
+                                {% else %}
+                                    {{ row.label }}
+                                {% endif %}
+                            </td>
+                            <td class="text-right text-muted">{{ row.notes|join:" · " }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </c-ui.table>
+        {% else %}
+            <c-ui.description>
+                None yet.
+            </c-ui.description>
+        {% endif %}
+    </c-n26.form-section>
+{% endblock content %}

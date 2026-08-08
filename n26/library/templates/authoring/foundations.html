@@ -1,62 +1,114 @@
 {% extends "authoring/base.html" %}
-{% block title %}Foundations{% endblock %}
+{% block head_title %}
+    Foundations
+{% endblock head_title %}
 {% block content %}
-    <h1>Foundations</h1>
-    <p>
-        The things content is built <em>from</em>. Each has its own page;
-        what the rulebook fixes can be filled in here in one go.
-    </p>
-    <h2>Standard content</h2>
-    {% for entry in entries %}
-        <div class="seed">
-            <form method="post">
-                {% csrf_token %}
-                <input type="hidden" name="create" value="{{ entry.key }}">
-                <p>
-                    <strong>{{ entry.name }}</strong>
-                    <span class="status {{ entry.status }}">{{ entry.status }}</span>
-                    <span class="count">{{ entry.present }} of {{ entry.total }} rows</span>
-                </p>
-                <p class="count">{{ entry.help }}</p>
-                <button type="submit">
-                    {% if entry.status == "complete" %}Create again{% else %}Create the missing rows{% endif %}
-                </button>
-            </form>
-        </div>
-    {% endfor %}
-    <h2>Types</h2>
-    <p class="count">
-        A model's Type is Fighter or Vehicle and nothing else, so
-        these are not authored — they arrive with the standard content above.
-        Everything else a model might be called is a
-        <a href="{% url 'authoring-leaf' 'subtype' %}">subtype</a>.</p>
-    {% if profile_types %}
-        <table>
+    <c-n26.page-header title="Foundations"
+                       lead="The things content is built from. Each has its own page; what the rulebook fixes can be filled in here in one go.">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Authoring</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Foundations
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+    </c-n26.page-header>
+    <c-n26.form-section title="Standard content" class="mt-8">
+        <c-ui.table>
             <tbody>
-                {% for profile_type in profile_types %}
+                {% for entry in entries %}
                     <tr>
-                        <td>{{ profile_type.name }}</td>
-                        <td class="count">{{ profile_type.statline_type.name }}</td>
-                        <td class="count">lasting {{ profile_type.lasting_effect_term|lower }}</td>
+                        <td>
+                            <div class="flex items-center gap-2">
+                                <span class="font-medium text-ink-900 dark:text-ink-100">{{ entry.name }}</span>
+                                {% if entry.status == "complete" %}
+                                    <c-ui.badge color="green" size="sm">
+                                        complete
+                                    </c-ui.badge>
+                                {% elif entry.status == "incomplete" %}
+                                    <c-ui.badge color="amber" size="sm">
+                                        incomplete
+                                    </c-ui.badge>
+                                {% else %}
+                                    <c-ui.badge color="red" size="sm">
+                                        missing
+                                    </c-ui.badge>
+                                {% endif %}
+                                <span class="text-muted">{{ entry.present }} of {{ entry.total }} rows</span>
+                            </div>
+                            <c-ui.description class="mt-1 max-w-2xl">
+                                {{ entry.help }}
+                            </c-ui.description>
+                        </td>
+                        <td class="text-right align-top">
+                            <form method="post">
+                                {% csrf_token %}
+                                <input type="hidden" name="create" value="{{ entry.key }}">
+                                <c-ui.button type="submit"
+                                             size="sm"
+                                             variant="{% if entry.status == 'complete' %}default{% else %}success{% endif %}">
+                                    {% if entry.status == "complete" %}
+                                        Create again
+                                    {% else %}
+                                        Create the missing rows
+                                    {% endif %}
+                                </c-ui.button>
+                            </form>
+                        </td>
                     </tr>
                 {% endfor %}
             </tbody>
-        </table>
-    {% else %}
-        <p class="count">None yet.</p>
-    {% endif %}
-    <h2>Pages</h2>
-    <table>
-        <tbody>
-            {% for entry in kinds %}
+        </c-ui.table>
+    </c-n26.form-section>
+    <c-n26.form-section title="Types"
+                        description="A model's Type is Fighter or Vehicle and nothing else, so these are not authored — they arrive with the standard content above."
+                        class="mt-10">
+        <c-n26.prose>
+            <p>
+                Everything else a model might be called is a
+                <c-n26.link href="{% url 'authoring-leaf' 'subtype' %}">subtype</c-n26.link>.
+            </p>
+        </c-n26.prose>
+        {% if profile_types %}
+            <c-ui.table>
+                <tbody>
+                    {% for profile_type in profile_types %}
+                        <tr>
+                            <td>{{ profile_type.name }}</td>
+                            <td class="text-muted">{{ profile_type.statline_type.name }}</td>
+                            <td class="text-right text-muted">lasting {{ profile_type.lasting_effect_term|lower }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </c-ui.table>
+        {% else %}
+            <c-ui.description>
+                None yet.
+            </c-ui.description>
+        {% endif %}
+    </c-n26.form-section>
+    <c-n26.form-section title="Pages" class="mt-10">
+        <c-ui.table>
+            <thead>
                 <tr>
-                    <td>
-                        <a href="{% url 'authoring-leaf' entry.kind %}">{{ entry.verbose_name|capfirst }}</a>
-                        <span class="summary">{{ entry.summary|safe }}</span>
-                    </td>
-                    <td class="count">{{ entry.count }}</td>
+                    <th scope="col">Page</th>
+                    <th scope="col" class="w-full">What it is</th>
+                    <th scope="col" class="text-right">Rows</th>
                 </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-{% endblock %}
+            </thead>
+            <tbody>
+                {% for entry in kinds %}
+                    <tr>
+                        {# nowrap: the summary column takes the squeeze, never the name #}
+                        <td class="whitespace-nowrap">
+                            <c-n26.link href="{% url 'authoring-leaf' entry.kind %}">{{ entry.verbose_name|capfirst }}</c-n26.link>
+                        </td>
+                        <td class="text-muted">{{ entry.summary }}</td>
+                        <td class="text-right tabular-nums">{{ entry.count }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </c-ui.table>
+    </c-n26.form-section>
+{% endblock content %}
