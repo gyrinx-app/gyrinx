@@ -31,13 +31,14 @@ from n26.library.models import (
     Rule,
     Skill,
     Specialisation,
+    Stat,
     Subtype,
     Trait,
     Wargear,
     Weapon,
 )
 from n26.library.models.collection import Collection, CollectionEntry
-from n26.library.standard_content import STANDARD_CONTENT
+from n26.library.standard_content import SPECIALISATIONS, STANDARD_CONTENT
 
 # --- The upload: four small sheets in the real sheets' shape -----------------
 #
@@ -880,6 +881,34 @@ class TestClearing:
 
         assert census() == first
 
+    def test_a_modifier_naming_imported_content_goes_with_it(self, foundation, sheets):
+        """A modifier holds its scope and effect in tables of their own,
+        and those rows are what hold the trait — so they are what a clear
+        sweeps, and the modifier cascades away with them. Left behind,
+        one authored rule pointing at a trait stops the whole thing.
+        """
+        from n26.library import authoring
+        from n26.library.ingest import clear_imported
+        from n26.library.models.modifier import Modifier
+
+        perform(plan_ingest(pack=None, **sheets))
+        melee = Trait.objects.get(name="Melee")
+        authoring.modifier(
+            "Anything melee hits harder",
+            scope=authoring.targets_weapons(authoring.has_trait(melee)),
+            effect=authoring.ef_changes_stat(
+                Stat.objects.get(full_name="Strength"), amount=1
+            ),
+        )
+
+        clear_imported()
+
+        assert Trait.objects.count() == 0
+        # ...and the grants standard content wired are still there.
+        assert Modifier.objects.count() == len(SPECIALISATIONS)
+        gunner = Specialisation.objects.get(name="Gunner")
+        assert [str(m.effect.skill) for m in gunner.modifiers.all()] == ["Hip-shooting"]
+
     def test_a_gang_using_the_content_stops_the_clear(self, foundation, sheets):
         """Player data protects what it uses: the content does not go out
         from under a gang that holds it."""
@@ -893,6 +922,25 @@ class TestClearing:
         with pytest.raises(ProtectedError):
             clear_imported()
         assert Weapon.objects.exists()  # and the transaction held
+
+    def test_a_refused_clear_takes_nothing_at_all(self, foundation, sheets):
+        """The holders are only found part-way through — the wargear is
+        already gone when a weapon turns out to be spoken for — so this
+        is all or nothing however it is called. A caller left holding
+        half a library has a worse problem than the one it started with.
+        """
+        from django.db.models import ProtectedError
+
+        from n26.library.ingest import clear_imported, count_imported
+
+        perform(plan_ingest(pack=None, **sheets))
+        _found_a_gang_holding_a_weapon()
+        before = count_imported()
+
+        with pytest.raises(ProtectedError):
+            clear_imported()
+
+        assert count_imported() == before
 
 
 def _found_a_gang_holding_a_weapon():

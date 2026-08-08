@@ -69,6 +69,7 @@ from collections import Counter as TallyCounter
 from dataclasses import dataclass, field
 
 from django.db import transaction
+from django.db.models import Q
 
 from n26.library.models.profile import TYPE_NAMES
 from n26.library.standard_content import (
@@ -1780,19 +1781,45 @@ def _imported(pack=None):
     standard_skills += INHERENT_SKILLS
 
     profiles = Profile.objects.filter(**scope)
-    # A modifier is reached through its carriers, so the ones an import
-    # made are found while the profiles it hung them on still exist —
-    # which is why this is a list of keys and not a lazy queryset. Left
-    # behind, they would be matched by name on the next import and never
-    # re-attached, a placement quietly going missing.
-    hung_on_profiles = list(
-        Modifier.objects.filter(library_profile_set__in=profiles)
+
+    # Modifiers go, apart from the ones standard content wired: the
+    # eight specialisation grants, which are as fixed as the skills
+    # they hand out. Everything else either came from an import or
+    # names content that is about to, and a modifier pointing at a
+    # deleted trait is what stops the whole clear.
+    standard_modifiers = list(
+        Modifier.objects.filter(
+            library_specialisation_set__name__in=[name for name, _ in SPECIALISATIONS]
+        )
         .distinct()
         .values_list("pk", flat=True)
     )
+    doomed = list(
+        Modifier.objects.exclude(pk__in=standard_modifiers).values_list("pk", flat=True)
+    )
+
+    # A modifier holds its scope and effect, and those rows are what
+    # hold the trait — deleting the modifier alone leaves them behind
+    # still protecting it. So the scope and effect rows are the ones
+    # swept, and the modifier cascades away with them. Read off the
+    # model rather than listed, so a new scope or effect kind is
+    # covered without anyone remembering to say so.
+    from n26.library.models.modifier import EFFECT_FIELDS, SCOPE_FIELDS
+
+    parts = []
+    for field_name in (*SCOPE_FIELDS, *EFFECT_FIELDS):
+        model = Modifier._meta.get_field(field_name).related_model
+        parts.append(
+            (
+                "modifiers",
+                model.objects.filter(
+                    Q(modifier__pk__in=doomed) | Q(modifier__isnull=True)
+                ),
+            )
+        )
 
     section = apps.get_model("library", "Section")
-    return [
+    return parts + [
         ("collection entries", CollectionEntry.objects.filter(**scope)),
         (
             "collections",
@@ -1802,7 +1829,6 @@ def _imported(pack=None):
         ),
         ("fighter profiles", profiles),
         ("built-in sets", DefaultAssignmentSet.objects.filter(**scope)),
-        ("modifiers", Modifier.objects.filter(pk__in=hung_on_profiles)),
         ("weapon profiles", WeaponProfile.objects.filter(**scope)),
         ("weapons", Weapon.objects.filter(**scope)),
         ("wargear", Wargear.objects.filter(**scope)),
@@ -1842,8 +1868,16 @@ def _imported(pack=None):
 
 def count_imported(pack=None):
     """How much a clear would take, as ``{what it is: how many}`` —
-    only the kinds that have anything."""
-    return {label: found for label, rows in _imported(pack) if (found := rows.count())}
+    only the kinds that have anything.
+
+    Several querysets may answer to one name: a modifier's scope and its
+    effect live in separate tables and are one thing to a reader, so the
+    counts add up under the word rather than listing the plumbing.
+    """
+    found = TallyCounter()
+    for label, rows in _imported(pack):
+        found[label] += rows.count()
+    return {label: count for label, count in found.items() if count}
 
 
 def clear_imported(pack=None):
@@ -1856,19 +1890,27 @@ def clear_imported(pack=None):
     trip is the point: it makes an import repeatable while the
     spreadsheets are still changing.
 
-    Player data protects content it uses, so a gang holding an imported
-    weapon stops this with ``ProtectedError`` rather than taking the
-    weapon out from under it. Delete the gangs first.
+    Anything may hold imported content and protect it — a gang that
+    bought a weapon, an authored modifier naming a trait — and that
+    stops the clear with ``ProtectedError`` rather than taking the thing
+    out from under its holder.
+
+    All of it in one transaction, because the holders are only
+    discovered part-way through: the weapons go, then a trait turns out
+    to be spoken for, and a caller left holding half a library has a
+    worse problem than the one it started with. All or nothing, however
+    it is called.
 
     Returns ``{what it was: how many}`` for what went.
     """
-    gone = {}
-    for label, rows in _imported(pack):
-        found = rows.count()
-        if found:
-            rows.delete()
-            gone[label] = found
-    return gone
+    gone = TallyCounter()
+    with transaction.atomic():
+        for label, rows in _imported(pack):
+            found = rows.count()
+            if found:
+                rows.delete()
+                gone[label] += found
+    return dict(gone)
 
 
 def _missing(key):
