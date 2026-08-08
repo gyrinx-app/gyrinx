@@ -12,6 +12,10 @@ options, the Mounted chain of modifiers, and pet wargear.
 import pytest
 from django.contrib.auth.models import User
 
+from n26.core.models import Gang
+from n26.core.operations import operation
+from n26.core.render import build_model_card
+from n26.core.render_text import render_model_card
 from n26.library.models import (
     AddsAssignable,
     ChangesStat,
@@ -37,10 +41,6 @@ from n26.library.models import (
     Weapon,
     WeaponProfile,
 )
-from n26.core.models import Gang
-from n26.core.operations import operation
-from n26.core.render import build_model_card
-from n26.core.render_text import render_model_card
 
 pytestmark = pytest.mark.django_db
 

@@ -623,10 +623,10 @@ class TestWeapons:
         authored line on their card."""
         from django.contrib.auth.models import User
 
-        from n26.library.authoring import create_profile, create_trait, set_statline
-        from n26.library.models import Weapon
         from n26.core.render import build_model_card
         from n26.core.render_text import render_model_card
+        from n26.library.authoring import create_profile, create_trait, set_statline
+        from n26.library.models import Weapon
         from n26.tests.sandbox.actions import (
             found_gang,
             give_weapon,
@@ -911,9 +911,9 @@ class TestAWeaponsOwnLine:
     ):
         from django.contrib.auth.models import User
 
-        from n26.library.authoring import create_profile, create_trait, set_statline
         from n26.core.render import render_gang
         from n26.core.render_text import render_model_card
+        from n26.library.authoring import create_profile, create_trait, set_statline
         from n26.tests.sandbox.actions import (
             buy_weapon_profile,
             found_gang,

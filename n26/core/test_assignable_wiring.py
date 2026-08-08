@@ -11,6 +11,9 @@ from django.apps import apps
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 
+from n26.core.checks import every_assignable_has_a_column
+from n26.core.models import Assignment, Gang
+from n26.core.models.assignment import ASSIGNABLE_FIELDS
 from n26.library.models import (
     AddsAssignable,
     Modifier,
@@ -21,9 +24,6 @@ from n26.library.models import (
     WeaponProfile,
 )
 from n26.library.models.assignable import Assignable
-from n26.core.checks import every_assignable_has_a_column
-from n26.core.models import Assignment, Gang
-from n26.core.models.assignment import ASSIGNABLE_FIELDS
 
 pytestmark = pytest.mark.django_db
 

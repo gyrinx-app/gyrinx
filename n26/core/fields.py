@@ -84,7 +84,7 @@ class ULIDField(models.UUIDField):
             return None
         try:
             return to_ulid(value)
-        except (ValueError, AttributeError, TypeError):
+        except ValueError, AttributeError, TypeError:
             raise ValidationError(
                 self.error_messages["invalid"],
                 code="invalid",

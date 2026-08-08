@@ -309,8 +309,8 @@ class Operation:
         ``kinds`` narrows what materialises — a Legacy profile brings its
         lists but not a second set of free kit.
         """
-        from n26.library.models import Weapon, WeaponProfile
         from n26.core.models import ChosenProfileOption, CounterValue, Reason
+        from n26.library.models import Weapon, WeaponProfile
 
         miniature = None if gang is not None else carrier.miniature_root
         if gang is not None:
@@ -383,8 +383,8 @@ class Operation:
         so removing the carrier takes the answer along, and the computed
         slot reads as resolved because this row exists.
         """
-        from n26.library.models.modifier import OffersChoice
         from n26.core import select
+        from n26.library.models.modifier import OffersChoice
 
         matched = [
             modifier.effect
@@ -496,9 +496,9 @@ class Operation:
         stashed weapon keeps its free profiles so it moves onto a model
         whole.
         """
+        from n26.core.models import Stash
         from n26.library.models import Weapon
         from n26.library.models.collection import price_of
-        from n26.core.models import Stash
 
         host = {"stash": holder} if isinstance(holder, Stash) else {"miniature": holder}
 

@@ -16,8 +16,8 @@ home gather at the end under no heading.
 
 from dataclasses import dataclass, field
 
-from n26.library.models import price_of
 from n26.core.notes import WARNING, Note
+from n26.library.models import price_of
 
 
 @dataclass(frozen=True)

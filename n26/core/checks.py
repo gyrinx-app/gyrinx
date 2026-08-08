@@ -12,8 +12,8 @@ from django.core.checks import Error, register
 
 @register()
 def every_assignable_has_a_column(app_configs, **kwargs):
-    from n26.library.models.assignable import Assignable
     from n26.core.models.assignment import ASSIGNABLE_FIELDS
+    from n26.library.models.assignable import Assignable
 
     declared = {path.lower() for path in ASSIGNABLE_FIELDS.values()}
     found = {

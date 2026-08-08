@@ -22,11 +22,11 @@ casing anywhere. Rule names only, never rules text (CLAUDE.md).
 
 import pytest
 
-from n26.library.models import Profile, ProfileType, StatlineType, StatlineTypeStat
 from n26.core.card import build_card, build_card_from_profile, build_modifier_index
 from n26.core.effects import compute
 from n26.core.hire import build_hire_entry, build_hire_list
 from n26.core.render import build_model_card, card_to_model_card
+from n26.library.models import Profile, ProfileType, StatlineType, StatlineTypeStat
 from n26.tests.sandbox.actions import (
     changes_stat,
     create_default_set,

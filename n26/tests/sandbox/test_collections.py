@@ -16,11 +16,11 @@ import pytest
 from django.contrib.auth.models import User
 from django.db import IntegrityError, transaction
 
-from n26.library.models import price_of
 from n26.core.access import collections_for
 from n26.core.browse import TRADING_POST, browse
 from n26.core.reconcile import assert_reconciled
 from n26.core.render import build_model_card
+from n26.library.models import price_of
 from n26.tests.sandbox.actions import (
     adds,
     assign,

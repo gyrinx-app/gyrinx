@@ -143,11 +143,11 @@ def test_a_qualified_thing_draws_without_its_qualifier():
     read exactly as one built from an unqualified one."""
     from django.contrib.auth.models import User
 
+    from n26.core.render import build_model_card
+    from n26.core.render_text import render_model_card
     from n26.library.authoring import create_weapon
     from n26.library.models import GangType, ProfileType, StatlineType
     from n26.library.standard_content import MODEL_STATLINE, STANDARD_CONTENT
-    from n26.core.render import build_model_card
-    from n26.core.render_text import render_model_card
     from n26.tests.sandbox.actions import found_gang, give_weapon, hire
 
     STANDARD_CONTENT["model-characteristics"].create()

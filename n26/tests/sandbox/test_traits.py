@@ -10,9 +10,9 @@ import pytest
 from django.contrib.auth.models import User
 from django.db import IntegrityError, transaction
 
-from n26.library.models import Trait
 from n26.core.render import build_model_card
 from n26.core.render_text import render_model_card
+from n26.library.models import Trait
 from n26.tests.sandbox.actions import (
     create_trait,
     create_weapon,

@@ -12,6 +12,8 @@ number of queries regardless of how many models or how much kit — see
 
 from dataclasses import dataclass, field
 
+from n26.core.card import build_card
+from n26.core.effects import kind_of
 from n26.library.models import (
     Collection,
     Hidden,
@@ -22,8 +24,6 @@ from n26.library.models import (
     Weapon,
     WeaponProfile,
 )
-from n26.core.card import build_card
-from n26.core.effects import kind_of
 
 
 @dataclass(frozen=True)

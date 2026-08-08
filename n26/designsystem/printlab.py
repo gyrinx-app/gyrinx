@@ -170,7 +170,7 @@ def _one_of(value, allowed, fallback):
 def _number(value, fallback, low, high):
     try:
         number = float(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return fallback
     # NaN fails every comparison, so it would sail through a min/max clamp.
     if number != number:

@@ -22,8 +22,8 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models.functions import Lower
 
-from n26.library.models.base import Content
 from n26.core.constraints import exactly_one_of
+from n26.library.models.base import Content
 
 #: The kinds of thing a scope can select.
 MODEL = "model"

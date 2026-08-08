@@ -16,11 +16,11 @@ this file as much as the assertions.
 import pytest
 from django.contrib.auth.models import User
 
-from n26.library.models import Profile, StatlineType, StatlineTypeStat
 from n26.core.access import collections_for
 from n26.core.browse import TRADING_POST, browse, narrow
 from n26.core.reconcile import assert_reconciled
 from n26.core.render_text import gang_to_text, ledger_to_text
+from n26.library.models import Profile, StatlineType, StatlineTypeStat
 from n26.tests.sandbox.actions import (
     add_legacy_profile,
     buy,

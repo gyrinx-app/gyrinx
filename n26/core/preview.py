@@ -160,9 +160,9 @@ def _scratch_roster(state, created):
     """Found the throwaway gang and hire the exemplar fighters."""
     from django.contrib.auth.models import User
 
-    from n26.library import authoring
     from n26.core.models import Gang
     from n26.core.operations import operation
+    from n26.library import authoring
 
     gang_type = authoring.create_gang_type("Scratch")
     profile = authoring.create_profile(

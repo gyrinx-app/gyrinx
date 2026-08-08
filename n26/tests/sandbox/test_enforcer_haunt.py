@@ -22,11 +22,11 @@ slot shows the resolution, the type line stays honest.
 import pytest
 from django.contrib.auth.models import User
 
-from n26.library.models import Power, Subtype
 from n26.core.browse import offered_by, placements_for
 from n26.core.card import build_card, build_modifier_index
 from n26.core.effects import compute
 from n26.core.render import build_model_card
+from n26.library.models import Power, Subtype
 from n26.tests.sandbox.actions import (
     choose,
     create_category,

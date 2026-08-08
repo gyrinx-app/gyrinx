@@ -10,9 +10,9 @@ gang sheet and the ledger printed side by side. Run it to look at it:
 import pytest
 from django.contrib.auth.models import User
 
-from n26.library.models import Profile, ProfileType, StatlineType, StatlineTypeStat
 from n26.core.reconcile import assert_reconciled
 from n26.core.render_text import gang_to_text, ledger_to_text
+from n26.library.models import Profile, ProfileType, StatlineType, StatlineTypeStat
 from n26.tests.sandbox.actions import (
     adds,
     assign,

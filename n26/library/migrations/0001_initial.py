@@ -2,11 +2,12 @@
 
 import django.db.models.deletion
 import django.db.models.functions.text
-import n26.library.models.pack
-import n26.core.fields
 import ulid
 from django.conf import settings
 from django.db import migrations, models
+
+import n26.core.fields
+import n26.library.models.pack
 
 
 class Migration(migrations.Migration):

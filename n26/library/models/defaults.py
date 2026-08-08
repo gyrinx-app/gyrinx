@@ -43,8 +43,8 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models.functions import Lower
 
-from n26.library.models.base import Content
 from n26.core.constraints import NamesAnAssignable, exactly_one_of
+from n26.library.models.base import Content
 
 #: What a default assignment may name. Not profiles (a fighter cannot come
 #: with a fighter — that is what OpAddsMiniature is for) and not injuries.

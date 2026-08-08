@@ -21,7 +21,6 @@ set-ness lives in the Category and the sweep, not in the kind.
 import pytest
 from django.contrib.auth.models import User
 
-from n26.library.models import Power, Skill
 from n26.core.browse import (
     browse,
     narrow,
@@ -32,6 +31,7 @@ from n26.core.browse import (
 from n26.core.card import build_card, build_modifier_index
 from n26.core.effects import compute
 from n26.core.render import build_model_card
+from n26.library.models import Power, Skill
 from n26.tests.sandbox.actions import (
     adds,
     assign,

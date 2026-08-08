@@ -15,11 +15,11 @@ executes through it. These tests pin three things:
 import pytest
 from django.contrib.auth.models import User
 
-from n26.library.models import Skill, Wargear, Weapon
 from n26.core import select
 from n26.core.browse import browse, usability_for, with_use_notes
 from n26.core.card import build_card, build_modifier_index
 from n26.core.effects import compute
+from n26.library.models import Skill, Wargear, Weapon
 from n26.tests.sandbox.actions import (
     adds,
     create_category,

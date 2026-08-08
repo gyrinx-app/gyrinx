@@ -28,9 +28,9 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models.functions import Lower
 
+from n26.core.constraints import exactly_one_of
 from n26.library.models.assignable import Family
 from n26.library.models.base import Content
-from n26.core.constraints import exactly_one_of
 
 #: Rendered in place of an absent value.
 EMPTY_VALUE = "-"

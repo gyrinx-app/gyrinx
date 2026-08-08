@@ -9,10 +9,11 @@
 
 import django.db.models.deletion
 import django.db.models.functions.text
-import n26.library.models.pack
-import n26.core.fields
 import ulid
 from django.db import migrations, models
+
+import n26.core.fields
+import n26.library.models.pack
 
 
 def sections_from_headings(apps, schema_editor):

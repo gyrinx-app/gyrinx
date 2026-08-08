@@ -22,11 +22,11 @@ content, known to no code.
 import pytest
 from django.contrib.auth.models import User
 
-from n26.library.models import Skill, SkillTree
 from n26.core.browse import offered_by, placements_for
 from n26.core.card import build_card, build_gang_card, build_modifier_index
 from n26.core.effects import compute, compute_gang
 from n26.core.render_text import gang_to_text
+from n26.library.models import Skill, SkillTree
 from n26.tests.sandbox.actions import (
     choose,
     create_category,

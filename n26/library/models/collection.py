@@ -32,13 +32,13 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models.functions import Lower
 
+from n26.core.constraints import NamesAnAssignable, exactly_one_of
 from n26.library.models.assignable import (
     Assignable,
     Family,
     exclusive_has_no_trade_points,
 )
 from n26.library.models.base import Content
-from n26.core.constraints import NamesAnAssignable, exactly_one_of
 
 #: What a collection entry may name. Not traits or injuries — those are
 #: never shopped for — and not collections (a list does not contain a list;

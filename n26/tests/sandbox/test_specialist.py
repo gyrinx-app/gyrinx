@@ -15,17 +15,17 @@ import pytest
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 
+from n26.core.card import build_card, build_modifier_index
+from n26.core.effects import compute
+from n26.core.models import Assignment
+from n26.core.render import build_model_card
+from n26.core.render_text import render_model_card
 from n26.library.models import (
     OffersChoice,
     Specialisation,
     TargetsMiniature,
     Trait,
 )
-from n26.core.card import build_card, build_modifier_index
-from n26.core.effects import compute
-from n26.core.models import Assignment
-from n26.core.render import build_model_card
-from n26.core.render_text import render_model_card
 from n26.tests.sandbox.actions import (
     assign,
     choose,

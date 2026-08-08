@@ -8,8 +8,8 @@ printed, in-memory targets can carry computed assignables.
 
 import pytest
 
-from n26.library.models import Skill, Specialisation, Trait, Weapon, WeaponProfile
 from n26.core import select
+from n26.library.models import Skill, Specialisation, Trait, Weapon, WeaponProfile
 
 pytestmark = pytest.mark.django_db
 

@@ -19,11 +19,11 @@ come, and the head of the options list is what a hire takes unasked.
 import pytest
 from django.contrib.auth.models import User
 
-from n26.library.models import Profile
 from n26.core.models import Assignment, ChosenProfileOption, Reason
 from n26.core.reconcile import assert_reconciled, ledger_for_gang
 from n26.core.render import build_model_card
 from n26.core.render_text import render_model_card
+from n26.library.models import Profile
 from n26.tests.sandbox.actions import (
     create_default_set,
     create_subtype,

@@ -459,9 +459,9 @@ def collection_page(request, pk):
     criteria keeps itself: author a weapon with a TP price and it is
     simply here on the next load, ammo rows riding under their gun.
     """
+    from n26.core.browse import browse
     from n26.library.models import Collection
     from n26.library.models.collection import ENTRY_ASSIGNABLE_FIELDS
-    from n26.core.browse import browse
 
     collection = get_object_or_404(Collection, pk=pk)
     view = browse(collection)

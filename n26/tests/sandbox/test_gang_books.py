@@ -26,6 +26,9 @@ pages and builds each from shipped pieces, no new machinery:
 import pytest
 from django.contrib.auth.models import User
 
+from n26.core.models import Assignment, Miniature
+from n26.core.render import render_gang
+from n26.core.render_text import render_gang_sheet, render_model_card
 from n26.library.authoring import (
     counter_at_least,  # noqa: F401 — the promotion pattern, referenced in prose
     create_affiliation,
@@ -56,9 +59,6 @@ from n26.library.authoring import (
     targets_model,
 )
 from n26.library.models import Affiliation, Power
-from n26.core.models import Assignment, Miniature
-from n26.core.render import render_gang
-from n26.core.render_text import render_gang_sheet, render_model_card
 from n26.tests.sandbox.actions import (
     assign,
     buy,

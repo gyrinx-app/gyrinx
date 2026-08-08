@@ -590,8 +590,8 @@ def _companion_notes(gang_card, computed):
     is short and leave it to the owner. Counting is of members'
     *printed* hierarchy subtypes: a rank is a hire-time built-in fact.
     """
-    from n26.library.models import Subtype
     from n26.core.notes import WARNING, Note
+    from n26.library.models import Subtype
 
     if not computed.requirements:
         return []

@@ -18,10 +18,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from n26.library.models.modifier import GANG, MODEL
 from n26.core.effects import ModifierIndex
 from n26.core.models import Assignment, Reason
 from n26.core.models.assignment import ASSIGNABLE_FIELDS
+from n26.library.models.modifier import GANG, MODEL
 
 
 @dataclass
@@ -136,8 +136,8 @@ class Card:
         unconditional grants; ``usability_for`` layers the final state
         the same way. Called bare, it answers from the rows alone.
         """
-        from n26.library.models import Counter, Subtype
         from n26.core import select
+        from n26.library.models import Counter, Subtype
 
         profile = None
         possessions = []
@@ -224,8 +224,8 @@ class GangCard:
         subtypes, so its facts are simply its own rows, which is what a
         ``Has(house list)`` or a gang-level ``CounterAtLeast`` asks about.
         """
-        from n26.library.models import Counter
         from n26.core import select
+        from n26.library.models import Counter
 
         possessions = []
         counts = []

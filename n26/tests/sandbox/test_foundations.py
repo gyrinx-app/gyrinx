@@ -285,9 +285,9 @@ class TestSeededContentIsUsable:
         self, author, client, default_pack
     ):
         """End to end from nothing: sow, author a weapon, read the card."""
+        from n26.core.render import render_gang
         from n26.library.authoring import create_profile, create_trait, set_statline
         from n26.library.models import Weapon
-        from n26.core.render import render_gang
         from n26.tests.sandbox.actions import found_gang, give_weapon, hire
 
         STANDARD_CONTENT["model-characteristics"].create()

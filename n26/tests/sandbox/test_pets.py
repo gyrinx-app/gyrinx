@@ -15,11 +15,11 @@ bought for the pet afterwards counts normally, on the pet's own card.
 import pytest
 from django.contrib.auth.models import User
 
-from n26.library.models import Profile
 from n26.core.models import Miniature
 from n26.core.reconcile import assert_reconciled, ledger_for_gang
 from n26.core.render import build_model_card, render_gang
 from n26.core.render_text import gang_to_text
+from n26.library.models import Profile
 from n26.tests.sandbox.actions import (
     assign,
     create_wargear,

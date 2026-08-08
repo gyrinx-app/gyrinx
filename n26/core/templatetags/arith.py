@@ -20,7 +20,7 @@ def sub(value, arg):
     """
     try:
         return int(value) - int(arg)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return ""
 
 
@@ -29,5 +29,5 @@ def at_least(value, minimum):
     """Floor a number. A colspan of 0 or less is invalid HTML."""
     try:
         return max(int(value), int(minimum))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return minimum

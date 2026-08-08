@@ -37,8 +37,8 @@ lists that already reference it.
 from django.conf import settings
 from django.db import models
 
-from n26.library.models.pack import ContentPack, default_pack_id
 from n26.core.models import Archived, Base
+from n26.library.models.pack import ContentPack, default_pack_id
 
 
 class ContentQuerySet(models.QuerySet):

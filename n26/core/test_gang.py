@@ -3,8 +3,8 @@ from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.db.models import ProtectedError
 
-from n26.library.models import GangType
 from n26.core.models import Gang
+from n26.library.models import GangType
 
 pytestmark = pytest.mark.django_db
 

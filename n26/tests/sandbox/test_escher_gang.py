@@ -26,7 +26,6 @@ Rule *names* only; the rulebook's words are copyright (CLAUDE.md).
 import pytest
 from django.contrib.auth.models import User
 
-from n26.library.models import Profile, ProfileType, Skill
 from n26.core.browse import (
     browse,
     offered_by,
@@ -36,6 +35,7 @@ from n26.core.browse import (
 from n26.core.card import build_card, build_modifier_index
 from n26.core.effects import compute
 from n26.core.render import build_model_card
+from n26.library.models import Profile, ProfileType, Skill
 from n26.tests.sandbox.actions import (
     buy,
     create_category,
