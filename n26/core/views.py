@@ -81,14 +81,27 @@ def gang_sheet(request, pk):
     rather than a 403: which gangs exist is not something a stranger
     should be able to probe for.
     """
-    from n26.core.models import Gang
     from n26.core.render import render_gang
 
-    # A pk that is not a ULID reaches to_python and raises ValidationError,
-    # which is a 500 for what is only ever a bad URL. Well-formed-but-absent
-    # already 404s on its own.
+    gang = _own_gang_or_404(request, pk)
+    return render(
+        request,
+        "n26/gang_sheet.html",
+        {"gang": gang, "sheet": render_gang(gang)},
+    )
+
+
+def _own_gang_or_404(request, pk):
+    """The gang, if it is the viewer's to act on.
+
+    A pk that is not a ULID reaches ``to_python`` and raises
+    ``ValidationError`` — a 500 for what is only ever a bad URL, so it is
+    caught here. Well-formed-but-absent already 404s on its own.
+    """
+    from n26.core.models import Gang
+
     try:
-        gang = get_object_or_404(
+        return get_object_or_404(
             Gang.objects.select_related("gang_type", "owner", "stash"),
             pk=pk,
             owner=request.user,
@@ -97,10 +110,112 @@ def gang_sheet(request, pk):
     except ValidationError:
         raise Http404("No such gang") from None
 
+
+@login_required
+def hire_fighter(request, pk):
+    """Hire a fighter: the design system's picker over the real gang list.
+
+    GET is ``build_hire_list`` shelved by each profile's home category.
+    POST is the picker's own contract: every Hire button submits the form
+    carrying ``profile``, and each option group's inputs are scoped
+    ``{profile_pk}:{group_index}`` with option indices as values. The
+    indices are mapped back through ``build_hire_entry`` — the same
+    derivation the rows were drawn from — because the entry *synthesises*
+    a default group when the profile has only named ones, so raw
+    ``grouped_options()`` would be off by one exactly there.
+
+    An overspend is refused by the operation itself (``NotEnoughCredits``
+    unwinds the transaction), and lands back here as a message: nothing
+    half-written, nothing lost but a click.
+    """
+    from n26.core.forms import HireFighterForm
+    from n26.core.hire import build_hire_entry, build_hire_list, shelve_hire_list
+    from n26.core.operations import NotEnoughCredits, operation
+    from n26.library.models import Profile
+
+    gang = _own_gang_or_404(request, pk)
+
+    if request.method == "POST":
+        form = HireFighterForm(request.POST)
+        try:
+            profile = Profile.objects.filter(
+                pk=request.POST.get("profile"), gang_type=gang.gang_type
+            ).first()
+        except ValidationError:
+            # A tampered pk, not a ULID at all. The genuine buttons never
+            # send one, so redisplaying the list is all it deserves.
+            profile = None
+        if profile is not None and form.is_valid():
+            entry = build_hire_entry(profile)
+            chosen = []
+            for group_index, group in enumerate(entry.groups):
+                picked = request.POST.getlist(f"{profile.pk}:{group_index}")
+                for value in picked:
+                    try:
+                        option = group.options[int(value)]
+                    except ValueError, IndexError:
+                        raise Http404("No such option") from None
+                    if option.default_set is not None:
+                        chosen.append(option.default_set)
+            try:
+                with operation(gang, actor=request.user) as op:
+                    miniature = op.hire(
+                        profile,
+                        form.cleaned_data["name"] or profile.name,
+                        option=chosen,
+                    )
+            except NotEnoughCredits as refusal:
+                messages.error(request, str(refusal))
+                return redirect("n26-hire-fighter", pk=gang.pk)
+            messages.success(request, f"Hired {miniature.name}.")
+            return redirect("n26-gang", pk=gang.pk)
+    else:
+        form = HireFighterForm()
+
+    section_rows = shelve_hire_list(build_hire_list(gang.gang_type))
+    entries = [
+        entry
+        for section_row in section_rows
+        for category in section_row["categories"]
+        for entry in category["entries"]
+    ]
+    prices = [entry.base_price for entry in entries]
     return render(
         request,
-        "n26/gang_sheet.html",
-        {"gang": gang, "sheet": render_gang(gang)},
+        "n26/hire_fighter.html",
+        {
+            "gang": gang,
+            "form": form,
+            "section_rows": [
+                {"section": section_row, "first": index == 0}
+                for index, section_row in enumerate(section_rows)
+            ],
+            # Tabs only when the content has real section headings — a
+            # single unnamed shelf would draw one blank tab.
+            "sections": [row["name"] for row in section_rows if row["name"]],
+            # The picker's all-on category state. These are *registration*
+            # names — an item in an unnamed category registers under its
+            # section's name (possibly ""), and a list that omits that name
+            # silently hides every such row: categoryOn("") is the filter.
+            "categories": list(
+                dict.fromkeys(
+                    category["name"] or section_row["name"]
+                    for section_row in section_rows
+                    for category in section_row["categories"]
+                )
+            ),
+            "category_options": [
+                {"value": name, "label": name}
+                for name in dict.fromkeys(
+                    category["name"]
+                    for section_row in section_rows
+                    for category in section_row["categories"]
+                    if category["name"]
+                )
+            ],
+            "price_floor": min(prices, default=0),
+            "price_ceiling": max(prices, default=0),
+        },
     )
 
 

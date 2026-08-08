@@ -67,7 +67,9 @@ that saves nothing is worse than a value with no affordance at all.
         below.
         {% endcomment %}
         <c-slot name="actions">
-            <c-ui.button size="sm" variant="primary" href="#">
+            <c-ui.button size="sm"
+                         variant="primary"
+                         href="{% url 'n26-hire-fighter' gang.pk %}">
                 Hire fighter
             </c-ui.button>
         </c-slot>
