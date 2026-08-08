@@ -8,10 +8,10 @@ What was judged there is what ships here, so the two should be edited together.
 
   --- what is not wired yet ---
 
-Hire, Equip, Print, Cards and Delete have no routes. They are drawn anyway, at
-"#", so the screen keeps the shape the library settled on and the gaps are
-visible rather than quietly designed around. Each becomes a url tag as its
-feature lands.
+Print, Cards and Delete have no routes. They are drawn anyway, at "#", so the
+screen keeps the shape the library settled on and the gaps are visible rather
+than quietly designed around. Each becomes a url tag as its feature lands —
+Hire and Equip already have.
 
 The gang's choices and counters are shown as settled facts. The library's row
 can open a picker that writes, and that picker does not exist — a Save button
@@ -106,7 +106,7 @@ that saves nothing is worse than a value with no affordance at all.
                         its own. Cards and Delete share the dropdown because
                         neither is frequent and one is irreversible.
                         {% endcomment %}
-                        <c-ui.button size="xs" variant="primary" href="#">
+                        <c-ui.button size="xs" variant="primary" href="{% url 'n26-equip' member.id %}">
                             Equip
                         </c-ui.button>
                         <c-ui.dropdown>
