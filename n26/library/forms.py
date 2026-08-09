@@ -578,8 +578,9 @@ def condition_formset_for(spec, data=None, prefix="conditions", extra=0, initial
     is the narrowing a scope already has, one entry per chip.
 
     A scope narrowed too far is corrected by taking a condition off it,
-    and the chip goes there and then: the page reposts what has been
-    filled in so far without that chip (``without_condition_chip``).
+    and the chip goes there and then: the press posts the form,
+    the view drops that chip from what arrived
+    (``without_condition_chip``) and sends the rest back as an address.
     There is no delete field, because a tickbox that only takes effect
     on the next save reads as a control that does nothing.
     """
@@ -907,23 +908,22 @@ class ModifierComposerForm(forms.Form):
         return form
 
     @classmethod
-    def reopened(cls, data, index, *, attach_to=None, editing=None):
-        """The composer as the author left it, with one condition chip
-        taken off.
+    def carried(cls, data, *, attach_to=None, editing=None):
+        """The composer as the author left it, filled in from data that
+        has travelled — a post being redrawn, or an address a removed
+        condition redirected to.
 
-        Bound to what was posted, so everything typed into the other
-        chips and both panes comes back — a round trip through the URL
-        would arrive empty. Then quietened: taking a condition off is an
-        edit to the form, not an attempt to save it, and a pane the
-        author has not filled in yet is not a refusal yet either.
+        Bound rather than opened on initial values, so everything typed
+        into the chips and both panes comes back exactly as it was sent.
+        Then quietened: what arrives here is a form mid-edit, not an
+        attempt to save one, and a pane the author has not reached yet
+        is not a refusal yet either.
 
         Validation has to run before it can be set aside, because the
         panes are built in ``clean()`` — an unvalidated composer has no
         panes to draw.
         """
-        form = cls(
-            without_condition_chip(data, index), attach_to=attach_to, editing=editing
-        )
+        form = cls(data, attach_to=attach_to, editing=editing)
         form.full_clean()
         form._errors.clear()
         for pane in (form.who_form, form.what_form):

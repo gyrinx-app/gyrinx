@@ -9,13 +9,15 @@ and `add_condition_href`, the address of the same page with one more
 empty chip. That is a link rather than a control: the count rides the
 URL, so an added chip survives a refresh and needs no script.
 
-Removing one cannot be a link. A chip is taken off part-way through
-filling the form in, and a GET arrives carrying none of what has been
-typed into the other chips or either pane — so Remove is a submit that
-reposts the lot minus that chip, and the page draws it back. It saves
-nothing: the modifier is written by the button at the foot of the form,
-and on an existing modifier the condition row goes when that is pressed,
-not on this press.
+Removing one cannot be a plain link. A chip is taken off part-way
+through filling the form in, and a bare GET arrives carrying none of
+what has been typed into the other chips or either pane — so Remove is
+a submit. What it does with the press is send everything except that
+chip back as an address: the chip count lives in the address, so a page
+that only redrew would go on claiming a chip it no longer shows and a
+reload would bring it back. It saves nothing: the modifier is written
+by the button at the foot of the form, and on an existing modifier the
+condition row goes when that is pressed, not on this press.
 
 The value is the chip's position, which is how a formset addresses its
 forms; the view refuses a position naming no chip.

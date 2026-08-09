@@ -16,6 +16,7 @@ them:
 """
 
 import re
+from html import unescape
 
 import pytest
 from django.contrib.auth.models import User
@@ -2638,9 +2639,13 @@ class TestAModifiersOwnPage:
                 "drop_condition": "0",
             },
         )
-        assert removed.status_code == 200
+        assert removed.status_code == 302
         made.refresh_from_db()
         assert "Leader" in str(made.scope)  # the press saved nothing
+        # The address it sends the author to holds no chip, so the page
+        # that draws next shows none — including on a reload.
+        assert "conditions-TOTAL_FORMS=0" in removed.url
+        assert not drawn_picked(client.get(removed.url).content.decode(), leader.pk)
 
         client.post(
             f"/n26/authoring/modifiers/{made.pk}/",
@@ -3504,12 +3509,17 @@ class TestComposingOnAPageOfItsOwn:
 
 class TestRemovingAConditionRemovesIt:
     """The Remove button under a condition takes that chip off the form
-    there and then.
+    there and then, and off the address the page is at.
 
     A tickbox that only takes effect on the next save reads as a control
     that does nothing. What the press must not do is lose the rest: an
     author part-way through two conditions and both panes presses it, and
     everything except that chip has to come back.
+
+    The chip count is read off the address, so a press that only redrew
+    the page would leave the address claiming a chip the page no longer
+    shows — and a reload would put it back. Every one of these follows
+    the redirect and reads the page the address gives.
     """
 
     @pytest.fixture
@@ -3542,7 +3552,7 @@ class TestRemovingAConditionRemovesIt:
     def test_the_chip_goes_and_everything_else_keeps_what_was_typed(
         self, rule, client, default_pack
     ):
-        """The point of a submit rather than a link: a GET arrives
+        """The point of a submit rather than a link: a bare GET arrives
         carrying none of this."""
         from n26.library.authoring import create_subtype
 
@@ -3550,7 +3560,7 @@ class TestRemovingAConditionRemovesIt:
         leader = create_subtype("Leader")
         mounted = create_subtype("Mounted")
 
-        body = client.post(
+        removed = client.post(
             f"/n26/authoring/modifiers/new/?for_kind=rule&for={rule.pk}",
             {
                 "act": "compose",
@@ -3568,7 +3578,10 @@ class TestRemovingAConditionRemovesIt:
                 "conditions-1-subtypes": [str(leader.pk)],
                 "drop_condition": "1",
             },
-        ).content.decode()
+        )
+
+        assert removed.status_code == 302
+        body = client.get(removed.url).content.decode()
 
         assert body.count('name="drop_condition"') == 1
         assert drawn_picked(body, champion.pk)
@@ -3576,6 +3589,112 @@ class TestRemovingAConditionRemovesIt:
         # The panes and the name box are not chips, and must survive too.
         assert drawn_picked(body, mounted.pk)
         assert 'value="Half typed"' in body
+
+    def test_the_removed_chip_stays_gone_when_the_page_is_reloaded(
+        self, rule, client, default_pack
+    ):
+        """The whole point of the address doing the carrying. Asking for
+        the same address twice must give the same page both times — the
+        removed chip gone, the surviving one still holding what was
+        typed into it."""
+        from n26.library.authoring import create_subtype
+
+        champion = create_subtype("Champion")
+        leader = create_subtype("Leader")
+        mounted = create_subtype("Mounted")
+
+        removed = client.post(
+            f"/n26/authoring/modifiers/new/?for_kind=rule&for={rule.pk}",
+            {
+                "act": "compose",
+                "for_kind": "rule",
+                "for": str(rule.pk),
+                "scope_kind": "targets_model",
+                "effect_kind": "ef_adds",
+                "what-thing_kind": "subtype",
+                "what-thing_subtype": str(mounted.pk),
+                **self.chips(2),
+                "conditions-0-kind": "has_subtypes",
+                "conditions-0-subtypes": [str(champion.pk)],
+                "conditions-1-kind": "has_subtypes",
+                "conditions-1-subtypes": [str(leader.pk)],
+                "drop_condition": "1",
+            },
+        )
+
+        assert removed.status_code == 302
+        # The count the page draws from says one chip, not the two the
+        # press arrived with.
+        assert "conditions-TOTAL_FORMS=1" in removed.url
+        # Reloading is asking for that same address a second time.
+        for _ in range(2):
+            body = client.get(removed.url).content.decode()
+            assert body.count('name="drop_condition"') == 1
+            assert drawn_picked(body, champion.pk)
+            assert not drawn_picked(body, leader.pk)
+
+    def test_the_carrier_survives_the_press(self, rule, client, default_pack):
+        """The address says which thing is being composed for, and the
+        press rewrites that address — a rewrite that dropped the carrier
+        would quietly turn this into the standalone page."""
+        from n26.library.authoring import create_subtype
+
+        champion = create_subtype("Champion")
+
+        removed = client.post(
+            f"/n26/authoring/modifiers/new/?for_kind=rule&for={rule.pk}",
+            {
+                "act": "compose",
+                "for_kind": "rule",
+                "for": str(rule.pk),
+                "scope_kind": "targets_model",
+                "effect_kind": "ef_adds",
+                **self.chips(1),
+                "conditions-0-kind": "has_subtypes",
+                "conditions-0-subtypes": [str(champion.pk)],
+                "drop_condition": "0",
+            },
+        )
+
+        assert f"for={rule.pk}" in removed.url
+        assert f"New modifier for {rule}" in client.get(removed.url).content.decode()
+
+    def test_adding_a_condition_after_a_removal_keeps_what_was_typed(
+        self, rule, client, default_pack
+    ):
+        """Add is a link built from the address, and after a removal the
+        address is where the form lives. A link that named a chip count
+        of its own would send the author back to an empty form."""
+        from n26.library.authoring import create_subtype
+
+        champion = create_subtype("Champion")
+        leader = create_subtype("Leader")
+
+        removed = client.post(
+            f"/n26/authoring/modifiers/new/?for_kind=rule&for={rule.pk}",
+            {
+                "act": "compose",
+                "for_kind": "rule",
+                "for": str(rule.pk),
+                "scope_kind": "targets_model",
+                "effect_kind": "ef_adds",
+                **self.chips(2),
+                "conditions-0-kind": "has_subtypes",
+                "conditions-0-subtypes": [str(champion.pk)],
+                "conditions-1-kind": "has_subtypes",
+                "conditions-1-subtypes": [str(leader.pk)],
+                "drop_condition": "1",
+            },
+        )
+        body = client.get(removed.url).content.decode()
+        added = re.search(r'href="(\?[^"]*conditions-TOTAL_FORMS=2[^"]*)"', body)
+        assert added, "no add-a-condition link offering a second chip"
+
+        grown = client.get(
+            "/n26/authoring/modifiers/new/" + unescape(added.group(1))
+        ).content.decode()
+        assert grown.count('name="drop_condition"') == 2
+        assert drawn_picked(grown, champion.pk)
 
     def test_removing_the_first_renumbers_rather_than_leaving_a_gap(
         self, rule, client, default_pack
@@ -3589,7 +3708,7 @@ class TestRemovingAConditionRemovesIt:
         leader = create_subtype("Leader")
         mounted = create_subtype("Mounted")
 
-        body = client.post(
+        removed = client.post(
             f"/n26/authoring/modifiers/new/?for_kind=rule&for={rule.pk}",
             {
                 "act": "compose",
@@ -3606,7 +3725,8 @@ class TestRemovingAConditionRemovesIt:
                 "conditions-1-subtypes": [str(leader.pk)],
                 "drop_condition": "0",
             },
-        ).content.decode()
+        )
+        body = client.get(removed.url).content.decode()
 
         assert body.count('name="drop_condition"') == 1
         assert drawn_picked(body, leader.pk)
@@ -3637,7 +3757,7 @@ class TestRemovingAConditionRemovesIt:
             },
         )
 
-        assert response.status_code == 200
+        assert response.status_code == 302
         assert rule.modifiers.count() == 0
 
     def test_a_half_filled_form_is_not_refused_yet(self, rule, client, default_pack):
@@ -3647,7 +3767,7 @@ class TestRemovingAConditionRemovesIt:
         from n26.library.authoring import create_subtype
 
         champion = create_subtype("Champion")
-        body = client.post(
+        removed = client.post(
             f"/n26/authoring/modifiers/new/?for_kind=rule&for={rule.pk}",
             {
                 "act": "compose",
@@ -3661,10 +3781,50 @@ class TestRemovingAConditionRemovesIt:
                 "conditions-0-subtypes": [str(champion.pk)],
                 "drop_condition": "0",
             },
-        ).content.decode()
+        )
+        body = client.get(removed.url).content.decode()
 
         assert "This field is required" not in body
         assert "cannot apply" not in body
+
+    def test_a_form_too_long_to_write_into_an_address_is_redrawn_instead(
+        self, rule, client, default_pack, monkeypatch
+    ):
+        """A condition may name any number of weapons, and enough of
+        them make an address longer than a server will accept. The chip
+        still goes and nothing typed is lost — only the address stays
+        where it was, so this one page comes back on a reload."""
+        from n26.library import views
+        from n26.library.authoring import create_subtype
+
+        monkeypatch.setattr(views, "MAX_CARRIED_ADDRESS", 40)
+        champion = create_subtype("Champion")
+        leader = create_subtype("Leader")
+
+        response = client.post(
+            f"/n26/authoring/modifiers/new/?for_kind=rule&for={rule.pk}",
+            {
+                "act": "compose",
+                "for_kind": "rule",
+                "for": str(rule.pk),
+                "scope_kind": "targets_model",
+                "effect_kind": "ef_adds",
+                "name": "Half typed",
+                **self.chips(2),
+                "conditions-0-kind": "has_subtypes",
+                "conditions-0-subtypes": [str(champion.pk)],
+                "conditions-1-kind": "has_subtypes",
+                "conditions-1-subtypes": [str(leader.pk)],
+                "drop_condition": "1",
+            },
+        )
+
+        assert response.status_code == 200
+        body = response.content.decode()
+        assert body.count('name="drop_condition"') == 1
+        assert drawn_picked(body, champion.pk)
+        assert not drawn_picked(body, leader.pk)
+        assert 'value="Half typed"' in body
 
     def test_a_position_naming_no_chip_leaves_the_form_alone(
         self, rule, client, default_pack
@@ -3673,7 +3833,7 @@ class TestRemovingAConditionRemovesIt:
         from n26.library.authoring import create_subtype
 
         champion = create_subtype("Champion")
-        body = client.post(
+        removed = client.post(
             f"/n26/authoring/modifiers/new/?for_kind=rule&for={rule.pk}",
             {
                 "act": "compose",
@@ -3686,7 +3846,8 @@ class TestRemovingAConditionRemovesIt:
                 "conditions-0-subtypes": [str(champion.pk)],
                 "drop_condition": "7",
             },
-        ).content.decode()
+        )
+        body = client.get(removed.url).content.decode()
 
         assert drawn_picked(body, champion.pk)
         assert body.count('name="drop_condition"') == 1

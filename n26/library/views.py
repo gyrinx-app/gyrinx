@@ -812,9 +812,7 @@ def _modifier_action(request, kind, thing, act):
     if act == "compose":
         dropping = _dropped_condition(request)
         if dropping is not None:
-            return None, ModifierComposerForm.reopened(
-                request.POST, dropping, attach_to=thing
-            )
+            return _dropping_a_condition(request, dropping, attach_to=thing)
         composer = ModifierComposerForm(request.POST, attach_to=thing)
         if composer.is_valid():
             try:
@@ -911,10 +909,54 @@ def built_in_remove(request, pk):
     )
 
 
+#: The formset prefix the condition chips are posted under, and the
+#: management field that says how many of them there are.
+CONDITION_PREFIX = "conditions"
+CONDITION_TOTAL = f"{CONDITION_PREFIX}-TOTAL_FORMS"
+
+#: The address keys the composer writes for itself. Anything else in an
+#: address belongs to the page around it and is left where it is.
+_COMPOSER_KEYS = ("chips", "name", "make_reusable", "scope_kind", "effect_kind")
+_COMPOSER_PREFIXES = ("who-", "what-", f"{CONDITION_PREFIX}-")
+
+#: Posted keys that describe the press rather than the form, and so
+#: must not be written into an address a reader can reload.
+_NOT_CARRIED = ("csrfmiddlewaretoken", "act", "drop_condition")
+
+#: How long an address carrying a half-filled composer may get. A single
+#: condition may name any number of weapons, and a request line runs into
+#: server limits long before the same values would trouble a post body.
+MAX_CARRIED_ADDRESS = 2000
+
+
+def _carried_state(request):
+    """The composer's own fields as this address carries them, or
+    ``None`` where the address carries no form at all.
+
+    A form written into the query string is what lets taking a condition
+    off keep the rest: the press redirects, and everything typed arrives
+    back as an ordinary GET.
+
+    A count naming more chips than the composer will ever draw is
+    shortened rather than obeyed — it comes off the address, where any
+    number can be typed.
+    """
+    if CONDITION_TOTAL not in request.GET:
+        return None
+    carried = request.GET.copy()
+    try:
+        total = int(carried[CONDITION_TOTAL])
+    except TypeError, ValueError:
+        return None
+    carried[CONDITION_TOTAL] = str(min(max(total, 0), MAX_CHIPS))
+    return carried
+
+
 def _composer_state(request, attach_to=None, bound_composer=None):
     """The composer as the URL describes it: closed, open at the named
-    kinds, or bound with errors after a refused submit. Shared by the
-    carrier pages and the standalone modifiers page."""
+    kinds, filled in from a form the address carries, or bound with
+    errors after a refused submit. Shared by the carrier pages and the
+    standalone modifiers page."""
     from n26.library.forms import ModifierComposerForm
 
     scope_kind = request.POST.get("scope_kind", request.GET.get("scope_kind", ""))
@@ -925,11 +967,15 @@ def _composer_state(request, attach_to=None, bound_composer=None):
         chips = 0
     chips = min(chips, MAX_CHIPS)
 
+    carried = _carried_state(request)
     composer = bound_composer
     if composer is None and scope_kind in specs() and effect_kind in specs():
-        composer = ModifierComposerForm.unbound(
-            scope_kind, effect_kind, attach_to=attach_to, chips=chips
-        )
+        if carried is None:
+            composer = ModifierComposerForm.unbound(
+                scope_kind, effect_kind, attach_to=attach_to, chips=chips
+            )
+        else:
+            composer = ModifierComposerForm.carried(carried, attach_to=attach_to)
 
     return {
         "kind_picker": ModifierComposerForm(
@@ -939,12 +985,7 @@ def _composer_state(request, attach_to=None, bound_composer=None):
         "composer_scope": scope_kind,
         "composer_effect": effect_kind,
         "composer_chips": chips,
-        # One more empty chip, as an address. Built from the whole query
-        # string rather than from the two kinds alone: the page is
-        # showing step two because the URL says so, and everything else
-        # the URL says — which carrier this is being composed for —
-        # has to survive the press as well.
-        "add_condition_href": _with_chips(request, chips + 1, scope_kind, effect_kind),
+        "add_condition_href": _one_more_chip(request, chips, scope_kind, effect_kind),
     }
 
 
@@ -953,9 +994,8 @@ def _dropped_condition(request):
     when the submit was an ordinary one.
 
     A submit rather than a link, because the press must keep everything
-    typed into the other chips and both panes — a GET carries none of
-    it. It saves nothing either: taking a condition off is an edit to
-    the form.
+    typed into the other chips and both panes — a link carries none of
+    it. It saves nothing: taking a condition off is an edit to the form.
     """
     asked = request.POST.get("drop_condition", "")
     try:
@@ -964,18 +1004,78 @@ def _dropped_condition(request):
         return None
 
 
-def _with_chips(request, chips, scope_kind, effect_kind):
-    """This page's address with a different number of empty chips.
+def _dropping_a_condition(request, index, *, attach_to=None, editing=None):
+    """The answer to a "remove this condition" press, as ``(response,
+    form)`` — one or the other, never both.
 
-    The kinds are written in rather than read off the query string: the
-    page also draws itself after a refused submit, where the kinds
-    arrived in the post body and the address has nothing in it.
+    The chip count is read off the address on every draw, so a press
+    that only redrew the page would leave the address claiming a chip
+    that is no longer on the screen, and a reload would bring it back.
+    The press therefore redirects, and everything the author has typed
+    rides the address with it.
+
+    Some forms will not fit. A condition may name any number of weapons,
+    and enough of them make an address longer than a server will accept;
+    then the page redraws from the post instead. The chip still goes and
+    nothing typed is lost — only the address stays as it was, so a
+    reload of that one page brings the chip back.
+    """
+    from n26.library.forms import ModifierComposerForm, without_condition_chip
+
+    surviving = without_condition_chip(request.POST, index)
+    address = _carrying(request, surviving)
+    if address is not None:
+        return redirect(address), None
+    return None, ModifierComposerForm.carried(
+        surviving, attach_to=attach_to, editing=editing
+    )
+
+
+def _carrying(request, data):
+    """This page's address with a posted composer written into it, or
+    ``None`` when that address would be too long to send.
+
+    The composer's own keys are cleared out of the query string before
+    the posted ones go in: left in place, the fields of a form that has
+    since lost a chip would sit alongside the fields of the form that
+    replaced it, and the address would grow with every press.
+    """
+    params = request.GET.copy()
+    for key in list(params):
+        if key in _COMPOSER_KEYS or key.startswith(_COMPOSER_PREFIXES):
+            del params[key]
+    for key in data:
+        if key not in _NOT_CARRIED:
+            params.setlist(key, data.getlist(key))
+    address = f"{request.path}?{params.urlencode()}"
+    return address if len(address) <= MAX_CARRIED_ADDRESS else None
+
+
+def _one_more_chip(request, chips, scope_kind, effect_kind):
+    """This page's address with one more empty condition chip.
+
+    Built from the whole query string rather than from the two kinds
+    alone: the page is showing step two because the address says so, and
+    everything else the address says — which carrier this is being
+    composed for, and any form it carries — has to survive the press.
+    The kinds are written in rather than read back off it, because the
+    page also draws itself after a refused submit, where they arrived in
+    the post body and the address has nothing in it.
+
+    Where the address carries a form, that form's own count says how
+    many chips there are and the plain count is not consulted: two
+    numbers claiming to say the same thing disagree the moment one of
+    them moves.
     """
     params = request.GET.copy()
     if scope_kind and effect_kind:
         params["scope_kind"] = scope_kind
         params["effect_kind"] = effect_kind
-    params["chips"] = str(chips)
+    carried = _carried_state(request)
+    if carried is None:
+        params["chips"] = str(min(chips + 1, MAX_CHIPS))
+    else:
+        params[CONDITION_TOTAL] = str(min(int(carried[CONDITION_TOTAL]) + 1, MAX_CHIPS))
     return f"?{params.urlencode()}"
 
 
@@ -1175,9 +1275,9 @@ def modifier_create(request):
     if request.method == "POST":
         dropping = _dropped_condition(request)
         if dropping is not None:
-            bound = ModifierComposerForm.reopened(
-                request.POST, dropping, attach_to=carrier
-            )
+            dropped, bound = _dropping_a_condition(request, dropping, attach_to=carrier)
+            if dropped is not None:
+                return dropped
         else:
             bound = ModifierComposerForm(request.POST, attach_to=carrier)
             if bound.is_valid():
@@ -1265,9 +1365,9 @@ def modifier_page(request, pk):
         # The condition row itself goes when the modifier is saved, not
         # on this press: every carrier holding this row would otherwise
         # be changed by a press that only edited a form.
-        composer = ModifierComposerForm.reopened(
-            request.POST, dropping, editing=modifier
-        )
+        dropped, composer = _dropping_a_condition(request, dropping, editing=modifier)
+        if dropped is not None:
+            return dropped
     elif request.method == "POST":
         composer = ModifierComposerForm(request.POST, editing=modifier)
         if composer.is_valid():
@@ -1286,7 +1386,15 @@ def modifier_page(request, pk):
                 messages.success(request, f"Saved {modifier.name}.")
                 return redirect("authoring-modifier", pk=pk)
     else:
-        composer = ModifierComposerForm.opened_on(modifier, chips=chips)
+        # A form in the address is one a remove redirected here with:
+        # it already holds the stored conditions minus the one taken
+        # off, so reading them out of the row again would put it back.
+        carried = _carried_state(request)
+        composer = (
+            ModifierComposerForm.opened_on(modifier, chips=chips)
+            if carried is None
+            else ModifierComposerForm.carried(carried, editing=modifier)
+        )
 
     carriers = _carriers(modifier)
     return render(
@@ -1303,7 +1411,9 @@ def modifier_page(request, pk):
             "shared": len(carriers) > 1,
             "composer": composer,
             "composer_chips": chips,
-            "add_condition_href": f"?chips={chips + 1}",
+            # The kinds are not offered on this page and are read off
+            # the row, so the link names neither.
+            "add_condition_href": _one_more_chip(request, chips, "", ""),
         },
     )
 
