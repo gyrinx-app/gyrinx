@@ -52,20 +52,57 @@ defaults — a caller that leaves one out gets a section with no heading.
                 because then neither shape applies and a line predicting one
                 would be wrong.
                 {% endcomment %}
-                <div x-data="{ reusable: false, named: false }"
-                     @input="named = !!$el.closest('form').querySelector('#{{ composer.name.auto_id }}').value.trim()"
-                     @change="reusable = !!$el.closest('form').querySelector('#{{ composer.make_reusable.auto_id }}').checked">
+                <div x-data="{
+                         typed: '',
+                         reusable: false,
+                         {% comment %}
+                         Stringified before it is dumped: attach_to is the
+                         carrier row itself, which JSON knows nothing about.
+                         {% endcomment %}
+                         carrier: {% if composer.attach_to %}{{ composer.attach_to|stringformat:'s'|json_dumps }}{% else %}''{% endif %},
+                         read() {
+                             const form = $el.closest('form');
+                             const name = form.querySelector('#{{ composer.name.auto_id }}');
+                             const flag = form.querySelector('#{{ composer.make_reusable.auto_id }}');
+                             this.typed = name ? name.value.trim() : '';
+                             this.reusable = !!(flag && flag.checked);
+                         },
+                         get preview() {
+                             if (this.typed) return this.typed;
+                             if (this.reusable || !this.carrier) return 'what it does';
+                             return this.carrier + ': what it does';
+                         },
+                     }"
+                     x-init="read()"
+                     {% comment %}
+                     .window on the typing, because the name box is a field
+                     above this block rather than inside it, so its own input
+                     event never reaches here. The switch is in here, so its
+                     press does.
+                     {% endcomment %}
+                     @input.window="read()"
+                     @click="$nextTick(() => read())"
+                     @keyup="$nextTick(() => read())">
                     {% include "authoring/_field.html" with form=composer field=composer.make_reusable %}
-                    {% if composer.attach_to %}
-                        <p class="mt-1 text-xs text-muted" x-show="!named" x-cloak>
-                            <span x-show="reusable">Will be named for what it does.</span>
-                            <span x-show="!reusable">
-                                Will be named
-                                <span class="font-medium text-ink-900 dark:text-ink-100">{{ composer.attach_to }}:</span>
-                                followed by what it does.
-                            </span>
-                        </p>
-                    {% endif %}
+                    {% comment %}
+                    The switch sets its checkbox through x-model, which fires no
+                    native change event — so this reads the control rather than
+                    listening for one, on the click and keypress that reach it
+                    either way. A tick later, because the press is what Alpine
+                    is about to act on.
+
+                    "what it does" stands in for the modifier's own sentence,
+                    which is compiled from the panes on the server and is not
+                    knowable here. Reconstructing it from the option labels is
+                    how a preview comes to disagree with the name that is
+                    actually written; the prefix is the part this can be right
+                    about, and it is the part the switch changes.
+                    {% endcomment %}
+                    <p class="mt-1 text-xs text-muted" x-cloak>
+                        Will be named
+                        <span class="font-medium text-ink-900 dark:text-ink-100"
+                              x-text="preview"></span>
+                    </p>
                 </div>
             {% endif %}
             <c-n26.form-actions submit_label="{{ composer_submit_label }}"
