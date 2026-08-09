@@ -1790,6 +1790,13 @@ GROUPS: list[Group] = [
                         required=True,
                     ),
                     Part(
+                        "c-n26.quick-switcher.choice",
+                        "n26/quick_switcher/choice.html",
+                        "One answer rather than one destination: a button that "
+                        "reports its own label, for a switcher whose "
+                        "alternatives are states of the page.",
+                    ),
+                    Part(
                         "c-n26.quick-switcher.of",
                         "n26/quick_switcher/of.html",
                         "The whole control from one Switcher structure, which is "

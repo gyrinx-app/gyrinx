@@ -297,17 +297,35 @@ dispatches, and listens for `filter-reset` to be told.
             box-border everywhere else. The trailing span is what carries it
             across the width the tabs do not fill.
             {% endcomment %}
-            <div role="tablist" class="flex flex-wrap gap-x-1">
+            {% comment %}
+            Narrow, the strip is the current tab and a chevron holding the rest.
+            Section names come from content and run long — three of them wrap to
+            two rows on a phone, which is a whole second band of chrome spent
+            saying what one word and a menu can say.
+
+            Which tabs are drawn is a media query rather than a measurement, so
+            the strip is right before any script runs and can never be caught
+            mid-decision. Every section is in the menu at every width, so the
+            two cannot come to disagree about what there is; above the
+            breakpoint the menu goes instead, because a control listing what is
+            already on screen has nothing to offer.
+
+            display is set inside the bound class rather than beside it: a tab
+            carrying both `flex` and `hidden` leaves which one wins to the order
+            Tailwind emitted them in, and that is not something to build on.
+            {% endcomment %}
+            <div role="tablist" class="flex flex-wrap gap-x-1"
+                 @quick-switcher-choose="chosenSection = $event.detail.value">
                 <template x-for="name in sections" :key="name">
                     <button type="button" role="tab"
                             x-show="countInSection(name) > 0"
                             x-cloak
                             :aria-selected="visibleSection === name ? 'true' : 'false'"
                             @click="chosenSection = name"
-                            class="flex min-h-11 items-center gap-2 border-b-2 px-3 text-sm focus-ring"
+                            class="min-h-11 items-center gap-2 border-b-2 px-3 text-sm focus-ring"
                             :class="visibleSection === name
-                                ? 'border-accent font-semibold text-ink-900 dark:text-ink-100'
-                                : 'border-box-border text-muted hover:text-ink-900 dark:hover:text-ink-100'">
+                                ? 'flex border-accent font-semibold text-ink-900 dark:text-ink-100'
+                                : 'hidden sm:flex border-box-border text-muted hover:text-ink-900 dark:hover:text-ink-100'">
                         <span x-text="name"></span>
                         <span class="rounded-full bg-ink-500/10 px-1.5 py-0.5 text-xs tabular-nums"
                               x-text="countInSection(name)"></span>
@@ -321,6 +339,54 @@ dispatches, and listens for `filter-reset` to be told.
                 reads.
                 {% endcomment %}
                 <span aria-hidden="true" class="order-last min-w-0 flex-1 border-b-2 border-box-border"></span>
+                {% comment %}
+                The shelves the strip is not showing, behind the chevron the
+                switcher already draws — placement, filtering and arrow keys
+                included. It carries the strip's own bottom border so the rule
+                under the tabs runs unbroken to the end of the row.
+
+                Hidden while only one shelf has anything in it: a menu offering
+                the shelf you are already on is a press that changes nothing.
+                {% endcomment %}
+                {% comment %}
+                This component's own state, held under a name of its own so
+                the rows inside the panel can reach it. The switcher's panel
+                has a scope of its own and several of its names are these —
+                items, matches, register, shown, query — so a bare
+                countInSection() called down there counts the menu's rows
+                instead of the listing's, silently, and every shelf comes back
+                empty. $data is this scope as it stands out here, before the
+                panel's is stacked on top of it.
+                {% endcomment %}
+                <span x-data="{ picker: $data }"
+                      x-show="liveSections.length > 1"
+                      x-cloak
+                      class="order-last flex shrink-0 items-center border-b-2 border-box-border sm:hidden">
+                    <c-n26.quick-switcher heading="Which shelf"
+                                          menu_label="Other shelves"
+                                          placeholder="Search shelves"
+                                          align="end">
+                        {% for name in sections %}
+                            {% comment %}
+                            Written without a comparison operator: an
+                            expression handed to a component travels as an
+                            attribute twice over, and a `>` escaped on the way
+                            in comes out as the four characters of an entity
+                            with nothing left to decode them.
+                            {% endcomment %}
+                            {% comment %}
+                            The name is bound, not written into the attribute.
+                            Written, it arrives HTML-escaped and is escaped a
+                            second time on the way into the row's own state, so
+                            a shelf called "Kit & gear" compares equal to
+                            nothing and can never be the current one.
+                            {% endcomment %}
+                            <c-n26.quick-switcher.choice :label="name"
+                                                         current_value="picker.visibleSection"
+                                                         available="picker.countInSection(label) !== 0" />
+                        {% endfor %}
+                    </c-n26.quick-switcher>
+                </span>
             </div>
         {% endif %}
     </div>

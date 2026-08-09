@@ -938,6 +938,56 @@ def test_the_bands_a_reader_steers_with_stay_on_screen_together(
     assert not any(tag.get("name") == "thing" for tag in inside)
 
 
+def test_a_shelf_the_strip_has_no_room_for_is_still_reachable(
+    client, tester, fighter, house_list
+):
+    """Narrow, the strip is the shelf you are on and a chevron holding the
+    rest. The strip and that menu are drawn from one list of shelves at
+    every width, so a shelf too wide to be a tab is never a shelf with no
+    way to it."""
+    from n26.library.models import Category, Section, Wargear
+
+    for index, (section_name, category_name, item) in enumerate(
+        [("Armoury", "Blades", "Sword"), ("Kit", "Field gear", "Knife")]
+    ):
+        section = Section.objects.create(name=section_name, position=index)
+        category = Category.objects.create(
+            section=section, name=category_name, position=index
+        )
+        thing = Wargear.objects.get(name=item)
+        thing.category = category
+        thing.save()
+
+    client.force_login(tester)
+    response = client.get(equip_url(fighter, house_list))
+    body = response.content.decode()
+    shelves = response.context["sections"]
+    assert len(shelves) == 2
+
+    rows = [tag for tag in pinned_tags(body) if tag.get("role") == "menuitem"]
+    assert rows
+    # Each shelf's name reaches its row through the row's own state, which
+    # is where the menu reads it back from when the row is pressed.
+    for shelf in shelves:
+        assert any(shelf in (tag.get("x-data") or "") for tag in rows)
+
+
+def test_the_shelf_menu_asks_the_listing_and_not_the_menu(
+    client, tester, fighter, house_list
+):
+    """The switcher's panel keeps state under the same names this component
+    does — items, matches, register — so a row asking how full a shelf is
+    gets the menu's own row count instead, every shelf reads as empty, and
+    nothing anywhere says why. The listing's scope is therefore held under
+    a name of its own for the rows to reach."""
+    client.force_login(tester)
+    body = client.get(equip_url(fighter, house_list)).content.decode()
+
+    assert "{ picker: $data }" in body
+    assert "picker.countInSection(label)" in body
+    assert "picker.visibleSection" in body
+
+
 def test_the_count_above_the_list_counts_the_shelf_on_screen(
     client, tester, fighter, house_list
 ):

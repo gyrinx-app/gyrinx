@@ -1,0 +1,95 @@
+{% comment %}
+<c-n26.quick-switcher.choice> — one row in the switcher's list that answers a
+question instead of going somewhere.
+
+    <c-n26.quick-switcher heading="Which shelf" menu_label="More shelves">
+        <c-n26.quick-switcher.choice label="Wargear"
+                                     current_value="visibleSection"
+                                     available="countInSection(label) > 0" />
+    </c-n26.quick-switcher>
+
+The sibling of <c-n26.quick-switcher.item>, for a switcher whose alternatives
+are states of the page rather than destinations. Everything around it is the
+same — the panel, its placement, the filter box, the arrow keys — because all
+of that belongs to the switcher and none of it cares what a row does when
+pressed. A menu written again beside this one would have to get the placement
+right a second time.
+
+A <button>, not a link with a dead href: a link that goes nowhere is offered to
+a reader as a place, opened in a new tab as nothing, and read aloud as a lie.
+The keyboard path is unchanged — the panel answers Enter by clicking the
+highlighted row, and a button is clickable.
+
+  --- how the answer gets out ---
+
+Pressing dispatches a bubbling `quick-switcher-choose` carrying this row's
+label, and the caller listens for it on whatever holds the switcher. The
+alternative is passing the caller's own expression in as a prop, and an
+expression that has to name a value arrives as quoted text — which comes back
+HTML-escaped, twice, and Alpine is handed `&quot;` where a string should be.
+The row's own label is in its scope as `label`, so the expression props below
+can say what they need about it without quoting anything.
+
+  --- what it is currently ---
+
+Reactive, unlike the item's `:current`: the answer this row stands for can
+become the current one without the page reloading, which is the whole point of
+a switcher that answers rather than navigates. So the tick, the tint and
+aria-current are all bound, and the comparison is written by the caller.
+
+  label — what the row says, what the filter matches, and what it answers with.
+  current_value — an Alpine expression holding the answer in force. The row is
+    current while it equals this row's label. Left out, no row is ever marked.
+  available — an Alpine expression; the row is drawn only while it is true.
+    `label` is in scope, so a caller can ask about this row specifically. An
+    unavailable row can still be reached by the arrow keys, which is harmless
+    where choosing it is: a caller offering rows that come and go should treat
+    an answer it cannot honour the way it treats no answer at all.
+  icon — a c-n26.icon name before the label.
+{% endcomment %}
+<c-vars label="" current_value="false" available="true" icon="" class="" />
+
+{% comment %}
+register, matches, highlight, active and close all live above this row in the
+scope chain: the first four on the panel, close() on the dropdown itself. The
+row holds its own label, the text it is matched on, and the id the panel gave
+it back.
+
+The id is what the filter box points at when this row is the highlighted one,
+so it has to be in the document and it has to be unique on the page: the panel
+mints it, because only the panel knows how many rows it has.
+
+The highlight tint has to win against the current row's, which is the same
+colour hover uses. Which of two plain background utilities wins is decided by
+the order Tailwind emitted them, so it is marked important rather than left to
+that.
+{% endcomment %}
+<button type="button"
+        role="menuitem"
+        x-data="{ id: '', label: {{ label|json_dumps }}, facets: { search: {{ label|lower|json_dumps }} } }"
+        x-init="id = register($el, facets)"
+        :id="id"
+        x-show="matches(facets) &amp;&amp; ({{ available }})"
+        x-cloak
+        @click="$dispatch('quick-switcher-choose', { value: label }); close()"
+        @mouseenter="highlight(id)"
+        :aria-current="({{ current_value }}) === label ? 'true' : 'false'"
+        :class="{
+            'bg-ink-200! dark:bg-ink-700!': active === id,
+            'bg-ink-100 font-medium text-ink-900 dark:bg-ink-800 dark:text-ink-100': ({{ current_value }}) === label,
+            'text-ink-700 dark:text-ink-300': ({{ current_value }}) !== label,
+        }"
+        {{ attrs }}
+        class="flex w-full items-center gap-2.5 border-b border-box-border px-3 py-2 text-left text-sm
+               transition-colors focus-visible:outline-none
+               hover:bg-ink-100 focus-visible:bg-ink-100
+               dark:hover:bg-ink-800 dark:focus-visible:bg-ink-800
+               {{ class }}">
+    {% if icon %}
+        <c-n26.icon name="{{ icon }}" class="size-4 shrink-0 text-ink-500 dark:text-ink-400" />
+    {% endif %}
+    <span class="min-w-0 flex-1 truncate">{{ label }}</span>
+    <span x-show="({{ current_value }}) === label" x-cloak class="shrink-0">
+        <c-n26.icon name="check" class="size-4 text-accent" />
+    </span>
+</button>
