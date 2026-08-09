@@ -247,6 +247,11 @@ class ChoosableGroup:
 
     name: str
     options: list[Choosable] = field(default_factory=list)
+    #: Which tier this heading sits in — "Primary". Only filled where the
+    #: list spans more than one, because a page showing a single tier has
+    #: already said which in its own heading, and repeating it over every
+    #: group would be the same word down the page.
+    caption: str = ""
 
 
 @dataclass
@@ -599,12 +604,18 @@ def offer_from_view(view, *, label, chosen=None, current=None):
     ``current`` marks the thing already answering, where something does;
     a listing nobody asked a question about has none.
     """
+    # Which tier a set sits in is worth saying only where the list spans
+    # several: a question narrowed to one has named it in the page's own
+    # heading, and captioning every group would print that word down the
+    # whole page.
+    tiered = len(view.sections) > 1
     groups = [
         # The category is the useful heading — the skill set, the power
         # family. The section names the whole list already, and stands in
         # where the content declared no category.
         ChoosableGroup(
             name=category.name or section.name,
+            caption=section.name if tiered and category.name else "",
             options=[
                 _choosable(line.thing, current, line.notes) for line in category.lines
             ],

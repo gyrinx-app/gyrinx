@@ -43,7 +43,14 @@ without restating the rhythm would bunch every group against the next.
         </c-n26.form-section>
     {% else %}
         {% for group in offer.groups %}
-            <c-n26.radio-cards label="{{ group.name }}" name="{{ name }}">
+            {% comment %}
+            The caption under a heading names the tier the set sits in, and is
+            filled in only where the list spans several — see
+            n26.render.ChoosableGroup.
+            {% endcomment %}
+            <c-n26.radio-cards label="{{ group.name }}"
+                               description="{{ group.caption }}"
+                               name="{{ name }}">
                 {% for option in group.options %}
                     <c-n26.radio-cards.card name="{{ name }}"
                                             value="{{ option.key }}"

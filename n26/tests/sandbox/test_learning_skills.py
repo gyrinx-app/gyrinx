@@ -247,6 +247,17 @@ class TestWhatTheScreenShows:
         assert "Bull Charge" not in names  # Brawn is nobody's here
         assert "Terrify (Double)" not in names  # the powers are unrevealed
 
+    def test_each_set_says_which_tier_it_is(self, client, player, yolanda, library):
+        """The tiers are the whole point of the screen, and a set's name
+        does not say which one it sits in."""
+        client.force_login(player)
+        offer = client.get(skills_url(yolanda)).context["offer"]
+
+        assert [(group.name, group.caption) for group in offer.groups] == [
+            ("Agility", "Primary"),
+            ("Savant", "Secondary"),
+        ]
+
     def test_a_fighter_with_no_grid_has_no_screen(
         self, client, player, gang, gridless, catalogue
     ):

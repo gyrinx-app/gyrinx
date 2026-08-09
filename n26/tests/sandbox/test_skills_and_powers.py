@@ -698,6 +698,19 @@ class TestPickingASkill:
             "Bulging Biceps",
         ]
 
+    def test_a_narrowed_offer_does_not_caption_every_set(self, yolanda, catalogue):
+        """One tier is named by the question itself — "Primary skill" —
+        so captioning each set with it would print that word down the
+        whole page."""
+        from n26.core.render import build_choice_offer
+
+        computed = self.computed_for(yolanda)
+        (slot,) = computed.choices
+        offer = build_choice_offer(slot, computed)
+
+        assert offer.label == "Primary skill"
+        assert [group.caption for group in offer.groups] == ["", ""]
+
     def test_the_offered_skills_keep_their_d6_order(self, yolanda, catalogue):
         """A picker is a shop: same sections, same ordering rules."""
         computed = self.computed_for(yolanda)
