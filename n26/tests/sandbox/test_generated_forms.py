@@ -268,7 +268,8 @@ class TestTheComposer:
     ):
         """Brawler leader: combat primary — WHO, WHAT and glue, one
         submit. Composed on a carrier and not marked reusable, so the
-        carrier leads the auto-name and the sentence follows it."""
+        carrier leads the auto-name; the scope narrows to one rank, so
+        that rank stays in it and the sentence follows both."""
         from n26.library.models import HasSubtypes, Modifier
 
         collection, tiers = skills_and_powers
@@ -285,11 +286,44 @@ class TestTheComposer:
 
         assert str(row.scope) == "Outcast Leader models"
         assert str(row.effect) == "puts Combat under Primary (Skills & Powers)"
-        assert row.name == ("Brawler: puts Combat under Primary (Skills & Powers)")
+        assert row.name == (
+            "Brawler, Outcast Leader models: "
+            "puts Combat under Primary (Skills & Powers)"
+        )
         assert list(brawler.modifiers.all()) == [row]
         (condition,) = HasSubtypes.objects.filter(scope=row.scope)
         assert list(condition.subtypes.all()) == [leader]
         assert Modifier.objects.count() == 1
+
+    def test_two_ranks_placing_one_category_are_told_apart(self, skills_and_powers):
+        """A grid hangs a row per rank off one archetype, and ranks share
+        cells — both of these put Combat under Primary. What the scope
+        narrows to is the only thing between the two rows, so it stays in
+        the name. Drop it and they are both called the same thing, and
+        the second is refused by the unique-name constraint rather than
+        merely reading oddly.
+        """
+        collection, tiers = skills_and_powers
+        combat = create_category("Skills", "Combat")
+        brawler = create_archetype("Brawler")
+
+        written = []
+        for rank in ("Outcast Leader", "Outcast Champion"):
+            form = ModifierComposerForm(
+                self.brawler_leader_data(
+                    create_subtype(rank), combat, tiers["primary"]
+                ),
+                attach_to=brawler,
+            )
+            assert form.is_valid(), form.errors
+            written.append(form.save().name)
+
+        assert written == [
+            "Brawler, Outcast Leader models: "
+            "puts Combat under Primary (Skills & Powers)",
+            "Brawler, Outcast Champion models: "
+            "puts Combat under Primary (Skills & Powers)",
+        ]
 
     def test_a_given_name_beats_the_auto_sentence(self, skills_and_powers):
         collection, tiers = skills_and_powers
@@ -363,7 +397,10 @@ class TestTheComposer:
         row = form.save()
 
         assert list(brawler.modifiers.all()) == [row]
-        assert row.name.startswith("Brawler: ")
+        # The carrier leads. What the scope narrows to follows it, being
+        # the only thing between this row and the same placement made for
+        # another rank.
+        assert row.name.startswith("Brawler, Outcast Leader models: ")
 
     def test_pane_errors_surface_on_the_composer(self, default_pack):
         """A missing WHAT field is said as words on the one form the

@@ -957,9 +957,20 @@ class ModifierComposerForm(forms.Form):
         front — for a modifier hanging on one profile, that profile *is*
         who it reaches, and "targets the model" beside its name is a
         sentence about the machinery rather than about the fighter.
+
+        A scope that narrows keeps its say. Only the generic half of a
+        scope is machinery; the narrowing half is the one fact telling
+        two otherwise identical rows on one carrier apart. A skill grid
+        hangs a row per rank off a single archetype and several ranks
+        put the same category in the same tier, so dropping the rank
+        would name both rows the same thing — and the second one would
+        be refused by the unique-name constraint rather than merely read
+        oddly.
         """
         if self.attach_to is None or self.cleaned_data.get("make_reusable"):
             return f"{scope}: {effect}"
+        if getattr(scope, "narrows", False):
+            return f"{self.attach_to}, {scope}: {effect}"
         return f"{self.attach_to}: {effect}"
 
     def save(self):

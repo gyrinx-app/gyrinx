@@ -618,7 +618,12 @@ class TestJusticarCourts:
 
         assert str(row.scope) == "the gang"
         assert str(row.effect) == "adds a Justicar Magistrate"
-        assert row.name == "the gang: adds a Justicar Magistrate"  # auto-sentence
+        # Attached and not made reusable, so the carrier stands where the
+        # scope would: this reaches the gang because it hangs on the gang's
+        # affiliation, and saying so twice tells the reader nothing.
+        assert (
+            row.name == "Justicar Court Alliance (composed): adds a Justicar Magistrate"
+        )
         assert list(alliance.modifiers.all()) == [row]
 
 

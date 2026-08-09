@@ -148,6 +148,11 @@ class TargetsMiniature(models.Model):
             described += " (bearer only)"
         return described
 
+    @property
+    def narrows(self):
+        """Whether this scope reaches fewer than everything of its kind."""
+        return bool(self.pk and self._condition_rows()) or self.when_directly_assigned
+
     def _condition_rows(self):
         return [
             row for related in self.CONDITIONS for row in getattr(self, related).all()
@@ -303,6 +308,11 @@ class TargetsWeapons(models.Model):
     def __str__(self):
         return f"weapons with {self.with_trait}" if self.with_trait else "all weapons"
 
+    @property
+    def narrows(self):
+        """Whether this scope reaches fewer than everything of its kind."""
+        return bool(self.with_trait_id)
+
     def as_selector(self):
         """What this scope's filter says, in the selector vocabulary.
 
@@ -355,6 +365,10 @@ class TargetsAttachedWeapon(models.Model):
     def __str__(self):
         return "the weapon this is attached to"
 
+    #: Positional, with nothing to filter: it reaches the one weapon it hangs
+    #: off, and there is no narrower version of that.
+    narrows = False
+
     def as_selector(self):
         from n26.core import select
 
@@ -392,6 +406,9 @@ class TargetsGang(models.Model):
 
     def __str__(self):
         return "the gang"
+
+    #: There is one gang, so this scope has nothing to narrow to.
+    narrows = False
 
     def as_selector(self):
         from n26.core import select
