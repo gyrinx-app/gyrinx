@@ -626,27 +626,60 @@ def _within(value, bounds):
 def _sectioned(name, categorised_lines):
     """Group (category, line) pairs into sections in taxonomy order.
 
+    **A section is drawn once.** Every category filed under it goes in
+    one group, whatever the categories' own positions are. Ordering the
+    categories alone and starting a new group each time the heading
+    changed let two sections' categories alternate, and the same section
+    then opened over and over with its rows split between the copies —
+    a reader saw one heading two or three times down the page, each with
+    a chevron of its own, and only the first of them open.
+
+    Sections are keyed by name, which is what a strip of tabs keys them
+    by: two tabs reading alike is worse than a long one, and a section
+    the strip cannot draw is a section whose rows are unreachable. Two
+    rows sharing a name are therefore one heading, ordered by the
+    earliest of them.
+
+    Categories are keyed by identity, not by name. A category name is
+    only unique within its section — the rulebook has Esoteric weapons
+    under both Ranged and Close combat — so matching on the string would
+    fold two different categories into one.
+
     Homeless items gather at the end under empty headings — missing a
     category is a content gap to show, not an error to hide.
     """
+    #: section name -> (its earliest position, {category: lines})
+    sections = {}
+    for category, line in categorised_lines:
+        section = category.section if category is not None else None
+        section_name = section.name if section is not None else ""
+        position = section.position if section is not None else float("inf")
+        held, categories = sections.setdefault(section_name, (position, {}))
+        if position < held:
+            sections[section_name] = (position, categories)
+        categories.setdefault(category, []).append(line)
 
-    def order(pair):
-        category, line = pair
+    def taxonomy_order(category):
+        if category is None:
+            return (1, 0, "")
+        return (0, category.position, category.name.lower())
+
+    def item_order(line):
         # Within a category, the item's own position rules — a skill's D6
         # number in its set — with name as the tiebreak.
-        item = (getattr(line.thing, "position", 0), line.name)
-        if category is None:
-            return (1, 0, "", *item)
-        return (0, category.position, category.name.lower(), *item)
+        return (getattr(line.thing, "position", 0), line.name)
 
     view = CollectionView(name=name)
-    for category, line in sorted(categorised_lines, key=order):
-        section_name = category.section.name if category else ""
-        category_name = category.name if category else ""
-        if not view.sections or view.sections[-1].name != section_name:
-            view.sections.append(SectionGroup(name=section_name))
-        section = view.sections[-1]
-        if not section.categories or section.categories[-1].name != category_name:
-            section.categories.append(CategoryGroup(name=category_name))
-        section.categories[-1].lines.append(line)
+    for section_name, (_, categories) in sorted(
+        sections.items(), key=lambda item: (item[1][0], item[0])
+    ):
+        group = SectionGroup(name=section_name)
+        for category in sorted(categories, key=taxonomy_order):
+            group.categories.append(
+                CategoryGroup(
+                    name=category.name if category else "",
+                    lines=sorted(categories[category], key=item_order),
+                )
+            )
+        view.sections.append(group)
     return view

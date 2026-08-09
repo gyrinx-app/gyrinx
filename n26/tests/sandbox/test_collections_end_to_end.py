@@ -547,8 +547,8 @@ class TestCustomViews:
         like the list it came from."""
         view = narrow(browse(equipment_list), credits=(0, 15))
         assert [section.name for section in view.sections] == [
-            "Ranged Weapons",
             "Armour & Equipment",
+            "Ranged Weapons",
         ]
 
     def test_an_empty_result_is_an_empty_view(self, equipment_list):

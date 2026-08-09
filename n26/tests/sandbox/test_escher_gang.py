@@ -489,13 +489,19 @@ class TestTheGangRules:
 
 class TestTheEquipmentList:
     def test_it_sections_by_the_printed_taxonomy(self, gang, house_list):
+        """Every section here was left at position 0, which is what an
+        unauthored one is, so their names order them. Where the book's
+        own order is wanted it is ``Section.position`` that says so —
+        a fact about the content and not about this code.
+        """
         view = browse(house_list)
         assert [s.name for s in view.sections] == [
-            "Ranged Weapons",
             "Close Combat Weapons",
+            "Ranged Weapons",
             "Wargear",
         ]
-        assert [c.name for c in view.sections[0].categories] == [
+        (ranged,) = [s for s in view.sections if s.name == "Ranged Weapons"]
+        assert [c.name for c in ranged.categories] == [
             "Auto/Stub Weapons",
             "Primitive Weapons",
         ]

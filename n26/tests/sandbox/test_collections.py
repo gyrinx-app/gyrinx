@@ -222,8 +222,7 @@ class TestTheDerivedTradingPost:
         derived = browse_the_post()
 
         for view in (curated, derived):
-            section = view.sections[0]
-            assert section.name == "Ranged Weapons"
+            (section,) = [s for s in view.sections if s.name == "Ranged Weapons"]
             line = section.categories[0].lines[0]
             assert line.name == "Autogun"
             assert (line.credits, line.trade_points) == (20, 0)
@@ -231,12 +230,21 @@ class TestTheDerivedTradingPost:
         assert derived.all_lines().__next__().entry is None
 
     def test_grouping_follows_taxonomy_order(self, catalogue):
+        """Sections by their own position, categories by theirs.
+
+        Both sections here sit at position 0, which is what an untouched
+        one is, so their names break the tie — a section is placed by
+        ``Section.position`` and by nothing its categories happen to
+        say. Inside one, the categories keep the positions they were
+        given.
+        """
         view = browse_the_post()
         assert [section.name for section in view.sections] == [
-            "Ranged Weapons",
             "Armour",
+            "Ranged Weapons",
         ]
-        assert [c.name for c in view.sections[0].categories] == [
+        ranged = view.sections[1]
+        assert [c.name for c in ranged.categories] == [
             "Auto/Stub Weapons",
             "Las Weapons",
         ]
@@ -930,6 +938,141 @@ class TestTradingPostMembership:
             "every wargear with a TP price",
             "every weapon accessory with a TP price",
         ]
+
+
+class TestASectionIsDrawnOnce:
+    """A section holds all of its categories, in one place.
+
+    What a player saw: an equipment list whose sections interleave drew
+    "Ranged weapons", then "Close combat weapons", then "Ranged weapons"
+    again — the same heading two or three times down the page, each with
+    its own chevron, and only the first of them open. The Ash Waste
+    Nomads list made twelve headings out of three sections.
+    """
+
+    @pytest.fixture
+    def interleaved(self, db):
+        """Two sections whose categories alternate by position — the
+        shape a real list has, because a category's position orders it
+        within the taxonomy and not within its section."""
+        return {
+            "pistols": create_category("Ranged", "Pistols", position=0),
+            "blades": create_category("Close combat", "Blades", position=1),
+            "basic": create_category("Ranged", "Basic", position=2),
+            "fists": create_category("Close combat", "Fists", position=3),
+        }
+
+    @pytest.fixture
+    def alternating(self, interleaved):
+        things = []
+        for key, name in (
+            ("pistols", "Stub gun"),
+            ("blades", "Knife"),
+            ("basic", "Autogun"),
+            ("fists", "Fist"),
+        ):
+            things.append(create_wargear(name, price=10, category=interleaved[key]))
+        return create_collection("House List", entries=things)
+
+    def test_each_section_appears_once(self, alternating):
+        view = browse(alternating)
+
+        assert [section.name for section in view.sections] == [
+            "Close combat",
+            "Ranged",
+        ]
+
+    def test_a_sections_categories_all_sit_under_it(self, alternating):
+        view = browse(alternating)
+        drawn = {
+            section.name: [category.name for category in section.categories]
+            for section in view.sections
+        }
+
+        assert drawn == {
+            "Close combat": ["Blades", "Fists"],
+            "Ranged": ["Pistols", "Basic"],
+        }
+
+    def test_no_row_is_lost_in_the_regrouping(self, alternating):
+        assert sorted(line.name for line in browse(alternating).all_lines()) == [
+            "Autogun",
+            "Fist",
+            "Knife",
+            "Stub gun",
+        ]
+
+    def test_sections_keep_taxonomy_order_and_name_breaks_a_tie(self, db):
+        """Every category in the maintainer's content sits at position 0,
+        so an untouched position is the common case and the order it
+        yields is alphabetical. A section that was given one still wins."""
+        late = create_category("Aftermath", "Scrap", position=0)
+        early = create_category("Armoury", "Blades", position=0)
+        first = create_category("Opening", "Kit", position=0)
+        first.section.position = 0
+        first.section.save(update_fields=["position"])
+        for section in (late.section, early.section):
+            section.position = 1
+            section.save(update_fields=["position"])
+
+        collection = create_collection(
+            "House List",
+            entries=[
+                create_wargear("Scrap", price=1, category=late),
+                create_wargear("Blade", price=1, category=early),
+                create_wargear("Kit", price=1, category=first),
+            ],
+        )
+
+        assert [section.name for section in browse(collection).sections] == [
+            "Opening",
+            "Aftermath",
+            "Armoury",
+        ]
+
+    def test_homeless_rows_still_gather_at_the_end(self, db):
+        homed = create_category("Armoury", "Blades", position=0)
+        collection = create_collection(
+            "House List",
+            entries=[
+                create_wargear("Odd Trinket", price=5),
+                create_wargear("Knife", price=10, category=homed),
+            ],
+        )
+
+        view = browse(collection)
+
+        assert [section.name for section in view.sections] == ["Armoury", ""]
+        assert [line.name for line in view.sections[-1].categories[0].lines] == [
+            "Odd Trinket"
+        ]
+
+    def test_two_categories_sharing_a_name_stay_apart(self, db):
+        """A category name is only unique within its section — the
+        rulebook has Esoteric weapons under both Ranged and Close
+        combat, and folding them would put a pistol among the blades."""
+        ranged = create_category("Ranged", "Esoteric weapons", position=0)
+        melee = create_category("Close combat", "Esoteric weapons", position=0)
+        collection = create_collection(
+            "House List",
+            entries=[
+                create_wargear("Web pistol", price=10, category=ranged),
+                create_wargear("Web gauntlet", price=10, category=melee),
+            ],
+        )
+
+        drawn = {
+            section.name: [
+                [line.name for line in category.lines]
+                for category in section.categories
+            ]
+            for section in browse(collection).sections
+        }
+
+        assert drawn == {
+            "Close combat": [["Web gauntlet"]],
+            "Ranged": [["Web pistol"]],
+        }
 
 
 class TestWhatACollectionPricesIn:

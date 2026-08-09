@@ -13,7 +13,7 @@ from django.urls import reverse
 from n26.core.browse import UNCATEGORISED
 from n26.core.models import Assignment, Gang
 from n26.core.operations import operation
-from n26.library.authoring import create_collection, create_wargear
+from n26.library.authoring import create_category, create_collection, create_wargear
 from n26.library.models import Collection
 
 pytestmark = pytest.mark.django_db
@@ -341,6 +341,31 @@ def test_the_filter_bar_offers_nothing_to_submit(client, tester, fighter, house_
     assert 'role="search"' in body
     # Every submit on this page buys something.
     assert body.count('type="submit"') == body.count('name="thing"')
+
+
+def test_the_strip_names_each_section_once(client, tester, gang, fighter):
+    """The strip keys its tabs by name, so a repeat draws neither — and
+    the page would serve rows no tab could reach. The listing gives each
+    section one group, and this is the strip agreeing with it."""
+    from n26.library.models import Wargear
+
+    ranged = create_category("Ranged", "Pistols", position=0)
+    melee = create_category("Close combat", "Blades", position=1)
+    basic = create_category("Ranged", "Basic", position=2)
+    things = []
+    for category, name in ((ranged, "Stub gun"), (melee, "Knife"), (basic, "Autogun")):
+        thing = Wargear.objects.create(name=name, price=10, category=category)
+        things.append(thing)
+    collection = create_collection("Interleaved", entries=things)
+    with operation(gang, actor=tester) as op:
+        op.assign(collection, gang=gang)
+
+    client.force_login(tester)
+    response = client.get(equip_url(fighter, collection))
+
+    strip = response.context["sections"]
+    assert strip == ["Close combat", "Ranged"]
+    assert [s.name for s in response.context["listing"].sections] == strip
 
 
 def test_a_house_list_draws_no_trade_point_slider(

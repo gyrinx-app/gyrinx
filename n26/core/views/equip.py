@@ -370,6 +370,11 @@ def equip(request, pk):
             # Registration names — see the hire view: a row in an unnamed
             # category registers under its section's name, and a list that
             # omits one hides those rows client-side.
+            #
+            # Deduplicated, and not because of the sections: a category
+            # name is only unique within its section, so two sections'
+            # categories can register under one name. The filter keys on
+            # the string and a repeated key draws neither.
             "categories": list(
                 dict.fromkeys(
                     category.name or section.name
@@ -388,10 +393,11 @@ def equip(request, pk):
             ],
             # One tab per section, as on the hire page. A section missing
             # from this list can never be the active tab and its rows
-            # become unreachable, so every section drawn appears here —
-            # deduplicated, because the strip keys its tabs by name and a
-            # repeated key draws neither.
-            "sections": list(dict.fromkeys(section.name for section in sections)),
+            # become unreachable, so every section drawn appears here.
+            # Taken as they come: a browse draws a section once, so a name
+            # cannot repeat, and deduplicating here would hide it if that
+            # ever stopped being true.
+            "sections": [section.name for section in sections],
             "price_floor": min((line.credits for line in lines), default=0),
             "price_ceiling": max((line.credits for line in lines), default=0),
             "tp_ceiling": max(trade_points, default=0),
