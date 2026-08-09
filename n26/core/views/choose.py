@@ -209,6 +209,6 @@ def choose(request, pk, slot):
             # component on the page with a slot of that name — the site
             # footer's columns have one — draws whatever the page happens
             # to have under it.
-            "pick_lead": f"For {bearer}. Leaving this open costs nothing.",
+            "pick_lead": f"For {bearer}.",
         },
     )
