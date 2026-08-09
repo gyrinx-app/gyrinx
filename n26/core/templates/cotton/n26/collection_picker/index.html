@@ -170,82 +170,6 @@ dispatches, and listens for `filter-reset` to be told.
         },
         sectionIsActive(name) { return !this.tabbed || this.visibleSection === name },
 
-        {% comment %}
-        How many tabs the strip has room for, worked out from what they
-        actually measure rather than from a breakpoint: names come from
-        content, so how many fit is a fact about this list at this width and
-        no guess covers both a strip of three short ones and a strip of two
-        long ones.
-
-        `fitted` is the names the strip draws, and null until a measurement
-        succeeds — which is what makes every failure show the whole strip
-        rather than an empty one. Nothing to measure against yet, a strip
-        mid-render, a browser with no ResizeObserver: all of them leave it
-        null, and the tabs wrap the way they always did.
-
-        The measuring is done on a copy of the strip, laid out but invisible,
-        because the real one cannot be measured while it is hiding things: you
-        would be reading the width of what you already decided to draw. The
-        copy holds every live section at the widest weight any tab takes, so
-        the answer errs towards one tab fewer rather than one too many.
-        {% endcomment %}
-        fitted: null,
-        room: 0,
-        fits(name) { return this.fitted === null || this.fitted.includes(name) },
-        get overflowing() { return this.fitted !== null && this.fitted.length < this.liveSections.length },
-
-        measure() {
-            const strip = this.$refs.strip, ghost = this.$refs.ghost;
-            if (!strip || !ghost || !strip.clientWidth) return;
-            const live = this.liveSections;
-            // The copy's own children, not everything in it: Alpine leaves
-            // the template it clones from in place, and counting that as a
-            // tab makes the tally disagree with the list every single time.
-            const widths = [...ghost.querySelectorAll(':scope > span')].map(el => el.offsetWidth);
-            // The copy is rebuilt from the same list the strip is, so a
-            // count that does not match means this ran between the two.
-            // Measuring anyway would fit the strip to the list it had a
-            // moment ago.
-            if (widths.length !== live.length || widths.some(w => w === 0)) return;
-            const gap = 4;
-            const total = widths.reduce((sum, w) => sum + w + gap, 0);
-            if (total <= strip.clientWidth) { this.fitted = live.slice(); return }
-            // Room for the chevron, since there will be one. Its own width
-            // while it is on screen, and a thumb's worth before it has been.
-            const chevron = strip.querySelector('[data-quick-switcher]');
-            const budget = strip.clientWidth - ((chevron && chevron.offsetWidth) || 44);
-            // The tab you are on is never the one dropped, so it is fitted
-            // first and the rest fill in around it, in order.
-            const current = this.visibleSection;
-            const keep = [];
-            let used = 0;
-            for (const name of [current, ...live.filter(n => n !== current)]) {
-                const width = widths[live.indexOf(name)] + gap;
-                if (used + width > budget) break;
-                used += width;
-                keep.push(name);
-            }
-            // A strip too narrow even for one tab still draws that one:
-            // truncated is a state a reader can work with, and a strip of
-            // nothing but a chevron is not.
-            this.fitted = keep.length ? keep : [current];
-        },
-
-        watchStrip(strip) {
-            this.$nextTick(() => this.measure());
-            this.$watch('liveSections', () => this.$nextTick(() => this.measure()));
-            this.$watch('visibleSection', () => this.$nextTick(() => this.measure()));
-            if (typeof ResizeObserver === 'undefined') return;
-            // Width only. Hiding a tab can take the strip from two rows to
-            // one, which the observer reports as well, and answering that
-            // with another measurement is work for an answer already given.
-            new ResizeObserver(() => {
-                if (strip.clientWidth === this.room) return;
-                this.room = strip.clientWidth;
-                this.measure();
-            }).observe(strip);
-        },
-
         countInSection(name) {
             return this.items.filter(i =>
                 i.section === name && this.categoryOn(i.category) && this.matches(i)
@@ -374,70 +298,32 @@ dispatches, and listens for `filter-reset` to be told.
             across the width the tabs do not fill.
             {% endcomment %}
             {% comment %}
-            The strip draws as many tabs as the row has room for and puts the
-            rest behind a chevron. Section names come from content and run
-            long — three of them wrap to two rows on a phone, which is a whole
-            second band of chrome spent saying what one word and a menu can
-            say — and how many fit is a fact about these names at this width
-            rather than something a breakpoint knows.
+            Narrow screens get the current tab and a menu of the rest; from sm
+            up the strip simply draws every tab and wraps if it must. A
+            breakpoint, not a measurement: section names come from content and
+            run long, and the row of them wrapping on a phone is a whole
+            second band of chrome — but which tabs fit at which width is not a
+            question worth a ResizeObserver and a ghost copy of the strip to
+            answer. Every section is in the menu, so nothing the narrow strip
+            leaves out is a section with no way to reach it.
 
-            The tab you are on is drawn first and never dropped, so the strip
-            always says where you are. Every section is in the menu whatever
-            the strip is showing, so a name too long to be a tab is never a
-            section with no way to reach it; measurement decides what is
-            duplicated there, never what exists.
-
-            Fails open, in every direction: until a measurement succeeds every
-            tab is drawn and the strip wraps, which is what a browser with no
-            ResizeObserver gets and what the first frame gets. The failure
-            worth designing against is the other one — a strip that measures
-            zero and hides everything.
+            The current tab is pulled to the front of the row, which is what
+            keeps the narrow strip reading current-then-menu whichever tab
+            that is.
             {% endcomment %}
             <div role="tablist" class="relative flex flex-wrap gap-x-1"
-                 x-ref="strip"
-                 x-init="watchStrip($el)"
                  @quick-switcher-choose="chosenSection = $event.detail.value">
-                {% comment %}
-                The strip as it would be with every tab drawn, laid out and
-                invisible, which is the only place the tabs can be measured:
-                the real strip is hiding some of them, so its own widths are
-                the answer fed back in. Semibold throughout, because the
-                current tab is heavier than the rest and a measurement taken
-                light fits one more tab than there is room for.
-
-                aria-hidden and out of the flow. It is inside the strip so it
-                inherits the same font and spacing — measured anywhere else it
-                would be measuring a different row.
-                {% endcomment %}
-                <div aria-hidden="true"
-                     x-ref="ghost"
-                     class="pointer-events-none invisible absolute top-0 left-0 flex w-max flex-nowrap gap-x-1">
-                    <template x-for="name in liveSections" :key="name">
-                        <span class="flex min-h-11 items-center gap-2 border-b-2 px-3 text-sm font-semibold">
-                            <span x-text="name"></span>
-                            <span class="rounded-full px-1.5 py-0.5 text-xs tabular-nums"
-                                  x-text="countInSection(name)"></span>
-                        </span>
-                    </template>
-                </div>
                 <template x-for="name in sections" :key="name">
                     <button type="button" role="tab"
-                            x-show="countInSection(name) > 0 && fits(name)"
+                            x-show="countInSection(name) > 0"
                             x-cloak
                             :aria-selected="visibleSection === name ? 'true' : 'false'"
                             @click="chosenSection = name"
-                            {% comment %}
-                            The tab you are on is pulled to the front of the
-                            row rather than left where the content put it: it
-                            is the one tab always drawn, and a strip that keeps
-                            it in place would leave a gap where its neighbours
-                            used to be.
-                            {% endcomment %}
                             :style="visibleSection === name ? 'order: -1' : ''"
-                            class="flex min-h-11 items-center gap-2 border-b-2 px-3 text-sm focus-ring"
+                            class="min-h-11 items-center gap-2 border-b-2 px-3 text-sm focus-ring"
                             :class="visibleSection === name
-                                ? 'border-accent font-semibold text-ink-900 dark:text-ink-100'
-                                : 'border-box-border text-muted hover:text-ink-900 dark:hover:text-ink-100'">
+                                ? 'flex border-accent font-semibold text-ink-900 dark:text-ink-100'
+                                : 'hidden sm:flex border-box-border text-muted hover:text-ink-900 dark:hover:text-ink-100'">
                         <span x-text="name"></span>
                         <span class="rounded-full bg-ink-500/10 px-1.5 py-0.5 text-xs tabular-nums"
                               x-text="countInSection(name)"></span>
@@ -452,15 +338,17 @@ dispatches, and listens for `filter-reset` to be told.
                 {% endcomment %}
                 <span aria-hidden="true" class="order-last min-w-0 flex-1 border-b-2 border-box-border"></span>
                 {% comment %}
-                The sections the strip is not showing, behind the chevron the
-                switcher already draws — placement, filtering and arrow keys
-                included. It carries the strip's own bottom border so the rule
-                under the tabs runs unbroken to the end of the row.
+                The sections the narrow strip is not showing, behind the
+                chevron the switcher already draws — placement, filtering and
+                arrow keys included. It carries the strip's own bottom border
+                so the rule under the tabs runs unbroken to the end of the
+                row, and its button says how many tabs it holds, because a
+                bare chevron beside one tab reads as decoration.
 
-                Drawn only while the strip is leaving something out: a menu
-                offering sections that are already tabs is a press that changes
-                nothing. Its width is reserved in the row's budget while it is
-                there, so the last tab and the chevron cannot both claim it.
+                Narrow screens only, and only while there is more than one
+                live section: from sm up every tab is already drawn, and a
+                menu offering sections that are already tabs is a press that
+                changes nothing.
                 {% endcomment %}
                 {% comment %}
                 This component's own state, held under a name of its own so
@@ -473,13 +361,22 @@ dispatches, and listens for `filter-reset` to be told.
                 panel's is stacked on top of it.
                 {% endcomment %}
                 <span x-data="{ picker: $data }"
-                      x-show="overflowing"
+                      x-show="liveSections.length > 1"
                       x-cloak
-                      class="order-last flex shrink-0 items-center border-b-2 border-box-border">
+                      class="order-last flex shrink-0 items-center border-b-2 border-box-border sm:hidden">
                     <c-n26.quick-switcher heading="Which section"
                                           menu_label="Other sections"
                                           placeholder="Search sections"
                                           align="end">
+                        {% comment %}
+                        The count is of the tabs the menu holds beyond the one
+                        on screen — "2 tabs" beside the chevron — bound rather
+                        than written because filtering changes how many
+                        sections are live.
+                        {% endcomment %}
+                        <c-slot name="trigger_words">
+                            <span x-text="`${picker.liveSections.length - 1} ${picker.liveSections.length === 2 ? 'tab' : 'tabs'}`"></span>
+                        </c-slot>
                         {% for name in sections %}
                             {% comment %}
                             Written without a comparison operator: an

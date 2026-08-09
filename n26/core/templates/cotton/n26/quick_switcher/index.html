@@ -163,6 +163,10 @@ order, and Tab-then-Enter works with the panel's script and without it.
     Either way the panel is kept inside the window.
   min_width — the panel's minimum width, as a CSS length. Capped at the width of
     the window.
+  trigger_words — a slot: words drawn inside the chevron's own button, before
+    the glyph. For a control whose panel needs announcing where no label link
+    belongs — "3 tabs" on a collapsed strip. Markup, so a caller can bind the
+    words with x-text.
   slot — the destinations, as <c-n26.quick-switcher.item>.
 {% endcomment %}
 <c-vars label=""
@@ -174,6 +178,7 @@ order, and Tab-then-Enter works with the panel's script and without it.
         empty="No matches"
         align="start"
         min_width="16rem"
+        trigger_words=""
         class="" />
 <div {{ attrs }} data-quick-switcher class="inline-block max-w-full {{ class }}">
     <c-n26.button-group>
@@ -233,11 +238,18 @@ order, and Tab-then-Enter works with the panel's script and without it.
                 {% endcomment %}
                 <c-ui.button variant="ghost"
                              size="sm"
-                             class="shrink-0 px-1.5!"
+                             class="shrink-0 {% if trigger_words.strip %}gap-1.5 px-2!{% else %}px-1.5!{% endif %}"
                              aria-label="{{ menu_label|default:heading }}"
                              title="{{ menu_label|default:heading }}"
                              aria-haspopup="menu"
                              ::aria-expanded="dropdownMenu">
+                    {% comment %}
+                    Words inside the chevron's own button, when the caller has
+                    some — "3 tabs" on a collapsed strip. They open the panel,
+                    not a page: a place to go is what the `label` half is for,
+                    and these are a description of what the panel holds.
+                    {% endcomment %}
+                    {% if trigger_words.strip %}<span class="text-sm">{{ trigger_words }}</span>{% endif %}
                     <span class="n26-icon-only">
                         <c-n26.icon name="chevron-down"
                                     class="size-3 transition-transform"

@@ -1014,22 +1014,25 @@ def test_a_section_the_strip_has_no_room_for_is_still_reachable(
         assert any(section_name in (tag.get("x-data") or "") for tag in rows)
 
 
-def test_a_strip_that_cannot_measure_itself_draws_every_tab(
+def test_the_narrow_strip_is_the_current_tab_and_a_counted_menu(
     client, tester, fighter, house_list
 ):
-    """How many tabs fit is measured, and measuring can fail — a browser
-    with no ResizeObserver, a strip with no width yet, the frame before the
-    first reading. Every one of those has to leave the strip showing
-    everything and wrapping, because the alternative failure is a strip
-    that measures nothing and hides every section. The starting value is
-    what guarantees it, and the copy the tabs are measured on is what
-    stops the strip being measured while it is already hiding things."""
+    """Below sm the strip is the tab you are on plus a menu of the rest,
+    and the menu's button says how many it holds — a breakpoint, not a
+    measurement, so there is nothing to mis-measure. The current tab is
+    the one drawn as `flex` unconditionally; every other tab hides until
+    sm; and the menu itself hides FROM sm, where the full strip has
+    already said everything it would."""
     client.force_login(tester)
     body = client.get(equip_url(fighter, house_list)).content.decode()
 
-    assert "fitted: null," in body
-    assert "return this.fitted === null || this.fitted.includes(name)" in body
-    assert 'x-ref="ghost"' in body
+    assert "'hidden sm:flex border-box-border" in body
+    assert "'flex border-accent" in body
+    assert "border-box-border sm:hidden" in body
+    assert "picker.liveSections.length - 1" in body
+    # The measuring strip is gone entirely, not merely disused.
+    assert "ResizeObserver" not in body
+    assert 'x-ref="ghost"' not in body
 
 
 def test_the_section_menu_asks_the_listing_and_not_the_menu(
