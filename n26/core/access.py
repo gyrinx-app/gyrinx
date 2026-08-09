@@ -4,6 +4,13 @@ There is no access table. Having a list is an assignment (a collection is
 an assignable — see ``n26.library.models.collection``), so a fighter's
 effective collections are **read off the card**:
 
+Skills work the other way round and for the same reason. Nobody is
+assigned a skills collection; a fighter reaches one exactly where their
+**grid** — the placements their profile and subtypes carry — puts a
+category into one of its sections. The grid is the access, the way a
+card is the access to an equipment list, so a profile whose grid nobody
+has authored has no skills screen at all.
+
 * collection assignments on their own card — the profile's list arrives
   via its built-ins at hire, a Legacy profile brings its list the same
   way;
@@ -79,3 +86,46 @@ def collections_for(miniature, card=None, computed=None):
         add(contribution.thing, contribution.source, is_computed=True)
 
     return list(found.values())
+
+
+def model_collections():
+    """Every collection holding what a model *is* — skills, powers.
+
+    One query, and the caller decides when to pay it: a roster asks once
+    and tests every card against the answer, so a sheet of sixteen costs
+    what a sheet of one does. Asked by family rather than by naming
+    kinds, so a new sort of thing a model learns qualifies its
+    collections the day it exists — and a placement aimed at a *gear*
+    collection's schema, which content may perfectly well write, never
+    opens a skills screen.
+    """
+    from n26.library.models import Collection, Family
+
+    return list(Collection.objects.containing(Family.MODEL))
+
+
+def placed_collections(computed):
+    """The collections this fighter's grid reaches, by id.
+
+    Pure reading of a computed card — no queries — because a placement
+    already carries the section row it aims at, and a section row
+    belongs to one collection.
+    """
+    return {str(placement.section.collection_id) for placement in computed.placements}
+
+
+def learnable_for(computed, among=None):
+    """The collections this fighter may learn from: the ones their grid
+    places a category into, kept to those holding what a model is.
+
+    Both halves matter. Without the grid every fighter would be handed
+    the whole skill library, which is the library rather than their own;
+    without the family test a placement into an equipment list's schema
+    would open a learn screen onto gear.
+    """
+    placed = placed_collections(computed)
+    return [
+        collection
+        for collection in (model_collections() if among is None else among)
+        if str(collection.pk) in placed
+    ]

@@ -551,6 +551,32 @@ class Operation:
             self._materialise_defaults(bought, taken)
         return bought
 
+    def learn(self, miniature, thing, note=""):
+        """Take on something a model *is* — a skill, a power.
+
+        Free, and recorded as a reward. No credits move: what a fighter
+        learns is earned rather than bought, and the till is not the way
+        to it. What it adds to the gang's rating is the thing's own
+        reference price, which is nothing for a skill the rules hand
+        out and whatever content says for one that is worth something.
+
+        Nothing causes it. A skill is not a consequence of the row whose
+        grid placed the set it came from, so swapping a profile — or
+        dropping the wargear that opened a set up — never unlearns
+        anything. That is the difference between this and ``choose``,
+        where the answer belongs to the question and dies with it.
+        """
+        from n26.library.models.collection import price_of
+
+        return self.assign(
+            thing,
+            miniature=miniature,
+            paid=0,
+            rating=price_of(thing).credits,
+            reason=Reason.REWARD,
+            note=note,
+        )
+
     def tally(self, assignment, change, note=""):
         """Change a counter's value — the only writer it has.
 

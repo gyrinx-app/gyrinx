@@ -264,6 +264,15 @@ def buy(miniature, line=None, *, thing=None, entry=None, actor=None, **kwargs):
         return op.buy(miniature, line, thing=thing, entry=entry, **kwargs)
 
 
+def learn(miniature, thing, actor=None, note=""):
+    """Take on a skill or a power — free, and nothing causes it."""
+    from n26.core.operations import operation
+
+    gang = miniature.gang
+    with operation(gang, actor=actor or gang.owner) as op:
+        return op.learn(miniature, thing, note=note)
+
+
 def tally(assignment, change, actor=None, note=""):
     """Change a counter's value — earn XP, mark a kill."""
     from n26.core.operations import operation
