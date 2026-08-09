@@ -48,8 +48,8 @@ from dataclasses import dataclass, field
 
 from django.utils.text import slugify
 
-from n26.core.browse import UNCATEGORISED
 from n26.core.owned import thing_key
+from n26.core.taxonomy import UNCATEGORISED
 
 #: The affirmative act on a row: buying the thing it names.
 PRIMARY = "primary"

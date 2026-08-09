@@ -13,8 +13,8 @@ from django.contrib.auth.models import User
 from django.urls import reverse
 from django.utils.text import slugify
 
-from n26.core.browse import UNCATEGORISED
 from n26.core.models import ChosenProfileOption, Gang, Miniature
+from n26.core.taxonomy import UNCATEGORISED
 from n26.library.models import DefaultAssignmentSet, OptionGroup
 
 pytestmark = pytest.mark.django_db

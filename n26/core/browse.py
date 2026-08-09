@@ -17,15 +17,8 @@ home gather at the end under no heading.
 from dataclasses import dataclass, field
 
 from n26.core.notes import WARNING, Note
+from n26.core.taxonomy import group_by_home
 from n26.library.models import price_of
-
-# What the section of homeless items is called on screen. The grouping
-# itself leaves the heading empty, because "no category" is what the content
-# actually says; a picker that draws its sections as tabs needs a word to
-# put on the tab, and an unnamed section would be one nobody could reach.
-# Naming it here keeps the hire list and the trading post calling it the
-# same thing.
-UNCATEGORISED = "Uncategorised"
 
 
 @dataclass(frozen=True)
@@ -624,62 +617,28 @@ def _within(value, bounds):
 
 
 def _sectioned(name, categorised_lines):
-    """Group (category, line) pairs into sections in taxonomy order.
+    """A collection's ``(category, line)`` pairs as a browsable surface.
 
-    **A section is drawn once.** Every category filed under it goes in
-    one group, whatever the categories' own positions are. Ordering the
-    categories alone and starting a new group each time the heading
-    changed let two sections' categories alternate, and the same section
-    then opened over and over with its rows split between the copies —
-    a reader saw one heading two or three times down the page, each with
-    a chevron of its own, and only the first of them open.
-
-    Sections are keyed by name, which is what a strip of tabs keys them
-    by: two tabs reading alike is worse than a long one, and a section
-    the strip cannot draw is a section whose rows are unreachable. Two
-    rows sharing a name are therefore one heading, ordered by the
-    earliest of them.
-
-    Categories are keyed by identity, not by name. A category name is
-    only unique within its section — the rulebook has Esoteric weapons
-    under both Ranged and Close combat — so matching on the string would
-    fold two different categories into one.
-
-    Homeless items gather at the end under empty headings — missing a
-    category is a content gap to show, not an error to hide.
+    The grouping itself is the taxonomy's, shared with every other
+    surface that files rows under headings; only the containers and the
+    order lines take within a category are this one's own. A section the
+    content left homeless keeps an empty heading here — a browse says
+    what the content says, and naming it belongs to whatever draws it.
     """
-    #: section name -> (its earliest position, {category: lines})
-    sections = {}
-    for category, line in categorised_lines:
-        section = category.section if category is not None else None
-        section_name = section.name if section is not None else ""
-        position = section.position if section is not None else float("inf")
-        held, categories = sections.setdefault(section_name, (position, {}))
-        if position < held:
-            sections[section_name] = (position, categories)
-        categories.setdefault(category, []).append(line)
-
-    def taxonomy_order(category):
-        if category is None:
-            return (1, 0, "")
-        return (0, category.position, category.name.lower())
 
     def item_order(line):
         # Within a category, the item's own position rules — a skill's D6
         # number in its set — with name as the tiebreak.
         return (getattr(line.thing, "position", 0), line.name)
 
-    view = CollectionView(name=name)
-    for section_name, (_, categories) in sorted(
-        sections.items(), key=lambda item: (item[1][0], item[0])
-    ):
-        group = SectionGroup(name=section_name)
-        for category in sorted(categories, key=taxonomy_order):
-            group.categories.append(
-                CategoryGroup(
-                    name=category.name if category else "",
-                    lines=sorted(categories[category], key=item_order),
-                )
-            )
-        view.sections.append(group)
-    return view
+    return CollectionView(
+        name=name,
+        sections=group_by_home(
+            categorised_lines,
+            section=lambda heading, categories: SectionGroup(
+                name=heading, categories=categories
+            ),
+            category=lambda heading, lines: CategoryGroup(name=heading, lines=lines),
+            order=item_order,
+        ),
+    )

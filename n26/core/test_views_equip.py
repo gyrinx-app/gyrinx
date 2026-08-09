@@ -10,9 +10,9 @@ import pytest
 from django.contrib.auth.models import User
 from django.urls import reverse
 
-from n26.core.browse import UNCATEGORISED
 from n26.core.models import Assignment, Gang
 from n26.core.operations import operation
+from n26.core.taxonomy import UNCATEGORISED
 from n26.library.authoring import create_category, create_collection, create_wargear
 from n26.library.models import Collection
 

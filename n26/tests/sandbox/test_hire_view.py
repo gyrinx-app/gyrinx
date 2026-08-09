@@ -9,12 +9,12 @@ the "what you'd get" screen and the gang sheet from drifting apart.
 import pytest
 from django.contrib.auth.models import User
 
-from n26.core.browse import UNCATEGORISED
 from n26.core.card import build_card_from_profile, build_modifier_index
 from n26.core.effects import compute
 from n26.core.hire import build_hire_entry, build_hire_list, section_hire_list
 from n26.core.render import build_model_card, card_to_model_card
 from n26.core.render_text import render_model_card
+from n26.core.taxonomy import UNCATEGORISED
 from n26.library.models import (
     AddsAssignable,
     OpAddsMiniature,

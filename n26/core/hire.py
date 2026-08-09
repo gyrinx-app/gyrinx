@@ -23,10 +23,10 @@ number of queries whatever its length.
 
 from dataclasses import dataclass, field
 
-from n26.core.browse import UNCATEGORISED
 from n26.core.card import build_card_from_profile, build_modifier_index
 from n26.core.effects import compute
 from n26.core.render import ModelCard, card_to_model_card
+from n26.core.taxonomy import UNCATEGORISED, group_by_home
 
 #: What an option is called when a profile offers no alternatives. Every
 #: profile has at least one thing you can hire, so a UI always draws the
@@ -211,57 +211,31 @@ def build_hire_list(gang_type):
 def section_hire_list(entries):
     """The hire list in sections of categories — the picker's shape.
 
-    Groups by each profile's home category (``Section`` heading, then
-    ``Category`` inside it), taxonomy order — the same derivation
-    ``browse._sectioned`` does for collections.
+    Grouped by each profile's home category, the taxonomy's own way —
+    the same derivation a browsed collection gets, so a heading means
+    the same thing on both screens.
 
-    **A section is drawn once**, keyed by its name. The picker draws its
-    sections as tabs: two tabs reading alike is worse than one long one,
-    and a section the strip cannot draw is a section whose rows are
-    unreachable. Two headings sharing a name are therefore one section,
-    placed by the earliest of them. Categories are keyed by identity
-    instead, because a category name is only unique within its section.
-
-    Profiles the content gave no home gather at the end, under the name
-    a homeless section is called everywhere. The gap is worth showing;
-    leaving the heading blank would only cost that section its tab.
+    The homeless section is named here rather than left blank, which is
+    what tells this surface apart from a browse. The picker draws its
+    sections as tabs, a tab needs a word on it, and a nameless one would
+    cost that section every way of reaching its rows. The *category*
+    stays unnamed: the content really did file nothing, and such rows
+    sit straight inside the section.
     """
-    #: section name -> (its earliest position, {category: entries})
-    sections = {}
-    for entry in entries:
-        category = entry.profile.category
-        section = category.section if category is not None else None
-        name = section.name if section is not None else ""
-        position = section.position if section is not None else float("inf")
-        held, categories = sections.setdefault(name, (position, {}))
-        if position < held:
-            sections[name] = (position, categories)
-        categories.setdefault(category, []).append(entry)
-
-    def taxonomy_order(category):
-        if category is None:
-            return (1, 0, "")
-        return (0, category.position, category.name.lower())
 
     def entry_order(entry):
         # Cheapest first within a category: a gang list is read to find
         # what this many credits will buy.
         return (entry.base_price, entry.name)
 
-    drawn = []
-    for name, (_, categories) in sorted(
-        sections.items(), key=lambda item: (item[1][0], item[0])
-    ):
-        section = HireSection(name=name or UNCATEGORISED)
-        for category in sorted(categories, key=taxonomy_order):
-            section.categories.append(
-                HireCategory(
-                    name=category.name if category else "",
-                    entries=sorted(categories[category], key=entry_order),
-                )
-            )
-        drawn.append(section)
-    return drawn
+    return group_by_home(
+        ((entry.profile.category, entry) for entry in entries),
+        section=lambda heading, categories: HireSection(
+            name=heading or UNCATEGORISED, categories=categories
+        ),
+        category=lambda heading, entries: HireCategory(name=heading, entries=entries),
+        order=entry_order,
+    )
 
 
 def hireable_profiles(gang_type):
