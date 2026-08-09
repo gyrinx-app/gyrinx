@@ -48,32 +48,11 @@ open slot needs a way back to the sheet that is not the browser's chrome.
         an Outcast's Primary skills before the Leader has chosen an archetype —
         and the fix is elsewhere on the sheet, so the page says so and leaves.
         {% endcomment %}
-        {% if offer.is_empty %}
-            <c-n26.form-section>
-                <p class="text-muted">
-                    Nothing is on offer here yet. This slot draws on lists that other
-                    picks open up, so answering those first fills it in.
-                </p>
-            </c-n26.form-section>
-        {% else %}
-            {% for group in offer.groups %}
-                {% comment %}
-                One fieldset per heading, all sharing the input name: the groups
-                are how the list is read, not four separate questions, and the
-                browser keeps one answer across the lot because the name is one
-                name. A group with no heading — an offer that names a whole kind
-                rather than a tier of a list — draws its cards and no legend.
-                {% endcomment %}
-                <c-n26.radio-cards label="{{ group.name }}" name="thing">
-                    {% for option in group.options %}
-                        <c-n26.radio-cards.card name="thing"
-                                                value="{{ option.key }}"
-                                                label="{{ option.name }}"
-                                                description="{{ option.detail }}"
-                                                :checked="option.is_current" />
-                    {% endfor %}
-                </c-n26.radio-cards>
-            {% endfor %}
-        {% endif %}
+        <c-n26.choice-offer :offer="offer">
+            <c-slot name="empty">
+                Nothing is on offer here yet. This slot draws on lists that other
+                picks open up, so answering those first fills it in.
+            </c-slot>
+        </c-n26.choice-offer>
     </c-n26.form-page>
 {% endblock content %}

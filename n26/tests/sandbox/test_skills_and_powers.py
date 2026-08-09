@@ -719,9 +719,10 @@ class TestPickingASkill:
         assert slot.chosen_name == "Catfall"
 
         card = build_model_card(yolanda, computed=self.computed_for(yolanda))
-        # Drawn as the choice's own row, not doubled as a loose skill.
-        assert [c.chosen for c in card.choices] == ["Catfall"]
-        assert "Catfall" not in [s.name for s in card.skills]
+        # An answered skill question is a skill: it joins the Skills row
+        # with the rest, and the question stops being asked.
+        assert card.skill_choices == []
+        assert "Catfall" in [s.name for s in card.skills]
 
     def test_losing_the_leader_takes_the_skill_with_it(self, yolanda, library):
         anchor = yolanda.assignments.get(subtype__name="Leader")

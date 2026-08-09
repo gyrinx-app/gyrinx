@@ -52,9 +52,15 @@ def link_slots(gang, *holders):
     only turns it into a URL. A slot with no address keeps an empty href
     and draws as a fact with nothing to press — which is right for a card
     depicting nobody.
+
+    A model card keeps its open skill questions in a list of their own,
+    because they are drawn in the Skills row rather than among the other
+    slots. Where they are drawn is the card's business; they are answered
+    at the same address as any other question, so they are linked here
+    with the rest.
     """
     for holder in holders:
-        for line in holder.choices:
+        for line in [*holder.choices, *getattr(holder, "skill_choices", ())]:
             if line.key:
                 line.href = reverse("n26-choose", args=[gang.pk, line.key])
 

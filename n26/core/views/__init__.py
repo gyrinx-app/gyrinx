@@ -23,6 +23,7 @@ from n26.core.views.gangs import (
     gangs,
 )
 from n26.core.views.hire import hire_fighter
+from n26.core.views.learn import learn
 from n26.core.views.printing import print_gang, print_setup
 
 __all__ = [
@@ -34,6 +35,7 @@ __all__ = [
     "gang_sheet",
     "gangs",
     "hire_fighter",
+    "learn",
     "preview_view",
     "print_gang",
     "print_setup",

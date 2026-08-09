@@ -318,10 +318,43 @@ class ModelCard:
     #: Access to buy from, not things owned; drawn apart from equipment.
     collections: list[AssignableLine] = field(default_factory=list)
     choices: list[ChoiceLine] = field(default_factory=list)
+    #: Open questions asking for a skill, kept apart from the rest. They
+    #: are drawn in the Skills row, beside what the model already knows,
+    #: because that is the row a reader looks at to find out what this
+    #: fighter can do — a founding pick left in the general run of slots
+    #: is an obligation filed under the same heading as their archetype.
+    #: Answered ones are not here: the skill they chose is a skill, and
+    #: it is in ``skills`` with the others.
+    skill_choices: list[ChoiceLine] = field(default_factory=list)
+    #: Where the way into the skills screen leads, or empty when there is
+    #: nowhere to send anyone. Filled in by whoever knows the URL space,
+    #: like a choice's own href — this module knows what a grid *is* and
+    #: not where a browsing screen lives. Empty draws no control, which
+    #: is what a print sheet and a hire preview want.
+    learn_href: str = ""
+    #: The collections this model's grid places a category into, by id.
+    #: Standing access, computed rather than assigned: it is what a
+    #: screen for learning is built on, and asking which of these hold
+    #: what a model *is* costs one query for a whole roster rather than
+    #: one per card.
+    placed_in: tuple[str, ...] = ()
     effects: list[EffectLine] = field(default_factory=list)
     owned_by: str | None = None
     xp: int = 0
     xp_target: int | None = None
+
+    @property
+    def questions(self):
+        """Every question still open on this card, in one run.
+
+        Where a question is drawn is a surface's business: on screen the
+        ones asking for a skill go in the Skills row, beside what the
+        fighter already knows. A renderer with no rows to fold them into
+        — the text card, the printed one — draws the lot, because an
+        unanswered question is worth a line on paper and none of them
+        should go missing for want of somewhere to put it.
+        """
+        return [*self.choices, *self.skill_choices]
 
     @property
     def type_line(self):
@@ -476,6 +509,34 @@ def _slot_key(slot, host):
     return f"{host}:{anchor.pk}:{slot.offer.pk}"
 
 
+def _choice_line(slot, host):
+    return ChoiceLine(
+        kind_label=slot.kind_label,
+        chosen=slot.chosen_name,
+        key=_slot_key(slot, host),
+        provenance=Provenance(
+            source=slot.source,
+            source_kind=slot.source_kind,
+            computed=True,
+        ),
+    )
+
+
+def asks_for_skill(slot):
+    """Whether this slot's question is "which skill".
+
+    Skills are the one kind a card has a row of its own for, so a slot
+    asking for one is drawn there rather than among the general run of
+    questions; an archetype and an affiliation have no such row and stay
+    where they are. The kind is the whole test — a slot narrowed to a
+    tier and one offering any skill at all are the same question to a
+    reader.
+    """
+    from n26.library.models import Skill
+
+    return slot.offer is not None and slot.offer.of_kind.model_class() is Skill
+
+
 def choice_lines(computed, host=""):
     """A computed card's choice slots as lines a renderer draws.
 
@@ -486,19 +547,7 @@ def choice_lines(computed, host=""):
     """
     if not computed:
         return []
-    return [
-        ChoiceLine(
-            kind_label=slot.kind_label,
-            chosen=slot.chosen_name,
-            key=_slot_key(slot, host),
-            provenance=Provenance(
-                source=slot.source,
-                source_kind=slot.source_kind,
-                computed=True,
-            ),
-        )
-        for slot in computed.choices
-    ]
+    return [_choice_line(slot, host) for slot in computed.choices]
 
 
 def build_choice_offer(slot, computed):
@@ -517,23 +566,13 @@ def build_choice_offer(slot, computed):
     offered = offered_by(slot, computed)
     current = slot.resolved_with.assignable if slot.resolved_with is not None else None
 
-    groups = []
     if isinstance(offered, CollectionView):
-        for section in offered.sections:
-            for category in section.categories:
-                # The category is the useful heading — the skill set, the
-                # power family. The section names the whole list already,
-                # and stands in where the content declared no category.
-                groups.append(
-                    ChoosableGroup(
-                        name=category.name or section.name,
-                        options=[
-                            _choosable(line.thing, current, line.notes)
-                            for line in category.lines
-                        ],
-                    )
-                )
-    elif offered is not None:
+        return offer_from_view(
+            offered, label=slot.kind_label, chosen=slot.chosen_name, current=current
+        )
+
+    groups = []
+    if offered is not None:
         groups.append(
             ChoosableGroup(
                 name="",
@@ -544,6 +583,38 @@ def build_choice_offer(slot, computed):
     return ChoiceOffer(
         label=slot.kind_label,
         chosen=slot.chosen_name,
+        groups=[group for group in groups if group.options],
+    )
+
+
+def offer_from_view(view, *, label, chosen=None, current=None):
+    """A browsed collection, flattened into the shape a picker draws.
+
+    The half of a pick screen that has nothing to do with slots: a
+    ``CollectionView`` goes in and groups of options come out, so
+    answering a question about one tier and browsing everything a fighter
+    may learn are two callers of one structure rather than two screens
+    that look alike.
+
+    ``current`` marks the thing already answering, where something does;
+    a listing nobody asked a question about has none.
+    """
+    groups = [
+        # The category is the useful heading — the skill set, the power
+        # family. The section names the whole list already, and stands in
+        # where the content declared no category.
+        ChoosableGroup(
+            name=category.name or section.name,
+            options=[
+                _choosable(line.thing, current, line.notes) for line in category.lines
+            ],
+        )
+        for section in view.sections
+        for category in section.categories
+    ]
+    return ChoiceOffer(
+        label=label,
+        chosen=chosen,
         groups=[group for group in groups if group.options],
     )
 
@@ -599,12 +670,14 @@ def card_to_model_card(
     counted_xp = None
 
     # A node that answers a choice is drawn as that choice's row, not as a
-    # loose piece of equipment as well.
+    # loose piece of equipment as well. A skill is the exception, because
+    # it has a row already: an answered skill question puts the skill in
+    # the Skills row with the rest, and the question stops being asked.
     answers = (
         {
             slot.resolved_with.key
             for slot in computed.choices
-            if slot.resolved_with is not None
+            if slot.resolved_with is not None and not asks_for_skill(slot)
         }
         if computed
         else set()
@@ -803,7 +876,24 @@ def card_to_model_card(
         powers=sorted(powers, key=lambda line: line.name),
         equipment=sorted(equipment, key=lambda line: line.name),
         collections=sorted(collections, key=lambda line: line.name),
-        choices=choice_lines(computed, host=id),
+        choices=[
+            _choice_line(slot, id)
+            for slot in (computed.choices if computed else [])
+            if not asks_for_skill(slot)
+        ],
+        # Only the open ones: an answered skill question is a skill, and
+        # it is already in the row above.
+        skill_choices=[
+            _choice_line(slot, id)
+            for slot in (computed.choices if computed else [])
+            if asks_for_skill(slot) and not slot.is_resolved
+        ],
+        placed_in=tuple(
+            {
+                str(placement.section.collection_id)
+                for placement in (computed.placements if computed else [])
+            }
+        ),
         effects=(
             [
                 EffectLine(

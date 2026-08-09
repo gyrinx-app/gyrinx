@@ -116,13 +116,21 @@ def gang_sheet(request, pk):
     is pointed at its picker here, in one pass over what has already been
     derived. No queries, so a roster of sixteen costs what a roster of one
     does.
+
+    The way into a fighter's skills is pointed the same way, and costs
+    one query for the whole roster: which collections hold what a model
+    learns is asked once, and each card already carries the collections
+    its own grid reaches. A fighter with no grid gets no control, which
+    is a content gap showing rather than a screen being withheld.
     """
     from n26.core.render import render_gang
     from n26.core.views.choose import link_slots
+    from n26.core.views.learn import link_skills
 
     gang = _own_gang_or_404(request, pk)
     sheet = render_gang(gang)
     link_slots(gang, sheet, *sheet.models)
+    link_skills(*sheet.models)
     return render(request, "n26/gang_sheet.html", {"gang": gang, "sheet": sheet})
 
 

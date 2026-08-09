@@ -1399,6 +1399,36 @@ GROUPS: list[Group] = [
                 ),
             ),
             Component(
+                slug="choice-offer",
+                tag="c-n26.choice-offer",
+                template="n26/choice_offer.html",
+                summary="A whole list of things to pick one of, under its headings.",
+                parts=(
+                    Part(
+                        "c-n26.radio-cards",
+                        "n26/radio_cards/index.html",
+                        "One heading and the cards under it.",
+                        required=True,
+                    ),
+                ),
+                notes=(
+                    "The pick screen, minus the page. It exists because two "
+                    "screens draw the same list for different reasons — "
+                    "answering a question a rule asked, and browsing everything "
+                    "a fighter may learn — and the alternative was a second "
+                    "template that looked identical and would drift the first "
+                    "time one of them grew a badge. Every group shares one input "
+                    "name, so the browser keeps a single answer across the lot: "
+                    "the headings are how the list is read, not four separate "
+                    "questions. Nothing here knows what is being picked; the "
+                    "view has already flattened it into groups and options, "
+                    "which is what lets a skill, an archetype and an affiliation "
+                    "share a screen. An empty list is a thing to say rather than "
+                    "a page to hide, and what to say is the caller's — why it is "
+                    "empty is something the page knows and this does not."
+                ),
+            ),
+            Component(
                 slug="checkbox-card",
                 tag="c-n26.checkbox-card",
                 template="n26/checkbox_card.html",
@@ -1673,11 +1703,18 @@ GROUPS: list[Group] = [
                     "and a granted skill or trait is marked apart from a bought one. "
                     "Paid ammo is priced under its weapon, and a choice draws as its "
                     "own row — resolved or not, because an unanswered one is "
-                    "information rather than an error. Read-only about the fighter: "
-                    "nothing here changes a statline, a weapon or a skill. Notes and "
-                    "lore carry an Edit each, which is not an exception so much as "
-                    "the shape of the thing — they are the only parts of a card a "
-                    "player writes rather than earns. Almost nothing is greyed "
+                    "information rather than an error. Read-only about the fighter's "
+                    "numbers: nothing here changes a statline or a weapon. Three rows "
+                    "carry controls, each because it is the row a reader is already "
+                    "looking at for the thing it does — Notes and lore take an Edit "
+                    "each, being the only parts of a card a player writes rather than "
+                    "earns, and Skills takes two: the question a rule asked, and the "
+                    "way to what this fighter may learn. A skill question is drawn "
+                    "there rather than among the other slots because a skill has a "
+                    "row already; filed with the archetype it reads as one more "
+                    "field to fill in. Every control is drawn from an href on the "
+                    "structure, so a print sheet and a hire preview draw none of "
+                    "them without asking. Almost nothing is greyed "
                     "out: hierarchy is weight and size, and an empty value is an "
                     "em dash. The two exceptions are captions rather than "
                     "content — the profile name under the model's, and the XP "

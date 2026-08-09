@@ -78,7 +78,7 @@ def render_model_card(card, indent=""):
     if card.powers:
         names = ", ".join(line.name for line in card.powers)
         lines.append(f"{indent}  Powers: {names}")
-    for choice in card.choices:
+    for choice in card.questions:
         # Drawn like any other assignable's row; a real UI hangs the picker
         # link here. The provenance is deliberately not shown.
         answer = choice.chosen if choice.is_resolved else "— (not chosen)"

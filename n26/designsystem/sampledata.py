@@ -15,6 +15,9 @@ from n26.core.notes import INFO, WARNING, Note
 from n26.core.render import (
     AssignableLine,
     ChoiceLine,
+    ChoiceOffer,
+    Choosable,
+    ChoosableGroup,
     EffectLine,
     GangSheet,
     ModelCard,
@@ -462,6 +465,8 @@ def context():
         # sanitises. One name for it, so the demos cannot show two drawings.
         "sample_gang_icon": SAMPLE_GANG_ICON,
         "sorts": SORTS,
+        "choice_offer": choice_offer(),
+        "empty_choice_offer": ChoiceOffer(label="Primary skill"),
         "statuses": STATUSES,
         "lists": LISTS,
         **nav_context(),
@@ -470,6 +475,40 @@ def context():
         **gang_sheet_context(),
         **dashboard_context(),
     }
+
+
+def choice_offer():
+    """A pick list as a view hands it over: two headings, one of them
+    carrying a line of detail on an option.
+
+    Skill sets, because that is the case with headings worth showing —
+    the same structure with one nameless group is what an offer naming a
+    whole kind produces, and the component draws that with no legend.
+    """
+    return ChoiceOffer(
+        label="Primary skill",
+        groups=[
+            ChoosableGroup(
+                name="Agility",
+                options=[
+                    Choosable(key="library.skill:1", name="Catfall"),
+                    Choosable(key="library.skill:2", name="Clamber"),
+                    Choosable(key="library.skill:3", name="Dodge", is_current=True),
+                ],
+            ),
+            ChoosableGroup(
+                name="Cunning",
+                options=[
+                    Choosable(key="library.skill:4", name="Backstab"),
+                    Choosable(
+                        key="library.skill:5",
+                        name="Infiltrate",
+                        detail="usable by Walkers only",
+                    ),
+                ],
+            ),
+        ],
+    )
 
 
 # ---------------------------------------------------------------- model cards
@@ -709,6 +748,23 @@ def model_card():
                 ),
             ),
         ],
+        # A question asking for a skill, kept apart because the card draws it
+        # in the Skills row rather than as a row of its own. Only open ones are
+        # ever here: answered, it would be a skill above.
+        skill_choices=[
+            ChoiceLine(
+                kind_label="Primary skill",
+                chosen=None,
+                href="#",
+                provenance=Provenance(
+                    source="Leader", source_kind="subtype", computed=True
+                ),
+            ),
+        ],
+        # This fighter has a grid, so there is a screen of what she may learn
+        # and the Skills row carries the way to it. A card with no grid — and
+        # every card on a print sheet — leaves this empty and draws nothing.
+        learn_href="#",
         # A Wyrd's powers, which are not skills. Drawn apart on the card
         # because the rules treat them apart, even though they are chosen the
         # same way — see ModelCard.powers.

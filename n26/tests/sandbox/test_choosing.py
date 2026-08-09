@@ -224,14 +224,19 @@ def crew(gang, profiles):
 
 def sheet_slots(gang):
     """Every slot the gang sheet draws, by label — the gang's own and each
-    member's, exactly as the view assembles them."""
+    member's, exactly as the view assembles them.
+
+    A card keeps the questions asking for a skill in a list of their own,
+    because it draws them in the Skills row rather than among the others.
+    Both lists are read here: where a question is drawn is the card's
+    business, and every one of them is a slot with an address."""
     from n26.core.views.choose import link_slots
 
     sheet = render_gang(gang)
     link_slots(gang, sheet, *sheet.models)
     found = {line.kind_label: line for line in sheet.choices}
     for card in sheet.models:
-        for line in card.choices:
+        for line in card.questions:
             found[f"{card.name}: {line.kind_label}"] = line
     return found
 
@@ -308,8 +313,8 @@ class TestAnUnansweredSlotIsAnInvitation:
         card = build_card_from_profile(profiles["leader"])
         index = build_modifier_index([node.assignable for node in card.all_nodes()])
         preview = card_to_model_card(card, compute(card, index), name="Nobody")
-        assert preview.choices
-        assert all(line.key == "" and line.href == "" for line in preview.choices)
+        assert preview.questions
+        assert all(line.key == "" and line.href == "" for line in preview.questions)
 
 
 class TestWhatOneCardMayPick:
@@ -419,8 +424,13 @@ class TestAnsweringOne:
 
         answer = Assignment.objects.get(skill=skills["Berserker"])
         assert answer.miniature == crew["leader"]
+        # Answered, a skill question stops being asked and the skill it
+        # named joins that fighter's Skills row. The other Leader is still
+        # being asked, on a slot of her own.
+        sorrow = next(c for c in render_gang(gang).models if c.name == "Sorrow")
+        assert "Berserker" in [line.name for line in sorrow.skills]
         slots = sheet_slots(gang)
-        assert slots["Sorrow: Primary skill"].chosen == "Berserker"
+        assert "Sorrow: Primary skill" not in slots
         assert not slots["Ash: Primary skill"].is_resolved
         assert second.name == "Ash"
         assert_reconciled(gang)

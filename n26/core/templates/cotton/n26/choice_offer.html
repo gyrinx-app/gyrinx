@@ -1,0 +1,57 @@
+{% comment %}
+<c-n26.choice-offer> — a list of things to pick one of, grouped under its headings.
+
+    <c-n26.choice-offer :offer="offer">
+        <c-slot name="empty">Nothing is on offer here yet.</c-slot>
+    </c-n26.choice-offer>
+
+Takes a n26.render.ChoiceOffer, which the view has already flattened: groups with
+names, options with labels and a line of detail. Nothing here knows what kind of
+thing is being picked — a skill, an archetype, an affiliation, or a whole
+collection browsed as a list of things to learn. A component that knew would be
+several components wearing one filename.
+
+One fieldset per heading, all sharing the input name. The groups are how the list
+is read, not four separate questions, and the browser keeps one answer across the
+lot because the name is one name.
+
+Radios, no script: one of many is the browser's own rule, and the form submits
+and redisplays without a line of JavaScript.
+
+A group with no heading — an offer naming a whole kind rather than a tier of a
+list — draws its cards and no legend.
+
+  :offer — a n26.render.ChoiceOffer.
+  name — the input name every card submits under. One name across every group.
+  empty — what to say when there is nothing to pick. An empty offer is a thing to
+    say rather than a page to hide: what to say depends on why it is empty, which
+    the page knows and this does not.
+{% endcomment %}
+<c-vars :offer="None" name="thing" class="" />
+
+{% comment %}
+space-y-8 on the wrapper, which is the gap a form-page puts between its own
+children: one group per heading reads as a run of sections, and wrapping them
+without restating the rhythm would bunch every group against the next.
+{% endcomment %}
+<div {{ attrs }} class="space-y-8 {{ class }}">
+    {% if offer.is_empty %}
+        <c-n26.form-section>
+            <p class="text-muted">
+                {% if empty %}{{ empty }}{% else %}Nothing is on offer here yet.{% endif %}
+            </p>
+        </c-n26.form-section>
+    {% else %}
+        {% for group in offer.groups %}
+            <c-n26.radio-cards label="{{ group.name }}" name="{{ name }}">
+                {% for option in group.options %}
+                    <c-n26.radio-cards.card name="{{ name }}"
+                                            value="{{ option.key }}"
+                                            label="{{ option.name }}"
+                                            description="{{ option.detail }}"
+                                            :checked="option.is_current" />
+                {% endfor %}
+            </c-n26.radio-cards>
+        {% endfor %}
+    {% endif %}
+</div>

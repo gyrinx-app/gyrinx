@@ -68,7 +68,7 @@ def detail_groups(card) -> list[DetailGroup]:
         groups.append(DetailGroup("Powers", ", ".join(p.name for p in card.powers)))
     if card.equipment:
         groups.append(DetailGroup("Gear", ", ".join(e.name for e in card.equipment)))
-    for choice in card.choices:
+    for choice in card.questions:
         groups.append(DetailGroup(choice.kind_label, choice.chosen or "—"))
     if card.collections:
         groups.append(

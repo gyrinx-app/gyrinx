@@ -1,0 +1,9 @@
+{# title: Nothing on offer #}
+{# note: An empty list is a thing to say rather than a page to hide, and the words are the caller's: why it is empty — a tier nothing is placed in, a grid nobody has authored — is something the page knows and the component does not. #}
+{# layout: full #}
+<c-n26.choice-offer :offer="empty_choice_offer">
+    <c-slot name="empty">
+        Nothing is on offer here yet. This slot draws on lists that other picks open
+        up, so answering those first fills it in.
+    </c-slot>
+</c-n26.choice-offer>

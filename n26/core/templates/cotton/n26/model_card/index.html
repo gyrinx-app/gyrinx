@@ -14,11 +14,14 @@ digital allows. The paper card cannot say *why* a characteristic differs from th
 printed one, that a trait was granted rather than printed, that a gun has paid ammo
 hung off it, or that a choice is still open. All four are already in the data.
 
-Read-only about the *fighter*: nothing here changes a statline, a weapon or a
-skill, and there are no controls over any of them. Notes and lore are the two
-exceptions and they are not really exceptions — they are the only things on a card
-a player writes rather than earns, and an Edit beside each is how you find out you
-can. Everything else is still a rendering.
+Read-only about the *fighter's numbers*: nothing here changes a statline or a
+weapon, and there are no controls over either. Three rows carry controls, and each
+carries one for the same reason — the row is where a reader is already looking for
+the thing it does. Notes and lore take an Edit each, being the only things on a
+card a player writes rather than earns. Skills take two: an open question to
+answer, and the way to the screen of what this fighter may learn. Every one of
+them is drawn from an href on the structure, so a card with nowhere to send
+anyone — a print sheet, a hire preview — draws none of them.
 
 Two composition notes. Every region is a kit component or one of ours except the
 tables, which are composed from theme tokens — see <c-n26.statline> for why
@@ -58,7 +61,9 @@ question "Buys from" was there to answer, and closer to hand.
   Each choice row carries its own picker link on the ChoiceLine, filled in by a
   view that knows where pickers live. A card whose lines have none still reads as
   a sentence, because c-n26.link renders a span with no href — which is what a
-  print sheet and a preview want.
+  print sheet and a preview want. The same is true of card.learn_href and the
+  open questions in card.skill_choices, which the Skills row draws: both arrive
+  filled in or empty, and empty draws nothing.
 {% endcomment %}
 <c-vars :card="None" notes_href="" lore_href="" class="" />
 
@@ -207,6 +212,45 @@ question "Buys from" was there to answer, and closer to hand.
         <dt class="font-semibold text-ink-900 dark:text-ink-100">Skills</dt>
         <dd class="min-w-0 text-ink-900 dark:text-ink-100">
             <c-n26.assignable-lines :lines="card.skills" />
+            {% comment %}
+            The two things a reader can do about a fighter's skills, in the row
+            that says what they have. Composed side by side, and either may be
+            absent.
+
+            Choose is an open question — "a Leader starts with a Primary skill" —
+            and it is here rather than in the run of choice rows below because a
+            skill has a row already: filed with the archetype and the affiliation
+            it reads as one more field to fill in, where beside the skills it
+            reads as the thing it is. Answered, it stops being drawn and the
+            skill it picked joins the list above; changing your mind is done from
+            the skills screen. One button per open question, since a fighter may
+            be asked twice.
+
+            The pencil is the way to that screen, and it is there whenever the
+            fighter has a grid to browse — which is what an empty learn_href
+            says: a card with no grid, a hire preview and a print sheet all draw
+            neither control, because neither has anywhere to go.
+            {% endcomment %}
+            {% if card.skill_choices or card.learn_href %}
+                <span class="ms-1 inline-flex flex-wrap items-center gap-1 align-middle">
+                    {% for choice in card.skill_choices %}
+                        <c-ui.button size="xs" variant="primary" href="{{ choice.href }}">
+                            Choose {{ choice.kind_label|lower }}
+                        </c-ui.button>
+                    {% endfor %}
+                    {% if card.learn_href %}
+                        <c-ui.button size="xs"
+                                     variant="default"
+                                     href="{{ card.learn_href }}"
+                                     title="Learn a skill"
+                                     aria-label="Learn a skill">
+                            <span class="n26-icon-only">
+                                <c-n26.icon name="pencil" class="size-3.5" />
+                            </span>
+                        </c-ui.button>
+                    {% endif %}
+                </span>
+            {% endif %}
         </dd>
 
         {% comment %}
@@ -252,8 +296,11 @@ question "Buys from" was there to answer, and closer to hand.
         "we inform; we do not police".
 
         The provenance says which slot offered it, and is deliberately not
-        printed — two Skill rows are told apart by a picker link in a real UI,
-        not by explaining the rules engine on the card.
+        printed — two rows asking for the same kind of thing are told apart by a
+        picker link in a real UI, not by explaining the rules engine on the card.
+
+        Questions asking for a skill are not here. They are drawn in the Skills
+        row, beside what the fighter already knows — see card.skill_choices.
         {% endcomment %}
         {% for choice in card.choices %}
             <dt class="font-semibold text-ink-900 dark:text-ink-100">{{ choice.kind_label }}</dt>

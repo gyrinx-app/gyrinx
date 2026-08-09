@@ -23,6 +23,9 @@ urlpatterns = [
     # choice and the gang's alike — see n26.core.views.choose.
     path("gangs/<str:pk>/choose/<str:slot>/", views.choose, name="n26-choose"),
     path("fighters/<str:pk>/equip/", views.equip, name="n26-equip"),
+    # Addressed by fighter, not by slot: what they may learn is their
+    # grid rather than a question anybody asked — see n26.core.views.learn.
+    path("fighters/<str:pk>/skills/", views.learn, name="n26-learn"),
     path("gangs/<str:pk>/print/setup/", views.print_setup, name="n26-print-setup"),
     path("gangs/<str:pk>/print/", views.print_gang, name="n26-print"),
     path("design/", include("n26.designsystem.urls")),
