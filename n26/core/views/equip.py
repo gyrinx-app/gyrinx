@@ -6,9 +6,10 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import Http404
 from django.shortcuts import redirect, render
-from django.utils.text import slugify
 
 from n26.core.browse import UNCATEGORISED
+from n26.core.listing import parts_field as _parts_field
+from n26.core.listing import price_field as _price_field
 from n26.core.owned import thing_key as _thing_key
 from n26.core.views.permissions import _own_miniature_or_404
 
@@ -27,30 +28,6 @@ _WHOLE_CREDITS = re.compile(r"[0-9]+")
 
 class BadPrice(Exception):
     """A typed price that is not a whole number of credits in range."""
-
-
-def _parts_field(key):
-    """The input name the tickable parts of one line share.
-
-    Scoped by the line, because one form holds the whole listing: without
-    it, ticking warp rounds on the autogun row would arrive with the stub
-    gun's press. Slugified, because that is what the template renders —
-    read the raw key back and every box ticked in a real browser is
-    silently ignored while a test posting the raw key still passes.
-    """
-    return f"{slugify(key)}:parts"
-
-
-def _price_field(key, index=None):
-    """The input name a line's price is typed into — the row's own, or
-    one of its parts'.
-
-    Scoped by the line for the same reason the tick boxes are: one form
-    holds the whole listing, so a price typed on the autogun row must not
-    arrive with the stub gun's press.
-    """
-    scope = slugify(key)
-    return f"{scope}:price" if index is None else f"{scope}:parts:{index}:price"
 
 
 def _parts_picked(data, key, line):

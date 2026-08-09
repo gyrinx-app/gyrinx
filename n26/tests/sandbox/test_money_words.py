@@ -37,12 +37,12 @@ import inspect
 import pytest
 from django.apps import apps
 
-from n26.core import browse, card, hire, notes, owned, preview, render
+from n26.core import browse, card, hire, listing, notes, owned, preview, render
 
 #: Every module whose structures a player-facing surface reads.
 #: ``preview`` is player-adjacent — the scratch card an author reads is
 #: the same card a player will — so its structures keep the same words.
-PLAYER_FACING = (render, hire, browse, card, notes, owned, preview)
+PLAYER_FACING = (render, hire, browse, card, listing, notes, owned, preview)
 
 #: Apps whose stored fields the rule covers — ours, not Django's own.
 OUR_APPS = ("library", "n26")
