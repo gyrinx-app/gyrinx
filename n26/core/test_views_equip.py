@@ -972,6 +972,24 @@ def test_a_shelf_the_strip_has_no_room_for_is_still_reachable(
         assert any(shelf in (tag.get("x-data") or "") for tag in rows)
 
 
+def test_a_strip_that_cannot_measure_itself_draws_every_tab(
+    client, tester, fighter, house_list
+):
+    """How many tabs fit is measured, and measuring can fail — a browser
+    with no ResizeObserver, a strip with no width yet, the frame before the
+    first reading. Every one of those has to leave the strip showing
+    everything and wrapping, because the alternative failure is a strip
+    that measures nothing and hides every shelf. The starting value is
+    what guarantees it, and the copy the tabs are measured on is what
+    stops the strip being measured while it is already hiding things."""
+    client.force_login(tester)
+    body = client.get(equip_url(fighter, house_list)).content.decode()
+
+    assert "fitted: null," in body
+    assert "return this.fitted === null || this.fitted.includes(name)" in body
+    assert 'x-ref="ghost"' in body
+
+
 def test_the_shelf_menu_asks_the_listing_and_not_the_menu(
     client, tester, fighter, house_list
 ):
