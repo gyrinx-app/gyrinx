@@ -57,10 +57,17 @@ class Provenance:
 
 @dataclass(frozen=True)
 class AssignableLine:
-    """One assignable drawn on a card: its name, and where it came from."""
+    """One assignable drawn on a card: its name, and where it came from.
+
+    ``rating`` is what the line contributed to the model's rating, and
+    zero is drawn as nothing — right for skills, traits and everything
+    granted, where there is no figure to state, and for gear it means
+    only lines that moved the rating carry a number.
+    """
 
     name: str
     provenance: Provenance = field(default_factory=Provenance)
+    rating: int = 0
 
 
 @dataclass
@@ -732,7 +739,11 @@ def card_to_model_card(
                 primary = thing
         else:
             equipment.append(
-                AssignableLine(name=node.name, provenance=provenance_of(node))
+                AssignableLine(
+                    name=node.name,
+                    provenance=provenance_of(node),
+                    rating=node.rating,
+                )
             )
 
     if computed:

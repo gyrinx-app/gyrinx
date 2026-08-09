@@ -27,10 +27,10 @@ afford one per modified cell; a list cannot afford one per item.
 
 Empty renders an em dash, not a muted "None": the card has no second-class text.
 
-A line's rating is drawn when it has one, which is how the gang's stash shares this
-component rather than reimplementing the mark. n26.render.AssignableLine has no
-rating, so nothing on a card changes; n26.render.StashLine is the same shape plus
-what the thing is pinned at, and a stash is read with the prices on it.
+A line's rating is drawn when it has one and zero draws nothing, which is what
+lets one component serve every list: the stash reads with its prices on, a
+card's gear states what each piece contributed, and skills and traits — which
+contribute nothing — stay bare names rather than gaining a row of noughts.
 
   :lines — a list of n26.render.AssignableLine, or anything with the same shape: a
     name, a provenance, and optionally a rating.
