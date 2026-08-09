@@ -17,13 +17,69 @@
                 </c-ui.breadcrumbs.item>
             </c-ui.breadcrumbs>
         </c-slot>
+        <c-slot name="actions">
+            <c-ui.button href="{% url 'authoring-modifier-create' %}" variant="primary">
+                New modifier
+            </c-ui.button>
+        </c-slot>
     </c-n26.page-header>
-    <c-n26.form-section title="Every modifier" class="mt-8">
+    {% comment %}
+    The search and the filters narrow rows already on the page, which is
+    the sanctioned exception to keeping UI state in the URL: nothing here
+    is rendered differently by the server, and a half-typed query is not
+    worth a round trip or a place in history. Reading every modifier's
+    sentence costs a fixed number of queries however many there are, so
+    holding them all is what makes filtering free.
+
+    Rows register their own facets and then show themselves only while
+    every one passes, the way the kind listings and the collection picker
+    work — so the count and the list are computed from one array and
+    cannot disagree. Counting visible rows out of the DOM instead would
+    not be reactive: nothing in that read mentions the filters, so the
+    number would never change.
+
+    A facet is drawn only where the rows hold more than one of its
+    values. A filter whose whole list is already on screen is a control
+    that can do nothing but empty it.
+    {% endcomment %}
+    <div x-data="{ query: '', rows: [], scopes: {{ scope_options|json_dumps }}.map(o => o.value), effects: {{ effect_options|json_dumps }}.map(o => o.value), carried: {{ carried_options|json_dumps }}.map(o => o.value), register(facets) { this.rows.push(facets) }, matches(f) { const q = this.query.trim().toLowerCase(); if (q && !f.search.includes(q)) return false; return this.scopes.includes(f.scope) && this.effects.includes(f.effect) && this.carried.includes(f.carried); }, applyFilter(detail) { if (detail.name === 'scope') this.scopes = detail.values; if (detail.name === 'effect') this.effects = detail.values; if (detail.name === 'carried') this.carried = detail.values; }, get shown() { return this.rows.filter(r => this.matches(r)).length }, }"
+         @filter-apply.window="applyFilter($event.detail)"
+         class="mt-8 flex flex-col gap-3">
         {% if rows %}
+            <c-n26.search-bar :live="True" model="query" placeholder="Search modifiers" />
+            {% if scope_options|length > 1 or effect_options|length > 1 or carried_options|length > 1 %}
+                <div class="flex flex-wrap items-center gap-2">
+                    {% if scope_options|length > 1 %}
+                        <c-n26.filter-menu label="Reaches" name="scope" :options="scope_options" />
+                    {% endif %}
+                    {% if effect_options|length > 1 %}
+                        <c-n26.filter-menu label="Does" name="effect" :options="effect_options" />
+                    {% endif %}
+                    {% if carried_options|length > 1 %}
+                        <c-n26.filter-menu label="Carried" name="carried" :options="carried_options" />
+                    {% endif %}
+                </div>
+            {% endif %}
+            <p class="text-sm text-muted">
+                <span class="font-semibold text-ink-900 tabular-nums dark:text-ink-100"
+                      x-text="shown">{{ count }}</span>
+                of {{ count }} modifiers
+            </p>
             <c-ui.table>
                 <tbody>
                     {% for row in rows %}
-                        <tr>
+                        {# :hidden rather than x-show: a table row's own display value is not `block`. #}
+                        {% comment %}
+                        The whole facet object through json_dumps: escaped once
+                        on the way into the attribute and decoded once by the
+                        browser, which is what keeps a modifier whose name
+                        holds an ampersand matching what a reader types.
+                        Written into the attribute instead it would arrive
+                        escaped twice and match nothing.
+                        {% endcomment %}
+                        <tr x-data="{ facets: {{ row.facets|json_dumps }} }"
+                            x-init="register(facets)"
+                            :hidden="!matches(facets)">
                             <td class="whitespace-nowrap">
                                 <c-n26.link href="{% url 'authoring-modifier' row.pk %}">{{ row.label }}</c-n26.link>
                             </td>
@@ -32,11 +88,13 @@
                     {% endfor %}
                 </tbody>
             </c-ui.table>
+            <p x-show="shown === 0"
+               x-cloak
+               class="py-6 text-center text-sm text-muted">No modifiers match that.</p>
         {% else %}
             <c-ui.description>
-                None yet — build the first one below.
+                None yet — the New modifier button makes the first one.
             </c-ui.description>
         {% endif %}
-    </c-n26.form-section>
-    <div class="mt-10">{% include "authoring/_composer.html" with show_keep_reusable=False %}</div>
+    </div>
 {% endblock content %}

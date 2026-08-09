@@ -33,8 +33,16 @@ urlpatterns = [
         name="authoring-modifiers",
     ),
     # A modifier is not one of the authored kinds — it has no create
-    # verb of its own — so its page hangs off the modifiers listing
-    # rather than the kind/pk route below.
+    # verb of its own — so its pages hang off the modifiers listing
+    # rather than the kind/pk routes below.
+    #
+    # Before the pk route: "new" is a perfectly good primary key as far
+    # as the pattern is concerned, and the first match wins.
+    path(
+        "authoring/modifiers/new/",
+        authoring_views.modifier_create,
+        name="authoring-modifier-create",
+    ),
     path(
         "authoring/modifiers/<str:pk>/",
         authoring_views.modifier_page,

@@ -1,15 +1,21 @@
 {% comment %}
 The two-step composer, shared by every carrier page and the standalone
-modifiers page. Step one is a GET so the chosen kinds live in the URL —
+create page. Step one is a GET so the chosen kinds live in the URL —
 step two survives a refresh, and "add a condition" is a plain link.
 
 Takes kind_picker, composer, composer_scope, composer_effect,
 composer_chips, and show_keep_reusable (the standalone page hides the
 switch: with nothing to attach to, everything it makes is reusable).
+
+The heading, the box and the submit's wording belong to the caller: on a
+carrier's page this is one group among several and needs both to read as
+a group, while on its own page the header has already said what it is and
+a box around the whole page would enclose nothing. There are no defaults
+— a caller that leaves one out gets a section with no heading.
 {% endcomment %}
-<c-n26.form-section title="Build a new modifier"
-                    description="Pick who it reaches and what it does; the fields for both follow."
-                    class="rounded-box border border-box-border p-4">
+<c-n26.form-section title="{{ composer_title }}"
+                    description="{{ composer_description }}"
+                    class="{{ composer_class }}">
     {% comment %}
     Step one, as a GET: the chosen kinds live in the URL, so
     step two survives a refresh and "add a condition" can be
@@ -39,7 +45,7 @@ switch: with nothing to attach to, everything it makes is reusable).
             {% endif %}
             <div class="flex justify-end">
                 <c-ui.button type="submit" variant="success">
-                    Add modifier
+                    {{ composer_submit_label }}
                 </c-ui.button>
             </div>
         </form>

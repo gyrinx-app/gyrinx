@@ -1,0 +1,37 @@
+{% extends "authoring/base.html" %}
+{% block head_title %}
+    New modifier
+{% endblock head_title %}
+{% block nav_heading %}Modifiers{% endblock nav_heading %}
+{% block nav_items %}
+    {% include 'n26/_nav.html' with here='modifiers' %}
+{% endblock nav_items %}
+{% block content %}
+    <c-n26.page-header title="New modifier"
+                       lead="Pick who it reaches and what it does; the fields for both follow.">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Content library</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-modifiers' %}">Modifiers</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    New
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+    </c-n26.page-header>
+    {% comment %}
+    Composed here, a modifier attaches to nothing — so the page says where
+    it goes, rather than leaving an author to wonder why the thing they
+    just made changed nothing.
+    {% endcomment %}
+    <c-n26.prose class="mt-3 max-w-2xl">
+        <p>
+            What this makes is reusable: it hangs on nothing until a carrier is
+            given it, and waits in every carrier page's attach picker until
+            then. To arm one thing, compose it on that thing's own page instead.
+        </p>
+    </c-n26.prose>
+    <div class="mt-6">
+        {% include "authoring/_composer.html" with show_keep_reusable=False composer_title="" composer_description="" composer_class="" composer_submit_label="Create modifier" %}
+    </div>
+{% endblock content %}

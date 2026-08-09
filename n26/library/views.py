@@ -25,6 +25,7 @@ from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.html import escape
 from django.utils.safestring import mark_safe
+from django.utils.text import capfirst
 
 from n26.library.forms import generate_form, statline_form_for, suggestion_form_for
 from n26.library.models.assignable import Family
@@ -815,13 +816,131 @@ def _modifier_section(request, thing, bound_composer=None):
     }
 
 
+#: A modifier that nothing holds, and one that something does. The
+#: first is the interesting half: a composed modifier attached to no
+#: carrier does nothing at all, so this is how an author finds the ones
+#: left half-finished.
+CARRIED_LABELS = (
+    ("carried", "Carried by something"),
+    ("uncarried", "Carried by nothing"),
+)
+
+
+def _which(modifier, fields):
+    """Which of these columns holds this modifier's row.
+
+    Exactly one does — the database refuses anything else — and its
+    name is what a facet filters on. Read off the id, so naming it
+    costs nothing and does not depend on the sentence, which an
+    author's conditions can word any number of ways.
+    """
+    return next(name for name in fields if getattr(modifier, f"{name}_id") is not None)
+
+
+def _kind_labels(fields):
+    """How a facet names each scope or effect kind.
+
+    The models' own verbose names, so a new kind arrives on the filter
+    labelled as it is everywhere else and nobody writes the word twice.
+    """
+    from n26.library.models import Modifier
+
+    return [
+        (
+            name,
+            capfirst(Modifier._meta.get_field(name).related_model._meta.verbose_name),
+        )
+        for name in fields
+    ]
+
+
+def _facet_options(rows, key, labels):
+    """The facet's options, narrowed to the values these rows actually
+    hold.
+
+    A filter offering a kind nothing on the page has is a control whose
+    only effect is to empty the list. Order follows the declaration, not
+    the rows, so the menu reads the same however the pack grows.
+    """
+    present = {row["facets"][key] for row in rows}
+    return [
+        {"value": value, "label": label} for value, label in labels if value in present
+    ]
+
+
 @staff_member_required
 def modifiers(request):
-    """The modifiers themselves: every one in the pack, and the
-    composer with nothing to attach to — what it makes is reusable by
-    construction, waiting in every carrier page's attach picker."""
-    from n26.library.forms import ModifierComposerForm
+    """Every modifier in the pack, with what it reaches and what it does.
+
+    Reading and writing are separate pages, as they are for a leaf kind:
+    this one lists, the New modifier button leads to the composer, and a
+    row leads to its own page.
+
+    Each row carries its own facets, so the search and the filters
+    narrow what is already here rather than asking the server again —
+    the page's cost is the same whichever of them is on.
+    """
     from n26.library.models import Modifier
+    from n26.library.models.modifier import EFFECT_FIELDS, SCOPE_FIELDS
+
+    every = list(_reading_sentences(Modifier.objects.all()))
+    counts = _carrier_counts(every)
+
+    rows = []
+    for modifier in every:
+        carriers = counts[modifier.pk]
+        notes = [str(modifier.scope), str(modifier.effect)]
+        notes.append(
+            f"on {carriers} carrier{'' if carriers == 1 else 's'}"
+            if carriers
+            else "reusable — attached nowhere yet"
+        )
+        rows.append(
+            {
+                "pk": modifier.pk,
+                "label": modifier.name,
+                "notes": notes,
+                "facets": {
+                    "scope": _which(modifier, SCOPE_FIELDS),
+                    "effect": _which(modifier, EFFECT_FIELDS),
+                    "carried": "carried" if carriers else "uncarried",
+                    # What the search reads. Lowercased here so the
+                    # comparison is a plain substring test in the browser.
+                    "search": " ".join([modifier.name, *notes]).lower(),
+                },
+            }
+        )
+
+    return render(
+        request,
+        "authoring/modifiers.html",
+        {
+            "rows": rows,
+            "count": len(rows),
+            "scope_options": _facet_options(rows, "scope", _kind_labels(SCOPE_FIELDS)),
+            "effect_options": _facet_options(
+                rows, "effect", _kind_labels(EFFECT_FIELDS)
+            ),
+            "carried_options": _facet_options(rows, "carried", CARRIED_LABELS),
+        },
+    )
+
+
+@staff_member_required
+def modifier_create(request):
+    """The composer on a page of its own.
+
+    Two steps, as everywhere else it appears: a GET names the scope kind
+    and the effect kind, and only then are the fields those kinds call
+    for drawn. Both ride the URL, so step two survives a refresh and
+    "add a condition" is a plain link.
+
+    What it makes attaches to nothing — reusable by construction,
+    waiting in every carrier page's attach picker. A modifier meant for
+    one thing is composed on that thing's own page instead, from this
+    same form.
+    """
+    from n26.library.forms import ModifierComposerForm
 
     bound = None
     if request.method == "POST":
@@ -840,29 +959,12 @@ def modifiers(request):
                     request,
                     f"Composed {made.name} — attach it from any carrier's page.",
                 )
-                return redirect("authoring-modifiers")
-
-    every = list(_reading_sentences(Modifier.objects.all()))
-    counts = _carrier_counts(every)
-
-    rows = []
-    for modifier in every:
-        carriers = counts[modifier.pk]
-        notes = [str(modifier.scope), str(modifier.effect)]
-        notes.append(
-            f"on {carriers} carrier{'' if carriers == 1 else 's'}"
-            if carriers
-            else "reusable — attached nowhere yet"
-        )
-        rows.append({"pk": modifier.pk, "label": modifier.name, "notes": notes})
+                return redirect("authoring-modifier", pk=made.pk)
 
     return render(
         request,
-        "authoring/modifiers.html",
-        {
-            "rows": rows,
-            **_composer_state(request, bound_composer=bound),
-        },
+        "authoring/modifier_create.html",
+        _composer_state(request, bound_composer=bound),
     )
 
 
