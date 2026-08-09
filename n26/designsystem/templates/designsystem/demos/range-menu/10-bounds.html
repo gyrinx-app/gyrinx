@@ -1,10 +1,10 @@
 {# title: A bound you can read without opening #}
 {# note: The trigger states the value, so a filter bar says what it is doing at a glance. at_max_label swaps the number for a word at the ceiling, because a bound that excludes nothing should not look like a filter; at_min_label does the same at the other end, for a scale whose zero has a name. #}
 {# layout: col #}
-<div x-data="{ maxCost: 200, maxRarity: 15, quality: 3 }"
+<div x-data="{ maxPrice: 200, maxRarity: 15, quality: 3 }"
      class="flex flex-wrap items-center gap-2">
     <c-n26.range-menu label="Price"
-                      model="maxCost"
+                      model="maxPrice"
                       min="0"
                       max="200"
                       step="5"

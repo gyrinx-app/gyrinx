@@ -2,8 +2,8 @@
 {# note: Three levels of disclosure. A section collapses; a category is a heading inside it; a row is a name, a price and Hire — enough to buy a Ganger without ever opening it. Press a name to pop the row open and read the card you would actually get, plus the other ways to get it. The slots readout is the rulebook's composition limit: it counts, marks the rows, and lets you hire anyway. #}
 {# layout: full #}
 <c-n26.profile-picker :categories="hire_categories"
-                      cost_floor="{{ hire_price_floor }}"
-                      cost_ceiling="{{ hire_price_ceiling }}">
+                      price_floor="{{ hire_price_floor }}"
+                      price_ceiling="{{ hire_price_ceiling }}">
     <c-slot name="filters">
         <c-n26.search-bar :live="True" model="query" placeholder="Search the gang list" />
         <div class="flex flex-wrap items-center gap-2">
@@ -14,8 +14,8 @@
             bottom", which needs a floor.
             {% endcomment %}
             <c-n26.range-menu label="Price"
-                              model_min="minCost"
-                              model_max="maxCost"
+                              model_min="minPrice"
+                              model_max="maxPrice"
                               min="{{ hire_price_floor }}"
                               max="{{ hire_price_ceiling }}"
                               step="5"

@@ -2,12 +2,12 @@
 <c-n26.range-menu> — a bound on a number, as a slider in a dropdown.
 
     {# one thumb: a ceiling #}
-    <c-n26.range-menu label="Price" model="maxCost"
+    <c-n26.range-menu label="Price" model="maxPrice"
                       min="0" max="200" step="5"
                       prefix="≤ " suffix="¢" at_max_label="Any" />
 
     {# two thumbs: a floor and a ceiling #}
-    <c-n26.range-menu label="Price" model_min="minCost" model_max="maxCost"
+    <c-n26.range-menu label="Price" model_min="minPrice" model_max="maxPrice"
                       min="0" max="200" step="5"
                       suffix="¢" at_max_label="Any" />
 

@@ -75,8 +75,8 @@ be read in one.
         {% csrf_token %}
         <c-n26.profile-picker :categories="categories"
                               :sections="sections"
-                              cost_floor="{{ price_floor }}"
-                              cost_ceiling="{{ price_ceiling }}">
+                              price_floor="{{ price_floor }}"
+                              price_ceiling="{{ price_ceiling }}">
             <c-slot name="filters">
                 <c-n26.search-bar :live="True"
                                   :nested="True"
@@ -89,8 +89,8 @@ be read in one.
                         {% endif %}
                         {% if price_ceiling > price_floor %}
                             <c-n26.range-menu label="Price"
-                                              model_min="minCost"
-                                              model_max="maxCost"
+                                              model_min="minPrice"
+                                              model_max="maxPrice"
                                               min="{{ price_floor }}"
                                               max="{{ price_ceiling }}"
                                               step="5"

@@ -4,14 +4,14 @@
 <c-n26.profile-picker :categories="hire_categories"
                       :sections="hire_sections"
                       tabs=""
-                      cost_floor="{{ hire_price_floor }}"
-                      cost_ceiling="{{ hire_price_ceiling }}">
+                      price_floor="{{ hire_price_floor }}"
+                      price_ceiling="{{ hire_price_ceiling }}">
     <c-slot name="filters">
         <c-n26.search-bar :live="True" model="query" placeholder="Search the gang list" />
         <div class="flex flex-wrap items-center gap-2">
             <c-n26.range-menu label="Price"
-                              model_min="minCost"
-                              model_max="maxCost"
+                              model_min="minPrice"
+                              model_max="maxPrice"
                               min="{{ hire_price_floor }}"
                               max="{{ hire_price_ceiling }}"
                               step="5"

@@ -105,8 +105,8 @@ class TestProseInsideCVarsIsNotAPropList:
             "categories",
             "sections",
             "tabs",
-            "cost_floor",
-            "cost_ceiling",
+            "price_floor",
+            "price_ceiling",
             "noun",
             "class",
         ]

@@ -2,7 +2,7 @@
 The price of one buyable line, as a box you can type in, with what changing it
 did printed beside it. Expects `field` (the input's name), `quoted` (the price
 the listing asked) and `label` (what the line is called, for the box's own
-name), and `price_ceiling` from the page.
+name), and `price_cap` from the page.
 
 Used for a row and for each of its parts, so a gun and its rounds are typed into
 the same kind of control in the same column.
@@ -31,7 +31,7 @@ caller's would be the pair the browser drops.
            name="{{ field }}"
            value="{{ quoted }}"
            min="0"
-           max="{{ price_ceiling }}"
+           max="{{ price_cap }}"
            step="1"
            inputmode="numeric"
            x-model.number="price"

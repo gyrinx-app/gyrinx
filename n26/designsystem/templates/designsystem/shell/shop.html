@@ -29,8 +29,8 @@ component's own page shows it working; this shows it working under a header.
     <c-n26.collection-picker class="mt-6"
                              :categories="trading_post_categories"
                              :sections="trading_post_sections"
-                             cost_floor="{{ trading_post_cost_floor }}"
-                             cost_ceiling="{{ trading_post_cost_ceiling }}"
+                             price_floor="{{ trading_post_price_floor }}"
+                             price_ceiling="{{ trading_post_price_ceiling }}"
                              tp_ceiling="{{ trading_post_tp_ceiling }}"
                              noun="items">
         <c-slot name="filters">
@@ -57,10 +57,10 @@ component's own page shows it working; this shows it working under a header.
                                    size="xs"
                                    :options="trading_post_category_options" />
                 <c-n26.range-menu label="Price"
-                                  model_min="minCost"
-                                  model_max="maxCost"
-                                  min="{{ trading_post_cost_floor }}"
-                                  max="{{ trading_post_cost_ceiling }}"
+                                  model_min="minPrice"
+                                  model_max="maxPrice"
+                                  min="{{ trading_post_price_floor }}"
+                                  max="{{ trading_post_price_ceiling }}"
                                   step="5"
                                   suffix="¢"
                                   size="xs"
@@ -100,7 +100,7 @@ component's own page shows it working; this shows it working under a header.
                                 out of width on a phone.
                                 {% endcomment %}
                                 <c-slot name="price_control">
-                                    {% include "n26/includes/equip_price.html" with field="price" quoted=line.credits label=line.name price_ceiling=trading_post_price_ceiling %}
+                                    {% include "n26/includes/equip_price.html" with field="price" quoted=line.credits label=line.name price_cap=trading_post_price_cap %}
                                 </c-slot>
                                 {% if line.name in trading_post_in_stash %}
                                     <c-slot name="icon">

@@ -1,9 +1,9 @@
 {% comment %}
 <c-n26.collection-picker> — a long categorised list you filter at the top and act on inline.
 
-    <c-n26.collection-picker :categories="names" cost_ceiling="200" tp_ceiling="12">
+    <c-n26.collection-picker :categories="names" price_ceiling="200" tp_ceiling="12">
         <c-slot name="filters">
-            <c-n26.range-menu label="Price" model_min="minCost" model_max="maxCost" … />
+            <c-n26.range-menu label="Price" model_min="minPrice" model_max="maxPrice" … />
         </c-slot>
         <c-n26.collection-picker.section name="Weapons">
             <c-n26.collection-picker.category name="Pistols">
@@ -51,7 +51,7 @@ group back exactly as the reader left it, because `open` was never overwritten.
   --- what it does not own ---
 
 The controls. They go in the `filters` slot and drive this component's state by
-name: `query`, `categories`, `minCost`, `maxCost`, `maxTradePoints` and
+name: `query`, `categories`, `minPrice`, `maxPrice`, `maxTradePoints` and
 `includeExclusive` are in scope for
 anything rendered there, so a call site picks the controls the data deserves
 rather than accepting a fixed bar. c-n26.range-menu and c-n26.toggle write to
@@ -67,7 +67,7 @@ dispatches, and listens for `filter-reset` to be told.
     form rather than rendering an empty list.
   tabs — draw the sections as a tab strip and show one at a time, instead of
     stacking them as collapsibles. One layer of disclosure rather than two.
-  cost_floor, cost_ceiling, tp_ceiling — the ends of each numeric filter,
+  price_floor, price_ceiling, tp_ceiling — the ends of each numeric filter,
     which are also its "no filter" positions. A control that can be reset has
     to know where "off" is, and only the caller knows what the data spans.
   filters — the control bar. Rendered inside this component's Alpine scope.
@@ -87,8 +87,8 @@ dispatches, and listens for `filter-reset` to be told.
     grows with the number of them.
     {% endcomment %}
     tabs="1"
-    cost_floor="0"
-    cost_ceiling="9999"
+    price_floor="0"
+    price_ceiling="9999"
     tp_ceiling="99"
     noun="items"
     class=""
@@ -114,8 +114,8 @@ dispatches, and listens for `filter-reset` to be told.
         // print the rest of the state machine onto the page. It did.
         get tabbed() { return this.wantsTabs && this.sections.length > 0 },
         chosenSection: {{ sections.0|default:""|json_dumps }},
-        minCost: {{ cost_floor }},
-        maxCost: {{ cost_ceiling }},
+        minPrice: {{ price_floor }},
+        maxPrice: {{ price_ceiling }},
         maxTradePoints: {{ tp_ceiling }},
         includeExclusive: true,
 
@@ -123,7 +123,7 @@ dispatches, and listens for `filter-reset` to be told.
 
         matches(facets) {
             if (this.query && !facets.search.includes(this.query.trim().toLowerCase())) return false;
-            if (facets.price < this.minCost || facets.price > this.maxCost) return false;
+            if (facets.price < this.minPrice || facets.price > this.maxPrice) return false;
             {% comment %}
             Exclusive items answer no numeric question. "E" is not a rarity, it
             is "equipment list only", so it sits in no trade-points range —
@@ -191,16 +191,16 @@ dispatches, and listens for `filter-reset` to be told.
         get filtering() {
             return this.query !== ''
                 || this.categories.length !== this.allCategories.length
-                || this.minCost > {{ cost_floor }}
-                || this.maxCost < {{ cost_ceiling }}
+                || this.minPrice > {{ price_floor }}
+                || this.maxPrice < {{ price_ceiling }}
                 || this.maxTradePoints < {{ tp_ceiling }}
                 || !this.includeExclusive;
         },
 
         reset() {
             this.query = '';
-            this.minCost = {{ cost_floor }};
-            this.maxCost = {{ cost_ceiling }};
+            this.minPrice = {{ price_floor }};
+            this.maxPrice = {{ price_ceiling }};
             this.maxTradePoints = {{ tp_ceiling }};
             this.includeExclusive = true;
             this.categories = this.allCategories.slice();

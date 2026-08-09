@@ -397,10 +397,10 @@ def trading_post_context():
         "trading_post_in_stash": IN_STASH,
         # The bound the real till enforces, so the shell's boxes refuse what
         # the application's boxes refuse.
-        "trading_post_price_ceiling": PRICE_CEILING,
+        "trading_post_price_cap": PRICE_CEILING,
         "trading_post_tabs": _shop_tabs(),
-        "trading_post_cost_floor": min(line.credits for line in lines),
-        "trading_post_cost_ceiling": max(line.credits for line in lines),
+        "trading_post_price_floor": min(line.credits for line in lines),
+        "trading_post_price_ceiling": max(line.credits for line in lines),
         # Exclusive lines are left out of the ceiling: "E" is not a number, and
         # a bound derived from one would be meaningless.
         "trading_post_tp_ceiling": max(

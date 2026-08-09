@@ -2,7 +2,7 @@
 <c-n26.profile-picker> — the models a gang could buy, in sections and filtered.
 
     <c-n26.profile-picker :categories="hire_categories"
-                     cost_floor="{{ floor }}" cost_ceiling="{{ ceiling }}">
+                     price_floor="{{ floor }}" price_ceiling="{{ ceiling }}">
         <c-slot name="filters">…</c-slot>
         <c-n26.collection-picker.section name="Gang List" :open="True">
             <c-n26.collection-picker.category name="Leaders">
@@ -25,7 +25,7 @@ Exclusive flag — and gives hiring's rows somewhere to sit.
   :sections — every section name, in order. Only needed for `tabs`.
   tabs — draw the sections as a tab strip instead of stacking them as
     collapsibles, leaving the category as the only thing that collapses.
-  cost_floor, cost_ceiling — the ends of the price slider.
+  price_floor, price_ceiling — the ends of the price slider.
   filters — the control bar, in the shell's Alpine scope.
 {% endcomment %}
 <c-vars
@@ -37,8 +37,8 @@ Exclusive flag — and gives hiring's rows somewhere to sit.
     empty default would override the shell's and quietly untab every gang list.
     {% endcomment %}
     tabs="1"
-    cost_floor="0"
-    cost_ceiling="9999"
+    price_floor="0"
+    price_ceiling="9999"
     noun="profiles"
     class=""
 />
@@ -47,8 +47,8 @@ Exclusive flag — and gives hiring's rows somewhere to sit.
     :categories="categories"
     :sections="sections"
     tabs="{{ tabs }}"
-    cost_floor="{{ cost_floor }}"
-    cost_ceiling="{{ cost_ceiling }}"
+    price_floor="{{ price_floor }}"
+    price_ceiling="{{ price_ceiling }}"
     noun="{{ noun }}"
     class="{{ class }}">
 

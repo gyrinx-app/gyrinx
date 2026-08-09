@@ -3,8 +3,8 @@
 {# layout: full #}
 <c-n26.collection-picker :categories="trading_post_categories"
                          :sections="trading_post_sections"
-                         cost_floor="{{ trading_post_cost_floor }}"
-                         cost_ceiling="{{ trading_post_cost_ceiling }}"
+                         price_floor="{{ trading_post_price_floor }}"
+                         price_ceiling="{{ trading_post_price_ceiling }}"
                          tp_ceiling="{{ trading_post_tp_ceiling }}"
                          noun="items">
     <c-slot name="filters">
@@ -24,10 +24,10 @@
             tolerate.
             {% endcomment %}
             <c-n26.range-menu label="Price"
-                              model_min="minCost"
-                              model_max="maxCost"
-                              min="{{ trading_post_cost_floor }}"
-                              max="{{ trading_post_cost_ceiling }}"
+                              model_min="minPrice"
+                              model_max="maxPrice"
+                              min="{{ trading_post_price_floor }}"
+                              max="{{ trading_post_price_ceiling }}"
                               step="5"
                               suffix="¢"
                               at_max_label="Any" />
