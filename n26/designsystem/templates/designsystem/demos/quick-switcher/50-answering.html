@@ -1,15 +1,15 @@
 {# title: Rows that answer instead of going somewhere #}
 {# note: The same panel, filled with c-n26.quick-switcher.choice. Pressing a row reports its label as a bubbling quick-switcher-choose, and the caller — the box around all this — writes it down; the tick follows, because what is current is bound rather than fixed at render. This is what lets a tab strip too wide for a phone keep the tab you are on and put the rest behind the chevron. Careful what you name things around one: the panel has state of its own, and a name it also uses is read from the panel rather than from you. #}
-<div x-data="{ shelf: 'Wargear' }"
-     @quick-switcher-choose="shelf = $event.detail.value"
+<div x-data="{ section: 'Wargear' }"
+     @quick-switcher-choose="section = $event.detail.value"
      class="flex items-center gap-2">
     <span class="text-sm font-medium text-ink-900 dark:text-ink-100"
-          x-text="shelf"></span>
-    <c-n26.quick-switcher heading="Which shelf"
-                          menu_label="Other shelves"
-                          placeholder="Search shelves">
-        <c-n26.quick-switcher.choice label="Wargear" current_value="shelf" />
-        <c-n26.quick-switcher.choice label="Ranged weapons" current_value="shelf" />
-        <c-n26.quick-switcher.choice label="Close combat weapons" current_value="shelf" />
+          x-text="section"></span>
+    <c-n26.quick-switcher heading="Which section"
+                          menu_label="Other sections"
+                          placeholder="Search sections">
+        <c-n26.quick-switcher.choice label="Wargear" current_value="section" />
+        <c-n26.quick-switcher.choice label="Ranged weapons" current_value="section" />
+        <c-n26.quick-switcher.choice label="Close combat weapons" current_value="section" />
     </c-n26.quick-switcher>
 </div>

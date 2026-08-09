@@ -20,8 +20,8 @@ silently fork the taxonomy, where a pick list cannot.
 
 Not to be confused with ``CollectionSection`` — the *tiers* a
 collection is divided into (Primary, Secondary). A Section is a heading
-of the catalogue's taxonomy; a CollectionSection is a shelf-edge label
-one list declares for itself.
+of the catalogue's taxonomy; a CollectionSection is a heading one list
+declares for itself.
 """
 
 from django.db import models

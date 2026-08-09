@@ -162,7 +162,7 @@ class _Category:
     ``narrow()`` matches categories as objects rather than names, because a
     category name is only unique within its section, so the sample needs
     objects for the real function to accept it — and ``position``, because
-    re-shelving a narrowed view sorts the whole taxonomy by it. Both came from
+    regrouping a narrowed view sorts the whole taxonomy by it. Both came from
     handing the sample to the real function and reading the error, which is the
     argument for building it this way at all.
     """
@@ -324,7 +324,7 @@ def trading_post() -> CollectionView:
     return CollectionView(name="Trading Post", sections=sections)
 
 
-class _Shelf:
+class _Collection:
     """A stand-in for a Collection where only its name and key are read.
 
     The tab strip is built by the shop screen's own function, so the
@@ -347,12 +347,12 @@ def _shop_tabs():
     what the strip has to survive on a phone."""
     from n26.core.views.equip import collection_tabs
 
-    shelves = [
-        _Shelf("Ash Waste Nomads Equipment List", "nomads"),
-        _Shelf("Dust Falls Trade Agreement Equipment List", "dust-falls"),
-        _Shelf("Trading Post", "post"),
+    collections = [
+        _Collection("Ash Waste Nomads Equipment List", "nomads"),
+        _Collection("Dust Falls Trade Agreement Equipment List", "dust-falls"),
+        _Collection("Trading Post", "post"),
     ]
-    return collection_tabs(shelves, shelves[0])
+    return collection_tabs(collections, collections[0])
 
 
 def trading_post_context():
@@ -928,7 +928,7 @@ def _hire_card(name, subtype, rating, weapons):
 def hire_list():
     """Every profile a gang could hire, in sections of categories.
 
-    Mirrors what n26.hire.build_hire_list plus n26.browse's shelving would
+    Mirrors what n26.hire.build_hire_list plus n26.browse's grouping would
     return, built by hand because a gallery renders on an empty database. The
     entries are real HireEntry/HireOption objects holding real ModelCards, so the
     components are typed against what the server sends.

@@ -115,7 +115,7 @@ def _charge(line, paid):
 
     The price the listing quoted stays the list price and the gap becomes
     the discount, so ``paid = list - discount`` still holds and the entry
-    says both what the shelf asked and what the gang handed over.
+    says both what the listing asked and what the gang handed over.
 
     Rating follows the list price, never the payment. Rating is what the
     gang owns and it is pinned for good: haggling a sword down does not
@@ -203,7 +203,7 @@ def equip(request, pk):
     standard Trading Post when the library has one. Holding a collection
     and shopping from it are different things: a fighter carries their
     skill sets the same way they carry their equipment list, and only one
-    of the two is a shelf.
+    of the two is somewhere to buy from.
 
     The Buy buttons submit the *identity* of a line, never its price:
     the server re-browses the chosen collection and hands the found line
@@ -223,7 +223,7 @@ def equip(request, pk):
     A weapon's paid ammo and firing modes are ticked on the weapon's own
     row and bought with it, in the same operation and onto the same gun.
     One press, one purchase, however many boxes are ticked: ammo is a way
-    the gun you are buying is built, not a second thing on the shelf.
+    the gun you are buying is built, not a second thing on the list.
     Ammo for a gun a fighter already owns has no route here yet.
 
     A purchase stays on the page: kitting out a fighter is a run of
@@ -255,8 +255,8 @@ def equip(request, pk):
     # A fighter's collections are not all places to buy kit. Which of them
     # this screen offers follows from what they contain, not from how the
     # fighter came by them: a collection of skills is somewhere to learn,
-    # and holding one — even as a built-in — never makes it a shelf. Asked
-    # by family, so a new sort of gear puts its lists on this screen
+    # and holding one — even as a built-in — never makes it somewhere to
+    # buy. Asked by family, so a new sort of gear puts its lists on this screen
     # without anyone editing it. One query, whatever they hold.
     shoppable = set(
         Collection.objects.filter(pk__in=[c.pk for c in held])
@@ -358,12 +358,12 @@ def equip(request, pk):
     trade_points = [
         line.trade_points for line in lines if line.trade_points is not None
     ]
-    # Each shelf paired with the name it goes by on screen. The grouping
+    # Each section paired with the name it goes by on screen. The grouping
     # leaves a homeless line's section unnamed, which is the truth about
     # the content; the picker draws its sections as tabs, and a tab needs
     # a word on it. Paired once so the strip, the registration names and
     # the heading cannot disagree — see the hire view, which does the same.
-    shelves = [
+    named_sections = [
         (section.name or UNCATEGORISED, section)
         for section in (view.sections if view is not None else [])
     ]
@@ -396,7 +396,7 @@ def equip(request, pk):
                         for category in section.categories
                     ],
                 }
-                for index, (name, section) in enumerate(shelves)
+                for index, (name, section) in enumerate(named_sections)
             ],
             # Registration names — see the hire view: a row in an unnamed
             # category registers under its section's name, and a list that
@@ -404,7 +404,7 @@ def equip(request, pk):
             "categories": list(
                 dict.fromkeys(
                     category.name or name
-                    for name, section in shelves
+                    for name, section in named_sections
                     for category in section.categories
                 )
             ),
@@ -412,17 +412,17 @@ def equip(request, pk):
                 {"value": name, "label": name}
                 for name in dict.fromkeys(
                     category.name
-                    for _, section in shelves
+                    for _, section in named_sections
                     for category in section.categories
                     if category.name
                 )
             ],
-            # One tab per shelf, as on the hire page. A section missing
+            # One tab per section, as on the hire page. A section missing
             # from this list can never be the active tab and its rows
-            # become unreachable, so every shelf is named above and every
-            # shelf appears here — deduplicated, because the strip keys
+            # become unreachable, so every section is named above and every
+            # one appears here — deduplicated, because the strip keys
             # its tabs by name and a repeated key draws neither.
-            "sections": list(dict.fromkeys(name for name, _ in shelves)),
+            "sections": list(dict.fromkeys(name for name, _ in named_sections)),
             "cost_floor": min((line.credits for line in lines), default=0),
             "cost_ceiling": max((line.credits for line in lines), default=0),
             "tp_ceiling": max(trade_points, default=0),

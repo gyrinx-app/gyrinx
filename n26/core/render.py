@@ -506,7 +506,7 @@ def build_choice_offer(slot, computed):
 
     The offer decides the list; this only flattens it. A slot narrowed to
     a tier answers with the browsable view the fighter already shops from,
-    so its shelves become the headings and the fighter's own placements
+    so its categories become the headings and the fighter's own placements
     have already shaped it. An unnarrowed slot has no collection and
     answers with the whole kind, which is one heading-less group. Neither
     branch knows what kind of thing is being picked — that is what lets a

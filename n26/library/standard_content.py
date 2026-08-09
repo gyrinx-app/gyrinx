@@ -453,7 +453,7 @@ def _check_specialisations():
 def trading_post_sweeps():
     """Every kind the post sells: whatever a fighter can buy with Trade
     Points. An accessory is bought there as readily as the gun it bolts
-    onto, so a kind missing from here is a shelf nobody can reach."""
+    onto, so a kind missing from here is one nobody can buy."""
     from n26.library.models import Wargear, Weapon, WeaponAccessory
 
     return (Weapon, Wargear, WeaponAccessory)
@@ -464,7 +464,7 @@ def _create_trading_post():
 
     Tops up rather than skipping: a post built before a kind existed is
     the ordinary state of a library that has been running a while, and
-    leaving it short would quietly keep those items off the shelf.
+    leaving it short would quietly keep those items out of the post.
     """
     from django.contrib.contenttypes.models import ContentType
 

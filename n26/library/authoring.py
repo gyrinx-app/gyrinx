@@ -812,7 +812,7 @@ def create_trading_post(name="Trading Post", contains=None, entries=(), **kwargs
     if contains is None:
         # What the post sells is standard content's to say, so a bare
         # call builds the real one rather than a subset that quietly
-        # leaves a kind off the shelf.
+        # leaves a kind out of the post.
         from n26.library.standard_content import trading_post_sweeps
 
         contains = trading_post_sweeps()

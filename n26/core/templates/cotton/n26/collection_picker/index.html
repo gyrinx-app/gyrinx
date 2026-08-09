@@ -384,7 +384,7 @@ dispatches, and listens for `filter-reset` to be told.
             The tab you are on is drawn first and never dropped, so the strip
             always says where you are. Every section is in the menu whatever
             the strip is showing, so a name too long to be a tab is never a
-            shelf with no way to reach it; measurement decides what is
+            section with no way to reach it; measurement decides what is
             duplicated there, never what exists.
 
             Fails open, in every direction: until a measurement succeeds every
@@ -452,13 +452,13 @@ dispatches, and listens for `filter-reset` to be told.
                 {% endcomment %}
                 <span aria-hidden="true" class="order-last min-w-0 flex-1 border-b-2 border-box-border"></span>
                 {% comment %}
-                The shelves the strip is not showing, behind the chevron the
+                The sections the strip is not showing, behind the chevron the
                 switcher already draws — placement, filtering and arrow keys
                 included. It carries the strip's own bottom border so the rule
                 under the tabs runs unbroken to the end of the row.
 
                 Drawn only while the strip is leaving something out: a menu
-                offering shelves that are already tabs is a press that changes
+                offering sections that are already tabs is a press that changes
                 nothing. Its width is reserved in the row's budget while it is
                 there, so the last tab and the chevron cannot both claim it.
                 {% endcomment %}
@@ -468,7 +468,7 @@ dispatches, and listens for `filter-reset` to be told.
                 has a scope of its own and several of its names are these —
                 items, matches, register, shown, query — so a bare
                 countInSection() called down there counts the menu's rows
-                instead of the listing's, silently, and every shelf comes back
+                instead of the listing's, silently, and every section comes back
                 empty. $data is this scope as it stands out here, before the
                 panel's is stacked on top of it.
                 {% endcomment %}
@@ -476,9 +476,9 @@ dispatches, and listens for `filter-reset` to be told.
                       x-show="overflowing"
                       x-cloak
                       class="order-last flex shrink-0 items-center border-b-2 border-box-border">
-                    <c-n26.quick-switcher heading="Which shelf"
-                                          menu_label="Other shelves"
-                                          placeholder="Search shelves"
+                    <c-n26.quick-switcher heading="Which section"
+                                          menu_label="Other sections"
+                                          placeholder="Search sections"
                                           align="end">
                         {% for name in sections %}
                             {% comment %}
@@ -492,7 +492,7 @@ dispatches, and listens for `filter-reset` to be told.
                             The name is bound, not written into the attribute.
                             Written, it arrives HTML-escaped and is escaped a
                             second time on the way into the row's own state, so
-                            a shelf called "Kit & gear" compares equal to
+                            a section called "Kit & gear" compares equal to
                             nothing and can never be the current one.
                             {% endcomment %}
                             <c-n26.quick-switcher.choice :label="name"

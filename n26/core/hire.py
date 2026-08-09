@@ -183,7 +183,7 @@ def build_hire_list(gang_type):
     return [build_hire_entry(profile, index=index) for profile in profiles]
 
 
-def shelve_hire_list(entries):
+def section_hire_list(entries):
     """The hire list in sections of categories — the picker's shape.
 
     Groups by each profile's home category (``Section`` heading, then
@@ -238,8 +238,8 @@ def hireable_profiles(gang_type):
     )
     return (
         Profile.objects.filter(gang_type=gang_type)
-        # category__section rides along for the shelving — without it,
-        # grouping a listing costs two queries per profile.
+        # category__section rides along for the section headings — without
+        # it, grouping a listing costs two queries per profile.
         .select_related("profile_type", "built_ins", "category__section")
         .prefetch_related(
             "statline__stats__statline_type_stat__stat",

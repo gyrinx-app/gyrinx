@@ -202,9 +202,9 @@ def test_the_strip_holds_this_fighters_list_and_no_other_houses(
     fighter offered the Van Saar list is being shown the library rather
     than their own kit.
 
-    "Skills & Powers" is here for a second reason: it holds skills, so it
-    is not a shelf at all, and no route by which a fighter might come to
-    hold it puts it in this strip.
+    "Skills & Powers" is here for a second reason: it holds skills, so
+    there is nothing in it to buy, and no route by which a fighter might
+    come to hold it puts it in this strip.
     """
     from n26.library.authoring import add_built_in, create_skill, create_trading_post
 
@@ -244,8 +244,8 @@ def test_a_collection_of_skills_is_no_tab_however_the_fighter_holds_it(
     A fighter's skill sets reach their card by exactly the route their
     equipment list does — a built-in on their profile — so nothing about
     how it is held can tell the two apart. What is in it can: there is
-    nothing in a set of skills to buy off a shelf, and a collection of
-    them is offered as a shelf to nobody.
+    nothing in a set of skills to buy, so a collection of them is offered
+    to nobody as somewhere to shop.
     """
     from n26.core.access import collections_for
     from n26.library.authoring import add_built_in, create_skill
@@ -314,15 +314,18 @@ def test_two_names_that_shorten_alike_keep_their_full_names():
     strip is read as a set — so the whole strip falls back together."""
     from n26.core.views.equip import collection_tabs
 
-    class Shelf:
+    class FakeCollection:
         def __init__(self, name, pk):
             self.name, self.pk = name, pk
 
         def __str__(self):
             return self.name
 
-    shelves = [Shelf("Orlock Equipment List", 1), Shelf("Orlock", 2)]
-    assert [tab["label"] for tab in collection_tabs(shelves, shelves[0])] == [
+    collections = [
+        FakeCollection("Orlock Equipment List", 1),
+        FakeCollection("Orlock", 2),
+    ]
+    assert [tab["label"] for tab in collection_tabs(collections, collections[0])] == [
         "Orlock Equipment List",
         "Orlock",
     ]
@@ -340,13 +343,13 @@ def test_the_filter_bar_offers_nothing_to_submit(client, tester, fighter, house_
     assert body.count('type="submit"') == body.count('name="thing"')
 
 
-def test_the_page_has_a_strip_for_the_list_and_a_strip_for_the_shelf(
+def test_the_page_has_a_strip_for_the_list_and_a_strip_for_the_section(
     client, tester, fighter, house_list
 ):
     """Two strips, choosing two different things. The upper one picks the
-    list and is links the server answers; the lower one picks which shelf
+    list and is links the server answers; the lower one picks which section
     of that list is on screen and swaps it in the hand. Lose the lower one
-    and every shelf draws at once, one under the next."""
+    and every section draws at once, one under the next."""
     from n26.library.authoring import create_trading_post
 
     create_trading_post()
@@ -355,7 +358,7 @@ def test_the_page_has_a_strip_for_the_list_and_a_strip_for_the_shelf(
     body = client.get(equip_url(fighter, house_list)).content.decode()
     assert 'aria-label="Which list"' in body
     assert 'role="tablist"' in body
-    # The shelf strip is the picker's, so the sections must not also be
+    # The section strip is the picker's, so the sections must not also be
     # drawing themselves as headings to open.
     assert 'x-show="!tabbed"' in body
 
@@ -426,10 +429,10 @@ def test_every_registration_name_is_a_known_category(
 
 def test_a_homeless_line_gets_a_tab_of_its_own(client, tester, fighter, house_list):
     """Same rule as the hire page: one line the content gave no category
-    must not cost every other section its tab, so the homeless shelf is
+    must not cost every other section its tab, so the homeless section is
     named and takes a tab like any other. A section missing from the
     strip can never be the active one, and its rows would be served with
-    no way to reach them — so every shelf drawn is checked against it."""
+    no way to reach them — so every section drawn is checked against it."""
     from n26.library.models import Category, Section, Wargear
 
     section = Section.objects.create(name="Armoury", position=0)
@@ -956,7 +959,7 @@ def pinned_tags(body):
 def test_the_bands_a_reader_steers_with_stay_on_screen_together(
     client, tester, fighter, house_list
 ):
-    """Which list, how it is narrowed, and which shelf: all three stay put
+    """Which list, how it is narrowed, and which section: all three stay put
     while the rows scroll under them. They are pinned by sitting in one
     sticky box rather than three, so no band has to know how tall the ones
     above it are — a number only measurement gives, and a wrong one either
@@ -977,13 +980,13 @@ def test_the_bands_a_reader_steers_with_stay_on_screen_together(
     assert not any(tag.get("name") == "thing" for tag in inside)
 
 
-def test_a_shelf_the_strip_has_no_room_for_is_still_reachable(
+def test_a_section_the_strip_has_no_room_for_is_still_reachable(
     client, tester, fighter, house_list
 ):
-    """Narrow, the strip is the shelf you are on and a chevron holding the
-    rest. The strip and that menu are drawn from one list of shelves at
-    every width, so a shelf too wide to be a tab is never a shelf with no
-    way to it."""
+    """Narrow, the strip is the section you are on and a chevron holding the
+    rest. The strip and that menu are drawn from one list of sections at
+    every width, so a section too wide to be a tab is never a section with
+    no way to it."""
     from n26.library.models import Category, Section, Wargear
 
     for index, (section_name, category_name, item) in enumerate(
@@ -1000,15 +1003,15 @@ def test_a_shelf_the_strip_has_no_room_for_is_still_reachable(
     client.force_login(tester)
     response = client.get(equip_url(fighter, house_list))
     body = response.content.decode()
-    shelves = response.context["sections"]
-    assert len(shelves) == 2
+    sections = response.context["sections"]
+    assert len(sections) == 2
 
     rows = [tag for tag in pinned_tags(body) if tag.get("role") == "menuitem"]
     assert rows
-    # Each shelf's name reaches its row through the row's own state, which
+    # Each section's name reaches its row through the row's own state, which
     # is where the menu reads it back from when the row is pressed.
-    for shelf in shelves:
-        assert any(shelf in (tag.get("x-data") or "") for tag in rows)
+    for section_name in sections:
+        assert any(section_name in (tag.get("x-data") or "") for tag in rows)
 
 
 def test_a_strip_that_cannot_measure_itself_draws_every_tab(
@@ -1018,7 +1021,7 @@ def test_a_strip_that_cannot_measure_itself_draws_every_tab(
     with no ResizeObserver, a strip with no width yet, the frame before the
     first reading. Every one of those has to leave the strip showing
     everything and wrapping, because the alternative failure is a strip
-    that measures nothing and hides every shelf. The starting value is
+    that measures nothing and hides every section. The starting value is
     what guarantees it, and the copy the tabs are measured on is what
     stops the strip being measured while it is already hiding things."""
     client.force_login(tester)
@@ -1029,12 +1032,12 @@ def test_a_strip_that_cannot_measure_itself_draws_every_tab(
     assert 'x-ref="ghost"' in body
 
 
-def test_the_shelf_menu_asks_the_listing_and_not_the_menu(
+def test_the_section_menu_asks_the_listing_and_not_the_menu(
     client, tester, fighter, house_list
 ):
     """The switcher's panel keeps state under the same names this component
-    does — items, matches, register — so a row asking how full a shelf is
-    gets the menu's own row count instead, every shelf reads as empty, and
+    does — items, matches, register — so a row asking how full a section is
+    gets the menu's own row count instead, every section reads as empty, and
     nothing anywhere says why. The listing's scope is therefore held under
     a name of its own for the rows to reach."""
     client.force_login(tester)
@@ -1045,20 +1048,20 @@ def test_the_shelf_menu_asks_the_listing_and_not_the_menu(
     assert "picker.visibleSection" in body
 
 
-def test_the_count_above_the_list_counts_the_shelf_on_screen(
+def test_the_count_above_the_list_counts_the_section_on_screen(
     client, tester, fighter, house_list
 ):
     """The readout is client-side, so what is pinned here is the
     arrangement that keeps it honest: it counts the same array the rows
     come from, narrowed to the section the tab strip is showing. A total
-    spanning the shelves a tab is hiding is a number that contradicts the
+    spanning the sections a tab is hiding is a number that contradicts the
     list directly beneath it."""
     client.force_login(tester)
     body = client.get(equip_url(fighter, house_list)).content.decode()
 
     assert 'x-text="shown"' in body
     assert "i.section === this.visibleSection" in body
-    # The "N of M" form: how many are left, out of how many the shelf has.
+    # The "N of M" form: how many are left, out of how many the section has.
     assert 'x-show="shown !== total"' in body
     assert "get total() { return this.onScreen.length }" in body
 

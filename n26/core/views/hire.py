@@ -133,7 +133,7 @@ def hire_fighter(request, pk):
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.forms import HireFighterForm
-    from n26.core.hire import build_hire_entry, build_hire_list, shelve_hire_list
+    from n26.core.hire import build_hire_entry, build_hire_list, section_hire_list
     from n26.core.operations import NotEnoughCredits, operation
 
     gang = _own_gang_or_404(request, pk)
@@ -232,15 +232,15 @@ def hire_fighter(request, pk):
                 _picks(request.GET, profile, build_hire_entry(profile)),
             )
 
-    # The shelving leaves a homeless profile's section unnamed, which is
+    # The grouping leaves a homeless profile's section unnamed, which is
     # the truth about the content. Naming it is this page's business: the
-    # picker draws its sections as tabs, a tab needs a word on it, and one
-    # nameless shelf would otherwise cost every section its tab. Named
+    # picker draws its sections as tabs, a tab needs a word on it, and a
+    # nameless one would otherwise cost every section its tab. Named
     # here, once, so the tab strip, the registration names below and the
     # heading in the template cannot disagree about what it is called.
     section_rows = [
         {**section_row, "name": section_row["name"] or UNCATEGORISED}
-        for section_row in shelve_hire_list(build_hire_list(gang.gang_type))
+        for section_row in section_hire_list(build_hire_list(gang.gang_type))
     ]
     entries = [
         entry
@@ -264,12 +264,12 @@ def hire_fighter(request, pk):
             # picker's whole navigation once tabs are on: a section whose
             # name is missing here can never be the active tab, and its
             # rows would be served in the HTML with no way to reach them.
-            # Every shelf is named above, so every shelf gets a tab.
+            # Every section is named above, so every one gets a tab.
             #
             # Deduplicated because the strip keys its tabs by name. Two
-            # shelves that share a name then answer to one tab, which
+            # sections that share a name then answer to one tab, which
             # shows both of them — where a repeated key would draw
-            # neither, and both shelves would be lost.
+            # neither, and both sections would be lost.
             "sections": list(dict.fromkeys(row["name"] for row in section_rows)),
             # The picker's all-on category state. These are *registration*
             # names — an item in an unnamed category registers under its

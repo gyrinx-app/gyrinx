@@ -901,7 +901,7 @@ def _plan_profiles(plan, rows):
     """The All Profiles sheet. Rating **is** the price (§5a); the grid
     columns become placement modifiers on the profile itself, and the
     ``Category`` and ``Section`` columns are the fighter's home — where
-    the hire list shelves it."""
+    the hire list groups it."""
     from n26.library.models import Profile
 
     for line, row in enumerate(rows, start=1):
@@ -2250,7 +2250,7 @@ def _grid_difference(plan, planned, row, resolve):
 
 
 def _placements(profile):
-    """The placement modifiers on this fighter that shelve a skill set.
+    """The placement modifiers on this fighter that place a skill set.
 
     Only those: a fighter may carry modifiers doing anything at all,
     and an import's statement about the grid is not a statement about
@@ -2747,7 +2747,7 @@ class _Performer:
             self.resolve(planned.fields["gang_type"]),
             price=planned.fields["price"],
             qualifier=planned.fields.get("qualifier", ""),
-            # No home means the hire list has nowhere to shelve it: it
+            # No home means the hire list has no section to put it in: it
             # gathers at the end, under no heading.
             category=self.resolve(home) if home else None,
             **self.shared,

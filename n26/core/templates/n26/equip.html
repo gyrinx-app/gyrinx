@@ -77,10 +77,10 @@ breadcrumb above it has the gang as well, so nothing is lost.
                 Sections keep their own strip, at the bottom of the same pinned
                 bar. The two strips are choosing different things at different
                 sizes: the upper one picks which list you are shopping and costs
-                a page load, this one picks which shelf of that list is on
+                a page load, this one picks which section of that list is on
                 screen and costs nothing. Stacking the sections instead would
-                put a shelf's worth of rows between one heading and the next,
-                and a list with several shelves under one name would draw a
+                put a section's worth of rows between one heading and the next,
+                and a list with several sections under one name would draw a
                 heading each — every one of them counting the same rows.
                 {% endcomment %}
                 <c-n26.collection-picker :categories="categories"
@@ -94,7 +94,7 @@ breadcrumb above it has the gang as well, so nothing is lost.
                         In the picker's filters slot rather than above it,
                         because that slot is what the picker keeps pinned: the
                         three bands a reader steers with — which list, how it is
-                        narrowed, which shelf — stay on screen together as the
+                        narrowed, which section — stay on screen together as the
                         rows scroll under them. Left outside, this one would
                         scroll away and the reader would have to go back up the
                         page to change lists.

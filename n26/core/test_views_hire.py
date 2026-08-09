@@ -404,9 +404,9 @@ def test_a_homeless_profile_gets_a_tab_of_its_own(
 
     Tabs are the picker's whole navigation once on, and a section missing
     from the strip can never be the active one — its rows are served in
-    the HTML with no way to reach them. The homeless shelf is therefore
+    the HTML with no way to reach them. The homeless section is therefore
     named rather than the strip being switched off, and both claims are
-    pinned here: the strip is drawn, and every shelf is on it.
+    pinned here: the strip is drawn, and every section is on it.
     """
     from n26.library.models import Category, Section
 
@@ -421,7 +421,7 @@ def test_a_homeless_profile_gets_a_tab_of_its_own(
     response = client.get(hire_url(gang))
     assert response.context["sections"] == ["Gang List", UNCATEGORISED]
 
-    # Reachability, the thing the strip can silently cost: every shelf
+    # Reachability, the thing the strip can silently cost: every section
     # drawn must have a tab, and every row must register under a name the
     # category filter starts with on.
     drawn = {row["section"]["name"] for row in response.context["section_rows"]}

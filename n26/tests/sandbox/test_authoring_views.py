@@ -3047,7 +3047,7 @@ class TestAuthoringPagesDoNotScaleQueriesWithContent:
 
         def grow(indices):
             for index in indices:
-                section = create_section(f"Shelf {index}", position=index)
+                section = create_section(f"Section {index}", position=index)
                 made = modifier(
                     f"Places {index}",
                     targets_model(),
