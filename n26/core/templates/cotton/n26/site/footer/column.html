@@ -3,7 +3,7 @@
 
     {# the common case: a title over a list of links #}
     <c-n26.site.footer.column heading="Help & Documentation">
-        <li><c-n26.link href="/help/" color="muted">Getting started</c-n26.link></li>
+        <li><c-n26.link href="/help/" tone="muted">Getting started</c-n26.link></li>
     </c-n26.site.footer.column>
 
     {# a title that is markup, not a word #}
@@ -29,8 +29,20 @@ looking for. `content` replaces the list outright, for the column holding a
 picture instead of links.
 
   heading — a plain title. Rendered as an <h3>.
+  lead — a title that is markup rather than a word. Drawn above the list, not
+    wrapped in a heading.
+  content — replaces the list outright, for a column holding something that is
+    not links.
 {% endcomment %}
-<c-vars heading="" class="" />
+{% comment %}
+`lead` and `content` are declared even though they are only ever filled as
+slots. An undeclared slot name is not empty when nobody fills it — it is
+whatever the enclosing scope happens to have under that name, and this column
+is drawn on every page in the site's footer. Any view holding a `lead` would
+have it printed as a footer heading; declaring the names gives the unfilled
+case a real default of "".
+{% endcomment %}
+<c-vars heading="" lead="" content="" class="" />
 
 <div {{ attrs }} class="{{ class }}">
     {% if lead %}<div class="n26-site-footer-heading">{{ lead }}</div>{% endif %}

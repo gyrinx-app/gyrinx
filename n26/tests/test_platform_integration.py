@@ -724,6 +724,60 @@ class TestTheSiteBanner:
         body = client.get("/n26/").content.decode()
         assert 'data-tone="info"' in body
 
+    def test_the_bar_says_only_what_the_bar_was_given(
+        self, tester, client, default_pack, gang_type, make_profile, live_banner
+    ):
+        """A reader on a fighter's skills screen saw the banner's message,
+        its link, and then a bare web address printed after them.
+
+        The banner takes a slot for a control that a link cannot express —
+        a form that posts. The slot was drawn but never declared, and an
+        undeclared slot is not empty when nobody fills it: it resolves to
+        whatever the page underneath happens to hold under that name. The
+        skills screen holds the address its own form posts to, and the bar
+        is on every screen, so the bar printed it.
+        """
+        from django.urls import reverse
+
+        from n26.library.models import Skill
+        from n26.tests.sandbox.actions import (
+            create_category,
+            create_collection,
+            create_skill,
+            found_gang,
+            hire_with_option,
+            modifier,
+            places,
+            section_of,
+            targets_model,
+        )
+
+        # The smallest grid that opens a skills screen: one set, placed
+        # into one tier by something the fighter carries.
+        agility = create_category("Skills", "Agility")
+        create_skill("Catfall", category=agility)
+        collection = create_collection("Skills", contains=[Skill])
+        profile = make_profile("Ganger", price=50)
+        modifier(
+            "Ganger: Agility under Primary",
+            targets_model(),
+            places(agility, section_of(collection, "Primary", 0)),
+            carried_by=profile,
+        )
+        gang = found_gang("The Bad Girls", gang_type, owner=tester, budget=500)
+        fighter = hire_with_option(gang, profile, "Yolanda")
+
+        live_banner()
+        skills_url = reverse("n26-learn", args=[fighter.pk])
+        body = client.get(skills_url).content.decode()
+
+        # The page is the one that holds an `action`, and its form still
+        # posts there — the address belongs in the form, not in the bar.
+        assert f'action="{skills_url}' in body
+        bar = body[body.index("n26-announcement") : body.index("</aside>")]
+        assert "N26 support is coming." in bar
+        assert skills_url not in bar
+
 
 class TestTheSharedIconKeys:
     """gyrinx/site/icons.py names an n26 icon for every key, as a string,

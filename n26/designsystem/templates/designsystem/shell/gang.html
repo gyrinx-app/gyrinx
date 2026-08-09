@@ -85,7 +85,7 @@ a page and its chrome is not visible in either one alone.
         </c-slot>
         <c-slot name="members">
             {% for member in gang_members %}
-                <c-n26.model-card :card="member" choose_href="#">
+                <c-n26.model-card :card="member">
                     <c-slot name="actions">
                         {% comment %}
                     Equip is the one you came for and the only per-model act that

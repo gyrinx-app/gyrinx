@@ -76,12 +76,23 @@ it. Pass both shapes and the attribute wins, silently — pick one.
   content_packs — the content packs tab. Falls back the same way.
   changelog — the changelog list, beside the tabs and outside them.
 {% endcomment %}
+{% comment %}
+The four content slots are declared even though they are only ever filled as
+slots. An undeclared slot name is not empty when nobody fills it — it is
+whatever the enclosing scope happens to have under that name, and these names
+are exactly what a view calls the rows it hands this page: a context holding
+`gangs` or `changelog` would be drawn here whether or not the page passed it.
+{% endcomment %}
 <c-vars
     username=""
     new_gang_href=""
     new_gang_label="Create Gang"
     new_campaign_href=""
     new_campaign_label="Create Campaign"
+    gangs=""
+    campaigns=""
+    content_packs=""
+    changelog=""
     class=""
 />
 

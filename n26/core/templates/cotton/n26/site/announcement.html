@@ -41,11 +41,19 @@ bar ends up looking like an unexplained mistake.
     reader genuinely must not lose, which is rarer than it sounds.
   on_dismiss — an Alpine expression run when it closes. See above.
 {% endcomment %}
+{% comment %}
+`action` is declared even though it is only ever filled as a slot. An undeclared
+slot name is not empty when nobody fills it — it is whatever the enclosing page
+happens to have under that name, and this bar is drawn on every screen. A page
+whose view holds an `action` (the address a form posts to, say) had it printed
+inside the banner, after the call to action, as a stray line of text.
+{% endcomment %}
 <c-vars
     tone="info"
     icon=""
     cta_text=""
     cta_url=""
+    action=""
     dismissible="1"
     on_dismiss=""
     class=""

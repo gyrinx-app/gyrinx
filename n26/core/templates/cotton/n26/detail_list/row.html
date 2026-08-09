@@ -54,7 +54,24 @@ affordance; the label beside it stays plain text precisely so the contrast reads
     inside interpolated content is just markup by then, and c-ui.dialog would
     render it into its body along with everything else.
 {% endcomment %}
-<c-vars label="" value="" :editable="True" href="" class="" />
+{% comment %}
+The three dialog slots are declared even though they are only ever filled as
+slots. An undeclared slot name is not empty when nobody fills it — it is
+whatever the enclosing scope happens to have under that name. `dialog` is the
+branch that decides whether this row is a fact or a control, so a page holding
+a variable of that name for its own reasons would turn every row it drew into
+a dialog trigger, with the page's value as the dialog's body.
+{% endcomment %}
+<c-vars
+    label=""
+    value=""
+    :editable="True"
+    href=""
+    dialog=""
+    dialog_header=""
+    dialog_footer=""
+    class=""
+/>
 
 <div class="flex items-baseline gap-1.5 {{ class }}">
     <dt class="whitespace-nowrap text-xs text-muted">{{ label }}</dt>

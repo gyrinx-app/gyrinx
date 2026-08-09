@@ -103,12 +103,14 @@
     </c-slot>
     <c-slot name="members">
         {% comment %}
-        choose_href turns an open choice into a real link. Without it the card still
-        reads — c-n26.link renders a span — which is what the print sheet wants and
-        what the component's own demos show; a live screen has somewhere to send you.
+        An open choice draws as a link when the card's own ChoiceLine carries an
+        href, which a view fills in because only a view knows where pickers live.
+        Nothing here turns that on: with no href the line still reads as a
+        sentence — c-n26.link renders a span — which is what a print sheet and a
+        hire preview want, and a live screen has somewhere to send you.
         {% endcomment %}
         {% for member in gang_members %}
-            <c-n26.model-card :card="member" choose_href="#">
+            <c-n26.model-card :card="member">
                 <c-slot name="actions">
                     {% comment %}
                     Equip is the one you came for and the only per-model act that
