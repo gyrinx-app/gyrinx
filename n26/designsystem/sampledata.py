@@ -179,14 +179,35 @@ class _Category:
 
 
 @dataclass(frozen=True)
+class _Label:
+    """The one thing ``thing_key`` reads off a model's ``_meta``."""
+
+    label_lower: str
+
+
+@dataclass(frozen=True)
 class _Stock:
-    """Stands in for a library assignable in a list: a name and a home."""
+    """Stands in for a library assignable in a list: a name and a home.
+
+    Carries a key the way a real row does, because a listing names every
+    input after the row's content key and the shell posts nothing without
+    one. The label is a fiction the same size as the real thing: what
+    matters is that two rows never collide.
+    """
 
     name: str
     category: _Category
 
     def __str__(self):
         return self.name
+
+    @property
+    def pk(self):
+        return slugify(self.name)
+
+    @property
+    def _meta(self):
+        return _Label("library.wargear")
 
 
 # The catalogue, as (section, category, [(name, credits, trade points, exclusive)]).
@@ -284,6 +305,34 @@ USE_NOTES = {
     ),
 }
 
+#: Paid parts riding a line, keyed by the item they belong to, as
+#: ``(name, credits, trade points)``. A gun's ammo is not a second thing on
+#: the list — it is a way the gun is built — so a row that has any draws
+#: tick boxes under it and buys them on the same press.
+#:
+#: Two guns carry some, and which two matters: the Boltgun is one nobody
+#: holds, so its boxes sit on the row in the open, and the Meltagun is one
+#: the fighter already has, so its boxes are inside the row that offers
+#: another. Those are the two places a part is ever drawn.
+PAID_PARTS = {
+    "Boltgun": [("Kraken round", 15, 10)],
+    "Meltagun": [("Melta round", 20, 11)],
+}
+
+
+def _part_lines(name, category):
+    """The paid parts of one line, as the lines they really are."""
+    return tuple(
+        PricedLine(
+            thing=_Stock(name=part, category=category),
+            credits=credits,
+            trade_points=trade_points,
+            is_exclusive=False,
+            charges_trade_points=True,
+        )
+        for part, credits, trade_points in PAID_PARTS.get(name, ())
+    )
+
 
 def trading_post() -> CollectionView:
     """The sample catalogue as a real n26.browse.CollectionView.
@@ -319,6 +368,7 @@ def trading_post() -> CollectionView:
                         # fighter; the sample carries one so the row has a case
                         # to draw. Nothing is removed — we inform, never police.
                         notes=USE_NOTES.get(name, ()),
+                        parts=_part_lines(name, category),
                     )
                     for name, credits, trade_points, exclusive in items
                 ],
@@ -365,6 +415,8 @@ def trading_post_context():
     span the data — derived here rather than typed into the template, where an
     item priced outside the range would silently vanish from the list.
     """
+    from n26.core.listing import build_listing
+
     view = trading_post()
     lines = [
         line
@@ -377,6 +429,12 @@ def trading_post_context():
     ]
     return {
         "trading_post": view,
+        # The shop screen's own structure, built by the real function from the
+        # sample catalogue and the sample fighter's kit. The shell then draws
+        # it with the application's own row templates, so the two cannot come
+        # to disagree about what a row looks like — the failure this replaces
+        # was a hand-written copy of the row shape that nothing checked.
+        "trading_post_listing": build_listing(view, carried()),
         # Both levels, with the first section flagged so it starts open. Flagged
         # here rather than tested in the template because a Cotton `:` attribute
         # resolves an expression rather than evaluating one, so `forloop.first`
@@ -1394,6 +1452,10 @@ CHANGELOG = [
 # because the components end up typed against what a listing produces — a
 # rename upstream should fail at import rather than at a glance, and the acts
 # a copy offers should appear here the day the structure grows one.
+#
+# Every address is "#". These are confirmations over the page the reader is
+# on, and a gallery page is not one — a link that navigated away would be a
+# demo you cannot look at twice.
 
 
 @dataclass(frozen=True)
@@ -1404,43 +1466,74 @@ class _Roster:
     name: str
 
 
+def carried():
+    """What the fighter shopping the sample list is already holding.
+
+    Keyed the way :func:`n26.core.owned.owned_things` keys it — by the
+    content row, not by the copy — so ``build_listing`` joins it to the
+    catalogue exactly as the application does. The shell's owned rows are
+    owned rows because the real function said so, and not because a
+    template drew them differently.
+
+    Two Stub guns and a Meltagun with a paid round: a count above one, a
+    part under a copy, and everything else on the list untouched. Those
+    are the states a row has, and one sample answers for every surface
+    that asks what this fighter is carrying.
+    """
+    from n26.core.owned import OwnedPart, OwnedThing, thing_key
+
+    def copy(name, rating, index=0, parts=()):
+        stock = _stock(name)
+        pk = f"{stock.pk}-{index}"
+        return thing_key(stock), OwnedThing(
+            id=pk,
+            key=thing_key(stock),
+            name=name,
+            rating=rating,
+            parts=parts,
+            sell_href="#",
+            reassign_href="#",
+            remove_href="#",
+        )
+
+    round_ = OwnedPart(
+        id="melta-round",
+        key=thing_key(_stock("Melta round")),
+        name="Melta round",
+        rating=20,
+        sell_href="#",
+        remove_href="#",
+    )
+    held = {}
+    for key, thing in (
+        copy("Meltagun", 135, parts=(round_,)),
+        copy("Stub gun", 5, index=0),
+        copy("Stub gun", 5, index=1),
+    ):
+        held.setdefault(key, []).append(thing)
+    return held
+
+
+def _stock(name):
+    """The catalogue row of that name, for keying what is held against it."""
+    for line in trading_post().all_lines():
+        if line.name == name:
+            return line.thing
+        for part in line.parts:
+            if part.name == name:
+                return part.thing
+    raise KeyError(name)
+
+
 def owned_context():
     """What a fighter is carrying, and the things that can happen to it."""
     from n26.core.listing import copy_row
-    from n26.core.owned import OwnedPart, OwnedThing
 
-    meltagun = OwnedThing(
-        id="meltagun",
-        key="library.weapon:meltagun",
-        name="Meltagun",
-        rating=135,
-        parts=(
-            OwnedPart(
-                id="melta-round",
-                key="library.weaponprofile:melta-round",
-                name="Melta round",
-                rating=20,
-                sell_href="#",
-                remove_href="#",
-            ),
-        ),
-        sell_href="#",
-        reassign_href="#",
-        remove_href="#",
-    )
-    stub = OwnedThing(
-        id="stub-gun",
-        key="library.weapon:stub-gun",
-        name="Stub gun",
-        rating=5,
-        parts=(),
-        sell_href="#",
-        reassign_href="#",
-        remove_href="#",
-    )
     named = {"cancel_url": "#", "action": "#", "list": "", "name": "Meltagun"}
     return {
-        "owned_copies": [copy_row(meltagun), copy_row(stub)],
+        "owned_copies": [
+            copy_row(thing) for copies in carried().values() for thing in copies
+        ],
         # The gun and its round together, which is what a sale of the gun
         # is priced on: what goes with it counts towards what it fetches.
         "owned_sell_dialog": {

@@ -2,8 +2,9 @@
 {% load navigation %}
 {% comment %}
 Buying equipment for one fighter — the design system's collection picker over a
-real browse. The gallery's shell twin is designsystem/shell/shop.html; edit
-them together.
+real browse. The gallery's shell twin is designsystem/shell/shop.html. The rows
+themselves are shared now (n26/includes/equip_row.html), so only the page around
+them can drift; a change to this file's chrome still wants a look at that one.
 
 Which list is being browsed is URL state (?list=<pk>), so a particular list is
 linkable and the back button walks the choices. The Buy buttons submit the

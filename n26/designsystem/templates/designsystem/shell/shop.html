@@ -26,97 +26,89 @@ component's own page shows it working; this shows it working under a header.
             </c-ui.breadcrumbs>
         </c-slot>
     </c-n26.page-header>
-    <c-n26.collection-picker class="mt-6"
-                             :categories="trading_post_categories"
-                             :sections="trading_post_sections"
-                             price_floor="{{ trading_post_price_floor }}"
-                             price_ceiling="{{ trading_post_price_ceiling }}"
-                             tp_ceiling="{{ trading_post_tp_ceiling }}"
-                             noun="items">
-        <c-slot name="filters">
-            {% comment %}
+    {% comment %}
+    The whole listing is one form on the real screen, because the Buy buttons
+    are submits within it. The shell keeps the form for that reason and for its
+    consequence: it is why a copy's Sell and Reassign are links to a
+    confirmation rather than presses, since HTML has no nested forms. There is
+    no till behind this one, so a press reloads the shell.
+    {% endcomment %}
+    <form action="{% url 'designsystem:shell_shop' %}" method="get">
+        <c-n26.collection-picker class="mt-6"
+                                 :categories="trading_post_categories"
+                                 :sections="trading_post_sections"
+                                 price_floor="{{ trading_post_price_floor }}"
+                                 price_ceiling="{{ trading_post_price_ceiling }}"
+                                 tp_ceiling="{{ trading_post_tp_ceiling }}"
+                                 noun="items">
+            <c-slot name="filters">
+                {% comment %}
             Which list, at the top of the pinned bar: the coarse choice a reader
             makes before any narrowing means anything, and one of the three
             bands that stay on screen while the rows scroll under them. On the
             real screen each tab is a URL the server answers; here they are
             anchors, so the strip can be looked at without a database behind it.
-            {% endcomment %}
-            <c-n26.tab-links label="Which list" :tabs="trading_post_tabs" />
-            {% comment %}
+                {% endcomment %}
+                <c-n26.tab-links label="Which list" :tabs="trading_post_tabs" />
+                {% comment %}
             Nested, like the real screen's: there the whole listing is one form
             whose buttons buy, so the bar is a <div> inside it and narrows rows
             already on the page rather than submitting anything.
+                {% endcomment %}
+                <c-n26.search-bar :live="True"
+                                  :nested="True"
+                                  model="query"
+                                  placeholder="Search the trading post" />
+                <div class="flex flex-wrap items-center gap-2">
+                    <c-n26.filter-menu label="Category"
+                                       name="category"
+                                       size="xs"
+                                       :options="trading_post_category_options" />
+                    <c-n26.range-menu label="Price"
+                                      model_min="minPrice"
+                                      model_max="maxPrice"
+                                      min="{{ trading_post_price_floor }}"
+                                      max="{{ trading_post_price_ceiling }}"
+                                      step="5"
+                                      suffix="¢"
+                                      size="xs"
+                                      at_max_label="Any" />
+                    <c-n26.range-menu label="Trade points"
+                                      model="maxTradePoints"
+                                      min="0"
+                                      max="{{ trading_post_tp_ceiling }}"
+                                      step="1"
+                                      prefix="≤ "
+                                      size="xs"
+                                      at_min_label="Freely available"
+                                      at_max_label="Any" />
+                    <c-n26.toggle label="Exclusive"
+                                  size="xs"
+                                  :checked="True"
+                                  @change="includeExclusive = $event.target.checked" />
+                </div>
+            </c-slot>
+            {% comment %}
+        The application's own rows, from the application's own structure. The
+        shell used to write the row out by hand, which made it a second opinion
+        about what a shop row looks like — and a second opinion drifts. What is
+        left here is the page around the rows, which is what a shell is for.
+
+        Two of the sample fighter's things are already in the list, so the shell
+        shows both states side by side: a row offering a purchase, and a row
+        counting what is held and opening onto it.
             {% endcomment %}
-            <c-n26.search-bar :live="True"
-                              :nested="True"
-                              model="query"
-                              placeholder="Search the trading post" />
-            <div class="flex flex-wrap items-center gap-2">
-                <c-n26.filter-menu label="Category"
-                                   name="category"
-                                   size="xs"
-                                   :options="trading_post_category_options" />
-                <c-n26.range-menu label="Price"
-                                  model_min="minPrice"
-                                  model_max="maxPrice"
-                                  min="{{ trading_post_price_floor }}"
-                                  max="{{ trading_post_price_ceiling }}"
-                                  step="5"
-                                  suffix="¢"
-                                  size="xs"
-                                  at_max_label="Any" />
-                <c-n26.range-menu label="Trade points"
-                                  model="maxTradePoints"
-                                  min="0"
-                                  max="{{ trading_post_tp_ceiling }}"
-                                  step="1"
-                                  prefix="≤ "
-                                  size="xs"
-                                  at_min_label="Freely available"
-                                  at_max_label="Any" />
-                <c-n26.toggle label="Exclusive"
-                              size="xs"
-                              :checked="True"
-                              @change="includeExclusive = $event.target.checked" />
-            </div>
-        </c-slot>
-        {% for section_row in trading_post_section_rows %}
-            <c-n26.collection-picker.section name="{{ section_row.section.name }}" :open="section_row.first">
-                {% for category in section_row.section.categories %}
-                    <c-n26.collection-picker.category name="{{ category.name }}">
-                        {% for line in category.lines %}
-                            <c-n26.collection-picker.item name="{{ line.name }}"
-                                                          :price="line.credits"
-                                                          :trade_points="line.trade_points"
-                                                          :exclusive="line.is_exclusive"
-                                                          :notes="line.notes"
-                                                          state="quoted: {{ line.credits }}, price: {{ line.credits }}">
-                                {% comment %}
-                                The price is a box on the real screen, because a
-                                table that has agreed a discount types it in.
-                                Drawn here too: it is the widest thing in the
-                                row after the name, and a shell that leaves it
-                                out is a shell that cannot show the row running
-                                out of width on a phone.
-                                {% endcomment %}
-                                <c-slot name="price_control">
-                                    {% include "n26/includes/equip_price.html" with field="price" quoted=line.credits label=line.name price_cap=trading_post_price_cap %}
-                                </c-slot>
-                                {% if line.name in trading_post_in_stash %}
-                                    <c-slot name="icon">
-                                        <c-n26.icon name="check" label="Already in the stash" />
-                                    </c-slot>
-                                {% endif %}
-                                <c-slot name="actions">
-                                    <c-ui.button size="sm" variant="success">
-                                        Add
-                                    </c-ui.button>
-                                </c-slot>
-                            </c-n26.collection-picker.item>
-                        {% endfor %}
-                    </c-n26.collection-picker.category>
-                {% endfor %}
-            </c-n26.collection-picker.section>
-        {% endfor %}
-    </c-n26.collection-picker>
+            {% for section in trading_post_listing.sections %}
+                <c-n26.collection-picker.section name="{{ section.name }}" :open="forloop.first">
+                    {% for category in section.categories %}
+                        <c-n26.collection-picker.category name="{{ category.name }}">
+                            {% for row in category.rows %}
+                                {% include "n26/includes/equip_row.html" with price_cap=trading_post_price_cap %}
+                            {% endfor %}
+                        </c-n26.collection-picker.category>
+                    {% endfor %}
+                </c-n26.collection-picker.section>
+            {% endfor %}
+        </c-n26.collection-picker>
+    </form>
 {% endblock content %}
