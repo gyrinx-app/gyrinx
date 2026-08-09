@@ -1014,25 +1014,59 @@ def test_a_section_the_strip_has_no_room_for_is_still_reachable(
         assert any(section_name in (tag.get("x-data") or "") for tag in rows)
 
 
-def test_the_narrow_strip_is_the_current_tab_and_a_counted_menu(
+def test_the_strip_is_two_shapes_and_the_width_picks_one(
     client, tester, fighter, house_list
 ):
-    """Below sm the strip is the tab you are on plus a menu of the rest,
-    and the menu's button says how many it holds — a breakpoint, not a
-    measurement, so there is nothing to mis-measure. The current tab is
-    the one drawn as `flex` unconditionally; every other tab hides until
-    sm; and the menu itself hides FROM sm, where the full strip has
-    already said everything it would."""
+    """Two strips are written, and only one of them is on screen at a time:
+    the full row of tabs from sm up, the single current tab plus a menu
+    below it. A breakpoint, not a measurement, so there is nothing to
+    mis-measure."""
     client.force_login(tester)
     body = client.get(equip_url(fighter, house_list)).content.decode()
 
-    assert "'hidden sm:flex border-box-border" in body
-    assert "'flex border-accent" in body
-    assert "border-box-border sm:hidden" in body
-    assert "picker.liveSections.length - 1" in body
+    strips = [tag for tag in pinned_tags(body) if tag.get("role") == "tablist"]
+    assert len(strips) == 2
+    wide, narrow = (tag.get("class") or "" for tag in strips)
+    assert "hidden" in wide and "sm:flex" in wide
+    assert "flex" in narrow and "sm:hidden" in narrow
+
     # The measuring strip is gone entirely, not merely disused.
     assert "ResizeObserver" not in body
     assert 'x-ref="ghost"' not in body
+
+
+def test_pressing_a_tab_in_the_full_strip_moves_nothing(
+    client, tester, fighter, house_list
+):
+    """Where every section is a tab, the row is fixed: choosing one changes
+    which is accented and nothing else, so a reader can go straight back to
+    the tab they came from. Nothing in the strip may set flex order or hide
+    a tab from the row — both are ways of putting the current one first,
+    which is the narrow strip's job and this one's bug."""
+    client.force_login(tester)
+    body = client.get(equip_url(fighter, house_list)).content.decode()
+
+    assert "order: -1" not in body
+    assert "'border-accent" in body
+    assert "'border-box-border text-muted" in body
+    assert "hidden sm:flex" not in body
+
+
+def test_the_narrow_strip_is_the_current_tab_and_a_counted_menu(
+    client, tester, fighter, house_list
+):
+    """Below sm the strip is the section you are on plus a menu of the rest.
+    The tab is bound straight to the section on screen — there is only ever
+    one of it, with no sibling to hide — and the menu's button counts what
+    it holds, so a chevron beside a lone tab is not mistaken for decoration.
+
+    The count says "more" at every number, which is why nothing here reads
+    like a plural waiting to be written."""
+    client.force_login(tester)
+    body = client.get(equip_url(fighter, house_list)).content.decode()
+
+    assert 'x-text="visibleSection"' in body
+    assert "`+${picker.liveSections.length - 1} more`" in body
 
 
 def test_the_section_menu_asks_the_listing_and_not_the_menu(

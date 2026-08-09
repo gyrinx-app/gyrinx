@@ -295,35 +295,41 @@ dispatches, and listens for `filter-reset` to be told.
             makes them all the same height, so every border lands on the same
             pixels: one continuous rule, accent under the active tab and
             box-border everywhere else. The trailing span is what carries it
-            across the width the tabs do not fill.
+            across the width the tabs do not fill. Both strips below are built
+            that way.
             {% endcomment %}
             {% comment %}
-            Narrow screens get the current tab and a menu of the rest; from sm
-            up the strip simply draws every tab and wraps if it must. A
-            breakpoint, not a measurement: section names come from content and
-            run long, and the row of them wrapping on a phone is a whole
-            second band of chrome — but which tabs fit at which width is not a
-            question worth a ResizeObserver and a ghost copy of the strip to
-            answer. Every section is in the menu, so nothing the narrow strip
-            leaves out is a section with no way to reach it.
+            Two strips, and the width picks one: from sm up there is room to
+            draw every section, below it there is room for one and a menu.
 
-            The current tab is pulled to the front of the row, which is what
-            keeps the narrow strip reading current-then-menu whichever tab
-            that is.
+            A breakpoint rather than a measurement. Section names come from
+            content and run long, so a row of them wrapping on a phone is a
+            whole second band of chrome — but which names fit at which width
+            is not a question worth a ResizeObserver and a ghost copy of the
+            strip to answer.
+
+            They are written as two blocks rather than one that adapts,
+            because what they do differs. Showing every tab means the row is
+            fixed: pressing one moves the accent and nothing else, so a reader
+            can go back to the tab they came from without hunting for where it
+            went. Showing one means the row is the current section followed by
+            everything else, which is the markup order — no rule needed to put
+            the current one first, because there is nothing else in the row to
+            be in front of it. One strip serving both had to pull the active
+            tab to the front, which is right in the second shape and reorders
+            the whole row on every press in the first.
             {% endcomment %}
-            <div role="tablist" class="relative flex flex-wrap gap-x-1"
-                 @quick-switcher-choose="chosenSection = $event.detail.value">
+            <div role="tablist" class="relative hidden flex-wrap gap-x-1 sm:flex">
                 <template x-for="name in sections" :key="name">
                     <button type="button" role="tab"
                             x-show="countInSection(name) > 0"
                             x-cloak
                             :aria-selected="visibleSection === name ? 'true' : 'false'"
                             @click="chosenSection = name"
-                            :style="visibleSection === name ? 'order: -1' : ''"
-                            class="min-h-11 items-center gap-2 border-b-2 px-3 text-sm focus-ring"
+                            class="flex min-h-11 items-center gap-2 border-b-2 px-3 text-sm focus-ring"
                             :class="visibleSection === name
-                                ? 'flex border-accent font-semibold text-ink-900 dark:text-ink-100'
-                                : 'hidden sm:flex border-box-border text-muted hover:text-ink-900 dark:hover:text-ink-100'">
+                                ? 'border-accent font-semibold text-ink-900 dark:text-ink-100'
+                                : 'border-box-border text-muted hover:text-ink-900 dark:hover:text-ink-100'">
                         <span x-text="name"></span>
                         <span class="rounded-full bg-ink-500/10 px-1.5 py-0.5 text-xs tabular-nums"
                               x-text="countInSection(name)"></span>
@@ -337,19 +343,33 @@ dispatches, and listens for `filter-reset` to be told.
                 reads.
                 {% endcomment %}
                 <span aria-hidden="true" class="order-last min-w-0 flex-1 border-b-2 border-box-border"></span>
-                {% comment %}
-                The sections the narrow strip is not showing, behind the
-                chevron the switcher already draws — placement, filtering and
-                arrow keys included. It carries the strip's own bottom border
-                so the rule under the tabs runs unbroken to the end of the
-                row, and its button says how many tabs it holds, because a
-                bare chevron beside one tab reads as decoration.
+            </div>
 
-                Narrow screens only, and only while there is more than one
-                live section: from sm up every tab is already drawn, and a
-                menu offering sections that are already tabs is a press that
-                changes nothing.
-                {% endcomment %}
+            {% comment %}
+            The narrow strip: the section on screen, then the rest behind the
+            chevron the switcher already draws — placement, filtering and arrow
+            keys included. Every section is in the menu, so nothing this shape
+            leaves out is a section with no way to reach it.
+
+            The tab is bound to the section on screen rather than picked out of
+            a drawn row, so there is only ever one of it and no sibling to hide.
+            It is not pressable: it is the section you are looking at, and the
+            control beside it is the way to any other.
+
+            The menu appears only while more than one section is live. Behind a
+            chevron sitting next to the only section there is, there would be
+            nothing to choose.
+            {% endcomment %}
+            <div role="tablist" class="relative flex flex-wrap gap-x-1 sm:hidden"
+                 @quick-switcher-choose="chosenSection = $event.detail.value">
+                <span role="tab" aria-selected="true"
+                      x-show="visibleSection !== null"
+                      x-cloak
+                      class="flex min-h-11 items-center gap-2 border-b-2 border-accent px-3 text-sm font-semibold text-ink-900 dark:text-ink-100">
+                    <span x-text="visibleSection"></span>
+                    <span class="rounded-full bg-ink-500/10 px-1.5 py-0.5 text-xs tabular-nums"
+                          x-text="countInSection(visibleSection)"></span>
+                </span>
                 {% comment %}
                 This component's own state, held under a name of its own so
                 the rows inside the panel can reach it. The switcher's panel
@@ -363,19 +383,22 @@ dispatches, and listens for `filter-reset` to be told.
                 <span x-data="{ picker: $data }"
                       x-show="liveSections.length > 1"
                       x-cloak
-                      class="order-last flex shrink-0 items-center border-b-2 border-box-border sm:hidden">
+                      class="flex shrink-0 items-center border-b-2 border-box-border">
                     <c-n26.quick-switcher heading="Which section"
                                           menu_label="Other sections"
                                           placeholder="Search sections"
                                           align="end">
                         {% comment %}
-                        The count is of the tabs the menu holds beyond the one
-                        on screen — "2 tabs" beside the chevron — bound rather
-                        than written because filtering changes how many
-                        sections are live.
+                        The count is of the sections the menu holds beyond the
+                        one on screen — "+2 more" beside the chevron — bound
+                        rather than written because filtering changes how many
+                        sections are live. A bare chevron next to a single tab
+                        reads as decoration; a number says there is a list
+                        behind it and how long it is. "more" needs no plural,
+                        which is what keeps the words to two.
                         {% endcomment %}
                         <c-slot name="trigger_words">
-                            <span x-text="`+${picker.liveSections.length - 1} ${picker.liveSections.length === 2 ? 'more' : 'more'}`"></span>
+                            <span x-text="`+${picker.liveSections.length - 1} more`"></span>
                         </c-slot>
                         {% for name in sections %}
                             {% comment %}
@@ -398,6 +421,7 @@ dispatches, and listens for `filter-reset` to be told.
                         {% endfor %}
                     </c-n26.quick-switcher>
                 </span>
+                <span aria-hidden="true" class="min-w-0 flex-1 border-b-2 border-box-border"></span>
             </div>
         {% endif %}
     </div>
