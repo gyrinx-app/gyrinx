@@ -102,6 +102,41 @@ class TestTheLeadingLink:
         assert 'aria-label="Your other gangs"' in html
 
 
+class TestTheTriggerWords:
+    """Words in the chevron's own button describe the panel; they never name
+    a place. So they are drawn quieter than whatever they sit beside, and on
+    one line with the glyph — a strip that has run out of room for its tabs is
+    the last place on the screen with height to spare."""
+
+    def test_the_words_are_smaller_and_muted(self):
+        html = render(
+            '<c-n26.quick-switcher heading="Which section">'
+            '<c-slot name="trigger_words">2 tabs</c-slot>'
+            "</c-n26.quick-switcher>"
+        )
+        assert '<span class="text-xs text-muted">2 tabs</span>' in html
+
+    def test_the_button_lays_its_words_out_beside_the_glyph(self):
+        """The glyph's wrapper is display:flex, which is block-level: in a
+        button laid out as text it takes a line of its own and the words end
+        up stacked above the chevron. The row is what puts them side by side,
+        and what makes the gap between them mean anything."""
+        html = render(
+            '<c-n26.quick-switcher heading="Which section">'
+            '<c-slot name="trigger_words">2 tabs</c-slot>'
+            "</c-n26.quick-switcher>"
+        )
+        assert "inline-flex items-center gap-1.5" in html
+
+    def test_a_switcher_with_no_words_is_untouched(self):
+        """The bar and the page headings pass none, and their chevron stays
+        the tight square it was."""
+        html = render('<c-n26.quick-switcher heading="Switch gang" />')
+        assert "px-1.5!" in html
+        assert "inline-flex items-center" not in html
+        assert 'class="text-xs text-muted"' not in html
+
+
 class TestTheList:
     """Every destination is in the HTML before any script runs, and the panel
     says which one you are on."""

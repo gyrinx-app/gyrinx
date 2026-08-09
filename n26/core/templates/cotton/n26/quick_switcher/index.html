@@ -166,7 +166,9 @@ order, and Tab-then-Enter works with the panel's script and without it.
   trigger_words — a slot: words drawn inside the chevron's own button, before
     the glyph. For a control whose panel needs announcing where no label link
     belongs — "3 tabs" on a collapsed strip. Markup, so a caller can bind the
-    words with x-text.
+    words with x-text. Drawn small and muted whatever the caller passes: they
+    describe the panel rather than name a place, and a strip that has just run
+    out of room is the last row on the screen to spend ink on.
   slot — the destinations, as <c-n26.quick-switcher.item>.
 {% endcomment %}
 <c-vars label=""
@@ -238,7 +240,7 @@ order, and Tab-then-Enter works with the panel's script and without it.
                 {% endcomment %}
                 <c-ui.button variant="ghost"
                              size="sm"
-                             class="shrink-0 {% if trigger_words.strip %}gap-1.5 px-2!{% else %}px-1.5!{% endif %}"
+                             class="shrink-0 {% if trigger_words.strip %}inline-flex items-center gap-1.5 px-2!{% else %}px-1.5!{% endif %}"
                              aria-label="{{ menu_label|default:heading }}"
                              title="{{ menu_label|default:heading }}"
                              aria-haspopup="menu"
@@ -247,9 +249,17 @@ order, and Tab-then-Enter works with the panel's script and without it.
                     Words inside the chevron's own button, when the caller has
                     some — "3 tabs" on a collapsed strip. They open the panel,
                     not a page: a place to go is what the `label` half is for,
-                    and these are a description of what the panel holds.
+                    and these are a description of what the panel holds. So
+                    they are drawn a size down and in the muted ink, quieter
+                    than the tab beside them, which is the thing being named.
+
+                    The button becomes a flex row to hold them. The glyph is
+                    .n26-icon-only, which is display:flex — a block-level box
+                    among inline content, so in a button laid out as text it
+                    starts a line of its own and the words end up stacked above
+                    the chevron. It is also what makes `gap` mean anything.
                     {% endcomment %}
-                    {% if trigger_words.strip %}<span class="text-sm">{{ trigger_words }}</span>{% endif %}
+                    {% if trigger_words.strip %}<span class="text-xs text-muted">{{ trigger_words }}</span>{% endif %}
                     <span class="n26-icon-only">
                         <c-n26.icon name="chevron-down"
                                     class="size-3 transition-transform"
