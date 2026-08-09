@@ -10,7 +10,9 @@ did would be three pages wearing one filename.
 
 Radios in a form, no script: one of many is the browser's rule, the press posts,
 and the server writes the answer. A reader who leaves without pressing Save has
-changed nothing, which is the whole point of an open slot.
+changed nothing, which is the whole point of an open slot — so the footer offers
+the leaving, to the same place a save lands on. A page reached by pressing an
+open slot needs a way back to the sheet that is not the browser's chrome.
 {% endcomment %}
 {% block head_title %}{{ offer.label }} — {{ gang.name }}{% endblock head_title %}
 {% block nav_switcher %}
@@ -24,7 +26,8 @@ changed nothing, which is the whole point of an open slot.
     <c-n26.form-page action="{{ request.path }}"
                      title="{{ offer.label }}"
                      lead="{{ pick_lead }}"
-                     submit_label="Save">
+                     submit_label="Save"
+                     cancel_url="{{ back }}">
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
                 <c-ui.breadcrumbs.item href="{% url 'n26-dashboard' %}">

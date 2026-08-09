@@ -137,12 +137,11 @@ swallowed.
         </c-ui.field>
 
         {% comment %}
-        Cancel is a link rather than a button: it goes somewhere — this page
+        The same footer a form page ends with, drawn by the same component: this
+        dialog is a form, and there is no reason a form inside a panel should end
+        differently from one filling a screen. Cancel goes somewhere — this page
         without a profile named — and nothing it does needs a form.
         {% endcomment %}
-        <div class="flex justify-end gap-2">
-            <c-ui.button variant="default" href="{{ cancel_url }}">Cancel</c-ui.button>
-            <c-ui.button type="submit" variant="success">Hire</c-ui.button>
-        </div>
+        <c-n26.form-actions submit_label="Hire" cancel_url="{{ cancel_url }}" />
     </form>
 </dialog>

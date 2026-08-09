@@ -62,8 +62,8 @@ class TestBeingAsked:
         assert "Delete The Ashen Choir?" in body
         # A form that posts back here, with a submit inside it: the act is
         # a POST, so a page drawing only links would be a dead end. Cotton
-        # fails soft, and an actions slot that stopped rendering would look
-        # like a styling problem rather than a screen with no button.
+        # fails soft, and a footer that stopped rendering would look like a
+        # styling problem rather than a screen with no button.
         assert f'action="{delete_url}"' in body
         assert 'type="submit"' in body
         assert "Delete gang" in body
@@ -99,9 +99,10 @@ class TestBeingAsked:
     def test_the_footer_controls_are_drawn_once(self, client, tester, gang, delete_url):
         """A component's unfilled slot is not empty: with no declared
         default it holds whatever the enclosing scope has under that name.
-        The header inside the form wrapper takes an `actions` slot too, so
-        a page that fills the wrapper's gets both drawn — silently, and
-        looking like a spacing accident rather than two Delete buttons.
+        Both the form wrapper and the header inside it take an `actions`
+        slot, so anything under that name in scope can be drawn twice —
+        silently, and looking like a spacing accident rather than two
+        Delete buttons.
         """
         client.force_login(tester)
         body = client.get(delete_url).content.decode()
@@ -111,12 +112,26 @@ class TestBeingAsked:
 
     def test_the_way_out_is_on_the_page(self, client, tester, gang, delete_url):
         """Cancel goes back to the sheet the press came from — a
-        confirmation with only one button is a trap, not a question."""
+        confirmation with only one button is a trap, not a question. It is
+        a link, so pressing it leaves rather than posting the form."""
         client.force_login(tester)
         body = client.get(delete_url).content.decode()
 
-        assert reverse("n26-gang", args=[gang.pk]) in body
+        sheet = reverse("n26-gang", args=[gang.pk])
+        assert f'href="{sheet}"' in body
         assert "Cancel" in body
+
+    def test_the_act_is_marked_as_taking_something_away(
+        self, client, tester, gang, delete_url
+    ):
+        """Red on the submit and nothing on the way out. The colour is what
+        tells the two apart before either word is read, and a page that
+        ended in the green of a creating form would say the wrong thing."""
+        client.force_login(tester)
+        body = client.get(delete_url).content.decode()
+
+        assert "bg-red-500" in body
+        assert "bg-green-700" not in body
 
     def test_reading_the_page_deletes_nothing(self, client, tester, gang, delete_url):
         """A GET must never mutate: link checkers, prefetchers and the

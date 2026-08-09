@@ -17,6 +17,10 @@ is what you want.
 
 Loading a saved config (?config=) pre-fills the same form — editing a config
 and creating one are one screen, not two.
+
+The way out leads to the gang's sheet: this page is only ever reached from
+there, and a reader who decides against printing wants the gang back rather
+than whatever the browser's history holds.
 {% endcomment %}
 {% block head_title %}Print {{ gang.name }}{% endblock head_title %}
 {% comment %}
@@ -36,7 +40,8 @@ that said it twice would be spending the width the name needs.
                      title="Print {{ gang.name }}"
                      lead="Pick what goes on paper. Name the setup to keep it for next time."
                      submit_label="Print"
-                     submit_variant="primary">
+                     submit_variant="primary"
+                     cancel_url="{% url 'n26-gang' gang.pk %}">
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
                 <c-ui.breadcrumbs.item>
