@@ -202,18 +202,17 @@ def test_the_strip_holds_this_fighters_list_and_no_other_houses(
     fighter offered the Van Saar list is being shown the library rather
     than their own kit.
 
-    "Skills & Powers" is the case that makes the difference load-bearing.
-    It is a Collection and not an equipment list, so a strip built by
-    asking the pack for its collections would offer it as somewhere to
-    shop; a strip built from the fighter cannot.
+    "Skills & Powers" is here for a second reason: it holds skills, so it
+    is not a shelf at all, and no route by which a fighter might come to
+    hold it puts it in this strip.
     """
-    from n26.library.authoring import add_built_in, create_trading_post
+    from n26.library.authoring import add_built_in, create_skill, create_trading_post
 
     for house in ["Van Saar", "Orlock", "Escher", "Goliath", "Delaque"]:
         create_collection(
             f"{house} Equipment List", entries=[create_wargear(f"{house} Kit", price=5)]
         )
-    create_collection("Skills & Powers", entries=[create_wargear("Psy Focus", price=5)])
+    create_collection("Skills & Powers", entries=[create_skill("Catfall")])
     ours = create_collection(
         "Ironhead Squats Equipment List",
         entries=[create_wargear("Las-cutter", price=10)],
@@ -235,6 +234,46 @@ def test_the_strip_holds_this_fighters_list_and_no_other_houses(
     client.force_login(tester)
     tabs = client.get(equip_url(fighter)).context["collection_tabs"]
     assert [tab["label"] for tab in tabs] == ["Ironhead Squats", "Trading Post"]
+
+
+def test_a_collection_of_skills_is_no_tab_however_the_fighter_holds_it(
+    client, tester, gang, make_profile, make_statline
+):
+    """Holding a collection and shopping from it are different things.
+
+    A fighter's skill sets reach their card by exactly the route their
+    equipment list does — a built-in on their profile — so nothing about
+    how it is held can tell the two apart. What is in it can: there is
+    nothing in a set of skills to buy off a shelf, and a collection of
+    them is offered as a shelf to nobody.
+    """
+    from n26.core.access import collections_for
+    from n26.library.authoring import add_built_in, create_skill
+
+    skills = create_collection("Skills & Powers", entries=[create_skill("Catfall")])
+    kit = create_collection(
+        "Ironhead Squats Equipment List",
+        entries=[create_wargear("Las-cutter", price=10)],
+    )
+    profile = make_profile("Charter Master", price=0)
+    make_statline(profile, movement=4, weapon_skill=3, toughness=4)
+    add_built_in(profile, skills)
+    add_built_in(profile, kit)
+    with operation(gang, actor=tester) as op:
+        fighter = op.hire(profile, "Grum")
+
+    # They really do hold both — the strip drops one of them on content.
+    assert {access.name for access in collections_for(fighter)} == {
+        "Skills & Powers",
+        "Ironhead Squats Equipment List",
+    }
+
+    client.force_login(tester)
+    response = client.get(equip_url(fighter))
+    assert [tab["label"] for tab in response.context["collection_tabs"]] == [
+        "Ironhead Squats"
+    ]
+    assert "Catfall" not in response.content.decode()
 
 
 def test_a_lone_list_draws_no_strip_and_the_search_box_says_where_you_are(

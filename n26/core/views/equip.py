@@ -197,9 +197,13 @@ def _row(line):
 def equip(request, pk):
     """Buy equipment for one fighter, from a list they can actually browse.
 
-    Which list is URL state (``?list=<pk>``), picked from
-    ``collections_for`` — the fighter's own lists, their gang's, computed
-    grants — plus the standard Trading Post when the library has one.
+    Which list is URL state (``?list=<pk>``), picked from the collections
+    ``collections_for`` finds — the fighter's own lists, their gang's,
+    computed grants — kept down to the ones holding gear, plus the
+    standard Trading Post when the library has one. Holding a collection
+    and shopping from it are different things: a fighter carries their
+    skill sets the same way they carry their equipment list, and only one
+    of the two is a shelf.
 
     The Buy buttons submit the *identity* of a line, never its price:
     the server re-browses the chosen collection and hands the found line
@@ -230,7 +234,7 @@ def equip(request, pk):
     from n26.core.card import build_card, build_modifier_index
     from n26.core.effects import compute
     from n26.core.operations import NotEnoughCredits, operation
-    from n26.library.models import Collection, get_default_pack
+    from n26.library.models import Collection, Family, get_default_pack
     from n26.library.standard_content import TRADING_POST_COLLECTION
 
     miniature = _own_miniature_or_404(request, pk)
@@ -243,10 +247,22 @@ def equip(request, pk):
     index = build_modifier_index([node.assignable for node in card.all_nodes()])
     computed = compute(card, index)
 
-    collections = [
+    held = [
         access.collection
         for access in collections_for(miniature, card=card, computed=computed)
     ]
+    # A fighter's collections are not all places to buy kit. Which of them
+    # this screen offers follows from what they contain, not from how the
+    # fighter came by them: a collection of skills is somewhere to learn,
+    # and holding one — even as a built-in — never makes it a shelf. Asked
+    # by family, so a new sort of gear puts its lists on this screen
+    # without anyone editing it. One query, whatever they hold.
+    shoppable = set(
+        Collection.objects.filter(pk__in=[c.pk for c in held])
+        .containing(Family.GEAR)
+        .values_list("pk", flat=True)
+    )
+    collections = [c for c in held if c.pk in shoppable]
     # Pinned to the default pack: collection names are only unique per
     # pack, so a homebrew pack's own "Trading Post" must not shadow the
     # standard one here. A pack's post reaches a fighter the way any list

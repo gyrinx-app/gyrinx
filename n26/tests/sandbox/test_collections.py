@@ -861,3 +861,78 @@ class TestAmmoRidesUnderTheGun:
             return len(captured.captured_queries)
 
         assert measure(small) == measure(big)
+
+
+class TestWhatACollectionHolds:
+    """A collection says what it is by what is in it.
+
+    Surfaces ask that question to decide whether a collection belongs on
+    them at all — a screen for buying kit wants the ones with gear in
+    them, a screen for learning skills the ones with skills. The question
+    is asked by family rather than by naming kinds, so a new sort of gear
+    puts its collections on the buying screen the day it exists.
+    """
+
+    def test_a_curated_list_of_gear_holds_gear(self):
+        from n26.library.models import Collection, Family
+
+        create_collection("House List", entries=[create_wargear("Knife", price=10)])
+        held = Collection.objects.containing(Family.GEAR)
+
+        assert [collection.name for collection in held] == ["House List"]
+
+    def test_a_curated_list_of_skills_holds_none(self):
+        """The case the buying screen turns on: a fighter's skill sets
+        arrive on their card exactly as their equipment list does, so
+        only the contents tell the two apart."""
+        from n26.library.models import Collection, Family
+        from n26.tests.sandbox.actions import create_skill
+
+        create_collection("Skills & Powers", entries=[create_skill("Catfall")])
+
+        assert not Collection.objects.containing(Family.GEAR).exists()
+        assert [c.name for c in Collection.objects.containing(Family.MODEL)] == [
+            "Skills & Powers"
+        ]
+
+    def test_a_sweep_counts_as_much_as_an_entry(self):
+        """A collection with no rows of its own still holds what it
+        sweeps in — the shape of the standard Trading Post."""
+        from n26.library.models import Collection, CollectionSelector, Family, Wargear
+
+        post = create_collection("Trading Post")
+        CollectionSelector.of(post, Wargear)
+
+        assert [c.name for c in Collection.objects.containing(Family.GEAR)] == [
+            "Trading Post"
+        ]
+
+    def test_an_empty_collection_holds_nothing(self):
+        """Emptiness is an answer, not a special case: a collection with
+        neither entries nor sweeps is on no surface that asks."""
+        from n26.library.models import Collection, Family
+
+        create_collection("Blank")
+
+        assert not Collection.objects.containing(Family.GEAR).exists()
+        assert not Collection.objects.containing(Family.MODEL).exists()
+
+    def test_asking_costs_one_query_however_much_is_held(self):
+        """The containment tests are subqueries, so the count follows the
+        question and never the contents."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from n26.library.models import Collection, Family
+
+        create_collection("Small", entries=[create_wargear("Knife", price=1)])
+        create_collection(
+            "Big",
+            entries=[create_wargear(f"Thing {index}", price=1) for index in range(20)],
+        )
+
+        with CaptureQueriesContext(connection) as captured:
+            names = [c.name for c in Collection.objects.containing(Family.GEAR)]
+
+        assert sorted(names) == ["Big", "Small"]
+        assert len(captured.captured_queries) == 1

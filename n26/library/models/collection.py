@@ -38,7 +38,7 @@ from n26.library.models.assignable import (
     Family,
     exclusive_has_no_trade_points,
 )
-from n26.library.models.base import Content
+from n26.library.models.base import Content, ContentQuerySet
 
 #: What a collection entry may name. Not traits or injuries — those are
 #: never shopped for — and not collections (a list does not contain a list;
@@ -136,6 +136,76 @@ def paid_profiles(with_trade_point_price=False):
     return found
 
 
+def entryable_kinds():
+    """The model classes a collection may hold, by the entry column that
+    names each one.
+
+    Read off ``CollectionEntry``'s own foreign keys rather than listed
+    again here, so a kind that becomes listable becomes visible to
+    everything asking what collections contain, with nothing to remember.
+    """
+    return {
+        name: CollectionEntry._meta.get_field(name).related_model
+        for name in ENTRY_ASSIGNABLE_FIELDS
+    }
+
+
+class CollectionQuerySet(ContentQuerySet):
+    """Narrowing helpers for collections. Opt-in, like every other one."""
+
+    def containing(self, *families):
+        """Collections holding at least one assignable of these families.
+
+        The question a surface asks to decide whether a collection belongs
+        on it: a screen for buying kit wants the collections with gear in
+        them, whoever holds them and however they were built. Asked by
+        ``Family`` rather than by naming kinds, so a new sort of gear
+        qualifies its collections the day it exists.
+
+        Both ways a collection contains something are answered together:
+        curated entries, where the family follows from which column is
+        set, and sweeps, where it follows from the kind swept. Emptiness
+        is an answer — a collection with neither holds nothing of any
+        family, so it belongs on no surface that asks.
+
+        One query wherever it is used, whatever the collections hold:
+        the containment tests are subqueries against the entry and
+        selector tables, not rows brought back to be counted.
+        """
+        from django.db.models import Exists, OuterRef
+
+        wanted = [
+            (name, model)
+            for name, model in entryable_kinds().items()
+            if model.family in families
+        ]
+        if not wanted:
+            return self.none()
+
+        entry_columns = models.Q()
+        swept_kinds = models.Q()
+        for name, model in wanted:
+            entry_columns |= models.Q(**{f"{name}__isnull": False})
+            swept_kinds |= models.Q(
+                of_kind__app_label=model._meta.app_label,
+                of_kind__model=model._meta.model_name,
+            )
+
+        return self.filter(
+            Exists(
+                CollectionEntry.objects.filter(entry_columns, collection=OuterRef("pk"))
+            )
+            | Exists(
+                CollectionSelector.objects.filter(
+                    swept_kinds, collection=OuterRef("pk")
+                )
+            )
+        )
+
+
+CollectionManager = models.Manager.from_queryset(CollectionQuerySet)
+
+
 class Collection(Content, Assignable):
     """A named, directly addressable view onto the assignables.
 
@@ -162,6 +232,8 @@ class Collection(Content, Assignable):
     """
 
     family = Family.GANG
+
+    objects = CollectionManager()
 
     class Meta:
         verbose_name = "collection"
