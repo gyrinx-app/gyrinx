@@ -338,7 +338,7 @@ class TestPlanning:
 
     def test_a_fighter_is_homed_where_the_sheet_says(self, plan):
         """The hire list groups by each fighter's home category, so the
-        sheet's Category and Section are what shelve it."""
+        sheet's Category and Section are what place it."""
         queen = plan.get("Profile:gang queen")
         assert queen.fields["category"] == "Category:gang list:leaders"
 
@@ -368,7 +368,7 @@ class TestPlanning:
     ):
         """Sections sort by position and then by name, so a heading
         sharing the gang list's 0 would tie and break alphabetically —
-        interleaving an unexpected shelf with the gang's own fighters
+        interleaving an unexpected section with the gang's own fighters
         rather than landing after them."""
         invented = read_csv(
             """
@@ -777,7 +777,7 @@ class TestPerform:
         assert placement.places_category.section.name == "Primary"
 
     def test_profiles_arrive_homed_under_their_heading(self, plan):
-        """A fighter's home is what the hire list shelves it by, and the
+        """A fighter's home is what the hire list groups it by, and the
         two headings have a reading order: the gang's own list, then
         everyone hired beside it."""
         perform(plan)
