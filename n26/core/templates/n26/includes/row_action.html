@@ -1,0 +1,36 @@
+{% load listing %}
+{% comment %}
+One of a listing row's actions, as a button. Expects `action` — an
+n26.core.listing.Action — and optionally `name`, the form field a submit
+carries its target under.
+
+    {% include "n26/includes/row_action.html" with action=row.buy name="thing" %}
+
+The row says whether the press is a submit within the listing's own form or a
+navigation to a confirmation the server draws, so nothing here has to know that
+Sell opens a dialog and Buy does not. Adding a fifth act is a change to the
+structure and to nothing on this page.
+
+Colour comes from the tone through one map — see n26/core/templatetags/listing.py
+for why the affirmative tone is green rather than the kit's `primary`.
+{% endcomment %}
+{% with variant=action.tone|tone_variant %}
+    {% if action.kind == "submit" %}
+        {% comment %}
+        The type="submit"-through-attrs trick profile-picker.row documents: the
+        kit button renders {{ attrs }} before its own type="button", and HTML
+        keeps the first of a duplicate pair.
+        {% endcomment %}
+        <c-ui.button size="sm"
+                     variant="{{ variant }}"
+                     type="submit"
+                     name="{{ name|default:'thing' }}"
+                     value="{{ action.target }}">
+            {{ action.label }}
+        </c-ui.button>
+    {% else %}
+        <c-ui.button size="sm" variant="{{ variant }}" href="{{ action.target }}">
+            {{ action.label }}
+        </c-ui.button>
+    {% endif %}
+{% endwith %}

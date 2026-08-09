@@ -269,7 +269,12 @@ def priced_row(line):
     )
 
 
-def _copy_row(copy):
+def copy_row(copy):
+    """One copy a fighter holds, with the acts it offers named and toned.
+
+    Takes an :class:`n26.core.owned.OwnedThing`, which already knows where
+    each of its controls leads; this says what each of them means.
+    """
     return OwnedCopyRow(
         id=copy.id,
         key=copy.key,
@@ -302,7 +307,7 @@ def owned_row(row, copies):
         key=row.key,
         name=row.name,
         count=len(copies),
-        copies=tuple(_copy_row(copy) for copy in copies),
+        copies=tuple(copy_row(copy) for copy in copies),
         buy=row,
     )
 

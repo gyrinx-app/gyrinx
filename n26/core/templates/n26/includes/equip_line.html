@@ -1,24 +1,14 @@
 {% comment %}
-One buyable line: the picker's item with a Buy that submits the line's
-identity. Expects `row` — {"line": PricedLine, "key": "<label>:<pk>",
-"price_field": …, "parts_field": …, "parts": [{"index", "line", "name",
-"price_field"}]} — from the equip view. An include rather than repeated inline,
-because the equip page draws it from two places (categorised and uncategorised
-rows) and a drifted copy would be a different till.
+One buyable row: the picker's item, with the action the row says it offers.
+Expects `row` — an n26.core.listing.PricedRow — and `price_cap` from the page.
 
-Green Buy for the same reason Hire is green: it is the committing action and
-this form's only kind of submit. The type="submit"-through-attrs trick is the
-one profile-picker.row documents — the kit button renders {{ attrs }} before
-its own type="button", and HTML keeps the first of a duplicate pair.
+An include rather than repeated inline, because the equip page draws it from
+three places: categorised rows, uncategorised rows, and nested under a row for
+something the fighter already owns, where it is how they buy another. A drifted
+copy would be a different till.
 
-  --- a row for something already carried ---
-
-Where the fighter holds one of these, the row says so instead of offering
-another: the count is the button, and pressing it opens the row onto the copies
-themselves, each with what can be done to it. It takes the disclosure's place
-rather than sitting beside it — `expanded` is the row's own state and this sets
-it, so there is one control and not two doing the same thing under different
-words.
+The row carries its own Buy, so nothing here decides that buying is a submit or
+that it is green — see n26/includes/row_action.html.
 
   --- the price is a box ---
 
@@ -30,114 +20,23 @@ a reader the round trip.
 The number the row arrived quoting is kept beside it, so a changed box can say
 by how much. The delta grows leftwards out of the price column, which leaves
 every input in the list on the same column however many rows have one.
-
-  --- a weapon's ammo ---
-
-Paid ammo and firing modes are checkboxes under the gun, not lines of their own,
-because that is what they are: a profile belongs to one particular weapon, so
-buying one is a way of buying that weapon rather than a second purchase from the
-list. Same shape as profile-picker.row's option groups, and read back the same
-way — indices into the row the server re-derives.
-
-Each of those rows carries a price box of its own, in the column the gun's box
-is in: they are separate charges on one press, and a discount on the gun is not
-a discount on the rounds. Lining them up is what says they are the same kind of
-number. The rows have no Buy — they ride the gun's — so what stands where the
-button would be is an invisible copy of it, which keeps the columns together
-whatever the button is later made to say.
 {% endcomment %}
-<c-n26.collection-picker.item name="{{ row.line.name }}"
-                              :price="row.line.credits"
-                              :trade_points="row.line.trade_points"
-                              :exclusive="row.line.is_exclusive"
-                              :notes="row.line.notes"
+<c-n26.collection-picker.item name="{{ row.name }}"
+                              :price="row.price"
+                              :trade_points="row.trade_points"
+                              :exclusive="row.is_exclusive"
+                              :notes="row.notes"
                               :disclosure="False"
-                              state="quoted: {{ row.line.credits }}, price: {{ row.line.credits }}">
+                              state="quoted: {{ row.price }}, price: {{ row.price }}">
     <c-slot name="price_control">
-        {% include "n26/includes/equip_price.html" with field=row.price_field quoted=row.line.credits label=row.line.name %}
+        {% include "n26/includes/equip_price.html" with field=row.price_field quoted=row.price label=row.name %}
     </c-slot>
-    {% if row.parts %}
+    {% if row.options %}
         <c-slot name="rows">
-            {% comment %}
-            No heading over the boxes. Ticked rounds under a gun, priced and
-            named, say what they are — and a label saying so would print on
-            every armed row of a long list to tell a reader something the row
-            beneath it already told them.
-            {% endcomment %}
-            {% for part in row.parts %}
-                {% comment %}
-                The box and the name are one label, so the hit target is most
-                of the row rather than a control the width of a fingertip —
-                this list is read on a phone. The price stays outside that
-                label: a text field inside a label is a field that fights the
-                thing the label toggles.
-                {% endcomment %}
-                <div class="flex min-h-9 items-center gap-2 rounded-control py-0.5 hover:bg-ink-500/5"
-                     x-data="{ quoted: {{ part.line.credits }}, price: {{ part.line.credits }} }">
-                    <label class="flex min-w-0 flex-1 cursor-pointer items-center gap-2">
-                        <input type="checkbox"
-                               name="{{ row.parts_field }}"
-                               value="{{ part.index }}"
-                               class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
-                        <span class="min-w-0 text-sm text-ink-900 dark:text-ink-100 sm:truncate">{{ part.name }}</span>
-                    </label>
-                    {% comment %}
-                    Availability before price, as on the row above: the same
-                    facts in the same order down the list.
-                    {% endcomment %}
-                    {% if part.line.is_exclusive %}
-                        <span class="shrink-0 text-xs font-semibold tabular-nums text-ink-900 dark:text-ink-100"
-                              title="Exclusive — equipment list only">E</span>
-                    {% elif part.line.trade_points %}
-                        <span class="shrink-0 text-xs tabular-nums text-ink-900 dark:text-ink-100"
-                              title="{{ part.line.trade_points }} trade points">{{ part.line.trade_points }}TP</span>
-                    {% endif %}
-                    <span class="n26-cp-price shrink-0 text-sm text-ink-900 dark:text-ink-100">
-                        {% include "n26/includes/equip_price.html" with field=part.price_field quoted=part.line.credits label=part.name %}
-                    </span>
-                    <span aria-hidden="true" class="invisible shrink-0">
-                        <c-ui.button size="sm" variant="success" type="button" tabindex="-1">
-                            Buy
-                        </c-ui.button>
-                    </span>
-                </div>
-            {% endfor %}
+            {% include "n26/includes/equip_options.html" %}
         </c-slot>
     {% endif %}
     <c-slot name="actions">
-        {% if row.owned %}
-            {% comment %}
-            The count in brackets, the way a card counts anything: the figure
-            is what the reader is being told, and the chevron says there is
-            more of it under here. Default rather than green — this row is
-            not offering to sell anybody anything.
-            {% endcomment %}
-            <c-ui.button size="sm"
-                         class="inline-flex items-center gap-1.5"
-                         @click="expanded = !expanded"
-                         ::aria-expanded="expanded"
-                         aria-label="{{ row.owned|length }} owned — what to do with {% if row.owned|length == 1 %}it{% else %}them{% endif %}">
-                <span class="tabular-nums">({{ row.owned|length }})</span>
-                <span class="n26-icon-only">
-                    <c-n26.icon name="chevron-down"
-                                class="size-3 transition-transform"
-                                stroke_width="2.5"
-                                ::class="{ 'rotate-180': expanded }" />
-                </span>
-            </c-ui.button>
-        {% else %}
-            <c-ui.button size="sm"
-                         variant="success"
-                         type="submit"
-                         name="thing"
-                         value="{{ row.key }}">
-                Buy
-            </c-ui.button>
-        {% endif %}
+        {% include "n26/includes/row_action.html" with action=row.buy %}
     </c-slot>
-    {% if row.owned %}
-        <c-slot name="details">
-            <c-n26.owned-lines :things="row.owned" />
-        </c-slot>
-    {% endif %}
 </c-n26.collection-picker.item>

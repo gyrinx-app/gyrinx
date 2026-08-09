@@ -1,0 +1,72 @@
+{% comment %}
+A row for something the fighter is already carrying. Expects `row` — an
+n26.core.listing.OwnedRow — and `price_cap` from the page.
+
+Owning something is a *state of its row*, not a list of its own: where the
+fighter holds one of the thing a row names, the count stands where Buy would be
+and opens the row onto what they have. It takes the disclosure's place rather
+than sitting beside it — `expanded` is the row's own state and this sets it, so
+there is one control and not two doing the same thing under different words.
+
+The count is copies, in brackets, the way a card counts anything: the figure is
+what the reader is being told, and the chevron says there is more of it under
+here. Default rather than green — this row is not offering to sell anybody
+anything until they open it.
+
+  --- and underneath, the ordinary row ---
+
+Opened, the row shows the copies and then the row it replaced, whole: the price
+box, the ammo boxes and the green Buy. Owning one of something has never been a
+reason the shop stops selling it, and a second is bought exactly the way the
+first was, because it is literally the same row.
+
+Its price column is plain text up here for that reason. A box a reader can type
+in above a Buy button that is not there would be a control that does nothing;
+the box belongs with the press it feeds.
+{% endcomment %}
+<c-n26.collection-picker.item name="{{ row.name }}"
+                              :price="row.buy.price"
+                              :trade_points="row.buy.trade_points"
+                              :exclusive="row.buy.is_exclusive"
+                              :notes="row.buy.notes"
+                              :disclosure="False"
+                              state="quoted: {{ row.buy.price }}, price: {{ row.buy.price }}">
+    <c-slot name="actions">
+        <c-ui.button size="sm"
+                     class="inline-flex items-center gap-1.5"
+                     @click="expanded = !expanded"
+                     ::aria-expanded="expanded"
+                     aria-label="{{ row.count }} owned — what to do with {% if row.count == 1 %}it{% else %}them{% endif %}">
+            <span class="tabular-nums">({{ row.count }})</span>
+            <span class="n26-icon-only">
+                <c-n26.icon name="chevron-down"
+                            class="size-3 transition-transform"
+                            stroke_width="2.5"
+                            ::class="{ 'rotate-180': expanded }" />
+            </span>
+        </c-ui.button>
+    </c-slot>
+    <c-slot name="details">
+        <c-n26.owned-lines :copies="row.copies" />
+        {% comment %}
+        A rule above the buy row, because the two halves answer different
+        questions: everything above is about the copies in hand, everything
+        below is a purchase. Without it the last copy and the offer of another
+        read as one list of four similar rows.
+        {% endcomment %}
+        <div class="mt-1 border-t border-box-border pt-1">
+            <div class="flex min-h-9 items-center gap-2">
+                <span class="min-w-0 flex-1 text-sm text-muted">Buy another</span>
+                <span class="n26-cp-price shrink-0 text-sm text-ink-900 dark:text-ink-100">
+                    {% include "n26/includes/equip_price.html" with field=row.buy.price_field quoted=row.buy.price label=row.buy.name %}
+                </span>
+                <span class="flex shrink-0 items-center gap-1">
+                    {% include "n26/includes/row_action.html" with action=row.buy.buy %}
+                </span>
+            </div>
+            {% if row.buy.options %}
+                {% include "n26/includes/equip_options.html" with row=row.buy %}
+            {% endif %}
+        </div>
+    </c-slot>
+</c-n26.collection-picker.item>

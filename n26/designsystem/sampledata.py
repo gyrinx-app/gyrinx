@@ -1390,9 +1390,10 @@ CHANGELOG = [
 # ------------------------------------------------------------- what is owned
 
 # A shop row for something the fighter already has, and the three
-# confirmations behind it. Real OwnedThings, because the components end up
-# typed against what n26.core.owned produces and a rename upstream should
-# fail at import rather than at a glance.
+# confirmations behind it. Real OwnedThings put through the real conversion,
+# because the components end up typed against what a listing produces — a
+# rename upstream should fail at import rather than at a glance, and the acts
+# a copy offers should appear here the day the structure grows one.
 
 
 @dataclass(frozen=True)
@@ -1404,7 +1405,8 @@ class _Roster:
 
 
 def owned_context():
-    """What a fighter is carrying, and the three things that can happen to it."""
+    """What a fighter is carrying, and the things that can happen to it."""
+    from n26.core.listing import copy_row
     from n26.core.owned import OwnedPart, OwnedThing
 
     meltagun = OwnedThing(
@@ -1438,7 +1440,7 @@ def owned_context():
     )
     named = {"cancel_url": "#", "action": "#", "list": "", "name": "Meltagun"}
     return {
-        "owned_things": [meltagun, stub],
+        "owned_copies": [copy_row(meltagun), copy_row(stub)],
         # The gun and its round together, which is what a sale of the gun
         # is priced on: what goes with it counts towards what it fetches.
         "owned_sell_dialog": {

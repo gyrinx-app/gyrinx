@@ -7,7 +7,6 @@ from django.contrib.auth.decorators import login_required
 from django.http import Http404
 from django.shortcuts import redirect, render
 
-from n26.core.browse import UNCATEGORISED
 from n26.core.listing import parts_field as _parts_field
 from n26.core.listing import price_field as _price_field
 from n26.core.owned import thing_key as _thing_key
@@ -138,36 +137,6 @@ def collection_tabs(collections, chosen):
     ]
 
 
-def _row(line, owned=()):
-    """One line as the template draws it: the identity its Buy submits,
-    the box its price is typed into, and its parts as tickable inputs
-    with price boxes of their own.
-
-    A part prints its bare name — "warp round", not "warp round
-    (Autogun)" — because it is drawn under the gun that already says so.
-
-    ``owned`` is the copies of this thing the fighter is already carrying,
-    which is what turns the row's Buy into a way into what they have.
-    """
-    key = _thing_key(line.thing)
-    return {
-        "line": line,
-        "key": key,
-        "owned": owned,
-        "price_field": _price_field(key),
-        "parts_field": _parts_field(key),
-        "parts": [
-            {
-                "index": index,
-                "line": part,
-                "name": part.thing.name,
-                "price_field": _price_field(key, index),
-            }
-            for index, part in enumerate(line.parts)
-        ],
-    }
-
-
 @login_required
 def equip(request, pk):
     """Buy equipment for one fighter, from a list they can actually browse.
@@ -204,12 +173,16 @@ def equip(request, pk):
     Owning something is a *state of its row*. Where the fighter already
     holds one, the row says so instead of offering another: the count
     stands where Buy would be and opens the row onto the copies
-    themselves, each with the three things that can happen to it — sold,
-    handed on, taken off. Read off the card this page already built, so a
-    listing of hundreds of rows costs no query for it.
+    themselves, each with the things that can happen to it — sold, handed
+    on, taken off — and onto the ordinary row underneath them, so buying
+    another is still one press. Read off the card this page already
+    built, so a listing of hundreds of rows costs no query for it.
 
-    Buying a second of something already held has no control, on purpose,
-    until there is a decision about what that should do.
+    What the screen draws is a ``Listing``: the browsed collection joined
+    to what the fighter holds, built in one place and asserted on
+    directly. The template asks a row what it is and what its controls
+    mean, and never composes an identity the server would have to guess
+    at.
 
     Anything owned that this list does not sell has no row and so no
     controls. That gap is known; where such a thing should be drawn is an
@@ -224,6 +197,7 @@ def equip(request, pk):
     from n26.core.browse import browse, usability_for, with_use_notes
     from n26.core.card import build_card, build_modifier_index
     from n26.core.effects import compute
+    from n26.core.listing import build_listing
     from n26.core.operations import NotEnoughCredits, operation
     from n26.core.owned import owned_things
     from n26.core.views.owned import owned_dialog
@@ -353,18 +327,19 @@ def equip(request, pk):
     at = f"{request.path}?list={chosen.pk}" if chosen is not None else request.path
     owned = owned_things(card, at)
 
+    # The whole screen, as one structure: the browsed list joined to what
+    # the fighter holds. A row is a row for something on sale or a row for
+    # something they are carrying, and which it is is the structure's
+    # answer rather than a question the template asks of the card.
+    listing = build_listing(view, owned) if view is not None else None
+    sections = listing.sections if listing is not None else []
+
+    # The sliders' ends are read off the browsed lines rather than the
+    # listing's rows: a slider's job is to bound what the *list* asks, and
+    # an owned row asks the same as it ever did.
     lines = list(view.all_lines()) if view is not None else []
     trade_points = [
         line.trade_points for line in lines if line.trade_points is not None
-    ]
-    # Each section paired with the name it goes by on screen. The grouping
-    # leaves a homeless line's section unnamed, which is the truth about
-    # the content; the picker draws its sections as tabs, and a tab needs
-    # a word on it. Paired once so the strip, the registration names and
-    # the heading cannot disagree — see the hire view, which does the same.
-    named_sections = [
-        (section.name or UNCATEGORISED, section)
-        for section in (view.sections if view is not None else [])
     ]
     # Which list is being browsed is a tab when there are several. With
     # one there is nothing to choose, so no strip is drawn — the search
@@ -380,26 +355,7 @@ def equip(request, pk):
             "collections": collections,
             "collection_tabs": tabs,
             "chosen": chosen,
-            # Each line paired with the key its Buy button submits and the
-            # field name its parts tick under, so the template never
-            # composes an identity the server would then have to guess at.
-            "section_rows": [
-                {
-                    "name": name,
-                    "first": index == 0,
-                    "categories": [
-                        {
-                            "name": category.name,
-                            "lines": [
-                                _row(line, owned.get(_thing_key(line.thing), []))
-                                for line in category.lines
-                            ],
-                        }
-                        for category in section.categories
-                    ],
-                }
-                for index, (name, section) in enumerate(named_sections)
-            ],
+            "listing": listing,
             # The confirmation the URL says is open, if any: sell, move or
             # remove one row of this fighter's card. A server state, so it
             # is a link, it survives a reload, and it is drawn rather than
@@ -412,8 +368,8 @@ def equip(request, pk):
             # omits one hides those rows client-side.
             "categories": list(
                 dict.fromkeys(
-                    category.name or name
-                    for name, section in named_sections
+                    category.name or section.name
+                    for section in sections
                     for category in section.categories
                 )
             ),
@@ -421,17 +377,17 @@ def equip(request, pk):
                 {"value": name, "label": name}
                 for name in dict.fromkeys(
                     category.name
-                    for _, section in named_sections
+                    for section in sections
                     for category in section.categories
                     if category.name
                 )
             ],
             # One tab per section, as on the hire page. A section missing
             # from this list can never be the active tab and its rows
-            # become unreachable, so every section is named above and every
-            # one appears here — deduplicated, because the strip keys
-            # its tabs by name and a repeated key draws neither.
-            "sections": list(dict.fromkeys(name for name, _ in named_sections)),
+            # become unreachable, so every section drawn appears here —
+            # deduplicated, because the strip keys its tabs by name and a
+            # repeated key draws neither.
+            "sections": list(dict.fromkeys(section.name for section in sections)),
             "price_floor": min((line.credits for line in lines), default=0),
             "price_ceiling": max((line.credits for line in lines), default=0),
             "tp_ceiling": max(trade_points, default=0),

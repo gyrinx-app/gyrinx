@@ -1,0 +1,18 @@
+{% comment %}
+One row of a listing, whichever kind it is. Expects `row`.
+
+The one question the page asks of a row, asked in one place. A category holds
+a row for something on sale or a row for something the fighter is carrying, one
+or the other for a given thing, and the structure has already decided which —
+so this asks the row and never the card. Adding the question at each of the two
+call sites instead would be two places to forget it.
+
+`copies` is the question because it is the difference: an owned row is only
+built where the fighter holds at least one, so it is always non-empty there,
+and a priced row does not have the field at all.
+{% endcomment %}
+{% if row.copies %}
+    {% include "n26/includes/equip_owned_line.html" %}
+{% else %}
+    {% include "n26/includes/equip_line.html" %}
+{% endif %}

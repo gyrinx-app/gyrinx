@@ -1,0 +1,57 @@
+{% comment %}
+The parts bought with a row: a gun's paid ammo and firing modes, as tick boxes.
+Expects `row` — an n26.core.listing.PricedRow — and `price_cap` from the page.
+
+Not lines of their own, because that is not what they are: a profile belongs to
+one particular weapon, so buying one is a way of buying that weapon rather than
+a second purchase from the list. Same shape as profile-picker.row's option
+groups, and read back the same way — indices into the row the server re-derives.
+
+No heading over the boxes. Ticked rounds under a gun, priced and named, say what
+they are — and a label saying so would print on every armed row of a long list
+to tell a reader something the row beneath it already told them.
+
+Each carries a price box of its own, in the column the gun's box is in: they are
+separate charges on one press, and a discount on the gun is not a discount on
+the rounds. Lining them up is what says they are the same kind of number. The
+rows have no Buy — they ride the gun's — so what stands where the button would
+be is an invisible copy of it, which keeps the columns together whatever the
+button is later made to say.
+{% endcomment %}
+{% for option in row.options %}
+    {% comment %}
+    The box and the name are one label, so the hit target is most of the row
+    rather than a control the width of a fingertip — this list is read on a
+    phone. The price stays outside that label: a text field inside a label is a
+    field that fights the thing the label toggles.
+    {% endcomment %}
+    <div class="flex min-h-9 items-center gap-2 rounded-control py-0.5 hover:bg-ink-500/5"
+         x-data="{ quoted: {{ option.price }}, price: {{ option.price }} }">
+        <label class="flex min-w-0 flex-1 cursor-pointer items-center gap-2">
+            <input type="checkbox"
+                   name="{{ option.field }}"
+                   value="{{ option.index }}"
+                   class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
+            <span class="min-w-0 text-sm text-ink-900 dark:text-ink-100 sm:truncate">{{ option.name }}</span>
+        </label>
+        {% comment %}
+        Availability before price, as on the row above: the same facts in the
+        same order down the list.
+        {% endcomment %}
+        {% if option.is_exclusive %}
+            <span class="shrink-0 text-xs font-semibold tabular-nums text-ink-900 dark:text-ink-100"
+                  title="Exclusive — equipment list only">E</span>
+        {% elif option.trade_points %}
+            <span class="shrink-0 text-xs tabular-nums text-ink-900 dark:text-ink-100"
+                  title="{{ option.trade_points }} trade points">{{ option.trade_points }}TP</span>
+        {% endif %}
+        <span class="n26-cp-price shrink-0 text-sm text-ink-900 dark:text-ink-100">
+            {% include "n26/includes/equip_price.html" with field=option.price_field quoted=option.price label=option.name %}
+        </span>
+        <span aria-hidden="true" class="invisible shrink-0">
+            <c-ui.button size="sm" variant="success" type="button" tabindex="-1">
+                Buy
+            </c-ui.button>
+        </span>
+    </div>
+{% endfor %}

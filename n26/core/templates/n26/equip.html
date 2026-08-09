@@ -185,13 +185,13 @@ breadcrumb above it has the gang as well, so nothing is lost.
                     `categories`. The two would not match, and the whole
                     category would count zero and hide itself.
                     {% endcomment %}
-                    {% for section_row in section_rows %}
-                        <c-n26.collection-picker.section :name="section_row.name" :open="section_row.first">
-                            {% for category in section_row.categories %}
+                    {% for section in listing.sections %}
+                        <c-n26.collection-picker.section :name="section.name" :open="forloop.first">
+                            {% for category in section.categories %}
                                 {% if category.name %}
                                     <c-n26.collection-picker.category :name="category.name">
-                                        {% for row in category.lines %}
-                                            {% include "n26/includes/equip_line.html" %}
+                                        {% for row in category.rows %}
+                                            {% include "n26/includes/equip_row.html" %}
                                         {% endfor %}
                                     </c-n26.collection-picker.category>
                                 {% else %}
@@ -199,8 +199,8 @@ breadcrumb above it has the gang as well, so nothing is lost.
                                     Unnamed home: rows sit straight inside the
                                     section, the same convention as the hire page.
                                     {% endcomment %}
-                                    {% for row in category.lines %}
-                                        {% include "n26/includes/equip_line.html" %}
+                                    {% for row in category.rows %}
+                                        {% include "n26/includes/equip_row.html" %}
                                     {% endfor %}
                                 {% endif %}
                             {% endfor %}

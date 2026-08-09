@@ -420,9 +420,9 @@ def test_every_registration_name_is_a_known_category(
     client.force_login(tester)
     response = client.get(equip_url(fighter))
     registration_names = {
-        category["name"] or section["name"]
-        for section in response.context["section_rows"]
-        for category in section["categories"]
+        category.name or section.name
+        for section in response.context["listing"].sections
+        for category in section.categories
     }
     assert registration_names <= set(response.context["categories"])
 
@@ -446,12 +446,12 @@ def test_a_homeless_line_gets_a_tab_of_its_own(client, tester, fighter, house_li
     response = client.get(equip_url(fighter, house_list))
     assert response.context["sections"] == ["Armoury", UNCATEGORISED]
 
-    drawn = {section["name"] for section in response.context["section_rows"]}
+    drawn = {section.name for section in response.context["listing"].sections}
     assert drawn <= set(response.context["sections"])
     registration_names = {
-        category["name"] or section["name"]
-        for section in response.context["section_rows"]
-        for category in section["categories"]
+        category.name or section.name
+        for section in response.context["listing"].sections
+        for category in section.categories
     }
     assert registration_names <= set(response.context["categories"])
 
@@ -1109,26 +1109,31 @@ def buy_one(gang, fighter, tester, thing, **kwargs):
         return op.buy(fighter, thing=thing, **kwargs)
 
 
+def rows_of(response):
+    """The listing's rows, by name. What the page was handed to draw."""
+    return {row.name: row for row in response.context["listing"].all_rows()}
+
+
 def test_owning_one_is_a_state_of_the_row_whatever_kind_of_thing_it_is(
     client, tester, gang, fighter, house_list
 ):
     """Not a treatment reserved for some rows. The knife is an ordinary
     line — freely available, no exclusivity, nothing special about it —
-    and holding one turns its Buy into the count all the same."""
+    and holding one turns its row into the owned kind all the same."""
+    from n26.core.listing import OwnedRow, PricedRow
     from n26.library.models import Wargear
 
     knife = Wargear.objects.get(name="Knife")
     client.force_login(tester)
-    rows = client.get(equip_url(fighter, house_list)).context["section_rows"]
-    lines = {row["line"].name: row for row in rows[0]["categories"][0]["lines"]}
-    assert lines["Knife"]["line"].is_exclusive is False
-    assert lines["Knife"]["owned"] == []
+    rows = rows_of(client.get(equip_url(fighter, house_list)))
+    assert rows["Knife"].is_exclusive is False
+    assert isinstance(rows["Knife"], PricedRow)
 
     buy_one(gang, fighter, tester, knife, paid=10)
 
-    rows = client.get(equip_url(fighter, house_list)).context["section_rows"]
-    lines = {row["line"].name: row for row in rows[0]["categories"][0]["lines"]}
-    assert len(lines["Knife"]["owned"]) == 1
+    rows = rows_of(client.get(equip_url(fighter, house_list)))
+    assert isinstance(rows["Knife"], OwnedRow)
+    assert rows["Knife"].count == 1
 
 
 def test_two_of_one_weapon_are_two_lines_that_can_be_told_apart(
@@ -1136,7 +1141,9 @@ def test_two_of_one_weapon_are_two_lines_that_can_be_told_apart(
 ):
     """Each is its own row in the ledger, each may carry different ammo,
     and each is sold on its own — so one line counted twice would be a
-    control that acts on whichever the server picked."""
+    control that acts on whichever the server picked. The page carries an
+    address per copy and per part; the shape behind it is pinned in the
+    listing's own suite."""
     from n26.library.models import Weapon, WeaponProfile
 
     autogun = Weapon.objects.get(name="Autogun")
@@ -1148,25 +1155,12 @@ def test_two_of_one_weapon_are_two_lines_that_can_be_told_apart(
 
     client.force_login(tester)
     response = client.get(equip_url(fighter, gun_list))
-    rows = response.context["section_rows"]
-    (row,) = [
-        row
-        for section in rows
-        for category in section["categories"]
-        for row in category["lines"]
-        if row["line"].name == "Autogun"
-    ]
+    row = rows_of(response)["Autogun"]
 
-    assert {thing.id for thing in row["owned"]} == {str(first.pk), str(second.pk)}
-    # The paid ammo sits under the gun it was bought for, and under that
-    # one only. Both guns carry the free firing mode that comes with an
-    # Autogun; neither draws the unnamed profile, which *is* the Autogun.
-    # Each part goes by its bare name — the gun it belongs to is the row
-    # above it.
-    holding = {thing.id: [part.name for part in thing.parts] for thing in row["owned"]}
-    assert holding[str(first.pk)] == ["fully automatic", warp.name]
-    assert holding[str(second.pk)] == ["fully automatic"]
-    assert f"sell={ammo.pk}" in response.content.decode()
+    assert {copy.id for copy in row.copies} == {str(first.pk), str(second.pk)}
+    body = response.content.decode()
+    for assignment in (first, second, ammo):
+        assert f"sell={assignment.pk}" in body
 
 
 def test_what_a_fighter_is_gets_no_controls(client, tester, gang, fighter, house_list):
@@ -1184,35 +1178,57 @@ def test_what_a_fighter_is_gets_no_controls(client, tester, gang, fighter, house
     assert f"sell={fighter.membership.pk}" not in body
 
 
-def test_a_row_for_something_owned_counts_it_instead_of_offering_another(
+def test_a_row_for_something_owned_counts_it_and_still_sells_another(
     client, tester, gang, fighter, house_list
 ):
-    """The count is the button. A reader looking at a row for a thing they
-    are already carrying is asking what to do with the one they have."""
+    """The count stands where Buy was, and Buy moves under it. A reader
+    looking at a row for a thing they are carrying is usually asking what
+    to do with the one they have — but owning one has never been a reason
+    the shop stops selling it, so the offer is still on the page."""
+    from n26.core.listing import PricedRow
     from n26.library.models import Wargear
 
     knife = Wargear.objects.get(name="Knife")
     client.force_login(tester)
-    rows = client.get(equip_url(fighter, house_list)).context["section_rows"]
-    lines = {row["line"].name: row for row in rows[0]["categories"][0]["lines"]}
-    assert lines["Knife"]["owned"] == []
+    assert isinstance(
+        rows_of(client.get(equip_url(fighter, house_list)))["Knife"], PricedRow
+    )
 
     buy_one(gang, fighter, tester, knife, paid=10)
     buy_one(gang, fighter, tester, knife, paid=10)
 
-    body = client.get(equip_url(fighter, house_list))
-    rows = body.context["section_rows"]
-    lines = {row["line"].name: row for row in rows[0]["categories"][0]["lines"]}
-    assert len(lines["Knife"]["owned"]) == 2
-    assert lines["Sword"]["owned"] == []
-    # Two swords' worth of Buy on the page, one for each row that is still
-    # offering one — and none for the knife.
-    assert f'value="{key_of(knife)}"' not in body.content.decode()
+    response = client.get(equip_url(fighter, house_list))
+    rows = rows_of(response)
+    assert rows["Knife"].count == 2
+    assert isinstance(rows["Sword"], PricedRow)
+    # The count is drawn, and the Buy the row replaced is still submitted
+    # by the same key from inside it.
+    body = response.content.decode()
+    assert ">(2)<" in body
+    assert f'value="{key_of(knife)}"' in body
+
+
+def test_buying_another_from_inside_an_owned_row_buys_one(
+    client, tester, gang, fighter, house_list
+):
+    """The nested row is the ordinary row, so its press is the ordinary
+    press: same key, same till, same result as a fighter with none."""
+    from n26.library.models import Wargear
+
+    knife = Wargear.objects.get(name="Knife")
+    buy_one(gang, fighter, tester, knife, paid=10)
+
+    client.force_login(tester)
+    response = client.post(equip_url(fighter, house_list), {"thing": key_of(knife)})
+
+    assert response.status_code == 302
+    assert rows_of(client.get(equip_url(fighter, house_list)))["Knife"].count == 2
 
 
 def test_a_thing_taken_off_the_card_stops_being_counted(
     client, tester, gang, fighter, house_list
 ):
+    from n26.core.listing import PricedRow
     from n26.library.models import Wargear
 
     knife = Wargear.objects.get(name="Knife")
@@ -1221,9 +1237,8 @@ def test_a_thing_taken_off_the_card_stops_being_counted(
         op.remove(assignment)
 
     client.force_login(tester)
-    rows = client.get(equip_url(fighter, house_list)).context["section_rows"]
-    lines = {row["line"].name: row for row in rows[0]["categories"][0]["lines"]}
-    assert lines["Knife"]["owned"] == []
+    rows = rows_of(client.get(equip_url(fighter, house_list)))
+    assert isinstance(rows["Knife"], PricedRow)
 
 
 def test_the_owned_row_offers_the_three_things_that_can_happen(
