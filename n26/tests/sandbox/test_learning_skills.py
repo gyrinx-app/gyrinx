@@ -324,6 +324,27 @@ class TestLearning:
         assert "Catfall" in [line.name for line in card_for(yolanda).skills]
         assert_reconciled(gang)
 
+    def test_a_second_copy_is_refused_however_the_first_arrived(
+        self, client, player, gang, yolanda, library
+    ):
+        """A duplicate skill means nothing in the game, so the press is
+        refused — and "already has it" covers every route in, a learned
+        one and one granted by an answered choice alike. A card reading
+        "Marksman, Marksman" is a bug however honestly each row was
+        written."""
+        catfall = library["skills"]["Catfall"]
+        learn(yolanda, catfall)
+        client.force_login(player)
+        response = client.post(
+            skills_url(yolanda),
+            {"thing": f"{catfall._meta.label_lower}:{catfall.pk}"},
+        )
+
+        assert response.status_code == 302
+        names = [line.name for line in card_for(yolanda).skills]
+        assert names.count("Catfall") == 1
+        assert_reconciled(gang)
+
     def test_a_press_for_something_off_the_list_writes_nothing(
         self, client, player, gang, yolanda, library
     ):

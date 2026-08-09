@@ -67,9 +67,9 @@ def _known_on(card):
 def _marked(offer, known):
     """The same offer, with the things this model already has said so.
 
-    Said, never withheld: a second copy of a skill is the owner's call,
-    and a list that quietly dropped it would be answering a question
-    nobody asked.
+    Said, never dropped: a known skill keeps its place in the listing so
+    the reader can see it is covered, and the mark is why the POST's
+    refusal of a second copy never surprises anyone.
     """
     for group in offer.groups:
         group.options = [
@@ -92,9 +92,13 @@ def learn(request, pk):
     server has just re-derived — never a price, and never a free-text
     identity — and writes it as the fighter's own, at no charge.
 
-    Nothing here refuses a pick, and nothing is removed from the listing:
-    a skill the fighter's Type may not use keeps its place with a note
-    on it, exactly as it does at the till.
+    Nothing is removed from the listing: a skill the fighter's Type may
+    not use keeps its place with a note on it, exactly as it does at the
+    till, and a skill they already have is marked rather than hidden.
+    The one press refused is a second copy of something they hold — by
+    any route, a grant and an answered choice included — because a
+    duplicate skill means nothing and a card reading "Marksman,
+    Marksman" is a bug however honestly it got there.
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.access import learnable_for
@@ -166,6 +170,14 @@ def learn(request, pk):
             # Not on this list — a stale page, or a press with nothing
             # selected. The list itself is the answer either way.
             messages.error(request, "That is not one of the things on offer.")
+            return redirect(here)
+        # A skill the model already has, by any route — learned, granted,
+        # or the answer to a founding choice. A second copy means nothing
+        # in the game and reads as a bug on the card, so this is refused
+        # like a stale press rather than left to the owner: it is not a
+        # judgement about the rules, there is simply nothing it could add.
+        if picked.key in _known_on(card):
+            messages.error(request, f"{miniature.name} already has {picked.name}.")
             return redirect(here)
         try:
             with operation(gang, actor=request.user) as op:
