@@ -140,6 +140,7 @@ def choose(request, pk, slot):
     narrow, not because anything is being withheld, and leaving the slot
     open costs nothing — the way back is the gang.
     """
+    from n26.analytics import EventVerb, N26Noun, record
     from n26.core.operations import NotEnoughCredits, operation
     from n26.core.render import build_choice_offer
 
@@ -173,6 +174,18 @@ def choose(request, pk, slot):
         except NotEnoughCredits as refusal:
             messages.error(request, str(refusal))
             return redirect(request.path)
+        # Which question was answered and with what. Changing your mind
+        # records a second answer rather than editing the first: what a
+        # player picked and then dropped is a thing worth being able to ask
+        # about.
+        record(
+            request,
+            N26Noun.CHOICE,
+            EventVerb.CONFIRM,
+            gang,
+            offer=offer.label,
+            picked=picked.name,
+        )
         messages.success(request, f"Chose {picked.name} — {offer.label}.")
         return redirect(back)
 

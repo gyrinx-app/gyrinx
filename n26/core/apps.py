@@ -13,4 +13,5 @@ class N26Config(AppConfig):
     verbose_name = "N26 · Core"
 
     def ready(self):
+        from n26 import analytics  # noqa: F401  — claims this edition's event nouns
         from n26.core import checks  # noqa: F401  — registers startup checks

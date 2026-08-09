@@ -7,31 +7,11 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
+from gyrinx.analytics.nouns import Edition, edition_for_noun, noun_choices
 from gyrinx.base_models import AppBase
 from gyrinx.tracker import track
 
 logger = logging.getLogger(__name__)
-
-
-class EventNoun(models.TextChoices):
-    """Nouns representing objects that can be acted upon."""
-
-    LIST = "list", "List"
-    LIST_FIGHTER = "list_fighter", "List Fighter"
-    CAMPAIGN = "campaign", "Campaign"
-    CAMPAIGN_INVITATION = "campaign_invitation", "Campaign Invitation"
-    BATTLE = "battle", "Battle"
-    EQUIPMENT_ASSIGNMENT = "equipment_assignment", "Equipment Assignment"
-    SKILL_ASSIGNMENT = "skill_assignment", "Skill Assignment"
-    USER = "user", "User"
-    UPLOAD = "upload", "Upload"
-    FIGHTER_ADVANCEMENT = "fighter_advancement", "Fighter Advancement"
-    CAMPAIGN_ACTION = "campaign_action", "Campaign Action"
-    CAMPAIGN_RESOURCE = "campaign_resource", "Campaign Resource"
-    CAMPAIGN_ASSET = "campaign_asset", "Campaign Asset"
-    BANNER = "banner", "Banner"
-    PRINT_CONFIG = "print_config", "Print Config"
-    CONTENT_PACK = "content_pack", "Content Pack"
 
 
 class EventVerb(models.TextChoices):
@@ -111,11 +91,22 @@ class Event(AppBase):
     # Core event data
     noun = models.CharField(
         max_length=50,
-        choices=EventNoun.choices,
+        choices=noun_choices,
         help_text="The type of object being acted upon",
     )
     verb = models.CharField(
         max_length=50, choices=EventVerb.choices, help_text="The action being performed"
+    )
+
+    # Which product the action happened in. Derived from the noun rather than
+    # passed in — see gyrinx.analytics.nouns — so every row carries one and no
+    # call site can forget it.
+    edition = models.CharField(
+        max_length=20,
+        choices=Edition.choices,
+        default=Edition.UNKNOWN,
+        db_index=True,
+        help_text="The edition (or the platform) the action happened in",
     )
 
     # Context columns for useful additional information
@@ -175,10 +166,18 @@ class Event(AppBase):
 
     def save(self, *args, **kwargs):
         """Override save to also log the event to the log stream."""
+        # Derived here rather than in log_event so that anything writing an
+        # Event — a signal, a test, a shell — gets the dimension filled in.
+        # An explicit edition is left alone.
+        if not self.edition or self.edition == Edition.UNKNOWN:
+            self.edition = edition_for_noun(self.noun)
+
         super().save(*args, **kwargs)
 
         try:
-            # Track user event
+            # Track user event. The event name needs no edition prefix: a noun
+            # belongs to one edition only, so "event_create_gang" and
+            # "event_create_list" can never be the same product's line.
             track(
                 f"event_{self.verb}_{self.noun}",
                 n=1,
@@ -186,6 +185,7 @@ class Event(AppBase):
                 id=str(self.id),
                 noun=self.noun,
                 verb=self.verb,
+                edition=self.edition,
                 user_id=str(self.owner_id) if self.owner_id else None,
                 username=self.owner.username if self.owner else None,
                 object_id=str(self.object_id) if self.object_id else None,
@@ -282,9 +282,13 @@ def log_event(
     """
     Utility function to easily log events throughout the application.
 
+    The edition is not an argument. It follows from the noun — see
+    ``gyrinx.analytics.nouns`` — so a caller cannot record an action against
+    the wrong product by forgetting to say which one it was in.
+
     Args:
         user: The User performing the action
-        noun: EventNoun choice representing what's being acted upon
+        noun: a noun registered by an edition, saying what's being acted upon
         verb: EventVerb choice representing the action
         object: Optional Django model instance being acted upon
         request: Optional HttpRequest object to extract session ID and IP address
@@ -298,7 +302,7 @@ def log_event(
     Example:
         log_event(
             user=request.user,
-            noun=EventNoun.LIST,
+            noun=EventNoun.LIST,  # from the edition's own noun set
             verb=EventVerb.CREATE,
             object=list_instance,
             request=request,
@@ -335,7 +339,12 @@ def log_event(
         }
 
         if object:
-            event_data["object_id"] = object.pk
+            # The column is a uuid. A primary key that is the same 128 bits
+            # under another name knows how to say so, and saying so is what
+            # lets an edition whose keys are not uuids be pointed at at all.
+            object_id = object.pk
+            as_uuid = getattr(object_id, "to_uuid", None)
+            event_data["object_id"] = object_id if as_uuid is None else as_uuid()
             event_data["object_type"] = ContentType.objects.get_for_model(object)
 
         return Event.objects.create(**event_data)

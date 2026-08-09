@@ -3,7 +3,8 @@
 from django.contrib import messages
 from django.views.decorators.csrf import csrf_exempt
 
-from gyrinx.analytics.models import EventNoun, EventVerb, log_event
+from gyrinx.analytics.models import EventVerb, log_event
+from gyrinx.analytics.nouns import PlatformNoun
 from gyrinx.http import safe_redirect
 
 
@@ -17,7 +18,7 @@ def csrf_failure(request, reason=""):
     if hasattr(request, "user") and request.user.is_authenticated:
         log_event(
             user=request.user,
-            noun=EventNoun.USER,
+            noun=PlatformNoun.USER,
             verb=EventVerb.VIEW,
             request=request,
             page="csrf_failure",

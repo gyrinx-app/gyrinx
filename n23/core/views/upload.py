@@ -6,7 +6,8 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_protect
 from django.views.decorators.http import require_POST
 
-from gyrinx.analytics.models import EventNoun, EventVerb, log_event
+from gyrinx.analytics.models import EventVerb, log_event
+from n23.core.events import EventNoun
 
 from ..models import UploadedFile
 

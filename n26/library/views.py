@@ -1377,6 +1377,7 @@ def ingest(request):
     for a button almost nobody presses — but the greater part of the
     reason is that nothing irreversible should happen on one click.
     """
+    from n26.analytics import EventVerb, N26Noun, record
     from n26.library.ingest import perform, plan_ingest
 
     form = IngestForm()
@@ -1418,6 +1419,17 @@ def ingest(request):
                         with transaction.atomic():
                             result = perform(plan)
                         performed = result.counts()
+                        # One event for the run, outside the transaction and
+                        # carrying totals. A row apiece would write thousands
+                        # of events for one press.
+                        record(
+                            request,
+                            N26Noun.INGEST,
+                            EventVerb.IMPORT,
+                            sheets=sorted(sheets),
+                            created=sum(performed.values()),
+                            updated=len(result.updated),
+                        )
                         messages.success(
                             request,
                             f"Created {sum(performed.values())} rows, "

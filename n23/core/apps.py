@@ -18,4 +18,5 @@ class CoreConfig(AppConfig):
     def ready(self):
         """Import signal handlers when the app is ready."""
         import n23.core.checks  # noqa: F401
+        import n23.core.events  # noqa: F401  — claims this edition's event nouns
         import n23.core.signals  # noqa: F401

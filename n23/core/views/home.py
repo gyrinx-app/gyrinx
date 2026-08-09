@@ -4,7 +4,8 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Q
 from django.shortcuts import render
 
-from gyrinx.analytics.models import EventNoun, EventVerb, log_event
+from gyrinx.analytics.models import EventVerb, log_event
+from gyrinx.analytics.nouns import PlatformNoun
 from gyrinx.querysets import search_queryset
 from gyrinx.tracing import span, traced
 from n23.content.models import ContentHouse
@@ -144,7 +145,7 @@ def index(request):
     if request.user.is_authenticated:
         log_event(
             user=request.user,
-            noun=EventNoun.USER,
+            noun=PlatformNoun.USER,
             verb=EventVerb.VIEW,
             request=request,
             page="dashboard",
@@ -240,7 +241,7 @@ def account_home(request):
     # Log the account home view
     log_event(
         user=request.user,
-        noun=EventNoun.USER,
+        noun=PlatformNoun.USER,
         verb=EventVerb.VIEW,
         request=request,
         page="account_home",

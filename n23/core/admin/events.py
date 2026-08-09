@@ -11,6 +11,7 @@ class EventAdmin(BaseAdmin):
     list_display = [
         "created",
         "owner",
+        "edition",
         "verb",
         "noun",
         "field",
@@ -22,6 +23,7 @@ class EventAdmin(BaseAdmin):
 
     list_filter = [
         "created",
+        "edition",
         "noun",
         "verb",
         "field",
@@ -52,6 +54,7 @@ class EventAdmin(BaseAdmin):
                     "created",
                     "modified",
                     "owner",
+                    "edition",
                     "noun",
                     "verb",
                     "field",

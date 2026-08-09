@@ -59,11 +59,18 @@
                         {% if scale.value == time_scale %}selected{% endif %}>{{ scale.label }}</option>
             {% endfor %}
         </select>
+        <label for="edition">Edition:</label>
+        <select id="edition" onchange="updateEdition(this.value)">
+            {% for option in editions %}
+                <option value="{{ option.value }}"
+                        {% if option.value == edition %}selected{% endif %}>{{ option.label }}</option>
+            {% endfor %}
+        </select>
     </div>
     <div class="dashboard-grid">
         <!-- User Registrations Chart -->
         <div class="dashboard-card">
-            <h3>User Registrations</h3>
+            <h3>User Registrations (all editions)</h3>
             <div class="chart-container">
                 <canvas id="userChart"></canvas>
             </div>
@@ -195,6 +202,18 @@ const cumulativeChart = new Chart(cumulativeCtx, {
 function updateTimeScale(scale) {
     const currentUrl = new URL(window.location.href);
     currentUrl.searchParams.set('time_scale', scale);
+    window.location.href = currentUrl.toString();
+}
+
+// Which edition the charts cover. In the URL, so a view of one product is a
+// link someone can send.
+function updateEdition(edition) {
+    const currentUrl = new URL(window.location.href);
+    if (edition) {
+        currentUrl.searchParams.set('edition', edition);
+    } else {
+        currentUrl.searchParams.delete('edition');
+    }
     window.location.href = currentUrl.toString();
 }
     </script>

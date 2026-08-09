@@ -5,7 +5,9 @@ from datetime import timedelta
 import pytest
 from django.utils import timezone
 
-from gyrinx.analytics.models import Event, EventNoun, EventVerb, log_event
+from gyrinx.analytics.models import Event, EventVerb, log_event
+from gyrinx.analytics.nouns import PlatformNoun
+from n23.core.events import EventNoun
 from n23.core.models.campaign import Campaign
 
 
@@ -65,7 +67,7 @@ def test_event_without_campaign_id_does_not_update_campaign(user):
     # Create an event without campaign_id
     Event.objects.create(
         owner=campaign.owner,
-        noun=EventNoun.USER,
+        noun=PlatformNoun.USER,
         verb=EventVerb.LOGIN,
         context={"some_other_data": "value"},
     )

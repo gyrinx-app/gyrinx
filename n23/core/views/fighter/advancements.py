@@ -14,8 +14,9 @@ from django.urls import reverse
 from pydantic import BaseModel, PrivateAttr, ValidationError, field_validator
 
 from gyrinx import messages
-from gyrinx.analytics.models import EventNoun, EventVerb, log_event
+from gyrinx.analytics.models import EventVerb, log_event
 from n23.content.models import ContentAdvancementEquipment, ContentSkill
+from n23.core.events import EventNoun
 from n23.core.forms.advancement import (
     AdvancementDiceChoiceForm,
     AdvancementTypeForm,

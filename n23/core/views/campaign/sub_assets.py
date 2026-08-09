@@ -7,8 +7,9 @@ from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 
 from gyrinx import messages
-from gyrinx.analytics.models import EventNoun, EventVerb, log_event
+from gyrinx.analytics.models import EventVerb, log_event
 from gyrinx.tracker import track
+from n23.core.events import EventNoun
 from n23.core.forms.campaign import CampaignSubAssetForm
 from n23.core.models.campaign import CampaignAsset, CampaignSubAsset
 from n23.core.views.campaign.common import get_campaign_admin_or_404

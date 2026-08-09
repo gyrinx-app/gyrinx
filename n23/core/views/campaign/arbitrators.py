@@ -9,7 +9,8 @@ from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from gyrinx import messages
-from gyrinx.analytics.models import EventNoun, EventVerb, log_event
+from gyrinx.analytics.models import EventVerb, log_event
+from n23.core.events import EventNoun
 from n23.core.forms.campaign import AddArbitratorForm
 from n23.core.models.campaign import CampaignAction
 from n23.core.views.campaign.common import get_campaign_admin_or_404

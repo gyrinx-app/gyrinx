@@ -5,7 +5,9 @@ from datetime import timedelta
 import pytest
 from django.utils import timezone
 
-from gyrinx.analytics.models import Event, EventNoun, EventVerb, log_event
+from gyrinx.analytics.models import Event, EventVerb, log_event
+from gyrinx.analytics.nouns import PlatformNoun
+from n23.core.events import EventNoun
 from n23.core.models.list import List
 
 
@@ -55,7 +57,7 @@ def test_event_without_list_id_does_not_update_list(make_list):
     # Create an event without list_id
     Event.objects.create(
         owner=lst.owner,
-        noun=EventNoun.USER,
+        noun=PlatformNoun.USER,
         verb=EventVerb.LOGIN,
         context={"some_other_data": "value"},
     )

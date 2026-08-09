@@ -134,6 +134,7 @@ def create_gang(request):
     and whatever the type's built-ins bring, in one operation — and
     lands back on the dashboard where the new gang is now a row.
     """
+    from n26.analytics import EventVerb, N26Noun, record
     from n26.core.forms import CreateGangForm
     from n26.core.models import Gang
     from n26.core.operations import operation
@@ -155,6 +156,16 @@ def create_gang(request):
             )
             with operation(gang, actor=request.user) as op:
                 op.found(gang_type)
+            # Recorded after the founding has committed: an event written
+            # inside the operation would vanish with it if it unwound.
+            record(
+                request,
+                N26Noun.GANG,
+                EventVerb.CREATE,
+                gang,
+                gang_type=gang_type.name,
+                starting_credits=budget,
+            )
             messages.success(request, f"Founded {gang.name}.")
             return redirect("n26-dashboard")
     else:
@@ -188,11 +199,15 @@ def delete_gang(request, pk):
     thing to check a decision against, and a reader with two gangs of
     similar names deserves a second fact.
     """
+    from n26.analytics import EventVerb, N26Noun, record
     from n26.core.models import Miniature
 
     gang = _own_gang_or_404(request, pk)
     if request.method == "POST":
         gang.archive()
+        # Recorded as a deletion, which is what the player did. That the row
+        # survives is how the ledger stays true, not something they asked for.
+        record(request, N26Noun.GANG, EventVerb.DELETE, gang)
         messages.success(request, f"Deleted {gang.name}.")
         return redirect("n26-gangs")
 

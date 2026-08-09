@@ -131,6 +131,7 @@ def hire_fighter(request, pk):
     unwinds the transaction), and lands back here as a message: nothing
     half-written, nothing lost but a click.
     """
+    from n26.analytics import EventVerb, N26Noun, record
     from n26.core.forms import HireFighterForm
     from n26.core.hire import build_hire_entry, build_hire_list, shelve_hire_list
     from n26.core.operations import NotEnoughCredits, operation
@@ -174,6 +175,18 @@ def hire_fighter(request, pk):
                 # saying so — the fighter would exist with nothing on
                 # screen to say they had been hired.
                 entry = getattr(miniature.membership, "ledger_entry", None)
+                # What the hire cost is read off the ledger for the same
+                # reason the message is: the page's arithmetic is a guess,
+                # the entry is what happened. Missing means unpriced, not free.
+                record(
+                    request,
+                    N26Noun.MODEL,
+                    EventVerb.CREATE,
+                    miniature,
+                    gang_id=str(gang.pk),
+                    profile=profile.name,
+                    paid=None if entry is None else entry.paid,
+                )
                 if entry is None:
                     messages.success(
                         request,

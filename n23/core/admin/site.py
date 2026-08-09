@@ -2,7 +2,8 @@ from django.contrib import admin
 from django.contrib.contenttypes.models import ContentType
 from django.utils.html import format_html
 
-from gyrinx.analytics.models import Event, EventNoun, EventVerb
+from gyrinx.analytics.models import Event, EventVerb
+from gyrinx.analytics.nouns import PlatformNoun
 from gyrinx.site.models import Banner
 
 
@@ -56,7 +57,7 @@ class BannerAdmin(admin.ModelAdmin):
         """Count the number of click events for this banner."""
         content_type = ContentType.objects.get_for_model(Banner)
         count = Event.objects.filter(
-            noun=EventNoun.BANNER,
+            noun=PlatformNoun.BANNER,
             verb=EventVerb.CLICK,
             object_id=obj.id,
             object_type=content_type,

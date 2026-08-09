@@ -21,7 +21,7 @@ from django.views import generic
 from pydantic import BaseModel, ValidationError
 
 from gyrinx import messages
-from gyrinx.analytics.models import EventNoun, EventVerb, log_event
+from gyrinx.analytics.models import EventVerb, log_event
 from gyrinx.http import safe_redirect
 from gyrinx.models import is_valid_uuid
 from gyrinx.querysets import search_queryset
@@ -70,6 +70,7 @@ from n23.content.statlines import (
 from n23.content.statlines import (
     statline_type_for_category as _get_statline_type_for_category,
 )
+from n23.core.events import EventNoun
 from n23.core.forms.pack import (
     HOUSE_RULE_TARGET_CHOICES,
     ContentAttributePackForm,

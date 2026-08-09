@@ -24,12 +24,25 @@ The dependency direction is: `library` holds content, `core` reads it.
 Concretely:
 
 - **No app code in `n26/` imports `n23.*` or `gyrinx.*`.** n26 is a
-  parallel edition, not a layer on the old one. Four deliberate
+  parallel edition, not a layer on the old one. Five deliberate
   exceptions: the dashboard reads `gyrinx.site.models.ChangelogEntry`,
   deferred inside the view; the gangs view searches with
   `gyrinx.querysets.search_queryset`; the artwork tag cleans SVG with
-  `gyrinx.svg.sanitize_inline_svg`; and `n26/tests/` may import
-  platform pieces to test the seam. Do not add others.
+  `gyrinx.svg.sanitize_inline_svg`; `n26/analytics.py` records events
+  through `gyrinx.analytics`; and `n26/tests/` may import platform
+  pieces to test the seam. Do not add others.
+- **`n26/analytics.py` is the third platform module n26 may call, and
+  the only file allowed to.** Activity tracking is the site's: one
+  events table, one log stream, one dashboard, and every question asked
+  of them ("how many people did X this week") is asked of the site.
+  A second store in this edition would answer none of them and would
+  give the two editions incompatible histories. The whole dependency is
+  one file — nouns declared, growth-chart lines registered, and
+  `record()` — so the seam can be read and moved in one place, and no
+  view imports `gyrinx.analytics` itself. The words stay ours: a noun
+  belongs to exactly one edition, so a gang here is never filed under
+  n23's "list", and the edition of a row follows from its noun with no
+  argument for a call site to forget.
 - **`gyrinx.querysets` is the first of the two platform modules n26 code
   may call.** It is model-agnostic — full text plus a substring fallback over
   whatever fields it is handed, knowing nothing about either edition,

@@ -11,6 +11,7 @@ served. Keep the import in ``n23/core/admin/__init__.py``: dropping it does not
 break anything loudly, it just empties the chart.
 """
 
+from gyrinx.analytics.nouns import Edition
 from gyrinx.analytics.registry import (
     GrowthSeries,
     daily_counts_by_date,
@@ -37,32 +38,36 @@ def _campaigns(start_date):
     return daily_counts_by_date(Campaign.objects.all(), start_date)
 
 
-# Registration order is chart order; the colours are the ones the chart has
-# always used for these three lines.
+# Registration order is chart order. The labels name the edition because the
+# chart carries both editions' lines, and "Fighters" beside "Models" says
+# nothing about which game either belongs to.
 register_growth_series(
     GrowthSeries(
         key="n23_fighters",
-        label="Fighters (Cumulative)",
+        label="N23 Fighters (Cumulative)",
         border_color="rgb(75, 192, 192)",
         background_color="rgba(75, 192, 192, 0.2)",
         daily_counts=_fighters_in_list_building,
+        edition=Edition.N23,
     )
 )
 register_growth_series(
     GrowthSeries(
         key="n23_lists",
-        label="Lists (Cumulative)",
+        label="N23 Lists (Cumulative)",
         border_color="rgb(54, 162, 235)",
         background_color="rgba(54, 162, 235, 0.2)",
         daily_counts=_list_building_lists,
+        edition=Edition.N23,
     )
 )
 register_growth_series(
     GrowthSeries(
         key="n23_campaigns",
-        label="Campaigns (Cumulative)",
+        label="N23 Campaigns (Cumulative)",
         border_color="rgb(255, 99, 132)",
         background_color="rgba(255, 99, 132, 0.2)",
         daily_counts=_campaigns,
+        edition=Edition.N23,
     )
 )

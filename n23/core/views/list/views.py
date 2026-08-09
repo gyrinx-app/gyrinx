@@ -15,7 +15,7 @@ from django.views import generic
 from django.views.decorators.http import require_POST
 
 from gyrinx import messages
-from gyrinx.analytics.models import EventNoun, EventVerb, log_event
+from gyrinx.analytics.models import EventVerb, log_event
 from gyrinx.http import build_safe_url, get_return_url, safe_redirect
 from gyrinx.models import is_valid_uuid
 from gyrinx.querysets import search_queryset, toggle_membership
@@ -23,6 +23,7 @@ from gyrinx.site.models import BANNER_CACHE_KEY
 from gyrinx.tracing import traced
 from gyrinx.tracker import track
 from n23.content.models import ContentEquipment, ContentFighter, ContentHouse
+from n23.core.events import EventNoun
 from n23.core.forms.list import CloneListForm, EditListForm, NewListForm
 from n23.core.handlers.list import handle_list_clone, handle_list_creation
 from n23.core.models.list import List, ListFighter

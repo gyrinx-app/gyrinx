@@ -8,7 +8,8 @@ from django.shortcuts import get_object_or_404, redirect, render
 
 from gyrinx.account_forms import BadgeSelectionForm, UsernameChangeForm
 from gyrinx.accounts.models import UserProfile
-from gyrinx.analytics.models import EventNoun, EventVerb, log_event
+from gyrinx.analytics.models import EventVerb, log_event
+from gyrinx.analytics.nouns import PlatformNoun
 from gyrinx.badges import HIDE_BADGE
 from gyrinx.impersonation import can_impersonate_target
 from n23.core.models.campaign import Campaign
@@ -107,7 +108,7 @@ def user(request, slug_or_id):
     if request.user.is_authenticated:
         log_event(
             user=request.user,
-            noun=EventNoun.USER,
+            noun=PlatformNoun.USER,
             verb=EventVerb.VIEW,
             object=profile_user,
             request=request,
@@ -166,7 +167,7 @@ def change_username(request):
             # Log the username change
             log_event(
                 user=request.user,
-                noun=EventNoun.USER,
+                noun=PlatformNoun.USER,
                 verb=EventVerb.UPDATE,
                 request=request,
                 field="username",
@@ -183,7 +184,7 @@ def change_username(request):
         # Log viewing the username change form
         log_event(
             user=request.user,
-            noun=EventNoun.USER,
+            noun=PlatformNoun.USER,
             verb=EventVerb.VIEW,
             request=request,
             page="change_username",
@@ -228,7 +229,7 @@ def badge_settings(request):
             form.save()
             log_event(
                 user=request.user,
-                noun=EventNoun.USER,
+                noun=PlatformNoun.USER,
                 verb=EventVerb.UPDATE,
                 request=request,
                 field="selected_badge",
@@ -239,7 +240,7 @@ def badge_settings(request):
     else:
         log_event(
             user=request.user,
-            noun=EventNoun.USER,
+            noun=PlatformNoun.USER,
             verb=EventVerb.VIEW,
             request=request,
             page="badge_settings",

@@ -35,6 +35,10 @@ class GrowthSeries:
     ``daily_counts`` is called with the window's start datetime and returns a
     mapping of day to "how many were created that day". Days with none may be
     omitted — the platform accumulates the values and fills the gaps.
+
+    ``edition`` says whose line it is, so the dashboard can show one product at
+    a time. Two editions' gangs are not one number, and a chart that adds them
+    together says the site grew when one of them may be shrinking.
     """
 
     key: str
@@ -42,6 +46,7 @@ class GrowthSeries:
     border_color: str
     background_color: str
     daily_counts: Callable[[datetime], Mapping[date, int]]
+    edition: str
 
 
 _series: dict[str, GrowthSeries] = {}
@@ -56,9 +61,15 @@ def register_growth_series(series: GrowthSeries) -> None:
     _series[series.key] = series
 
 
-def growth_series() -> tuple[GrowthSeries, ...]:
-    """Every registered series, in registration order."""
-    return tuple(_series.values())
+def growth_series(edition: str | None = None) -> tuple[GrowthSeries, ...]:
+    """Every registered series, in registration order.
+
+    Narrowed to one edition's lines when ``edition`` is given.
+    """
+    series = tuple(_series.values())
+    if edition is None:
+        return series
+    return tuple(s for s in series if s.edition == edition)
 
 
 def daily_counts_by_date(

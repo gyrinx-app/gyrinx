@@ -11,7 +11,8 @@ from django.urls import reverse
 from django.views import generic
 
 from gyrinx import messages
-from gyrinx.analytics.models import EventNoun, EventVerb, log_event
+from gyrinx.analytics.models import EventVerb, log_event
+from n23.core.events import EventNoun
 from n23.core.forms.list import CloneListFighterForm, ListFighterForm
 from n23.core.handlers.fighter import (
     RESURRECT_TARGET_STATES,

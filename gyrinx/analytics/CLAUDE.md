@@ -8,7 +8,25 @@ This file provides guidance specific to the analytics app.
   Use the Read tool to check the actual model definition in the `models.py` file before writing queries or filters.
 - The analytics app uses hard-coded graphs, not configurable ones
 - All graph data methods should use Django ORM, not raw SQL
-- The dashboard supports timescale filtering (7d, 30d, 90d, 1y)
+- The dashboard supports timescale filtering (7d, 30d, 90d, 1y) and edition filtering
+
+## Editions and the noun vocabulary
+
+Two editions write to one events table, so every `Event` carries an `edition`.
+
+- The words belong to the editions, not here. `EventNoun` lives in
+  `n23/core/events.py`; n26's live in `n26/analytics.py`. Only `PlatformNoun`
+  (`user`, `banner`) is the platform's, because an account and a site-wide
+  banner are the same thing whichever edition you are reading.
+- **A noun value belongs to exactly one edition**, enforced at registration
+  (`gyrinx/analytics/nouns.py`). That is what lets `edition` be derived from
+  the noun instead of passed in — there is no argument to thread through the
+  call sites, and so none to forget. A noun nobody registered is recorded as
+  `unknown` with an error logged, never guessed into a real edition.
+- `Event.noun`'s `choices` is the registry callable, so adding a noun writes
+  no migration.
+- Anything grouping events must group by edition too, or it adds two products
+  together. The growth chart's lines each declare an edition for this reason.
 
 ## Graph Types
 

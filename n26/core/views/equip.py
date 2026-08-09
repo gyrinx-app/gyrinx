@@ -229,6 +229,7 @@ def equip(request, pk):
     A purchase stays on the page: kitting out a fighter is a run of
     purchases, and the breadcrumb is the way back.
     """
+    from n26.analytics import EventVerb, N26Noun, record
     from n26.core.access import collections_for
     from n26.core.browse import browse, usability_for, with_use_notes
     from n26.core.card import build_card, build_modifier_index
@@ -326,6 +327,21 @@ def equip(request, pk):
         # prices in the reader's hands the total is no longer something
         # the page can be read off for.
         spent = paid + sum(part_paid for _, part_paid in paid_for)
+        # One press, one event, whatever it bought. A gun with three paid
+        # ammo types is one purchase to the player and should be one row
+        # here — the parts are a count, not four writes.
+        record(
+            request,
+            N26Noun.ASSIGNMENT,
+            EventVerb.CREATE,
+            bought,
+            gang_id=str(gang.pk),
+            miniature_id=str(miniature.pk),
+            thing=line.name,
+            collection=chosen.name,
+            paid=spent,
+            parts=len(paid_for),
+        )
         if paid_for:
             extras = ", ".join(part.thing.name for part, _ in paid_for)
             messages.success(

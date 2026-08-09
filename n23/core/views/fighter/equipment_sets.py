@@ -14,8 +14,9 @@ from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 
 from gyrinx import messages
-from gyrinx.analytics.models import EventNoun, EventVerb, log_event
+from gyrinx.analytics.models import EventVerb, log_event
 from gyrinx.http import safe_redirect
+from n23.core.events import EventNoun
 from n23.core.models.list import ListFighterEquipmentSet
 from n23.core.views.fighter.permissions import get_list_and_fighter
 

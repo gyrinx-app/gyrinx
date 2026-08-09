@@ -206,6 +206,7 @@ def print_gang(request, pk):
     with print rules. With ?config= it prints that config's selection;
     without one, everything.
     """
+    from n26.analytics import EventVerb, N26Noun, record
     from n26.core.render import render_gang
 
     gang = _own_gang_or_404(request, pk)
@@ -226,6 +227,18 @@ def print_gang(request, pk):
         rows = _print_rows(gang, _roster(gang))
         include_header = True
         include_stash = True
+
+    # One event for the sheet, carrying how much of the gang it covers —
+    # a card per model would make a big roster look like heavy use.
+    record(
+        request,
+        N26Noun.PRINT_RUN,
+        EventVerb.EXPORT,
+        gang,
+        cards=len(rows),
+        saved_config=config is not None,
+        include_stash=include_stash,
+    )
 
     return render(
         request,

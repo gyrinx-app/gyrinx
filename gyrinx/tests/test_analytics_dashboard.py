@@ -63,9 +63,9 @@ def test_growth_chart_counts_the_editions_objects(
     resp = client.get(reverse("admin:analytics_dashboard"))
 
     totals = {d["label"]: d["data"][-1] for d in _cumulative(resp)["datasets"]}
-    assert totals["Fighters (Cumulative)"] >= 1
-    assert totals["Lists (Cumulative)"] >= 1
-    assert totals["Campaigns (Cumulative)"] >= 1
+    assert totals["N23 Fighters (Cumulative)"] >= 1
+    assert totals["N23 Lists (Cumulative)"] >= 1
+    assert totals["N23 Campaigns (Cumulative)"] >= 1
 
 
 @pytest.mark.django_db
@@ -100,6 +100,27 @@ def test_daily_counts_by_date_groups_by_creation_day(make_campaign):
 
 
 @pytest.mark.django_db
+def test_picking_an_edition_leaves_only_that_editions_lines(client, dashboard_admin):
+    """Two products on one chart: whichever one you asked for is the one you
+    get, because adding their lines together would describe neither."""
+    client.force_login(dashboard_admin)
+    resp = client.get(reverse("admin:analytics_dashboard") + "?edition=n26")
+
+    labels = [d["label"] for d in _cumulative(resp)["datasets"]]
+    assert labels == [s.label for s in growth_series("n26")]
+    assert not any(label.startswith("N23") for label in labels)
+
+
+@pytest.mark.django_db
+def test_an_edition_nobody_has_heard_of_shows_everything(client, dashboard_admin):
+    client.force_login(dashboard_admin)
+    resp = client.get(reverse("admin:analytics_dashboard") + "?edition=nonsense")
+
+    labels = [d["label"] for d in _cumulative(resp)["datasets"]]
+    assert labels == [s.label for s in growth_series()]
+
+
+@pytest.mark.django_db
 def test_registering_a_key_twice_replaces_rather_than_duplicates():
     """Re-registration overrides in place — a series can't be double-plotted."""
     before = len(growth_series())
@@ -109,6 +130,7 @@ def test_registering_a_key_twice_replaces_rather_than_duplicates():
         border_color="rgb(0, 0, 0)",
         background_color="rgba(0, 0, 0, 0.2)",
         daily_counts=lambda start: {},
+        edition="n23",
     )
     register_growth_series(series)
     try:
@@ -119,6 +141,7 @@ def test_registering_a_key_twice_replaces_rather_than_duplicates():
                 border_color="rgb(1, 1, 1)",
                 background_color="rgba(1, 1, 1, 0.2)",
                 daily_counts=lambda start: {},
+                edition="n23",
             )
         )
         registered = growth_series()

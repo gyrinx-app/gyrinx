@@ -3,7 +3,8 @@ from django.contrib.auth import get_user_model
 from django.test import Client
 from django.urls import reverse
 
-from gyrinx.analytics.models import Event, EventNoun, EventVerb
+from gyrinx.analytics.models import Event, EventVerb
+from gyrinx.analytics.nouns import PlatformNoun
 from gyrinx.site.models import Banner
 
 User = get_user_model()
@@ -32,12 +33,15 @@ def test_track_banner_click_with_cta_url():
 
     # Check that event was logged
     event = Event.objects.filter(
-        noun=EventNoun.BANNER,
+        noun=PlatformNoun.BANNER,
         verb=EventVerb.CLICK,
         object_id=banner.id,
     ).first()
 
     assert event is not None
+    # A banner is the site's, shown above either edition, so the click is
+    # recorded against neither.
+    assert event.edition == "platform"
     assert event.context["banner_text"] == "Test banner"
     assert event.context["cta_text"] == "Learn More"
     assert event.context["cta_url"] == "https://example.com"
@@ -64,7 +68,7 @@ def test_track_banner_click_without_cta_url():
 
     # Check that event was logged
     event = Event.objects.filter(
-        noun=EventNoun.BANNER,
+        noun=PlatformNoun.BANNER,
         verb=EventVerb.CLICK,
         object_id=banner.id,
     ).first()
@@ -94,7 +98,7 @@ def test_track_banner_click_non_live_banner():
 
     # No event should be logged
     event_count = Event.objects.filter(
-        noun=EventNoun.BANNER,
+        noun=PlatformNoun.BANNER,
         verb=EventVerb.CLICK,
     ).count()
 
@@ -129,7 +133,7 @@ def test_track_banner_click_authenticated_user():
 
     # Check that event was logged with user
     event = Event.objects.filter(
-        noun=EventNoun.BANNER,
+        noun=PlatformNoun.BANNER,
         verb=EventVerb.CLICK,
         object_id=banner.id,
     ).first()

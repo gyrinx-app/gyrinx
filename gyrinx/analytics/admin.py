@@ -12,6 +12,7 @@ from django.urls import path
 from django.utils import timezone
 
 from gyrinx.analytics.models import Event
+from gyrinx.analytics.nouns import Edition
 from gyrinx.analytics.registry import growth_series
 
 User = get_user_model()
@@ -53,15 +54,25 @@ class AnalyticsAdminSite(admin.site.__class__):
         days = scale_map.get(time_scale, 30)
         start_date = timezone.now() - timedelta(days=days)
 
+        # Which product to look at. Two editions run side by side, so their
+        # activity has to be readable apart: added together, one growing while
+        # the other shrinks looks like a flat site. An unrecognised value falls
+        # back to showing everything.
+        wanted = request.GET.get("edition", "")
+        edition = wanted if wanted in Edition.values else None
+
         # Get data for hard-coded graphs
         user_data = self.get_user_registration_data(start_date)
-        events_data = self.get_top_events_data(start_date)
-        cumulative_data = self.get_cumulative_creation_data(start_date)
+        events_data = self.get_top_events_data(start_date, edition)
+        cumulative_data = self.get_cumulative_creation_data(start_date, edition)
 
         context = {
             **self.each_context(request),
             "title": "Analytics Dashboard",
             "time_scale": time_scale,
+            "edition": edition or "",
+            "editions": [{"value": "", "label": "All editions"}]
+            + [{"value": e.value, "label": e.label} for e in Edition],
             "time_scales": [
                 {"value": "7d", "label": "Last 7 Days"},
                 {"value": "30d", "label": "Last 30 Days"},
@@ -76,7 +87,11 @@ class AnalyticsAdminSite(admin.site.__class__):
         return render(request, "analytics/admin/dashboard.html", context)
 
     def get_user_registration_data(self, start_date):
-        """Get user registration data"""
+        """Get user registration data.
+
+        Not narrowed by the edition filter: an account is the site's, and the
+        same sign-up reaches both editions.
+        """
         # Get daily user counts
         daily_users = (
             User.objects.filter(date_joined__gte=start_date)
@@ -105,11 +120,20 @@ class AnalyticsAdminSite(admin.site.__class__):
             "data": data,
         }
 
-    def get_top_events_data(self, start_date):
-        """Get top events excluding views"""
+    def get_top_events_data(self, start_date, edition=None):
+        """Get top events excluding views.
+
+        A noun belongs to one edition, so the lines never merge two products
+        into one; the filter is there to stop one edition's busiest actions
+        crowding the other's out of the top ten.
+        """
+        events = Event.objects.all()
+        if edition is not None:
+            events = events.filter(edition=edition)
+
         # First get top 10 event types
         top_event_types = (
-            Event.objects.filter(created__gte=start_date)
+            events.filter(created__gte=start_date)
             .exclude(verb="view")
             .values("noun", "verb")
             .annotate(total=Count("id"))
@@ -121,7 +145,7 @@ class AnalyticsAdminSite(admin.site.__class__):
 
         # Get daily counts for these top events
         daily_events = (
-            Event.objects.filter(
+            events.filter(
                 created__gte=start_date,
                 noun__in=[e[0] for e in top_events],
                 verb__in=[e[1] for e in top_events],
@@ -187,14 +211,18 @@ class AnalyticsAdminSite(admin.site.__class__):
             "datasets": datasets,
         }
 
-    def get_cumulative_creation_data(self, start_date):
+    def get_cumulative_creation_data(self, start_date, edition=None):
         """Cumulative creation counts, one line per registered growth series.
 
         What gets counted is the edition's business — the platform only knows
         how to accumulate. See ``gyrinx.analytics.registry``; with nothing
         registered the chart renders empty rather than failing.
+
+        Every line says which edition it belongs to, so picking one leaves
+        only that product's lines. Nothing is summed across editions here:
+        each line stays its own.
         """
-        series = growth_series()
+        series = growth_series(edition)
         counts_by_series = [s.daily_counts(start_date) for s in series]
 
         datasets = [

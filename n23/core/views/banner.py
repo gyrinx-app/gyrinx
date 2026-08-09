@@ -7,7 +7,8 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.views.decorators.http import require_POST
 
-from gyrinx.analytics.models import EventNoun, EventVerb, log_event
+from gyrinx.analytics.models import EventVerb, log_event
+from gyrinx.analytics.nouns import PlatformNoun
 from gyrinx.site.models import Banner
 
 logger = logging.getLogger(__name__)
@@ -45,7 +46,7 @@ def dismiss_banner(request):
             if request.user.is_authenticated:
                 log_event(
                     user=request.user,
-                    noun=EventNoun.USER,
+                    noun=PlatformNoun.USER,
                     verb=EventVerb.UPDATE,
                     request=request,
                     action="dismiss_banner",
@@ -94,7 +95,7 @@ def track_banner_click(request, id):
     # Log the banner click event
     log_event(
         user=request.user if request.user.is_authenticated else None,
-        noun=EventNoun.BANNER,
+        noun=PlatformNoun.BANNER,
         verb=EventVerb.CLICK,
         object=banner,
         request=request,

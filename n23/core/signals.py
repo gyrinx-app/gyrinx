@@ -32,7 +32,8 @@ from django.dispatch import receiver
 from django.utils import timezone
 
 from gyrinx.accounts.models import UserProfile
-from gyrinx.analytics.models import Event, EventField, EventNoun, EventVerb, log_event
+from gyrinx.analytics.models import Event, EventField, EventVerb, log_event
+from gyrinx.analytics.nouns import PlatformNoun
 from gyrinx.impersonation import (
     IMPERSONATE_LOG_KEY,
     IMPERSONATE_SESSION_KEYS,
@@ -49,7 +50,7 @@ def log_user_login(request, user, **kwargs):
     """Log when a user signs in via allauth."""
     log_event(
         user=user,
-        noun=EventNoun.USER,
+        noun=PlatformNoun.USER,
         verb=EventVerb.LOGIN,
         request=request,
         login_method=kwargs.get("sociallogin", {}).get("provider", "email"),
@@ -63,7 +64,7 @@ def log_user_logout(sender, request, user, **kwargs):
     if user and user.is_authenticated:
         log_event(
             user=user,
-            noun=EventNoun.USER,
+            noun=PlatformNoun.USER,
             verb=EventVerb.LOGOUT,
             request=request,
         )
@@ -97,7 +98,7 @@ def log_user_signup(request, user, **kwargs):
     """Log when a new user signs up via allauth."""
     log_event(
         user=user,
-        noun=EventNoun.USER,
+        noun=PlatformNoun.USER,
         verb=EventVerb.SIGNUP,
         request=request,
         sociallogin=bool(kwargs.get("sociallogin")),
@@ -123,7 +124,7 @@ def log_email_confirmed(request, email_address, **kwargs):
     """Log when a user confirms their email address."""
     log_event(
         user=email_address.user,
-        noun=EventNoun.USER,
+        noun=PlatformNoun.USER,
         verb=EventVerb.UPDATE,
         request=request,
         field=EventField.EMAIL,
@@ -138,7 +139,7 @@ def log_email_confirmation_sent(request, confirmation, signup, **kwargs):
     """Log when an email confirmation is sent."""
     log_event(
         user=confirmation.email_address.user,
-        noun=EventNoun.USER,
+        noun=PlatformNoun.USER,
         verb=EventVerb.CONFIRM,
         request=request,
         signup=signup,
@@ -151,7 +152,7 @@ def log_password_set(request, user, **kwargs):
     """Log when a user sets their password for the first time."""
     log_event(
         user=user,
-        noun=EventNoun.USER,
+        noun=PlatformNoun.USER,
         verb=EventVerb.CREATE,
         request=request,
         field=EventField.PASSWORD,
@@ -164,7 +165,7 @@ def log_password_changed(request, user, **kwargs):
     """Log when a user changes their password."""
     log_event(
         user=user,
-        noun=EventNoun.USER,
+        noun=PlatformNoun.USER,
         verb=EventVerb.UPDATE,
         request=request,
         field=EventField.PASSWORD,
@@ -177,7 +178,7 @@ def log_password_reset(request, user, **kwargs):
     """Log when a user resets their password."""
     log_event(
         user=user,
-        noun=EventNoun.USER,
+        noun=PlatformNoun.USER,
         verb=EventVerb.RESET,
         request=request,
         field=EventField.PASSWORD,
@@ -190,7 +191,7 @@ def log_email_changed(request, user, from_email_address, to_email_address, **kwa
     """Log when a user changes their primary email address."""
     log_event(
         user=user,
-        noun=EventNoun.USER,
+        noun=PlatformNoun.USER,
         verb=EventVerb.UPDATE,
         request=request,
         field=EventField.EMAIL,
@@ -205,7 +206,7 @@ def log_email_added(request, user, email_address, **kwargs):
     """Log when a user adds a new email address."""
     log_event(
         user=user,
-        noun=EventNoun.USER,
+        noun=PlatformNoun.USER,
         verb=EventVerb.ADD,
         request=request,
         field=EventField.EMAIL,
@@ -220,7 +221,7 @@ def log_email_removed(request, user, email_address, **kwargs):
     """Log when a user removes an email address."""
     log_event(
         user=user,
-        noun=EventNoun.USER,
+        noun=PlatformNoun.USER,
         verb=EventVerb.REMOVE,
         request=request,
         field=EventField.EMAIL,
@@ -234,7 +235,7 @@ def log_authenticator_added(request, user, authenticator: Authenticator.Type, **
     """Log when a user adds a new authenticator for MFA."""
     log_event(
         user=user,
-        noun=EventNoun.USER,
+        noun=PlatformNoun.USER,
         verb=EventVerb.ADD,
         request=request,
         field=EventField.MFA,
@@ -252,7 +253,7 @@ def log_authenticator_removed(
     """Log when a user removes an authenticator."""
     log_event(
         user=user,
-        noun=EventNoun.USER,
+        noun=PlatformNoun.USER,
         verb=EventVerb.REMOVE,
         request=request,
         field=EventField.MFA,
@@ -268,7 +269,7 @@ def log_authenticator_reset(request, user, **kwargs):
     """Log when a user resets their authenticators."""
     log_event(
         user=user,
-        noun=EventNoun.USER,
+        noun=PlatformNoun.USER,
         verb=EventVerb.RESET,
         request=request,
         field=EventField.MFA,
@@ -281,7 +282,7 @@ def log_session_client_changed(sender, request, from_session, to_session, **kwar
     """Log when a user changes their session client."""
     log_event(
         user=request.user,
-        noun=EventNoun.USER,
+        noun=PlatformNoun.USER,
         verb=EventVerb.UPDATE,
         request=request,
         field=EventField.SESSION,

@@ -7,12 +7,13 @@ from django.contrib.contenttypes.models import ContentType
 from gyrinx.analytics.models import (
     Event,
     EventField,
-    EventNoun,
     EventVerb,
     get_client_ip,
     log_event,
 )
+from gyrinx.analytics.nouns import PlatformNoun
 from n23.content.models import ContentHouse
+from n23.core.events import EventNoun
 from n23.core.models import List
 
 
@@ -91,14 +92,14 @@ def test_log_event_without_object():
 
     event = log_event(
         user=user,
-        noun=EventNoun.USER,
+        noun=PlatformNoun.USER,
         verb=EventVerb.UPDATE,
         ip_address="192.168.1.1",
         field=EventField.PASSWORD,
     )
 
     assert event.owner == user
-    assert event.noun == EventNoun.USER
+    assert event.noun == PlatformNoun.USER
     assert event.verb == EventVerb.UPDATE
     assert event.object_id is None
     assert event.object_type is None
@@ -142,7 +143,7 @@ def test_log_event_with_request_no_session():
 
     event = log_event(
         user=user,
-        noun=EventNoun.USER,
+        noun=PlatformNoun.USER,
         verb=EventVerb.VIEW,
         request=mock_request,
     )
@@ -196,7 +197,7 @@ def test_event_noun_choices():
     assert EventNoun.BATTLE == "battle"
     assert EventNoun.EQUIPMENT_ASSIGNMENT == "equipment_assignment"
     assert EventNoun.SKILL_ASSIGNMENT == "skill_assignment"
-    assert EventNoun.USER == "user"
+    assert PlatformNoun.USER == "user"
     assert EventNoun.UPLOAD == "upload"
     assert EventNoun.FIGHTER_ADVANCEMENT == "fighter_advancement"
     assert EventNoun.CAMPAIGN_ACTION == "campaign_action"
@@ -277,6 +278,10 @@ def test_create_list_view_logs_event(client, user, content_house):
     assert event.context["content_house"] == content_house.name
     assert event.context["public"] is True
 
+    # Two editions write to this table, so the row has to say which one it
+    # came from. Nothing in the view passes it — it follows from the noun.
+    assert event.edition == "n23"
+
     # Check that session ID was captured
     assert event.session_id is not None
 
@@ -293,7 +298,7 @@ def test_log_event_error_handling(mock_create):
     # This should not raise an exception
     result = log_event(
         user=user,
-        noun=EventNoun.USER,
+        noun=PlatformNoun.USER,
         verb=EventVerb.UPDATE,
         field=EventField.PASSWORD,
     )
@@ -318,7 +323,7 @@ def test_event_save_logging_error_handling(mock_logger, mock_track):
     # This should not raise an exception
     event = Event.objects.create(
         owner=user,
-        noun=EventNoun.USER,
+        noun=PlatformNoun.USER,
         verb=EventVerb.LOGIN,
     )
 
@@ -404,7 +409,7 @@ def test_log_event_with_x_forwarded_for():
 
     event = log_event(
         user=user,
-        noun=EventNoun.USER,
+        noun=PlatformNoun.USER,
         verb=EventVerb.LOGIN,
         request=mock_request,
     )
