@@ -225,7 +225,7 @@ class TestTheClawsArriveAsFreeKit:
     ):
         """Why the sale is reachable: the controls ask what *kind* of
         thing this is, and a weapon is gear whoever gave it to you."""
-        held = owned_things(build_card(fighter))
+        held = owned_things(build_card(fighter), "/n26/fighters/x/equip/")
         offered = {thing.name for things in held.values() for thing in things}
         assert "Helamite claws" in offered
 
@@ -397,7 +397,7 @@ class TestTheGrantedClawsAreFreeKit:
         """The sale controls are drawn from what the model owns, and a
         granted weapon is not owned: nobody paid for it, so there is
         nothing to hand back for money."""
-        held = owned_things(build_card(fighter))
+        held = owned_things(build_card(fighter), "/n26/fighters/x/equip/")
         offered = {thing.name for things in held.values() for thing in things}
 
         assert "Helamite claws" not in offered

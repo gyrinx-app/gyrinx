@@ -249,7 +249,7 @@ def equip(request, pk):
     from n26.core.effects import compute
     from n26.core.operations import NotEnoughCredits, operation
     from n26.core.owned import owned_things
-    from n26.core.views.owned import link_owned, owned_dialog
+    from n26.core.views.owned import owned_dialog
     from n26.library.models import Collection, Family, get_default_pack
     from n26.library.standard_content import TRADING_POST_COLLECTION
 
@@ -370,12 +370,11 @@ def equip(request, pk):
         return redirect(back)
 
     # What this fighter is already carrying, keyed the way the rows are, so
-    # a row asks one dictionary rather than the database. The links are
-    # filled in here because the URL space is the view's business — the
-    # dialogs open over this page, on the list being read, and Cancel
-    # comes back to it.
+    # a row asks one dictionary rather than the database. The dialogs open
+    # over this page, on the list being read, and Cancel comes back to it,
+    # so the page's own address is what the controls are built from.
     at = f"{request.path}?list={chosen.pk}" if chosen is not None else request.path
-    owned = link_owned(owned_things(card), at)
+    owned = owned_things(card, at)
 
     lines = list(view.all_lines()) if view is not None else []
     trade_points = [

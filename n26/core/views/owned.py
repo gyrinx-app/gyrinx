@@ -26,8 +26,6 @@ happened:
     Off the card, money stays spent.
 """
 
-from urllib.parse import urlencode
-
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
@@ -36,7 +34,7 @@ from django.shortcuts import redirect
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
-from n26.core.owned import is_possession
+from n26.core.owned import CONFIRMATIONS, is_possession, with_query
 from n26.core.views.permissions import _own_assignment_or_404
 
 
@@ -62,30 +60,6 @@ def _possession_or_404(request, pk):
     if not is_possession(assignment.assignable):
         raise Http404("Not something the gang owns")
     return assignment
-
-
-def _with(url, **params):
-    """A URL with more query on the end of it, whatever it had already."""
-    joiner = "&" if "?" in url else "?"
-    return f"{url}{joiner}{urlencode(params)}"
-
-
-def link_owned(index, at):
-    """Point every owned line's controls at the dialogs, on this screen.
-
-    ``at`` is the page the reader is on, query string and all: the dialogs
-    open over it and Cancel returns to it, so the list they were reading
-    is still the list underneath.
-    """
-    for things in index.values():
-        for thing in things:
-            thing.sell_href = _with(at, sell=thing.id)
-            thing.reassign_href = _with(at, reassign=thing.id)
-            thing.remove_href = _with(at, remove=thing.id)
-            for part in thing.parts:
-                part.sell_href = _with(at, sell=part.id)
-                part.remove_href = _with(at, remove=part.id)
-    return index
 
 
 def _held(card, pk):
@@ -134,7 +108,7 @@ def owned_dialog(request, card, *, at, miniature, gang):
     """
     from n26.core.operations import MINIMUM_PROCEEDS, sale_of
 
-    for kind in ("sell", "reassign", "remove"):
+    for kind in CONFIRMATIONS:
         named = request.GET.get(kind)
         if named:
             break
@@ -208,7 +182,7 @@ def _back_to(request, miniature, gang):
         return reverse("n26-gang", args=[gang.pk])
     url = reverse("n26-equip", args=[miniature.pk])
     chosen = request.POST.get("list", "")
-    return _with(url, list=chosen) if chosen else url
+    return with_query(url, list=chosen) if chosen else url
 
 
 @login_required

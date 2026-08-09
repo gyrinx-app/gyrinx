@@ -1409,25 +1409,29 @@ def owned_context():
 
     meltagun = OwnedThing(
         id="meltagun",
+        key="library.weapon:meltagun",
         name="Meltagun",
         rating=135,
-        parts=[
+        parts=(
             OwnedPart(
                 id="melta-round",
+                key="library.weaponprofile:melta-round",
                 name="Melta round",
                 rating=20,
                 sell_href="#",
                 remove_href="#",
-            )
-        ],
+            ),
+        ),
         sell_href="#",
         reassign_href="#",
         remove_href="#",
     )
     stub = OwnedThing(
         id="stub-gun",
+        key="library.weapon:stub-gun",
         name="Stub gun",
         rating=5,
+        parts=(),
         sell_href="#",
         reassign_href="#",
         remove_href="#",

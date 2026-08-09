@@ -1161,9 +1161,11 @@ def test_two_of_one_weapon_are_two_lines_that_can_be_told_apart(
     # The paid ammo sits under the gun it was bought for, and under that
     # one only. Both guns carry the free firing mode that comes with an
     # Autogun; neither draws the unnamed profile, which *is* the Autogun.
+    # Each part goes by its bare name — the gun it belongs to is the row
+    # above it.
     holding = {thing.id: [part.name for part in thing.parts] for thing in row["owned"]}
-    assert holding[str(first.pk)] == ["fully automatic (Autogun)", str(warp)]
-    assert holding[str(second.pk)] == ["fully automatic (Autogun)"]
+    assert holding[str(first.pk)] == ["fully automatic", warp.name]
+    assert holding[str(second.pk)] == ["fully automatic"]
     assert f"sell={ammo.pk}" in response.content.decode()
 
 

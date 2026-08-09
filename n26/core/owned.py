@@ -26,11 +26,31 @@ are acts on **possessions**, and :func:`is_possession` is the one place
 that says what one is — read by the listing that draws the controls and
 by the routes behind them, so a screen can never offer what a route
 would refuse, nor the other way round.
+
+Where a control leads is settled here too, in the same pass that finds
+the copy. A confirmation is a query parameter on the page the reader is
+already on, so what a row needs is that page's address and nothing more;
+building the rows half-formed and walking them again to fill the links in
+would leave anyone who called this directly holding controls that lead
+nowhere.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from urllib.parse import urlencode
 
 from n26.library.models.assignable import Family
+
+#: The confirmations a screen can have open, each a query parameter
+#: naming one row of the card. Both sides read this tuple: the rows that
+#: draw the controls and the view that answers the URL behind them, so
+#: neither can invent a question the other does not know.
+CONFIRMATIONS = ("sell", "reassign", "remove")
+
+
+def with_query(url, **params):
+    """A URL with more query on the end of it, whatever it had already."""
+    joiner = "&" if "?" in url else "?"
+    return f"{url}{joiner}{urlencode(params)}"
 
 
 def is_possession(thing):
@@ -61,7 +81,7 @@ def thing_key(thing):
     return f"{thing._meta.label_lower}:{thing.pk}"
 
 
-@dataclass
+@dataclass(frozen=True)
 class OwnedPart:
     """Something hanging off a thing the model owns: ammo, an accessory.
 
@@ -69,31 +89,49 @@ class OwnedPart:
     """
 
     id: str
+    #: The content row this is one of, as :func:`thing_key` writes it —
+    #: so a part can say what it is without being looked up in whatever
+    #: is holding it.
+    key: str
     name: str
     rating: int
-    #: Where the controls lead. Filled in by whoever knows the URL space —
-    #: this module knows what a part *is*, not where its dialogs live.
-    sell_href: str = ""
-    remove_href: str = ""
+    sell_href: str
+    remove_href: str
 
 
-@dataclass
+@dataclass(frozen=True)
 class OwnedThing:
     """One copy of something the model already holds."""
 
     id: str
+    #: The content row this is a copy of, as :func:`thing_key` writes it.
+    key: str
     name: str
     #: What this copy contributes to the model's rating on its own. Its
     #: parts state theirs; what a sale returns is worked out from the
     #: rows themselves at the moment of selling, never from here.
     rating: int
-    parts: list[OwnedPart] = field(default_factory=list)
-    sell_href: str = ""
-    reassign_href: str = ""
-    remove_href: str = ""
+    parts: tuple[OwnedPart, ...]
+    sell_href: str
+    reassign_href: str
+    remove_href: str
 
 
-def _parts_of(node):
+def _part_name(node):
+    """What a part is called when it is drawn under its parent.
+
+    A weapon profile prints the gun it belongs to in brackets — "warp
+    round (Autogun)" — which is what a card wants, where nothing above
+    the line says which gun. Beneath the gun's own row the bracket only
+    repeats it, so the bare name stands, exactly as the shop row for the
+    same ammo does.
+    """
+    if node.is_weapon_profile:
+        return node.assignable.name
+    return node.name
+
+
+def _parts_of(node, at):
     """The children drawn beneath a thing, each with an address of its own.
 
     A weapon's *unnamed* profile is the weapon — the book prints an
@@ -106,22 +144,30 @@ def _parts_of(node):
     for child in node.children:
         if child.is_weapon_profile and not child.assignable.name:
             continue
+        pk = str(child.assignment.pk)
         parts.append(
             OwnedPart(
-                id=str(child.assignment.pk),
-                name=child.name,
+                id=pk,
+                key=thing_key(child.assignable),
+                name=_part_name(child),
                 rating=child.rating,
+                sell_href=with_query(at, sell=pk),
+                remove_href=with_query(at, remove=pk),
             )
         )
-    return parts
+    return tuple(parts)
 
 
-def owned_things(card):
+def owned_things(card, at):
     """Everything on this card, keyed the way a listing keys its rows.
 
     Keyed by :func:`thing_key`, so a row looks its own key up and finds
     the copies of itself the fighter is carrying — one dictionary read per
     row, whatever the fighter owns.
+
+    ``at`` is the page the reader is on, query string and all: the
+    confirmations open over it and Cancel returns to it, so the list they
+    were reading is still the list underneath.
 
     Two of the same weapon are two entries under one key, never one entry
     counted twice: each is its own row in the ledger, each may carry
@@ -156,12 +202,18 @@ def owned_things(card):
             continue
         if not is_possession(node.assignable):
             continue
-        index.setdefault(thing_key(node.assignable), []).append(
+        key = thing_key(node.assignable)
+        pk = str(node.assignment.pk)
+        index.setdefault(key, []).append(
             OwnedThing(
-                id=str(node.assignment.pk),
+                id=pk,
+                key=key,
                 name=node.name,
                 rating=node.rating,
-                parts=_parts_of(node),
+                parts=_parts_of(node, at),
+                sell_href=with_query(at, sell=pk),
+                reassign_href=with_query(at, reassign=pk),
+                remove_href=with_query(at, remove=pk),
             )
         )
     return index

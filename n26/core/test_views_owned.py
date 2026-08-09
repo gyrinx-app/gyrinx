@@ -21,6 +21,11 @@ from n26.library.authoring import create_wargear
 
 pytestmark = pytest.mark.django_db
 
+#: A page a reader could be on. Every control an owned row draws is a
+#: confirmation over the page it was drawn on, so building one takes an
+#: address; these tests supply a fixed one rather than a real request's.
+AT = "/n26/fighters/vex/equip/?list=1"
+
 
 @pytest.fixture
 def tester(db):
@@ -335,7 +340,7 @@ class TestWhatMayBePressedOn:
         with operation(gang, actor=tester) as op:
             op.learn(fighter, create_skill("Marksman"))
 
-        held = owned_things(build_card(fighter))
+        held = owned_things(build_card(fighter), AT)
         assert thing_key(sword.assignable) in held
         assert thing_key(fighter.membership.assignable) not in held
         assert not [key for key in held if key.startswith("library.skill:")]
@@ -403,17 +408,17 @@ def test_the_things_a_fighter_holds_are_counted_off_the_card(
     from n26.core.card import build_card
     from n26.core.owned import owned_things, thing_key
 
-    held = owned_things(build_card(fighter))
+    held = owned_things(build_card(fighter), AT)
     assert len(held[thing_key(sword.assignable)]) == 1
 
     with operation(gang, actor=tester) as op:
         op.buy(fighter, thing=sword.assignable, paid=100)
-    assert len(owned_things(build_card(fighter))[thing_key(sword.assignable)]) == 2
+    assert len(owned_things(build_card(fighter), AT)[thing_key(sword.assignable)]) == 2
 
     with operation(gang, actor=tester) as op:
         op.remove(sword)
     # Archived rows are not held: the fighter has one sword, not two.
-    assert len(owned_things(build_card(fighter))[thing_key(sword.assignable)]) == 1
+    assert len(owned_things(build_card(fighter), AT)[thing_key(sword.assignable)]) == 1
     assert_reconciled(gang)
 
 
@@ -430,11 +435,76 @@ def test_a_part_is_offered_no_move(gang, fighter, tester):
         gun = op.give_weapon(fighter, autogun, paid=20)
         op.buy_weapon_profile(gun, warp)
 
-    (held,) = owned_things(build_card(fighter))[thing_key(autogun)]
+    (held,) = owned_things(build_card(fighter), AT)[thing_key(autogun)]
     (part,) = held.parts
-    assert part.name == str(warp)
+    assert part.key == thing_key(warp)
     assert hasattr(held, "reassign_href")
     assert not hasattr(part, "reassign_href")
+
+
+def test_a_part_goes_by_its_own_name_under_the_thing_it_hangs_off(
+    gang, fighter, tester
+):
+    """A card prints "warp round (Autogun)" because nothing above the
+    line says which gun. Drawn under the gun's own row the bracket only
+    repeats it, so the part reads as the shop's row for the same ammo
+    reads — and the two agree."""
+    from n26.core.card import build_card
+    from n26.core.owned import owned_things, thing_key
+    from n26.library.authoring import add_weapon_profile, create_weapon
+
+    autogun = create_weapon("Autogun", profiles=[("", 0)], price=20)
+    warp = add_weapon_profile(autogun, name="warp round", price=10)
+    with operation(gang, actor=tester) as op:
+        gun = op.give_weapon(fighter, autogun, paid=20)
+        op.buy_weapon_profile(gun, warp)
+
+    (held,) = owned_things(build_card(fighter), AT)[thing_key(autogun)]
+    (part,) = held.parts
+    assert part.name == "warp round"
+    assert str(warp) == "warp round (Autogun)"
+
+
+def test_every_copy_arrives_with_its_controls_already_pointed_somewhere(
+    gang, fighter, tester
+):
+    """One pass, complete rows. A caller that had to walk the index
+    afterwards to fill the links in would be a caller who could forget,
+    and a row with an empty address draws a control that goes nowhere."""
+    from n26.core.card import build_card
+    from n26.core.owned import owned_things, thing_key
+    from n26.library.authoring import add_weapon_profile, create_weapon
+
+    autogun = create_weapon("Autogun", profiles=[("", 0)], price=20)
+    warp = add_weapon_profile(autogun, name="warp round", price=10)
+    with operation(gang, actor=tester) as op:
+        gun = op.give_weapon(fighter, autogun, paid=20)
+        ammo = op.buy_weapon_profile(gun, warp)
+
+    (held,) = owned_things(build_card(fighter), AT)[thing_key(autogun)]
+    (part,) = held.parts
+
+    assert held.key == thing_key(autogun)
+    assert held.id == str(gun.pk)
+    assert held.sell_href == f"{AT}&sell={gun.pk}"
+    assert held.reassign_href == f"{AT}&reassign={gun.pk}"
+    assert held.remove_href == f"{AT}&remove={gun.pk}"
+    assert part.sell_href == f"{AT}&sell={ammo.pk}"
+    assert part.remove_href == f"{AT}&remove={ammo.pk}"
+
+
+def test_a_copy_cannot_be_edited_after_it_is_built(gang, fighter, tester, sword):
+    """Frozen, because there is no second phase to change one in. What a
+    fighter holds is read off a card and handed on; a surface that wants
+    it said differently builds its own row."""
+    import dataclasses
+
+    from n26.core.card import build_card
+    from n26.core.owned import owned_things, thing_key
+
+    (held,) = owned_things(build_card(fighter), AT)[thing_key(sword.assignable)]
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        held.sell_href = "#"
 
 
 def test_the_gangs_own_rows_are_not_the_fighters_to_sell(gang, fighter, tester):
@@ -447,7 +517,7 @@ def test_the_gangs_own_rows_are_not_the_fighters_to_sell(gang, fighter, tester):
     with operation(gang, actor=tester) as op:
         op.assign(crate, gang=gang, paid=30)
 
-    assert thing_key(crate) not in owned_things(build_card(fighter))
+    assert thing_key(crate) not in owned_things(build_card(fighter), AT)
 
 
 def test_an_unowned_row_is_counted_as_nothing(gang, fighter):
@@ -455,7 +525,7 @@ def test_an_unowned_row_is_counted_as_nothing(gang, fighter):
     from n26.core.owned import owned_things, thing_key
 
     unheld = create_wargear("Rope", price=5)
-    assert owned_things(build_card(fighter)).get(thing_key(unheld)) is None
+    assert owned_things(build_card(fighter), AT).get(thing_key(unheld)) is None
 
 
 def test_a_miniature_that_is_not_this_gangs_is_no_destination(gang, fighter):
