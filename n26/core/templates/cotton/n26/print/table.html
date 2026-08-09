@@ -3,10 +3,10 @@
 
     <c-n26.print.table>
         <c-slot name="head">
-            <tr><th>Item</th><th class="is-numeric">Cost</th></tr>
+            <tr><th>Item</th><th class="is-numeric">Price</th></tr>
         </c-slot>
         {% for item in items %}
-            <tr><td>{{ item.name }}</td><td class="is-numeric">{{ item.cost }}¢</td></tr>
+            <tr><td>{{ item.name }}</td><td class="is-numeric">{{ item.price }}¢</td></tr>
         {% endfor %}
     </c-n26.print.table>
 

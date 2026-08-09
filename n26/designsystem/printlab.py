@@ -274,7 +274,7 @@ def table_rows() -> list[dict]:
         {
             "name": line.name,
             "category": category.name,
-            "cost": line.credits,
+            "price": line.credits,
             # Exclusive prints "E", not a number, because it is not one — see
             # <c-n26.collection-picker.item> and n26.browse.narrow.
             "availability": "E" if line.is_exclusive else line.trade_points,
