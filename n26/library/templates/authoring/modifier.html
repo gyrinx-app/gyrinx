@@ -71,11 +71,9 @@
             <c-ui.error :form="composer" name="__all__" />
             {% include "authoring/_panes.html" %}
             {% include "authoring/_field.html" with form=composer field=composer.name %}
-            <div class="flex justify-end">
-                <c-ui.button type="submit" variant="success">
-                    Save changes
-                </c-ui.button>
-            </div>
+            {# No way out: this form is a section of the page it is on, and the #}
+            {# breadcrumb above already leads back to the listing. #}
+            <c-n26.form-actions submit_label="Save changes" />
         </form>
     </c-n26.form-section>
     <c-n26.form-section title="Delete" class="mt-10">

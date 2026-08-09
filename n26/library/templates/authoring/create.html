@@ -35,11 +35,9 @@
                 {% include "authoring/_form.html" with form=suggestion_form %}
             </c-n26.form-section>
         {% endif %}
-        <div class="flex items-center justify-end gap-3">
-            <c-n26.link href="{% url 'authoring-leaf' kind %}">Cancel</c-n26.link>
-            <c-ui.button type="submit" variant="success">
-                Create {{ verbose_name }}
-            </c-ui.button>
-        </div>
+        {# The way out leads back to the listing this page was reached from, #}
+        {# which is also where a successful create lands. #}
+        <c-n26.form-actions submit_label="Create {{ verbose_name }}"
+                            cancel_url="{% url 'authoring-leaf' kind %}" />
     </form>
 {% endblock content %}

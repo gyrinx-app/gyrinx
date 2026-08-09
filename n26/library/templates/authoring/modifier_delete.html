@@ -11,6 +11,11 @@ carries is a draft nobody has used, and the page says so plainly. One
 that several things carry takes behaviour away from all of them at once,
 and the page names them: a count says how bad, a list says whether this
 is the one the author meant.
+
+The footer is the shared pair, marked `danger` because this form ends by
+taking something away. The way out leads back to the modifier, since
+leaving is not a submission and a reader who presses it should land where
+they were.
 {% endcomment %}
 {% block head_title %}Delete {{ thing.name }}{% endblock head_title %}
 {% block nav_heading %}Modifiers{% endblock nav_heading %}
@@ -20,7 +25,10 @@ is the one the author meant.
 {% block content %}
     <c-n26.form-page action="{% url 'authoring-modifier-delete' thing.pk %}"
                      title="Delete {{ thing.name }}?"
-                     lead="{{ sentence }}">
+                     lead="{{ sentence }}"
+                     submit_label="Delete modifier"
+                     submit_variant="danger"
+                     cancel_url="{% url 'authoring-modifier' thing.pk %}">
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
                 <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Content library</c-ui.breadcrumbs.item>
@@ -68,15 +76,5 @@ is the one the author meant.
                 rows it is made of go; nothing brings them back.
             </c-ui.alert>
         {% endif %}
-        <c-slot name="actions">
-            {% comment %}
-            Cancel is a link back to the modifier, not a form control:
-            leaving is not a submission.
-            {% endcomment %}
-            <c-ui.button variant="default" href="{% url 'authoring-modifier' thing.pk %}">Cancel</c-ui.button>
-            <c-ui.button type="submit" variant="danger">
-                Delete modifier
-            </c-ui.button>
-        </c-slot>
     </c-n26.form-page>
 {% endblock content %}

@@ -69,12 +69,11 @@
             </c-n26.prose>
         </c-n26.form-section>
         <div class="mt-10 rounded-box border border-red-500/40 px-4 py-3">
-            <form method="post" class="flex flex-wrap items-center gap-3">
+            <form method="post">
                 {% csrf_token %}
-                <c-ui.button type="submit" variant="danger">
-                    Yes, delete {{ total }} rows
-                </c-ui.button>
-                <c-n26.link href="{% url 'authoring-ingest' %}">Cancel</c-n26.link>
+                <c-n26.form-actions submit_label="Yes, delete {{ total }} rows"
+                                    submit_variant="danger"
+                                    cancel_url="{% url 'authoring-ingest' %}" />
             </form>
         </div>
     {% else %}

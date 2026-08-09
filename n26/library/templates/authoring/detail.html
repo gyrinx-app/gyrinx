@@ -47,11 +47,9 @@
                 {% csrf_token %}
                 <input type="hidden" name="act" value="edit">
                 {% include "authoring/_form.html" with form=edit_form %}
-                <div class="flex justify-end">
-                    <c-ui.button type="submit" variant="success">
-                        Save changes
-                    </c-ui.button>
-                </div>
+                {# No way out: this form is a section of the page it is on, so #}
+                {# there is nowhere for a cancel to lead that is not here. #}
+                <c-n26.form-actions submit_label="Save changes" />
             </form>
         </c-n26.form-section>
     {% endif %}
@@ -100,11 +98,7 @@
                         {{ part_verbose_name_plural }} carry no stats.
                     </c-ui.description>
                 {% endif %}
-                <div class="flex justify-end">
-                    <c-ui.button type="submit" variant="success">
-                        Add {{ part_verbose_name }}
-                    </c-ui.button>
-                </div>
+                <c-n26.form-actions submit_label="Add {{ part_verbose_name }}" />
             </form>
         </c-n26.form-section>
     {% endif %}
@@ -165,7 +159,7 @@
                     </c-ui.button>
                 </form>
             {% endif %}
-            {% include "authoring/_composer.html" with show_keep_reusable=True composer_title="Build a new modifier" composer_description="Pick who it reaches and what it does; the fields for both follow." composer_class="rounded-box border border-box-border p-4" composer_submit_label="Add modifier" %}
+            {% include "authoring/_composer.html" with show_keep_reusable=True composer_title="Build a new modifier" composer_description="Pick who it reaches and what it does; the fields for both follow." composer_class="rounded-box border border-box-border p-4" composer_submit_label="Add modifier" composer_cancel_url="" %}
         </c-n26.form-section>
     {% endif %}
 {% endblock content %}
