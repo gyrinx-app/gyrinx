@@ -47,10 +47,11 @@ here too, so a call site states each number once.
   meta — extra content after the name, before the actions.
   actions — buttons. Keep them small; there is one of these per row.
   price — replaces the rendered cost, for a row whose price depends on something
-    the reader is choosing. Rendered in the same fixed-width column, so a list of
-    live prices and fixed ones still lines up. `:cost` is still required and is
-    still what the slider filters on: a filter has to agree with itself between
-    keystrokes, so it reads the row's advertised price, not its current one.
+    the reader is choosing, or is a box the reader types in. Rendered in the same
+    fixed-width column, so a list of live prices and fixed ones still lines up.
+    `:cost` is still required and is still what the slider filters on: a filter
+    has to agree with itself between keystrokes, so it reads the row's advertised
+    price, not its current one.
   state — extra Alpine state merged into this row's scope, as object-literal
     properties. The row's slots all render inside it, so this is how a caller
     gives the price slot and the rows slot something to share; an x-data of their

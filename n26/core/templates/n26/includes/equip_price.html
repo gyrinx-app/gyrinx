@@ -1,0 +1,40 @@
+{% comment %}
+The price of one buyable line, as a box you can type in, with what changing it
+did printed beside it. Expects `field` (the input's name), `quoted` (the price
+the listing asked) and `label` (what the line is called, for the box's own
+name), and `price_ceiling` from the page.
+
+Used for a row and for each of its parts, so a gun and its rounds are typed into
+the same kind of control in the same column.
+
+The scope around it holds `quoted` and `price` — set by the row that includes
+this, because a part's price and its gun's are two different numbers living on
+the same screen. Without a script the box still posts what is in it, which is
+what the row was quoting; the delta is the only thing lost, and with nothing to
+compare there is nothing for it to say.
+
+The delta sits left of the box and outside it, so the boxes stay in one column
+whether or not a row has been haggled over. Quiet, because it is a remark about
+the number rather than a second number: nobody is charged it.
+
+Hand-written rather than the kit's input: it has to be narrow, and the kit's
+takes its width and padding as classes it renders before the caller's, so the
+caller's would be the pair the browser drops.
+{% endcomment %}
+<span class="flex items-center justify-end gap-1.5">
+    <span x-show="Number.isFinite(price) &amp;&amp; price !== quoted"
+          x-cloak
+          class="shrink-0 text-xs tabular-nums text-muted"
+          :title="'Listed at ' + quoted + '¢'"
+          x-text="(price &gt; quoted ? '+' : '−') + Math.abs(price - quoted) + '¢'"></span>
+    <input type="number"
+           name="{{ field }}"
+           value="{{ quoted }}"
+           min="0"
+           max="{{ price_ceiling }}"
+           step="1"
+           inputmode="numeric"
+           x-model.number="price"
+           aria-label="Price for {{ label }}"
+           class="w-16 shrink-0 rounded-control border border-box-border bg-[var(--color-input-bg)] px-1.5 py-1 text-right text-sm tabular-nums text-ink-900 shadow-[var(--shadow-input)] focus-ring dark:text-ink-100">
+</span>

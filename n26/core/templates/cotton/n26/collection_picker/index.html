@@ -40,6 +40,10 @@ hides itself at zero; an item asks it about itself. That means an empty category
 disappears rather than sitting there as a header with nothing under it, which on
 a phone is most of a screen wasted.
 
+The readout counts what is on screen rather than what was registered, which
+under tabs is one section's worth: a total spanning the sections a tab is
+hiding is a number that contradicts the list directly beneath it.
+
 A search forces every group open — findable beats tidy, and a match hidden in a
 collapsed category may as well not be a match. Closing the search puts each
 group back exactly as the reader left it, because `open` was never overwritten.
@@ -171,8 +175,19 @@ dispatches, and listens for `filter-reset` to be told.
                 i.section === name && this.categoryOn(i.category) && this.matches(i)
             ).length;
         },
-        get shown() { return this.items.filter(i => this.categoryOn(i.category) && this.matches(i)).length },
-        get total() { return this.items.length },
+        {% comment %}
+        Every row the list could be drawing right now — which under tabs is
+        one section's worth, because a tab hides everything it is not. Both
+        halves of the readout are counted off this one array, so the number
+        above the list and the rows in it cannot say different things.
+        {% endcomment %}
+        get onScreen() {
+            return this.tabbed
+                ? this.items.filter(i => i.section === this.visibleSection)
+                : this.items;
+        },
+        get shown() { return this.onScreen.filter(i => this.categoryOn(i.category) && this.matches(i)).length },
+        get total() { return this.onScreen.length },
         get filtering() {
             return this.query !== ''
                 || this.categories.length !== this.allCategories.length

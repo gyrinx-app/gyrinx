@@ -1,5 +1,7 @@
 """Buying equipment for one fighter — the web face of :mod:`n26.core.browse`."""
 
+import re
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import Http404
@@ -8,6 +10,22 @@ from django.utils.text import slugify
 
 from n26.core.browse import UNCATEGORISED
 from n26.core.views.permissions import _own_miniature_or_404
+
+#: The most a till will take for one line. No price in the game comes
+#: near it; it is here because the number is typed by hand, and a slip on
+#: the keyboard should be refused rather than stored — an unbounded
+#: figure does not fit the ledger's integer column, and a gang playing
+#: without a budget has nothing else to stop it.
+PRICE_CEILING = 100_000
+
+#: A price is a whole number of credits, written in plain digits.
+#: Python's own ``int`` would also take "-5", "+5", "1_0" and digits from
+#: other scripts, none of which a price field should quietly accept.
+_WHOLE_CREDITS = re.compile(r"[0-9]+")
+
+
+class BadPrice(Exception):
+    """A typed price that is not a whole number of credits in range."""
 
 
 def _thing_key(thing):
@@ -29,13 +47,28 @@ def _parts_field(key):
     return f"{slugify(key)}:parts"
 
 
+def _price_field(key, index=None):
+    """The input name a line's price is typed into — the row's own, or
+    one of its parts'.
+
+    Scoped by the line for the same reason the tick boxes are: one form
+    holds the whole listing, so a price typed on the autogun row must not
+    arrive with the stub gun's press.
+    """
+    scope = slugify(key)
+    return f"{scope}:price" if index is None else f"{scope}:parts:{index}:price"
+
+
 def _parts_picked(data, key, line):
-    """The parts a submission ticked on this line, in the order drawn.
+    """The parts a submission ticked on this line, each with the index it
+    was drawn at, in the order drawn.
 
     Values are indices into the line the server has just re-derived, so a
     tampered form can name nothing the listing does not offer. A repeated
     index is refused as well: a checkbox cannot be ticked twice, and one
     press was never an order for two of the same ammo.
+
+    The index comes back out because it names the part's own price field.
     """
     picked, seen = [], set()
     for value in data.getlist(_parts_field(key)):
@@ -48,8 +81,48 @@ def _parts_picked(data, key, line):
         if index >= len(line.parts) or index in seen:
             raise Http404("No such option")
         seen.add(index)
-        picked.append(line.parts[index])
+        picked.append((index, line.parts[index]))
     return picked
+
+
+def _price_typed(data, field, line):
+    """What this line is charged: the price typed for it, or the price it
+    quoted where the form carried none.
+
+    The number arrives from the browser, so it is read as a whole number
+    of credits and nothing else. A negative one would hand the gang
+    credits and an enormous one would not fit the ledger; both are
+    refused rather than trimmed, because with money, charging a figure
+    nobody typed is worse than charging nothing and saying so.
+
+    An empty box is not an override — the row's own price stands, which
+    is the number it was quoting before anyone touched it.
+    """
+    raw = data.get(field)
+    if raw is None or not raw.strip():
+        return line.credits
+    raw = raw.strip()
+    if not _WHOLE_CREDITS.fullmatch(raw) or int(raw) > PRICE_CEILING:
+        raise BadPrice(
+            f"{line.name}: a price is a whole number of credits, "
+            f"from 0 to {PRICE_CEILING}."
+        )
+    return int(raw)
+
+
+def _charge(line, paid):
+    """What the ledger is told about a line bought at a set price.
+
+    The price the listing quoted stays the list price and the gap becomes
+    the discount, so ``paid = list - discount`` still holds and the entry
+    says both what the shelf asked and what the gang handed over.
+
+    Rating follows the list price, never the payment. Rating is what the
+    gang owns and it is pinned for good: haggling a sword down does not
+    make it a lesser sword, and paying over the odds does not make it a
+    better one. Only the credits leaving the bank move.
+    """
+    return {"paid": paid, "list_price": line.credits, "discount": line.credits - paid}
 
 
 #: What a collection's name says at the end when it says what it is. Every
@@ -96,7 +169,8 @@ def collection_tabs(collections, chosen):
 
 def _row(line):
     """One line as the template draws it: the identity its Buy submits,
-    and its parts as tickable inputs.
+    the box its price is typed into, and its parts as tickable inputs
+    with price boxes of their own.
 
     A part prints its bare name — "warp round", not "warp round
     (Autogun)" — because it is drawn under the gun that already says so.
@@ -105,9 +179,15 @@ def _row(line):
     return {
         "line": line,
         "key": key,
+        "price_field": _price_field(key),
         "parts_field": _parts_field(key),
         "parts": [
-            {"index": index, "line": part, "name": part.thing.name}
+            {
+                "index": index,
+                "line": part,
+                "name": part.thing.name,
+                "price_field": _price_field(key, index),
+            }
             for index, part in enumerate(line.parts)
         ],
     }
@@ -123,11 +203,18 @@ def equip(request, pk):
 
     The Buy buttons submit the *identity* of a line, never its price:
     the server re-browses the chosen collection and hands the found line
-    whole to ``Operation.buy``, so what is paid is always the server's
-    derivation and a tampered form can name nothing that is not on the
-    list. Browsed on equipment-list terms for now — Trade Points are
-    shown, not charged, because a TP budget is a session concept that
-    does not exist yet.
+    whole to ``Operation.buy``, so a tampered form can name nothing that
+    is not on the list. Browsed on equipment-list terms for now — Trade
+    Points are shown, not charged, because a TP budget is a session
+    concept that does not exist yet.
+
+    The one number the form does decide is what the gang pays. Each row
+    quotes its price in a box, and the figure in the box is what leaves
+    the bank — the listing is a price list, not a fixed tariff, and a
+    table that agrees a discount should not have to be argued with. It
+    is still bounded here rather than only in the input: whole credits,
+    nothing negative, nothing past ``PRICE_CEILING``, and a refusal buys
+    nothing. What the gang *owns* is unaffected — see ``_charge``.
 
     A weapon's paid ammo and firing modes are ticked on the weapon's own
     row and bought with it, in the same operation and onto the same gun.
@@ -195,24 +282,44 @@ def equip(request, pk):
             messages.error(request, "That item is not on this list.")
             return redirect(back)
         picked = _parts_picked(request.POST, key, line)
+        # Every price the press carries, read and bounded before anything
+        # is written: one bad box buys nothing at all, rather than a gun
+        # at a good price and its ammo at a refused one.
+        try:
+            paid = _price_typed(request.POST, _price_field(key), line)
+            paid_for = [
+                (part, _price_typed(request.POST, _price_field(key, index), part))
+                for index, part in picked
+            ]
+        except BadPrice as refusal:
+            messages.error(request, str(refusal))
+            return redirect(back)
         try:
             with operation(gang, actor=request.user) as op:
-                bought = op.buy(miniature, line=line)
+                bought = op.buy(miniature, line=line, **_charge(line, paid))
                 # Onto the gun, not onto the fighter: a profile belongs to
                 # one particular weapon, and it is the same till either
-                # way, so the price charged is the one the row quoted.
-                for part in picked:
-                    op.buy(bought, line=part)
+                # way, so each part is charged at the price its own row
+                # was showing.
+                for part, part_paid in paid_for:
+                    op.buy(bought, line=part, **_charge(part, part_paid))
         except NotEnoughCredits as refusal:
             messages.error(request, str(refusal))
             return redirect(back)
-        if picked:
-            extras = ", ".join(part.thing.name for part in picked)
+        # The confirmation names what left the bank, because with the
+        # prices in the reader's hands the total is no longer something
+        # the page can be read off for.
+        spent = paid + sum(part_paid for _, part_paid in paid_for)
+        if paid_for:
+            extras = ", ".join(part.thing.name for part, _ in paid_for)
             messages.success(
-                request, f"Bought {line.name} with {extras} for {miniature.name}."
+                request,
+                f"Bought {line.name} with {extras} for {miniature.name} — {spent}¢.",
             )
         else:
-            messages.success(request, f"Bought {line.name} for {miniature.name}.")
+            messages.success(
+                request, f"Bought {line.name} for {miniature.name} — {spent}¢."
+            )
         return redirect(back)
 
     lines = list(view.all_lines()) if view is not None else []
@@ -288,5 +395,9 @@ def equip(request, pk):
             "cost_ceiling": max((line.credits for line in lines), default=0),
             "tp_ceiling": max(trade_points, default=0),
             "has_trade_points": bool(trade_points),
+            # The same bound the till enforces, so a browser can say no
+            # before a press does. The input's max is a courtesy; the
+            # check that counts is in the view.
+            "price_ceiling": PRICE_CEILING,
         },
     )

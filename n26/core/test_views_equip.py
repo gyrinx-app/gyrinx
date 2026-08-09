@@ -438,6 +438,15 @@ def parts_field(thing):
     return f"{slugify(key_of(thing))}:parts"
 
 
+def price_field(thing, index=None):
+    """The box a line's price is typed into, spelt out for the same
+    reason the tick boxes' name is."""
+    from django.utils.text import slugify
+
+    scope = slugify(key_of(thing))
+    return f"{scope}:price" if index is None else f"{scope}:parts:{index}:price"
+
+
 def test_the_ammo_input_is_named_what_the_server_reads(
     client, tester, fighter, gun_list
 ):
@@ -453,9 +462,9 @@ def test_the_ammo_input_is_named_what_the_server_reads(
 
     assert f'name="{parts_field(autogun)}"' in body
     assert 'value="0"' in body
-    # The surcharge the live total reads off the input, so the number
-    # beside the Buy button cannot drift from the one that is charged.
-    assert 'data-price="10"' in body
+    # The round is priced in a box of its own, under the gun's: two
+    # charges on one press, so two numbers a reader can set.
+    assert f'name="{price_field(autogun, 0)}"' in body
     # The bare name: the row is drawn under the gun, which has already
     # said which gun it is.
     assert "warp round" in body
@@ -563,6 +572,327 @@ def test_ammo_ticked_on_one_row_does_not_ride_another_press(
     assert not Assignment.objects.filter(weapon_profile=warp).exists()
     gang.refresh_from_db()
     assert gang.credits == 90
+
+
+# --- the price is the reader's to set --------------------------------------
+
+
+def test_the_row_quotes_its_price_in_a_box(client, tester, fighter, house_list):
+    """A price a table can change is a box holding the listing's number,
+    not a printed figure — and the box the reader types in must be the
+    one the till reads back."""
+    from n26.library.models import Wargear
+
+    sword = Wargear.objects.get(name="Sword")
+    client.force_login(tester)
+    body = client.get(equip_url(fighter, house_list)).content.decode()
+
+    assert f'name="{price_field(sword)}"' in body
+    # The list's own price for the sword, which is what the till will
+    # charge if nobody touches it.
+    assert 'value="35"' in body
+
+
+def test_the_price_typed_in_is_the_price_charged(
+    client, tester, gang, fighter, house_list
+):
+    from n26.core.reconcile import assert_reconciled
+    from n26.library.models import Wargear
+
+    sword = Wargear.objects.get(name="Sword")
+    client.force_login(tester)
+    client.post(
+        equip_url(fighter, house_list),
+        {"thing": key_of(sword), price_field(sword): "8"},
+    )
+
+    gang.refresh_from_db()
+    assert gang.credits == 92  # 100 - 8, not 100 - 35
+    assert_reconciled(gang)
+
+
+def test_a_discount_leaves_the_gang_owning_the_same_thing(
+    client, tester, gang, fighter, house_list
+):
+    """What a purchase adds to a gang's worth is the thing's price, not
+    the deal struck on it: a sword haggled down is not a lesser sword.
+    The entry says both numbers, and the gap between them is the
+    discount."""
+    from n26.core.models import LedgerEntry
+    from n26.core.reconcile import assert_reconciled
+    from n26.library.models import Wargear
+
+    sword = Wargear.objects.get(name="Sword")
+    client.force_login(tester)
+    client.post(
+        equip_url(fighter, house_list),
+        {"thing": key_of(sword), price_field(sword): "8"},
+    )
+
+    entry = LedgerEntry.objects.get(assignment__wargear=sword)
+    assert (entry.paid, entry.list_price, entry.discount) == (8, 35, 27)
+    assert entry.rating_contribution == 35
+
+    fighter.refresh_from_db()
+    gang.refresh_from_db()
+    assert fighter.rating == 35
+    assert gang.rating == 35
+    assert_reconciled(gang)
+
+
+def test_a_price_over_the_odds_costs_more_and_is_worth_no_more(
+    client, tester, gang, fighter, house_list
+):
+    """The box moves what leaves the bank, in both directions. Paying
+    over the odds is money gone, not a better sword — so the rating is
+    the listing's price either way, and the discount reads negative."""
+    from n26.core.models import LedgerEntry
+    from n26.core.reconcile import assert_reconciled
+    from n26.library.models import Wargear
+
+    sword = Wargear.objects.get(name="Sword")
+    client.force_login(tester)
+    client.post(
+        equip_url(fighter, house_list),
+        {"thing": key_of(sword), price_field(sword): "50"},
+    )
+
+    entry = LedgerEntry.objects.get(assignment__wargear=sword)
+    assert (entry.paid, entry.list_price, entry.discount) == (50, 35, -15)
+    assert entry.rating_contribution == 35
+    gang.refresh_from_db()
+    assert gang.credits == 50
+    assert gang.rating == 35
+    assert_reconciled(gang)
+
+
+def test_a_price_of_nothing_is_a_gift_and_still_counts(
+    client, tester, gang, fighter, house_list
+):
+    """Zero is a price a table may agree. Nothing leaves the bank and
+    the gang still owns a 35-credit sword."""
+    from n26.core.reconcile import assert_reconciled
+    from n26.library.models import Wargear
+
+    sword = Wargear.objects.get(name="Sword")
+    client.force_login(tester)
+    client.post(
+        equip_url(fighter, house_list),
+        {"thing": key_of(sword), price_field(sword): "0"},
+    )
+
+    gang.refresh_from_db()
+    assert gang.credits == 100
+    assert gang.rating == 35
+    assert_reconciled(gang)
+
+
+def test_an_empty_box_leaves_the_listing_to_price_it(
+    client, tester, gang, fighter, house_list
+):
+    """A box cleared and pressed is not an offer of nothing. With no
+    number in it there is no override, so the row's own price stands."""
+    from n26.core.reconcile import assert_reconciled
+    from n26.library.models import Wargear
+
+    sword = Wargear.objects.get(name="Sword")
+    client.force_login(tester)
+    client.post(
+        equip_url(fighter, house_list),
+        {"thing": key_of(sword), price_field(sword): ""},
+    )
+
+    gang.refresh_from_db()
+    assert gang.credits == 65
+    assert_reconciled(gang)
+
+
+@pytest.mark.parametrize(
+    "hostile",
+    [
+        "-5",  # would hand the gang credits
+        "+5",
+        "abc",
+        "12.5",
+        "1_0",  # Python's int() would read this as ten
+        "1e3",
+        "100001",  # past the ceiling
+        "999999999999",  # past the ledger's column, too
+    ],
+)
+def test_a_price_that_is_not_whole_credits_in_range_buys_nothing(
+    client, tester, gang, fighter, house_list, hostile
+):
+    """The box is typed into by hand and arrives from the browser, so it
+    is read as a whole number of credits and nothing else. Anything else
+    is refused outright rather than trimmed to fit: charging a figure
+    nobody typed is the worse answer."""
+    from n26.core.models import Assignment
+    from n26.library.models import Wargear
+
+    sword = Wargear.objects.get(name="Sword")
+    client.force_login(tester)
+    response = client.post(
+        equip_url(fighter, house_list),
+        {"thing": key_of(sword), price_field(sword): hostile},
+    )
+
+    assert response.status_code == 302
+    assert not Assignment.objects.filter(wargear=sword).exists()
+    gang.refresh_from_db()
+    assert gang.credits == 100
+
+
+def test_an_overridden_price_the_gang_cannot_afford_is_still_refused(
+    client, tester, gang, fighter, house_list
+):
+    """The budget is the one hard no, and it is checked against what is
+    actually being spent — not against what the listing asked."""
+    from n26.core.models import Assignment
+    from n26.library.models import Wargear
+
+    sword = Wargear.objects.get(name="Sword")
+    client.force_login(tester)
+    response = client.post(
+        equip_url(fighter, house_list),
+        {"thing": key_of(sword), price_field(sword): "500"},
+    )
+
+    assert response.status_code == 302
+    assert not Assignment.objects.filter(wargear=sword).exists()
+    gang.refresh_from_db()
+    assert gang.credits == 100
+
+
+def test_the_prices_of_other_rows_ride_along_and_are_ignored(
+    client, tester, gang, fighter, house_list
+):
+    """With no script running, a press submits every box on the page.
+    Only the boxes scoped to the pressed line may charge anything —
+    otherwise the knife's price would decide what the sword costs."""
+    from n26.core.reconcile import assert_reconciled
+    from n26.library.models import Wargear
+
+    knife = Wargear.objects.get(name="Knife")
+    sword = Wargear.objects.get(name="Sword")
+    client.force_login(tester)
+    client.post(
+        equip_url(fighter, house_list),
+        {
+            "thing": key_of(knife),
+            price_field(knife): "4",
+            price_field(sword): "1",
+        },
+    )
+
+    gang.refresh_from_db()
+    assert gang.credits == 96
+    assert_reconciled(gang)
+
+
+def test_a_round_is_charged_at_the_price_typed_on_its_own_row(
+    client, tester, gang, fighter, gun_list
+):
+    """One press, two charges: a discount on the gun is not a discount
+    on the ammo, so each carries its own box and its own entry."""
+    from n26.core.models import LedgerEntry
+    from n26.core.reconcile import assert_reconciled
+    from n26.library.models import Weapon, WeaponProfile
+
+    autogun = Weapon.objects.get(name="Autogun")
+    warp = WeaponProfile.objects.get(name="warp round")
+    client.force_login(tester)
+    client.post(
+        equip_url(fighter, gun_list),
+        {
+            "thing": key_of(autogun),
+            parts_field(autogun): "0",
+            price_field(autogun): "12",
+            price_field(autogun, 0): "4",
+        },
+    )
+
+    gun = LedgerEntry.objects.get(assignment__weapon=autogun)
+    ammo = LedgerEntry.objects.get(assignment__weapon_profile=warp)
+    assert (gun.paid, gun.list_price, gun.rating_contribution) == (12, 20, 20)
+    assert (ammo.paid, ammo.list_price, ammo.rating_contribution) == (4, 10, 10)
+
+    gang.refresh_from_db()
+    assert gang.credits == 84  # 100 - 12 - 4
+    assert gang.rating == 30  # what the pair is worth on the list
+    assert_reconciled(gang)
+
+
+def test_a_bad_price_on_the_ammo_buys_neither_it_nor_the_gun(
+    client, tester, gang, fighter, gun_list
+):
+    """Every price on the press is read before anything is written, so a
+    refused round does not leave a gun bought behind it."""
+    from n26.core.models import Assignment
+    from n26.library.models import Weapon
+
+    autogun = Weapon.objects.get(name="Autogun")
+    client.force_login(tester)
+    response = client.post(
+        equip_url(fighter, gun_list),
+        {
+            "thing": key_of(autogun),
+            parts_field(autogun): "0",
+            price_field(autogun): "12",
+            price_field(autogun, 0): "-4",
+        },
+    )
+
+    assert response.status_code == 302
+    assert not Assignment.objects.filter(weapon=autogun).exists()
+    gang.refresh_from_db()
+    assert gang.credits == 100
+
+
+def test_a_price_typed_on_an_unticked_round_charges_nothing(
+    client, tester, gang, fighter, gun_list
+):
+    """The box always posts, ticked or not. What decides whether a round
+    is bought is its checkbox; its price only says what it would cost."""
+    from n26.core.reconcile import assert_reconciled
+    from n26.library.models import Weapon, WeaponProfile
+
+    autogun = Weapon.objects.get(name="Autogun")
+    warp = WeaponProfile.objects.get(name="warp round")
+    client.force_login(tester)
+    client.post(
+        equip_url(fighter, gun_list),
+        {
+            "thing": key_of(autogun),
+            price_field(autogun): "12",
+            price_field(autogun, 0): "4",
+        },
+    )
+
+    from n26.core.models import Assignment
+
+    assert not Assignment.objects.filter(weapon_profile=warp).exists()
+    gang.refresh_from_db()
+    assert gang.credits == 88
+    assert_reconciled(gang)
+
+
+def test_the_count_above_the_list_counts_the_shelf_on_screen(
+    client, tester, fighter, house_list
+):
+    """The readout is client-side, so what is pinned here is the
+    arrangement that keeps it honest: it counts the same array the rows
+    come from, narrowed to the section the tab strip is showing. A total
+    spanning the shelves a tab is hiding is a number that contradicts the
+    list directly beneath it."""
+    client.force_login(tester)
+    body = client.get(equip_url(fighter, house_list)).content.decode()
+
+    assert 'x-text="shown"' in body
+    assert "i.section === this.visibleSection" in body
+    # The "N of M" form: how many are left, out of how many the shelf has.
+    assert 'x-show="shown !== total"' in body
+    assert "get total() { return this.onScreen.length }" in body
 
 
 def test_someone_elses_fighter_is_not_found(client, fighter):

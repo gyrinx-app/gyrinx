@@ -87,7 +87,19 @@ component's own page shows it working; this shows it working under a header.
                                                           :cost="line.credits"
                                                           :trade_points="line.trade_points"
                                                           :exclusive="line.is_exclusive"
-                                                          :notes="line.notes">
+                                                          :notes="line.notes"
+                                                          state="quoted: {{ line.credits }}, price: {{ line.credits }}">
+                                {% comment %}
+                                The price is a box on the real screen, because a
+                                table that has agreed a discount types it in.
+                                Drawn here too: it is the widest thing in the
+                                row after the name, and a shell that leaves it
+                                out is a shell that cannot show the row running
+                                out of width on a phone.
+                                {% endcomment %}
+                                <c-slot name="price">
+                                    {% include "n26/includes/equip_price.html" with field="price" quoted=line.credits label=line.name price_ceiling=trading_post_price_ceiling %}
+                                </c-slot>
                                 {% if line.name in trading_post_in_stash %}
                                     <c-slot name="icon">
                                         <c-n26.icon name="check" label="Already in the stash" />
