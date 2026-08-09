@@ -27,12 +27,21 @@ class CreateGangForm(forms.Form):
         label="Gang name",
         help_text="You can change this later.",
     )
+    # Narrowed to the types an author has left foundable, and narrowed here
+    # rather than where the cards are built, so the field that validates the
+    # submission and the grid that offers it read the same rows. A type turned
+    # off is refused on POST too — a hidden card is still an id someone can
+    # type. Only this screen narrows: a gang founded before a type was turned
+    # off still names it everywhere it is drawn.
     gang_type = forms.ModelChoiceField(
-        queryset=GangType.objects.all(),
+        queryset=GangType.objects.filter(foundable=True),
         label="Gang type",
         help_text=(
             "What the gang is, which fixes who you can hire and what they may carry."
         ),
+        error_messages={
+            "invalid_choice": "That is not a gang type you can found. Pick one of those shown."
+        },
     )
     starting_credits = forms.IntegerField(
         required=False,

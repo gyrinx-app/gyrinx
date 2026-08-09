@@ -3225,3 +3225,78 @@ class TestRemovingABuiltIn:
         assert client.get(self.address(member)).status_code == 404
         assert client.post(self.address(member), {}).status_code == 404
         assert ganger.built_in_members.count() == 3
+
+
+class TestAGangTypeThatCannotBeFounded:
+    """The switch that keeps a gang type off the create-a-gang screen.
+
+    An author needs to see it and change it on the type's own page — a flag
+    only the database knows about is not something anyone can configure.
+    """
+
+    def test_the_create_page_draws_the_switch_already_on(
+        self, author, client, default_pack
+    ):
+        """A new type is foundable unless someone says otherwise, so the
+        control has to open on. A switch drawn off would make every type
+        authored here unpickable while looking like it had said nothing."""
+        body = client.get("/n26/authoring/gang-type/new/").content.decode()
+
+        assert 'name="foundable"' in body
+        assert "switchInput(false, true)" in body
+
+    def test_a_type_made_with_the_switch_off_cannot_be_founded(
+        self, author, client, default_pack
+    ):
+        from n26.library.models import GangType
+
+        client.post("/n26/authoring/gang-type/new/", {"name": "Brutes"})
+        assert GangType.objects.get(name="Brutes").foundable is False
+
+    def test_a_type_made_with_it_on_can_be(self, author, client, default_pack):
+        from n26.library.models import GangType
+
+        client.post(
+            "/n26/authoring/gang-type/new/", {"name": "Escher", "foundable": "on"}
+        )
+        assert GangType.objects.get(name="Escher").foundable is True
+
+    def test_the_page_opens_the_switch_on_the_value_it_has(
+        self, author, client, default_pack
+    ):
+        """Counted as a difference between two pages, because a detail page
+        carries switches of its own and only this one changes between them."""
+        from n26.library.authoring import create_gang_type
+
+        on = create_gang_type("Escher")
+        off = create_gang_type("Brutes", foundable=False)
+
+        def switches_on(row):
+            body = client.get(f"/n26/authoring/gang-type/{row.pk}/").content.decode()
+            return body.count("switchInput(false, true)")
+
+        assert switches_on(on) == switches_on(off) + 1
+
+    def test_turning_it_off_on_the_page_sticks(self, author, client, default_pack):
+        from n26.library.authoring import create_gang_type
+
+        gang_type = create_gang_type("Brutes")
+        response = client.post(
+            f"/n26/authoring/gang-type/{gang_type.pk}/",
+            {"act": "edit", "edit-name": "Brutes"},
+        )
+
+        assert response.status_code == 302
+        gang_type.refresh_from_db()
+        assert gang_type.foundable is False
+
+    def test_the_listing_says_which_ones_are_off(self, author, client, default_pack):
+        from n26.library.authoring import create_gang_type
+
+        create_gang_type("Escher")
+        open_only = client.get("/n26/authoring/gang-type/").content.decode()
+        create_gang_type("Brutes", foundable=False)
+        with_one_off = client.get("/n26/authoring/gang-type/").content.decode()
+
+        assert "cannot be founded" not in open_only
+        assert "cannot be founded" in with_one_off

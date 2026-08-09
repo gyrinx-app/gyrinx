@@ -636,6 +636,7 @@ def _build_registry():
                 # Nothing on an ingest sheet carries artwork, so a badge is
                 # authored here and only here.
                 "icon_url": Artwork(source=(GangType, "icon_url")),
+                "foundable": Bool(source=(GangType, "foundable")),
                 "qualifier": Text(source=(GangType, "qualifier")),
                 "library_author_help": Text(
                     source=(GangType, "library_author_help"), long=True

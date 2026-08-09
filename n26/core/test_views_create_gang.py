@@ -159,6 +159,77 @@ class TestPickingATypeFromTheGrid:
         assert body.count("Founding budget") == 1
 
 
+class TestATypeAnAuthorHasTurnedOff:
+    """``foundable`` narrows the create screen and nothing else.
+
+    A gang type exists for two reasons that are not the same: a player picks
+    it when founding, and a gang already carries it. An author who decides
+    nobody should found one of these is answering only the first.
+    """
+
+    @pytest.fixture
+    def shut(self, db):
+        return GangType.objects.create(name="Brutes", foundable=False)
+
+    def test_a_type_says_nothing_and_is_foundable(self, drawn, undrawn):
+        """The switch has to be thrown deliberately: every type written
+        before anyone could turn one off stays on the screen."""
+        assert drawn.foundable is True
+        assert undrawn.foundable is True
+
+    def test_it_is_not_one_of_the_cards(self, client, tester, undrawn, shut):
+        client.force_login(tester)
+        body = client.get(reverse("n26-create-gang")).content.decode()
+
+        assert f'value="{undrawn.pk}"' in body
+        assert f'value="{shut.pk}"' not in body
+        assert "Brutes" not in body
+
+    def test_posting_its_id_founds_nothing(self, client, tester, undrawn, shut):
+        """A card that is not drawn is still an id someone can type, so
+        the refusal has to be in the form and not only in the grid."""
+        client.force_login(tester)
+        response = client.post(
+            reverse("n26-create-gang"),
+            {
+                "name": "Meat Market",
+                "gang_type": str(shut.pk),
+                "starting_credits": "",
+                "colour": "",
+            },
+        )
+
+        assert response.status_code == 200
+        assert not Gang.objects.filter(name="Meat Market").exists()
+        assert "not a gang type you can found" in response.content.decode()
+
+    def test_a_gang_that_is_already_one_carries_on(self, client, tester, store_artwork):
+        """Turning a type off takes it off one screen. A gang founded
+        while it was on keeps its sheet, its name and its badge."""
+        shut = GangType.objects.create(
+            name="Brutes",
+            foundable=False,
+            icon_url=store_artwork(ICON, "brutes.svg"),
+        )
+        gang = Gang.objects.create(
+            name="Rust in Peace",
+            owner=tester,
+            gang_type=shut,
+            starting_credits=1000,
+            credits=1000,
+        )
+
+        client.force_login(tester)
+        sheet = client.get(reverse("n26-gang", args=[gang.pk]))
+        listing = client.get(reverse("n26-gangs")).content.decode()
+
+        assert sheet.status_code == 200
+        body = sheet.content.decode()
+        assert "Brutes" in body
+        assert 'd="M2 2h8v8H2Z"' in body
+        assert "Brutes" in listing
+
+
 class TestTheBadgeOnTheGrid:
     def test_a_type_with_artwork_draws_it(self, client, tester, drawn):
         client.force_login(tester)

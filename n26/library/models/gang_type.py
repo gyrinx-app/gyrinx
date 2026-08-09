@@ -61,6 +61,19 @@ class GangType(Content, Assignable):
         ),
     )
 
+    # Turning this off narrows one screen and nothing else. A gang founded
+    # before the switch was thrown keeps its type, keeps its house list, and
+    # goes on being drawn everywhere it was drawn before.
+    foundable = models.BooleanField(
+        default=True,
+        help_text=(
+            "Whether a player may create a gang of this type. Turn it off for "
+            "a type that exists to be hired from or fought against rather "
+            "than played, and it stops being offered when someone creates a "
+            "gang. Gangs that are already this type are unaffected."
+        ),
+    )
+
     class Meta:
         verbose_name = "gang type"
         verbose_name_plural = "gang types"

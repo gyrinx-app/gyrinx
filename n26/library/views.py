@@ -431,9 +431,17 @@ def _describe_profile(profile):
 
 
 def _describe_gang_type(gang_type):
-    if gang_type.starting_credits is None:
-        return []
-    return [f"founds with {gang_type.starting_credits}cr"]
+    """The founding budget, and whether the type can be founded at all.
+
+    A type nobody can pick is the surprising state, so the listing says it
+    rather than leaving an author to open each row to find out.
+    """
+    notes = []
+    if gang_type.starting_credits is not None:
+        notes.append(f"founds with {gang_type.starting_credits}cr")
+    if not gang_type.foundable:
+        notes.append("cannot be founded")
+    return notes
 
 
 LEAF_DESCRIBE = {
