@@ -255,6 +255,92 @@ class TestRemoving:
         assert_reconciled(gang)
 
 
+class TestWhatMayBePressedOn:
+    """These acts are about kit, and a gang holds a great deal that is not
+    kit — every bit of it an assignment with a primary key of its own.
+
+    The row naming a model's profile *is* the model: selling it would take
+    the fighter off the roster with everything they carry, and pay half the
+    price of the profile for the lot. The row naming the gang's type is the
+    gang. A skill is what a fighter knows, an equipment list is where they
+    shop. None of them is a possession, and none of these routes will touch
+    one — whatever a hand-made URL says.
+    """
+
+    @pytest.mark.parametrize("route", ["n26-sell", "n26-reassign", "n26-remove"])
+    def test_a_fighter_is_not_kit(self, client, tester, gang, fighter, sword, route):
+        client.force_login(tester)
+        gang.refresh_from_db()
+        before = gang.credits
+
+        assert client.post(url("n26-sell", fighter.membership)).status_code == 404
+        assert client.post(url(route, fighter.membership)).status_code == 404
+
+        fighter.membership.refresh_from_db()
+        sword.refresh_from_db()
+        gang.refresh_from_db()
+        # Still on the roster, still holding their sword, and the gang is
+        # neither richer nor poorer for the attempt.
+        assert fighter.membership.archived is False
+        assert sword.archived is False
+        assert list(Miniature.objects.filter(membership__gang=gang)) == [fighter]
+        assert gang.credits == before
+        assert gang.rating == 100
+        assert_reconciled(gang)
+
+    @pytest.mark.parametrize("route", ["n26-sell", "n26-reassign", "n26-remove"])
+    def test_the_gang_itself_is_not_kit(self, client, tester, gang, route):
+        """The founding row carries the gang's type, its equipment lists and
+        every gang-wide rule. Taking it away would take all of that."""
+        from n26.core.operations import operation as write
+
+        with write(gang, actor=tester) as op:
+            founding = op.found(gang.gang_type)
+
+        client.force_login(tester)
+        assert client.post(url(route, founding)).status_code == 404
+
+        founding.refresh_from_db()
+        gang.refresh_from_db()
+        assert founding.archived is False
+        assert gang.founding_id == founding.pk
+        assert_reconciled(gang)
+
+    @pytest.mark.parametrize("route", ["n26-sell", "n26-reassign", "n26-remove"])
+    def test_what_a_fighter_knows_is_not_kit(
+        self, client, tester, gang, fighter, route
+    ):
+        """A skill for five credits would be a tap, not a trade — and a
+        removal here would be a way to unlearn by URL."""
+        from n26.library.authoring import create_skill
+
+        with operation(gang, actor=tester) as op:
+            learned = op.learn(fighter, create_skill("Marksman"))
+
+        client.force_login(tester)
+        assert client.post(url(route, learned)).status_code == 404
+
+        learned.refresh_from_db()
+        assert learned.archived is False
+        assert_reconciled(gang)
+
+    def test_the_shop_offers_none_of_them_either(self, gang, fighter, tester, sword):
+        """One rule, read by the listing that draws the controls and by the
+        routes behind them, so a screen can never offer what a press would
+        refuse."""
+        from n26.core.card import build_card
+        from n26.core.owned import owned_things, thing_key
+        from n26.library.authoring import create_skill
+
+        with operation(gang, actor=tester) as op:
+            op.learn(fighter, create_skill("Marksman"))
+
+        held = owned_things(build_card(fighter))
+        assert thing_key(sword.assignable) in held
+        assert thing_key(fighter.membership.assignable) not in held
+        assert not [key for key in held if key.startswith("library.skill:")]
+
+
 class TestWhoMayPress:
     """Every one of these writes, so every one of them is guarded — and
     none of them is a GET."""

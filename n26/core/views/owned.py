@@ -31,11 +31,37 @@ from urllib.parse import urlencode
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
+from django.http import Http404
 from django.shortcuts import redirect
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
+from n26.core.owned import is_possession
 from n26.core.views.permissions import _own_assignment_or_404
+
+
+def _possession_or_404(request, pk):
+    """One of the viewer's own rows, and one these acts are *about*.
+
+    ``_own_assignment_or_404`` answers who may act; this answers on what.
+    Both are needed, because a gang holds a great deal that is not kit and
+    every bit of it is an assignment with a primary key: the row naming a
+    model's profile **is** the model, and selling it would take the
+    fighter off the roster and everything they carry with them, for half
+    the price of the profile and nothing for the kit. The row naming the
+    gang's type is the gang. Neither has any business arriving at a shop
+    row's Sell button.
+
+    A 404 rather than a message: no control anywhere draws these
+    addresses, so a press that reaches here is a hand-made URL, and the
+    honest answer is that there is no such thing to sell. That is
+    different from the refusals below, which answer a control that does
+    exist with a reason.
+    """
+    assignment = _own_assignment_or_404(request, pk)
+    if not is_possession(assignment.assignable):
+        raise Http404("Not something the gang owns")
+    return assignment
 
 
 def _with(url, **params):
@@ -63,13 +89,17 @@ def link_owned(index, at):
 
 
 def _held(card, pk):
-    """The stored assignment ``pk`` names, if this card is holding it.
+    """The stored possession ``pk`` names, if this card is carrying it.
 
     The card is the fighter's own, so finding a row on it is the whole of
     the permission check for drawing a dialog about it — and it is free,
     where fetching the row again would be a query per press. The gang's
     broadcast rows are skipped: they ride the card so gang-wide rules
     reach it, and they are not this fighter's to sell.
+
+    The same kind test the routes apply, so a URL naming the fighter's own
+    profile draws no dialog rather than a confirmation whose press would
+    404 — a screen must not ask a question its answer refuses.
     """
     return next(
         (
@@ -78,6 +108,7 @@ def _held(card, pk):
             if not node.broadcast
             and node.assignment is not None
             and str(node.assignment.pk) == pk
+            and is_possession(node.assignable)
         ),
         None,
     )
@@ -193,7 +224,7 @@ def sell_assignment(request, pk):
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.operations import operation
 
-    assignment = _own_assignment_or_404(request, pk)
+    assignment = _possession_or_404(request, pk)
     gang = assignment.gang_root
     miniature = assignment.miniature_root
     name = str(assignment.assignable)
@@ -228,7 +259,7 @@ def reassign_assignment(request, pk):
     from n26.core.models import Miniature
     from n26.core.operations import operation
 
-    assignment = _own_assignment_or_404(request, pk)
+    assignment = _possession_or_404(request, pk)
     gang = assignment.gang_root
     # Read before the move, because afterwards it names the new home and
     # the reader wants the screen they pressed on.
@@ -292,7 +323,7 @@ def remove_assignment(request, pk):
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.operations import operation
 
-    assignment = _own_assignment_or_404(request, pk)
+    assignment = _possession_or_404(request, pk)
     gang = assignment.gang_root
     miniature = assignment.miniature_root
     name = str(assignment.assignable)

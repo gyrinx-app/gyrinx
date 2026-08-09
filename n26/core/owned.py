@@ -15,9 +15,36 @@ gun. A part is sold and removed like anything else, but it cannot be
 re-homed on its own: it belongs to the thing it hangs off, and
 ``Operation.move`` refuses an assignment with a parent for exactly that
 reason.
+
+Neither is *anything* the gang holds. Selling, handing on and dropping
+are acts on **possessions**, and :func:`is_possession` is the one place
+that says what one is — read by the listing that draws the controls and
+by the routes behind them, so a screen can never offer what a route
+would refuse, nor the other way round.
 """
 
 from dataclasses import dataclass, field
+
+from n26.library.models.assignable import Family
+
+
+def is_possession(thing):
+    """Is this the sort of thing a gang *owns*, rather than something it is?
+
+    Gear is what a model carries, and carrying is what makes a thing
+    sellable, movable and droppable. Everything else it holds fails this:
+    a profile **is** the model, and parting with one is leaving the
+    roster rather than clearing out a kitbag; a skill or a subtype is what
+    the model is and knows; a collection is somewhere to shop rather than
+    something owned; a counter is a running number; a gang type is the
+    gang itself.
+
+    Asked of the library's own families rather than a list kept here, so
+    a new kind of gear is sellable the day it is authored and nobody has
+    to remember this file — and so the set matches what the shop sells,
+    which is chosen the same way.
+    """
+    return getattr(type(thing), "family", None) == Family.GEAR
 
 
 def thing_key(thing):
@@ -91,13 +118,21 @@ def owned_things(card):
     the copies of itself the fighter is carrying — one dictionary read per
     row, whatever the fighter owns.
 
-    The gang's own rows are skipped. They ride every member's card so
-    gang-wide rules reach them, but they are the gang's property and not
-    this fighter's to sell.
+    Only what the model **owns** — see :func:`is_possession`. A card
+    carries a good deal more than kit, and none of the rest is something
+    to put a Sell button beside: the fighter's own profile is the
+    fighter, their skills are what they know, their equipment lists are
+    where they shop.
+
+    The gang's own rows are skipped for a second reason. They ride every
+    member's card so gang-wide rules reach them, but they are the gang's
+    property and not this fighter's to sell.
     """
     index = {}
     for node in card.roots:
         if node.broadcast or node.assignment is None:
+            continue
+        if not is_possession(node.assignable):
             continue
         index.setdefault(thing_key(node.assignable), []).append(
             OwnedThing(
