@@ -27,11 +27,9 @@ defaults — a caller that leaves one out gets a section with no heading.
     <form method="get" class="max-w-xl space-y-4">
         {% include "authoring/_field.html" with form=kind_picker field=kind_picker.scope_kind %}
         {% include "authoring/_field.html" with form=kind_picker field=kind_picker.effect_kind %}
-        <div class="flex justify-end">
-            <c-ui.button type="submit" size="sm">
-                Continue
-            </c-ui.button>
-        </div>
+        {# Small, and not the green that ends a form: this one ends a step, #}
+        {# and the act that finishes the composing is the one below it. #}
+        <c-n26.form-actions submit_label="Continue" submit_variant="default" size="sm" />
     </form>
     {% if composer %}
         <form method="post" class="max-w-xl space-y-5">
