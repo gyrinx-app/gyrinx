@@ -20,7 +20,7 @@ open slot needs a way back to the sheet that is not the browser's chrome.
     <c-n26.quick-switcher.of :switcher="gang_switcher_" />
 {% endblock nav_switcher %}
 {% block nav_items %}
-    {% include 'n26/_nav.html' %}
+    {% include 'n26/_nav.html' with here='gangs' %}
 {% endblock %}
 {% block content %}
     <c-n26.form-page action="{{ request.path }}"

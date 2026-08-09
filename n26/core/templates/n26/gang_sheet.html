@@ -30,7 +30,7 @@ that said it twice would be spending the width the name needs.
     <c-n26.quick-switcher.of :switcher="gang_switcher_" />
 {% endblock nav_switcher %}
 {% block nav_items %}
-    {% include 'n26/_nav.html' %}
+    {% include 'n26/_nav.html' with here='gangs' %}
 {% endblock %}
 {% block content %}
     {% badge_for gang.owner as owner_badge %}

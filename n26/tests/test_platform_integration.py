@@ -591,6 +591,22 @@ class TestTheNavigation:
         assert 'aria-current="page"' in authoring
         assert "is-current" in authoring
 
+    def test_a_screen_inside_a_gang_marks_gangs(
+        self, tester, client, default_pack, gang_type
+    ):
+        """A gang's own screens have no drawer item of their own, so they
+        take the one they were reached through — the same rule the
+        authoring pages follow. Marking nothing reads as a page that
+        belongs nowhere, which is worse than marking the list it came
+        from."""
+        from n26.tests.sandbox.actions import found_gang
+
+        gang = found_gang("The Bad Girls", gang_type, owner=tester, budget=500)
+
+        drawer = nav_drawer(client.get(f"/n26/gangs/{gang.pk}/").content.decode())
+        anchor = drawer.split(">Gangs</a>")[0].rsplit("<a", 1)[-1]
+        assert 'aria-current="page"' in anchor
+
     def test_the_authoring_pages_are_in_the_scriptless_strip_too(
         self, staff, client, default_pack
     ):
