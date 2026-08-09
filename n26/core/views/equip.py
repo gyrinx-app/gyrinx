@@ -224,11 +224,20 @@ def equip(request, pk):
     the gun you are buying is built, not a second thing on the list.
     Ammo for a gun a fighter already owns has no route here yet.
 
-    A row for something the fighter already has says so instead of
-    offering another: the count opens the row onto the copies they are
-    carrying, each with the three things that can happen to it — sold,
-    handed on, taken off. That is read off the card this page already
-    built, so a listing of hundreds of rows still costs no query for it.
+    What the fighter is already carrying has a section of its own, above
+    the shop and owing nothing to it. It has to: the gear a fighter
+    carries is precisely the gear least likely to still be on the list
+    they are browsing, so a screen that could only annotate rows for sale
+    would have nothing to say about most of what they own — and no route
+    to sell, move or drop it. The section is drawn even where there is
+    nothing to shop from, because a fighter with kit and no equipment
+    list still has kit to manage.
+
+    A row for something they already have says so as well, instead of
+    offering another: the count opens the row onto the same copies, each
+    with the three things that can happen to it — sold, handed on, taken
+    off. Both readings come off the card this page already built, so a
+    listing of hundreds of rows still costs no query for either.
 
     A purchase stays on the page: kitting out a fighter is a run of
     purchases, and the breadcrumb is the way back.
@@ -239,7 +248,7 @@ def equip(request, pk):
     from n26.core.card import build_card, build_modifier_index
     from n26.core.effects import compute
     from n26.core.operations import NotEnoughCredits, operation
-    from n26.core.owned import owned_things
+    from n26.core.owned import by_thing, carried
     from n26.core.views.owned import link_owned, owned_dialog
     from n26.library.models import Collection, Family, get_default_pack
     from n26.library.standard_content import TRADING_POST_COLLECTION
@@ -360,13 +369,18 @@ def equip(request, pk):
             )
         return redirect(back)
 
-    # What this fighter is already carrying, keyed the way the rows are, so
-    # a row asks one dictionary rather than the database. The links are
-    # filled in here because the URL space is the view's business — the
-    # dialogs open over this page, on the list being read, and Cancel
-    # comes back to it.
+    # What this fighter is already carrying — drawn as a section of its
+    # own, and *also* grouped by kind so a shop row can say the fighter
+    # already has one of these. Two readings of one list, so the section
+    # and the row can never disagree about what is held or where its
+    # controls lead.
+    #
+    # The links are filled in here because the URL space is the view's
+    # business: the dialogs open over this page, on the list being read,
+    # and Cancel comes back to it.
     at = f"{request.path}?list={chosen.pk}" if chosen is not None else request.path
-    owned = link_owned(owned_things(card), at)
+    held = link_owned(carried(card), at)
+    owned = by_thing(held)
 
     lines = list(view.all_lines()) if view is not None else []
     trade_points = [
@@ -392,6 +406,10 @@ def equip(request, pk):
         {
             "miniature": miniature,
             "gang": gang,
+            # Everything they carry, for the section that draws it. Not
+            # the same shape as the rows below: one line per copy, in one
+            # list, where a shop row wants the copies of one thing.
+            "carried": held,
             "collections": collections,
             "collection_tabs": tabs,
             "chosen": chosen,
@@ -447,13 +465,13 @@ def equip(request, pk):
             # one appears here — deduplicated, because the strip keys
             # its tabs by name and a repeated key draws neither.
             "sections": list(dict.fromkeys(name for name, _ in named_sections)),
-            "cost_floor": min((line.credits for line in lines), default=0),
-            "cost_ceiling": max((line.credits for line in lines), default=0),
+            "price_floor": min((line.credits for line in lines), default=0),
+            "price_ceiling": max((line.credits for line in lines), default=0),
             "tp_ceiling": max(trade_points, default=0),
             "has_trade_points": bool(trade_points),
             # The same bound the till enforces, so a browser can say no
             # before a press does. The input's max is a courtesy; the
             # check that counts is in the view.
-            "price_ceiling": PRICE_CEILING,
+            "price_cap": PRICE_CEILING,
         },
     )

@@ -70,22 +70,25 @@ def _with(url, **params):
     return f"{url}{joiner}{urlencode(params)}"
 
 
-def link_owned(index, at):
+def link_owned(things, at):
     """Point every owned line's controls at the dialogs, on this screen.
 
     ``at`` is the page the reader is on, query string and all: the dialogs
     open over it and Cancel returns to it, so the list they were reading
     is still the list underneath.
+
+    Given the carried list, which the shop's own index is grouped from —
+    the same objects in both — so a thing has one set of addresses however
+    a screen came to be drawing it.
     """
-    for things in index.values():
-        for thing in things:
-            thing.sell_href = _with(at, sell=thing.id)
-            thing.reassign_href = _with(at, reassign=thing.id)
-            thing.remove_href = _with(at, remove=thing.id)
-            for part in thing.parts:
-                part.sell_href = _with(at, sell=part.id)
-                part.remove_href = _with(at, remove=part.id)
-    return index
+    for thing in things:
+        thing.sell_href = _with(at, sell=thing.id)
+        thing.reassign_href = _with(at, reassign=thing.id)
+        thing.remove_href = _with(at, remove=thing.id)
+        for part in thing.parts:
+            part.sell_href = _with(at, sell=part.id)
+            part.remove_href = _with(at, remove=part.id)
+    return things
 
 
 def _held(card, pk):

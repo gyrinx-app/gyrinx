@@ -69,6 +69,35 @@ breadcrumb above it has the gang as well, so nothing is lost.
         </c-slot>
     </c-n26.page-header>
     {% comment %}
+    What the fighter already has, before what they could buy. Two different
+    questions — "what have they got?" and "what can I get them?" — and the
+    second was swallowing the first: the controls used to hang off shop rows
+    only, so a weapon that had left the list it was bought from had nowhere to
+    be drawn and no way to be sold, moved or dropped. A fighter's gear is
+    exactly the gear least likely to still be for sale in front of them.
+
+    Its own block rather than a tab beside the lists: the tabs choose which
+    collection you are shopping, and this is not a collection. Above the shop
+    rather than beside it, because the page is read top to bottom on a phone
+    and this is the context for everything below it — and outside the `chosen`
+    branch, because a fighter with kit and no equipment list still has kit.
+    {% endcomment %}
+    <div class="mt-6">
+        <h2 class="text-sm font-semibold text-ink-900 dark:text-ink-100">Carried</h2>
+        {% if carried %}
+            <c-n26.owned-lines :things="carried" class="mt-1" />
+        {% else %}
+            {% comment %}
+            A sentence rather than an empty box: the reader is on a screen for
+            buying things, so the useful thing to say is that this is where
+            what they buy will show up.
+            {% endcomment %}
+            <p class="mt-1 text-sm text-muted">
+                Nothing yet. Anything bought below lands here, to sell, hand on or drop.
+            </p>
+        {% endif %}
+    </div>
+    {% comment %}
     Which list, as the page's top-level choice: a fighter's own lists — the ones
     their built-ins carry — then the Trading Post. Drawn at the top of the
     pinned bar, above the search, because choosing the list you are shopping is
@@ -97,8 +126,8 @@ breadcrumb above it has the gang as well, so nothing is lost.
                 {% endcomment %}
                 <c-n26.collection-picker :categories="categories"
                                          :sections="sections"
-                                         cost_floor="{{ cost_floor }}"
-                                         cost_ceiling="{{ cost_ceiling }}"
+                                         price_floor="{{ price_floor }}"
+                                         price_ceiling="{{ price_ceiling }}"
                                          tp_ceiling="{{ tp_ceiling }}"
                                          noun="items">
                     <c-slot name="filters">
@@ -118,7 +147,7 @@ breadcrumb above it has the gang as well, so nothing is lost.
                                           :nested="True"
                                           model="query"
                                           placeholder="Search {{ chosen }}" />
-                        {% if category_options or cost_ceiling > cost_floor or has_trade_points %}
+                        {% if category_options or price_ceiling > price_floor or has_trade_points %}
                             {% comment %}
                             A size under the search field above them. These
                             refine what the field returned rather than
@@ -133,12 +162,12 @@ breadcrumb above it has the gang as well, so nothing is lost.
                                                        size="xs"
                                                        :options="category_options" />
                                 {% endif %}
-                                {% if cost_ceiling > cost_floor %}
+                                {% if price_ceiling > price_floor %}
                                     <c-n26.range-menu label="Price"
-                                                      model_min="minCost"
-                                                      model_max="maxCost"
-                                                      min="{{ cost_floor }}"
-                                                      max="{{ cost_ceiling }}"
+                                                      model_min="minPrice"
+                                                      model_max="maxPrice"
+                                                      min="{{ price_floor }}"
+                                                      max="{{ price_ceiling }}"
                                                       step="5"
                                                       suffix="¢"
                                                       size="xs"
