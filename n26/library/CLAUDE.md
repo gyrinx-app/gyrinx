@@ -82,6 +82,12 @@ Adding a verb means touching, in order:
    `LEAF_DESCRIBE` for the page's blurb); `DETAIL_KINDS` if the thing
    has parts added to it over time; `DETAIL_VIEWS` for a bespoke detail
    page.
+4. **The flow, if the spec uses `within=`.** That kind narrows a picker
+   to the rows belonging to one carrier, and it can only do so where the
+   carrier is handed to the form. The detail view does that for its part
+   forms; a spec reused anywhere else gets a picker over the whole table
+   and refuses the stray only afterwards. Nothing catches this — the
+   picker looks wired and is simply wide.
 
 Several parallel lists are deliberate extension points, each guarded by
 a check or a generated constraint (`ASSIGNABLE_FIELDS`, `SCOPE_FIELDS`,
