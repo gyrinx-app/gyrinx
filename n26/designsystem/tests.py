@@ -84,6 +84,51 @@ class TestTheGangTypeBadgeInTheGallery:
         assert "Underhive Outcasts" in page
 
 
+class TestProseInsideCVarsIsNotAPropList:
+    """A component may write a {% comment %} among its props to explain one of
+    them. Tokenised as declarations, that prose became props: a reader of the
+    profile picker's page was shown forty-three, among them "and", "from" and
+    "endcomment", and the page is meant to be the reference the spec agrees
+    with.
+
+    The quieter half is what the noise did to the slots. A name counted as
+    declared is a name the slot scan skips, so the word "empty" in a sentence
+    took the component's real `empty` slot off its own page.
+    """
+
+    def test_only_the_declared_props_are_listed(self):
+        from n26.designsystem.introspect import api_for
+
+        api = api_for("n26/profile_picker/index.html")
+
+        assert [prop.name for prop in api.props] == [
+            "categories",
+            "sections",
+            "tabs",
+            "cost_floor",
+            "cost_ceiling",
+            "noun",
+            "class",
+        ]
+
+    def test_a_slot_named_by_the_prose_is_still_documented(self):
+        from n26.designsystem.introspect import api_for
+
+        api = api_for("n26/profile_picker/index.html")
+
+        assert "empty" in api.slots
+
+    def test_there_is_something_to_check(self):
+        """Worth nothing if that component stops explaining itself in place,
+        which is how this would quietly pass forever."""
+        import re
+
+        from n26.designsystem.introspect import _CVARS, api_for
+
+        raw = api_for("n26/profile_picker/index.html").path.read_text()
+        assert re.search(r"\{%\s*comment\s*%\}", _CVARS.search(raw).group(1))
+
+
 class TestTheShellStillDraws:
     """The shell pages are the gallery's claim that the library composes.
 

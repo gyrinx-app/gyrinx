@@ -204,7 +204,15 @@ def _read(relative: str) -> ComponentApi | None:
 
     props: list[Prop] = []
     if match := _CVARS.search(raw):
-        for name, value in _split_attributes(match.group(1)):
+        # A {% comment %} inside the <c-vars> block is prose about the props
+        # around it, and a perfectly ordinary thing to write. Left in, every
+        # word of it is tokenised as a prop: one component published forty-three
+        # of them, including "and", "from" and "endcomment". Worse than the
+        # noise, a phantom silently eats the real slot of the same name — the
+        # word "empty" in a sentence is why that component's `empty` slot went
+        # undocumented — because a name counted as declared is a name the slot
+        # scan below then skips.
+        for name, value in _split_attributes(_COMMENT.sub("", match.group(1))):
             dynamic = name.startswith(":")
             props.append(
                 Prop(name=name.lstrip(":"), default=_normalise(value), dynamic=dynamic)
