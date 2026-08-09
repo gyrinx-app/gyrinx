@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models.functions import Lower
+from django.utils.text import capfirst
 
 from n26.core.constraints import exactly_one_of
 from n26.library.models.base import Content
@@ -582,6 +583,21 @@ class OffersChoice(models.Model):
             return f"offers a choice of {self.of_kind.name} from {self.from_section}"
         return f"offers a choice of {self.of_kind.name}"
 
+    def save(self, *args, **kwargs):
+        """Store the label the way a card has to show it.
+
+        An author types "favoured archetype" and the slot beside it reads
+        "Favoured archetype": a label is sentence case, and the surfaces
+        drawing it should not each have to say so. Only the first
+        character is touched — ``str.capitalize`` would lowercase the
+        rest and flatten a name or an acronym the author meant. In
+        ``save`` and not ``clean`` because ``objects.create`` never calls
+        ``full_clean``: the authoring verbs and any importer must land
+        the same value a form does.
+        """
+        self.label = capfirst(self.label)
+        super().save(*args, **kwargs)
+
     @classmethod
     def of(cls, model, from_section=None, label="", answer_host=AnswerHost.BEARER):
         from django.contrib.contenttypes.models import ContentType
@@ -595,12 +611,19 @@ class OffersChoice(models.Model):
 
     @property
     def kind_label(self):
-        """What the card calls this slot — "Primary skill", or "skill"."""
+        """What the card calls this slot — "Primary skill", or "Skill".
+
+        Sentence case whichever branch answers it, so every surface can
+        draw what it is given: a stored label is canonicalised on the way
+        in, and a derived one is built from a kind's verbose name, which
+        is lowercase. One rule, stated here, is what lets the renderers
+        hold none of their own.
+        """
         if self.label:
             return self.label
         if self.from_section_id is not None:
-            return f"{self.from_section.name} {self.of_kind.name}"
-        return self.of_kind.name
+            return capfirst(f"{self.from_section.name} {self.of_kind.name}")
+        return capfirst(self.of_kind.name)
 
     def accepts(self, target_kind):
         # A model picks its specialisation; a gang picks its ranked

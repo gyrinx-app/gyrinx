@@ -230,7 +230,7 @@ class TestModifiersRunInAPreview:
 
         card = preview(profile)
         (choice,) = card.choices
-        assert choice.kind_label == "specialisation"
+        assert choice.kind_label == "Specialisation"
         assert choice.is_resolved is False
 
     def test_a_pet_wargear_says_what_it_will_bring(self, person_type, gang_type):

@@ -12,7 +12,7 @@ Radios in a form, no script: one of many is the browser's rule, the press posts,
 and the server writes the answer. A reader who leaves without pressing Save has
 changed nothing, which is the whole point of an open slot.
 {% endcomment %}
-{% block head_title %}{{ offer.label|capfirst }} — {{ gang.name }}{% endblock head_title %}
+{% block head_title %}{{ offer.label }} — {{ gang.name }}{% endblock head_title %}
 {% block nav_switcher %}
     {% gang_switcher gang as gang_switcher_ %}
     <c-n26.quick-switcher.of :switcher="gang_switcher_" />
@@ -22,7 +22,7 @@ changed nothing, which is the whole point of an open slot.
 {% endblock %}
 {% block content %}
     <c-n26.form-page action="{{ request.path }}"
-                     title="{{ offer.label|capfirst }}"
+                     title="{{ offer.label }}"
                      lead="{{ pick_lead }}"
                      submit_label="Save">
         <c-slot name="breadcrumb">
@@ -34,7 +34,7 @@ changed nothing, which is the whole point of an open slot.
                     {{ gang.name }}
                 </c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item :current="True">
-                    {{ offer.label|capfirst }}
+                    {{ offer.label }}
                 </c-ui.breadcrumbs.item>
             </c-ui.breadcrumbs>
         </c-slot>

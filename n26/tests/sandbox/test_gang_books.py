@@ -295,8 +295,8 @@ class TestChaosCorruption:
 
         sheet = render_gang(gang)
         answered = {line.kind_label: line.chosen for line in sheet.choices}
-        assert answered["corruption"] == "Chaos Corrupted"
-        assert answered["dedication"] == "Dedicated: the Blood God"
+        assert answered["Corruption"] == "Chaos Corrupted"
+        assert answered["Dedication"] == "Dedicated: the Blood God"
 
     def test_the_leaders_ascension_and_the_favour_counter(
         self, escher, chaos_corruption, leader_profile
@@ -325,7 +325,7 @@ class TestChaosCorruption:
         card = card_for(gang, "Mother Doubt")
         show(render_model_card(card))
         assert "Wyrd" in [s.name for s in card.subtypes]
-        (power_line,) = [c for c in card.choices if c.kind_label == "wyrd power"]
+        (power_line,) = [c for c in card.choices if c.kind_label == "Wyrd power"]
         assert power_line.chosen == "Scouring"
         assert "Lead Ritual (Leader only)" in [rule.name for rule in card.rules]
         assert "Nimble" not in [rule.name for rule in card.rules]
@@ -692,7 +692,7 @@ class TestMasterOfWhispers:
         assert awakened.membership.ledger_entry.paid == 205 + 35
 
         card = card_for(gang, "Silence")
-        (slot,) = [c for c in card.choices if c.kind_label == "whispers power"]
+        (slot,) = [c for c in card.choices if c.kind_label == "Whispers power"]
         assert slot.chosen is None  # open until answered
 
         anchor = Assignment.objects.get(
@@ -703,7 +703,7 @@ class TestMasterOfWhispers:
         card = card_for(gang, "Silence")
         show(render_model_card(card))
         assert "Wyrd" in [s.name for s in card.subtypes]
-        (slot,) = [c for c in card.choices if c.kind_label == "whispers power"]
+        (slot,) = [c for c in card.choices if c.kind_label == "Whispers power"]
         assert slot.chosen == "Terrible Truths"
 
     def test_declining_costs_nothing_and_asks_nothing(self, phantom, gang_type):
@@ -715,7 +715,7 @@ class TestMasterOfWhispers:
         assert plain.membership.ledger_entry.paid == 205
 
         card = card_for(gang, "Hush")
-        assert [c for c in card.choices if c.kind_label == "whispers power"] == []
+        assert [c for c in card.choices if c.kind_label == "Whispers power"] == []
         assert "Wyrd" not in [s.name for s in card.subtypes]
 
 

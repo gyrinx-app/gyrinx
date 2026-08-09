@@ -270,13 +270,50 @@ class TestOffers:
             {"model": "archetype", "label": "archetype", "answer_host": "gang"}
         )
         assert effect.answer_host == "gang"
-        assert effect.kind_label == "archetype"
+        assert effect.kind_label == "Archetype"
 
     def test_the_venator_rank_slots_label(self, default_pack):
         effect = specs()["ef_offers_choice"].compile(
             {"model": "skilltree", "label": "skill tree 1"}
         )
-        assert effect.kind_label == "skill tree 1"
+        assert effect.kind_label == "Skill tree 1"
+
+
+class TestChoiceLabelsReadAsLabels:
+    """A slot's label is stored the way a card has to show it, so that no
+    renderer has to case it on the way out: the first character is
+    capitalised, and everything after it is left as the author typed it."""
+
+    def offer(self, label):
+        return specs()["ef_offers_choice"].compile(
+            {"model": "archetype", "label": label}
+        )
+
+    def stored(self, label):
+        """What the database ends up holding — the point being that the
+        canonical value is written, not computed at read time."""
+        from n26.library.models import OffersChoice
+
+        return OffersChoice.objects.get(pk=self.offer(label).pk).label
+
+    def test_a_lowercase_label_is_stored_capitalised(self, default_pack):
+        assert self.stored("favoured archetype") == "Favoured archetype"
+
+    def test_capitals_further_along_are_the_authors_and_stay(self, default_pack):
+        """Sentence case, not title case: a name or an acronym inside a
+        label was typed on purpose."""
+        assert self.stored("archetype for a Clan House") == (
+            "Archetype for a Clan House"
+        )
+
+    def test_a_label_that_already_reads_as_one_is_untouched(self, default_pack):
+        assert self.stored("Archetype") == "Archetype"
+
+    def test_no_label_stays_no_label(self, default_pack):
+        """Blank is a real answer, not a mistake — the kind names the slot
+        instead, and reads as a label too."""
+        assert self.stored("") == ""
+        assert self.offer("").kind_label == "Archetype"
 
 
 class TestCompanionsAndStoredEffects:

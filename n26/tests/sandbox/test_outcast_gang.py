@@ -450,22 +450,22 @@ class TestFoundingOffersTheChoices:
         archetype question does not exist until there is a Leader —
         "when an Outcast Leader is recruited… they must choose"."""
         computed = the_gang_computed(gang)
-        assert [slot.kind_label for slot in computed.choices] == ["affiliation"]
+        assert [slot.kind_label for slot in computed.choices] == ["Affiliation"]
         assert not computed.choices[0].is_resolved
 
     def test_the_archetype_question_arrives_with_the_leader(self, gang, crew):
         computed = fighter_computed(crew["leader"])
-        slot = next(s for s in computed.choices if s.kind_label == "archetype")
+        slot = next(s for s in computed.choices if s.kind_label == "Archetype")
         assert not slot.is_resolved
 
     def test_each_offer_narrows_to_its_own_list(self, gang, crew):
         computed = fighter_computed(crew["leader"])
-        slot = next(s for s in computed.choices if s.kind_label == "archetype")
+        slot = next(s for s in computed.choices if s.kind_label == "Archetype")
         offerable = offered_by(slot, computed)
         assert {line.name for line in offerable.all_lines()} == set(ARCHETYPES)
 
         gang_computed = the_gang_computed(gang)
-        affiliations = offered_by(gang_computed.choice("affiliation"), gang_computed)
+        affiliations = offered_by(gang_computed.choice("Affiliation"), gang_computed)
         assert {line.name for line in affiliations.all_lines()} == {
             "Clanless Outcast",
             "Clan House Outcast",
@@ -494,7 +494,7 @@ class TestArchetypes:
         slot = next(
             s
             for s in fighter_computed(crew["leader"]).choices
-            if s.kind_label == "archetype"
+            if s.kind_label == "Archetype"
         )
         assert slot.is_resolved and slot.chosen_name == "Brawler"
 
@@ -617,11 +617,11 @@ class TestAffiliationChains:
         so the choice it carries computes into a new slot."""
         tokens, house_tokens = affiliations
         computed = the_gang_computed(gang)
-        assert computed.choice("clan house") is None  # not until it's chosen
+        assert computed.choice("Clan house") is None  # not until it's chosen
 
         choose(gang_slot(gang, "Affiliation"), tokens["clan_house"])
         computed = the_gang_computed(gang)
-        slot = computed.choice("clan house")
+        slot = computed.choice("Clan house")
         assert slot is not None and not slot.is_resolved
 
         anchor = next(
@@ -631,7 +631,7 @@ class TestAffiliationChains:
         )
         choose(anchor, house_tokens["Escher"])
         assert (
-            the_gang_computed(gang).choice("clan house").chosen_name == "House Escher"
+            the_gang_computed(gang).choice("Clan house").chosen_name == "House Escher"
         )
 
     def test_the_house_opens_its_list_to_the_right_ranks(

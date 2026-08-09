@@ -403,7 +403,7 @@ class TestKnowingAPower:
             return build_model_card(fighter, card=card, computed=compute(card, index))
 
         (choice,) = card_with_effects().choices
-        assert choice.kind_label == "power"
+        assert choice.kind_label == "Power"
         assert choice.is_resolved is False
 
         choose(anchor, library["powers"]["Terrify"])
@@ -778,7 +778,7 @@ class TestPickingASkill:
 
         computed = self.computed_for(yolanda)
         slot = next(s for s in computed.choices if s.source == "Studious")
-        assert slot.kind_label == "skill"
+        assert slot.kind_label == "Skill"
         assert set(offered_by(slot, computed)) == set(Skill.objects.all())
 
     def test_offering_the_pick_costs_a_fixed_number_of_queries(

@@ -177,12 +177,12 @@ class TestScopeSymmetry:
         card — the broadcast is unchanged by the gang card existing."""
         computed = member_computed(yolanda)
         assert [c.name for c in computed.rules] == ["Nimble"]
-        assert [slot.kind_label for slot in gang_computed(gang).choices] == ["skill"]
+        assert [slot.kind_label for slot in gang_computed(gang).choices] == ["Skill"]
 
 
 class TestComputedGang:
     def test_an_unanswered_choice_is_an_open_slot(self, gang):
-        slot = gang_computed(gang).choice("skill")
+        slot = gang_computed(gang).choice("Skill")
         assert slot is not None and not slot.is_resolved
 
     def test_choosing_answers_it_gang_hosted(self, gang):
@@ -192,7 +192,7 @@ class TestComputedGang:
         answer = _choose(anchor, create_skill("Overwatch"))
 
         assert answer.gang == gang and answer.miniature is None
-        slot = gang_computed(gang).choice("skill")
+        slot = gang_computed(gang).choice("Skill")
         assert slot.is_resolved and slot.chosen_name == "Overwatch"
 
     def test_the_same_thing_answering_twice_draws_a_note(self, gang, escherish):
@@ -236,7 +236,7 @@ class TestTheSheetDerives:
         sheet = render_gang(gang)
         assert [line.name for line in sheet.rows] == ["Escher", "House List"]
         assert [(c.kind_label, c.chosen) for c in sheet.choices] == [
-            ("skill", "Overwatch")
+            ("Skill", "Overwatch")
         ]
         assert [(line.name, line.rating) for line in sheet.stash] == [("Lasgun", 15)]
         assert sheet.stash_rating == 15

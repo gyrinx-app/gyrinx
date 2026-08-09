@@ -236,7 +236,7 @@ class TestTheGangPicks:
     def test_founding_materialises_four_open_slots(self, gang):
         computed = the_gang_computed(gang)
         assert {slot.kind_label for slot in computed.choices} == {
-            f"skill tree {rank}" for rank in (1, 2, 3, 4)
+            f"Skill tree {rank}" for rank in (1, 2, 3, 4)
         }
         assert not any(slot.is_resolved for slot in computed.choices)
 
@@ -244,7 +244,7 @@ class TestTheGangPicks:
         """ "Pick a selection of skill trees": all six sets offer, the
         gang ranks four of them."""
         computed = the_gang_computed(gang)
-        offerable = offered_by(computed.choice("skill tree 1"), computed)
+        offerable = offered_by(computed.choice("Skill tree 1"), computed)
         assert {tree.name for tree in offerable} == {
             "Agility",
             "Brawn",
@@ -260,10 +260,10 @@ class TestTheGangPicks:
 
         computed = the_gang_computed(gang)
         assert {(slot.kind_label, slot.chosen_name) for slot in computed.choices} == {
-            ("skill tree 1", "Agility"),
-            ("skill tree 2", "Cunning"),
-            ("skill tree 3", "Savant"),
-            ("skill tree 4", "Shooting"),
+            ("Skill tree 1", "Agility"),
+            ("Skill tree 2", "Cunning"),
+            ("Skill tree 3", "Savant"),
+            ("Skill tree 4", "Shooting"),
         }
 
 

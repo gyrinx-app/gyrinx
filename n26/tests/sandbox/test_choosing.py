@@ -268,9 +268,9 @@ class TestAnUnansweredSlotIsAnInvitation:
     def test_every_open_slot_carries_the_address_of_its_own_picker(self, gang, crew):
         slots = sheet_slots(gang)
         assert set(slots) == {
-            "affiliation",
-            "favoured set",
-            "Sorrow: archetype",
+            "Affiliation",
+            "Favoured set",
+            "Sorrow: Archetype",
             "Sorrow: Primary skill",
         }
         assert not any(line.is_resolved for line in slots.values())
@@ -280,14 +280,14 @@ class TestAnUnansweredSlotIsAnInvitation:
         """Both gang questions ride the same row, so only the offer tells
         them apart."""
         slots = sheet_slots(gang)
-        assert slots["affiliation"].href != slots["favoured set"].href
+        assert slots["Affiliation"].href != slots["Favoured set"].href
 
     def test_two_cards_asked_the_same_question_get_two_addresses(
         self, gang, crew, profiles
     ):
         hire_with_option(gang, profiles["leader"], "Ash")
         slots = sheet_slots(gang)
-        assert slots["Sorrow: archetype"].href != slots["Ash: archetype"].href
+        assert slots["Sorrow: Archetype"].href != slots["Ash: Archetype"].href
 
     def test_the_sheet_says_choose(self, client, owner, gang, crew):
         client.force_login(owner)
@@ -296,7 +296,7 @@ class TestAnUnansweredSlotIsAnInvitation:
         slots = sheet_slots(gang)
         # The gang's strip and a fighter's card both, each pointing at its
         # own slot rather than at some page-wide picker.
-        assert slots["affiliation"].href in body
+        assert slots["Affiliation"].href in body
         assert slots["Sorrow: Primary skill"].href in body
 
     def test_a_card_with_no_stored_rows_has_no_address(self, gang_list, profiles):
@@ -327,14 +327,14 @@ class TestWhatOneCardMayPick:
         assert [group.name for group in offer.groups] == ["Combat"]
 
     def test_an_unnarrowed_offer_lists_the_whole_kind(self, gang, crew, trees):
-        offer = offer_for(sheet_slots(gang)["favoured set"])
+        offer = offer_for(sheet_slots(gang)["Favoured set"])
         assert names_on(offer) == {"Combat", "Shooting"}
         # Nothing narrows it, so there is nothing to head the list with.
         assert [group.name for group in offer.groups] == [""]
 
     def test_the_pick_page_draws_the_list(self, client, owner, gang, crew):
         client.force_login(owner)
-        body = client.get(sheet_slots(gang)["affiliation"].href).content.decode()
+        body = client.get(sheet_slots(gang)["Affiliation"].href).content.decode()
         for name in ("Clanless", "Mutant", "Aranthian"):
             assert name in body
 
@@ -366,13 +366,13 @@ class TestAnsweringOne:
     def test_the_gangs_own_question(self, client, owner, gang, crew, affiliations):
         client.force_login(owner)
         response = self.post(
-            client, sheet_slots(gang)["affiliation"].href, affiliations["Mutant"]
+            client, sheet_slots(gang)["Affiliation"].href, affiliations["Mutant"]
         )
         assert response.status_code == 302
 
         answer = Assignment.objects.get(affiliation=affiliations["Mutant"])
         assert answer.gang == gang
-        assert sheet_slots(gang)["affiliation"].chosen == "Mutant"
+        assert sheet_slots(gang)["Affiliation"].chosen == "Mutant"
         assert_reconciled(gang)
 
     def test_one_carriers_other_question_stays_open(
@@ -381,10 +381,10 @@ class TestAnsweringOne:
         """Both gang questions hang off the same row. Answering one must
         not read as having answered the other."""
         client.force_login(owner)
-        self.post(client, sheet_slots(gang)["affiliation"].href, affiliations["Mutant"])
+        self.post(client, sheet_slots(gang)["Affiliation"].href, affiliations["Mutant"])
         slots = sheet_slots(gang)
-        assert slots["affiliation"].chosen == "Mutant"
-        assert not slots["favoured set"].is_resolved
+        assert slots["Affiliation"].chosen == "Mutant"
+        assert not slots["Favoured set"].is_resolved
 
     def test_an_answer_the_gang_carries_though_a_fighter_was_asked(
         self, client, owner, gang, crew, archetypes
@@ -393,12 +393,12 @@ class TestAnsweringOne:
         Leader's slot still reads as the one that was answered."""
         client.force_login(owner)
         self.post(
-            client, sheet_slots(gang)["Sorrow: archetype"].href, archetypes["Brawler"]
+            client, sheet_slots(gang)["Sorrow: Archetype"].href, archetypes["Brawler"]
         )
 
         answer = Assignment.objects.get(archetype=archetypes["Brawler"])
         assert answer.gang == gang and answer.miniature is None
-        assert sheet_slots(gang)["Sorrow: archetype"].chosen == "Brawler"
+        assert sheet_slots(gang)["Sorrow: Archetype"].chosen == "Brawler"
         assert_reconciled(gang)
 
     def test_a_gang_carried_question_is_answered_per_fighter(
@@ -432,7 +432,7 @@ class TestAnsweringOne:
         Leader retires the gang's archetype with them."""
         client.force_login(owner)
         self.post(
-            client, sheet_slots(gang)["Sorrow: archetype"].href, archetypes["Brawler"]
+            client, sheet_slots(gang)["Sorrow: Archetype"].href, archetypes["Brawler"]
         )
         assert gang_computed(gang).choices  # the gang carries the answer
 
@@ -448,13 +448,13 @@ class TestAnsweringOne:
         """One question, one answer: the old row is retired in the same
         press, so the slot never reads two things at once."""
         client.force_login(owner)
-        href = sheet_slots(gang)["affiliation"].href
+        href = sheet_slots(gang)["Affiliation"].href
         self.post(client, href, affiliations["Mutant"])
         self.post(
-            client, sheet_slots(gang)["affiliation"].href, affiliations["Clanless"]
+            client, sheet_slots(gang)["Affiliation"].href, affiliations["Clanless"]
         )
 
-        assert sheet_slots(gang)["affiliation"].chosen == "Clanless"
+        assert sheet_slots(gang)["Affiliation"].chosen == "Clanless"
         assert not Assignment.objects.filter(
             affiliation=affiliations["Mutant"], archived=False
         ).exists()
@@ -464,8 +464,8 @@ class TestAnsweringOne:
         self, client, owner, gang, crew, affiliations
     ):
         client.force_login(owner)
-        self.post(client, sheet_slots(gang)["affiliation"].href, affiliations["Mutant"])
-        answered = sheet_slots(gang)["affiliation"]
+        self.post(client, sheet_slots(gang)["Affiliation"].href, affiliations["Mutant"])
+        answered = sheet_slots(gang)["Affiliation"]
         assert answered.is_resolved and answered.href
 
     def test_a_thing_that_is_not_on_offer_writes_nothing(
@@ -476,11 +476,11 @@ class TestAnsweringOne:
         client.force_login(owner)
         before = Assignment.objects.count()
         response = self.post(
-            client, sheet_slots(gang)["affiliation"].href, trees["combat"]
+            client, sheet_slots(gang)["Affiliation"].href, trees["combat"]
         )
         assert response.status_code == 302
         assert Assignment.objects.count() == before
-        assert not sheet_slots(gang)["affiliation"].is_resolved
+        assert not sheet_slots(gang)["Affiliation"].is_resolved
 
 
 class TestAddressesThatShouldNotResolve:
@@ -488,7 +488,7 @@ class TestAddressesThatShouldNotResolve:
         """A carrier that has gone takes its question with it, and the
         address stops resolving."""
         client.force_login(owner)
-        href = sheet_slots(gang)["Sorrow: archetype"].href
+        href = sheet_slots(gang)["Sorrow: Archetype"].href
         remove(crew["leader"].assignments.get(profile__isnull=False))
         assert client.get(href).status_code == 404
 
@@ -505,7 +505,7 @@ class TestAddressesThatShouldNotResolve:
         ownership one."""
         other = found_gang("The Others", gang.gang_type, owner=owner)
         client.force_login(owner)
-        href = sheet_slots(gang)["Sorrow: archetype"].href
+        href = sheet_slots(gang)["Sorrow: Archetype"].href
         stolen = href.replace(str(gang.pk), str(other.pk), 1)
         assert client.get(stolen).status_code == 404
 

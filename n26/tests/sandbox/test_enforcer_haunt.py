@@ -144,14 +144,14 @@ def slot(computed, label):
 class TestTheHaunt:
     def test_the_type_question_arrives_with_the_hire(self, morrow):
         computed = computed_for(morrow)
-        asked = slot(computed, "sanctioned wyrd type")
+        asked = slot(computed, "Sanctioned wyrd type")
         assert asked is not None and not asked.is_resolved
         # And no power question yet: it belongs to the unanswered type.
         assert slot(computed, "Primary power") is None
 
     def test_the_pick_list_is_the_two_types(self, morrow):
         computed = computed_for(morrow)
-        offerable = offered_by(slot(computed, "sanctioned wyrd type"), computed)
+        offerable = offered_by(slot(computed, "Sanctioned wyrd type"), computed)
         assert {line.name for line in offerable.all_lines()} == {
             "Psyrender",
             "Bonecrusher",
@@ -201,6 +201,6 @@ class TestTheHaunt:
         card = build_model_card(morrow, computed=computed_for(morrow))
         assert card.type_line == "Fighter (Psyrender)"
         answered = next(
-            c for c in card.choices if c.kind_label == "sanctioned wyrd type"
+            c for c in card.choices if c.kind_label == "Sanctioned wyrd type"
         )
         assert answered.chosen == "Psyrender"

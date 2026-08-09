@@ -89,7 +89,7 @@ class TestTheUnresolvedSlot:
     def test_the_offer_is_a_slot_on_the_card(self, yolanda):
         card = card_for(yolanda)
         (choice,) = card.choices
-        assert choice.kind_label == "specialisation"
+        assert choice.kind_label == "Specialisation"
         assert choice.chosen is None
         assert choice.is_resolved is False
 
