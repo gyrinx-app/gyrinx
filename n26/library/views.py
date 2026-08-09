@@ -237,6 +237,42 @@ def _carrier_count(modifier):
     return _carrier_counts([modifier])[modifier.pk]
 
 
+def _forward_relations(model):
+    """The foreign keys a row reads through — what a page loads with the
+    row so that saying it costs no further queries."""
+    return [
+        field.name
+        for field in model._meta.get_fields()
+        if field.concrete and (field.many_to_one or field.one_to_one)
+    ]
+
+
+def _carriers(modifier):
+    """Everything holding this modifier, named and linked.
+
+    A count says how far a change reaches; the names say whether this
+    is the one the author meant. Both are wanted before an edit or a
+    delete, and cost the same query — one per kind, a fixed number
+    whatever the pack holds.
+    """
+    slugs = {_model_for(specs()[verb]): kind for kind, verb in LEAF_KINDS.items()}
+    found = []
+    for model in _assignable_models():
+        rows = model.objects.select_related(*_forward_relations(model))
+        for row in rows.filter(modifiers=modifier):
+            found.append(
+                {
+                    "label": _label_for(row),
+                    "kind_name": str(model._meta.verbose_name),
+                    # A kind with no authoring page of its own is still
+                    # named; only the link is missing.
+                    "kind": slugs.get(model),
+                    "pk": row.pk,
+                }
+            )
+    return sorted(found, key=lambda carrier: (carrier["kind_name"], carrier["label"]))
+
+
 def _reading_sentences(modifiers):
     """A modifier queryset with everything its sentences read loaded.
 
@@ -254,13 +290,6 @@ def _reading_sentences(modifiers):
     from n26.library.models import Modifier
     from n26.library.models.modifier import EFFECT_FIELDS, SCOPE_FIELDS
 
-    def forward_relations(model):
-        return [
-            field.name
-            for field in model._meta.get_fields()
-            if field.concrete and (field.many_to_one or field.one_to_one)
-        ]
-
     # Two hops where a sentence reads through an intermediate row: a
     # placement or a choice names a section, and a section says itself
     # as "name (collection)". Derivation below stops at one hop, so
@@ -273,7 +302,7 @@ def _reading_sentences(modifiers):
     for half in (*SCOPE_FIELDS, *EFFECT_FIELDS):
         paths.append(half)
         related = Modifier._meta.get_field(half).related_model
-        paths.extend(f"{half}__{name}" for name in forward_relations(related))
+        paths.extend(f"{half}__{name}" for name in _forward_relations(related))
         for condition in getattr(related, "CONDITIONS", ()):
             model = related._meta.get_field(condition).related_model
             paths.append(f"{half}__{condition}")
@@ -742,6 +771,12 @@ def _composer_state(request, attach_to=None, bound_composer=None):
         "composer_scope": scope_kind,
         "composer_effect": effect_kind,
         "composer_chips": chips,
+        # One more empty chip, as an address. The kinds ride it too:
+        # the page is showing step two because the URL names them, and
+        # a link that dropped them would fold the composer away.
+        "add_condition_href": (
+            f"?scope_kind={scope_kind}&effect_kind={effect_kind}&chips={chips + 1}"
+        ),
     }
 
 
@@ -819,7 +854,7 @@ def modifiers(request):
             if carriers
             else "reusable — attached nowhere yet"
         )
-        rows.append({"label": modifier.name, "notes": notes})
+        rows.append({"pk": modifier.pk, "label": modifier.name, "notes": notes})
 
     return render(
         request,
@@ -827,6 +862,117 @@ def modifiers(request):
         {
             "rows": rows,
             **_composer_state(request, bound_composer=bound),
+        },
+    )
+
+
+def _carriers_said(count):
+    """How widely a modifier is held, as a page prints it."""
+    if count == 1:
+        return "One thing carries this modifier"
+    return f"{count} things carry this modifier"
+
+
+def _modifier_or_404(pk):
+    """One modifier with everything its sentence reads already loaded."""
+    from n26.library.models import Modifier
+
+    return get_object_or_404(_reading_sentences(Modifier.objects.all()), pk=pk)
+
+
+@staff_member_required
+def modifier_page(request, pk):
+    """One modifier: what it says, who carries it, and the form that
+    corrects it.
+
+    A modifier is shared — the same row hangs on as many carriers as
+    have been given it — so editing one changes all of them at once.
+    The carriers are therefore named above the form rather than counted
+    after it.
+
+    The kinds are not editable here (``ModifierComposerForm.opened_on``
+    says why); everything inside them is, conditions included.
+    """
+    from n26.library.forms import ModifierComposerForm
+
+    modifier = _modifier_or_404(pk)
+
+    try:
+        chips = max(0, int(request.GET.get("chips", 0)))
+    except ValueError:
+        chips = 0
+    chips = min(chips, MAX_CHIPS)
+
+    if request.method == "POST":
+        composer = ModifierComposerForm(request.POST, editing=modifier)
+        if composer.is_valid():
+            try:
+                with transaction.atomic():
+                    composer.save()
+            except IntegrityError:
+                # The write is undone, and the row in hand is the
+                # half-written one — read it back before drawing it.
+                modifier.refresh_from_db()
+                composer.add_error(
+                    "name",
+                    "A modifier with that name already exists in this pack.",
+                )
+            else:
+                messages.success(request, f"Saved {modifier.name}.")
+                return redirect("authoring-modifier", pk=pk)
+    else:
+        composer = ModifierComposerForm.opened_on(modifier, chips=chips)
+
+    carriers = _carriers(modifier)
+    return render(
+        request,
+        "authoring/modifier.html",
+        {
+            "thing": modifier,
+            "sentence": f"{modifier.scope}: {modifier.effect}",
+            "carriers": carriers,
+            "carrier_count": len(carriers),
+            "carrier_said": _carriers_said(len(carriers)),
+            # Shared means a change here is a change to several things
+            # at once, which is the fact worth saying out loud.
+            "shared": len(carriers) > 1,
+            "composer": composer,
+            "composer_chips": chips,
+            "add_condition_href": f"?chips={chips + 1}",
+        },
+    )
+
+
+@staff_member_required
+def modifier_delete(request, pk):
+    """The question asked before a modifier is deleted, at its own address.
+
+    GET asks and changes nothing; the POST from that page is the act.
+    What makes the question worth a page is sharing: deleting a
+    modifier takes the behaviour off every carrier holding it, and an
+    author reading a list has no way of knowing how many that is. So
+    the page names them.
+    """
+    from n26.library import authoring
+
+    modifier = _modifier_or_404(pk)
+    if request.method == "POST":
+        said = modifier.name
+        with transaction.atomic():
+            authoring.delete_modifier(modifier)
+        messages.success(request, f"Deleted {said}.")
+        return redirect("authoring-modifiers")
+
+    carriers = _carriers(modifier)
+    return render(
+        request,
+        "authoring/modifier_delete.html",
+        {
+            "thing": modifier,
+            "sentence": f"{modifier.scope}: {modifier.effect}",
+            "carriers": carriers,
+            "carrier_count": len(carriers),
+            "carrier_said": _carriers_said(len(carriers)),
         },
     )
 

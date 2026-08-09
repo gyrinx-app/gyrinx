@@ -2105,6 +2105,429 @@ class TestTheModifiersPage:
             assert client.get("/n26/authoring/modifiers/").status_code == 200
 
 
+def drawn_picked(body, value):
+    """Whether the page drew this option already chosen.
+
+    The control is written across several lines, so the question cannot
+    be asked with a plain substring.
+    """
+    return (
+        re.search(rf'<option\s+value="{re.escape(str(value))}"[^>]*\sselected', body)
+        is not None
+    )
+
+
+class TestAModifiersOwnPage:
+    """A modifier is corrected and removed on a page of its own.
+
+    The fact that page exists to say is sharing: one modifier row hangs
+    on as many carriers as have been given it, so an edit reaches all of
+    them and a delete takes the behaviour off all of them. Both acts
+    name the carriers before they happen.
+    """
+
+    #: A prefilled formset's bookkeeping, as the browser would send it
+    #: back after drawing ``count`` chips.
+    @staticmethod
+    def chips(count=0):
+        return {
+            "conditions-TOTAL_FORMS": str(count),
+            "conditions-INITIAL_FORMS": str(count),
+            "conditions-MIN_NUM_FORMS": "0",
+            "conditions-MAX_NUM_FORMS": "1000",
+        }
+
+    @pytest.fixture
+    def mounted(self, author, default_pack):
+        from n26.library.authoring import create_subtype
+
+        return create_subtype("Mounted")
+
+    @pytest.fixture
+    def shared(self, mounted):
+        """One modifier on two carriers — the case the page is for."""
+        from n26.library.authoring import (
+            attach_modifiers_to,
+            create_rule,
+            ef_adds,
+            modifier,
+            targets_model,
+        )
+
+        made = modifier("Grants Mounted", targets_model(), ef_adds(mounted))
+        carriers = [create_rule("Beast Handler"), create_rule("Outrider")]
+        for carrier in carriers:
+            attach_modifiers_to(carrier, [made])
+        return made, carriers
+
+    def test_the_listing_leads_to_it(self, shared, client):
+        made, _ = shared
+        body = client.get("/n26/authoring/modifiers/").content.decode()
+        assert f"/n26/authoring/modifiers/{made.pk}/" in body
+
+    def test_the_page_says_what_carries_it_and_how_many(self, shared, client):
+        made, _ = shared
+        body = client.get(f"/n26/authoring/modifiers/{made.pk}/").content.decode()
+
+        assert "2 things carry this modifier" in body
+        assert "Beast Handler" in body
+        assert "Outrider" in body
+
+    def test_a_modifier_nothing_carries_says_so(self, mounted, client):
+        from n26.library.authoring import ef_adds, modifier, targets_model
+
+        made = modifier("Spare", targets_model(), ef_adds(mounted))
+        body = client.get(f"/n26/authoring/modifiers/{made.pk}/").content.decode()
+
+        assert "Nothing carries this yet" in body
+        assert "things carry this modifier" not in body
+
+    def test_the_form_opens_on_what_the_modifier_says(self, shared, client):
+        """A union reads back as its kind and its pick, which is two
+        controls: a form that opened blank would silently offer to
+        replace the effect with nothing."""
+        made, _ = shared
+        body = client.get(f"/n26/authoring/modifiers/{made.pk}/").content.decode()
+
+        assert 'value="Grants Mounted"' in body
+        assert drawn_picked(body, "subtype")
+        assert drawn_picked(body, made.effect.subtype_id)
+
+    def test_an_edit_reaches_every_carrier(self, shared, client, default_pack):
+        from n26.library.authoring import create_subtype
+
+        made, carriers = shared
+        wyrd = create_subtype("Wyrd")
+        response = client.post(
+            f"/n26/authoring/modifiers/{made.pk}/",
+            {
+                "name": "Grants Wyrd",
+                "what-thing_kind": "subtype",
+                "what-thing_subtype": str(wyrd.pk),
+                **self.chips(),
+            },
+        )
+        assert response.status_code == 302
+
+        for carrier in carriers:
+            (held,) = carrier.modifiers.all()
+            # The same row, saying something else — nothing was
+            # re-attached, and nothing was left saying the old thing.
+            assert held.pk == made.pk
+            assert held.name == "Grants Wyrd"
+            assert str(held.effect) == "adds Wyrd"
+
+    def test_the_old_parts_do_not_linger(self, shared, client, default_pack):
+        from n26.library.authoring import create_subtype
+        from n26.library.models import AddsAssignable, TargetsMiniature
+
+        made, _ = shared
+        wyrd = create_subtype("Wyrd")
+        client.post(
+            f"/n26/authoring/modifiers/{made.pk}/",
+            {
+                "name": "Grants Wyrd",
+                "what-thing_kind": "subtype",
+                "what-thing_subtype": str(wyrd.pk),
+                **self.chips(),
+            },
+        )
+
+        assert TargetsMiniature.objects.count() == 1
+        assert AddsAssignable.objects.count() == 1
+
+    def test_the_kinds_are_not_up_for_grabs(self, shared, client, default_pack):
+        """The kinds are not offered by the page, so a submission naming
+        another one is not an author changing their mind — it is a
+        request the carriers never made, and it is ignored."""
+        from n26.library.models import TargetsMiniature
+
+        made, _ = shared
+        response = client.post(
+            f"/n26/authoring/modifiers/{made.pk}/",
+            {
+                "name": "Grants Mounted",
+                "scope_kind": "targets_gang",
+                "effect_kind": "ef_requires_companions",
+                "what-thing_kind": "subtype",
+                "what-thing_subtype": str(made.effect.subtype_id),
+                **self.chips(),
+            },
+        )
+        assert response.status_code == 302
+
+        made.refresh_from_db()
+        assert isinstance(made.scope, TargetsMiniature)
+        assert str(made.effect) == "adds Mounted"
+
+    def test_a_condition_is_shown_changed_and_taken_off(
+        self, mounted, client, default_pack
+    ):
+        from n26.library.authoring import (
+            create_subtype,
+            ef_adds,
+            has_subtypes,
+            modifier,
+            targets_model,
+        )
+
+        champion = create_subtype("Champion")
+        leader = create_subtype("Leader")
+        made = modifier(
+            "Mounted champions",
+            targets_model(has_subtypes(champion)),
+            ef_adds(mounted),
+        )
+
+        body = client.get(f"/n26/authoring/modifiers/{made.pk}/").content.decode()
+        assert drawn_picked(body, champion.pk)
+
+        # Changed: the chip comes back naming the other subtype.
+        client.post(
+            f"/n26/authoring/modifiers/{made.pk}/",
+            {
+                "name": "Mounted leaders",
+                "what-thing_kind": "subtype",
+                "what-thing_subtype": str(mounted.pk),
+                **self.chips(1),
+                "conditions-0-kind": "has_subtypes",
+                "conditions-0-subtypes": [str(leader.pk)],
+            },
+        )
+        made.refresh_from_db()
+        assert "Leader" in str(made.scope)
+
+        # Taken off: the same chip, struck out.
+        client.post(
+            f"/n26/authoring/modifiers/{made.pk}/",
+            {
+                "name": "Mounted leaders",
+                "what-thing_kind": "subtype",
+                "what-thing_subtype": str(mounted.pk),
+                **self.chips(1),
+                "conditions-0-kind": "has_subtypes",
+                "conditions-0-subtypes": [str(leader.pk)],
+                "conditions-0-DELETE": "on",
+            },
+        )
+        made.refresh_from_db()
+        assert str(made.scope) == "the model"
+
+    def test_a_weapon_scopes_trait_reads_back_as_a_chip(
+        self, author, client, default_pack
+    ):
+        """The weapon scope keeps its narrowing in a column rather than
+        in rows, and the page must not lose it on the way back."""
+        from n26.library.authoring import create_stat as make_stat
+        from n26.library.authoring import (
+            create_trait,
+            ef_changes_stat,
+            has_trait,
+            modifier,
+            targets_weapons,
+        )
+
+        melee = create_trait("Melee")
+        strength = make_stat("S", "Strength")
+        made = modifier(
+            "Sharpened",
+            targets_weapons(has_trait(melee)),
+            ef_changes_stat(strength, mode="improve", amount=1),
+        )
+
+        body = client.get(f"/n26/authoring/modifiers/{made.pk}/").content.decode()
+        assert drawn_picked(body, melee.pk)
+
+        client.post(
+            f"/n26/authoring/modifiers/{made.pk}/",
+            {
+                "name": "Sharpened",
+                "what-stat": str(strength.pk),
+                "what-mode": "improve",
+                "what-amount": "2",
+                **self.chips(1),
+                "conditions-0-kind": "has_trait",
+                "conditions-0-trait": str(melee.pk),
+            },
+        )
+        made.refresh_from_db()
+        assert str(made.scope) == "weapons with Melee"
+        assert made.effect.amount == 2
+
+    def test_a_duplicate_name_refuses_in_words(self, shared, client, default_pack):
+        from n26.library.authoring import ef_adds, modifier, targets_model
+
+        made, _ = shared
+        modifier("Taken", targets_model(), ef_adds(made.effect.subtype))
+        response = client.post(
+            f"/n26/authoring/modifiers/{made.pk}/",
+            {
+                "name": "Taken",
+                "what-thing_kind": "subtype",
+                "what-thing_subtype": str(made.effect.subtype_id),
+                **self.chips(),
+            },
+        )
+
+        assert response.status_code == 200
+        assert "already exists in this pack" in response.content.decode()
+        made.refresh_from_db()
+        assert made.name == "Grants Mounted"
+
+    def test_asking_to_delete_changes_nothing(self, shared, client):
+        from n26.library.models import AddsAssignable, Modifier, TargetsMiniature
+
+        made, carriers = shared
+        response = client.get(f"/n26/authoring/modifiers/{made.pk}/delete/")
+
+        assert response.status_code == 200
+        body = response.content.decode()
+        assert "2 things carry this modifier" in body
+        assert "Beast Handler" in body
+
+        assert Modifier.objects.count() == 1
+        assert TargetsMiniature.objects.count() == 1
+        assert AddsAssignable.objects.count() == 1
+        assert all(carrier.modifiers.count() == 1 for carrier in carriers)
+
+    def test_deleting_takes_it_off_every_carrier_and_leaves_nothing_behind(
+        self, mounted, client, default_pack
+    ):
+        from n26.library.authoring import (
+            attach_modifiers_to,
+            create_rule,
+            create_subtype,
+            ef_adds,
+            has_subtypes,
+            modifier,
+            targets_model,
+        )
+        from n26.library.models import (
+            AddsAssignable,
+            HasSubtypes,
+            Modifier,
+            TargetsMiniature,
+        )
+
+        champion = create_subtype("Champion")
+        made = modifier(
+            "Mounted champions",
+            targets_model(has_subtypes(champion)),
+            ef_adds(mounted),
+        )
+        carriers = [create_rule("Beast Handler"), create_rule("Outrider")]
+        for carrier in carriers:
+            attach_modifiers_to(carrier, [made])
+
+        response = client.post(f"/n26/authoring/modifiers/{made.pk}/delete/")
+        assert response.status_code == 302
+
+        assert Modifier.objects.count() == 0
+        assert all(carrier.modifiers.count() == 0 for carrier in carriers)
+        # The parts a modifier is made of go with it: nothing points at
+        # them, so anything left would be unreachable.
+        assert TargetsMiniature.objects.count() == 0
+        assert AddsAssignable.objects.count() == 0
+        assert HasSubtypes.objects.count() == 0
+
+    def test_deleting_leaves_what_the_effect_named_alone(self, shared, client):
+        """The subtype a modifier granted is content of its own. Only
+        the granting goes."""
+        from n26.library.models import Subtype
+
+        made, _ = shared
+        client.post(f"/n26/authoring/modifiers/{made.pk}/delete/")
+
+        assert Subtype.objects.filter(name="Mounted").count() == 1
+
+    def test_the_carrier_page_still_detaches_rather_than_deletes(self, shared, client):
+        """Two different acts, and the page keeps both: detaching takes
+        the modifier off one carrier, deleting removes it from all."""
+        made, carriers = shared
+        here, other = carriers
+        client.post(
+            f"/n26/authoring/rule/{here.pk}/",
+            {"act": "detach", "modifier": str(made.pk)},
+        )
+
+        assert here.modifiers.count() == 0
+        assert list(other.modifiers.all()) == [made]
+
+    def test_more_carriers_do_not_mean_more_queries(
+        self, mounted, client, default_pack, django_assert_num_queries
+    ):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from n26.library.authoring import (
+            attach_modifiers_to,
+            create_rule,
+            ef_adds,
+            modifier,
+            targets_model,
+        )
+
+        made = modifier("Grants Mounted", targets_model(), ef_adds(mounted))
+
+        def grow(indices):
+            for index in indices:
+                attach_modifiers_to(create_rule(f"Rule {index}"), [made])
+
+        grow(range(3))
+        with CaptureQueriesContext(connection) as few:
+            assert client.get(f"/n26/authoring/modifiers/{made.pk}/").status_code == 200
+        grow(range(3, 12))
+        with django_assert_num_queries(len(few), exact=False):
+            assert client.get(f"/n26/authoring/modifiers/{made.pk}/").status_code == 200
+
+
+class TestTheModifierPagesAreStaffed:
+    """The new routes are behind the same door as the rest of authoring:
+    a stranger is sent to log in, and a signed-in non-tester gets the
+    invisible-beta 404."""
+
+    @pytest.fixture
+    def made(self, author, default_pack, client):
+        from n26.library.authoring import (
+            create_subtype,
+            ef_adds,
+            modifier,
+            targets_model,
+        )
+
+        row = modifier(
+            "Grants Mounted", targets_model(), ef_adds(create_subtype("Mounted"))
+        )
+        client.logout()
+        return row
+
+    @pytest.fixture
+    def addresses(self, made):
+        return [
+            f"/n26/authoring/modifiers/{made.pk}/",
+            f"/n26/authoring/modifiers/{made.pk}/delete/",
+        ]
+
+    def test_anonymous_is_sent_to_log_in(self, addresses, client):
+        for address in addresses:
+            response = client.get(address)
+            assert response.status_code == 302, address
+            assert "login" in response["Location"]
+
+    def test_a_plain_user_is_refused(self, addresses, client):
+        client.force_login(User.objects.create_user("player"))
+        for address in addresses:
+            assert client.get(address).status_code == 404, address
+
+    def test_a_plain_user_cannot_post_either(self, addresses, made, client):
+        from n26.library.models import Modifier
+
+        client.force_login(User.objects.create_user("player"))
+        for address in addresses:
+            assert client.post(address, {}).status_code == 404, address
+        assert Modifier.objects.count() == 1
+
+
 class TestAuthoringPagesDoNotScaleQueriesWithContent:
     """More rows must mean more bytes on a page, never more round trips.
 

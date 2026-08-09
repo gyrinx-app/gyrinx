@@ -1001,9 +1001,13 @@ def _assignable_kwarg(thing):
 # --- Glue -------------------------------------------------------------------
 
 
-def modifier(name, scope, effect, attach_to=None, **kwargs):
-    """One scope plus one effect; optionally hung on an assignable."""
-    from n26.library.models import Modifier
+def _parts(scope, effect):
+    """Which of a modifier's columns these two parts fill.
+
+    The column a part goes in is the part's own kind, so the pairing is
+    read off the class name rather than declared — a new scope or
+    effect model is a column and nothing here.
+    """
     from n26.library.models.modifier import EFFECT_FIELDS, SCOPE_FIELDS
 
     fields = {}
@@ -1011,10 +1015,64 @@ def modifier(name, scope, effect, attach_to=None, **kwargs):
         for candidate in (scope, effect):
             if type(candidate).__name__.lower() == field_name.replace("_", ""):
                 fields[field_name] = candidate
-    row = Modifier.objects.create(name=name, **fields, **kwargs)
+    return fields
+
+
+def modifier(name, scope, effect, attach_to=None, **kwargs):
+    """One scope plus one effect; optionally hung on an assignable."""
+    from n26.library.models import Modifier
+
+    row = Modifier.objects.create(name=name, **_parts(scope, effect), **kwargs)
     if attach_to is not None:
         attach_to.modifiers.add(row)
     return row
+
+
+def recompose_modifier(row, name, scope, effect):
+    """Say something else with a modifier that already exists.
+
+    The new parts are built by the same verbs that build a new
+    modifier's, and the old ones are dropped once nothing points at
+    them. Written that way because a scope's narrowing is condition
+    rows: changing it is a different set of rows, which no write to a
+    column can express.
+
+    Order is load-bearing. A modifier's columns *cascade from* its
+    parts — deleting a scope deletes the modifier holding it — so the
+    old parts may only go after the modifier points at the new ones.
+
+    The kinds do not change: the caller passes a scope and an effect of
+    the kinds already there, and a modifier reaching something else is
+    a different modifier. The row keeps its identity, so every carrier
+    holding it says the new sentence with nothing re-attached.
+    """
+    old_scope, old_effect = row.scope, row.effect
+    parts = _parts(scope, effect)
+    was = _parts(old_scope, old_effect)
+    if set(parts) != set(was):
+        raise ValueError(
+            f"{row.name} is {', '.join(sorted(was))} and cannot be recomposed "
+            f"as {', '.join(sorted(parts))} — delete it and compose the other."
+        )
+    revise(row, name=name, **parts)
+    # The conditions go with the scope, which the database does.
+    old_scope.delete()
+    old_effect.delete()
+    return row
+
+
+def delete_modifier(row):
+    """Remove a modifier, and the rows it is made of, from everywhere.
+
+    Every carrier loses the behaviour: the many-to-many rows go with
+    the modifier. Its scope and effect go too — the modifier holds the
+    only reference to either, so leaving them would leave rows nothing
+    can reach — and the scope takes its condition rows with it.
+    """
+    scope, effect = row.scope, row.effect
+    row.delete()
+    scope.delete()
+    effect.delete()
 
 
 def attach_modifiers_to(assignable, modifiers):

@@ -1,0 +1,82 @@
+{% extends "authoring/base.html" %}
+{% comment %}
+The question asked before a modifier is deleted, at an address of its
+own. A page rather than a prompt: it survives a reload, Back is a real
+answer, and it works with scripting switched off. Nothing here changes
+anything — the form's POST is the act, and following the link that
+leads here is not.
+
+Two shapes, because the two acts are not alike. A modifier nothing
+carries is a draft nobody has used, and the page says so plainly. One
+that several things carry takes behaviour away from all of them at once,
+and the page names them: a count says how bad, a list says whether this
+is the one the author meant.
+{% endcomment %}
+{% block head_title %}Delete {{ thing.name }}{% endblock head_title %}
+{% block nav_heading %}Modifiers{% endblock nav_heading %}
+{% block nav_items %}
+    {% include 'n26/_nav.html' with here='modifiers' %}
+{% endblock nav_items %}
+{% block content %}
+    <c-n26.form-page action="{% url 'authoring-modifier-delete' thing.pk %}"
+                     title="Delete {{ thing.name }}?"
+                     lead="{{ sentence }}">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Content library</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-modifiers' %}">Modifiers</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-modifier' thing.pk %}">{{ thing.name }}</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Delete
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% csrf_token %}
+        {% comment %}
+        What is true, and only what is true: the modifier and the scope,
+        effect and condition rows it is made of are removed, and nothing
+        puts them back. It does not promise the carriers are otherwise
+        untouched in some larger sense — they simply stop doing this.
+        {% endcomment %}
+        {% if carriers %}
+            <c-ui.alert variant="warning" title="You cannot undo this">
+                {{ carrier_said }}, and deleting it takes the behaviour away from
+                every one of them. The modifier and the rows it is made of go;
+                nothing brings them back.
+            </c-ui.alert>
+            <c-n26.form-section title="What loses this">
+                <c-ui.table>
+                    <tbody>
+                        {% for carrier in carriers %}
+                            <tr>
+                                <td class="whitespace-nowrap">
+                                    {% if carrier.kind %}
+                                        <c-n26.link href="{% url 'authoring-detail' carrier.kind carrier.pk %}">{{ carrier.label }}</c-n26.link>
+                                    {% else %}
+                                        {{ carrier.label }}
+                                    {% endif %}
+                                </td>
+                                <td class="w-full text-muted">{{ carrier.kind_name }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </c-ui.table>
+            </c-n26.form-section>
+        {% else %}
+            <c-ui.alert variant="info" title="Nothing carries this">
+                Deleting it takes nothing away from anything. The modifier and the
+                rows it is made of go; nothing brings them back.
+            </c-ui.alert>
+        {% endif %}
+        <c-slot name="actions">
+            {% comment %}
+            Cancel is a link back to the modifier, not a form control:
+            leaving is not a submission.
+            {% endcomment %}
+            <c-ui.button variant="default" href="{% url 'authoring-modifier' thing.pk %}">Cancel</c-ui.button>
+            <c-ui.button type="submit" variant="danger">
+                Delete modifier
+            </c-ui.button>
+        </c-slot>
+    </c-n26.form-page>
+{% endblock content %}

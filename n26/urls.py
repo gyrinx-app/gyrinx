@@ -32,6 +32,19 @@ urlpatterns = [
         authoring_views.modifiers,
         name="authoring-modifiers",
     ),
+    # A modifier is not one of the authored kinds — it has no create
+    # verb of its own — so its page hangs off the modifiers listing
+    # rather than the kind/pk route below.
+    path(
+        "authoring/modifiers/<str:pk>/",
+        authoring_views.modifier_page,
+        name="authoring-modifier",
+    ),
+    path(
+        "authoring/modifiers/<str:pk>/delete/",
+        authoring_views.modifier_delete,
+        name="authoring-modifier-delete",
+    ),
     path(
         "authoring/foundations/",
         authoring_views.foundations,

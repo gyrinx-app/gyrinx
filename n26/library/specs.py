@@ -102,10 +102,16 @@ class Choice(_Sourced):
     """One of a fixed set. ``options`` for a plain tuple (offerable
     kinds); otherwise the choices come off the sourced model field.
     ``coerce`` turns the submitted value into what the verb takes —
-    an offerable kind name into its model class."""
+    an offerable kind name into its model class.
+
+    ``reads`` is the way back: how a form opened on a stored row
+    recovers what was chosen. Needed only where the column is not the
+    parameter — a choice of kind is stored as a ContentType, and
+    ``getattr(row, "model")`` would find nothing."""
 
     options: tuple = ()
     coerce: object = None
+    reads: object = None
 
     @property
     def choices(self):
@@ -309,7 +315,9 @@ def _build_registry():
             authoring.ef_offers_choice,
             {
                 "model": Choice(
-                    options=OFFERABLE_KINDS, coerce=_offerable_kind_to_model
+                    options=OFFERABLE_KINDS,
+                    coerce=_offerable_kind_to_model,
+                    reads=lambda row: row.of_kind.model,
                 ),
                 "from_section": One(
                     model=CollectionSection,

@@ -83,6 +83,38 @@ class TestTheDiscoveringGuard:
         )
 
 
+def scope_conditions():
+    """Every ``(scope model, relation)`` a condition row hangs on."""
+    from n26.library.models import Modifier
+    from n26.library.models.modifier import SCOPE_FIELDS
+
+    found = []
+    for field in SCOPE_FIELDS:
+        model = Modifier._meta.get_field(field).related_model
+        found.extend((model, relation) for relation in getattr(model, "CONDITIONS", ()))
+    return found
+
+
+class TestAScopeCanBeReadBackAsChips:
+    """A form opened on a scope has to find the rows narrowing it, and
+    it finds them by name: the relation a condition hangs on is the same
+    word as the verb that builds it. Break that pairing and a modifier's
+    page offers to save it with its narrowing quietly dropped."""
+
+    def test_there_is_something_to_check(self):
+        assert scope_conditions()
+
+    @pytest.mark.parametrize(
+        "model, relation", scope_conditions(), ids=lambda part: str(part)
+    )
+    def test_a_conditions_relation_is_named_after_its_verb(self, model, relation):
+        assert relation in specs(), (
+            f"{model.__name__} hangs conditions on {relation!r}, but no verb "
+            f"is called that. The authoring pages read a scope's narrowing "
+            f"back through this name — rename one to match the other."
+        )
+
+
 class TestHelpIsSourcedNeverWritten:
     def all_sourced_fields(self):
         return [

@@ -1,0 +1,26 @@
+{% comment %}
+The two panes a modifier is made of, and the chips that narrow its
+scope. Shared by the composer that builds a new modifier and the form
+that corrects one, because both ask the same two questions — the only
+difference is whether the kinds are still open.
+
+Takes `composer` (for its who_form, what_form and condition_formset)
+and `add_condition_href`, the address of the same page with one more
+empty chip. That is a link rather than a control: the count rides the
+URL, so an added chip survives a refresh and needs no script.
+{% endcomment %}
+<c-n26.form-section title="Who it reaches">
+    {% include "authoring/_form.html" with form=composer.who_form %}
+    {% if composer.condition_formset %}
+        {{ composer.condition_formset.management_form }}
+        {% for chip in composer.condition_formset %}
+            <div class="rounded-box border border-box-border p-3">{% include "authoring/_form.html" with form=chip %}</div>
+        {% endfor %}
+        <c-n26.link href="{{ add_condition_href }}" tone="muted">
+            Add a condition
+        </c-n26.link>
+    {% endif %}
+</c-n26.form-section>
+<c-n26.form-section title="What it does">
+    {% include "authoring/_form.html" with form=composer.what_form %}
+</c-n26.form-section>

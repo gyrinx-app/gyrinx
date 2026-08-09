@@ -1,0 +1,91 @@
+{% extends "authoring/base.html" %}
+{% block head_title %}
+    {{ thing.name }}
+{% endblock head_title %}
+{% block nav_heading %}Modifiers{% endblock nav_heading %}
+{% block nav_items %}
+    {% include 'n26/_nav.html' with here='modifiers' %}
+{% endblock nav_items %}
+{% block content %}
+    <c-n26.page-header title="{{ thing.name }}" lead="{{ sentence }}">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Content library</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-modifiers' %}">Modifiers</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    {{ thing.name }}
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+    </c-n26.page-header>
+    {% comment %}
+    The carriers come before the form, because they are what an author
+    needs in order to decide whether to touch it: the same modifier hangs
+    on as many things as have been given it, and a change reaches all of
+    them. A count says how far; the names say whether this is the one
+    they meant.
+    {% endcomment %}
+    <c-n26.form-section title="Carried by" class="mt-8">
+        {% if carriers %}
+            {% if shared %}
+                <c-ui.alert variant="warning" title="This modifier is shared">
+                    {{ carrier_said }}, and a change here changes what every one of
+                    them does.
+                </c-ui.alert>
+            {% endif %}
+            <c-ui.table>
+                <tbody>
+                    {% for carrier in carriers %}
+                        <tr>
+                            <td class="whitespace-nowrap">
+                                {% if carrier.kind %}
+                                    <c-n26.link href="{% url 'authoring-detail' carrier.kind carrier.pk %}">{{ carrier.label }}</c-n26.link>
+                                {% else %}
+                                    {{ carrier.label }}
+                                {% endif %}
+                            </td>
+                            <td class="w-full text-muted">{{ carrier.kind_name }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </c-ui.table>
+        {% else %}
+            <c-ui.description>
+                Nothing carries this yet — it is waiting in every carrier's attach picker.
+            </c-ui.description>
+        {% endif %}
+    </c-n26.form-section>
+    {% comment %}
+    The kinds are shown as a sentence rather than as two selects. Which
+    kind of thing a modifier reaches and which kind of effect it has are
+    what it is; changing either would leave the carriers holding
+    something they were never given, and the effect may not even accept
+    the other scope's targets. Composing another and deleting this one is
+    the honest way to do that, and the delete link is right below.
+    {% endcomment %}
+    <c-n26.form-section title="Correct this modifier"
+                        description="Its scope and effect stay the kinds they are; everything inside them can be changed."
+                        class="mt-10">
+        <form method="post" class="max-w-xl space-y-5">
+            {% csrf_token %}
+            <c-ui.error :form="composer" name="__all__" />
+            {% include "authoring/_panes.html" %}
+            {% include "authoring/_field.html" with form=composer field=composer.name %}
+            <div class="flex justify-end">
+                <c-ui.button type="submit" variant="success">
+                    Save changes
+                </c-ui.button>
+            </div>
+        </form>
+    </c-n26.form-section>
+    <c-n26.form-section title="Delete" class="mt-10">
+        <c-ui.description>
+            Deleting removes the modifier itself, so every carrier loses what it does.
+        </c-ui.description>
+        <div>
+            <c-ui.button variant="danger"
+                         size="sm"
+                         href="{% url 'authoring-modifier-delete' thing.pk %}">Delete this modifier</c-ui.button>
+        </div>
+    </c-n26.form-section>
+{% endblock content %}

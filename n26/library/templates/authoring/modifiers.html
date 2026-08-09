@@ -24,7 +24,9 @@
                 <tbody>
                     {% for row in rows %}
                         <tr>
-                            <td class="whitespace-nowrap">{{ row.label }}</td>
+                            <td class="whitespace-nowrap">
+                                <c-n26.link href="{% url 'authoring-modifier' row.pk %}">{{ row.label }}</c-n26.link>
+                            </td>
                             <td class="w-full text-muted">{{ row.notes|join:" · " }}</td>
                         </tr>
                     {% endfor %}

@@ -269,6 +269,42 @@ def _union_asks(kind):
     return {name: tuple(options) for name, options in asked.items()}
 
 
+def _initial_from(spec, row):
+    """A form's opening values, read off a row that already exists.
+
+    Straight off the columns, which is what nearly every spec field
+    names. The two shapes that are not: a union fills two controls (the
+    kind, and that kind's picker), and a choice whose stored column is
+    not the parameter says how it reads itself back.
+    """
+    initial = {}
+    for name, kind in spec.fields.items():
+        if isinstance(kind, Conditions):
+            # Conditions are rows of their own, drawn as a formset.
+            continue
+        if isinstance(kind, Union):
+            chosen = next(
+                (
+                    option
+                    for option in kind.over
+                    if getattr(row, f"{option}_id", None) is not None
+                ),
+                None,
+            )
+            if chosen is not None:
+                initial[f"{name}_kind"] = chosen
+                initial[f"{name}_{chosen}"] = getattr(row, chosen)
+        elif isinstance(kind, Choice) and kind.reads is not None:
+            initial[name] = kind.reads(row)
+        elif not hasattr(row, name):
+            continue
+        elif isinstance(kind, Many):
+            initial[name] = getattr(row, name).all()
+        else:
+            initial[name] = getattr(row, name)
+    return initial
+
+
 class GeneratedForm(forms.Form):
     """Base for spec-generated forms: filtered_by and unions in clean,
     and ``compile()`` performing the verb call."""
@@ -398,12 +434,7 @@ class GeneratedForm(forms.Form):
         saving the weapon marks it exclusive because the other form's
         control answered for it.
         """
-        initial = {
-            name: getattr(thing, name)
-            for name in cls.spec.fields
-            if hasattr(thing, name)
-        }
-        return cls(data, files, initial=initial, prefix=prefix)
+        return cls(data, files, initial=_initial_from(cls.spec, thing), prefix=prefix)
 
     def apply_to(self, thing):
         """Write this valid form's fields onto an existing row.
@@ -521,19 +552,51 @@ def condition_chip_form(kinds):
     return type("ConditionChipForm", (forms.Form,), attrs)
 
 
-def condition_formset_for(spec, data=None, prefix="conditions", extra=0):
+def condition_formset_for(spec, data=None, prefix="conditions", extra=0, initial=None):
     """The formset of condition chips a scope form carries, or ``None``
     for scopes that take no conditions. ``extra`` is how many empty
     chips to draw — the composer page carries it in the URL, so "add a
-    condition" is a link and the state survives a refresh."""
+    condition" is a link and the state survives a refresh. ``initial``
+    is the narrowing a scope already has, one entry per chip.
+
+    A chip can be struck out as well as filled in: a scope narrowed too
+    far is corrected by taking a condition off it, and a formset with
+    no way to say that could only ever grow.
+    """
     kinds = next(
         (kind.kinds for kind in spec.fields.values() if isinstance(kind, Conditions)),
         None,
     )
     if kinds is None:
         return None
-    formset_class = forms.formset_factory(condition_chip_form(kinds), extra=extra)
-    return formset_class(data, prefix=prefix)
+    formset_class = forms.formset_factory(
+        condition_chip_form(kinds), extra=extra, can_delete=True
+    )
+    return formset_class(data, prefix=prefix, initial=initial)
+
+
+def _conditions_of(scope):
+    """The narrowing a scope already carries, as chips a formset opens on.
+
+    A scope states its narrowing two ways: the model scope hangs
+    condition rows, and the weapon scope keeps one column until a
+    second weapon condition forces rows there too. Both read back as
+    the same chips, because the verb grammar is the same either way.
+    """
+    from n26.library.models import TargetsWeapons
+
+    if isinstance(scope, TargetsWeapons):
+        if scope.with_trait_id is None:
+            return []
+        return [{"kind": "has_trait", "trait": scope.with_trait}]
+    # A condition's relation on its scope and the verb that builds it
+    # are the same word, which is what lets rows be read back without a
+    # second table saying so. A guard in the suite holds that true.
+    chips = []
+    for relation in getattr(scope, "CONDITIONS", ()):
+        for row in getattr(scope, relation).all():
+            chips.append({"kind": relation, **_initial_from(specs()[relation], row)})
+    return chips
 
 
 # --- Suggested built-ins: the create page's quick build-out -------------------
@@ -646,6 +709,26 @@ def _verb_label(name, model_label):
     return str(model._meta.verbose_name)
 
 
+def _scope_verb(scope):
+    """Which verb builds this scope row — SCOPE_MODELS read backwards,
+    for a composer opened on a modifier that already exists."""
+    name = type(scope).__name__
+    return next(verb for verb, model in SCOPE_MODELS.items() if model == name)
+
+
+def _effect_verb(effect):
+    """Which verb builds this effect row.
+
+    One model can have two verbs where both write the same columns and
+    mean different things: a placement either names a category or takes
+    whatever the carrier chose, and the flag is which.
+    """
+    name = type(effect).__name__
+    if name == "PlacesCategory":
+        return "ef_places_choice" if effect.the_chosen else "ef_places"
+    return next(verb for verb, model in EFFECT_MODELS.items() if model == name)
+
+
 def _scope_choices():
     return [
         (name, _verb_label(name, SCOPE_MODELS.get(name)))
@@ -675,6 +758,10 @@ class ModifierComposerForm(forms.Form):
 
     ``save()`` is ``modifier(auto_name, scope, effect, attach_to=…)``
     where the auto-name is the modifier's own sentence.
+
+    Opened on a modifier that already exists (``opened_on``) the same
+    form edits it: the panes start filled, the kinds are fixed, and
+    ``save()`` rewrites the row every carrier is already holding.
     """
 
     scope_kind = forms.ChoiceField(choices=_scope_choices, label="Who it reaches")
@@ -692,10 +779,20 @@ class ModifierComposerForm(forms.Form):
         ),
     )
 
-    def __init__(self, data=None, *, attach_to=None, collection=None, **kwargs):
+    def __init__(
+        self, data=None, *, attach_to=None, collection=None, editing=None, **kwargs
+    ):
+        if editing is not None and data is not None:
+            # Editing keeps the modifier's own kinds, whatever was
+            # posted: a submission naming another kind would give every
+            # carrier holding this a behaviour none of them asked for.
+            data = data.copy()
+            data["scope_kind"] = _scope_verb(editing.scope)
+            data["effect_kind"] = _effect_verb(editing.effect)
         super().__init__(data, **kwargs)
         self.attach_to = attach_to
         self.collection = collection
+        self.editing = editing
         self.who_form = None
         self.what_form = None
         self.condition_formset = None
@@ -717,6 +814,37 @@ class ModifierComposerForm(forms.Form):
         form.who_form = generate_form(specs()[scope_kind])(prefix="who")
         form.what_form = generate_form(specs()[effect_kind])(prefix="what")
         form.condition_formset = condition_formset_for(specs()[scope_kind], extra=chips)
+        return form
+
+    @classmethod
+    def opened_on(cls, row, *, chips=0):
+        """The composer filled in from a modifier that already exists.
+
+        The kinds are not offered again. What a modifier reaches and
+        what it does are what it *is*; swapping either is composing a
+        different one, and the effect may not even accept the other
+        scope's targets. Everything inside the two kinds is filled from
+        the rows, conditions included — they arrive as chips already
+        written, and ``chips`` adds empty ones after them.
+        """
+        scope_kind, effect_kind = _scope_verb(row.scope), _effect_verb(row.effect)
+        form = cls(
+            editing=row,
+            initial={
+                "name": row.name,
+                "scope_kind": scope_kind,
+                "effect_kind": effect_kind,
+            },
+        )
+        form.who_form = generate_form(specs()[scope_kind]).opened_on(
+            row.scope, prefix="who"
+        )
+        form.what_form = generate_form(specs()[effect_kind]).opened_on(
+            row.effect, prefix="what"
+        )
+        form.condition_formset = condition_formset_for(
+            specs()[scope_kind], extra=chips, initial=_conditions_of(row.scope)
+        )
         return form
 
     def clean(self):
@@ -786,17 +914,31 @@ class ModifierComposerForm(forms.Form):
         return model()
 
     def save(self):
-        """Compile both panes, glue with the modifier verb, attach."""
+        """Compile both panes, glue with the modifier verb, attach.
+
+        Editing takes the same two compiled parts to
+        ``recompose_modifier``, which puts them on the row the carriers
+        already hold — so a correction reaches every one of them and
+        none of them is re-attached.
+        """
         from n26.library import authoring
 
-        payloads = (
-            [chip.payload() for chip in self.condition_formset.forms]
-            if self.condition_formset is not None
-            else []
-        )
+        # A chip nobody filled in is an offer that was not taken, not a
+        # condition narrowing nothing.
+        payloads = [
+            chip.payload()
+            for chip in (
+                self.condition_formset.forms
+                if self.condition_formset is not None
+                else []
+            )
+            if chip.cleaned_data.get("kind") and not chip.cleaned_data.get("DELETE")
+        ]
         scope = self.who_form.compile(conditions=payloads)
         effect = self.what_form.compile()
         name = self.cleaned_data.get("name") or f"{scope}: {effect}"
+        if self.editing is not None:
+            return authoring.recompose_modifier(self.editing, name, scope, effect)
         target = None if self.cleaned_data.get("keep_reusable") else self.attach_to
         return authoring.modifier(name, scope, effect, attach_to=target)
 
