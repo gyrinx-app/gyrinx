@@ -700,9 +700,18 @@ SCOPE_MODELS = {
 
 
 def _verb_label(name, model_label):
-    """A verb choice as an author reads it — the model's own verbose
-    name ("targets the model"), the verb name when nothing better is
-    known."""
+    """A verb choice as an author reads it — the spec's own label where
+    it states one, the model's verbose name otherwise, the verb name
+    when nothing better is known.
+
+    The spec speaks first because two verbs can write one model, and a
+    picker labelling both from the model shows one choice twice — the
+    author cannot tell which of the two "places category" rows carries
+    the category field.
+    """
+    spec = specs().get(name)
+    if spec is not None and spec.label:
+        return spec.label
     if model_label is None:
         return name
     model = _model_class(model_label)

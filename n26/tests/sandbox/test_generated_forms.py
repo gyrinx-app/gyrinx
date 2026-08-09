@@ -86,6 +86,22 @@ class TestTheTablesDontDrift:
         effect_verbs = {name for name in specs() if name.startswith(("ef_", "op_"))}
         assert set(EFFECT_MODELS) == effect_verbs
 
+    def test_no_two_kind_choices_read_alike(self):
+        """Labels default to the model's verbose name, and two verbs may
+        write one model — so without a stated label the picker shows one
+        choice twice, and an author cannot tell which row carries which
+        fields. A verb that collides must state its own label on its
+        spec."""
+        from n26.library.forms import _effect_choices, _scope_choices
+
+        for choices in (_scope_choices(), _effect_choices()):
+            labels = [label for _, label in choices]
+            doubled = {label for label in labels if labels.count(label) > 1}
+            assert not doubled, (
+                f"one picker label for two verbs: {sorted(doubled)} — give "
+                f"the colliding spec its own label= in specs.py"
+            )
+
 
 class TestGeneratedForms:
     def test_requiredness_reads_off_the_verbs_signature(self):

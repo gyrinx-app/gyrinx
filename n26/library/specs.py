@@ -169,6 +169,14 @@ class Spec:
     #: calls it ``name``; a stat is told apart by its full name, which
     #: is what its uniqueness is derived from.
     identity: str = "name"
+    #: What a verb picker calls this verb. Usually blank — the model's
+    #: verbose name reads well and two names for one thing drift — but
+    #: two verbs can write the same model (``ef_places`` and
+    #: ``ef_places_choice`` both write a ``PlacesCategory``), and a
+    #: picker labelling both from the model shows one choice twice. A
+    #: verb that shares its model states its own label; a guard test
+    #: refuses a picker with two choices reading alike.
+    label: str = ""
 
     @property
     def name(self):
@@ -348,6 +356,7 @@ def _build_registry():
                     filtered_by=("collection",),
                 ),
             },
+            label="places the chosen category",
         ),
         Spec(
             authoring.ef_requires_companions,
