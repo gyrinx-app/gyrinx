@@ -102,6 +102,18 @@ def _is_required(spec, name):
     )
 
 
+def _switch_default(spec, name):
+    """What the verb does with a switch nobody says anything about.
+
+    ``True`` or ``False`` where the parameter has a default, and neither
+    where it has none — that switch is the author's to answer. Two things
+    read it: a create form draws the switch where the verb starts it, and an
+    unchecked box may only be dropped as "say nothing" where saying nothing
+    means off.
+    """
+    return inspect.signature(spec.verb).parameters[name].default
+
+
 def _model_class(label):
     from django.apps import apps
 
@@ -168,7 +180,13 @@ def _form_fields(spec, name, kind):
             )
         }
     if isinstance(kind, Bool):
-        return {name: forms.BooleanField(required=False, help_text=kind.help)}
+        return {
+            name: forms.BooleanField(
+                required=False,
+                initial=_switch_default(spec, name) is True,
+                help_text=kind.help,
+            )
+        }
     if isinstance(kind, Text):
         return {
             name: forms.CharField(
@@ -391,7 +409,7 @@ class GeneratedForm(forms.Form):
         for name in self.spec.fields:
             value = self.cleaned_data.get(name)
             if value in (None, "", []) or (
-                value is False and not _is_required(self.spec, name)
+                value is False and _switch_default(self.spec, name) is False
             ):
                 continue
             if isinstance(value, PendingCreate):
