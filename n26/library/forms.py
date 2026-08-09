@@ -597,16 +597,20 @@ def _conditions_of(scope):
     """The narrowing a scope already carries, as chips a formset opens on.
 
     A scope states its narrowing two ways: the model scope hangs
-    condition rows, and the weapon scope keeps one column until a
-    second weapon condition forces rows there too. Both read back as
-    the same chips, because the verb grammar is the same either way.
+    condition rows, and the weapon scope keeps its narrowing in columns.
+    Both read back as the same chips, because the verb grammar is the
+    same either way. A narrowing missing from here is one the composer drops the
+    moment an author saves the modifier for any other reason.
     """
     from n26.library.models import TargetsWeapons
 
     if isinstance(scope, TargetsWeapons):
-        if scope.with_trait_id is None:
-            return []
-        return [{"kind": "has_trait", "trait": scope.with_trait}]
+        chips = []
+        if scope.with_category_id is not None:
+            chips.append({"kind": "in_category", "category": scope.with_category})
+        if scope.with_trait_id is not None:
+            chips.append({"kind": "has_trait", "trait": scope.with_trait})
+        return chips
     # A condition's relation on its scope and the verb that builds it
     # are the same word, which is what lets rows be read back without a
     # second table saying so. A guard in the suite holds that true.

@@ -205,14 +205,30 @@ class HomedIn:
     This is the sweep's "every Weapon in Auto/Stub Weapons", and the leaf
     family narrowing will reuse — "a Psychoteric Whispers power" is
     ``All(OfKind(Power), HomedIn(whispers))``.
+
+    **A weapon's firing line is the one thing with no home of its own.**
+    It is a line of a gun rather than an item that sorts anywhere, so it
+    takes its gun's category: "all Las weapons" reaches every profile of
+    every Las weapon. Both halves of the leaf say that — in memory by
+    reading the gun, in SQL by filtering across to it — because a filter
+    that found a profile the matching listing did not show would be two
+    answers to one question.
     """
 
     category: object
 
     def matches(self, target):
-        return getattr(target.thing, "category_id", None) == self.category.pk
+        home = getattr(target.thing, "category_id", None)
+        if home is None:
+            weapon = getattr(target.thing, "weapon", None)
+            home = getattr(weapon, "category_id", None)
+        return home == self.category.pk
 
     def as_q(self, for_model):
+        from n26.library.models import WeaponProfile
+
+        if issubclass(for_model, WeaponProfile):
+            return Q(weapon__category=self.category)
         return Q(category=self.category)
 
     def __str__(self):

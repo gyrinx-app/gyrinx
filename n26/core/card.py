@@ -266,6 +266,10 @@ def card_rows(with_statlines=False, **filters):
         # A chosen-mode placement reads the answering token's home off
         # the row already in memory — never by a query.
         "skill_tree__category",
+        # A firing line's home is its gun's, so a scope narrowed to a
+        # category asks each profile for its weapon. Without this the
+        # asking is a query per profile, from inside compute.
+        "weapon_profile__weapon",
     )
     if with_statlines:
         rows = rows.prefetch_related(
@@ -542,6 +546,7 @@ def build_modifier_index(assignables, max_depth=3):
         *SCOPE_FIELDS,
         *EFFECT_FIELDS,
         "targets_weapons__with_trait",
+        "targets_weapons__with_category",
         # Without these, naming a choice's kind or a placed category
         # queries once per slot or placement.
         "offers_choice__of_kind",

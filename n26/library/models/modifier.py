@@ -290,7 +290,12 @@ class CounterAtLeast(models.Model):
 
 
 class TargetsWeapons(models.Model):
-    """The model's weapons, optionally only those with a given trait."""
+    """The model's weapons, optionally only some of them.
+
+    Two filters, and a weapon must satisfy both to be reached: a trait it
+    carries, and the category its kind is homed in. "Van Saar gangs get an
+    AP improvement of 1 on all Las weapons" is the category alone.
+    """
 
     with_trait = models.ForeignKey(
         "library.Trait",
@@ -300,35 +305,63 @@ class TargetsWeapons(models.Model):
         related_name="+",
         help_text="Only weapons carrying this trait. Blank means all of them.",
     )
+    with_category = models.ForeignKey(
+        "library.Category",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+        help_text=(
+            'Only weapons homed in this category — the "Las Weapons" in '
+            '"an AP improvement on all Las weapons". Blank means all of them.'
+        ),
+    )
 
     class Meta:
         verbose_name = "targets weapons"
         verbose_name_plural = "target weapons"
 
     def __str__(self):
-        return f"weapons with {self.with_trait}" if self.with_trait else "all weapons"
+        said = "weapons"
+        if self.with_category_id is not None:
+            # The category's own name, as every other sentence naming one
+            # says it. A name repeated across sections says the same
+            # thing twice here; the composer refuses the duplicate in
+            # words rather than letting the second row be written.
+            said += f" in {self.with_category.name}"
+        if self.with_trait_id is not None:
+            said += f" with {self.with_trait}"
+        return said if self.narrows else "all weapons"
 
     @property
     def narrows(self):
         """Whether this scope reaches fewer than everything of its kind."""
-        return bool(self.with_trait_id)
+        return bool(self.with_trait_id or self.with_category_id)
 
     def as_selector(self):
-        """What this scope's filter says, in the selector vocabulary.
+        """What this scope's filters say, in the selector vocabulary.
 
-        Matching runs against the round snapshot ``compute`` provides —
-        printed traits plus what earlier (less specific) rounds added.
-        Compiled once per instance, as on ``TargetsMiniature``.
+        Both narrowings stack: a scope naming a category and a trait
+        reaches the weapons that have both. Matching runs against the
+        round snapshot ``compute`` provides — printed traits plus what
+        earlier (less specific) rounds added. Compiled once per instance,
+        as on ``TargetsMiniature``.
         """
         compiled = getattr(self, "_compiled_selector", None)
         if compiled is None:
             from n26.core import select
 
-            compiled = (
-                select.Has(self.with_trait)
-                if self.with_trait_id is not None
-                else select.Anything()
-            )
+            conditions = []
+            if self.with_category_id is not None:
+                conditions.append(select.HomedIn(self.with_category))
+            if self.with_trait_id is not None:
+                conditions.append(select.Has(self.with_trait))
+            if not conditions:
+                compiled = select.Anything()
+            else:
+                compiled = (
+                    conditions[0] if len(conditions) == 1 else select.All(*conditions)
+                )
             self._compiled_selector = compiled
         return compiled
 

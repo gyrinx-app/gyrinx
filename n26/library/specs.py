@@ -303,8 +303,12 @@ def _build_registry():
             {"trait": One(model=Trait, source=(TargetsWeapons, "with_trait"))},
         ),
         Spec(
+            authoring.in_category,
+            {"category": One(model=Category, source=(TargetsWeapons, "with_category"))},
+        ),
+        Spec(
             authoring.targets_weapons,
-            {"conditions": Conditions(kinds=("has_trait",))},
+            {"conditions": Conditions(kinds=("has_trait", "in_category"))},
         ),
         Spec(authoring.targets_attached_weapon, {}),
         Spec(authoring.targets_gang, {}),
