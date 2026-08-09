@@ -329,6 +329,7 @@ def _part_lines(name, category):
             trade_points=trade_points,
             is_exclusive=False,
             charges_trade_points=True,
+            shows_trade_points=True,
         )
         for part, credits, trade_points in PAID_PARTS.get(name, ())
     )
@@ -342,9 +343,11 @@ def trading_post() -> CollectionView:
     typed against exactly what browse() produces, and a change in core breaks
     the gallery instead of quietly rendering something that is no longer true.
 
-    charges_trade_points is on every line, because this is a trading post —
-    an equipment list shows the same numbers and never charges them, and the
-    flag rides the line so a till needs no idea where the line came from.
+    Both trade-point flags are on every line, because this is a trading post:
+    a post deals in Trade Points, so its rows print them, and a trading trip
+    charges them. An equipment list does neither, and a sample of one would
+    draw no TP column at all. Both ride the line so nothing downstream needs
+    to know where a line came from.
     """
     sections: list[SectionGroup] = []
     for position, (section_name, category_name, items) in enumerate(_CATALOGUE):
@@ -363,6 +366,7 @@ def trading_post() -> CollectionView:
                         trade_points=trade_points,
                         is_exclusive=exclusive,
                         charges_trade_points=True,
+                        shows_trade_points=True,
                         # A note is how the app says something without stopping
                         # anyone. with_use_notes() writes these for real, per
                         # fighter; the sample carries one so the row has a case

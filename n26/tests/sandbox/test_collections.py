@@ -932,20 +932,92 @@ class TestTradingPostMembership:
         ]
 
 
-class TestAmmoRidesUnderTheGun:
-    """A gun's paid ammo and firing modes are parts of the gun's line, on
-    a curated equipment list as much as on a swept trading post.
+class TestWhatACollectionPricesIn:
+    """A collection deals in the currency it chose its contents by.
 
-    Which profiles ride is the same question either way: named, because a
-    blank profile is the weapon's own firing line rather than an
-    alternative to it; paid, because a free one already comes with the
-    weapon and selling it would put the same ammo on the gun twice.
+    Membership at a Trading Post *is* having a Trade Point price, so a
+    post talks in Trade Points. A list an author wrote out by hand
+    prices in credits, and the TP figure an item happens to carry
+    answers nothing a reader of that list can ask — nor does "E", which
+    is a Trade Point value and not a mark of its own.
+
+    The line keeps the item's real numbers throughout. What changes is
+    whether a surface should print them, which is why an authoring
+    preview can still show an author what the catalogue says.
+    """
+
+    def test_a_hand_written_list_does_not_deal_in_trade_points(self, catalogue):
+        house = create_collection("House List", entries=[catalogue["autogun"]])
+        (line,) = browse(house).all_lines()
+
+        assert line.shows_trade_points is False
+        # The truth is still on the line for anything that asks.
+        assert line.trade_points == 0
+
+    def test_a_post_swept_by_trade_point_price_deals_in_them(self, catalogue):
+        from n26.tests.sandbox.actions import create_trading_post
+
+        post = create_trading_post()
+        lines = {line.name: line for line in browse(post).all_lines()}
+
+        assert lines["Autogun"].shows_trade_points is True
+
+    def test_a_sweep_that_is_not_about_trade_points_does_not(self, catalogue):
+        """A collection of skills is swept, and swept by kind rather than
+        by price — nothing about it is a trading trip."""
+        from n26.library.models import Wargear
+
+        everything = create_collection("Everything", contains=[Wargear])
+        for line in browse(everything).all_lines():
+            assert line.shows_trade_points is False
+
+    def test_a_guns_rounds_answer_the_same_way_the_gun_does(self, taxonomy):
+        from n26.library.authoring import add_weapon_profile
+        from n26.library.models import WeaponProfile
+
+        gun = create_weapon(
+            "Autogun",
+            profiles=[("", 0)],
+            price=20,
+            trade_point_price=0,
+            category=taxonomy["auto"],
+        )
+        add_weapon_profile(gun, name="warp round", price=10, trade_point_price=4)
+        warp = WeaponProfile.objects.get(weapon=gun, name="warp round")
+
+        house = create_collection("House List", entries=[gun, warp])
+        (line,) = browse(house).all_lines()
+        assert line.shows_trade_points is False
+        assert line.parts[0].shows_trade_points is False
+
+        from n26.tests.sandbox.actions import create_trading_post
+
+        post = create_trading_post()
+        posted = {line.name: line for line in browse(post).all_lines()}
+        assert posted["Autogun"].shows_trade_points is True
+        assert posted["Autogun"].parts[0].shows_trade_points is True
+
+
+class TestAmmoRidesUnderTheGun:
+    """A gun's ammo is part of the gun's line, on a curated equipment
+    list as much as on a swept trading post — but which ammo is the
+    collection's own question, answered the way it chose its contents.
+
+    A sweep catches what the criteria caught, of the rounds as much as
+    of the gun. A curated list carries what the author wrote down and
+    nothing else: a list shows only what it lists. Either way a blank
+    profile is never a part — it *is* the weapon's own firing line, and
+    it comes with the gun.
     """
 
     @pytest.fixture
-    def autogun(self, taxonomy):
+    def profiles(self):
         from n26.library.authoring import add_weapon_profile
 
+        return add_weapon_profile
+
+    @pytest.fixture
+    def autogun(self, taxonomy, profiles):
         weapon = create_weapon(
             "Autogun",
             profiles=[("", 0)],
@@ -953,38 +1025,93 @@ class TestAmmoRidesUnderTheGun:
             trade_point_price=0,
             category=taxonomy["auto"],
         )
-        add_weapon_profile(weapon, name="warp round", price=10, trade_point_price=4)
-        add_weapon_profile(weapon, name="fully automatic", price=0)
+        profiles(weapon, name="warp round", price=10, trade_point_price=4)
+        profiles(weapon, name="fully automatic", price=0)
         return weapon
 
-    def test_a_curated_entry_carries_its_guns_ammo(self, autogun):
-        """What a player saw: a house equipment list is curated entries
-        throughout, and a gun on one offered no ammo at all."""
+    @pytest.fixture
+    def warp(self, autogun):
+        from n26.library.models import WeaponProfile
+
+        return WeaponProfile.objects.get(weapon=autogun, name="warp round")
+
+    def test_a_named_round_rides_under_the_gun_the_list_also_names(self, autogun, warp):
+        house = create_collection("House List", entries=[autogun, warp])
+        (line,) = browse(house).all_lines()
+
+        assert line.name == "Autogun"
+        (round_,) = line.parts
+        assert round_.thing.name == "warp round"
+        assert round_.credits == 10
+
+    def test_a_round_the_list_never_named_is_not_offered(self, autogun):
+        """What a player saw: a house list naming a Grenade launcher and
+        nothing else offered every grenade the launcher can fire, none of
+        which the house sells."""
         house = create_collection("House List", entries=[autogun])
         (line,) = browse(house).all_lines()
 
-        (warp,) = line.parts
-        assert warp.thing.name == "warp round"
-        assert warp.credits == 10
+        assert line.parts == ()
 
-    def test_a_free_mode_is_never_offered_for_sale(self, autogun):
+    def test_a_named_round_is_not_also_a_row_of_its_own(self, autogun, warp):
+        """Drawn twice, one thing has two prices on one page the moment
+        an author overrides either of them — and the reader cannot tell
+        which press they are about to make."""
+        house = create_collection("House List", entries=[autogun, warp])
+        names = [line.name for line in browse(house).all_lines()]
+
+        assert names == ["Autogun"]
+
+    def test_a_free_mode_the_list_does_not_name_is_never_offered(self, autogun, warp):
         """It rides along with the gun already, so a player who bought it
         would be given a second copy of a profile they already have."""
-        house = create_collection("House List", entries=[autogun])
+        house = create_collection("House List", entries=[autogun, warp])
         (line,) = browse(house).all_lines()
 
         assert [part.thing.name for part in line.parts] == ["warp round"]
 
-    def test_a_lists_own_price_does_not_reprice_the_ammo(self, autogun):
+    def test_a_list_may_sell_a_profile_that_costs_nothing_of_its_own(
+        self, autogun, profiles
+    ):
+        """A free profile the author wrote down at a price is the list
+        selling it at that price. Read the other way round — offered only
+        where the profile's own price is above zero — a house's own
+        priced ammo is drawn nowhere near its gun."""
+        from n26.library.models import WeaponProfile
+
+        profiles(autogun, name="acid round", price=0)
+        acid = WeaponProfile.objects.get(weapon=autogun, name="acid round")
+        house = create_collection(
+            "House List", entries=[autogun, (acid, {"price_override": 15})]
+        )
+        (line,) = browse(house).all_lines()
+
+        (round_,) = line.parts
+        assert round_.thing.name == "acid round"
+        assert round_.credits == 15
+
+    def test_a_lists_own_price_does_not_reprice_the_ammo(self, autogun, warp):
         """An entry's override replaces the gun's own price and nothing
         else — the rule ``price_with(base=…)`` follows everywhere."""
         house = create_collection(
-            "House List", entries=[(autogun, {"price_override": 15})]
+            "House List", entries=[(autogun, {"price_override": 15}), warp]
         )
         (line,) = browse(house).all_lines()
 
         assert line.credits == 15
         assert line.parts[0].credits == 10
+
+    def test_the_round_is_priced_by_the_entry_that_named_it(self, autogun, warp):
+        """One route to the price, so an author who reprices a round
+        reprices the one the reader presses."""
+        house = create_collection(
+            "House List", entries=[autogun, (warp, {"price_override": 25})]
+        )
+        (line,) = browse(house).all_lines()
+
+        (round_,) = line.parts
+        assert round_.credits == 25
+        assert round_.entry is not None
 
     def test_a_longer_list_costs_no_more_queries_to_browse(self, taxonomy):
         """The ammo prefetch follows the list's definition, not its

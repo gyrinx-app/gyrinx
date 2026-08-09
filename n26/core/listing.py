@@ -234,14 +234,38 @@ class Listing:
                 yield from category.rows
 
 
+def _shown_trade_points(line):
+    """A line's Trade Point figure where the surface deals in them.
+
+    A collection prices in what it deals in. An equipment list prices in
+    credits, so the TP number the item happens to carry answers no
+    question a reader of that list is asking, and drawing it invites
+    them to compare two lists by a figure only one of them charges.
+    The browsed line keeps the truth; this is what a row prints.
+    """
+    return line.trade_points if line.shows_trade_points else None
+
+
+def _shown_exclusive(line):
+    """Whether to print "E".
+
+    "E" is a Trade Point value — it is what the catalogue's TP column
+    says for a thing the Trading Post never stocks. On a list that deals
+    in Trade Points it is worth saying; on an equipment list it is
+    tautological, because being on the list is the whole of what it
+    means.
+    """
+    return line.is_exclusive and line.shows_trade_points
+
+
 def _options_of(line, key):
     return tuple(
         OptionRow(
             name=part.thing.name,
             index=index,
             price=part.credits,
-            trade_points=part.trade_points,
-            is_exclusive=part.is_exclusive,
+            trade_points=_shown_trade_points(part),
+            is_exclusive=_shown_exclusive(part),
             field=parts_field(key),
             price_field=price_field(key, index),
         )
@@ -256,8 +280,8 @@ def priced_row(line):
         key=key,
         name=line.name,
         price=line.credits,
-        trade_points=line.trade_points,
-        is_exclusive=line.is_exclusive,
+        trade_points=_shown_trade_points(line),
+        is_exclusive=_shown_exclusive(line),
         notes=tuple(line.notes),
         price_field=price_field(key),
         parts_field=parts_field(key),

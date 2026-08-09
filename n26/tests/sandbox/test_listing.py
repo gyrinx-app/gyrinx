@@ -77,8 +77,21 @@ def knife(default_pack):
 
 
 @pytest.fixture
-def house_list(gang, autogun, knife):
-    collection = create_collection("House List", entries=[autogun, knife])
+def warp(autogun):
+    from n26.library.models import WeaponProfile
+
+    return WeaponProfile.objects.get(weapon=autogun, name="warp round")
+
+
+@pytest.fixture
+def house_list(gang, autogun, knife, warp):
+    """The gun, the round the list sells for it, and a knife.
+
+    The gun's free firing mode is deliberately not named: a list carries
+    the ammo it names, and a mode that comes with the gun is not for
+    sale — see ``TestAmmoRidesUnderTheGun`` in test_collections.py.
+    """
+    collection = create_collection("House List", entries=[autogun, warp, knife])
     assign(collection, gang=gang)
     return collection
 
@@ -93,11 +106,8 @@ def rows_by_name(listing):
 
 
 @pytest.fixture
-def armed(gang, fighter, autogun, house_list):
+def armed(gang, fighter, autogun, warp, house_list):
     """Two Autoguns, one of them carrying a paid warp round."""
-    from n26.library.models import WeaponProfile
-
-    warp = WeaponProfile.objects.get(name="warp round")
     first = give_weapon(fighter, autogun, paid=20)
     ammo = buy_weapon_profile(first, warp)
     second = give_weapon(fighter, autogun, paid=20)
@@ -327,6 +337,71 @@ class TestWhatACopyOffers:
 
         assert [action.label for action in part.more] == ["Refund", "Remove"]
         assert part.sell.target == f"{AT}&sell={ammo.pk}"
+
+
+class TestWhatARowPrints:
+    """A row prints the collection's own terms and nothing borrowed.
+
+    An equipment list prices in credits. The Trade Point figure an item
+    carries is a fact about the Trading Post, and printed on a house
+    list it invites a reader to compare two lists by a number only one
+    of them charges. "E" goes the same way: it is what the catalogue's
+    TP column says for a thing the post never stocks, so on a list where
+    everything is list-only it says nothing at all.
+
+    The browsed line keeps both figures. This is about the row.
+    """
+
+    def test_a_house_list_prints_no_trade_points_and_no_marker(
+        self, gang, fighter, default_pack
+    ):
+        exclusive = create_wargear("Heirloom", price=40, is_exclusive=True)
+        posted = create_wargear("Rope", price=5, trade_point_price=3)
+        collection = create_collection("House List", entries=[exclusive, posted])
+        assign(collection, gang=gang)
+
+        rows = rows_by_name(listing_for(fighter, collection))
+
+        assert rows["Rope"].trade_points is None
+        assert rows["Heirloom"].is_exclusive is False
+        # The prices themselves are untouched — this is about what the
+        # list deals in, not about what anything costs.
+        assert rows["Rope"].price == 5
+        assert rows["Heirloom"].price == 40
+
+    def test_the_line_underneath_still_knows_the_truth(
+        self, gang, fighter, default_pack
+    ):
+        """An authoring preview shows a writer what the catalogue says,
+        so hiding a figure from a player must not lose it."""
+        posted = create_wargear("Rope", price=5, trade_point_price=3)
+        collection = create_collection("House List", entries=[posted])
+        assign(collection, gang=gang)
+
+        (line,) = browse(collection).all_lines()
+
+        assert line.trade_points == 3
+        assert line.shows_trade_points is False
+
+    def test_a_trading_post_prints_its_trade_points(self, gang, fighter, default_pack):
+        from n26.tests.sandbox.actions import create_trading_post
+
+        create_wargear("Rope", price=5, trade_point_price=3)
+        post = create_trading_post()
+        assign(post, gang=gang)
+
+        rows = rows_by_name(listing_for(fighter, post))
+
+        assert rows["Rope"].trade_points == 3
+
+    def test_a_guns_rounds_print_the_same_way_the_gun_does(
+        self, gang, fighter, autogun, warp, house_list
+    ):
+        row = rows_by_name(listing_for(fighter, house_list))["Autogun"]
+        (option,) = row.options
+
+        assert row.trade_points is None
+        assert option.trade_points is None
 
 
 class TestTheShapeAScreenDraws:

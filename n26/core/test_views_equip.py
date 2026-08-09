@@ -343,6 +343,39 @@ def test_the_filter_bar_offers_nothing_to_submit(client, tester, fighter, house_
     assert body.count('type="submit"') == body.count('name="thing"')
 
 
+def test_a_house_list_draws_no_trade_point_slider(
+    client, tester, gang, fighter, house_list
+):
+    """A slider over a figure no row on the page draws is a control with
+    nothing to steer — and it would invite narrowing a list by a number
+    that list does not charge."""
+    from n26.library.models import Wargear
+
+    knife = Wargear.objects.get(name="Knife")
+    knife.trade_point_price = 3
+    knife.save(update_fields=["trade_point_price"])
+
+    client.force_login(tester)
+    response = client.get(equip_url(fighter, house_list))
+
+    assert response.context["has_trade_points"] is False
+    assert "Trade points" not in response.content.decode()
+
+
+def test_the_trading_post_draws_one(client, tester, gang, fighter):
+    """It is the surface the figure means something on."""
+    from n26.library.authoring import create_trading_post
+
+    create_wargear("Lho Sticks", price=5, trade_point_price=3)
+    post = create_trading_post()
+
+    client.force_login(tester)
+    response = client.get(equip_url(fighter, post))
+
+    assert response.context["has_trade_points"] is True
+    assert response.context["tp_ceiling"] == 3
+
+
 def test_the_page_has_a_strip_for_the_list_and_a_strip_for_the_section(
     client, tester, fighter, house_list
 ):
@@ -458,14 +491,18 @@ def test_a_homeless_line_gets_a_tab_of_its_own(client, tester, fighter, house_li
 
 @pytest.fixture
 def gun_list(gang, tester):
-    """A list with a gun that has ammo: one paid round and one free
-    firing mode, which comes with the gun and is never for sale."""
+    """A list with a gun and the one round the list sells for it.
+
+    The gun also has a free firing mode, which comes with it and is
+    never for sale, and the list does not name that. A list carries the
+    ammo it names — see ``TestAmmoRidesUnderTheGun``.
+    """
     from n26.library.authoring import add_weapon_profile, create_weapon
 
     autogun = create_weapon("Autogun", profiles=[("", 0)], price=20)
-    add_weapon_profile(autogun, name="warp round", price=10)
+    warp = add_weapon_profile(autogun, name="warp round", price=10)
     add_weapon_profile(autogun, name="fully automatic", price=0)
-    collection = create_collection("Armoury", entries=[autogun])
+    collection = create_collection("Armoury", entries=[autogun, warp])
     with operation(gang, actor=tester) as op:
         op.assign(collection, gang=gang)
     return collection

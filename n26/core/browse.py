@@ -74,10 +74,19 @@ class PricedLine:
     #: The entry that priced this line. None on a derived collection:
     #: reference prices, no row anywhere.
     entry: object = None
-    #: Whether buying here spends Trade Points. An equipment list shows TP
-    #: values but never charges them; a trading post does. Rides the line
-    #: so the till needs no idea where the line came from.
+    #: Whether buying here spends Trade Points. An equipment list never
+    #: charges them; a trading post does. Rides the line so the till
+    #: needs no idea where the line came from.
     charges_trade_points: bool = False
+    #: Whether the surface this line came from deals in Trade Points at
+    #: all — a fact about the collection, not about the shopping trip.
+    #: A collection whose contents were chosen *by* having a TP price
+    #: deals in them; one an author wrote out by hand does not, and a
+    #: number drawn there answers a question nobody browsing it can ask.
+    #: The line keeps the item's real figures either way; this says
+    #: whether a surface should print them, and "E" goes with them,
+    #: because "E" is a Trade Point value and not a separate mark.
+    shows_trade_points: bool = False
     #: Remarks for the player about this line — "usable by Walkers only",
     #: later "over your weapon slots". One channel, not a flag per rule;
     #: see ``n26.core.notes``. Empty on unexamined views: default open.
@@ -136,23 +145,37 @@ def browse(collection, terms=EQUIPMENT_LIST):
     the listing); curated entries always show — they are the author's
     explicit word.
 
+    **A collection shows only what it lists.** For a sweep that is what
+    the criteria caught, ammo included: membership at a Trading Post is
+    having a Trade Point price, and that is asked of a gun's rounds as
+    much as of the gun. For a curated list it is the entries and nothing
+    else — including the ammo, which is the list's own row for that ammo
+    at the list's own price. A gun's other profiles are not on the list
+    and do not appear under it.
+
+    Whether the listing talks in Trade Points follows from the same
+    fact. A collection whose contents were chosen *by* having a TP price
+    deals in them; one written out by hand prices in credits, and a TP
+    figure or an "E" there answers a question nobody browsing it can
+    ask. Each line says which, and the lines keep the item's real
+    numbers regardless — see ``shows_trade_points``.
+
     A fixed number of queries: the entries with their prefetches, plus
     one per selector row — the count follows the collection's
     *definition*, never its size.
     """
-    from django.db.models import Prefetch
-
     from n26.library.models import CollectionEntry
     from n26.library.models.assignable import USABLE_BY_LISTS, UsableBy
-    from n26.library.models.collection import (
-        ENTRY_ASSIGNABLE_FIELDS,
-        TRADEABLE_PROFILES,
-        paid_profiles,
-    )
+    from n26.library.models.collection import ENTRY_ASSIGNABLE_FIELDS
 
     lines = {}
+    selectors = list(collection.selectors.select_related("of_kind"))
+    # Read off the definition rather than the name: a pack's own
+    # TP-swept collection is a trading post whatever it was called, and
+    # a list called one is not.
+    in_trade_points = any(selector.with_trade_point_price for selector in selectors)
 
-    for selector in collection.selectors.select_related("of_kind"):
+    for selector in selectors:
         for thing in selector.contents(include_exclusive=terms.shows_exclusive):
             price = price_of(thing)
             lines[_key(thing)] = (
@@ -163,36 +186,37 @@ def browse(collection, terms=EQUIPMENT_LIST):
                     trade_points=price.trade_points,
                     is_exclusive=price.is_exclusive,
                     charges_trade_points=terms.charges_trade_points,
-                    parts=_part_lines(thing, terms),
+                    shows_trade_points=in_trade_points,
+                    parts=_swept_parts(thing, terms, in_trade_points),
                 ),
             )
 
     # Prefetch paths rather than joins: joined, the kinds and their
     # category chains make a select wide enough that planning it costs
     # more than running it, and a kind no entry names never queries.
-    entries = collection.entries.prefetch_related(
-        *ENTRY_ASSIGNABLE_FIELDS,
-        *(f"{name}__category__section" for name in ENTRY_ASSIGNABLE_FIELDS),
-        # Use-restriction lists, derived for every kind carrying the
-        # mixin — so noting a whole listing costs no extra queries,
-        # whichever kind an author narrowed and however they narrowed it.
-        *(
-            f"{name}__{listed}"
-            for name in ENTRY_ASSIGNABLE_FIELDS
-            if issubclass(CollectionEntry._meta.get_field(name).related_model, UsableBy)
-            for listed in USABLE_BY_LISTS
-        ),
-        # A curated gun carries its ammo the same way a swept one does.
-        # An equipment list prices in credits, so what it offers is
-        # everything paid — a TP price is the Trading Post's question,
-        # not this list's.
-        Prefetch(
-            "weapon__profiles",
-            queryset=paid_profiles(),
-            to_attr=TRADEABLE_PROFILES,
-        ),
+    entries = list(
+        collection.entries.prefetch_related(
+            *ENTRY_ASSIGNABLE_FIELDS,
+            *(f"{name}__category__section" for name in ENTRY_ASSIGNABLE_FIELDS),
+            # Use-restriction lists, derived for every kind carrying the
+            # mixin — so noting a whole listing costs no extra queries,
+            # whichever kind an author narrowed and however they narrowed it.
+            *(
+                f"{name}__{listed}"
+                for name in ENTRY_ASSIGNABLE_FIELDS
+                if issubclass(
+                    CollectionEntry._meta.get_field(name).related_model, UsableBy
+                )
+                for listed in USABLE_BY_LISTS
+            ),
+        )
     )
+    ammo = _ammo_by_weapon(entries)
+    housed = {entry.pk for rows in ammo.values() for entry in rows}
+
     for entry in entries:
+        if entry.pk in housed:
+            continue
         thing = entry.assignable
         price = price_of(thing, entry)
         lines[_key(thing)] = (
@@ -204,18 +228,75 @@ def browse(collection, terms=EQUIPMENT_LIST):
                 is_exclusive=price.is_exclusive,
                 entry=entry,
                 charges_trade_points=terms.charges_trade_points,
-                parts=_part_lines(thing, terms),
+                shows_trade_points=in_trade_points,
+                parts=_entry_parts(
+                    ammo.get(entry.weapon_id, ()), terms, in_trade_points
+                ),
             ),
         )
 
     return _sectioned(str(collection), lines.values())
 
 
-def _part_lines(thing, terms):
-    """The nested lines a thing carries — a weapon's paid ammo and firing
-    modes, prefetched to ``tradeable_profiles`` by whichever side found
-    it, so a whole listing's parts cost one query. Things without the
-    prefetch simply have no parts."""
+def _ammo_by_weapon(entries):
+    """The list's own profile entries, filed under the gun they belong to.
+
+    A profile a list names is that list's row for that ammo, and it
+    belongs under the gun rather than beside it — otherwise a reader
+    cannot buy the two on one press, and the same thing can be priced
+    twice on one page by two different routes.
+
+    A profile whose gun the list does not name keeps a row of its own:
+    there is nothing to file it under, and dropping it would hide
+    something the author wrote down. A blank profile is never filed —
+    it *is* the weapon's own line, so it is bought with the gun.
+    """
+    weapons = {entry.weapon_id for entry in entries if entry.weapon_id is not None}
+    filed = {}
+    for entry in entries:
+        profile = entry.weapon_profile
+        if profile is None or not profile.name:
+            continue
+        if profile.weapon_id in weapons:
+            filed.setdefault(profile.weapon_id, []).append(entry)
+    return filed
+
+
+def _entry_parts(entries, terms, shows_trade_points):
+    """A curated gun's ammo: the list's own entries, at the list's prices.
+
+    Priced through the entry like every other line the list carries, so
+    an author who reprices a round reprices the one the reader presses.
+    Whether the profile costs anything of its own is beside the point —
+    a list naming a free profile at 15 credits is the list selling it at
+    15 credits.
+    """
+    parts = []
+    for entry in entries:
+        price = price_of(entry.weapon_profile, entry)
+        parts.append(
+            PricedLine(
+                thing=entry.weapon_profile,
+                credits=price.credits,
+                trade_points=price.trade_points,
+                is_exclusive=price.is_exclusive,
+                entry=entry,
+                charges_trade_points=terms.charges_trade_points,
+                shows_trade_points=shows_trade_points,
+            )
+        )
+    return tuple(parts)
+
+
+def _swept_parts(thing, terms, shows_trade_points):
+    """The nested lines a swept thing carries — a weapon's paid ammo and
+    firing modes, prefetched to ``tradeable_profiles`` by the sweep that
+    found it, so a whole listing's parts cost one query. Things without
+    the prefetch simply have no parts.
+
+    A sweep's rule applies to ammo as it does to guns: what the criteria
+    caught is what is on the listing.
+    """
     parts = []
     for part in getattr(thing, "tradeable_profiles", ()):
         price = price_of(part)
@@ -226,6 +307,7 @@ def _part_lines(thing, terms):
                 trade_points=price.trade_points,
                 is_exclusive=price.is_exclusive,
                 charges_trade_points=terms.charges_trade_points,
+                shows_trade_points=shows_trade_points,
             )
         )
     return tuple(parts)

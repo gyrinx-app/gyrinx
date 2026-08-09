@@ -338,8 +338,12 @@ def equip(request, pk):
     # listing's rows: a slider's job is to bound what the *list* asks, and
     # an owned row asks the same as it ever did.
     lines = list(view.all_lines()) if view is not None else []
+    # Only what this listing prints. A slider over a figure the rows do
+    # not draw is a control with nothing on screen to steer.
     trade_points = [
-        line.trade_points for line in lines if line.trade_points is not None
+        line.trade_points
+        for line in lines
+        if line.shows_trade_points and line.trade_points is not None
     ]
     # Which list is being browsed is a tab when there are several. With
     # one there is nothing to choose, so no strip is drawn — the search
