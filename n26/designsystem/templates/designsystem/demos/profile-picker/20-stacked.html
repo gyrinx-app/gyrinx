@@ -19,13 +19,13 @@
                               at_max_label="Any" />
         </div>
     </c-slot>
-    {% for section_row in hire_section_rows %}
-        <c-n26.collection-picker.section name="{{ section_row.section.name }}" :open="section_row.first">
-            {% for category in section_row.section.categories %}
-                <c-n26.collection-picker.category name="{{ category.name }}">
+    {% for section in hire_list %}
+        <c-n26.collection-picker.section :name="section.name" :open="forloop.first">
+            {% for category in section.categories %}
+                <c-n26.collection-picker.category :name="category.name">
                     {% for entry in category.entries %}
                         <c-n26.profile-picker.row :entry="entry"
-                                                  limited="{% if section_row.section.name != 'Gang List' or category.name == 'Champions' %}1{% endif %}" />
+                                                  limited="{% if section.name != 'Gang List' or category.name == 'Champions' %}1{% endif %}" />
                     {% endfor %}
                 </c-n26.collection-picker.category>
             {% endfor %}

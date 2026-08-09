@@ -101,19 +101,25 @@ be read in one.
                 {% endif %}
             </c-slot>
             {% comment %}
-            Profiles without a home category arrive in a section and category
-            with empty names — a content gap the library will fill, shown
-            rather than papered over. The rows still need a section around
-            them (an item registers against its section's name), but an
-            unnamed *category* is skipped: the section component documents
-            that items may sit straight inside one, and a blank category
-            header would be a heading saying nothing.
+            Profiles the content gave no home category arrive in a category
+            with an empty name — a gap the library will fill, shown rather
+            than papered over. The rows still need a section around them (an
+            item registers against its section's name), but an unnamed
+            *category* is skipped: the section component documents that items
+            may sit straight inside one, and a blank category header would be
+            a heading saying nothing.
+
+            Names are bound, not written into the attribute. A name with an
+            ampersand in it comes back from an attribute HTML-escaped, and the
+            picker keys its filter and its counts on the string the view put
+            in `categories` — the two would not match, and the whole category
+            would count zero and hide itself.
             {% endcomment %}
-            {% for section_row in section_rows %}
-                <c-n26.collection-picker.section name="{{ section_row.section.name }}" :open="section_row.first">
-                    {% for category in section_row.section.categories %}
+            {% for section in hire_list %}
+                <c-n26.collection-picker.section :name="section.name" :open="forloop.first">
+                    {% for category in section.categories %}
                         {% if category.name %}
-                            <c-n26.collection-picker.category name="{{ category.name }}">
+                            <c-n26.collection-picker.category :name="category.name">
                                 {% for entry in category.entries %}
                                     <c-n26.profile-picker.row :entry="entry" value="{{ entry.profile.pk }}" />
                                 {% endfor %}

@@ -9,9 +9,10 @@ the "what you'd get" screen and the gang sheet from drifting apart.
 import pytest
 from django.contrib.auth.models import User
 
+from n26.core.browse import UNCATEGORISED
 from n26.core.card import build_card_from_profile, build_modifier_index
 from n26.core.effects import compute
-from n26.core.hire import build_hire_entry, build_hire_list
+from n26.core.hire import build_hire_entry, build_hire_list, section_hire_list
 from n26.core.render import build_model_card, card_to_model_card
 from n26.core.render_text import render_model_card
 from n26.library.models import (
@@ -396,3 +397,127 @@ class TestTheWholeScreen:
 
         assert len(build_hire_list(roster)) == 12
         assert measure() == few
+
+
+class TestSectioningTheList:
+    """The picker's shape: sections of categories, each drawn once.
+
+    Nothing here needs a request. The page draws what this returns, so
+    what a tab is called, what a heading is called and what a row filters
+    under are all one answer, checked here rather than through HTML.
+    """
+
+    @pytest.fixture
+    def sections(self, default_pack):
+        from n26.library.models import Section
+
+        return {
+            name: Section.objects.create(name=name, position=position)
+            for position, name in enumerate(["Gang List", "Brutes", "Hangers-on"])
+        }
+
+    @pytest.fixture
+    def categorised(self, sections, make_profile):
+        from n26.library.models import Category
+
+        def _make(name, price, section=None, category=None, position=0):
+            home = None
+            if section is not None:
+                home, _ = Category.objects.get_or_create(
+                    section=sections[section], name=category, position=position
+                )
+            return make_profile(name, price=price, category=home)
+
+        return _make
+
+    def test_headings_come_in_taxonomy_order_with_entries_cheapest_first(
+        self, gang_type, categorised
+    ):
+        categorised("Khimerix", 190, "Brutes", "Beasts")
+        categorised("Ganger", 55, "Gang List", "Gangers", position=1)
+        categorised("Juve", 25, "Gang List", "Juves", position=2)
+        categorised("Leader", 120, "Gang List", "Gangers", position=1)
+
+        drawn = section_hire_list(build_hire_list(gang_type))
+
+        assert [section.name for section in drawn] == ["Gang List", "Brutes"]
+        assert [category.name for category in drawn[0].categories] == [
+            "Gangers",
+            "Juves",
+        ]
+        assert [entry.name for entry in drawn[0].categories[0].entries] == [
+            "Ganger",
+            "Leader",
+        ]
+
+    def test_a_profile_with_no_home_gathers_at_the_end(self, gang_type, categorised):
+        categorised("Ganger", 55, "Gang List", "Gangers")
+        categorised("Stray", 40)
+
+        drawn = section_hire_list(build_hire_list(gang_type))
+
+        assert [section.name for section in drawn] == ["Gang List", UNCATEGORISED]
+        # The category stays unnamed: the content really did file nothing,
+        # and the picker draws such rows straight inside the section.
+        (homeless,) = drawn[-1].categories
+        assert homeless.name == ""
+        assert [entry.name for entry in homeless.entries] == ["Stray"]
+
+    def test_two_headings_of_the_same_name_are_one_section(
+        self, gang_type, sections, categorised, make_profile
+    ):
+        """A section drawn twice is a tab drawn twice, and the strip keys
+        its tabs by name — so one of the two would show the other's rows,
+        and a reader would meet the same heading further down the page
+        holding different fighters.
+
+        Two packs each naming a heading "Gang List" is how it happens: a
+        heading's name is unique within a pack and nowhere else.
+        """
+        from n26.library.authoring import create_pack
+        from n26.library.models import Category, Section
+
+        theirs = create_pack("House rules", slug="house-rules")
+        second = Section.objects.create(name="Gang List", position=2, pack=theirs)
+        theirs_category = Category.objects.create(
+            section=second, name="Bounty hunters", position=9, pack=theirs
+        )
+        categorised("Ganger", 55, "Gang List", "Gangers")
+        categorised("Khimerix", 190, "Brutes", "Beasts")
+        make_profile("Bounty Hunter", price=80, category=theirs_category)
+
+        drawn = section_hire_list(build_hire_list(gang_type))
+
+        assert [section.name for section in drawn] == ["Gang List", "Brutes"]
+        assert [category.name for category in drawn[0].categories] == [
+            "Gangers",
+            "Bounty hunters",
+        ]
+
+    def test_one_category_name_under_two_headings_stays_two_categories(
+        self, gang_type, categorised
+    ):
+        """A category name is only unique within its heading, so matching
+        on the string would fold two different categories into one."""
+        categorised("Ganger", 55, "Gang List", "Specialists")
+        categorised("Rogue Doc", 80, "Hangers-on", "Specialists")
+
+        drawn = section_hire_list(build_hire_list(gang_type))
+
+        assert [
+            (section.name, [category.name for category in section.categories])
+            for section in drawn
+        ] == [("Gang List", ["Specialists"]), ("Hangers-on", ["Specialists"])]
+
+    def test_every_entry_is_reachable_from_the_sections(self, gang_type, categorised):
+        """The structure is the whole screen: an entry the grouping drops
+        is a fighter served nowhere."""
+        for number, name in enumerate(["Juve", "Ganger", "Champion", "Stray"]):
+            categorised(name, 25 + number, "Gang List" if number < 3 else None, "Crew")
+
+        entries = build_hire_list(gang_type)
+        drawn = section_hire_list(entries)
+
+        assert sorted(
+            entry.name for section in drawn for entry in section.all_entries()
+        ) == sorted(entry.name for entry in entries)

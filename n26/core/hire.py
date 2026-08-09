@@ -23,6 +23,7 @@ number of queries whatever its length.
 
 from dataclasses import dataclass, field
 
+from n26.core.browse import UNCATEGORISED
 from n26.core.card import build_card_from_profile, build_modifier_index
 from n26.core.effects import compute
 from n26.core.render import ModelCard, card_to_model_card
@@ -98,6 +99,30 @@ class HireEntry:
     @property
     def offers_a_choice(self):
         return len(self.options) > 1 or len(self.groups) > 1
+
+
+@dataclass
+class HireCategory:
+    """One category heading and the entries filed under it.
+
+    An empty name means the content filed nothing here, and the entries
+    sit straight inside the section.
+    """
+
+    name: str
+    entries: list[HireEntry] = field(default_factory=list)
+
+
+@dataclass
+class HireSection:
+    """One section heading and its categories."""
+
+    name: str
+    categories: list[HireCategory] = field(default_factory=list)
+
+    def all_entries(self):
+        for category in self.categories:
+            yield from category.entries
 
 
 def build_hire_entry(profile, index=None):
@@ -188,40 +213,55 @@ def section_hire_list(entries):
 
     Groups by each profile's home category (``Section`` heading, then
     ``Category`` inside it), taxonomy order — the same derivation
-    ``browse._sectioned`` does for collections. Profiles without a home
-    gather at the end under empty headings: a content gap to show, not
-    an error to hide.
+    ``browse._sectioned`` does for collections.
+
+    **A section is drawn once**, keyed by its name. The picker draws its
+    sections as tabs: two tabs reading alike is worse than one long one,
+    and a section the strip cannot draw is a section whose rows are
+    unreachable. Two headings sharing a name are therefore one section,
+    placed by the earliest of them. Categories are keyed by identity
+    instead, because a category name is only unique within its section.
+
+    Profiles the content gave no home gather at the end, under the name
+    a homeless section is called everywhere. The gap is worth showing;
+    leaving the heading blank would only cost that section its tab.
     """
-
-    def order(entry):
+    #: section name -> (its earliest position, {category: entries})
+    sections = {}
+    for entry in entries:
         category = entry.profile.category
-        # Section, then category, then the entry — each level fully keyed,
-        # so a category's entries stay contiguous and the grouping below
-        # can work on runs.
+        section = category.section if category is not None else None
+        name = section.name if section is not None else ""
+        position = section.position if section is not None else float("inf")
+        held, categories = sections.setdefault(name, (position, {}))
+        if position < held:
+            sections[name] = (position, categories)
+        categories.setdefault(category, []).append(entry)
+
+    def taxonomy_order(category):
         if category is None:
-            return (1, 0, "", 0, "", entry.base_price, entry.name)
-        return (
-            0,
-            category.section.position,
-            category.section.name.lower(),
-            category.position,
-            category.name.lower(),
-            entry.base_price,
-            entry.name,
-        )
+            return (1, 0, "")
+        return (0, category.position, category.name.lower())
 
-    section_rows = []
-    for entry in sorted(entries, key=order):
-        category = entry.profile.category
-        section_name = category.section.name if category else ""
-        category_name = category.name if category else ""
-        if not section_rows or section_rows[-1]["name"] != section_name:
-            section_rows.append({"name": section_name, "categories": []})
-        categories = section_rows[-1]["categories"]
-        if not categories or categories[-1]["name"] != category_name:
-            categories.append({"name": category_name, "entries": []})
-        categories[-1]["entries"].append(entry)
-    return section_rows
+    def entry_order(entry):
+        # Cheapest first within a category: a gang list is read to find
+        # what this many credits will buy.
+        return (entry.base_price, entry.name)
+
+    drawn = []
+    for name, (_, categories) in sorted(
+        sections.items(), key=lambda item: (item[1][0], item[0])
+    ):
+        section = HireSection(name=name or UNCATEGORISED)
+        for category in sorted(categories, key=taxonomy_order):
+            section.categories.append(
+                HireCategory(
+                    name=category.name if category else "",
+                    entries=sorted(categories[category], key=entry_order),
+                )
+            )
+        drawn.append(section)
+    return drawn
 
 
 def hireable_profiles(gang_type):

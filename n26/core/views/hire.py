@@ -32,7 +32,6 @@ from django.http import Http404
 from django.shortcuts import redirect, render
 from django.utils.text import slugify
 
-from n26.core.browse import UNCATEGORISED
 from n26.core.views.permissions import _own_gang_or_404
 
 
@@ -232,23 +231,15 @@ def hire_fighter(request, pk):
                 _picks(request.GET, profile, build_hire_entry(profile)),
             )
 
-    # The grouping leaves a homeless profile's section unnamed, which is
-    # the truth about the content. Naming it is this page's business: the
-    # picker draws its sections as tabs, a tab needs a word on it, and a
-    # nameless one would otherwise cost every section its tab. Named
-    # here, once, so the tab strip, the registration names below and the
-    # heading in the template cannot disagree about what it is called.
-    section_rows = [
-        {**section_row, "name": section_row["name"] or UNCATEGORISED}
-        for section_row in section_hire_list(build_hire_list(gang.gang_type))
+    # The whole screen, as one structure: every profile this gang could
+    # hire, under the headings its content files them under. The page
+    # draws what the structure says rather than assembling headings of
+    # its own, so what a tab is called and what a heading is called are
+    # one answer.
+    hire_list = section_hire_list(build_hire_list(gang.gang_type))
+    prices = [
+        entry.base_price for section in hire_list for entry in section.all_entries()
     ]
-    entries = [
-        entry
-        for section_row in section_rows
-        for category in section_row["categories"]
-        for entry in category["entries"]
-    ]
-    prices = [entry.base_price for entry in entries]
     return render(
         request,
         "n26/hire_fighter.html",
@@ -256,39 +247,39 @@ def hire_fighter(request, pk):
             "gang": gang,
             "form": form,
             "dialog": dialog,
-            "section_rows": [
-                {"section": section_row, "first": index == 0}
-                for index, section_row in enumerate(section_rows)
-            ],
+            "hire_list": hire_list,
             # The tab strip, one tab per section. This list is also the
             # picker's whole navigation once tabs are on: a section whose
             # name is missing here can never be the active tab, and its
             # rows would be served in the HTML with no way to reach them.
-            # Every section is named above, so every one gets a tab.
             #
-            # Deduplicated because the strip keys its tabs by name. Two
-            # sections that share a name then answer to one tab, which
-            # shows both of them — where a repeated key would draw
-            # neither, and both sections would be lost.
-            "sections": list(dict.fromkeys(row["name"] for row in section_rows)),
+            # Taken as they come: the grouping draws a section once, so a
+            # name cannot repeat, and deduplicating here would hide one
+            # if that ever stopped being true.
+            "sections": [section.name for section in hire_list],
             # The picker's all-on category state. These are *registration*
             # names — an item in an unnamed category registers under its
             # section's name, and a list that omits that name silently
             # hides every such row: categoryOn(name) is the filter.
+            #
+            # Deduplicated, and not because of the sections: a category
+            # name is only unique within its section, so two sections'
+            # categories can register under one name. The filter keys on
+            # the string and a repeated key draws neither.
             "categories": list(
                 dict.fromkeys(
-                    category["name"] or section_row["name"]
-                    for section_row in section_rows
-                    for category in section_row["categories"]
+                    category.name or section.name
+                    for section in hire_list
+                    for category in section.categories
                 )
             ),
             "category_options": [
                 {"value": name, "label": name}
                 for name in dict.fromkeys(
-                    category["name"]
-                    for section_row in section_rows
-                    for category in section_row["categories"]
-                    if category["name"]
+                    category.name
+                    for section in hire_list
+                    for category in section.categories
+                    if category.name
                 )
             ],
             "price_floor": min(prices, default=0),

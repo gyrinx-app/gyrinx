@@ -103,9 +103,9 @@ def test_every_registration_name_is_a_known_category(client, tester, gang, gange
     client.force_login(tester)
     response = client.get(hire_url(gang))
     registration_names = {
-        category["name"] or row["section"]["name"]
-        for row in response.context["section_rows"]
-        for category in row["section"]["categories"]
+        category.name or section.name
+        for section in response.context["hire_list"]
+        for category in section.categories
     }
     assert registration_names <= set(response.context["categories"])
 
@@ -424,12 +424,12 @@ def test_a_homeless_profile_gets_a_tab_of_its_own(
     # Reachability, the thing the strip can silently cost: every section
     # drawn must have a tab, and every row must register under a name the
     # category filter starts with on.
-    drawn = {row["section"]["name"] for row in response.context["section_rows"]}
+    drawn = {section.name for section in response.context["hire_list"]}
     assert drawn <= set(response.context["sections"])
     registration_names = {
-        category["name"] or row["section"]["name"]
-        for row in response.context["section_rows"]
-        for category in row["section"]["categories"]
+        category.name or section.name
+        for section in response.context["hire_list"]
+        for category in section.categories
     }
     assert registration_names <= set(response.context["categories"])
 

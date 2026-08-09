@@ -10,7 +10,14 @@ from dataclasses import dataclass, replace
 from django.utils.text import slugify
 
 from n26.core.browse import CategoryGroup, CollectionView, PricedLine, SectionGroup
-from n26.core.hire import STANDARD_OPTION_NAME, HireEntry, HireGroup, HireOption
+from n26.core.hire import (
+    STANDARD_OPTION_NAME,
+    HireCategory,
+    HireEntry,
+    HireGroup,
+    HireOption,
+    HireSection,
+)
 from n26.core.notes import INFO, WARNING, Note
 from n26.core.render import (
     AssignableLine,
@@ -1117,15 +1124,15 @@ def _hire_card(name, subtype, rating, weapons):
 def hire_list():
     """Every profile a gang could hire, in sections of categories.
 
-    Mirrors what n26.hire.build_hire_list plus n26.browse's grouping would
+    Mirrors what n26.hire.build_hire_list plus n26.hire.section_hire_list would
     return, built by hand because a gallery renders on an empty database. The
-    entries are real HireEntry/HireOption objects holding real ModelCards, so the
-    components are typed against what the server sends.
+    sections, entries and options are the real structures holding real
+    ModelCards, so the components are typed against what the server sends.
     """
-    section_rows = []
+    sections = []
     for position, (section_name, category_name, profiles) in enumerate(_GANG_LIST):
-        if not section_rows or section_rows[-1]["name"] != section_name:
-            section_rows.append({"name": section_name, "categories": []})
+        if not sections or sections[-1].name != section_name:
+            sections.append(HireSection(name=section_name))
         category = _Category(
             name=category_name, section=section_name, position=position
         )
@@ -1156,10 +1163,10 @@ def hire_list():
                     + extra_groups(name, subtype, price),
                 )
             )
-        section_rows[-1]["categories"].append(
-            {"name": category_name, "entries": entries}
+        sections[-1].categories.append(
+            HireCategory(name=category_name, entries=entries)
         )
-    return section_rows
+    return sections
 
 
 def hire_entry(value):
@@ -1171,35 +1178,24 @@ def hire_entry(value):
     """
     if not value:
         return None
-    for section_row in hire_list():
-        for category in section_row["categories"]:
-            for entry in category["entries"]:
-                if slugify(entry.name) == value:
-                    return entry
+    for section in hire_list():
+        for entry in section.all_entries():
+            if slugify(entry.name) == value:
+                return entry
     return None
 
 
 def hire_context():
     """What the hire view needs: the sections, and the ends of its one slider."""
-    section_rows = hire_list()
-    entries = [
-        entry
-        for section_row in section_rows
-        for category in section_row["categories"]
-        for entry in category["entries"]
-    ]
+    sections = hire_list()
+    entries = [entry for section in sections for entry in section.all_entries()]
     categories = [
-        category["name"]
-        for section_row in section_rows
-        for category in section_row["categories"]
+        category.name for section in sections for category in section.categories
     ]
     return {
-        "hire_section_rows": [
-            {"section": section_row, "first": index == 0}
-            for index, section_row in enumerate(section_rows)
-        ],
+        "hire_list": sections,
         "hire_categories": categories,
-        "hire_sections": [section_row["name"] for section_row in section_rows],
+        "hire_sections": [section.name for section in sections],
         "hire_category_options": [
             {"value": name, "label": name} for name in categories
         ],
