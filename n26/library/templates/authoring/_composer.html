@@ -4,7 +4,7 @@ create page. Step one is a GET so the chosen kinds live in the URL —
 step two survives a refresh, and "add a condition" is a plain link.
 
 Takes kind_picker, composer, composer_scope, composer_effect,
-composer_chips, and show_keep_reusable (the standalone page hides the
+composer_chips, and show_reusable_flag (the standalone page hides the
 switch: with nothing to attach to, everything it makes is reusable).
 
 The heading, the box, the submit's wording and where the way out leads
@@ -40,8 +40,33 @@ defaults — a caller that leaves one out gets a section with no heading.
             <c-ui.error :form="composer" name="__all__" />
             {% include "authoring/_panes.html" %}
             {% include "authoring/_field.html" with form=composer field=composer.name %}
-            {% if show_keep_reusable %}
-                {% include "authoring/_field.html" with form=composer field=composer.keep_reusable %}
+            {% if show_reusable_flag %}
+                {% comment %}
+                The toggle and what it will do to the name, together. Only
+                the prefix is previewed: the rest of the name is the
+                modifier's own sentence, which is not known until the panes
+                below are filled in and compiled — so this says the part it
+                can say truthfully rather than guessing at the whole.
+
+                Hidden while the author is writing a name of their own,
+                because then neither shape applies and a line predicting one
+                would be wrong.
+                {% endcomment %}
+                <div x-data="{ reusable: false, named: false }"
+                     @input="named = !!$el.closest('form').querySelector('#{{ composer.name.auto_id }}').value.trim()"
+                     @change="reusable = !!$el.closest('form').querySelector('#{{ composer.make_reusable.auto_id }}').checked">
+                    {% include "authoring/_field.html" with form=composer field=composer.make_reusable %}
+                    {% if composer.attach_to %}
+                        <p class="mt-1 text-xs text-muted" x-show="!named" x-cloak>
+                            <span x-show="reusable">Will be named for what it does.</span>
+                            <span x-show="!reusable">
+                                Will be named
+                                <span class="font-medium text-ink-900 dark:text-ink-100">{{ composer.attach_to }}:</span>
+                                followed by what it does.
+                            </span>
+                        </p>
+                    {% endif %}
+                </div>
             {% endif %}
             <c-n26.form-actions submit_label="{{ composer_submit_label }}"
                                 cancel_url="{{ composer_cancel_url }}" />

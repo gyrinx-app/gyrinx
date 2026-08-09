@@ -781,10 +781,7 @@ def _modifier_action(request, kind, thing, act):
                     "attach the existing one instead, or pick another name.",
                 )
                 return None, composer
-            if composer.cleaned_data.get("keep_reusable"):
-                messages.success(request, f"Saved {made.name} as a reusable modifier.")
-            else:
-                messages.success(request, f"Attached {made.name}.")
+            messages.success(request, f"Attached {made.name}.")
             return redirect("authoring-detail", kind=kind, pk=thing.pk), None
         return None, composer
 

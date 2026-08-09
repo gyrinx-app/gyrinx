@@ -75,7 +75,7 @@ class TestConditionsNest:
 class TestGlue:
     def test_attach_modifiers_to_shares_one_rule_between_carriers(self, default_pack):
         """Written once, attachable to many carriers — the reusable
-        modifier the composer's ``keep_reusable`` flag builds."""
+        modifier the composer's ``make_reusable`` flag names."""
         mounted = create_subtype("Mounted")
         reusable = modifier("Grants Mounted", targets_model(), ef_adds(mounted))
         cutter = create_rule("Cutter Rig")

@@ -762,11 +762,13 @@ class ModifierComposerForm(forms.Form):
     the ``who-`` and ``what-`` prefixes, picked by ``scope_kind`` and
     ``effect_kind``; conditions ride the ``conditions-`` formset. The
     composer opens from an assignable's page ("attach here" —
-    ``attach_to=``) or standalone; ``keep_reusable`` leaves the modifier
-    unattached either way, for ``attach_modifiers_to`` later.
+    ``attach_to=``) or standalone; ``make_reusable`` decides what an
+    unnamed modifier is called, never where it goes.
 
     ``save()`` is ``modifier(auto_name, scope, effect, attach_to=…)``
-    where the auto-name is the modifier's own sentence.
+    where the auto-name is the modifier's own sentence, or the carrier
+    and what it does where the author wants a name of this carrier's
+    own — see ``_written_name``.
 
     Opened on a modifier that already exists (``opened_on``) the same
     form edits it: the panes start filled, the kinds are fixed, and
@@ -779,12 +781,14 @@ class ModifierComposerForm(forms.Form):
         required=False,
         help_text="Blank writes the modifier's own sentence as its name.",
     )
-    keep_reusable = forms.BooleanField(
+    make_reusable = forms.BooleanField(
         required=False,
-        label="Keep reusable",
+        label="Make reusable",
         help_text=(
-            "Save without attaching here, so it can be attached to "
-            "several carriers later."
+            "Name this modifier generically, so it can be attached to "
+            "several carriers later. Without this enabled the modifier "
+            "will be named specifically for the thing that it's attached "
+            "to."
         ),
     )
 
@@ -922,8 +926,31 @@ class ModifierComposerForm(forms.Form):
             return model(**{field: thing})
         return model()
 
+    def _written_name(self, scope, effect):
+        """The name a modifier gets when the author leaves the box empty.
+
+        Reusable means named for what it does and nothing else, so the
+        same row reads true on every carrier it is later given to. The
+        scope stays in that name: two reusable modifiers doing one thing
+        to different people are different modifiers, and a list of them
+        all called "adds Catfall" says nothing about which is which.
+
+        Named specifically, the carrier takes the scope's place at the
+        front — for a modifier hanging on one profile, that profile *is*
+        who it reaches, and "targets the model" beside its name is a
+        sentence about the machinery rather than about the fighter.
+        """
+        if self.attach_to is None or self.cleaned_data.get("make_reusable"):
+            return f"{scope}: {effect}"
+        return f"{self.attach_to}: {effect}"
+
     def save(self):
         """Compile both panes, glue with the modifier verb, attach.
+
+        Attaching happens either way. The reusable flag decides what the
+        row is *called*, never where it goes: an author composing on a
+        carrier wants it on that carrier, and one that saved itself
+        somewhere else would be a press that appeared to do nothing.
 
         Editing takes the same two compiled parts to
         ``recompose_modifier``, which puts them on the row the carriers
@@ -945,11 +972,10 @@ class ModifierComposerForm(forms.Form):
         ]
         scope = self.who_form.compile(conditions=payloads)
         effect = self.what_form.compile()
-        name = self.cleaned_data.get("name") or f"{scope}: {effect}"
+        name = self.cleaned_data.get("name") or self._written_name(scope, effect)
         if self.editing is not None:
             return authoring.recompose_modifier(self.editing, name, scope, effect)
-        target = None if self.cleaned_data.get("keep_reusable") else self.attach_to
-        return authoring.modifier(name, scope, effect, attach_to=target)
+        return authoring.modifier(name, scope, effect, attach_to=self.attach_to)
 
 
 # --- Statlines: a form whose fields are data ---------------------------------

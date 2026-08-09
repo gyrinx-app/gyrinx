@@ -1960,30 +1960,46 @@ class TestTheModifierSection:
         # Detached, not destroyed: the other carrier keeps it.
         assert list(other.modifiers.all()) == [shared]
 
-    def test_keep_reusable_saves_without_attaching(self, rule, client, default_pack):
+    def _compose_on_rule(self, rule, client, reusable):
         from n26.library.authoring import create_subtype
         from n26.library.models import Modifier
 
         mounted = create_subtype("Mounted")
-        response = client.post(
-            f"/n26/authoring/rule/{rule.pk}/",
-            {
-                "act": "compose",
-                "scope_kind": "targets_model",
-                "effect_kind": "ef_adds",
-                "what-thing_kind": "subtype",
-                "what-thing_subtype": str(mounted.pk),
-                "keep_reusable": "on",
-                **self.NO_CONDITIONS,
-            },
-        )
+        data = {
+            "act": "compose",
+            "scope_kind": "targets_model",
+            "effect_kind": "ef_adds",
+            "what-thing_kind": "subtype",
+            "what-thing_subtype": str(mounted.pk),
+            **self.NO_CONDITIONS,
+        }
+        if reusable:
+            data["make_reusable"] = "on"
+        response = client.post(f"/n26/authoring/rule/{rule.pk}/", data)
         assert response.status_code == 302
-        assert rule.modifiers.count() == 0
-        (made,) = Modifier.objects.all()
-        # …and the page now offers it in the attach picker.
-        body = client.get(f"/n26/authoring/rule/{rule.pk}/").content.decode()
-        assert "Attach an existing modifier" in body
-        assert made.name in body
+        return Modifier.objects.get()
+
+    def test_reusable_names_it_generically_and_still_attaches(
+        self, rule, client, default_pack
+    ):
+        """The flag is about the name, not about where the row goes: an
+        author composing on a carrier wants it on that carrier either
+        way, and one that saved itself somewhere else would be a press
+        that appeared to do nothing."""
+        made = self._compose_on_rule(rule, client, reusable=True)
+
+        assert rule.modifiers.count() == 1
+        assert str(rule) not in made.name
+
+    def test_named_for_its_carrier_when_it_is_not_reusable(
+        self, rule, client, default_pack
+    ):
+        """Named specifically, the carrier leads the name — so a list of
+        modifiers says which thing each one was written for."""
+        made = self._compose_on_rule(rule, client, reusable=False)
+
+        assert rule.modifiers.count() == 1
+        assert made.name.startswith(f"{rule}: ")
 
     def test_the_weapon_page_keeps_its_parts_and_gains_the_section(
         self, author, client, default_pack, weapon_statline_type
@@ -2119,8 +2135,9 @@ class TestComposingOnItsOwnPage:
         assert 'name="what-thing_kind"' in body
         assert 'name="conditions-0-kind"' in body
         assert "chips=2" in body  # the next empty chip is already offered
-        # No keep-reusable switch: there is nothing to attach to.
-        assert 'name="keep_reusable"' not in body
+        # No reusable switch: there is nothing to attach to, so there
+        # is no carrier whose name the modifier could take instead.
+        assert 'name="make_reusable"' not in body
 
     def test_a_modifier_can_be_made_here_and_attaches_nowhere(
         self, author, client, default_pack

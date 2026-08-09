@@ -4,12 +4,12 @@ Step 2 of design/authoring-build-plan.md. The tests hold the form layer
 to the same standard as the specs beneath it:
 
 * a valid composer submit produces **exactly the example object's
-  rows** — "Brawler leader: combat primary", all three, auto-named
-  with the modifier's own sentence;
+  rows** — "Brawler leader: combat primary", all three, auto-named for
+  the carrier they were composed on;
 * refusals are **words at form level**: a section of the wrong
   collection, an effect that cannot apply to a scope — never a
   database constraint error after rows exist;
-* ``keep_reusable`` leaves the modifier unattached, and
+* ``make_reusable`` decides what an unnamed modifier is called, and
   ``attach_modifiers_to`` hangs it on carriers later;
 * the union picker creates name-only leaves inline, with the copyright
   guardrail as its help.
@@ -267,7 +267,8 @@ class TestTheComposer:
         self, skills_and_powers
     ):
         """Brawler leader: combat primary — WHO, WHAT and glue, one
-        submit, auto-named with the modifier's own sentence."""
+        submit. Composed on a carrier and not marked reusable, so the
+        carrier leads the auto-name and the sentence follows it."""
         from n26.library.models import HasSubtypes, Modifier
 
         collection, tiers = skills_and_powers
@@ -284,9 +285,7 @@ class TestTheComposer:
 
         assert str(row.scope) == "Outcast Leader models"
         assert str(row.effect) == "puts Combat under Primary (Skills & Powers)"
-        assert row.name == (
-            "Outcast Leader models: puts Combat under Primary (Skills & Powers)"
-        )
+        assert row.name == ("Brawler: puts Combat under Primary (Skills & Powers)")
         assert list(brawler.modifiers.all()) == [row]
         (condition,) = HasSubtypes.objects.filter(scope=row.scope)
         assert list(condition.subtypes.all()) == [leader]
@@ -325,7 +324,13 @@ class TestTheComposer:
         assert Modifier.objects.count() == 0
         assert TargetsMiniature.objects.count() == 0  # nothing written
 
-    def test_keep_reusable_leaves_it_unattached_for_later(self, skills_and_powers):
+    def test_make_reusable_names_it_generically_and_attaches_anyway(
+        self, skills_and_powers
+    ):
+        """Reusable is a claim about the name, not about where the row
+        goes. It attaches to the carrier it was composed on like any
+        other, and is named for what it does so it still reads true on
+        the next carrier it is given to."""
         from n26.library.authoring import attach_modifiers_to
 
         collection, tiers = skills_and_powers
@@ -335,16 +340,30 @@ class TestTheComposer:
         crusher = create_archetype("Bone Crusher")
 
         data = self.brawler_leader_data(leader, combat, tiers["primary"])
-        data["keep_reusable"] = "on"
+        data["make_reusable"] = "on"
         form = ModifierComposerForm(data, attach_to=brawler)
         assert form.is_valid(), form.errors
         row = form.save()
 
-        assert not brawler.modifiers.exists()
-        attach_modifiers_to(brawler, [row])
-        attach_modifiers_to(crusher, [row])
         assert list(brawler.modifiers.all()) == [row]
+        assert "Brawler" not in row.name
+        # And it still goes on as many others as an author wants.
+        attach_modifiers_to(crusher, [row])
         assert list(crusher.modifiers.all()) == [row]
+
+    def test_without_it_the_carrier_leads_the_name(self, skills_and_powers):
+        collection, tiers = skills_and_powers
+        leader = create_subtype("Outcast Leader")
+        combat = create_category("Skills", "Combat")
+        brawler = create_archetype("Brawler")
+
+        data = self.brawler_leader_data(leader, combat, tiers["primary"])
+        form = ModifierComposerForm(data, attach_to=brawler)
+        assert form.is_valid(), form.errors
+        row = form.save()
+
+        assert list(brawler.modifiers.all()) == [row]
+        assert row.name.startswith("Brawler: ")
 
     def test_pane_errors_surface_on_the_composer(self, default_pack):
         """A missing WHAT field is said as words on the one form the
