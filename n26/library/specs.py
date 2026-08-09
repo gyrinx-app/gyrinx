@@ -314,7 +314,11 @@ def _build_registry():
         ),
         Spec(
             authoring.targets_weapons,
-            {"conditions": Conditions(kinds=("has_traits", "in_categories", "is_one_of"))},
+            {
+                "conditions": Conditions(
+                    kinds=("has_traits", "in_categories", "is_one_of")
+                )
+            },
         ),
         Spec(authoring.targets_attached_weapon, {}),
         Spec(authoring.targets_gang, {}),
