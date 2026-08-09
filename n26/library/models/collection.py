@@ -91,6 +91,13 @@ def price_of(assignable, entry=None):
     override wins where set and falls through where null; no entry means
     reference alone (how a derived collection prices everything).
     Exclusivity is always the item's own fact — a list cannot override it.
+
+    **A blank override is an answer, not a gap.** It says "this list
+    sells it at the usual price", which is the ordinary thing for an
+    author to mean and by far the commonest thing they write. Read as
+    missing data it looks like most of the library is unpriced; read as
+    what it is, an override is the exception a list goes to the trouble
+    of stating.
     """
     # An override replaces the item's *own* price; anything it comes with
     # still costs what it costs, so the composition happens after.
