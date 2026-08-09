@@ -31,7 +31,16 @@ them does not look like a question.
   flair — a badge after the label, sized in em by <c-n26.flair-link>. Optional.
   meta — a slot at the far end of the header: a price, a count. Optional.
 {% endcomment %}
-<c-vars name="" value="" :checked="False" label="" description="" class="" />
+<c-vars
+    name=""
+    value=""
+    :checked="False"
+    label=""
+    description=""
+    flair=""
+    meta=""
+    class=""
+/>
 
 {% comment %}
 has-[:checked] rather than Alpine: the selected card is styled from the state of

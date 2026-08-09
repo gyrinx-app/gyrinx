@@ -65,7 +65,16 @@ question "Buys from" was there to answer, and closer to hand.
   open questions in card.skill_choices, which the Skills row draws: both arrive
   filled in or empty, and empty draws nothing.
 {% endcomment %}
-<c-vars :card="None" notes_href="" lore_href="" class="" />
+<c-vars
+    :card="None"
+    notes_href=""
+    lore_href=""
+    actions=""
+    avatar=""
+    notes=""
+    lore=""
+    class=""
+/>
 
 <c-ui.card padding="none" class="{{ class }}">
     <c-slot name="header">

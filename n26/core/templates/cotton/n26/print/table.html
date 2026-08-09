@@ -45,7 +45,7 @@ Two classes are provided for cells, used on th and td alike: `is-numeric` for
 right-aligned tabular figures, and `is-group` for a rule opening a run of
 related columns.
 {% endcomment %}
-<c-vars layout="fixed" groups="" class="" />
+<c-vars layout="fixed" groups="" head="" foot="" class="" />
 
 <table {{ attrs }} class="n26-print-table{% if layout == 'auto' %} is-auto{% endif %}{% if groups %} is-grouped{% endif %} {{ class }}">
     {% if head %}<thead>{{ head }}</thead>{% endif %}

@@ -30,7 +30,7 @@ submit while the card is unticked binds :disabled="!picked" itself.
   slot — the body, under a rule. Optional; without one the card is just
     its header.
 {% endcomment %}
-<c-vars name="" value="" :checked="False" label="" description="" class="" />
+<c-vars name="" value="" :checked="False" label="" description="" meta="" class="" />
 
 <div {{ attrs }}
      x-data="{ picked: {{ checked|yesno:'true,false' }} }"
