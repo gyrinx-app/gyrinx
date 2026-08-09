@@ -195,8 +195,16 @@ question "Buys from" was there to answer, and closer to hand.
     A two-column grid rather than a table: these are label-and-value pairs, not
     tabular data, and a grid keeps the labels aligned without asking a reader to
     scan a header row that would only ever say "Field" and "Value".
+
+    items-baseline, so a label sits on the same line as the first line of its
+    value whatever the value contains. Grid items stretch by default, which
+    reads level only while every row is plain text: put a control in one — the
+    Skills row has two — and that row grows, the label stays at the top of its
+    taller cell, and the pair no longer share a line. Aligning the text itself
+    is the only rule that holds for a row of words and a row with a button in
+    it alike.
     {% endcomment %}
-    <dl class="grid grid-cols-[auto_1fr] gap-x-5 gap-y-2 border-t border-box-border px-4 py-3 text-sm">
+    <dl class="grid grid-cols-[auto_1fr] items-baseline gap-x-5 gap-y-2 border-t border-box-border px-4 py-3 text-sm">
         {% comment %}
         Written out rather than looped over a list of pairs. Three rows is not
         enough repetition to be worth a helper on ModelCard, and naming them here
@@ -231,21 +239,29 @@ question "Buys from" was there to answer, and closer to hand.
             says: a card with no grid, a hire preview and a print sheet all draw
             neither control, because neither has anywhere to go.
             {% endcomment %}
+            {% comment %}
+            The padding is cut below what even the smallest size asks for, so a
+            control sits inside the line of text rather than setting the row's
+            height. Baseline alignment keeps the label level either way; this
+            is what stops the row with buttons in it standing taller than every
+            other row on the card.
+            {% endcomment %}
             {% if card.skill_choices or card.learn_href %}
                 <span class="ms-1 inline-flex flex-wrap items-center gap-1 align-middle">
                     {% for choice in card.skill_choices %}
-                        <c-ui.button size="xs" variant="primary" href="{{ choice.href }}">
+                        <c-ui.button size="xs" variant="primary" class="py-0!" href="{{ choice.href }}">
                             Choose {{ choice.kind_label|lower }}
                         </c-ui.button>
                     {% endfor %}
                     {% if card.learn_href %}
                         <c-ui.button size="xs"
                                      variant="default"
+                                     class="py-0!"
                                      href="{{ card.learn_href }}"
                                      title="Learn a skill"
                                      aria-label="Learn a skill">
                             <span class="n26-icon-only">
-                                <c-n26.icon name="pencil" class="size-3.5" />
+                                <c-n26.icon name="pencil" class="size-3" />
                             </span>
                         </c-ui.button>
                     {% endif %}
