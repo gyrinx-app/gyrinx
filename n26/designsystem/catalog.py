@@ -1444,6 +1444,29 @@ GROUPS: list[Group] = [
                 ),
             ),
             Component(
+                slug="filter-select",
+                tag="c-n26.filter-select",
+                template="n26/filter_select.html",
+                summary="A long select, with a box to search it.",
+                needs=(ALPINE,),
+                notes=(
+                    "Wraps a real <select> rather than replacing it. The kit's "
+                    "own c-ui.combobox was the obvious thing to reach for and "
+                    "cannot be used here: it submits through a <select> whose "
+                    "name is an Alpine binding and whose options are a "
+                    "<template>, so with scripting off it has neither a name "
+                    "nor an option and posts nothing — and the options it does "
+                    "render carry their label text as their value, which cannot "
+                    "say which row an author picked. Here the select handed in "
+                    "is what posts, untouched, and the panel sets selectedIndex "
+                    "on it; turn scripting off and you get the plain select, "
+                    "working. Short lists are left alone, counted in the "
+                    "browser because the options are already on the page — "
+                    "asking the database means a COUNT per picker, and an "
+                    "authoring form draws about a dozen."
+                ),
+            ),
+            Component(
                 slug="radio-cards",
                 tag="c-n26.radio-cards",
                 template="n26/radio_cards/index.html",
@@ -1582,7 +1605,13 @@ GROUPS: list[Group] = [
                     "of the same stats. Not built on c-ui.table: a statline is a "
                     "centred strip where that is a left-aligned data grid, and its "
                     "descendant-variant styling outranks any class on a cell, so it "
-                    "cannot be adjusted from the call site."
+                    "cannot be adjusted from the call site. The editor is a fourth "
+                    "template rather than a mode on this one: a card is drawn in its "
+                    "hundreds on a gang sheet and carries no form, so sharing would "
+                    "put a branch in every cell of the hot path to serve the one page "
+                    "that edits. It reuses the header unchanged, which is what keeps "
+                    "the columns, the divider and the tint identical to the card "
+                    "being edited."
                 ),
                 needs=(ALPINE, KIT_JS),
                 parts=(
@@ -1598,6 +1627,11 @@ GROUPS: list[Group] = [
                         "The <td> cells. Marks a modified value and names what "
                         "changed it.",
                         required=True,
+                    ),
+                    Part(
+                        "c-n26.statline.edit",
+                        "n26/statline/edit.html",
+                        "The same strip as boxes to type in, for the authoring pages.",
                     ),
                 ),
             ),

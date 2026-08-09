@@ -467,6 +467,12 @@ def context():
         "sorts": SORTS,
         "choice_offer": choice_offer(),
         "empty_choice_offer": ChoiceOffer(label="Primary skill"),
+        "editable_statline": editable_statline(),
+        # A profile nobody has typed a statline for yet, and one where a
+        # value was refused: the two states the editor has that a card
+        # cannot have.
+        "blank_editable_statline": editable_statline(filled=False),
+        "refused_editable_statline": refused_statline(),
         "statuses": STATUSES,
         "lists": LISTS,
         **nav_context(),
@@ -576,6 +582,70 @@ def _fighter_statline():
             _cell("Int", "Intelligence", "7", highlighted=True),
         ]
     )
+
+
+def _placeholder_for(value):
+    """What an empty box suggests, read off the shape of the value the card
+    shows: a distance suggests a distance, a roll target a target.
+
+    The real placeholder comes from the stat's own display flags. Those are
+    a database row, and this app has none, so the flags are inferred from
+    how the value prints — which is what they decide.
+    """
+    if value.endswith('"'):
+        return '4"'
+    if value.endswith("+"):
+        return "3+"
+    return "3"
+
+
+def editable_statline(filled=True, errors=None):
+    """The card's characteristics as boxes an author types in.
+
+    Derived from the display statline rather than written out a second
+    time. Both sit on one gallery page, and an editor showing different
+    columns from the card above it would be showing a different statline.
+
+    ``errors`` names the characteristics to draw a refusal against, so the
+    demo can show what a page looks like when a value is refused without
+    anyone hand-building a broken cell.
+    """
+    from n26.core.render import EditableStatCell
+    from n26.library.models import Stat
+
+    return [
+        EditableStatCell(
+            short_name=cell.short_name,
+            full_name=cell.full_name,
+            # Input names are the stat's internal name, derived from the full
+            # name exactly as the library derives it — so a demo cannot show a
+            # form field the real page would not produce.
+            name=Stat.derive_field_name(cell.full_name),
+            value=cell.value if filled else "",
+            placeholder=_placeholder_for(cell.value),
+            highlighted=cell.highlighted,
+            first_of_group=cell.first_of_group,
+            error=errors.get(cell.short_name, "") if errors else "",
+        )
+        for cell in _fighter_statline().cells
+    ]
+
+
+def refused_statline():
+    """The editor with one value refused.
+
+    The box keeps what the author typed rather than the value that was
+    already stored: a refusal they cannot see the cause of is one they
+    cannot act on.
+    """
+    refusal = (
+        "Movement is longer than ten characters — a statline cell holds a "
+        "short value like 4, 3+ or S."
+    )
+    return [
+        replace(cell, value="five inches or so") if cell.short_name == "M" else cell
+        for cell in editable_statline(errors={"M": refusal})
+    ]
 
 
 def _weapon_statline(rng_s, rng_l, acc_s, acc_l, strength, ap, damage, ammo):

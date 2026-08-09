@@ -70,6 +70,69 @@ class TestTheRadioCardsPage:
         assert 'name="demo-purpose"' in page
 
 
+class TestTheFilterSelectsPage:
+    """Its props and its demos reach the gallery, and the select survives."""
+
+    def test_the_page_documents_the_props_declared_in_the_template(self, reader):
+        page = reader.get("/n26/design/c/filter-select/").content.decode()
+        # Read from the component's own <c-vars>, so a prop added there and
+        # nowhere else still has to appear here.
+        assert "min_options" in page
+        assert "empty" in page
+
+    def test_all_three_demos_render_rather_than_falling_back(self, reader):
+        page = reader.get("/n26/design/c/filter-select/").content.decode()
+        assert "A list worth searching" in page
+        assert "Too short to be worth it" in page
+        assert "Several at once" in page
+
+    def test_the_demos_draw_a_real_select_carrying_real_option_values(self, reader):
+        """The whole point of the component: what a browser with no script
+        finds is the select it would have found anyway, values and all."""
+        page = reader.get("/n26/design/c/filter-select/").content.decode()
+        assert 'name="weapon"' in page
+        assert 'value="7"' in page
+        assert "Digi-laser" in page
+        # Several at once posts through a native multiple select, not a
+        # widget of its own.
+        assert 'name="traits"' in page
+
+
+class TestTheStatlineEditorInTheGallery:
+    """The writing half of the statline, on the same page as the reading
+    half — which is the point of documenting it there: the two are meant to
+    show the same columns, and a reader can see whether they do."""
+
+    def test_the_page_names_the_editing_subcomponent(self, reader):
+        page = reader.get("/n26/design/c/statline/").content.decode()
+        assert "c-n26.statline.edit" in page
+
+    def test_the_editor_draws_a_box_per_characteristic(self, reader):
+        page = reader.get("/n26/design/c/statline/").content.decode()
+        # Input names are the stat's internal name, which is what the real
+        # form posts — a demo drawing anything else would document a page
+        # that does not exist.
+        for field in ("movement", "weapon_skill", "leadership", "intelligence"):
+            assert f'name="{field}"' in page
+
+    def test_a_value_is_shown_as_it_is_stored(self, reader):
+        page = reader.get("/n26/design/c/statline/").content.decode()
+        # The quote mark survives the trip through the kit's input. Stored
+        # canonical and shown as stored, so the box and the card agree.
+        assert 'value="5&quot;"' in page
+
+    def test_an_empty_editor_suggests_what_each_box_takes(self, reader):
+        page = reader.get("/n26/design/c/statline/").content.decode()
+        assert "Nothing typed yet" in page
+        assert 'placeholder="3+"' in page
+
+    def test_a_refusal_is_a_sentence_naming_the_characteristic(self, reader):
+        page = reader.get("/n26/design/c/statline/").content.decode()
+        assert "Movement is longer than ten characters" in page
+        # What the author typed, not what was stored before it.
+        assert 'value="five inches or so"' in page
+
+
 class TestTheGangTypeBadgeInTheGallery:
     """The one badge that is content rather than a drawing we ship."""
 

@@ -87,6 +87,32 @@ class StatCell:
 
 
 @dataclass
+class EditableStatCell:
+    """One characteristic as a box an author types in.
+
+    The reading half of this is ``StatCell``, and the two carry the same
+    display facts on purpose: an editor that placed its dividers or its
+    tint differently from the card would be showing a different statline
+    from the one being edited.
+
+    ``value`` is the stored string, which is already canonical — a
+    Movement of four is held as ``4"`` — so what the author sees back is
+    what a card prints. ``name`` is the input's name in the form that
+    submits it, and ``error`` is the refusal to show against this box,
+    empty when there is none.
+    """
+
+    short_name: str
+    full_name: str
+    name: str
+    value: str = ""
+    placeholder: str = ""
+    highlighted: bool = False
+    first_of_group: bool = False
+    error: str = ""
+
+
+@dataclass
 class Statline:
     cells: list[StatCell] = field(default_factory=list)
 
