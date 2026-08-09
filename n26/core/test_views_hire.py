@@ -51,8 +51,12 @@ def armament(ganger):
     group = OptionGroup.objects.create(profile=ganger, name="Armament", choose="one")
     plain = DefaultAssignmentSet.objects.create(name="Knife", price=0)
     fancy = DefaultAssignmentSet.objects.create(name="Chainsword", price=25)
-    ganger.options.create(profile=ganger, group=group, default_set=plain, position=0)
-    ganger.options.create(profile=ganger, group=group, default_set=fancy, position=1)
+    ganger.options.create(
+        profile=ganger, group=group, default_set=plain, name="Knife", position=0
+    )
+    ganger.options.create(
+        profile=ganger, group=group, default_set=fancy, name="Chainsword", position=1
+    )
     return plain, fancy
 
 

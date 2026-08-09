@@ -1,0 +1,95 @@
+{% extends "authoring/base.html" %}
+{% comment %}
+The question asked before an alternative is withdrawn, at an address of
+its own. A page rather than a prompt: it survives a reload, Back is a
+real answer, and it works with scripting switched off. Nothing here
+changes anything — the form's POST is the act.
+
+Two facts change what the act means and neither can be read off the row
+it was reached from: the kit an option brings is reached through that
+option and nothing else, so it goes with it; and an option may be the
+last answer its axis has, which leaves a question with nothing to
+answer it.
+
+What the option *names* — the weapon, the wargear — is a separate thing
+from the option, and the first line says so, because a control beside a
+weapon's name reads as one that deletes weapons.
+{% endcomment %}
+{% block head_title %}Withdraw {{ label }}{% endblock head_title %}
+{% block content %}
+    <c-n26.form-page action="{% url 'authoring-option-remove' thing.pk %}"
+                     title="Stop offering {{ label }}?"
+                     lead="{{ carrier }} will no longer offer this when it is acquired."
+                     submit_label="Stop offering it"
+                     submit_variant="danger"
+                     cancel_url="{{ back }}">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Content library</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{{ back }}">
+                    {{ carrier }}
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Stop offering
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% csrf_token %}
+        {% comment %}
+        What is true, and only what is true. Nothing already acquired
+        changes: an option is materialised at the moment of hiring and
+        nothing retracts an assignment.
+        {% endcomment %}
+        <c-ui.alert variant="info" title="Nothing already hired changes">
+            Anyone who took {{ label }} keeps what it brought them. This
+            changes what the next hire may choose.
+        </c-ui.alert>
+        {% if axis %}
+            <c-ui.description>
+                This answers {{ axis }}.
+            </c-ui.description>
+        {% endif %}
+        {% if last_on_its_axis %}
+            <c-ui.alert variant="warning" title="{{ axis }} will have no answers left">
+                An axis with nothing on it asks a question nobody can answer.
+                Take the axis off too, or give it another option.
+            </c-ui.alert>
+        {% endif %}
+        {% if brings %}
+            <c-n26.form-section title="What goes with it"
+                                description="Kit gathered for this one option, reached through it and nothing else. Each thing named stays in the library and on everything else that names it.">
+                <c-ui.table>
+                    <tbody>
+                        {% for thing_name in brings %}
+                            <tr>
+                                <td>{{ thing_name }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </c-ui.table>
+            </c-n26.form-section>
+        {% endif %}
+        {% if shared_with %}
+            <c-ui.alert variant="warning" title="This kit is offered elsewhere too">
+                It stays where it is; only {{ carrier }} stops offering it.
+            </c-ui.alert>
+            <c-ui.table>
+                <tbody>
+                    {% for holder in shared_with %}
+                        <tr>
+                            <td class="whitespace-nowrap">
+                                {% if holder.kind %}
+                                    <c-n26.link href="{% url 'authoring-detail' holder.kind holder.pk %}">{{ holder.label }}</c-n26.link>
+                                {% else %}
+                                    {{ holder.label }}
+                                {% endif %}
+                            </td>
+                            <td class="text-muted">{{ holder.kind_name }}</td>
+                            <td class="w-full text-muted">{{ holder.how }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </c-ui.table>
+        {% endif %}
+    </c-n26.form-page>
+{% endblock content %}

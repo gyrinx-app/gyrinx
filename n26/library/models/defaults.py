@@ -271,9 +271,23 @@ class OptionGroup(NamesAnAssignable, Content):
     )
     name = models.CharField(
         max_length=200,
-        help_text='The axis, e.g. "Melee weapons" or "Additional grenades".',
+        verbose_name="Name (authoring only)",
+        help_text=(
+            "What this axis is called while you are writing it, e.g. "
+            '"Melee weapons" or "Additional grenades". Never shown to a '
+            "player: a hire screen puts the answers in front of them and "
+            "the question is what the answers are. Name it for yourself."
+        ),
     )
-    choose = models.CharField(max_length=10, choices=Choose, default=Choose.ONE)
+    choose = models.CharField(
+        max_length=10,
+        choices=Choose,
+        default=Choose.ONE,
+        help_text=(
+            "Exactly one takes the first option unasked, and picking "
+            "another replaces it. Any number starts with none taken."
+        ),
+    )
     position = models.PositiveIntegerField(default=0)
 
     class Meta:
@@ -298,7 +312,15 @@ class OptionGroup(NamesAnAssignable, Content):
 
 
 class Option(NamesAnAssignable, Content):
-    """One alternative a thing offers when it is acquired."""
+    """One alternative a thing offers when it is acquired.
+
+    The name is the player's: it is what a hire screen writes beside the
+    tick box, so it says what taking this gets you. The set of things it
+    brings is named separately and only for authors — set names must be
+    unique across a pack, so two profiles both offering "As standard"
+    would fight over one name, and whichever lost would show a player
+    the name of a bag rather than the name of a choice.
+    """
 
     ASSIGNABLE_FIELDS = OPTION_CARRIER_FIELDS
 
@@ -316,15 +338,23 @@ class Option(NamesAnAssignable, Content):
         blank=True,
         related_name="options",
     )
+    name = models.CharField(
+        max_length=200,
+        help_text=(
+            'What a player is offered, e.g. "As standard" or "with '
+            'razor-sharp talons". This is the wording on the hire screen.'
+        ),
+    )
     group = models.ForeignKey(
         OptionGroup,
         on_delete=models.CASCADE,
         null=True,
         blank=True,
         related_name="options",
+        verbose_name="Axis",
         help_text=(
-            "The axis this option belongs to. Blank means the carrier's "
-            "default group — exactly one is taken, the first unasked."
+            "The axis this option belongs to. Blank puts it in the basic "
+            "choice — exactly one of those is taken, the first unasked."
         ),
     )
     default_set = models.ForeignKey(
@@ -344,11 +374,18 @@ class Option(NamesAnAssignable, Content):
         ]
 
     def __str__(self):
-        return f"{self.carrier}: {self.default_set}"
+        return f"{self.carrier}: {self.name}"
 
     @property
     def carrier(self):
         return self.assignable
+
+    @property
+    def price(self):
+        """What taking this adds to the acquisition. Stored on the set,
+        because a price is a property of the kit, and the same kit
+        offered twice is priced the same both times."""
+        return self.default_set.price
 
     def clean(self):
         if self.group_id and self.group.assignable != self.assignable:

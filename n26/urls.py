@@ -88,6 +88,19 @@ urlpatterns = [
         authoring_views.built_in_remove,
         name="authoring-built-in-remove",
     ),
+    # An option and an axis of choice belong to the thing offering them
+    # rather than being authored kinds of their own, so withdrawing
+    # either has an address here instead of riding the kind/pk routes.
+    path(
+        "authoring/options/<str:pk>/remove/",
+        authoring_views.option_remove,
+        name="authoring-option-remove",
+    ),
+    path(
+        "authoring/axes/<str:pk>/remove/",
+        authoring_views.axis_remove,
+        name="authoring-axis-remove",
+    ),
     path(
         "authoring/foundations/",
         authoring_views.foundations,

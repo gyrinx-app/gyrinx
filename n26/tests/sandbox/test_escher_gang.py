@@ -204,7 +204,8 @@ def cutter(weapons, taxonomy, subtypes, fighter_type):
     ):
         offer_option(
             mount,
-            create_default_set(name, members=[weapon], price=price),
+            name,
+            default_set=create_default_set(name, members=[weapon], price=price),
             position=position,
         )
     return mount

@@ -54,14 +54,28 @@ class HireOption:
 class HireGroup:
     """One axis of the choice a profile offers.
 
-    ``name`` is None for the default group — the plain options every
-    profile may have. ``choose`` is "one" (radio: exactly one, the default
-    marked) or "any" (checkboxes: take any number, none by default).
+    ``choose`` is "one" (radio: exactly one, the default marked) or
+    "any" (checkboxes: take any number, none by default).
+
+    An axis has no name here, deliberately. The one the content carries
+    is the author's word for the question — a player is shown the
+    answers, and a heading naming the question would be a second
+    vocabulary they never agreed to. What a reader needs is that these
+    answers go together, which is the grouping itself.
     """
 
-    name: str | None
     choose: str
     options: list[HireOption] = field(default_factory=list)
+
+    @property
+    def offers_a_choice(self):
+        """Whether this axis is worth putting in front of anyone.
+
+        A one-of axis with a single option is not a question: the head
+        is taken unasked and there is nothing else to pick. An any-of
+        axis with one option is — taking it or not is the choice.
+        """
+        return len(self.options) > 1 or self.choose == "any"
 
 
 @dataclass
@@ -131,15 +145,17 @@ def build_hire_entry(profile, index=None):
     Pass ``index`` to share one modifier index across a whole list; without
     one it is built here, for a single entry.
     """
-    grouped = profile.grouped_options()
+    grouped = profile.grouped_offers()
     if not grouped or grouped[0][0] is not None:
         # Every entry has the default group, options or not.
         grouped = [(None, [])] + grouped
 
     cards = {None: build_card_from_profile(profile)}
-    for _, sets in grouped:
-        for default_set in sets:
-            cards[default_set.pk] = build_card_from_profile(profile, option=default_set)
+    for _, options in grouped:
+        for option in options:
+            cards[option.default_set.pk] = build_card_from_profile(
+                profile, option=option.default_set
+            )
 
     if index is None:
         index = build_modifier_index(
@@ -152,18 +168,18 @@ def build_hire_entry(profile, index=None):
         )
 
     groups = []
-    for group, sets in grouped:
+    for group, offered in grouped:
         one_of = group is None or group.choose == "one"
         options = [
             HireOption(
-                name=default_set.name,
-                price=default_set.price,
-                total_price=cards[default_set.pk].full_rating,
+                name=option.name,
+                price=option.default_set.price,
+                total_price=cards[option.default_set.pk].full_rating,
                 is_default=(one_of and position == 0),
-                default_set=default_set,
-                card=drawn(cards[default_set.pk]),
+                default_set=option.default_set,
+                card=drawn(cards[option.default_set.pk]),
             )
-            for position, default_set in enumerate(sets)
+            for position, option in enumerate(offered)
         ]
         if group is None and not options:
             options = [
@@ -178,7 +194,6 @@ def build_hire_entry(profile, index=None):
             ]
         groups.append(
             HireGroup(
-                name=group.name if group is not None else None,
                 choose=group.choose if group is not None else "one",
                 options=options,
             )

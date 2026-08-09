@@ -637,9 +637,9 @@ def create_default_set(name, members=(), price=0, **kwargs):
     return default_set
 
 
-def _free_set_name(carrier, **shared):
-    """A name for this carrier's own set of built-ins that nothing else
-    in the pack has taken.
+def _free_set_name(carrier, phrase="built-ins", **shared):
+    """A name for a set of this carrier's, ending in ``phrase``, that
+    nothing else in the pack has taken.
 
     The set is named after the thing that comes with it, so an author
     reading a list of sets can tell whose is whose. But a name is not an
@@ -647,6 +647,11 @@ def _free_set_name(carrier, **shared):
     the model that arrives when it does, and both are called the same
     thing — while a set name may appear only once in a pack. So the kind
     goes in when the plain name is spoken for, and a number after that.
+
+    ``phrase`` says which of the carrier's sets this is: the things it
+    always comes with, or the wording of one alternative it offers. Both
+    are read by authors alone, which is what lets a name grow a kind and
+    a number without anybody minding.
     """
     from itertools import chain, count
 
@@ -661,8 +666,8 @@ def _free_set_name(carrier, **shared):
     # Chained rather than collected: the numbered names never run out,
     # and a tuple of them would never finish being built.
     tries = chain(
-        (f"{label} built-ins", f"{label} ({kind}) built-ins"),
-        (f"{label} ({kind}) built-ins {number}" for number in count(2)),
+        (f"{label} {phrase}", f"{label} ({kind}) {phrase}"),
+        (f"{label} ({kind}) {phrase} {number}" for number in count(2)),
     )
     return next(name for name in tries if not taken.filter(name__iexact=name).exists())
 
@@ -725,31 +730,114 @@ def remove_default_member(member):
     member.delete()
 
 
-def offer_option(carrier, default_set, position=0, group=None, **kwargs):
+def offer_option(
+    carrier,
+    name,
+    price=0,
+    thing=None,
+    amount=0,
+    group=None,
+    position=None,
+    default_set=None,
+    **kwargs,
+):
     """Add an alternative offered when ``carrier`` is acquired.
 
     ``carrier`` is a profile (offered at hire) or a wargear (offered when
-    bought). Omit ``group`` for the carrier's default one-of axis; pass
-    one for a further axis (``create_option_group``).
+    bought). ``name`` is what a player is offered — "with razor-sharp
+    talons" — and ``price`` what taking it adds.
+
+    Founds the set of things this brings on first use, so an author
+    never makes the set by hand: pass ``thing`` for what it brings, and
+    add any others to the same set afterwards. The set's own name is
+    derived and read by authors alone, because set names are unique
+    across a pack while two profiles may perfectly well both offer "As
+    standard". Pass ``default_set`` to offer kit that already exists,
+    and the set's own price stands.
+
+    Omit ``group`` for the carrier's basic choice; pass one for a
+    further axis (``create_option_group``). New options go to the end of
+    whichever axis they join, so the first one an author adds to a
+    one-of axis is the one taken unasked.
+
+    ``amount`` is what the thing being brought asks for where it asks
+    for anything — a counter's opening value — and reaches the member
+    rather than the option.
     """
     from n26.library.models import Option
 
-    return Option.objects.create(
+    if default_set is None:
+        default_set = create_default_set(
+            _free_set_name(carrier, phrase=name, **kwargs), price=price, **kwargs
+        )
+    if position is None:
+        position = carrier.options.filter(group=group).count()
+    option = Option.objects.create(
         assignable=carrier,
+        name=name,
         default_set=default_set,
         position=position,
         group=group,
         **kwargs,
     )
+    if thing is not None:
+        add_default_member(default_set, thing, amount=amount, **kwargs)
+    return option
 
 
-def create_option_group(carrier, name, choose="one", position=0, **kwargs):
-    """A further axis of choice — ``choose`` is "one" or "any"."""
+def stop_offering(option):
+    """Take one alternative back off what a carrier offers.
+
+    The set of things it brought goes with it when nothing else holds
+    it: a set founded for one option is that option, and left behind it
+    is a bag nothing can reach. A set shared with something else stays,
+    and so does everything it names — a weapon offered as an option is
+    still a weapon.
+
+    What has already been acquired keeps it. An option is materialised
+    at the moment of hiring, and nothing retracts an assignment; this
+    changes what future acquisitions may choose.
+    """
+    from django.db.models import ProtectedError
+
+    default_set = option.default_set
+    option.delete()
+    try:
+        default_set.delete()
+    except ProtectedError:
+        # Everything that can hold a set holds it under protection, so
+        # the refusal is the answer: another option offers the same kit,
+        # or something always comes with it. Asking each kind in turn
+        # would be the same question with a list to keep up to date.
+        pass
+
+
+def create_option_group(carrier, name, choose="one", position=None, **kwargs):
+    """A further axis of choice — ``choose`` is "one" or "any".
+
+    The name is the author's alone; a player is shown the answers and
+    never the question. New axes go after the ones already there.
+    """
     from n26.library.models import OptionGroup
 
+    if position is None:
+        position = carrier.option_groups.count()
     return OptionGroup.objects.create(
         assignable=carrier, name=name, choose=choose, position=position, **kwargs
     )
+
+
+def remove_option_group(group):
+    """Take an axis of choice off a carrier, and the options on it.
+
+    The answers go with the question. An axis is what makes its options
+    alternatives to each other; loose in the basic choice they would
+    compete with the standard loadout instead, which is a different
+    offer from the one the author wrote.
+    """
+    for option in list(group.options.all()):
+        stop_offering(option)
+    group.delete()
 
 
 # --- Collections -----------------------------------------------------------

@@ -421,7 +421,13 @@ def spawn(default_pack, gang_type, fighter_type, fighter_stats):
         from n26.library.authoring import offer_option
 
         for band_position, band in enumerate(("2-5", "1", "6")):
-            offer_option(profile, offer_sets[band], position=band_position, group=group)
+            offer_option(
+                profile,
+                f"rolled {band}",
+                default_set=offer_sets[band],
+                position=band_position,
+                group=group,
+            )
         rolls[name] = offer_sets
     return profile, rolls
 
@@ -673,10 +679,15 @@ def phantom(default_pack, fighter_type, gang_type, skills_catalogue):
     )
     from n26.library.authoring import offer_option
 
-    offer_option(profile, create_default_set("Unawakened"), position=0)
+    offer_option(
+        profile, "Unawakened", default_set=create_default_set("Unawakened"), position=0
+    )
     offer_option(
         profile,
-        create_default_set("Master of Whispers option", members=[awakening], price=35),
+        "Awakened",
+        default_set=create_default_set(
+            "Master of Whispers option", members=[awakening], price=35
+        ),
         position=1,
     )
     return profile, powers

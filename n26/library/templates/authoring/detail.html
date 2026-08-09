@@ -106,8 +106,14 @@
                     </tbody>
                 </c-ui.table>
             {% else %}
+                {% comment %}
+                A section may say what having none of these means, where
+                that is a state rather than a gap: a profile with no
+                options is hired one way, which is a perfectly good thing
+                for a profile to be.
+                {% endcomment %}
                 <c-ui.description>
-                    None yet.
+                    {{ section.nothing_yet|default:"None yet." }}
                 </c-ui.description>
             {% endif %}
         </c-n26.form-section>

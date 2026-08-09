@@ -1713,6 +1713,266 @@ class TestTheGangSurface:
         assert not ganger.built_in_members.exists()
 
 
+class TestOfferingAChoice:
+    """A profile hired one way, turned into a profile with choices — all
+    of it through the pages.
+
+    The author's whole vocabulary here is a name, a price, what it
+    brings and which axis. They never meet a set of default
+    assignments: the verb founds one and names it for itself, because
+    two profiles may both offer "As standard" while a set name may
+    appear only once in a pack.
+    """
+
+    @pytest.fixture
+    def profile(self, author, client, default_pack, person_type, gang_type):
+        from n26.library.authoring import create_profile
+
+        return create_profile("Ganger", person_type, gang_type, price=55)
+
+    def page(self, client, profile):
+        return f"/n26/authoring/profile/{profile.pk}/"
+
+    def add_option(self, client, profile, **fields):
+        return client.post(self.page(client, profile), {"act": "option", **fields})
+
+    def test_a_profile_with_no_options_says_it_is_hired_one_way(
+        self, author, client, profile
+    ):
+        body = client.get(self.page(client, profile)).content.decode()
+        assert "This is acquired one way." in body
+        assert "Add an option to offer a choice instead." in body
+
+    def test_an_option_founds_the_set_that_holds_what_it_brings(
+        self, author, client, profile
+    ):
+        from n26.library.authoring import create_weapon
+
+        rifle = create_weapon("Long rifle", profiles=[("Standard", 0)])
+        response = self.add_option(
+            client,
+            profile,
+            name="with a long rifle",
+            price="35",
+            thing_kind="weapon",
+            thing_weapon=str(rifle.pk),
+        )
+        assert response.status_code == 302
+
+        option = profile.options.get()
+        assert option.name == "with a long rifle"
+        assert option.default_set.price == 35
+        assert [m.assignable for m in option.default_set.members.all()] == [rifle]
+        # The set's name is the author's business and the option's is the
+        # player's, so the two are allowed to differ — and do.
+        assert option.default_set.name != option.name
+
+    def test_a_second_thing_joins_the_option_through_its_set(
+        self, author, client, profile
+    ):
+        """An option that brings a breath *and* a set of talons is one
+        option with two things in it."""
+        from n26.library.authoring import add_default_member, create_weapon
+
+        breath = create_weapon("Gaseous eruption breath", profiles=[("Spray", 0)])
+        talons = create_weapon("Razor-sharp talons", profiles=[("Rend", 0)])
+        self.add_option(
+            client,
+            profile,
+            name="Eruption and razors",
+            price="50",
+            thing_kind="weapon",
+            thing_weapon=str(breath.pk),
+        )
+        option = profile.options.get()
+        add_default_member(option.default_set, talons)
+
+        body = client.get(self.page(client, profile)).content.decode()
+        assert "Gaseous eruption breath, Razor-sharp talons" in body
+
+    def test_an_option_may_bring_nothing(self, author, client, profile):
+        """The head of a one-of axis is often "as standard": the choice
+        is the other ones, and this is what taking none of them means."""
+        response = self.add_option(client, profile, name="As standard", price="0")
+        assert response.status_code == 302
+
+        option = profile.options.get()
+        assert option.name == "As standard"
+        assert not option.default_set.members.exists()
+        assert (
+            "brings nothing" in client.get(self.page(client, profile)).content.decode()
+        )
+
+    def test_two_profiles_may_both_offer_as_standard(
+        self, author, client, profile, person_type, gang_type
+    ):
+        """The collision the derived set name exists for. Set names are
+        unique within a pack; the wording a player reads is not."""
+        from n26.library.authoring import create_profile
+
+        other = create_profile("Juve", person_type, gang_type, price=25)
+        self.add_option(client, profile, name="As standard", price="0")
+        response = self.add_option(client, other, name="As standard", price="0")
+        assert response.status_code == 302
+
+        assert profile.options.get().name == other.options.get().name == "As standard"
+        assert profile.options.get().default_set != other.options.get().default_set
+
+    def test_the_options_with_no_axis_are_the_basic_choice(
+        self, author, client, profile
+    ):
+        self.add_option(client, profile, name="As standard", price="0")
+        self.add_option(client, profile, name="with a long rifle", price="35")
+
+        (group, options), *rest = profile.grouped_offers()
+        assert group is None and not rest
+        # The first added is the head, which is what a hire takes unasked.
+        assert [option.name for option in options] == [
+            "As standard",
+            "with a long rifle",
+        ]
+        assert "basic choice" in client.get(self.page(client, profile)).content.decode()
+
+    def test_a_further_axis_is_made_and_then_answered(self, author, client, profile):
+        from n26.library.models import OptionGroup
+
+        response = client.post(
+            self.page(client, profile),
+            {"act": "axis", "name": "Additional grenades", "choose": "any"},
+        )
+        assert response.status_code == 302
+        axis = OptionGroup.objects.get(name="Additional grenades")
+        assert axis.carrier == profile
+        assert axis.choose == "any"
+
+        self.add_option(
+            client, profile, name="Choke gas", price="50", group=str(axis.pk)
+        )
+        option = profile.options.get()
+        assert option.group == axis
+
+        body = client.get(self.page(client, profile)).content.decode()
+        assert "Additional grenades" in body
+        assert "any number" in body
+        assert "1 option" in body
+
+    def test_the_axis_picker_offers_this_profiles_axes_and_no_others(
+        self, author, client, profile, person_type, gang_type
+    ):
+        """An axis belongs to the thing that asks it, so a picker
+        offering somebody else's would offer a choice that cannot be
+        made — and the form refuses one submitted anyway."""
+        from n26.library.authoring import create_option_group, create_profile
+
+        mine = create_option_group(profile, "Melee weapons")
+        other = create_profile("Juve", person_type, gang_type, price=25)
+        theirs = create_option_group(other, "Somebody else's axis")
+
+        body = client.get(self.page(client, profile)).content.decode()
+        assert "Melee weapons" in body
+        assert "Somebody else's axis" not in body
+
+        response = self.add_option(
+            client, profile, name="Stray", price="0", group=str(theirs.pk)
+        )
+        assert response.status_code == 200
+        assert not profile.options.exists()
+        assert mine.options.count() == 0
+
+    def test_an_option_is_withdrawn_from_a_page_of_its_own(
+        self, author, client, profile
+    ):
+        from n26.library.authoring import create_weapon
+        from n26.library.models import DefaultAssignmentSet
+
+        rifle = create_weapon("Long rifle", profiles=[("Standard", 0)])
+        self.add_option(
+            client,
+            profile,
+            name="with a long rifle",
+            price="35",
+            thing_kind="weapon",
+            thing_weapon=str(rifle.pk),
+        )
+        option = profile.options.get()
+        gathered = option.default_set.pk
+
+        asked = client.get(f"/n26/authoring/options/{option.pk}/remove/")
+        assert asked.status_code == 200
+        body = asked.content.decode()
+        assert "Stop offering with a long rifle?" in body
+        assert "Long rifle" in body
+        # Asking changes nothing.
+        assert profile.options.exists()
+
+        done = client.post(f"/n26/authoring/options/{option.pk}/remove/")
+        assert done["Location"] == self.page(client, profile)
+        assert not profile.options.exists()
+        # The bag gathered for that one option goes with it; the weapon
+        # it named stays in the library.
+        assert not DefaultAssignmentSet.objects.filter(pk=gathered).exists()
+        rifle.refresh_from_db()
+
+    def test_removing_an_axis_takes_its_options_with_it(self, author, client, profile):
+        from n26.library.authoring import create_option_group
+        from n26.library.models import Option, OptionGroup
+
+        axis = create_option_group(profile, "Additional grenades", choose="any")
+        self.add_option(
+            client, profile, name="Choke gas", price="50", group=str(axis.pk)
+        )
+        self.add_option(client, profile, name="Stun", price="30", group=str(axis.pk))
+
+        body = client.get(f"/n26/authoring/axes/{axis.pk}/remove/").content.decode()
+        assert "Remove the Additional grenades axis?" in body
+        assert "Choke gas" in body
+        assert "Stun" in body
+
+        done = client.post(f"/n26/authoring/axes/{axis.pk}/remove/")
+        assert done["Location"] == self.page(client, profile)
+        assert not OptionGroup.objects.filter(pk=axis.pk).exists()
+        assert not Option.objects.filter(profile=profile).exists()
+
+    def test_what_was_authored_here_is_what_a_hire_screen_offers(
+        self, author, client, profile
+    ):
+        """The end of the chain: authored through the pages, read back
+        through the structure a player's screen is drawn from."""
+        from n26.core.hire import build_hire_entry
+        from n26.library.authoring import create_option_group, create_wargear
+
+        self.add_option(client, profile, name="As standard", price="0")
+        self.add_option(
+            client,
+            profile,
+            name="with a long rifle",
+            price="35",
+            thing_kind="wargear",
+            thing_wargear=str(create_wargear("Long rifle").pk),
+        )
+        grenades = create_option_group(profile, "Additional grenades", choose="any")
+        self.add_option(
+            client,
+            profile,
+            name="Choke gas grenades",
+            price="50",
+            group=str(grenades.pk),
+        )
+
+        entry = build_hire_entry(profile)
+        assert [option.name for option in entry.options] == [
+            "As standard",
+            "with a long rifle",
+        ]
+        assert entry.base_price == 55
+        assert [group.choose for group in entry.groups] == ["one", "any"]
+        assert [option.name for option in entry.groups[1].options] == [
+            "Choke gas grenades"
+        ]
+        # Prices sum rather than every combination being written out.
+        assert entry.groups[1].options[0].total_price == 105
+
+
 class TestTheCollectionPage:
     """A collection's page is a preview: the definition (sweeps and
     entries), and what it means right now — the same browse structure

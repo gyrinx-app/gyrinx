@@ -13,6 +13,12 @@ n26.hire hands us the answer. A group's `choose` is "one" or "any", which is
 radios or checkboxes, and the data layer has already marked the default of every
 one-of group. We render what it says rather than deciding again here.
 
+An axis is never named on this row. The content carries a name for one, but it
+is the author's word for the question and a player is here to answer it — so
+the grouping is shown as grouping (the controls together, a rule between axes,
+a line saying how many to take) and never as a heading naming the question.
+The structure does not carry the name at all, which is what makes that certain.
+
 The price on the row is the price of the configuration currently on screen, and
 it moves as the controls move. A fixed price beside controls that change it is
 worse than no price: it is a number that quietly stops being true.
@@ -129,22 +135,30 @@ The composed name is a sketch — a real app has an id here.
             <div @change="retotal($el)">
                 {% for group in entry.groups %}
                     {% comment %}
-                    A group with one option is not a choice. The default axis of a
-                    fighter who can only be hired one way is exactly that, and
-                    drawing a lone radio next to "As standard" asks a reader to
-                    consider something they cannot change.
+                    A group with one option is not a choice — the entry's own
+                    structure says which axes are worth asking about. Drawing a
+                    lone radio beside "As standard" asks a reader to consider
+                    something they cannot change.
                     {% endcomment %}
-                    {% if group.options|length > 1 or group.name %}
+                    {% if group.offers_a_choice %}
                         {% comment %}
-                        Named groups get a header saying which question this is
-                        and how many answers it takes. The default axis gets none:
-                        it has no name to print, and the fighter's own row is
-                        directly above it saying what is being configured.
+                        What an axis is called is the author's word for the
+                        question, and a player is being shown the answers — so
+                        the heading says how many of them to take and nothing
+                        else. The second and later axes are ruled off from the
+                        one above, which is the whole of how a reader is told
+                        these answers go together.
+
+                        The first axis gets no rule and no heading beyond its
+                        controls: the fighter's own row is directly above it,
+                        saying what is being configured, and radios that are
+                        plainly one group need no label to say so.
                         {% endcomment %}
-                        {% if group.name %}
-                            <div class="flex min-h-8 items-center gap-2 pt-1">
-                                <span class="text-xs font-semibold uppercase tracking-wide text-muted">{{ group.name }}</span>
-                                <span class="text-xs text-muted">{% if group.choose == "one" %}choose one{% else %}choose any{% endif %}</span>
+                        {% if not forloop.first %}
+                            <div class="mt-1 flex min-h-8 items-center gap-2 border-t border-box-border pt-2">
+                                <span class="text-xs font-semibold uppercase tracking-wide text-muted">
+                                    {% if group.choose == "one" %}Choose one{% else %}Choose any{% endif %}
+                                </span>
                             </div>
                         {% endif %}
 

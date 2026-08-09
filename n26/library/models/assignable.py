@@ -353,23 +353,36 @@ class Optioned(models.Model):
             if option.group_id is None
         ]
 
-    def grouped_options(self):
-        """Every axis of the choice, in order: ``[(group, [sets])]``.
+    def grouped_offers(self):
+        """Every axis of the choice, in order: ``[(group, [options])]``.
 
-        The default group comes first as ``(None, [sets])``, present only
-        when ungrouped options exist; then each named group by position.
-        Built from the prefetched options alone — the group rows ride in on
-        ``options__group`` — so a hire list pays no query per carrier.
+        The default group comes first as ``(None, [options])``, present
+        only when ungrouped options exist; then each named group by
+        position. Built from the prefetched options alone — the group
+        rows ride in on ``options__group`` — so a hire list pays no
+        query per carrier.
         """
-        heads, sets_by_group = [], {}
+        heads, by_group = [], {}
         for option in self.options.all():
             key = option.group_id
-            if key not in sets_by_group:
+            if key not in by_group:
                 heads.append(option.group)
-                sets_by_group[key] = []
-            sets_by_group[key].append(option.default_set)
+                by_group[key] = []
+            by_group[key].append(option)
         heads.sort(key=lambda g: (g is not None, g.position if g else 0))
-        return [(group, sets_by_group[group.pk if group else None]) for group in heads]
+        return [(group, by_group[group.pk if group else None]) for group in heads]
+
+    def grouped_options(self):
+        """The same axes, as the sets a selection is made of.
+
+        A selection names sets, because a set is what materialises;
+        what the option offering it is called is a question for whatever
+        puts the choice in front of a player.
+        """
+        return [
+            (group, [option.default_set for option in options])
+            for group, options in self.grouped_offers()
+        ]
 
     def resolve_selection(self, selection=None):
         """The sets a hire takes, given what the player named.

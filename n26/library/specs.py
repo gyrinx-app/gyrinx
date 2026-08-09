@@ -47,6 +47,23 @@ class _Sourced:
         model, field_name = self.source
         return str(model._meta.get_field(field_name).help_text)
 
+    @property
+    def label(self):
+        """What the model field calls itself, where it calls itself
+        anything — ``None`` otherwise, leaving the form to derive one.
+
+        Django names a field after its column unless told otherwise, so
+        a field that says something different is a field whose author
+        wanted a particular word in front of a reader: "Axis" above a
+        column called ``group``. Where nothing was said, the form's own
+        derivation says the same thing and this stays out of the way.
+        """
+        if self.source is None:
+            return None
+        model, field_name = self.source
+        stated = str(model._meta.get_field(field_name).verbose_name)
+        return None if stated == field_name.replace("_", " ") else stated
+
 
 @dataclass(frozen=True)
 class One(_Sourced):
@@ -56,11 +73,19 @@ class One(_Sourced):
     narrowing the queryset — ``("collection",)`` on a section pick means
     "a section of *that* collection", enforced in the generated form's
     ``clean()`` in words (step 2).
+
+    ``within`` names the accessor on the thing a part is being added to
+    that lists the only rows worth offering — ``"option_groups"`` on an
+    axis pick means "an axis of *this* profile". Unlike ``filtered_by``
+    it narrows the picker as well as refusing a stray, because the rows
+    it excludes belong to other people's things and there is nothing to
+    be gained by showing them.
     """
 
     model: type = None
     optional: bool = False
     filtered_by: tuple = ()
+    within: str = ""
 
 
 @dataclass(frozen=True)
@@ -238,6 +263,7 @@ def _build_registry():
         Counter,
         CounterAtLeast,
         DefaultAssignment,
+        DefaultAssignmentSet,
         GangType,
         HasSubtypes,
         HasTraits,
@@ -247,6 +273,8 @@ def _build_registry():
         LastingEffect,
         OffersChoice,
         OpAddsMiniature,
+        Option,
+        OptionGroup,
         PlacesCategory,
         Power,
         Profile,
@@ -692,6 +720,31 @@ def _build_registry():
             # ATTACHMENT_ASKS, resolved through the union.
             {"thing": Union(over=built_in_kinds, through=DefaultAssignment)},
             model=DefaultAssignment,
+        ),
+        # The choice a thing offers when it is acquired. No set appears
+        # here: the author says what the option is called, what it costs
+        # and what it brings, and the verb founds the set that holds it.
+        Spec(
+            authoring.offer_option,
+            {
+                "name": Text(source=(Option, "name")),
+                "price": Int(source=(DefaultAssignmentSet, "price")),
+                "thing": Union(over=built_in_kinds, through=DefaultAssignment),
+                "group": One(
+                    model=OptionGroup,
+                    optional=True,
+                    within="option_groups",
+                    source=(Option, "group"),
+                ),
+            },
+            model=Option,
+        ),
+        Spec(
+            authoring.create_option_group,
+            {
+                "name": Text(source=(OptionGroup, "name")),
+                "choose": Choice(source=(OptionGroup, "choose")),
+            },
         ),
     ]
     return {spec.name: spec for spec in specs}

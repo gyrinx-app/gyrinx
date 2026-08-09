@@ -143,6 +143,57 @@ def _built_in_parts(parts):
     return parts.prefetch_related(*DefaultAssignment.ASSIGNABLE_FIELDS)
 
 
+def _describe_option(option):
+    """One alternative, as the author needs to check it: which axis it
+    answers, what taking it adds, and what it brings.
+
+    The axis is named here and nowhere a player looks — this is the page
+    where an author decides which question they are editing.
+    """
+    axis = option.group.name if option.group_id else "basic choice"
+    brings = ", ".join(_label_for(member.assignable) for member in _brought_by(option))
+    price = f"+{option.default_set.price}cr" if option.default_set.price else "no extra"
+    return option.name, [axis, price, brings or "brings nothing"]
+
+
+def _brought_by(option):
+    """What one option's set holds, in the order it was written."""
+    return option.default_set.members.all()
+
+
+def _describe_option_group(group):
+    """One axis: how many answers it takes, and how many it offers."""
+    taken = "exactly one" if group.choose == "one" else "any number"
+    offered = len(group.options.all())
+    return group.name, [taken, f"{offered} option{'' if offered == 1 else 's'}"]
+
+
+def _option_parts(parts):
+    """The options of one carrier, listed axis by axis.
+
+    Their own ordering is by position alone, which is what a hire needs:
+    within an axis, the first is the one taken unasked. On a page
+    listing every axis at once that interleaves them — the first answer
+    to the second question sits between the first and second answers to
+    the basic choice — so the axis leads here. The basic choice is
+    first, having no axis at all.
+    """
+    from django.db.models import F
+
+    from n26.library.models import DefaultAssignment
+
+    return (
+        parts.select_related("group", "default_set")
+        .prefetch_related(
+            *(
+                f"default_set__members__{name}"
+                for name in DefaultAssignment.ASSIGNABLE_FIELDS
+            )
+        )
+        .order_by(F("group__position").asc(nulls_first=True), "position")
+    )
+
+
 #: A kind's own parts: the things only that kind has, added to one of
 #: its rows over time. At most one section per kind, and a post naming
 #: no section is for this one.
@@ -202,6 +253,65 @@ BUILT_INS_PART = {
 }
 
 
+#: The alternatives a thing offers when it is acquired, in the same
+#: shape as a kind's own parts. Filed apart for the same reason
+#: built-ins are: which pages draw it is read off the model
+#: (``_offers_options``) rather than listed.
+#:
+#: An option's own set of things is never mentioned. The author says
+#: what the choice is called, what taking it adds and what it brings;
+#: the set that holds them is founded by the verb and named for authors
+#: alone, because two profiles may both offer "As standard" while a set
+#: name may appear once in a pack.
+OPTIONS_PART = {
+    "act": "option",
+    "verb": "offer_option",
+    "parts": "options",
+    "statline": False,
+    "describe": _describe_option,
+    "parts_label": "choices offered",
+    "part_name": "option",
+    "parts_hint": _option_parts,
+    "parts_description": (
+        "What may be picked instead of, or as well as, the standard "
+        "loadout. Options with no axis form the basic choice: exactly one "
+        "of those is taken, and the first is taken unasked. Adding one "
+        "option to a thing hired one way is what turns it into a choice."
+    ),
+    "nothing_yet": (
+        "This is acquired one way. Add an option to offer a choice instead."
+    ),
+    "removes": "authoring-option-remove",
+}
+
+#: The further axes of choice a thing offers. A carrier needs none —
+#: options with no axis are the basic choice — so this section is for
+#: the second question and the third: choke gas *and* stun grenades,
+#: each answered on its own.
+AXES_PART = {
+    "act": "axis",
+    "verb": "create_option_group",
+    "parts": "option_groups",
+    "statline": False,
+    "describe": _describe_option_group,
+    "parts_label": "further axes",
+    "part_name": "axis",
+    "parts_hint": lambda parts: parts.prefetch_related("options"),
+    "parts_description": (
+        "A second question this asks when it is acquired, answered apart "
+        "from the basic choice — prices add up rather than every "
+        "combination being written out. An axis is named for you and "
+        "never shown to a player: they see the answers and the wording "
+        "of each is the option's own."
+    ),
+    "nothing_yet": (
+        "None — and most things need none. The basic choice above is one "
+        "axis already; a second is for a question answered apart from it."
+    ),
+    "removes": "authoring-axis-remove",
+}
+
+
 def _carries_modifiers(kind):
     """Whether this kind's rows can carry modifiers — true for every
     assignable (the mixin's M2M is the tell), never for the foundation
@@ -222,14 +332,34 @@ def _carries_built_ins(kind):
     return hasattr(_model_for(_spec_for(kind)), "built_in_members")
 
 
+def _offers_options(kind):
+    """Whether this kind's rows offer alternatives when acquired.
+
+    Read off the model, like the built-ins section: a profile and a
+    piece of wargear opt into the mixin that gives them ``options``, and
+    a kind that opts in later gets these sections without anyone
+    remembering to say so.
+    """
+    return hasattr(_model_for(_spec_for(kind)), "options")
+
+
 def _part_sections(kind):
     """Every section of parts this kind's page draws, in the order they
-    appear: what only this kind has, then what anything can come with."""
+    appear: what only this kind has, then what anything can come with,
+    then what it lets the buyer choose between.
+
+    The choices come last, and the axes after the options: an author
+    writes what a thing comes with before writing what may be swapped
+    for it, and the basic choice covers most of what they need before
+    a second axis is worth making.
+    """
     sections = []
     if kind in DETAIL_KINDS:
         sections.append(DETAIL_KINDS[kind])
     if _carries_built_ins(kind):
         sections.append(BUILT_INS_PART)
+    if _offers_options(kind):
+        sections.extend([OPTIONS_PART, AXES_PART])
     return sections
 
 
@@ -787,7 +917,7 @@ def detail(request, kind, pk):
             else None
         )
         if section is posted_to and request.method == "POST":
-            form = form_class(request.POST, request.FILES)
+            form = form_class(request.POST, request.FILES, carrier=thing)
             statline_form = statline_class(request.POST) if statline_class else None
             forms_valid = form.is_valid() and (
                 statline_form is None or statline_form.is_valid()
@@ -801,7 +931,7 @@ def detail(request, kind, pk):
                 messages.success(request, f"Added {said}.")
                 return redirect("authoring-detail", kind=kind, pk=pk)
         else:
-            form = form_class()
+            form = form_class(carrier=thing)
             statline_form = statline_class() if statline_class else None
         removes = section.get("removes")
         parts = []
@@ -828,6 +958,7 @@ def detail(request, kind, pk):
                     "parts_label", part_model._meta.verbose_name_plural
                 ),
                 "parts_description": section.get("parts_description", ""),
+                "nothing_yet": section.get("nothing_yet", ""),
                 "part_help": kind_help(part_model),
                 "wants_statline": section["statline"],
                 "parts": parts,
@@ -962,6 +1093,116 @@ def built_in_remove(request, pk):
             "holders": holders,
             "shared": len(holders) > 1,
             "riders": [_label_for(rider.assignable) for rider in riders],
+            "back": back,
+        },
+    )
+
+
+def _carrier_page(carrier):
+    """The page of the thing an option or an axis belongs to."""
+    kind = _kind_slugs().get(type(carrier))
+    if kind is None:
+        return reverse("authoring-index")
+    return reverse("authoring-detail", args=[kind, carrier.pk])
+
+
+@staff_member_required
+def option_remove(request, pk):
+    """The question asked before an alternative is withdrawn.
+
+    A page rather than a control in the row, because what the act
+    reaches cannot be read off the row. The kit the option would have
+    brought goes with it — that set was founded for this option and
+    nothing else can reach it — while the weapons and skills it names
+    stay in the library untouched.
+
+    Taking the last option off an axis leaves the axis with nothing to
+    answer it, and taking every option off the basic choice makes the
+    thing hired one way again. Both are said here, because both are
+    changes to what a hire screen offers rather than to this row alone.
+    """
+    from n26.library import authoring
+    from n26.library.models import Option
+
+    option = get_object_or_404(
+        Option.objects.select_related(
+            "group", "default_set", *Option.ASSIGNABLE_FIELDS
+        ),
+        pk=pk,
+    )
+    carrier = option.carrier
+    back = _carrier_page(carrier)
+
+    if request.method == "POST":
+        with transaction.atomic():
+            authoring.stop_offering(option)
+        messages.success(request, f"{carrier} no longer offers {option.name}.")
+        return redirect(back)
+
+    shared_with = [
+        holder
+        for holder in _holders_of(option.default_set)
+        if not (
+            holder["pk"] == carrier.pk and holder["how"] == "offers it as an option"
+        )
+    ]
+    return render(
+        request,
+        "authoring/option_remove.html",
+        {
+            "thing": option,
+            "label": option.name,
+            "carrier": carrier,
+            "axis": option.group.name if option.group_id else "",
+            "brings": [_label_for(member.assignable) for member in _brought_by(option)],
+            # A set founded for this option is reached through it and
+            # nothing else, so it goes when the option does. One offered
+            # somewhere else as well stays, and so does everything in it.
+            "shared_with": shared_with,
+            "last_on_its_axis": bool(option.group_id)
+            and option.group.options.count() == 1,
+            "back": back,
+        },
+    )
+
+
+@staff_member_required
+def axis_remove(request, pk):
+    """The question asked before an axis of choice is taken off.
+
+    The answers go with the question, and that is the whole reason this
+    is a page: the row says how many options an axis holds and not what
+    becomes of them. Loose in the basic choice they would compete with
+    the standard loadout instead of with each other, which is a
+    different offer from the one the author wrote — so they go too.
+    """
+    from n26.library import authoring
+    from n26.library.models import OptionGroup
+
+    group = get_object_or_404(
+        OptionGroup.objects.select_related(
+            *OptionGroup.ASSIGNABLE_FIELDS
+        ).prefetch_related("options__default_set"),
+        pk=pk,
+    )
+    carrier = group.carrier
+    back = _carrier_page(carrier)
+
+    if request.method == "POST":
+        said = group.name
+        with transaction.atomic():
+            authoring.remove_option_group(group)
+        messages.success(request, f"Took {said} off {carrier}.")
+        return redirect(back)
+
+    return render(
+        request,
+        "authoring/axis_remove.html",
+        {
+            "thing": group,
+            "label": group.name,
+            "carrier": carrier,
+            "options": [option.name for option in group.options.all()],
             "back": back,
         },
     )

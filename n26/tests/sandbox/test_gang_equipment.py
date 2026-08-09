@@ -129,7 +129,7 @@ def trazior(vehicle_type, gang_type):
         options[key] = create_default_set(
             f"Trazior {key} option", members=[deployer], price=option_price
         )
-        offer_option(sentry_gun, options[key], position=position)
+        offer_option(sentry_gun, key, default_set=options[key], position=position)
     return sentry_gun, platforms, options
 
 

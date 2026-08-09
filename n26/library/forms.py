@@ -163,6 +163,7 @@ def _form_fields(spec, name, kind):
                 queryset=_labelled(kind.model),
                 required=_is_required(spec, name),
                 help_text=kind.help,
+                label=kind.label,
             )
         }
     if isinstance(kind, Many):
@@ -171,12 +172,15 @@ def _form_fields(spec, name, kind):
                 queryset=_labelled(kind.model),
                 required=_is_required(spec, name),
                 help_text=kind.help,
+                label=kind.label,
             )
         }
     if isinstance(kind, Int):
         return {
             name: forms.IntegerField(
-                required=_is_required(spec, name), help_text=kind.help
+                required=_is_required(spec, name),
+                help_text=kind.help,
+                label=kind.label,
             )
         }
     if isinstance(kind, Bool):
@@ -185,6 +189,7 @@ def _form_fields(spec, name, kind):
                 required=False,
                 initial=_switch_default(spec, name) is True,
                 help_text=kind.help,
+                label=kind.label,
             )
         }
     if isinstance(kind, Text):
@@ -192,6 +197,7 @@ def _form_fields(spec, name, kind):
             name: forms.CharField(
                 required=_is_required(spec, name),
                 help_text=kind.help,
+                label=kind.label,
                 widget=forms.Textarea(attrs={"rows": 3})
                 if getattr(kind, "long", False)
                 else forms.TextInput(),
@@ -222,6 +228,7 @@ def _form_fields(spec, name, kind):
                 choices=kind.choices,
                 required=_is_required(spec, name),
                 help_text=kind.help,
+                label=kind.label,
             )
         }
     if isinstance(kind, Union):
@@ -235,9 +242,16 @@ def _form_fields(spec, name, kind):
         def spoken(option):
             return option.replace("_", " ")
 
+        # A union whose parameter has a default may be left alone, like
+        # any other. The blank choice has to be offered for that to be
+        # possible: a select with no empty entry submits its first
+        # option, so "nothing" would be unsayable.
+        wanted = _is_required(spec, name)
+        blank = [] if wanted else [("", "Nothing")]
         fields = {
             f"{name}_kind": forms.ChoiceField(
-                choices=[(option, spoken(option)) for option in kind.over],
+                choices=blank + [(option, spoken(option)) for option in kind.over],
+                required=wanted,
                 label="Kind",
                 widget=forms.Select(attrs={"data-union-kind": name}),
             )
@@ -333,15 +347,31 @@ class GeneratedForm(forms.Form):
     #: chosen kind's and verb_data() can pass them on.
     union_asks = {}
 
-    def __init__(self, *args, collection=None, **kwargs):
+    def __init__(self, *args, collection=None, carrier=None, **kwargs):
         super().__init__(*args, **kwargs)
         #: The collection this form is being filled *within*, when the
         #: flow knows one — what filtered_by checks against.
         self.collection = collection
+        #: The thing this part is being added to, when the flow knows
+        #: one — what ``within`` narrows a picker to.
+        self.carrier = carrier
+        if carrier is None:
+            return
+        for name, kind in self.spec.fields.items():
+            if isinstance(kind, One) and kind.within:
+                self.fields[name].queryset = getattr(carrier, kind.within).all()
 
     def clean(self):
         cleaned = super().clean()
         for name, kind in self.spec.fields.items():
+            if isinstance(kind, One) and kind.within and self.carrier is not None:
+                picked = cleaned.get(name)
+                # The narrowed queryset has already refused a stray, so
+                # this is the case where nothing narrowed it: a form
+                # built without its carrier would otherwise accept an
+                # axis belonging to somebody else's profile.
+                if picked is not None and picked.carrier != self.carrier:
+                    self.add_error(name, f"That belongs to {picked.carrier}.")
             if isinstance(kind, One) and "collection" in kind.filtered_by:
                 picked = cleaned.get(name)
                 if (

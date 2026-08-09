@@ -84,7 +84,8 @@ def khimerix(person_type, gang_type, weapons, default_pack):
     ):
         offer_option(
             profile,
-            create_default_set(
+            name,
+            default_set=create_default_set(
                 name, members=[weapons[n] for n in members], price=price
             ),
             position=position,

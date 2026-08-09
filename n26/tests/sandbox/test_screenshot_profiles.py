@@ -202,7 +202,8 @@ def arachni_rig(vehicle_type, gang_type, default_pack):
     for position, (name, cost) in enumerate([("Rad gun", 35), ("Plasma gun", 75)]):
         offer_option(
             profile,
-            create_default_set(
+            name,
+            default_set=create_default_set(
                 name,
                 members=[create_weapon(name, profiles=[("Standard", 0)]), conversion],
                 price=cost,
@@ -368,7 +369,8 @@ def sanctioner(fighter_type, gang_type, default_pack):
     position = iter(range(100))
     offer_option(
         profile,
-        create_default_set("Claw and baton", members=[claw, baton]),
+        "Claw and baton",
+        default_set=create_default_set("Claw and baton", members=[claw, baton]),
         position=next(position),
     )
     for name, (weapon, price) in replacements.items():
@@ -379,7 +381,8 @@ def sanctioner(fighter_type, gang_type, default_pack):
         ]:
             offer_option(
                 profile,
-                create_default_set(
+                f"{name} ({kept_name})",
+                default_set=create_default_set(
                     f"{name} ({kept_name})", members=[weapon, *kept], price=price
                 ),
                 position=next(position),
@@ -394,7 +397,8 @@ def sanctioner(fighter_type, gang_type, default_pack):
         ammo = launcher.profiles.get(name=name)
         offer_option(
             profile,
-            create_default_set(name, members=[ammo], price=ammo.price),
+            name,
+            default_set=create_default_set(name, members=[ammo], price=ammo.price),
             group=grenades,
             position=position,
         )
@@ -536,7 +540,8 @@ def exo_driller(fighter_type, gang_type, default_pack):
     profile.save()
     offer_option(
         profile,
-        create_default_set(
+        "Heavy flamer",
+        default_set=create_default_set(
             "Heavy flamer",
             members=[create_weapon("Heavy flamer", profiles=[("Flame", 0)])],
         ),
@@ -544,7 +549,8 @@ def exo_driller(fighter_type, gang_type, default_pack):
     )
     offer_option(
         profile,
-        create_default_set(
+        "Heavy bolter",
+        default_set=create_default_set(
             "Heavy bolter",
             members=[create_weapon("Heavy bolter", profiles=[("Burst", 0)])],
             price=10,
@@ -618,7 +624,8 @@ def zerker(fighter_type, gang_type, default_pack):
     profile.save()
     offer_option(
         profile,
-        create_default_set(
+        "Open fists",
+        default_set=create_default_set(
             "Open fists",
             members=[create_weapon("Open fists", profiles=[("Pummel", 0)])],
         ),
@@ -626,7 +633,8 @@ def zerker(fighter_type, gang_type, default_pack):
     )
     offer_option(
         profile,
-        create_default_set(
+        "Mutated fists & bone spurs",
+        default_set=create_default_set(
             "Mutated fists & bone spurs",
             members=[
                 create_weapon("Mutated fists & bone spurs", profiles=[("Gouge", 0)])
@@ -638,7 +646,8 @@ def zerker(fighter_type, gang_type, default_pack):
     stash = create_option_group(profile, "Stimm-slug stash", choose="any", position=1)
     offer_option(
         profile,
-        create_default_set(
+        "Stimm-slug stash",
+        default_set=create_default_set(
             "Stimm-slug stash", members=[create_wargear("Stimm-slug stash")], price=25
         ),
         group=stash,
@@ -682,8 +691,11 @@ class TestTheHireScreen:
 
         rig = by_name["Van Saar Ash Wastes 'Arachni-Rig'"]
         assert rig.base_price == 275
-        assert [g.name for g in rig.groups] == [None, "Weapon hardpoints"]
-        assert rig.groups[1].choose == "any"
+        # Two axes: the basic choice, then the hardpoints. What the
+        # author calls the second one is not here to be asserted on —
+        # a player is shown the answers, never the question.
+        assert [g.choose for g in rig.groups] == ["one", "any"]
+        assert [o.name for o in rig.groups[1].options] == ["Rad gun", "Plasma gun"]
 
         automata = by_name["Enforcer 'Sanctioner' Pattern Automata"]
         assert automata.base_price == 235
@@ -727,7 +739,11 @@ class TestTheHireScreen:
                     else None
                 )
                 offer_option(
-                    clone, option.default_set, position=option.position, group=group
+                    clone,
+                    option.name,
+                    default_set=option.default_set,
+                    position=option.position,
+                    group=group,
                 )
 
         assert len(build_hire_list(gang_type)) == 7

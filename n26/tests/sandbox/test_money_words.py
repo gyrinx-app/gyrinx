@@ -143,6 +143,116 @@ def test_no_player_facing_structure_carries_a_qualifier():
     )
 
 
+# --- An axis is never named to a player -------------------------------------
+#
+# An option group's name is the author's word for one question a profile
+# asks at hire — "Melee weapons", "Additional grenades". The player is
+# being shown the answers, with the fighter they apply to directly above
+# them, so a heading naming the question is a second vocabulary they
+# never agreed to and one more thing to read past. Same rule as the
+# qualifier, guarded the same way: the structures a player's screen is
+# drawn from must not carry it anywhere.
+
+
+def hire_entry_with_a_named_axis():
+    """A profile offering one axis, named as distinctively as possible.
+
+    A walk over what comes out is only as good as the name it looks for,
+    so the name is one no template, stylesheet or price could contain by
+    accident.
+    """
+    from django.contrib.auth.models import User  # noqa: F401
+
+    from n26.core.hire import build_hire_entry
+    from n26.library.authoring import (
+        create_gang_type,
+        create_option_group,
+        create_profile,
+        create_wargear,
+        offer_option,
+    )
+    from n26.library.models import ProfileType
+    from n26.library.standard_content import STANDARD_CONTENT
+
+    STANDARD_CONTENT["model-characteristics"].create()
+    gang_type = create_gang_type("Van Saar")
+    profile = create_profile(
+        "Arachni-Rig", ProfileType.objects.get(name="Fighter"), gang_type, price=275
+    )
+    axis = create_option_group(profile, AXIS_NAME, choose="any")
+    offer_option(
+        profile, "Rad gun", price=35, thing=create_wargear("Rad gun"), group=axis
+    )
+    return build_hire_entry(profile)
+
+
+#: The author's word for the axis, which nothing a player reads may echo.
+AXIS_NAME = "Weapon hardpoints (author's shorthand)"
+
+
+def every_value_in(thing, seen=None):
+    """Every value reachable through the dataclasses of a structure.
+
+    Walks rather than checking the fields we happen to know about, so a
+    field added later is covered the day it appears.
+    """
+    seen = set() if seen is None else seen
+    if id(thing) in seen:
+        return
+    seen.add(id(thing))
+    yield thing
+    if dataclasses.is_dataclass(thing) and not isinstance(thing, type):
+        for field in dataclasses.fields(thing):
+            yield from every_value_in(getattr(thing, field.name), seen)
+    elif isinstance(thing, (list, tuple, set)):
+        for item in thing:
+            yield from every_value_in(item, seen)
+    elif isinstance(thing, dict):
+        for item in thing.values():
+            yield from every_value_in(item, seen)
+
+
+@pytest.mark.django_db
+def test_no_player_facing_structure_carries_an_axis_name():
+    """Walked rather than listed: a new field on any of the hire
+    structures is covered without anyone remembering to come back."""
+    from n26.library.models import OptionGroup
+
+    entry = hire_entry_with_a_named_axis()
+    offenders = [
+        value
+        for value in every_value_in(entry)
+        if isinstance(value, OptionGroup)
+        or (isinstance(value, str) and AXIS_NAME in value)
+    ]
+    assert not offenders, (
+        f"{offenders} would put an author's name for a question in front of "
+        f"the player answering it. An axis is shown as grouping — the "
+        f"controls together, a rule between axes — and never as a heading."
+    )
+
+
+@pytest.mark.django_db
+def test_a_hire_row_shows_the_answers_and_not_the_question():
+    """The end of the chain: the drawn row names every option and never
+    the axis they sit on."""
+    from django.template import Context, Template
+    from django_cotton.compiler_regex import CottonCompiler
+
+    entry = hire_entry_with_a_named_axis()
+    # Cotton's tags are rewritten by a template loader, so a template
+    # built from a string never sees them; running the compiler by hand
+    # is what lets a test write the call site it is checking.
+    drawn = Template(
+        CottonCompiler().process(
+            '<c-n26.profile-picker.row :entry="entry" value="rig" />'
+        )
+    ).render(Context({"entry": entry}))
+    assert "Rad gun" in drawn
+    assert "Choose any" in drawn
+    assert AXIS_NAME not in drawn
+
+
 @pytest.mark.django_db
 def test_a_qualified_thing_draws_without_its_qualifier():
     """The end of the chain: a card built from a qualified weapon must

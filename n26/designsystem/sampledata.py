@@ -1048,16 +1048,19 @@ _GANG_LIST = [
 
 #: A second axis of choice, for the profiles that have one.
 #:
-#: Option groups are main's answer to combinatorial blow-up: twelve authored sets
+#: Option groups are the answer to combinatorial blow-up: twelve authored sets
 #: where flat combinations needed forty. A group is an axis — "choose one" is a
 #: radio, "choose any" is checkboxes — and the hire view shows one card per
 #: option against an otherwise-default selection, never one card per combination.
+#:
+#: An axis carries no name here because the structure carries none: what the
+#: content calls one is written for authors, and a player reads the answers.
 _OPTION_GROUPS = {
     "Gang Queen": [
-        ("Wargear", "any", [("photo-goggles", 35), ("bio-booster", 35)]),
+        ("any", [("photo-goggles", 35), ("bio-booster", 35)]),
     ],
     "Khimerix": [
-        ("Mutation", "one", [("scaly hide", 0), ("caustic bite", 15), ("wings", 30)]),
+        ("one", [("scaly hide", 0), ("caustic bite", 15), ("wings", 30)]),
     ],
 }
 
@@ -1071,7 +1074,6 @@ def extra_groups(profile_name, subtype, base_price):
     """
     return [
         HireGroup(
-            name=group_name,
             choose=choose,
             options=[
                 HireOption(
@@ -1088,7 +1090,7 @@ def extra_groups(profile_name, subtype, base_price):
                 for number, (option_name, surcharge) in enumerate(options)
             ],
         )
-        for group_name, choose, options in _OPTION_GROUPS.get(profile_name, [])
+        for choose, options in _OPTION_GROUPS.get(profile_name, [])
     ]
 
 
@@ -1159,7 +1161,7 @@ def hire_list():
                     # The default group first, always — "As standard" is
                     # synthesised when a profile offers no plain alternatives, so
                     # a renderer never branches on whether choices exist.
-                    groups=[HireGroup(name=None, choose="one", options=options)]
+                    groups=[HireGroup(choose="one", options=options)]
                     + extra_groups(name, subtype, price),
                 )
             )
