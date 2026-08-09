@@ -136,6 +136,19 @@ def owned_things(card):
     The gang's own rows are skipped for a second reason. They ride every
     member's card so gang-wide rules reach them, but they are the gang's
     property and not this fighter's to sell.
+
+    A **granted** weapon is skipped for a third: it is lent, not owned. A
+    modifier puts it on the card and nobody bought it, so there is
+    nothing to sell, nothing to hand to another fighter, and nothing for
+    an accessory to hang off. It is skipped twice over — this reads
+    ``card.roots``, which holds what the gang owns, while a grant lives
+    on ``card.granted``; and a granted line carries no assignment. The
+    consequence a reader should expect on the equipment screen: a row for
+    something the fighter owns replaces its Buy button, and a granted
+    weapon does not, so a fighter lent a pair of claws is still offered
+    claws. That is deliberate — the lent pair goes when its granter does,
+    and being unable to buy a pair of your own would be the worse
+    surprise.
     """
     index = {}
     for node in card.roots:
