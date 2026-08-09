@@ -1,41 +1,67 @@
 {% extends "authoring/base.html" %}
 {% block head_title %}
-    New modifier
+    {% if carrier %}New modifier for {{ carrier }}{% else %}New modifier{% endif %}
 {% endblock head_title %}
 {% block nav_heading %}Modifiers{% endblock nav_heading %}
 {% block nav_items %}
     {% include 'n26/_nav.html' with here='modifiers' %}
 {% endblock nav_items %}
 {% block content %}
-    <c-n26.page-header title="New modifier"
-                       lead="Pick who it reaches and what it does; the fields for both follow.">
-        <c-slot name="breadcrumb">
-            <c-ui.breadcrumbs>
-                <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Content library</c-ui.breadcrumbs.item>
-                <c-ui.breadcrumbs.item href="{% url 'authoring-modifiers' %}">Modifiers</c-ui.breadcrumbs.item>
-                <c-ui.breadcrumbs.item :current="True">
-                    New
-                </c-ui.breadcrumbs.item>
-            </c-ui.breadcrumbs>
-        </c-slot>
-    </c-n26.page-header>
     {% comment %}
-    Composed here, a modifier attaches to nothing — so the page says where
-    it goes, rather than leaving an author to wonder why the thing they
-    just made changed nothing.
+    Two pages in one, told apart by whether a carrier was named in the
+    address. Composing for a carrier says so in the heading and leads
+    back to it; composing for nothing is the standalone page, reached
+    from the modifiers listing.
+
+    One template rather than two, because the thing being filled in is
+    the same form either way and the only differences are the words
+    around it. Two would be two places to change the composer's chrome.
     {% endcomment %}
-    <c-n26.prose class="mt-3 max-w-2xl">
-        <p>
-            What this makes is reusable: it hangs on nothing until a carrier is
-            given it, and waits in every carrier page's attach picker until
-            then. To arm one thing, compose it on that thing's own page instead.
-        </p>
-    </c-n26.prose>
-    {# The way out leads to the listing, which is where a successful create #}
-    {# lands too. Resolved to a name first, because an include's `with` takes #}
-    {# variables rather than tags. #}
-    {% url 'authoring-modifiers' as modifiers_url %}
+    {% if carrier %}
+        <c-n26.page-header title="New modifier for {{ carrier }}"
+                           lead="Pick who it reaches and what it does; the fields for both follow.">
+            <c-slot name="breadcrumb">
+                <c-ui.breadcrumbs>
+                    <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Content library</c-ui.breadcrumbs.item>
+                    <c-ui.breadcrumbs.item href="{% url 'authoring-detail' kind=carrier_kind pk=carrier.pk %}">{{ carrier }}</c-ui.breadcrumbs.item>
+                    <c-ui.breadcrumbs.item :current="True">
+                        New modifier
+                    </c-ui.breadcrumbs.item>
+                </c-ui.breadcrumbs>
+            </c-slot>
+        </c-n26.page-header>
+    {% else %}
+        <c-n26.page-header title="New modifier"
+                           lead="Pick who it reaches and what it does; the fields for both follow.">
+            <c-slot name="breadcrumb">
+                <c-ui.breadcrumbs>
+                    <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Content library</c-ui.breadcrumbs.item>
+                    <c-ui.breadcrumbs.item href="{% url 'authoring-modifiers' %}">Modifiers</c-ui.breadcrumbs.item>
+                    <c-ui.breadcrumbs.item :current="True">
+                        New
+                    </c-ui.breadcrumbs.item>
+                </c-ui.breadcrumbs>
+            </c-slot>
+        </c-n26.page-header>
+        {% comment %}
+        Composed here with nothing named, a modifier attaches to nothing —
+        so the page says where it goes, rather than leaving an author to
+        wonder why the thing they just made changed nothing.
+        {% endcomment %}
+        <c-n26.prose class="mt-3 max-w-2xl">
+            <p>
+                What this makes is reusable: it hangs on nothing until a carrier is
+                given it, and waits in every carrier page's attach picker until
+                then. To arm one thing, compose it on that thing's own page instead.
+            </p>
+        </c-n26.prose>
+    {% endif %}
+    {% comment %}
+    Where the way out leads is the view's to say: back to the carrier that
+    sent you, or to the listing when nothing did — which is also where a
+    successful create lands in each case.
+    {% endcomment %}
     <div class="mt-6">
-        {% include "authoring/_composer.html" with show_reusable_flag=False composer_title="" composer_description="" composer_class="" composer_submit_label="Create modifier" composer_cancel_url=modifiers_url %}
+        {% include "authoring/_composer.html" with composer_carrier_kind=carrier_kind composer_carrier_pk=carrier.pk composer_title="" composer_description="" composer_class="" %}
     </div>
 {% endblock content %}

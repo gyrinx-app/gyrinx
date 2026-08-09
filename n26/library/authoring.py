@@ -26,7 +26,6 @@ see CLAUDE.md.
 """
 
 import re
-from dataclasses import dataclass
 
 from n26.library.models import (
     GangType,
@@ -857,38 +856,46 @@ def counter_at_least(counter, at_least):
     return CounterAtLeast(counter=counter, at_least=at_least)
 
 
-@dataclass(frozen=True)
-class _HasTrait:
-    """Condition: the weapon carries this trait.
+def _weapon_conditions():
+    """The condition kinds that narrow weapons rather than models."""
+    from n26.library.models import HasTrait, InCategory, IsOneOf
 
-    Not a stored row: ``TargetsWeapons`` keeps its narrowing in columns,
-    so this is a marker the scope verb folds into one. The verb grammar
-    is the same either way.
-    """
-
-    trait: object
+    return (HasTrait, InCategory, IsOneOf)
 
 
-@dataclass(frozen=True)
-class _InCategory:
-    """Condition: the weapon is homed in this category.
+def has_trait(*traits):
+    """Condition: only weapons carrying one of these traits —
+    ``targets_weapons(has_trait(melee))``, or several for any-of."""
+    from n26.library.models import HasTrait
 
-    A marker folded into a column, like ``_HasTrait``.
-    """
-
-    category: object
-
-
-def has_trait(trait):
-    """Condition: only weapons carrying this trait —
-    ``targets_weapons(has_trait(melee))``."""
-    return _HasTrait(trait)
+    condition = HasTrait()
+    condition._pending_m2m = {"traits": traits}
+    return condition
 
 
-def in_category(category):
-    """Condition: only weapons homed in this category —
+def in_category(*categories):
+    """Condition: only weapons homed in one of these categories —
     ``targets_weapons(in_category(las_weapons))`` for "all Las weapons"."""
-    return _InCategory(category)
+    from n26.library.models import InCategory
+
+    condition = InCategory()
+    condition._pending_m2m = {"categories": categories}
+    return condition
+
+
+def is_one_of(*weapons):
+    """Condition: only these weapons, named outright —
+    ``targets_weapons(is_one_of(helamite_claws))``.
+
+    For a rule about a particular gun, where no trait or category picks
+    it out: the Dustback Helamite's claws gain a trait, and nothing
+    else the fighter carries does.
+    """
+    from n26.library.models import IsOneOf
+
+    condition = IsOneOf()
+    condition._pending_m2m = {"weapons": weapons}
+    return condition
 
 
 def _attach_condition(condition, scope):
@@ -915,10 +922,10 @@ def targets_model(*conditions, when_directly_assigned=False):
         when_directly_assigned=when_directly_assigned
     )
     for condition in conditions:
-        if isinstance(condition, _HasTrait):
-            raise ValueError("has_trait narrows weapons — use targets_weapons")
-        if isinstance(condition, _InCategory):
-            raise ValueError("in_category narrows weapons — use targets_weapons")
+        if isinstance(condition, _weapon_conditions()):
+            raise ValueError(
+                f"{type(condition).__name__} narrows weapons — use targets_weapons"
+            )
         _attach_condition(condition, scope)
     return scope
 
@@ -926,25 +933,20 @@ def targets_model(*conditions, when_directly_assigned=False):
 def targets_weapons(*conditions):
     """The bearer's weapons, narrowed by nested conditions —
     ``targets_weapons(has_trait(melee))`` for "your Melee weapons",
-    ``targets_weapons(in_category(las))`` for "all Las weapons".
+    ``targets_weapons(in_category(las))`` for "all Las weapons",
+    ``targets_weapons(is_one_of(claws))`` for one named gun.
 
-    Given both, a weapon must satisfy both to be reached.
+    Given several conditions, a weapon must satisfy all of them; given
+    several values in one condition, any of them will do.
     """
     from n26.library.models import TargetsWeapons
 
-    trait, category = None, None
+    scope = TargetsWeapons.objects.create()
     for condition in conditions:
-        if isinstance(condition, _HasTrait):
-            if trait is not None:
-                raise ValueError("targets_weapons takes at most one has_trait")
-            trait = condition.trait
-        elif isinstance(condition, _InCategory):
-            if category is not None:
-                raise ValueError("targets_weapons takes at most one in_category")
-            category = condition.category
-        else:
+        if not isinstance(condition, _weapon_conditions()):
             raise ValueError(f"targets_weapons cannot take {condition!r}")
-    return TargetsWeapons.objects.create(with_trait=trait, with_category=category)
+        _attach_condition(condition, scope)
+    return scope
 
 
 def targets_attached_weapon():

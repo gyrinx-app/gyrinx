@@ -8,13 +8,42 @@ Takes `composer` (for its who_form, what_form and condition_formset)
 and `add_condition_href`, the address of the same page with one more
 empty chip. That is a link rather than a control: the count rides the
 URL, so an added chip survives a refresh and needs no script.
+
+Removing one cannot be a link. A chip is taken off part-way through
+filling the form in, and a GET arrives carrying none of what has been
+typed into the other chips or either pane — so Remove is a submit that
+reposts the lot minus that chip, and the page draws it back. It saves
+nothing: the modifier is written by the button at the foot of the form,
+and on an existing modifier the condition row goes when that is pressed,
+not on this press.
+
+The value is the chip's position, which is how a formset addresses its
+forms; the view refuses a position naming no chip.
 {% endcomment %}
 <c-n26.form-section title="Who it reaches">
     {% include "authoring/_form.html" with form=composer.who_form %}
     {% if composer.condition_formset %}
         {{ composer.condition_formset.management_form }}
         {% for chip in composer.condition_formset %}
-            <div class="rounded-box border border-box-border p-3">{% include "authoring/_form.html" with form=chip %}</div>
+            <div class="rounded-box border border-box-border p-3">
+                {% include "authoring/_form.html" with form=chip %}
+                <div class="mt-3">
+                    {% comment %}
+                    formnovalidate, because the browser would otherwise
+                    refuse the press over a required field somewhere else
+                    in the form — and what is being asked for is to take
+                    a piece of the form away, not to save it.
+                    {% endcomment %}
+                    <c-ui.button type="submit"
+                                 variant="ghost"
+                                 size="sm"
+                                 name="drop_condition"
+                                 value="{{ forloop.counter0 }}"
+                                 formnovalidate>
+                        Remove this condition
+                    </c-ui.button>
+                </div>
+            </div>
         {% endfor %}
         <c-n26.link href="{{ add_condition_href }}" tone="muted">
             Add a condition

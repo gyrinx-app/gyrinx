@@ -24,6 +24,7 @@ from n26.library.authoring import (
     create_collection,
     has_trait,
     in_category,
+    is_one_of,
     targets_weapons,
 )
 from n26.library.models import StatlineType, StatlineTypeStat, WeaponProfile
@@ -261,7 +262,7 @@ class TestBothFiltersTogether:
         )
 
     def test_the_scope_says_both_halves(self, scoped):
-        assert str(scoped.scope) == "weapons in Las Weapons with Unstable"
+        assert str(scoped.scope) == "weapons in Las Weapons, with Unstable"
 
     def test_only_the_weapon_answering_both_is_reached(
         self,
@@ -346,7 +347,9 @@ class TestComposingCategoryRulesInTheApp:
         client.force_login(user)
         return user
 
-    def compose(self, client, carrier, category, stat, amount="1"):
+    def compose(self, client, carrier, categories, stat, amount="1"):
+        if not isinstance(categories, (list, tuple)):
+            categories = [categories]
         return client.post(
             f"/n26/authoring/gang-type/{carrier.pk}/",
             {
@@ -358,7 +361,7 @@ class TestComposingCategoryRulesInTheApp:
                 "what-amount": amount,
                 **self.chips(1),
                 "conditions-0-kind": "in_category",
-                "conditions-0-category": str(category.pk),
+                "conditions-0-categories": [str(one.pk) for one in categories],
             },
         )
 
@@ -392,6 +395,38 @@ class TestComposingCategoryRulesInTheApp:
             "Van Saar, weapons in Solid Projectile Weapons: improve AP by 1",
         ]
 
+    def test_two_overlapping_filters_on_one_carrier_are_still_two_names(
+        self,
+        author,
+        client,
+        gang_type,
+        las_weapons,
+        solid_projectile,
+        armour_piercing,
+        default_pack,
+    ):
+        """A filter naming more values says more in the name it writes.
+        Two rules on one house, one for Las and one for Las or Solid
+        Projectile, differ only in that — and the second would be refused
+        outright if the extra value went unsaid."""
+        assert (
+            self.compose(client, gang_type, las_weapons, armour_piercing).status_code
+            == 302
+        )
+        assert (
+            self.compose(
+                client, gang_type, [las_weapons, solid_projectile], armour_piercing
+            ).status_code
+            == 302
+        )
+
+        named = sorted(row.name for row in gang_type.modifiers.all())
+        assert named == [
+            "Van Saar, weapons in Las Weapons or Solid Projectile Weapons: "
+            "improve AP by 1",
+            "Van Saar, weapons in Las Weapons: improve AP by 1",
+        ]
+
     def test_reopening_a_category_rule_keeps_its_narrowing(
         self, author, client, gang_type, las_weapons, armour_piercing, default_pack
     ):
@@ -403,7 +438,8 @@ class TestComposingCategoryRulesInTheApp:
 
         page = client.get(f"/n26/authoring/modifiers/{made.pk}/")
         (chip,) = page.context["form"].condition_formset.initial
-        assert chip == {"kind": "in_category", "category": las_weapons}
+        assert chip["kind"] == "in_category"
+        assert list(chip["categories"]) == [las_weapons]
 
         client.post(
             f"/n26/authoring/modifiers/{made.pk}/",
@@ -414,10 +450,120 @@ class TestComposingCategoryRulesInTheApp:
                 "what-amount": "2",
                 **self.chips(1),
                 "conditions-0-kind": "in_category",
-                "conditions-0-category": str(las_weapons.pk),
+                "conditions-0-categories": [str(las_weapons.pk)],
             },
         )
 
         made.refresh_from_db()
         assert str(made.scope) == "weapons in Las Weapons"
         assert made.effect.amount == 2
+
+
+class TestAFilterMayNameSeveralValues:
+    """Any one of the values in a filter is enough, and every filter must
+    be satisfied. "Las or Plasma weapons" is one filter naming two
+    categories; "Las weapons that are also Unstable" is two filters."""
+
+    @pytest.fixture
+    def plasma_weapons(self, default_pack):
+        return create_category("Weapons", "Plasma Weapons")
+
+    @pytest.fixture
+    def plasma_gun(self, make_gun, plasma_weapons):
+        return make_gun("Plasma gun", plasma_weapons)
+
+    def test_naming_two_categories_reaches_either(
+        self,
+        gang,
+        gang_type,
+        fighter,
+        lasgun,
+        plasma_gun,
+        autogun,
+        armour_piercing,
+        las_weapons,
+        plasma_weapons,
+    ):
+        modifier(
+            "Van Saar: energy weapons pierce deeper",
+            targets_weapons(in_category(las_weapons, plasma_weapons)),
+            changes_stat(armour_piercing, mode="improve", amount=1),
+            carried_by=gang_type,
+        )
+        give_weapon(fighter, lasgun, paid=15)
+        give_weapon(fighter, plasma_gun, paid=100)
+        give_weapon(fighter, autogun, paid=15)
+
+        guns = guns_of(fighter)
+        assert ap_of(guns["Lasgun"]) == "-2"
+        assert ap_of(guns["Plasma gun"]) == "-2"
+        assert ap_of(guns["Autogun"]) == "-1"
+        assert_reconciled(gang)
+
+    def test_the_scope_says_either_of_them(self, las_weapons, plasma_weapons):
+        scope = targets_weapons(in_category(las_weapons, plasma_weapons))
+        assert str(scope) == "weapons in Las Weapons or Plasma Weapons"
+
+    def test_naming_two_traits_reaches_either(
+        self, gang, gang_type, fighter, make_gun, solid_projectile, armour_piercing
+    ):
+        unwieldy = create_trait("Unwieldy")
+        unstable = create_trait("Unstable")
+        heavy = make_gun("Heavy stubber", solid_projectile, traits=[unwieldy])
+        volatile = make_gun("Plasma pistol", solid_projectile, traits=[unstable])
+        plain = make_gun("Stub gun", solid_projectile)
+        modifier(
+            "Van Saar: stabilised firing",
+            targets_weapons(has_trait(unwieldy, unstable)),
+            changes_stat(armour_piercing, mode="improve", amount=1),
+            carried_by=gang_type,
+        )
+        for gun in (heavy, volatile, plain):
+            give_weapon(fighter, gun, paid=10)
+
+        guns = guns_of(fighter)
+        assert ap_of(guns["Heavy stubber"]) == "-2"
+        assert ap_of(guns["Plasma pistol"]) == "-2"
+        assert ap_of(guns["Stub gun"]) == "-1"
+        assert_reconciled(gang)
+
+    def test_naming_two_weapons_reaches_either(
+        self, gang, gang_type, fighter, lasgun, laspistol, autogun, armour_piercing
+    ):
+        modifier(
+            "Van Saar: the master-crafted pair",
+            targets_weapons(is_one_of(lasgun, laspistol)),
+            changes_stat(armour_piercing, mode="improve", amount=1),
+            carried_by=gang_type,
+        )
+        for gun in (lasgun, laspistol, autogun):
+            give_weapon(fighter, gun, paid=15)
+
+        guns = guns_of(fighter)
+        assert ap_of(guns["Lasgun"]) == "-2"
+        assert ap_of(guns["Laspistol"]) == "-2"
+        assert ap_of(guns["Autogun"]) == "-1"
+        assert_reconciled(gang)
+
+    def test_two_filters_of_one_kind_must_both_be_answered(
+        self, gang, gang_type, fighter, make_gun, solid_projectile, armour_piercing
+    ):
+        """Alternatives live inside a filter, so wanting both is two of
+        them — the same rule the model scope's conditions follow."""
+        unwieldy = create_trait("Unwieldy")
+        unstable = create_trait("Unstable")
+        both = make_gun("Plasma cannon", solid_projectile, traits=[unwieldy, unstable])
+        one = make_gun("Heavy stubber", solid_projectile, traits=[unwieldy])
+        modifier(
+            "Van Saar: the difficult guns",
+            targets_weapons(has_trait(unwieldy), has_trait(unstable)),
+            changes_stat(armour_piercing, mode="improve", amount=1),
+            carried_by=gang_type,
+        )
+        give_weapon(fighter, both, paid=100)
+        give_weapon(fighter, one, paid=50)
+
+        guns = guns_of(fighter)
+        assert ap_of(guns["Plasma cannon"]) == "-2"
+        assert ap_of(guns["Heavy stubber"]) == "-1"
+        assert_reconciled(gang)

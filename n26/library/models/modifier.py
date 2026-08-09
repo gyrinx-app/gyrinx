@@ -290,78 +290,65 @@ class CounterAtLeast(models.Model):
 
 
 class TargetsWeapons(models.Model):
-    """The model's weapons, optionally only some of them.
+    """The bearer's weapons — optionally only some of them.
 
-    Two filters, and a weapon must satisfy both to be reached: a trait it
-    carries, and the category its kind is homed in. "Van Saar gangs get an
-    AP improvement of 1 on all Las weapons" is the category alone.
+    Narrowing is done by **condition rows**, as on ``TargetsMiniature``:
+    one row per way of narrowing, each naming as many values as it likes.
+    Within a row the values are alternatives; across rows they stack. So
+    "any Las or Plasma weapon that also has Unstable" is two rows, and
+    "all Las weapons" is one row naming one category.
+
+    No rows means every weapon the bearer has — the same default-open
+    rule the model scope uses.
     """
 
-    with_trait = models.ForeignKey(
-        "library.Trait",
-        on_delete=models.PROTECT,
-        null=True,
-        blank=True,
-        related_name="+",
-        help_text="Only weapons carrying this trait. Blank means all of them.",
-    )
-    with_category = models.ForeignKey(
-        "library.Category",
-        on_delete=models.PROTECT,
-        null=True,
-        blank=True,
-        related_name="+",
-        help_text=(
-            'Only weapons homed in this category — the "Las Weapons" in '
-            '"an AP improvement on all Las weapons". Blank means all of them.'
-        ),
-    )
+    #: Reverse relations ``as_selector()`` folds, in the order their
+    #: sentences read. The boot check (n26.E003/E004) verifies this names
+    #: exactly the condition models that FK this scope.
+    CONDITIONS = ("is_one_of", "in_category", "has_trait")
 
     class Meta:
         verbose_name = "targets weapons"
         verbose_name_plural = "target weapons"
 
     def __str__(self):
-        said = "weapons"
-        if self.with_category_id is not None:
-            # The category's own name, as every other sentence naming one
-            # says it. A name repeated across sections says the same
-            # thing twice here; the composer refuses the duplicate in
-            # words rather than letting the second row be written.
-            said += f" in {self.with_category.name}"
-        if self.with_trait_id is not None:
-            said += f" with {self.with_trait}"
-        return said if self.narrows else "all weapons"
+        parts = [str(row) for row in self._condition_rows()] if self.pk else []
+        return f"weapons {', '.join(parts)}" if parts else "all weapons"
 
     @property
     def narrows(self):
         """Whether this scope reaches fewer than everything of its kind."""
-        return bool(self.with_trait_id or self.with_category_id)
+        return bool(self.pk and self._condition_rows())
+
+    def _condition_rows(self):
+        return [
+            row for related in self.CONDITIONS for row in getattr(self, related).all()
+        ]
 
     def as_selector(self):
-        """What this scope's filters say, in the selector vocabulary.
+        """What this scope's conditions say, in the selector vocabulary.
 
-        Both narrowings stack: a scope naming a category and a trait
-        reaches the weapons that have both. Matching runs against the
-        round snapshot ``compute`` provides — printed traits plus what
-        earlier (less specific) rounds added. Compiled once per instance,
-        as on ``TargetsMiniature``.
+        Rows stack: a scope naming a category and a trait reaches the
+        weapons answering both. Matching runs against the round snapshot
+        ``compute`` provides — printed traits plus what earlier (less
+        specific) rounds added. Compiled once per instance, as on
+        ``TargetsMiniature``.
         """
         compiled = getattr(self, "_compiled_selector", None)
         if compiled is None:
             from n26.core import select
 
-            conditions = []
-            if self.with_category_id is not None:
-                conditions.append(select.HomedIn(self.with_category))
-            if self.with_trait_id is not None:
-                conditions.append(select.Has(self.with_trait))
+            conditions = [
+                folded
+                for row in self._condition_rows()
+                if (folded := row.as_condition()) is not None
+            ]
             if not conditions:
                 compiled = select.Anything()
+            elif len(conditions) == 1:
+                compiled = conditions[0]
             else:
-                compiled = (
-                    conditions[0] if len(conditions) == 1 else select.All(*conditions)
-                )
+                compiled = select.All(*conditions)
             self._compiled_selector = compiled
         return compiled
 
@@ -378,6 +365,132 @@ class TargetsWeapons(models.Model):
                 else select.matchable(node.assignable)
             )
         ]
+
+
+# --- Conditions on the weapon scope ---------------------------------------
+#
+# The same grammar the model scope's conditions use: one row per way of
+# narrowing, any-of within a row, all rows ANDed. Each says itself as a
+# clause, because the scope's sentence is those clauses joined and that
+# sentence becomes a modifier's name.
+
+
+class IsOneOf(models.Model):
+    """Condition: the weapon is one of these.
+
+    Naming guns outright, for a rule about a particular weapon rather
+    than about a kind of weapon — "Helamite claws gain Additional
+    Attacks (1)", where no trait or category picks the claws out
+    reliably.
+    """
+
+    scope = models.ForeignKey(
+        TargetsWeapons,
+        on_delete=models.CASCADE,
+        related_name="is_one_of",
+    )
+    weapons = models.ManyToManyField(
+        "library.Weapon",
+        related_name="+",
+        help_text="The weapon must be one of these. Any one of them matching is enough.",
+    )
+
+    class Meta:
+        verbose_name = "is one of"
+        verbose_name_plural = "is one of"
+
+    def __str__(self):
+        wanted = list(self.weapons.all()) if self.pk else []
+        return "named " + " or ".join(str(weapon) for weapon in wanted)
+
+    def as_condition(self):
+        from n26.core import select
+
+        wanted = list(self.weapons.all())
+        if not wanted:
+            # An empty row narrows nothing — never "matches nothing".
+            return None
+        return select.Any(*(select.LineOf(weapon) for weapon in wanted))
+
+
+class InCategory(models.Model):
+    """Condition: the weapon is homed in one of these categories.
+
+    "Van Saar gangs get an AP improvement of 1 on all Las weapons" is
+    one row naming the Las Weapons category.
+    """
+
+    scope = models.ForeignKey(
+        TargetsWeapons,
+        on_delete=models.CASCADE,
+        related_name="in_category",
+    )
+    categories = models.ManyToManyField(
+        "library.Category",
+        related_name="+",
+        help_text=(
+            "The weapon must be homed in one of these categories. Any one "
+            "of them matching is enough."
+        ),
+    )
+
+    class Meta:
+        verbose_name = "in category"
+        verbose_name_plural = "in categories"
+
+    def __str__(self):
+        # Each category's own name, as every other sentence naming one
+        # says it. Two categories sharing a name across sections read
+        # alike here; the composer refuses the duplicate name in words.
+        wanted = list(self.categories.all()) if self.pk else []
+        return "in " + " or ".join(category.name for category in wanted)
+
+    def as_condition(self):
+        from n26.core import select
+
+        wanted = list(self.categories.all())
+        if not wanted:
+            return None
+        return select.Any(*(select.HomedIn(category) for category in wanted))
+
+
+class HasTrait(models.Model):
+    """Condition: the weapon carries one of these traits.
+
+    Matched against the round snapshot, so a trait an earlier modifier
+    added counts — a scope naming Melee reaches a knife that was given
+    Melee, not only one printed with it.
+    """
+
+    scope = models.ForeignKey(
+        TargetsWeapons,
+        on_delete=models.CASCADE,
+        related_name="has_trait",
+    )
+    traits = models.ManyToManyField(
+        "library.Trait",
+        related_name="+",
+        help_text=(
+            "The weapon must carry one of these traits. Any one of them "
+            "matching is enough."
+        ),
+    )
+
+    class Meta:
+        verbose_name = "has trait"
+        verbose_name_plural = "has traits"
+
+    def __str__(self):
+        wanted = list(self.traits.all()) if self.pk else []
+        return "with " + " or ".join(str(trait) for trait in wanted)
+
+    def as_condition(self):
+        from n26.core import select
+
+        wanted = list(self.traits.all())
+        if not wanted:
+            return None
+        return select.Any(*(select.Has(trait) for trait in wanted))
 
 
 class TargetsAttachedWeapon(models.Model):

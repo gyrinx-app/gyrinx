@@ -375,7 +375,7 @@ dispatches, and listens for `filter-reset` to be told.
                         sections are live.
                         {% endcomment %}
                         <c-slot name="trigger_words">
-                            <span x-text="`${picker.liveSections.length - 1} ${picker.liveSections.length === 2 ? 'tab' : 'tabs'}`"></span>
+                            <span x-text="`+${picker.liveSections.length - 1} ${picker.liveSections.length === 2 ? 'more' : 'more'}`"></span>
                         </c-slot>
                         {% for name in sections %}
                             {% comment %}

@@ -777,6 +777,11 @@ def _modifier_action(request, kind, thing, act):
     from n26.library.models import Modifier
 
     if act == "compose":
+        dropping = _dropped_condition(request)
+        if dropping is not None:
+            return None, ModifierComposerForm.reopened(
+                request.POST, dropping, attach_to=thing
+            )
         composer = ModifierComposerForm(request.POST, attach_to=thing)
         if composer.is_valid():
             try:
@@ -901,13 +906,44 @@ def _composer_state(request, attach_to=None, bound_composer=None):
         "composer_scope": scope_kind,
         "composer_effect": effect_kind,
         "composer_chips": chips,
-        # One more empty chip, as an address. The kinds ride it too:
-        # the page is showing step two because the URL names them, and
-        # a link that dropped them would fold the composer away.
-        "add_condition_href": (
-            f"?scope_kind={scope_kind}&effect_kind={effect_kind}&chips={chips + 1}"
-        ),
+        # One more empty chip, as an address. Built from the whole query
+        # string rather than from the two kinds alone: the page is
+        # showing step two because the URL says so, and everything else
+        # the URL says — which carrier this is being composed for —
+        # has to survive the press as well.
+        "add_condition_href": _with_chips(request, chips + 1, scope_kind, effect_kind),
     }
+
+
+def _dropped_condition(request):
+    """Which condition chip the press was asking to remove, or ``None``
+    when the submit was an ordinary one.
+
+    A submit rather than a link, because the press must keep everything
+    typed into the other chips and both panes — a GET carries none of
+    it. It saves nothing either: taking a condition off is an edit to
+    the form.
+    """
+    asked = request.POST.get("drop_condition", "")
+    try:
+        return int(asked)
+    except TypeError, ValueError:
+        return None
+
+
+def _with_chips(request, chips, scope_kind, effect_kind):
+    """This page's address with a different number of empty chips.
+
+    The kinds are written in rather than read off the query string: the
+    page also draws itself after a refused submit, where the kinds
+    arrived in the post body and the address has nothing in it.
+    """
+    params = request.GET.copy()
+    if scope_kind and effect_kind:
+        params["scope_kind"] = scope_kind
+        params["effect_kind"] = effect_kind
+    params["chips"] = str(chips)
+    return f"?{params.urlencode()}"
 
 
 def _modifier_section(request, thing, bound_composer=None):
@@ -1055,6 +1091,28 @@ def modifiers(request):
     )
 
 
+def _composing_for(request):
+    """The carrier this composer page is being used on behalf of, named
+    in the address as ``for_kind`` and ``for``.
+
+    A carrier's own page hands the composing over to this one rather
+    than drawing it inline: a long page that reloads on every choice
+    puts the reader back at the top, scrolling to find the form again.
+    What the trip must not lose is which thing the modifier is being
+    made for — so it rides the URL, where it survives a refresh and can
+    be linked to.
+
+    Reached with no carrier named, this is the standalone page it has
+    always been, and the answer is ``(None, None)``.
+    """
+    kind = request.POST.get("for_kind", request.GET.get("for_kind", ""))
+    pk = request.POST.get("for", request.GET.get("for", ""))
+    if not kind or not pk or kind not in LEAF_KINDS or not _carries_modifiers(kind):
+        return None, None
+    model = _model_for(_spec_for(kind))
+    return kind, get_object_or_404(model, pk=pk)
+
+
 @staff_member_required
 def modifier_create(request):
     """The composer on a page of its own.
@@ -1064,36 +1122,71 @@ def modifier_create(request):
     for drawn. Both ride the URL, so step two survives a refresh and
     "add a condition" is a plain link.
 
-    What it makes attaches to nothing — reusable by construction,
-    waiting in every carrier page's attach picker. A modifier meant for
-    one thing is composed on that thing's own page instead, from this
-    same form.
+    Reached from a carrier's page the carrier rides the URL too, and
+    what is composed here hangs on it — the same modifier that page
+    would have made inline, made somewhere the reader is not scrolled
+    away from. Reached without one, what it makes attaches to nothing:
+    reusable by construction, waiting in every carrier page's attach
+    picker.
     """
     from n26.library.forms import ModifierComposerForm
 
+    for_kind, carrier = _composing_for(request)
+    landing = (
+        redirect("authoring-detail", kind=for_kind, pk=carrier.pk)
+        if carrier is not None
+        else None
+    )
+
     bound = None
     if request.method == "POST":
-        bound = ModifierComposerForm(request.POST, attach_to=None)
-        if bound.is_valid():
-            try:
-                with transaction.atomic():
-                    made = bound.save()
-            except IntegrityError:
-                bound.add_error(
-                    "name",
-                    "A modifier with that name already exists in this pack.",
-                )
-            else:
-                messages.success(
-                    request,
-                    f"Composed {made.name} — attach it from any carrier's page.",
-                )
-                return redirect("authoring-modifier", pk=made.pk)
+        dropping = _dropped_condition(request)
+        if dropping is not None:
+            bound = ModifierComposerForm.reopened(
+                request.POST, dropping, attach_to=carrier
+            )
+        else:
+            bound = ModifierComposerForm(request.POST, attach_to=carrier)
+            if bound.is_valid():
+                try:
+                    with transaction.atomic():
+                        made = bound.save()
+                except IntegrityError:
+                    bound.add_error(
+                        "name",
+                        "A modifier with that name already exists in this pack.",
+                    )
+                else:
+                    if carrier is not None:
+                        messages.success(request, f"Attached {made.name}.")
+                        return landing
+                    messages.success(
+                        request,
+                        f"Composed {made.name} — attach it from any carrier's page.",
+                    )
+                    return redirect("authoring-modifier", pk=made.pk)
 
     return render(
         request,
         "authoring/modifier_create.html",
-        _composer_state(request, bound_composer=bound),
+        {
+            "carrier": carrier,
+            "carrier_kind": for_kind,
+            # With a carrier there is something to name the modifier
+            # after, so the choice between a name of its own and a
+            # generic one is a real choice and the switch is offered.
+            "show_reusable_flag": carrier is not None,
+            # Composing for a carrier ends in the modifier hanging on it,
+            # which "Create" does not say; composing for nothing creates
+            # a row and hangs it nowhere, which "Attach" would misname.
+            "composer_submit_label": (
+                "Attach modifier" if carrier is not None else "Create modifier"
+            ),
+            "composer_cancel_url": (
+                landing.url if landing is not None else reverse("authoring-modifiers")
+            ),
+            **_composer_state(request, attach_to=carrier, bound_composer=bound),
+        },
     )
 
 
@@ -1134,7 +1227,15 @@ def modifier_page(request, pk):
         chips = 0
     chips = min(chips, MAX_CHIPS)
 
-    if request.method == "POST":
+    dropping = _dropped_condition(request) if request.method == "POST" else None
+    if dropping is not None:
+        # The condition row itself goes when the modifier is saved, not
+        # on this press: every carrier holding this row would otherwise
+        # be changed by a press that only edited a form.
+        composer = ModifierComposerForm.reopened(
+            request.POST, dropping, editing=modifier
+        )
+    elif request.method == "POST":
         composer = ModifierComposerForm(request.POST, editing=modifier)
         if composer.is_valid():
             try:

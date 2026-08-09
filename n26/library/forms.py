@@ -577,9 +577,11 @@ def condition_formset_for(spec, data=None, prefix="conditions", extra=0, initial
     condition" is a link and the state survives a refresh. ``initial``
     is the narrowing a scope already has, one entry per chip.
 
-    A chip can be struck out as well as filled in: a scope narrowed too
-    far is corrected by taking a condition off it, and a formset with
-    no way to say that could only ever grow.
+    A scope narrowed too far is corrected by taking a condition off it,
+    and the chip goes there and then: the page reposts what has been
+    filled in so far without that chip (``without_condition_chip``).
+    There is no delete field, because a tickbox that only takes effect
+    on the next save reads as a control that does nothing.
     """
     kinds = next(
         (kind.kinds for kind in spec.fields.values() if isinstance(kind, Conditions)),
@@ -587,30 +589,52 @@ def condition_formset_for(spec, data=None, prefix="conditions", extra=0, initial
     )
     if kinds is None:
         return None
-    formset_class = forms.formset_factory(
-        condition_chip_form(kinds), extra=extra, can_delete=True
-    )
+    formset_class = forms.formset_factory(condition_chip_form(kinds), extra=extra)
     return formset_class(data, prefix=prefix, initial=initial)
+
+
+def without_condition_chip(data, index, prefix="conditions"):
+    """Posted form data with one condition chip taken out of it.
+
+    A formset addresses its forms by position, so dropping one means
+    renumbering every chip after it and telling the management form
+    there is one fewer. Left as a gap, the missing position reads as a
+    chip the author emptied and the last chip is read twice.
+
+    An index naming no chip leaves the data alone — a press cannot be
+    allowed to rewrite a form on the strength of a number that came
+    from the page.
+    """
+    try:
+        total = int(data.get(f"{prefix}-TOTAL_FORMS", 0))
+    except TypeError, ValueError:
+        return data
+    if not 0 <= index < total:
+        return data
+
+    def fields_of(position):
+        start = f"{prefix}-{position}-"
+        return [(key, key[len(start) :]) for key in data if key.startswith(start)]
+
+    reduced = data.copy()
+    for position in range(index, total):
+        for key, _ in fields_of(position):
+            del reduced[key]
+    for position in range(index + 1, total):
+        for key, field in fields_of(position):
+            reduced.setlist(f"{prefix}-{position - 1}-{field}", data.getlist(key))
+    reduced[f"{prefix}-TOTAL_FORMS"] = str(total - 1)
+    return reduced
 
 
 def _conditions_of(scope):
     """The narrowing a scope already carries, as chips a formset opens on.
 
-    A scope states its narrowing two ways: the model scope hangs
-    condition rows, and the weapon scope keeps its narrowing in columns.
-    Both read back as the same chips, because the verb grammar is the
-    same either way. A narrowing missing from here is one the composer drops the
-    moment an author saves the modifier for any other reason.
+    Every scope states its narrowing the same way — rows hung off it —
+    so one loop reads them all back. A narrowing missing from here is one
+    the composer drops the moment an author saves the modifier for any
+    other reason.
     """
-    from n26.library.models import TargetsWeapons
-
-    if isinstance(scope, TargetsWeapons):
-        chips = []
-        if scope.with_category_id is not None:
-            chips.append({"kind": "in_category", "category": scope.with_category})
-        if scope.with_trait_id is not None:
-            chips.append({"kind": "has_trait", "trait": scope.with_trait})
-        return chips
     # A condition's relation on its scope and the verb that builds it
     # are the same word, which is what lets rows be read back without a
     # second table saying so. A guard in the suite holds that true.
@@ -882,6 +906,37 @@ class ModifierComposerForm(forms.Form):
         )
         return form
 
+    @classmethod
+    def reopened(cls, data, index, *, attach_to=None, editing=None):
+        """The composer as the author left it, with one condition chip
+        taken off.
+
+        Bound to what was posted, so everything typed into the other
+        chips and both panes comes back — a round trip through the URL
+        would arrive empty. Then quietened: taking a condition off is an
+        edit to the form, not an attempt to save it, and a pane the
+        author has not filled in yet is not a refusal yet either.
+
+        Validation has to run before it can be set aside, because the
+        panes are built in ``clean()`` — an unvalidated composer has no
+        panes to draw.
+        """
+        form = cls(
+            without_condition_chip(data, index), attach_to=attach_to, editing=editing
+        )
+        form.full_clean()
+        form._errors.clear()
+        for pane in (form.who_form, form.what_form):
+            if pane is not None:
+                pane._errors.clear()
+        if form.condition_formset is not None:
+            for chip in form.condition_formset.forms:
+                chip._errors.clear()
+            form.condition_formset._non_form_errors = (
+                form.condition_formset.error_class()
+            )
+        return form
+
     def clean(self):
         cleaned = super().clean()
         scope_kind = cleaned.get("scope_kind")
@@ -1001,7 +1056,7 @@ class ModifierComposerForm(forms.Form):
                 if self.condition_formset is not None
                 else []
             )
-            if chip.cleaned_data.get("kind") and not chip.cleaned_data.get("DELETE")
+            if chip.cleaned_data.get("kind")
         ]
         scope = self.who_form.compile(conditions=payloads)
         effect = self.what_form.compile()

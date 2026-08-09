@@ -22,6 +22,7 @@ from n26.library.models import (
     DefaultAssignment,
     DefaultAssignmentSet,
     GangType,
+    HasTrait,
     Modifier,
     OpAddsMiniature,
     Option,
@@ -243,10 +244,12 @@ class TestAuthoringModifiers:
         backstab_trait = Trait.objects.create(name="Backstab")
 
         skill = Skill.objects.create(name="Backstab")
+        scope = TargetsWeapons.objects.create()
+        HasTrait.objects.create(scope=scope).traits.add(melee)
         skill.modifiers.add(
             Modifier.objects.create(
                 name="Backstab arms Melee weapons",
-                targets_weapons=TargetsWeapons.objects.create(with_trait=melee),
+                targets_weapons=scope,
                 adds_assignable=AddsAssignable.objects.create(trait=backstab_trait),
             )
         )

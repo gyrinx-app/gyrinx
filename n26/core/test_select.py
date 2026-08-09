@@ -102,6 +102,37 @@ class TestOfKindAndExactly:
         assert list(Specialisation.objects.filter(one.as_q(Specialisation))) == [sharp]
 
 
+class TestLineOf:
+    """Naming a gun, when what is being matched is one of its lines."""
+
+    def test_it_matches_every_line_of_that_weapon(self, knife_profile, gun_profile):
+        knife = knife_profile.weapon
+        one = select.LineOf(knife)
+
+        assert one.matches(select.matchable(knife_profile))
+        assert not one.matches(select.matchable(gun_profile))
+
+    def test_identity_is_not_the_question(self, knife_profile):
+        """Why this leaf exists rather than ``Exactly``: a line is not
+        its gun, so asking whether it *is* the Stiletto knife is false of
+        the knife's own blade — a scope built that way would name a
+        weapon and reach nothing."""
+        knife = knife_profile.weapon
+
+        assert not select.Exactly(knife).matches(select.matchable(knife_profile))
+        assert select.LineOf(knife).matches(select.matchable(knife_profile))
+
+    def test_it_compiles_to_a_filter_over_lines(self, knife_profile, gun_profile):
+        knife = knife_profile.weapon
+        found = WeaponProfile.objects.filter(select.LineOf(knife).as_q(WeaponProfile))
+
+        assert list(found) == [knife_profile]
+
+    def test_it_refuses_to_filter_anything_but_lines(self, knife_profile):
+        with pytest.raises(select.NotExpressibleAsQuery):
+            select.LineOf(knife_profile.weapon).as_q(Weapon)
+
+
 class TestCombinators:
     def test_quantifiers_are_composition_not_leaf_variants(
         self, melee, heavy, knife_profile, gun_profile

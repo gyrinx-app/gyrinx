@@ -1075,85 +1075,62 @@ def buy_one(gang, fighter, tester, thing, **kwargs):
         return op.buy(fighter, thing=thing, **kwargs)
 
 
-def test_gear_no_longer_for_sale_here_is_still_carried_and_still_controllable(
+def test_owning_one_is_a_state_of_the_row_whatever_kind_of_thing_it_is(
     client, tester, gang, fighter, house_list
 ):
-    """The regression the shop-row controls could not answer.
+    """Not a treatment reserved for some rows. The knife is an ordinary
+    line — freely available, no exclusivity, nothing special about it —
+    and holding one turns its Buy into the count all the same."""
+    from n26.library.models import Wargear
 
-    A fighter's gear is exactly the gear least likely to still be on the
-    list they are browsing — bought from a trading post, granted with the
-    hire, or from a list they no longer hold. Annotating rows for sale
-    said nothing about any of it, and left no route to sell, move or drop
-    it. The carried section owes nothing to what is on the shelf.
-    """
-    from n26.library.authoring import create_wargear
-
-    contraband = buy_one(
-        gang, fighter, tester, create_wargear("Contraband", price=25), paid=25
-    )
-
+    knife = Wargear.objects.get(name="Knife")
     client.force_login(tester)
-    response = client.get(equip_url(fighter, house_list))
-    body = response.content.decode()
+    rows = client.get(equip_url(fighter, house_list)).context["section_rows"]
+    lines = {row["line"].name: row for row in rows[0]["categories"][0]["lines"]}
+    assert lines["Knife"]["line"].is_exclusive is False
+    assert lines["Knife"]["owned"] == []
 
-    # Not on the list being shopped — no row of its own anywhere below.
-    assert not any(
-        row["line"].name == "Contraband"
-        for section in response.context["section_rows"]
-        for category in section["categories"]
-        for row in category["lines"]
-    )
-    # Carried all the same, with all three controls.
-    assert [thing.name for thing in response.context["carried"]] == ["Contraband"]
-    assert "Contraband" in body
-    for act in ("sell", "reassign", "remove"):
-        assert f"{act}={contraband.pk}" in body
+    buy_one(gang, fighter, tester, knife, paid=10)
+
+    rows = client.get(equip_url(fighter, house_list)).context["section_rows"]
+    lines = {row["line"].name: row for row in rows[0]["categories"][0]["lines"]}
+    assert len(lines["Knife"]["owned"]) == 1
 
 
 def test_two_of_one_weapon_are_two_lines_that_can_be_told_apart(
-    client, tester, gang, fighter, house_list
+    client, tester, gang, fighter, gun_list
 ):
     """Each is its own row in the ledger, each may carry different ammo,
     and each is sold on its own — so one line counted twice would be a
     control that acts on whichever the server picked."""
-    from n26.library.authoring import add_weapon_profile, create_weapon
+    from n26.library.models import Weapon, WeaponProfile
 
-    autogun = create_weapon("Autogun", profiles=[("", 0)], price=20)
-    warp = add_weapon_profile(autogun, name="warp round", price=10)
+    autogun = Weapon.objects.get(name="Autogun")
+    warp = WeaponProfile.objects.get(name="warp round")
     with operation(gang, actor=tester) as op:
         first = op.give_weapon(fighter, autogun, paid=20)
         ammo = op.buy_weapon_profile(first, warp)
         second = op.give_weapon(fighter, autogun, paid=20)
 
     client.force_login(tester)
-    response = client.get(equip_url(fighter, house_list))
-    carried = response.context["carried"]
+    response = client.get(equip_url(fighter, gun_list))
+    rows = response.context["section_rows"]
+    (row,) = [
+        row
+        for section in rows
+        for category in section["categories"]
+        for row in category["lines"]
+        if row["line"].name == "Autogun"
+    ]
 
-    assert [thing.name for thing in carried] == ["Autogun", "Autogun"]
-    assert {thing.id for thing in carried} == {str(first.pk), str(second.pk)}
-    # The ammo sits under the gun it was bought for, and under that one only.
-    holding = {thing.id: [part.name for part in thing.parts] for thing in carried}
-    assert holding[str(first.pk)] == [str(warp)]
-    assert holding[str(second.pk)] == []
+    assert {thing.id for thing in row["owned"]} == {str(first.pk), str(second.pk)}
+    # The paid ammo sits under the gun it was bought for, and under that
+    # one only. Both guns carry the free firing mode that comes with an
+    # Autogun; neither draws the unnamed profile, which *is* the Autogun.
+    holding = {thing.id: [part.name for part in thing.parts] for thing in row["owned"]}
+    assert holding[str(first.pk)] == ["fully automatic (Autogun)", str(warp)]
+    assert holding[str(second.pk)] == ["fully automatic (Autogun)"]
     assert f"sell={ammo.pk}" in response.content.decode()
-
-
-def test_the_carried_section_is_drawn_with_nothing_to_shop(
-    client, tester, gang, fighter
-):
-    """A fighter with kit and no equipment list still has kit to manage."""
-    from n26.library.authoring import create_wargear
-
-    buy_one(gang, fighter, tester, create_wargear("Rope", price=5), paid=5)
-
-    client.force_login(tester)
-    response = client.get(equip_url(fighter))
-    body = response.content.decode()
-
-    assert response.context["chosen"] is None
-    assert [thing.name for thing in response.context["carried"]] == ["Rope"]
-    assert "No equipment lists yet" in body
-    assert "Rope" in body
 
 
 def test_what_a_fighter_is_gets_no_controls(client, tester, gang, fighter, house_list):
@@ -1166,18 +1143,9 @@ def test_what_a_fighter_is_gets_no_controls(client, tester, gang, fighter, house
         op.learn(fighter, create_skill("Marksman"))
 
     client.force_login(tester)
-    response = client.get(equip_url(fighter, house_list))
-
-    assert response.context["carried"] == []
-    assert f"sell={fighter.membership.pk}" not in response.content.decode()
-
-
-def test_an_empty_kitbag_says_where_things_will_appear(
-    client, tester, fighter, house_list
-):
-    client.force_login(tester)
     body = client.get(equip_url(fighter, house_list)).content.decode()
-    assert "Nothing yet." in body
+
+    assert f"sell={fighter.membership.pk}" not in body
 
 
 def test_a_row_for_something_owned_counts_it_instead_of_offering_another(

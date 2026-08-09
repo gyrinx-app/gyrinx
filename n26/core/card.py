@@ -545,8 +545,6 @@ def build_modifier_index(assignables, max_depth=3):
     related = (
         *SCOPE_FIELDS,
         *EFFECT_FIELDS,
-        "targets_weapons__with_trait",
-        "targets_weapons__with_category",
         # Without these, naming a choice's kind or a placed category
         # queries once per slot or placement.
         "offers_choice__of_kind",
@@ -567,6 +565,9 @@ def build_modifier_index(assignables, max_depth=3):
             "targets_miniature__counter_at_least",
             queryset=CounterAtLeast.objects.select_related("counter"),
         ),
+        "targets_weapons__has_trait__traits",
+        "targets_weapons__in_category__categories",
+        "targets_weapons__is_one_of__weapons",
     )
 
     index = ModifierIndex()

@@ -9,6 +9,11 @@ Both answers come off the card the page has already built. Nothing here
 queries, which is the whole point: a listing is hundreds of rows, and an
 owned-count fetched per row would be hundreds of queries.
 
+What is owned is drawn as a *state of a shop row*: where the fighter holds
+one of the thing a row names, the row says so instead of offering another.
+Anything they own that the list on screen does not sell has nowhere to be
+drawn, which is a known gap and not one to be closed from here.
+
 A **thing** is a root assignment: the fighter owns it and may re-home it.
 A **part** is one of its children — a paid ammo type, a sight bolted to a
 gun. A part is sold and removed like anything else, but it cannot be
@@ -82,10 +87,6 @@ class OwnedThing:
     #: parts state theirs; what a sale returns is worked out from the
     #: rows themselves at the moment of selling, never from here.
     rating: int
-    #: What *sort* of thing this is a copy of — :func:`thing_key`, the
-    #: identity a shop row submits. Two of one weapon share it; that is
-    #: how a listing finds both from the row offering a third.
-    key: str = ""
     parts: list[OwnedPart] = field(default_factory=list)
     sell_href: str = ""
     reassign_href: str = ""
@@ -115,14 +116,16 @@ def _parts_of(node):
     return parts
 
 
-def carried(card):
-    """Everything the model is carrying, one line per copy.
+def owned_things(card):
+    """Everything on this card, keyed the way a listing keys its rows.
 
-    The whole of what they hold, in one list, owing nothing to what any
-    shop happens to be selling — which is the point. A fighter's gear is
-    exactly the gear least likely to still be on the list they are
-    browsing, so a screen that can only annotate rows for sale can say
-    nothing at all about most of what they own.
+    Keyed by :func:`thing_key`, so a row looks its own key up and finds
+    the copies of itself the fighter is carrying — one dictionary read per
+    row, whatever the fighter owns.
+
+    Two of the same weapon are two entries under one key, never one entry
+    counted twice: each is its own row in the ledger, each may carry
+    different ammo, and each is sold, moved and dropped on its own.
 
     Only what the model **owns** — see :func:`is_possession`. A card
     carries a good deal more than kit, and none of the rest is something
@@ -130,49 +133,22 @@ def carried(card):
     fighter, their skills are what they know, their equipment lists are
     where they shop.
 
-    The gang's own rows are left out for a second reason. They ride every
+    The gang's own rows are skipped for a second reason. They ride every
     member's card so gang-wide rules reach them, but they are the gang's
     property and not this fighter's to sell.
-
-    Two of the same weapon are two lines, never one line counted twice:
-    each is its own row in the ledger, each may carry different ammo, and
-    each is sold, moved and dropped on its own. Sorted by name, the way a
-    card sorts every list it draws, so the order does not change under a
-    reader who has just bought something.
     """
-    things = []
+    index = {}
     for node in card.roots:
         if node.broadcast or node.assignment is None:
             continue
         if not is_possession(node.assignable):
             continue
-        things.append(
+        index.setdefault(thing_key(node.assignable), []).append(
             OwnedThing(
                 id=str(node.assignment.pk),
                 name=node.name,
                 rating=node.rating,
-                key=thing_key(node.assignable),
                 parts=_parts_of(node),
             )
         )
-    return sorted(things, key=lambda thing: thing.name)
-
-
-def by_thing(things):
-    """The same lines, keyed the way a shop listing keys its rows.
-
-    So a row looks its own key up and finds the copies of itself the
-    fighter is carrying — one dictionary read per row, whatever they own.
-    The lines are the *same objects* the carried list holds, so whatever
-    fills in their links fills in both at once and the two can never
-    offer different addresses for one thing.
-    """
-    index = {}
-    for thing in things:
-        index.setdefault(thing.key, []).append(thing)
     return index
-
-
-def owned_things(card):
-    """What this card is carrying, keyed for a shop listing to look up."""
-    return by_thing(carried(card))

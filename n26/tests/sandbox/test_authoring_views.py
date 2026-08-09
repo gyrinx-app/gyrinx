@@ -2624,8 +2624,9 @@ class TestAModifiersOwnPage:
         made.refresh_from_db()
         assert "Leader" in str(made.scope)
 
-        # Taken off: the same chip, struck out.
-        client.post(
+        # Taken off: Remove drops the chip from the form, and the save
+        # that follows it is what takes the condition off the row.
+        removed = client.post(
             f"/n26/authoring/modifiers/{made.pk}/",
             {
                 "name": "Mounted leaders",
@@ -2634,7 +2635,20 @@ class TestAModifiersOwnPage:
                 **self.chips(1),
                 "conditions-0-kind": "has_subtypes",
                 "conditions-0-subtypes": [str(leader.pk)],
-                "conditions-0-DELETE": "on",
+                "drop_condition": "0",
+            },
+        )
+        assert removed.status_code == 200
+        made.refresh_from_db()
+        assert "Leader" in str(made.scope)  # the press saved nothing
+
+        client.post(
+            f"/n26/authoring/modifiers/{made.pk}/",
+            {
+                "name": "Mounted leaders",
+                "what-thing_kind": "subtype",
+                "what-thing_subtype": str(mounted.pk),
+                **self.chips(0),
             },
         )
         made.refresh_from_db()
@@ -2674,7 +2688,7 @@ class TestAModifiersOwnPage:
                 "what-amount": "2",
                 **self.chips(1),
                 "conditions-0-kind": "has_trait",
-                "conditions-0-trait": str(melee.pk),
+                "conditions-0-traits": [str(melee.pk)],
             },
         )
         made.refresh_from_db()
@@ -3300,3 +3314,550 @@ class TestAGangTypeThatCannotBeFounded:
 
         assert "cannot be founded" not in open_only
         assert "cannot be founded" in with_one_off
+
+
+class TestComposingOnAPageOfItsOwn:
+    """Choosing the two kinds on a carrier's page leads to the composer's
+    own address rather than redrawing the carrier.
+
+    A carrier's page is long. Redrawing it on every choice of kind puts
+    the reader back at its top, to scroll down and find the form again —
+    and the kinds get chosen more than once while an author works out
+    what they want.
+    """
+
+    NO_CONDITIONS = {
+        "conditions-TOTAL_FORMS": "0",
+        "conditions-INITIAL_FORMS": "0",
+        "conditions-MIN_NUM_FORMS": "0",
+        "conditions-MAX_NUM_FORMS": "1000",
+    }
+
+    @pytest.fixture
+    def rule(self, author, client, default_pack):
+        from n26.library.authoring import create_rule
+
+        return create_rule("Berserker")
+
+    def composed(self, rule, **extra):
+        """A full compose submission naming this rule as the carrier."""
+        return {
+            "act": "compose",
+            "for_kind": "rule",
+            "for": str(rule.pk),
+            "scope_kind": "targets_model",
+            "effect_kind": "ef_adds",
+            "what-thing_kind": "subtype",
+            **self.NO_CONDITIONS,
+            **extra,
+        }
+
+    def test_continue_leads_away_from_the_carriers_page(
+        self, rule, client, default_pack
+    ):
+        """The step-one form points at the composer and names the carrier
+        in inputs the browser turns into a query string."""
+        body = client.get(f"/n26/authoring/rule/{rule.pk}/").content.decode()
+
+        assert 'action="/n26/authoring/modifiers/new/"' in body
+        assert 'name="for_kind" value="rule"' in body
+        assert f'name="for" value="{rule.pk}"' in body
+
+    def test_the_composer_page_opens_on_the_carrier_and_the_kinds(
+        self, rule, client, default_pack
+    ):
+        """A real address: everything the page needs is in it, so it
+        survives a refresh and can be linked to."""
+        body = client.get(
+            "/n26/authoring/modifiers/new/"
+            f"?for_kind=rule&for={rule.pk}"
+            "&scope_kind=targets_model&effect_kind=ef_adds"
+        ).content.decode()
+
+        assert "New modifier for Berserker" in body
+        assert 'name="what-thing_kind"' in body
+
+    def test_what_is_composed_there_hangs_on_the_carrier(
+        self, rule, client, default_pack
+    ):
+        """The trip must not lose which thing this is being made for."""
+        from n26.library.authoring import create_subtype
+
+        mounted = create_subtype("Mounted")
+        response = client.post(
+            f"/n26/authoring/modifiers/new/?for_kind=rule&for={rule.pk}",
+            self.composed(rule, **{"what-thing_subtype": str(mounted.pk)}),
+        )
+
+        assert response.status_code == 302
+        assert response.url == f"/n26/authoring/rule/{rule.pk}/"
+        (made,) = rule.modifiers.all()
+        assert made.effect.subtype == mounted
+
+    def test_it_is_named_for_the_carrier_unless_told_otherwise(
+        self, rule, client, default_pack
+    ):
+        """attach_to decides the written name, and it has to survive the
+        trip or everything composed this way comes out named as though it
+        were reusable."""
+        from n26.library.authoring import create_subtype
+
+        mounted = create_subtype("Mounted")
+        client.post(
+            f"/n26/authoring/modifiers/new/?for_kind=rule&for={rule.pk}",
+            self.composed(rule, **{"what-thing_subtype": str(mounted.pk)}),
+        )
+
+        (made,) = rule.modifiers.all()
+        assert made.name == "Berserker: adds Mounted"
+
+    def test_the_reusable_switch_is_offered_once_there_is_a_carrier(
+        self, rule, client, default_pack
+    ):
+        """With something to name the modifier after, the choice between
+        that name and a generic one is a real one."""
+        with_carrier = client.get(
+            "/n26/authoring/modifiers/new/"
+            f"?for_kind=rule&for={rule.pk}"
+            "&scope_kind=targets_model&effect_kind=ef_adds"
+        ).content.decode()
+        alone = client.get(
+            "/n26/authoring/modifiers/new/?scope_kind=targets_model&effect_kind=ef_adds"
+        ).content.decode()
+
+        assert "Make reusable" in with_carrier
+        assert "Make reusable" not in alone
+
+    def test_the_switch_still_decides_the_name(self, rule, client, default_pack):
+        from n26.library.authoring import create_subtype
+
+        mounted = create_subtype("Mounted")
+        client.post(
+            f"/n26/authoring/modifiers/new/?for_kind=rule&for={rule.pk}",
+            self.composed(
+                rule,
+                **{"what-thing_subtype": str(mounted.pk), "make_reusable": "on"},
+            ),
+        )
+
+        (made,) = rule.modifiers.all()
+        # Named for what it does and nothing else — but still hanging on
+        # the carrier the author was standing on.
+        assert made.name == "the model: adds Mounted"
+
+    def test_the_way_out_leads_back_to_the_carrier(self, rule, client, default_pack):
+        """A reader who came from a rule wants to land back on that rule."""
+        body = client.get(
+            "/n26/authoring/modifiers/new/"
+            f"?for_kind=rule&for={rule.pk}"
+            "&scope_kind=targets_model&effect_kind=ef_adds"
+        ).content.decode()
+
+        assert f'href="/n26/authoring/rule/{rule.pk}/"' in body
+
+    def test_adding_a_condition_keeps_the_carrier(self, rule, client, default_pack):
+        """The link bumps a count in the URL, and the URL is also where
+        the carrier lives — a link rebuilt from the kinds alone would
+        quietly turn this back into the standalone page."""
+        body = client.get(
+            "/n26/authoring/modifiers/new/"
+            f"?for_kind=rule&for={rule.pk}"
+            "&scope_kind=targets_model&effect_kind=ef_adds"
+        ).content.decode()
+
+        added = re.search(r'href="(\?[^"]*chips=1[^"]*)"', body)
+        assert added, "no add-a-condition link on the page"
+        assert "for_kind=rule" in added.group(1)
+        assert f"for={rule.pk}" in added.group(1)
+
+    def test_reached_with_no_carrier_it_is_the_page_it_always_was(
+        self, author, client, default_pack
+    ):
+        from n26.library.authoring import create_subtype
+        from n26.library.models import Modifier
+
+        mounted = create_subtype("Mounted")
+        response = client.post(
+            "/n26/authoring/modifiers/new/",
+            {
+                "scope_kind": "targets_model",
+                "effect_kind": "ef_adds",
+                "what-thing_kind": "subtype",
+                "what-thing_subtype": str(mounted.pk),
+                **self.NO_CONDITIONS,
+            },
+        )
+
+        assert response.status_code == 302
+        made = Modifier.objects.get(name="the model: adds Mounted")
+        assert response.url == f"/n26/authoring/modifiers/{made.pk}/"
+
+    def test_a_kind_that_carries_nothing_is_ignored(self, author, client, default_pack):
+        """A made-up kind is not a way to reach an arbitrary row."""
+        body = client.get(
+            "/n26/authoring/modifiers/new/?for_kind=nonsense&for=1"
+        ).content.decode()
+
+        assert "New modifier" in body
+        assert "New modifier for" not in body
+
+
+class TestRemovingAConditionRemovesIt:
+    """The Remove button under a condition takes that chip off the form
+    there and then.
+
+    A tickbox that only takes effect on the next save reads as a control
+    that does nothing. What the press must not do is lose the rest: an
+    author part-way through two conditions and both panes presses it, and
+    everything except that chip has to come back.
+    """
+
+    @pytest.fixture
+    def rule(self, author, client, default_pack):
+        from n26.library.authoring import create_rule
+
+        return create_rule("Berserker")
+
+    @staticmethod
+    def chips(count):
+        return {
+            "conditions-TOTAL_FORMS": str(count),
+            "conditions-INITIAL_FORMS": "0",
+            "conditions-MIN_NUM_FORMS": "0",
+            "conditions-MAX_NUM_FORMS": "1000",
+        }
+
+    def test_the_form_offers_a_remove_per_chip_and_no_delete_field(
+        self, rule, client, default_pack
+    ):
+        body = client.get(
+            "/n26/authoring/modifiers/new/"
+            f"?for_kind=rule&for={rule.pk}"
+            "&scope_kind=targets_model&effect_kind=ef_adds&chips=2"
+        ).content.decode()
+
+        assert body.count('name="drop_condition"') == 2
+        assert "DELETE" not in body
+
+    def test_the_chip_goes_and_everything_else_keeps_what_was_typed(
+        self, rule, client, default_pack
+    ):
+        """The point of a submit rather than a link: a GET arrives
+        carrying none of this."""
+        from n26.library.authoring import create_subtype
+
+        champion = create_subtype("Champion")
+        leader = create_subtype("Leader")
+        mounted = create_subtype("Mounted")
+
+        body = client.post(
+            f"/n26/authoring/modifiers/new/?for_kind=rule&for={rule.pk}",
+            {
+                "act": "compose",
+                "for_kind": "rule",
+                "for": str(rule.pk),
+                "scope_kind": "targets_model",
+                "effect_kind": "ef_adds",
+                "what-thing_kind": "subtype",
+                "what-thing_subtype": str(mounted.pk),
+                "name": "Half typed",
+                **self.chips(2),
+                "conditions-0-kind": "has_subtypes",
+                "conditions-0-subtypes": [str(champion.pk)],
+                "conditions-1-kind": "has_subtypes",
+                "conditions-1-subtypes": [str(leader.pk)],
+                "drop_condition": "1",
+            },
+        ).content.decode()
+
+        assert body.count('name="drop_condition"') == 1
+        assert drawn_picked(body, champion.pk)
+        assert not drawn_picked(body, leader.pk)
+        # The panes and the name box are not chips, and must survive too.
+        assert drawn_picked(body, mounted.pk)
+        assert 'value="Half typed"' in body
+
+    def test_removing_the_first_renumbers_rather_than_leaving_a_gap(
+        self, rule, client, default_pack
+    ):
+        """A formset addresses its forms by position. Left as a gap, the
+        missing position reads as an emptied chip and the last one is
+        read twice."""
+        from n26.library.authoring import create_subtype
+
+        champion = create_subtype("Champion")
+        leader = create_subtype("Leader")
+        mounted = create_subtype("Mounted")
+
+        body = client.post(
+            f"/n26/authoring/modifiers/new/?for_kind=rule&for={rule.pk}",
+            {
+                "act": "compose",
+                "for_kind": "rule",
+                "for": str(rule.pk),
+                "scope_kind": "targets_model",
+                "effect_kind": "ef_adds",
+                "what-thing_kind": "subtype",
+                "what-thing_subtype": str(mounted.pk),
+                **self.chips(2),
+                "conditions-0-kind": "has_subtypes",
+                "conditions-0-subtypes": [str(champion.pk)],
+                "conditions-1-kind": "has_subtypes",
+                "conditions-1-subtypes": [str(leader.pk)],
+                "drop_condition": "0",
+            },
+        ).content.decode()
+
+        assert body.count('name="drop_condition"') == 1
+        assert drawn_picked(body, leader.pk)
+        assert not drawn_picked(body, champion.pk)
+        assert 'name="conditions-0-subtypes"' in body
+        assert 'name="conditions-1-subtypes"' not in body
+
+    def test_the_press_saves_nothing(self, rule, client, default_pack):
+        from n26.library.authoring import create_subtype
+
+        champion = create_subtype("Champion")
+        mounted = create_subtype("Mounted")
+
+        response = client.post(
+            f"/n26/authoring/modifiers/new/?for_kind=rule&for={rule.pk}",
+            {
+                "act": "compose",
+                "for_kind": "rule",
+                "for": str(rule.pk),
+                "scope_kind": "targets_model",
+                "effect_kind": "ef_adds",
+                "what-thing_kind": "subtype",
+                "what-thing_subtype": str(mounted.pk),
+                **self.chips(1),
+                "conditions-0-kind": "has_subtypes",
+                "conditions-0-subtypes": [str(champion.pk)],
+                "drop_condition": "0",
+            },
+        )
+
+        assert response.status_code == 200
+        assert rule.modifiers.count() == 0
+
+    def test_a_half_filled_form_is_not_refused_yet(self, rule, client, default_pack):
+        """Taking a condition off is an edit to the form. A pane the
+        author has not reached is not a refusal, and lighting the whole
+        form up red for pressing Remove would read as one."""
+        from n26.library.authoring import create_subtype
+
+        champion = create_subtype("Champion")
+        body = client.post(
+            f"/n26/authoring/modifiers/new/?for_kind=rule&for={rule.pk}",
+            {
+                "act": "compose",
+                "for_kind": "rule",
+                "for": str(rule.pk),
+                "scope_kind": "targets_model",
+                "effect_kind": "ef_adds",
+                # what-thing is deliberately left unanswered.
+                **self.chips(1),
+                "conditions-0-kind": "has_subtypes",
+                "conditions-0-subtypes": [str(champion.pk)],
+                "drop_condition": "0",
+            },
+        ).content.decode()
+
+        assert "This field is required" not in body
+        assert "cannot apply" not in body
+
+    def test_a_position_naming_no_chip_leaves_the_form_alone(
+        self, rule, client, default_pack
+    ):
+        """The number comes off the page, so it is not to be trusted."""
+        from n26.library.authoring import create_subtype
+
+        champion = create_subtype("Champion")
+        body = client.post(
+            f"/n26/authoring/modifiers/new/?for_kind=rule&for={rule.pk}",
+            {
+                "act": "compose",
+                "for_kind": "rule",
+                "for": str(rule.pk),
+                "scope_kind": "targets_model",
+                "effect_kind": "ef_adds",
+                **self.chips(1),
+                "conditions-0-kind": "has_subtypes",
+                "conditions-0-subtypes": [str(champion.pk)],
+                "drop_condition": "7",
+            },
+        ).content.decode()
+
+        assert drawn_picked(body, champion.pk)
+        assert body.count('name="drop_condition"') == 1
+
+
+class TestThePickersStillPostWhatTheySay:
+    """A picker is drawn inside <c-n26.filter-select>, which puts a filter
+    box over a long list. What the browser sends must not move: the same
+    control name, and the row's own primary key rather than the words on
+    the option.
+
+    Worth its own suite because the failure it guards against is quiet. A
+    picker that posted its label would raise nothing and save nothing —
+    the form would come back saying the field was required, or worse find
+    a different row that happens to print the same name.
+    """
+
+    NO_CONDITIONS = {
+        "conditions-TOTAL_FORMS": "0",
+        "conditions-INITIAL_FORMS": "0",
+        "conditions-MIN_NUM_FORMS": "0",
+        "conditions-MAX_NUM_FORMS": "1000",
+    }
+
+    @pytest.fixture
+    def rule(self, author, client, default_pack):
+        from n26.library.authoring import create_rule
+
+        return create_rule("Berserker")
+
+    def test_the_composer_offers_a_real_select_carrying_primary_keys(
+        self, rule, client, default_pack
+    ):
+        """What an author picks is the row's id, not the words beside it."""
+        from n26.library.authoring import create_skill
+
+        nerves = create_skill("Nerves of Steel")
+        body = client.get(
+            f"/n26/authoring/rule/{rule.pk}/"
+            "?scope_kind=targets_model&effect_kind=ef_adds"
+        ).content.decode()
+
+        assert 'name="what-thing_skill"' in body
+        assert f'value="{nerves.pk}"' in body
+        assert "Nerves of Steel" in body
+
+    def test_the_union_markers_survive_the_wrapper(self, rule, client, default_pack):
+        """The page's own script finds the member controls by these
+        attributes and hides all but the chosen kind's. A wrapper that
+        swallowed them would leave every picker on the screen at once."""
+        body = client.get(
+            f"/n26/authoring/rule/{rule.pk}/"
+            "?scope_kind=targets_model&effect_kind=ef_adds"
+        ).content.decode()
+
+        assert 'data-union-kind="thing"' in body
+        assert 'data-union-of="thing"' in body
+        assert 'data-union-member="skill"' in body
+
+    def test_picking_through_the_composer_writes_that_row(
+        self, rule, client, default_pack
+    ):
+        """The contract end to end: post the name and the value the page
+        offered, and the modifier names the row that was picked."""
+        from n26.library.authoring import create_skill
+
+        create_skill("Nerves of Steel")
+        wanted = create_skill("Spring Up")
+
+        response = client.post(
+            f"/n26/authoring/rule/{rule.pk}/",
+            {
+                "act": "compose",
+                "scope_kind": "targets_model",
+                "effect_kind": "ef_adds",
+                "what-thing_kind": "skill",
+                "what-thing_skill": str(wanted.pk),
+                **self.NO_CONDITIONS,
+            },
+        )
+
+        assert response.status_code == 302
+        (made,) = rule.modifiers.all()
+        assert made.effect.skill == wanted
+
+    def test_two_rows_printing_the_same_name_stay_apart(
+        self, rule, client, default_pack
+    ):
+        """Two houses' beasts carry jaws of the same name. The picker
+        labels them apart and posts an id, so choosing the second cannot
+        land on the first."""
+        from n26.library.authoring import create_skill
+
+        first = create_skill("Ferocious jaws", qualifier="Delaque")
+        second = create_skill("Ferocious jaws", qualifier="Goliath")
+
+        client.post(
+            f"/n26/authoring/rule/{rule.pk}/",
+            {
+                "act": "compose",
+                "scope_kind": "targets_model",
+                "effect_kind": "ef_adds",
+                "what-thing_kind": "skill",
+                "what-thing_skill": str(second.pk),
+                **self.NO_CONDITIONS,
+            },
+        )
+
+        (made,) = rule.modifiers.all()
+        assert made.effect.skill == second
+        assert made.effect.skill != first
+
+    def make_autogun(self, client, weapon_statline_type):
+        from n26.library.models import Weapon
+
+        client.post(
+            "/n26/authoring/weapon/new/",
+            {
+                "name": "Autogun",
+                "slots": "1",
+                "statline_type": str(weapon_statline_type.pk),
+                "price": "20",
+                "trade_point_price": "0",
+            },
+        )
+        return Weapon.objects.get(name="Autogun")
+
+    def test_a_many_picker_still_posts_every_value_chosen(
+        self, author, client, default_pack, weapon_statline_type
+    ):
+        """The multi-select is wrapped too, and a browser posts one value
+        per chosen option however the list was narrowed to find them."""
+        from n26.library.authoring import create_trait
+        from n26.library.models import WeaponProfile
+
+        autogun = self.make_autogun(client, weapon_statline_type)
+        rapid_fire = create_trait("Rapid Fire", "1")
+        unwieldy = create_trait("Unwieldy")
+        create_trait("Web")
+
+        response = client.post(
+            f"/n26/authoring/weapon/{autogun.pk}/",
+            {
+                "name": "Burst",
+                "price": "0",
+                "trade_point_price": "0",
+                "traits": [str(rapid_fire.pk), str(unwieldy.pk)],
+                "short_range": "8",
+                "long_range": "24",
+                "strength": "3",
+                "armour_piercing": "-",
+                "lethality": "1",
+            },
+        )
+
+        assert response.status_code == 302
+        profile = WeaponProfile.objects.get(weapon=autogun, name="Burst")
+        assert set(profile.traits.all()) == {rapid_fire, unwieldy}
+
+    def test_the_many_picker_is_still_a_native_multiple_select(
+        self, author, client, default_pack, weapon_statline_type
+    ):
+        """Whatever the filter box draws over it, underneath is the control
+        a browser knows how to submit with no script at all."""
+        from n26.library.authoring import create_trait
+
+        autogun = self.make_autogun(client, weapon_statline_type)
+        rending = create_trait("Rending")
+
+        body = client.get(f"/n26/authoring/weapon/{autogun.pk}/").content.decode()
+        picker = re.search(r'<select[^>]*name="traits".*?</select>', body, re.S)
+        assert picker, "the traits picker is not a <select>"
+        assert "multiple" in picker.group(0)
+        assert f'value="{rending.pk}"' in picker.group(0)

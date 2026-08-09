@@ -236,6 +236,37 @@ class HomedIn:
 
 
 @dataclass(frozen=True)
+class LineOf:
+    """The target is a firing line of this weapon.
+
+    Naming a gun, where ``Has`` names something a gun carries and
+    ``HomedIn`` names where guns of its sort file. A weapon-scoped
+    selector is asked about *lines* — an Autogun's own line, a boltgun's
+    warp round — so being the Autogun is a fact about the line's weapon
+    rather than about the line, and ``Exactly(autogun)`` would be false
+    of every line the Autogun has.
+    """
+
+    weapon: object
+
+    def matches(self, target):
+        return getattr(target.thing, "weapon_id", None) == self.weapon.pk
+
+    def as_q(self, for_model):
+        from n26.library.models import WeaponProfile
+
+        if not issubclass(for_model, WeaponProfile):
+            raise NotExpressibleAsQuery(
+                f"LineOf({self.weapon}) filters weapon profiles, not "
+                f"{for_model.__name__} — a line belongs to a weapon."
+            )
+        return Q(weapon=self.weapon)
+
+    def __str__(self):
+        return f"a line of {self.weapon}"
+
+
+@dataclass(frozen=True)
 class TakesSlots:
     """The target is a weapon taking this many slots.
 

@@ -161,13 +161,21 @@
                     <input type="hidden" name="act" value="attach">
                     <div class="grow">
                         <c-ui.field data-field label="Attach an existing modifier" for="attach-modifier">
-                            <c-ui.select.native name="modifier" id="attach-modifier" placeholder="Pick a modifier">
-                                {% for mod in attachable_modifiers %}
-                                    <c-ui.select.option value="{{ mod.pk }}">
-                                        {{ mod.label }}
-                                    </c-ui.select.option>
-                                {% endfor %}
-                            </c-ui.select.native>
+                            {% comment %}
+                            Every reusable modifier in the library is offered
+                            here, and a modifier's label is a whole sentence —
+                            the longest list on the page, and the one least
+                            worth scrolling.
+                            {% endcomment %}
+                            <c-n26.filter-select placeholder="Type to filter modifiers">
+                                <c-ui.select.native name="modifier" id="attach-modifier" placeholder="Pick a modifier">
+                                    {% for mod in attachable_modifiers %}
+                                        <c-ui.select.option value="{{ mod.pk }}">
+                                            {{ mod.label }}
+                                        </c-ui.select.option>
+                                    {% endfor %}
+                                </c-ui.select.native>
+                            </c-n26.filter-select>
                         </c-ui.field>
                     </div>
                     <c-ui.button type="submit">
@@ -175,7 +183,13 @@
                     </c-ui.button>
                 </form>
             {% endif %}
-            {% include "authoring/_composer.html" with show_reusable_flag=True composer_title="Build a new modifier" composer_description="Pick who it reaches and what it does; the fields for both follow." composer_class="rounded-box border border-box-border p-4" composer_submit_label="Add modifier" composer_cancel_url="" %}
+            {% comment %}
+            Continue leads to the composer's own address rather than back
+            here: this page is long, and redrawing it on every choice of
+            kind lands the reader at the top of it again.
+            {% endcomment %}
+            {% url 'authoring-modifier-create' as compose_url %}
+            {% include "authoring/_composer.html" with show_reusable_flag=True composer_action=compose_url composer_carrier_kind=kind composer_carrier_pk=thing.pk composer_title="Build a new modifier" composer_description="Pick who it reaches and what it does; the fields for both follow." composer_class="rounded-box border border-box-border p-4" composer_submit_label="Add modifier" composer_cancel_url="" %}
         </c-n26.form-section>
     {% endif %}
 {% endblock content %}
