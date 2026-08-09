@@ -409,7 +409,7 @@ class CollectionSelector(Content):
         """
         from django.db.models import Prefetch
 
-        from n26.library.models.assignable import UsableBy
+        from n26.library.models.assignable import USABLE_BY_LISTS, UsableBy
 
         model = self.of_kind.model_class()
         found = model.objects.filter(self.as_selector().as_q(model)).select_related(
@@ -417,12 +417,7 @@ class CollectionSelector(Content):
         )
         if issubclass(model, UsableBy):
             # So marking a swept listing usable costs no extra queries.
-            found = found.prefetch_related(
-                "usable_by_profile_types",
-                "usable_by_subtypes",
-                "usable_by_profiles",
-                "usable_by_specialisations",
-            )
+            found = found.prefetch_related(*USABLE_BY_LISTS)
         if self.with_trade_point_price and hasattr(model, "profiles"):
             found = found.prefetch_related(
                 Prefetch(

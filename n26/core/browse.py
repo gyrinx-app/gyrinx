@@ -142,6 +142,8 @@ def browse(collection, terms=EQUIPMENT_LIST):
     """
     from django.db.models import Prefetch
 
+    from n26.library.models import CollectionEntry
+    from n26.library.models.assignable import USABLE_BY_LISTS, UsableBy
     from n26.library.models.collection import (
         ENTRY_ASSIGNABLE_FIELDS,
         TRADEABLE_PROFILES,
@@ -171,20 +173,15 @@ def browse(collection, terms=EQUIPMENT_LIST):
     entries = collection.entries.prefetch_related(
         *ENTRY_ASSIGNABLE_FIELDS,
         *(f"{name}__category__section" for name in ENTRY_ASSIGNABLE_FIELDS),
-        # Use-restriction lists, for the kinds that carry them — so
-        # noting a whole listing costs no extra queries.
-        "skill__usable_by_profile_types",
-        "skill__usable_by_subtypes",
-        "skill__usable_by_profiles",
-        "skill__usable_by_specialisations",
-        "power__usable_by_profile_types",
-        "power__usable_by_subtypes",
-        "power__usable_by_profiles",
-        "power__usable_by_specialisations",
-        "weapon__usable_by_profiles",
-        "weapon__usable_by_specialisations",
-        "wargear__usable_by_profiles",
-        "wargear__usable_by_specialisations",
+        # Use-restriction lists, derived for every kind carrying the
+        # mixin — so noting a whole listing costs no extra queries,
+        # whichever kind an author narrowed and however they narrowed it.
+        *(
+            f"{name}__{listed}"
+            for name in ENTRY_ASSIGNABLE_FIELDS
+            if issubclass(CollectionEntry._meta.get_field(name).related_model, UsableBy)
+            for listed in USABLE_BY_LISTS
+        ),
         # A curated gun carries its ammo the same way a swept one does.
         # An equipment list prices in credits, so what it offers is
         # everything paid — a TP price is the Trading Post's question,

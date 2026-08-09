@@ -301,6 +301,13 @@ class UsableBy(models.Model):
         return self.usable_by_selector().matches(fighter)
 
 
+#: The lists ``usable_by_selector`` reads, derived from the mixin's own
+#: fields: a listing that prefetches these for every kind carrying the
+#: mixin marks usability without a query per line, and stays complete
+#: if the mixin ever grows a fifth list.
+USABLE_BY_LISTS = tuple(field.name for field in UsableBy._meta.local_many_to_many)
+
+
 class Optioned(models.Model):
     """Mixin for things that offer alternatives when you acquire them.
 

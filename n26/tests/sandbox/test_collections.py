@@ -795,6 +795,46 @@ class TestScaling:
 
         assert measure(small) == measure(big)
 
+    def test_marking_usability_costs_no_more_queries_as_restrictions_grow(
+        self, taxonomy, person_type, make_profile
+    ):
+        """A restricted line is noted by reading its use lists — all four
+        of them, on every kind that carries them. The lists load with the
+        listing, so a shelf of narrowed guns costs what an open one does."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from n26.core import select
+        from n26.core.browse import with_use_notes
+        from n26.library.authoring import create_subtype
+
+        walker = create_subtype("Walker")
+        shopper = select.matchable(make_profile("Shopper"))
+
+        def restricted(count):
+            items = []
+            for index in range(count):
+                weapon = create_weapon(
+                    f"Narrow gun {count}-{index}",
+                    profiles=[("Standard", 0)],
+                    category=taxonomy["auto"],
+                )
+                weapon.usable_by_profile_types.add(person_type)
+                weapon.usable_by_subtypes.add(walker)
+                items.append(weapon)
+            return items
+
+        small = create_collection("Small armoury", entries=restricted(2))
+        big = create_collection("Big armoury", entries=restricted(12))
+
+        def measure(collection):
+            with CaptureQueriesContext(connection) as captured:
+                noted = with_use_notes(browse(collection), shopper)
+                assert list(noted.all_lines())
+            return len(captured.captured_queries)
+
+        assert measure(small) == measure(big)
+
 
 class TestTradingPostMembership:
     """The Trading Post's membership is *having a trade point price* —
