@@ -1,0 +1,22 @@
+{# title: Several at once #}
+{# note: A multiple select keeps the panel open and ticks what is chosen; the browser posts one value per ticked option, as it always did. min_options is lowered so a short demo still shows the panel. #}
+{# layout: col #}
+<c-n26.filter-select min_options="3" placeholder="Type to filter traits">
+    <c-ui.select.native name="traits" id="demo-filter-traits" placeholder="" multiple>
+        <c-ui.select.option value="1">
+            Knockback
+        </c-ui.select.option>
+        <c-ui.select.option value="2">
+            Rending
+        </c-ui.select.option>
+        <c-ui.select.option value="3">
+            Unwieldy
+        </c-ui.select.option>
+        <c-ui.select.option value="4">
+            Versatile
+        </c-ui.select.option>
+        <c-ui.select.option value="5">
+            Web
+        </c-ui.select.option>
+    </c-ui.select.native>
+</c-n26.filter-select>

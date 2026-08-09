@@ -1,0 +1,277 @@
+{% comment %}
+<c-n26.filter-select> — a long <select>, with a box to search it.
+
+    <c-n26.filter-select>
+        <c-ui.select.native name="weapon" id="id_weapon" placeholder="">
+            <c-ui.select.option value="7">Autogun</c-ui.select.option>
+        </c-ui.select.native>
+    </c-n26.filter-select>
+
+A picker over a few hundred rows — every weapon in the library, every
+category, every profile — is a list nobody can scan. A native select
+answers typing by first letter only, so two rows that begin the same way
+("Ferocious jaws (Delaque)", "Ferocious jaws (Goliath)") can only be told
+apart by scrolling to them. This draws the same options as a panel with a
+filter box over it, matching anywhere in the label.
+
+  --- the select is still the control ---
+
+The <select> handed in is what the browser submits, untouched: same name,
+same option values, same selected options. Nothing here mirrors the value
+into a second input, and nothing rewrites what a row is worth — the panel
+sets `selectedIndex` or flips `option.selected` on the real element, and
+the form posts what it always posted. A picker that carried its own copy
+of the value would be one refactor away from posting a label where a
+primary key belongs, and the failure would look like a form that saved the
+wrong row rather than like a broken control.
+
+The index is what is set, never `select.value = …`: two rows may hold the
+same value, and assigning a value picks whichever comes first.
+
+  --- with no script ---
+
+The select renders visible and complete. The panel is x-cloak'd and shown
+only once Alpine has run, and hiding the select is something Alpine does
+on init — so a reader with no script gets the plain select they would have
+had, working, with no filter box sitting above it swallowing typing.
+
+This is why the kit's own combobox is not what is underneath. It posts
+through a <select> whose name is an Alpine binding and whose options are a
+<template>, so with no script it has neither a name nor an option and
+submits nothing at all; and the options it does render carry their label
+text as their value, which cannot say which row was meant.
+
+  --- how long is long enough ---
+
+Below `min_options` the select is left exactly as it came. A short list is
+faster to look at than to describe, and the native control keeps its own
+keyboard handling and the platform's picker on a phone — a filter box over
+six options costs both and buys nothing.
+
+The counting happens in the browser rather than on the server because the
+options are already in the page by then. Asking the database instead means
+a COUNT for every picker on the page, and the modifier composer draws
+about a dozen.
+
+  --- from the keyboard ---
+
+The panel opens on Enter, Space or Down. Focus lands in the filter box and
+stays there: Down and Up move a highlight, Enter takes the highlighted row,
+Escape empties a filter with something in it and closes the panel when it
+has not. Enter is always swallowed while the panel is open — the picker
+sits inside a form, and a stray Enter would submit it.
+
+The highlight is an option's index, looked up among the rows the filter
+lets through, so it can never land on a row that is not on the screen. The
+box carries aria-activedescendant, so the highlighted row is announced by
+the control that has focus.
+
+The <label> the field drew points at the select, which is hidden by then.
+It is repointed at the trigger on init — a button is labelable, so the
+label goes on naming the control and goes on focusing it when clicked.
+
+  min_options — how many options a select needs before it is worth a filter
+    box. Counted in the browser, including any empty choice.
+  placeholder — the filter box's placeholder.
+  empty — what to say when the filter matches nothing.
+  slot — the select, however the caller drew it.
+{% endcomment %}
+<c-vars min_options="15"
+        placeholder="Type to filter"
+        empty="No matches"
+        class="" />
+<div x-data="{
+         open: false,
+         ready: false,
+         query: '',
+         options: [],
+         active: -1,
+         multiple: false,
+         select: null,
+         init() {
+             this.select = this.$el.querySelector('select');
+             if (!this.select) return;
+             this.multiple = this.select.multiple;
+             this.options = Array.from(this.select.options).map((option, index) => ({
+                 index,
+                 value: option.value,
+                 label: option.textContent.trim(),
+                 selected: option.selected,
+                 disabled: option.disabled,
+             }));
+             if (this.options.length < {{ min_options }}) return;
+             this.ready = true;
+             this.select.hidden = true;
+             this.$refs.trigger.id = (this.select.id || this.$id('n26-filter-select')) + '-picker';
+             const named = this.select.id
+                 ? document.querySelector('label[for=' + CSS.escape(this.select.id) + ']')
+                 : null;
+             // The label names and focuses the trigger from here on; the
+             // select it named is no longer on the screen.
+             if (named) named.setAttribute('for', this.$refs.trigger.id);
+         },
+         // A select's empty choice is a row like any other, and picking it
+         // is how a pick is undone — but it is not something chosen, and a
+         // trigger reading '---------' says less than one reading nothing.
+         get chosen() { return this.options.filter(option => option.selected && option.value) },
+         get summary() { return this.chosen.map(option => option.label).join(', ') },
+         // What the trigger says with nothing picked. A disabled empty
+         // option is a placeholder someone wrote — 'Pick a modifier' — and
+         // is worth more than a generic line; an enabled one is the way
+         // back to no choice at all, and its dashes say nothing.
+         get nothing() {
+             const written = this.options.find(option => !option.value && option.disabled);
+             return written ? written.label : 'Nothing chosen';
+         },
+         // Disabled options are dropped rather than dimmed: a row nobody
+         // may pick is a row in the way of the arrow keys.
+         get filtered() {
+             const wanted = this.query.trim().toLowerCase();
+             return this.options.filter(option => !option.disabled
+                 && (!wanted || option.label.toLowerCase().includes(wanted)));
+         },
+         show() {
+             this.open = true;
+             // A frame, not a tick. Pressing the trigger focuses it, and the
+             // browser does that after this handler has run — a focus moved
+             // inside the same task is taken straight back by the button.
+             this.$nextTick(() => requestAnimationFrame(() => this.$refs.filter.focus()));
+         },
+         close(back) {
+             this.open = false;
+             this.query = '';
+             this.active = -1;
+             if (back) this.$refs.trigger.focus();
+         },
+         move(step) {
+             const rows = this.filtered;
+             if (!rows.length) { this.active = -1; return }
+             const at = rows.findIndex(option => option.index === this.active);
+             const to = at < 0
+                 ? (step > 0 ? 0 : rows.length - 1)
+                 : (at + step + rows.length) % rows.length;
+             this.active = rows[to].index;
+             this.$nextTick(() => {
+                 const row = this.$refs.list.querySelector('[data-active=true]');
+                 if (row) row.scrollIntoView({ block: 'nearest' });
+             });
+         },
+         choose(index) {
+             const option = this.select.options[index];
+             if (this.select.multiple) {
+                 option.selected = !option.selected;
+                 this.options[index].selected = option.selected;
+             } else {
+                 // The index, not the value: two rows may share a value.
+                 this.select.selectedIndex = index;
+                 this.options.forEach(row => { row.selected = row.index === index });
+             }
+             // Anything watching the select for a change — the union
+             // pickers' own script among them — never saw the press.
+             this.select.dispatchEvent(new Event('change', { bubbles: true }));
+             if (!this.select.multiple) this.close(true);
+         },
+         keys(event) {
+             if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                 event.preventDefault();
+                 this.move(event.key === 'ArrowDown' ? 1 : -1);
+             } else if (event.key === 'Enter') {
+                 // Always swallowed: this box is inside a form, and an
+                 // Enter that reaches it submits the form mid-search.
+                 event.preventDefault();
+                 if (this.active >= 0) this.choose(this.active);
+             } else if (event.key === 'Escape') {
+                 event.stopPropagation();
+                 if (this.query) { this.query = ''; this.active = -1 } else { this.close(true) }
+             } else if (event.key === 'Tab') {
+                 this.close(false);
+             }
+         },
+     }"
+     x-id="['n26-filter-select']"
+     @keydown.escape.window="open && close(true)"
+     class="relative {{ class }}"
+     {{ attrs }}>
+    {{ slot }}
+    {% comment %}
+    x-cloak as well as x-show: x-show is an attribute Alpine has to run to
+    honour, so between the HTML arriving and Alpine booting the panel would
+    be on the screen over the select it is meant to replace.
+    {% endcomment %}
+    <div x-show="ready" x-cloak>
+        {% comment %}
+        Styled as the native select is styled, because it stands exactly
+        where the native select stood and the two are the same control at
+        different list lengths. The chevron is drawn rather than set as a
+        background image so it takes the ink colour.
+        {% endcomment %}
+        <button type="button"
+                x-ref="trigger"
+                @click="open ? close(false) : show()"
+                @keydown.arrow-down.prevent="show()"
+                aria-haspopup="listbox"
+                :aria-expanded="open"
+                class="relative w-full appearance-none rounded-control border border-ink-300 bg-[var(--color-input-bg)] px-3 py-2 pr-10 text-left text-sm shadow-[var(--shadow-input)] transition-colors focus-ring dark:border-ink-700">
+            <span x-show="chosen.length" x-text="summary" class="block truncate text-ink-900 dark:text-ink-100"></span>
+            <span x-show="!chosen.length" x-text="nothing" class="block truncate text-ink-400 dark:text-ink-500"></span>
+            <span class="pointer-events-none absolute inset-y-0 right-3 flex items-center text-ink-400">
+                <c-n26.icon name="chevron-down" class="size-4" stroke_width="2" />
+            </span>
+        </button>
+        {% comment %}
+        Hung from the trigger's own edges rather than placed, because the
+        trigger is as wide as the field: there is no narrow anchor to
+        measure against and nothing to clamp back into the window.
+        {% endcomment %}
+        <div x-show="open"
+             x-cloak
+             @click.outside="close(false)"
+             class="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-box border border-box-border bg-white shadow-lg dark:bg-ink-900">
+            <div class="border-b border-box-border p-2">
+                <c-ui.input type="search"
+                            size="sm"
+                            placeholder="{{ placeholder }}"
+                            aria-label="{{ placeholder }}"
+                            autocomplete="off"
+                            role="combobox"
+                            x-ref="filter"
+                            x-model="query"
+                            @keydown="keys($event)"
+                            ::aria-expanded="open"
+                            ::aria-controls="$id('n26-filter-select') + '-list'"
+                            ::aria-activedescendant="active >= 0 ? $id('n26-filter-select') + '-option-' + active : null">
+                    <c-slot name="left_addon">
+                        <c-n26.icon name="magnifying-glass" class="size-4" stroke_width="1.5" />
+                    </c-slot>
+                </c-ui.input>
+            </div>
+            <div x-ref="list"
+                 :id="$id('n26-filter-select') + '-list'"
+                 role="listbox"
+                 :aria-multiselectable="multiple"
+                 class="max-h-72 overflow-y-auto py-1">
+                <template x-for="option in filtered" :key="option.index">
+                    {% comment %}
+                    The pointer moves the highlight too, so the row under
+                    the pointer and the row Enter would take are never two
+                    different rows.
+                    {% endcomment %}
+                    <div role="option"
+                         :id="$id('n26-filter-select') + '-option-' + option.index"
+                         :data-active="option.index === active"
+                         :aria-selected="option.selected"
+                         @click="choose(option.index)"
+                         @mousemove="active = option.index"
+                         class="flex cursor-pointer items-center gap-2 px-3 py-1.5 text-sm text-ink-900 dark:text-ink-100"
+                         :class="option.index === active ? 'bg-ink-100 dark:bg-ink-800' : ''">
+                        <span class="flex size-4 shrink-0 items-center text-accent">
+                            <c-n26.icon name="check" class="size-4" stroke_width="2" x-show="option.selected" />
+                        </span>
+                        <span class="min-w-0 flex-1 truncate" x-text="option.label"></span>
+                    </div>
+                </template>
+                <p x-show="!filtered.length" class="px-3 py-4 text-center text-sm text-muted">{{ empty }}</p>
+            </div>
+        </div>
+    </div>
+</div>

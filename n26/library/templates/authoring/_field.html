@@ -104,28 +104,39 @@ Takes `field` (a BoundField) and `form`.
                     {% include "authoring/_options.html" %}
                 </c-ui.select.native>
             {% elif field|widget_attr:"data-union-of" %}
-                <c-ui.select.native name="{{ field.html_name }}"
-                                    id="{{ field.auto_id }}"
-                                    placeholder=""
-                                    data-union-of="{{ field|widget_attr:'data-union-of' }}"
-                                    data-union-member="{{ field|widget_attr:'data-union-member' }}">
-                    {% include "authoring/_options.html" %}
-                </c-ui.select.native>
+                {% comment %}
+                A member picker is the longest list an author meets — every
+                weapon, every piece of wargear — so it is the one the filter
+                box was built for. The wrapper leaves a short list alone.
+                {% endcomment %}
+                <c-n26.filter-select>
+                    <c-ui.select.native name="{{ field.html_name }}"
+                                        id="{{ field.auto_id }}"
+                                        placeholder=""
+                                        data-union-of="{{ field|widget_attr:'data-union-of' }}"
+                                        data-union-member="{{ field|widget_attr:'data-union-member' }}">
+                        {% include "authoring/_options.html" %}
+                    </c-ui.select.native>
+                </c-n26.filter-select>
             {% elif kind == "selectmultiple" %}
                 {% comment %}
                 multiple rides the attrs passthrough (size would shadow
                 the kit's size-class key); the browser draws the list box.
                 {% endcomment %}
-                <c-ui.select.native name="{{ field.html_name }}"
-                                    id="{{ field.auto_id }}"
-                                    placeholder=""
-                                    multiple>
-                    {% include "authoring/_options.html" %}
-                </c-ui.select.native>
+                <c-n26.filter-select>
+                    <c-ui.select.native name="{{ field.html_name }}"
+                                        id="{{ field.auto_id }}"
+                                        placeholder=""
+                                        multiple>
+                        {% include "authoring/_options.html" %}
+                    </c-ui.select.native>
+                </c-n26.filter-select>
             {% else %}
-                <c-ui.select.native name="{{ field.html_name }}" id="{{ field.auto_id }}" placeholder="">
-                    {% include "authoring/_options.html" %}
-                </c-ui.select.native>
+                <c-n26.filter-select>
+                    <c-ui.select.native name="{{ field.html_name }}" id="{{ field.auto_id }}" placeholder="">
+                        {% include "authoring/_options.html" %}
+                    </c-ui.select.native>
+                </c-n26.filter-select>
             {% endif %}
         </c-ui.field>
     {% else %}
