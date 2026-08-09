@@ -128,7 +128,7 @@ class TestTheStatlineEditorInTheGallery:
 
     def test_a_refusal_is_a_sentence_naming_the_characteristic(self, reader):
         page = reader.get("/n26/design/c/statline/").content.decode()
-        assert "Movement is longer than ten characters" in page
+        assert "Movement is longer than 10 characters" in page
         # What the author typed, not what was stored before it.
         assert 'value="five inches or so"' in page
 

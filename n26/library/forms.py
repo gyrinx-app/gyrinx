@@ -1081,17 +1081,111 @@ def statline_form_for(statline_type):
     every value is stored as typed, since ``S`` (the wielder's Strength)
     and ``E`` (engaged only) are as legitimate as ``4``.
     """
-    attrs = {"statline_type": statline_type}
-    for type_stat in statline_type.stats.select_related("stat"):
-        stat = type_stat.stat
-        attrs[stat.field_name] = forms.CharField(
+    type_stats = list(statline_type.stats.select_related("stat"))
+    attrs = {"statline_type": statline_type, "type_stats": type_stats}
+    # Kept out of the class body and attached afterwards, because these
+    # names come from content and the class has names of its own. A Save
+    # characteristic derives the field name ``save``, which as a class
+    # attribute is overwritten by this form's ``save`` method — the field
+    # then does not exist, and drawing the row raises on the stat that
+    # named it. ``clean`` and ``data`` are the same shape of collision.
+    fields = {
+        type_stat.stat.field_name: forms.CharField(
             required=False,
-            label=stat.short_name,
-            help_text=stat.full_name,
-            widget=forms.TextInput(attrs={"placeholder": stat.placeholder, "size": 6}),
+            label=type_stat.stat.short_name,
+            help_text=type_stat.stat.full_name,
+            widget=forms.TextInput(
+                attrs={"placeholder": type_stat.stat.placeholder, "size": 6}
+            ),
         )
+        for type_stat in type_stats
+    }
+
+    def clean(self):
+        """Refuse what cannot be stored, and nothing else.
+
+        A characteristic is not always a number: ``S`` stands for the
+        wielder's own Strength, ``D6`` is rolled, ``-`` is none. Turning
+        those away would make this editor refuse content the spreadsheet
+        importer accepts, so the only refusals are about storage —
+        something too long for the column, and something with a
+        separator in it, which is a whole row pasted into one box.
+        """
+        from n26.library.models import StatlineStat
+
+        # Named base rather than a bare super(): this form is built by
+        # type() rather than declared, so there is no class cell for the
+        # no-argument form to find.
+        cleaned = forms.Form.clean(self)
+        # Read off the column rather than written down here, so the
+        # refusal cannot come to disagree with what will actually fit.
+        limit = StatlineStat._meta.get_field("value").max_length
+        for type_stat in self.type_stats:
+            value = (cleaned.get(type_stat.field_name) or "").strip()
+            if len(value) > limit:
+                self.add_error(
+                    type_stat.field_name,
+                    f"{type_stat.full_name} is longer than {limit} characters — "
+                    f"a statline cell holds a short value like 4, 3+ or S.",
+                )
+            elif "," in value or "\n" in value:
+                self.add_error(
+                    type_stat.field_name,
+                    f"{type_stat.full_name} holds one characteristic — give "
+                    f"each of them its own box.",
+                )
+        return cleaned
+
+    def opened_on(cls, owner, data=None, prefix="statline"):
+        """The same form, filled in from the characteristics already stored.
+
+        The values shown are the stored ones, which are canonical: an
+        author who typed 4 for a Movement is shown the ``4"`` a card
+        prints. Stripping the mark for display would leave the editor and
+        the card disagreeing about what the value is, with no way to tell
+        whose quote mark it was.
+
+        Prefixed, because a thing's page carries its own generated form
+        beside this one and the two can name a field alike.
+        """
+        statline = getattr(owner, "statline", None)
+        initial = (
+            {stat.field_name: stat.value for stat in statline.ordered_stats()}
+            if statline is not None
+            else {}
+        )
+        return cls(data, initial=initial, prefix=prefix)
+
+    def cells(self):
+        """The characteristics as the editor draws them, in type order.
+
+        Values come off the bound field rather than the database, so a
+        form redrawn after a refusal shows what was typed — a complaint
+        about a value no longer on the screen is one nobody can act on.
+        """
+        from n26.core.render import EditableStatCell
+
+        return [
+            EditableStatCell(
+                short_name=type_stat.short_name,
+                full_name=type_stat.full_name,
+                name=self[type_stat.field_name].html_name,
+                value=self[type_stat.field_name].value() or "",
+                placeholder=type_stat.stat.placeholder,
+                highlighted=type_stat.is_highlighted,
+                first_of_group=type_stat.is_first_of_group,
+                error=" ".join(self.errors.get(type_stat.field_name, [])),
+            )
+            for type_stat in self.type_stats
+        ]
 
     def save(self, owner):
+        """Record the characteristics that were typed.
+
+        Nothing typed means nothing to record: a firing line added with
+        every box empty is a line with no statline, not a statline of
+        blanks.
+        """
         from n26.library import authoring
 
         values = {
@@ -1103,5 +1197,42 @@ def statline_form_for(statline_type):
             return None
         return authoring.set_statline(owner, **values)
 
-    attrs["save"] = save
-    return type("StatlineForm", (forms.Form,), attrs)
+    def save_every_value(self, owner):
+        """Record every characteristic the form drew, blanks included.
+
+        Editing means something different by an empty box than adding
+        does. ``set_statline`` leaves a characteristic it is not told
+        about alone, which is right for a spreadsheet whose column is
+        missing and wrong for a person looking at a box they have just
+        cleared — an author who cannot empty one is stuck with a typo
+        for good. A blank is stored as a blank, which every surface
+        prints as a dash.
+
+        An owner with no statline and nothing typed keeps none: a
+        profile whose page was opened and saved has not thereby been
+        given a row of dashes.
+        """
+        from n26.library import authoring
+
+        typed = any(str(value).strip() for value in self.cleaned_data.values())
+        if getattr(owner, "statline", None) is None and not typed:
+            return None
+        return authoring.set_statline(
+            owner,
+            **{
+                type_stat.field_name: self.cleaned_data.get(type_stat.field_name, "")
+                for type_stat in self.type_stats
+            },
+        )
+
+    attrs.update(
+        clean=clean,
+        opened_on=classmethod(opened_on),
+        cells=cells,
+        save=save,
+        save_every_value=save_every_value,
+    )
+    form_class = type("StatlineForm", (forms.Form,), attrs)
+    form_class.base_fields = fields
+    form_class.declared_fields = fields
+    return form_class

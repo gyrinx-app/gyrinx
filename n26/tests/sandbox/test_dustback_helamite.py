@@ -30,7 +30,7 @@ from n26.core.reconcile import assert_reconciled
 from n26.core.render import build_model_card
 from n26.library.authoring import (
     add_built_in,
-    in_category,
+    in_categories,
     is_one_of,
     targets_attached_weapon,
     targets_weapons,
@@ -260,7 +260,7 @@ class TestNoScopeNamesTheseClaws:
         and nothing else. It states a fact about where claws file, though,
         not about this beast: a second weapon in that category would be
         armed by a Helamite that never brought it."""
-        card = armed(targets_weapons(in_category(beast_weapons)))
+        card = armed(targets_weapons(in_categories(beast_weapons)))
 
         assert traits_on(card, "Helamite claws") == ["Additional Attacks (1)"]
         assert traits_on(card, "Autogun") == []

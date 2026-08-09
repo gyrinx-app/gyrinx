@@ -565,8 +565,8 @@ def build_modifier_index(assignables, max_depth=3):
             "targets_miniature__counter_at_least",
             queryset=CounterAtLeast.objects.select_related("counter"),
         ),
-        "targets_weapons__has_trait__traits",
-        "targets_weapons__in_category__categories",
+        "targets_weapons__has_traits__traits",
+        "targets_weapons__in_categories__categories",
         "targets_weapons__is_one_of__weapons",
     )
 

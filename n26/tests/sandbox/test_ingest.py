@@ -2146,7 +2146,7 @@ class TestClearing:
         melee = Trait.objects.get(name="Melee")
         authoring.modifier(
             "Anything melee hits harder",
-            scope=authoring.targets_weapons(authoring.has_trait(melee)),
+            scope=authoring.targets_weapons(authoring.has_traits(melee)),
             effect=authoring.ef_changes_stat(
                 Stat.objects.get(full_name="Strength"), amount=1
             ),

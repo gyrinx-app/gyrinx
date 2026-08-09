@@ -52,7 +52,7 @@ from n26.library.authoring import (  # noqa: F401 — re-exported for the suites
     ef_removes,
     ef_requires_companions,
     has_subtypes,
-    has_trait,
+    has_traits,
     offer_option,
     op_adds_model,
     restrict_use,
@@ -91,7 +91,7 @@ def targets_model(with_subtypes=(), when_counter=None, at_least=0, bearer_only=F
 
 
 def targets_weapons(with_trait=None):
-    conditions = (has_trait(with_trait),) if with_trait is not None else ()
+    conditions = (has_traits(with_trait),) if with_trait is not None else ()
     return _targets_weapons(*conditions)
 
 

@@ -189,6 +189,27 @@ def _carries_modifiers(kind):
     return hasattr(_model_for(_spec_for(kind)), "modifiers")
 
 
+def _statline_editor_for(thing):
+    """The statline form a thing's own page carries, or ``None``.
+
+    Which kinds may own a statline is read off the columns that hold
+    one, never listed here: a weapon has a statline type but it is a
+    weapon's *firing lines* that carry values, and a new kind of owner
+    should get its editor without anyone remembering to come back. A
+    shape with no characteristics in it yet draws no editor — there
+    would be nothing to type in.
+    """
+    from n26.library.models import Statline
+
+    owners = {Statline._meta.get_field(f).related_model for f in Statline.OWNERS}
+    if type(thing) not in owners:
+        return None
+    statline_type = thing.statline_type
+    if statline_type is None or not statline_type.stats.exists():
+        return None
+    return statline_form_for(statline_type)
+
+
 def _has_detail(kind):
     """Whether this kind's rows have a page of their own.
 
@@ -646,7 +667,9 @@ def detail(request, kind, pk):
     modifiers, next. The part form is spec-generated like any other,
     and where the part carries a statline the page composes one beside
     it — that form's fields come from the owner's statline type, which
-    no spec can know.
+    no spec can know. A thing that carries a statline of its own gets
+    the same form inside its edit form, so a fighter's characteristics
+    are typed where its name and price are.
 
     Kinds in ``DETAIL_VIEWS`` have a page of their own shape instead —
     a collection's page previews what its definition means right now.
@@ -668,12 +691,20 @@ def detail(request, kind, pk):
             return response
 
     edit_class = generate_form(spec)
+    # A thing that can own a statline is edited with its characteristics
+    # in the same form: one press of Save writes both, or neither.
+    statline_class = _statline_editor_for(thing)
     if request.method == "POST" and act == "edit":
         edit_form = edit_class.opened_on(thing, request.POST, request.FILES)
-        if edit_form.is_valid():
+        statline_edit = (
+            statline_class.opened_on(thing, request.POST) if statline_class else None
+        )
+        if edit_form.is_valid() and (statline_edit is None or statline_edit.is_valid()):
             try:
                 with transaction.atomic():
                     edit_form.apply_to(thing)
+                    if statline_edit is not None:
+                        statline_edit.save_every_value(thing)
             except IntegrityError:
                 named = spec.identity
                 edit_form.add_error(
@@ -686,6 +717,7 @@ def detail(request, kind, pk):
                 return redirect("authoring-detail", kind=kind, pk=pk)
     else:
         edit_form = edit_class.opened_on(thing)
+        statline_edit = statline_class.opened_on(thing) if statline_class else None
 
     if detail_of is not None:
         part_spec = specs()[detail_of["verb"]]
@@ -755,6 +787,7 @@ def detail(request, kind, pk):
             "verbose_name": model._meta.verbose_name,
             "verbose_name_plural": model._meta.verbose_name_plural,
             "edit_form": edit_form,
+            "statline_cells": statline_edit.cells() if statline_edit else None,
             **part_context,
             **(
                 _modifier_section(request, thing, composer)

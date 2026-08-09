@@ -305,7 +305,7 @@ class TargetsWeapons(models.Model):
     #: Reverse relations ``as_selector()`` folds, in the order their
     #: sentences read. The boot check (n26.E003/E004) verifies this names
     #: exactly the condition models that FK this scope.
-    CONDITIONS = ("is_one_of", "in_category", "has_trait")
+    CONDITIONS = ("is_one_of", "in_categories", "has_traits")
 
     class Meta:
         verbose_name = "targets weapons"
@@ -413,7 +413,7 @@ class IsOneOf(models.Model):
         return select.Any(*(select.LineOf(weapon) for weapon in wanted))
 
 
-class InCategory(models.Model):
+class InCategories(models.Model):
     """Condition: the weapon is homed in one of these categories.
 
     "Van Saar gangs get an AP improvement of 1 on all Las weapons" is
@@ -423,7 +423,7 @@ class InCategory(models.Model):
     scope = models.ForeignKey(
         TargetsWeapons,
         on_delete=models.CASCADE,
-        related_name="in_category",
+        related_name="in_categories",
     )
     categories = models.ManyToManyField(
         "library.Category",
@@ -435,7 +435,7 @@ class InCategory(models.Model):
     )
 
     class Meta:
-        verbose_name = "in category"
+        verbose_name = "in categories"
         verbose_name_plural = "in categories"
 
     def __str__(self):
@@ -454,7 +454,7 @@ class InCategory(models.Model):
         return select.Any(*(select.HomedIn(category) for category in wanted))
 
 
-class HasTrait(models.Model):
+class HasTraits(models.Model):
     """Condition: the weapon carries one of these traits.
 
     Matched against the round snapshot, so a trait an earlier modifier
@@ -465,7 +465,7 @@ class HasTrait(models.Model):
     scope = models.ForeignKey(
         TargetsWeapons,
         on_delete=models.CASCADE,
-        related_name="has_trait",
+        related_name="has_traits",
     )
     traits = models.ManyToManyField(
         "library.Trait",
@@ -477,7 +477,7 @@ class HasTrait(models.Model):
     )
 
     class Meta:
-        verbose_name = "has trait"
+        verbose_name = "has traits"
         verbose_name_plural = "has traits"
 
     def __str__(self):

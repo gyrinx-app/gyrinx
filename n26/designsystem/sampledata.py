@@ -639,7 +639,7 @@ def refused_statline():
     cannot act on.
     """
     refusal = (
-        "Movement is longer than ten characters — a statline cell holds a "
+        "Movement is longer than 10 characters — a statline cell holds a "
         "short value like 4, 3+ or S."
     )
     return [

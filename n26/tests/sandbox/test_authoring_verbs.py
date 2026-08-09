@@ -24,7 +24,7 @@ from n26.library.authoring import (
     create_trait,
     ef_adds,
     has_subtypes,
-    has_trait,
+    has_traits,
     modifier,
     targets_model,
     targets_weapons,
@@ -60,13 +60,13 @@ class TestConditionsNest:
 
     def test_the_weapon_condition(self, default_pack):
         melee = create_trait("Melee")
-        assert str(targets_weapons(has_trait(melee))) == "weapons with Melee"
+        assert str(targets_weapons(has_traits(melee))) == "weapons with Melee"
         assert str(targets_weapons()) == "all weapons"
 
     def test_conditions_refuse_the_wrong_scope(self, default_pack):
         melee = create_trait("Melee")
         with pytest.raises(ValueError, match="use targets_weapons"):
-            targets_model(has_trait(melee))
+            targets_model(has_traits(melee))
         leader = create_subtype("Leader")
         with pytest.raises(ValueError, match="cannot take"):
             targets_weapons(has_subtypes(leader))

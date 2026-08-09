@@ -22,8 +22,8 @@ from n26.core.reconcile import assert_reconciled
 from n26.core.render import build_model_card
 from n26.library.authoring import (
     create_collection,
-    has_trait,
-    in_category,
+    has_traits,
+    in_categories,
     is_one_of,
     targets_weapons,
 )
@@ -162,7 +162,7 @@ class TestAHouseImprovesOneCategoryOfWeapon:
     def house_rule(self, gang_type, las_weapons, armour_piercing):
         return modifier(
             "Van Saar: Las weapons pierce deeper",
-            targets_weapons(in_category(las_weapons)),
+            targets_weapons(in_categories(las_weapons)),
             changes_stat(armour_piercing, mode="improve", amount=1),
             carried_by=gang_type,
         )
@@ -219,7 +219,7 @@ class TestTheTraitFilterIsUntouched:
         return make_gun("Stiletto knife", solid_projectile, traits=[melee])
 
     def test_the_scope_still_reads_as_it_always_did(self, melee):
-        assert str(targets_weapons(has_trait(melee))) == "weapons with Melee"
+        assert str(targets_weapons(has_traits(melee))) == "weapons with Melee"
         assert str(targets_weapons()) == "all weapons"
 
     def test_only_the_melee_weapon_is_reached(
@@ -227,7 +227,7 @@ class TestTheTraitFilterIsUntouched:
     ):
         modifier(
             "Sharpened",
-            targets_weapons(has_trait(melee)),
+            targets_weapons(has_traits(melee)),
             changes_stat(armour_piercing, mode="improve", amount=1),
             carried_by=gang_type,
         )
@@ -256,7 +256,7 @@ class TestBothFiltersTogether:
     def scoped(self, gang_type, las_weapons, unstable, armour_piercing):
         return modifier(
             "Van Saar: stabilised plasma",
-            targets_weapons(in_category(las_weapons), has_trait(unstable)),
+            targets_weapons(in_categories(las_weapons), has_traits(unstable)),
             changes_stat(armour_piercing, mode="improve", amount=1),
             carried_by=gang_type,
         )
@@ -360,7 +360,7 @@ class TestComposingCategoryRulesInTheApp:
                 "what-mode": "improve",
                 "what-amount": amount,
                 **self.chips(1),
-                "conditions-0-kind": "in_category",
+                "conditions-0-kind": "in_categories",
                 "conditions-0-categories": [str(one.pk) for one in categories],
             },
         )
@@ -438,7 +438,7 @@ class TestComposingCategoryRulesInTheApp:
 
         page = client.get(f"/n26/authoring/modifiers/{made.pk}/")
         (chip,) = page.context["form"].condition_formset.initial
-        assert chip["kind"] == "in_category"
+        assert chip["kind"] == "in_categories"
         assert list(chip["categories"]) == [las_weapons]
 
         client.post(
@@ -449,7 +449,7 @@ class TestComposingCategoryRulesInTheApp:
                 "what-mode": "improve",
                 "what-amount": "2",
                 **self.chips(1),
-                "conditions-0-kind": "in_category",
+                "conditions-0-kind": "in_categories",
                 "conditions-0-categories": [str(las_weapons.pk)],
             },
         )
@@ -486,7 +486,7 @@ class TestAFilterMayNameSeveralValues:
     ):
         modifier(
             "Van Saar: energy weapons pierce deeper",
-            targets_weapons(in_category(las_weapons, plasma_weapons)),
+            targets_weapons(in_categories(las_weapons, plasma_weapons)),
             changes_stat(armour_piercing, mode="improve", amount=1),
             carried_by=gang_type,
         )
@@ -501,7 +501,7 @@ class TestAFilterMayNameSeveralValues:
         assert_reconciled(gang)
 
     def test_the_scope_says_either_of_them(self, las_weapons, plasma_weapons):
-        scope = targets_weapons(in_category(las_weapons, plasma_weapons))
+        scope = targets_weapons(in_categories(las_weapons, plasma_weapons))
         assert str(scope) == "weapons in Las Weapons or Plasma Weapons"
 
     def test_naming_two_traits_reaches_either(
@@ -514,7 +514,7 @@ class TestAFilterMayNameSeveralValues:
         plain = make_gun("Stub gun", solid_projectile)
         modifier(
             "Van Saar: stabilised firing",
-            targets_weapons(has_trait(unwieldy, unstable)),
+            targets_weapons(has_traits(unwieldy, unstable)),
             changes_stat(armour_piercing, mode="improve", amount=1),
             carried_by=gang_type,
         )
@@ -556,7 +556,7 @@ class TestAFilterMayNameSeveralValues:
         one = make_gun("Heavy stubber", solid_projectile, traits=[unwieldy])
         modifier(
             "Van Saar: the difficult guns",
-            targets_weapons(has_trait(unwieldy), has_trait(unstable)),
+            targets_weapons(has_traits(unwieldy), has_traits(unstable)),
             changes_stat(armour_piercing, mode="improve", amount=1),
             carried_by=gang_type,
         )

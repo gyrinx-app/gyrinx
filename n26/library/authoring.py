@@ -11,7 +11,7 @@ The grammar (design/authoring-build-plan.md):
 
       targets_model(has_subtypes(leader, champion))
       targets_model(counter_at_least(xp, 75))
-      targets_weapons(has_trait(melee))
+      targets_weapons(has_traits(melee))
 
 * **Effects** carry a prefix saying *when they happen*: ``ef_`` is
   worked out at read time, ``op_`` writes rows at purchase time.
@@ -858,27 +858,27 @@ def counter_at_least(counter, at_least):
 
 def _weapon_conditions():
     """The condition kinds that narrow weapons rather than models."""
-    from n26.library.models import HasTrait, InCategory, IsOneOf
+    from n26.library.models import HasTraits, InCategories, IsOneOf
 
-    return (HasTrait, InCategory, IsOneOf)
+    return (HasTraits, InCategories, IsOneOf)
 
 
-def has_trait(*traits):
+def has_traits(*traits):
     """Condition: only weapons carrying one of these traits —
-    ``targets_weapons(has_trait(melee))``, or several for any-of."""
-    from n26.library.models import HasTrait
+    ``targets_weapons(has_traits(melee))``, or several for any-of."""
+    from n26.library.models import HasTraits
 
-    condition = HasTrait()
+    condition = HasTraits()
     condition._pending_m2m = {"traits": traits}
     return condition
 
 
-def in_category(*categories):
+def in_categories(*categories):
     """Condition: only weapons homed in one of these categories —
-    ``targets_weapons(in_category(las_weapons))`` for "all Las weapons"."""
-    from n26.library.models import InCategory
+    ``targets_weapons(in_categories(las_weapons))`` for "all Las weapons"."""
+    from n26.library.models import InCategories
 
-    condition = InCategory()
+    condition = InCategories()
     condition._pending_m2m = {"categories": categories}
     return condition
 
@@ -932,8 +932,8 @@ def targets_model(*conditions, when_directly_assigned=False):
 
 def targets_weapons(*conditions):
     """The bearer's weapons, narrowed by nested conditions —
-    ``targets_weapons(has_trait(melee))`` for "your Melee weapons",
-    ``targets_weapons(in_category(las))`` for "all Las weapons",
+    ``targets_weapons(has_traits(melee))`` for "your Melee weapons",
+    ``targets_weapons(in_categories(las))`` for "all Las weapons",
     ``targets_weapons(is_one_of(claws))`` for one named gun.
 
     Given several conditions, a weapon must satisfy all of them; given

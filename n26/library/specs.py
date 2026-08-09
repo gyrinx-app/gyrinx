@@ -240,9 +240,9 @@ def _build_registry():
         DefaultAssignment,
         GangType,
         HasSubtypes,
-        HasTrait,
+        HasTraits,
         Hidden,
-        InCategory,
+        InCategories,
         IsOneOf,
         LastingEffect,
         OffersChoice,
@@ -301,12 +301,12 @@ def _build_registry():
             },
         ),
         Spec(
-            authoring.has_trait,
-            {"traits": Many(model=Trait, source=(HasTrait, "traits"))},
+            authoring.has_traits,
+            {"traits": Many(model=Trait, source=(HasTraits, "traits"))},
         ),
         Spec(
-            authoring.in_category,
-            {"categories": Many(model=Category, source=(InCategory, "categories"))},
+            authoring.in_categories,
+            {"categories": Many(model=Category, source=(InCategories, "categories"))},
         ),
         Spec(
             authoring.is_one_of,
@@ -314,7 +314,7 @@ def _build_registry():
         ),
         Spec(
             authoring.targets_weapons,
-            {"conditions": Conditions(kinds=("has_trait", "in_category", "is_one_of"))},
+            {"conditions": Conditions(kinds=("has_traits", "in_categories", "is_one_of"))},
         ),
         Spec(authoring.targets_attached_weapon, {}),
         Spec(authoring.targets_gang, {}),

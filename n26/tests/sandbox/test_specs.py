@@ -200,9 +200,9 @@ class TestTargetsModel:
 
     def test_a_condition_the_scope_cannot_take_refuses_in_words(self, default_pack):
         melee = create_trait("Melee")
-        with pytest.raises(ValueError, match="cannot take a has_trait"):
+        with pytest.raises(ValueError, match="cannot take a has_traits"):
             specs()["targets_model"].compile(
-                {"conditions": [("has_trait", {"traits": [melee]})]}
+                {"conditions": [("has_traits", {"traits": [melee]})]}
             )
 
 
@@ -210,7 +210,7 @@ class TestWeaponAndPositionalScopes:
     def test_targets_weapons_is_melee_gains_backstab(self, default_pack):
         melee = create_trait("Melee")
         scope = specs()["targets_weapons"].compile(
-            {"conditions": [("has_trait", {"traits": [melee]})]}
+            {"conditions": [("has_traits", {"traits": [melee]})]}
         )
         assert str(scope) == "weapons with Melee"
 

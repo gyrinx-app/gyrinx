@@ -41,15 +41,32 @@
         <c-n26.form-section title="This {{ verbose_name }}" class="mt-8">
             {# A form carrying an upload has to say so, or the browser posts the #}
             {# file's name and nothing else. The form knows whether it holds one. #}
+            {% comment %}
+            The width sits on the fields rather than on the form, because a
+            statline is wider than a column of inputs wants to be: thirteen
+            characteristics do not fit beside a name and a price, and boxed
+            into that width they would be a scrolling strip on a desktop.
+            {% endcomment %}
             <form method="post"
                   {% if edit_form.is_multipart %}enctype="multipart/form-data"{% endif %}
-                  class="max-w-xl space-y-5">
+                  class="space-y-5">
                 {% csrf_token %}
                 <input type="hidden" name="act" value="edit">
-                {% include "authoring/_form.html" with form=edit_form %}
+                <div class="max-w-xl space-y-5">
+                    {% include "authoring/_form.html" with form=edit_form %}
+                </div>
+                {% if statline_cells %}
+                    <c-n26.form-section title="{{ thing.statline_type }}"
+                                        description="An empty box is a characteristic this {{ verbose_name }} does not have; a card prints it as a dash."
+                                        class="rounded-box border border-box-border p-4">
+                        <c-n26.statline.edit :cells="statline_cells" />
+                    </c-n26.form-section>
+                {% endif %}
                 {# No way out: this form is a section of the page it is on, so #}
                 {# there is nowhere for a cancel to lead that is not here. #}
-                <c-n26.form-actions submit_label="Save changes" />
+                <div class="max-w-xl">
+                    <c-n26.form-actions submit_label="Save changes" />
+                </div>
             </form>
         </c-n26.form-section>
     {% endif %}

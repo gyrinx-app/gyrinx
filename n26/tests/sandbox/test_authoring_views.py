@@ -2663,7 +2663,7 @@ class TestAModifiersOwnPage:
         from n26.library.authoring import (
             create_trait,
             ef_changes_stat,
-            has_trait,
+            has_traits,
             modifier,
             targets_weapons,
         )
@@ -2672,7 +2672,7 @@ class TestAModifiersOwnPage:
         strength = make_stat("S", "Strength")
         made = modifier(
             "Sharpened",
-            targets_weapons(has_trait(melee)),
+            targets_weapons(has_traits(melee)),
             ef_changes_stat(strength, mode="improve", amount=1),
         )
 
@@ -2687,7 +2687,7 @@ class TestAModifiersOwnPage:
                 "what-mode": "improve",
                 "what-amount": "2",
                 **self.chips(1),
-                "conditions-0-kind": "has_trait",
+                "conditions-0-kind": "has_traits",
                 "conditions-0-traits": [str(melee.pk)],
             },
         )
