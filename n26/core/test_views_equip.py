@@ -1263,10 +1263,10 @@ def test_a_row_for_something_owned_counts_it_and_still_sells_another(
     rows = rows_of(response)
     assert rows["Knife"].count == 2
     assert isinstance(rows["Sword"], PricedRow)
-    # The count is drawn, and the Buy the row replaced is still submitted
-    # by the same key from inside it.
+    # The count is drawn in words, and the Buy the row replaced is still
+    # submitted by the same key from inside it.
     body = response.content.decode()
-    assert ">(2)<" in body
+    assert "2</span> equipped" in body
     assert f'value="{key_of(knife)}"' in body
 
 

@@ -8,21 +8,24 @@ and opens the row onto what they have. It takes the disclosure's place rather
 than sitting beside it — `expanded` is the row's own state and this sets it, so
 there is one control and not two doing the same thing under different words.
 
-The count is copies, in brackets, the way a card counts anything: the figure is
-what the reader is being told, and the chevron says there is more of it under
-here. Default rather than green — this row is not offering to sell anybody
-anything until they open it.
+The button says how many are equipped, in words: "2 equipped". A bare figure in
+brackets is a count of something the reader has to work out, and the one thing
+worth saying about a row they already own is what they own. Default rather than
+green — this row is not offering to sell anybody anything until they open it.
+
+No price beside it. What a price on a closed row would be quoting is the cost of
+*another* one, which is a question nobody is asking until they open the row and
+find the offer; and next to a count it reads as what the ones in hand are worth,
+which it is not. The column itself stays, empty, so the button lines up with the
+buttons on every row above.
 
   --- and underneath, the ordinary row ---
 
 Opened, the row shows the copies and then the row it replaced, whole: the price
 box, the ammo boxes and the green Buy. Owning one of something has never been a
 reason the shop stops selling it, and a second is bought exactly the way the
-first was, because it is literally the same row.
-
-Its price column is plain text up here for that reason. A box a reader can type
-in above a Buy button that is not there would be a control that does nothing;
-the box belongs with the press it feeds.
+first was, because it is literally the same row — which is where the price a
+reader might want belongs, with the press it feeds.
 {% endcomment %}
 <c-n26.collection-picker.item name="{{ row.name }}"
                               :price="row.buy.price"
@@ -31,13 +34,24 @@ the box belongs with the press it feeds.
                               :notes="row.buy.notes"
                               :disclosure="False"
                               state="quoted: {{ row.buy.price }}, price: {{ row.buy.price }}">
+    {% comment %}
+    An empty column rather than no column. `:price` is still what the price
+    slider filters this row by — a row is narrowed by what the list asks for
+    the thing, whether or not this reader is being shown the figure.
+    {% endcomment %}
+    <c-slot name="price_control">
+        <span aria-hidden="true"></span>
+    </c-slot>
     <c-slot name="actions">
+        {% comment %}
+        The visible words are the button's name; an aria-label repeating them
+        would be read twice, and aria-expanded already says it opens.
+        {% endcomment %}
         <c-ui.button size="sm"
                      class="inline-flex items-center gap-1.5"
                      @click="expanded = !expanded"
-                     ::aria-expanded="expanded"
-                     aria-label="{{ row.count }} owned — what to do with {% if row.count == 1 %}it{% else %}them{% endif %}">
-            <span class="tabular-nums">({{ row.count }})</span>
+                     ::aria-expanded="expanded">
+            <span><span class="tabular-nums">{{ row.count }}</span> equipped</span>
             <span class="n26-icon-only">
                 <c-n26.icon name="chevron-down"
                             class="size-3 transition-transform"
