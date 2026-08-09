@@ -15,8 +15,7 @@ component's own page shows it working; this shows it working under a header.
     {% include 'designsystem/shell/_nav.html' with here='shop' %}
 {% endblock %}
 {% block content %}
-    <c-n26.page-header title="Trading post"
-                       lead="Buying for The Ashen Choir — what you buy lands on this fighter's card.">
+    <c-n26.page-header title="Trading post">
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
                 <c-ui.breadcrumbs.item href="{% url 'designsystem:shell_home' %}">Gangs</c-ui.breadcrumbs.item>

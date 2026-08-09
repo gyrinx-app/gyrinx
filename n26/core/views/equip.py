@@ -229,19 +229,10 @@ def equip(request, pk):
         for section in (view.sections if view is not None else [])
     ]
     # Which list is being browsed is a tab when there are several. With
-    # one there is nothing to choose, so a strip of one tab would be a
-    # control that does nothing — the lead says where you are shopping
-    # instead.
+    # one there is nothing to choose, so no strip is drawn — the search
+    # box names the list it is searching, which is where a reader looks
+    # to find out what they are shopping.
     tabs = collection_tabs(collections, chosen)
-    if len(tabs) > 1:
-        lead = f"Buying for {gang.name} — what you buy lands on this fighter's card."
-    elif chosen is not None:
-        lead = (
-            f"Buying for {gang.name} from {chosen} — what you buy lands on "
-            "this fighter's card."
-        )
-    else:
-        lead = f"Buying for {gang.name}."
     return render(
         request,
         "n26/equip.html",
@@ -251,7 +242,6 @@ def equip(request, pk):
             "collections": collections,
             "collection_tabs": tabs,
             "chosen": chosen,
-            "lead": lead,
             # Each line paired with the key its Buy button submits and the
             # field name its parts tick under, so the template never
             # composes an identity the server would then have to guess at.
@@ -298,10 +288,5 @@ def equip(request, pk):
             "cost_ceiling": max((line.credits for line in lines), default=0),
             "tp_ceiling": max(trade_points, default=0),
             "has_trade_points": bool(trade_points),
-            # Distinct from has_trade_points: an exclusive line has
-            # trade_points=None ("E" is not a number), so a list of
-            # exclusive-only items would otherwise never draw the toggle
-            # that is the only way to filter them.
-            "has_exclusive": any(line.is_exclusive for line in lines),
         },
     )

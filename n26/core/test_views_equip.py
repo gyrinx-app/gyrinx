@@ -237,16 +237,18 @@ def test_the_strip_holds_this_fighters_list_and_no_other_houses(
     assert [tab["label"] for tab in tabs] == ["Ironhead Squats", "Trading Post"]
 
 
-def test_a_lone_list_draws_no_strip_and_the_lead_says_where_you_are(
+def test_a_lone_list_draws_no_strip_and_the_search_box_says_where_you_are(
     client, tester, fighter, house_list
 ):
     """One list is not a choice. A strip of one tab would be a control that
-    does nothing, so the page says which list it is showing instead."""
+    does nothing, so the only thing naming the list is the box you search
+    it with — which means that name has to be there."""
     client.force_login(tester)
     response = client.get(equip_url(fighter))
+    html = response.content.decode()
     assert len(response.context["collection_tabs"]) == 1
-    assert "House List" in response.context["lead"]
-    assert 'aria-label="Which list"' not in response.content.decode()
+    assert "Search House List" in html
+    assert 'aria-label="Which list"' not in html
 
 
 def test_a_tab_drops_the_words_every_tab_shares(client, tester, gang, fighter):

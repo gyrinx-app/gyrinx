@@ -11,8 +11,8 @@ line's identity and nothing else; every price is the server's own derivation.
 
 Trade Points are drawn where a line has them, but nothing charges them yet —
 that needs a TP budget, which is a session concept the edition has not built.
-The Exclusive toggle and TP slider only appear when the list actually has
-TP-priced or exclusive lines to filter.
+The TP slider only appears when the list actually has TP-priced lines to
+filter.
 {% endcomment %}
 {% block head_title %}Equip {{ miniature.name }}{% endblock head_title %}
 {% comment %}
@@ -29,7 +29,7 @@ breadcrumb above it has the gang as well, so nothing is lost.
     {% include 'n26/_nav.html' %}
 {% endblock %}
 {% block content %}
-    <c-n26.page-header title="Equip {{ miniature.name }}" lead="{{ lead }}">
+    <c-n26.page-header title="Equip {{ miniature.name }}">
         {% comment %}
         The heading is about the fighter, so this offers the gang's others —
         every row landing on this same screen for them. Equipping a gang is
@@ -64,8 +64,8 @@ breadcrumb above it has the gang as well, so nothing is lost.
 
     Links, not client state: a list is a place you can be, so it goes in the URL
     — linkable, back-button-friendly, and the server renders the one you are on.
-    One list draws no strip; there is nothing to choose, and the lead says where
-    you are.
+    One list draws no strip; there is nothing to choose, and the search box
+    names the list it searches.
     {% endcomment %}
     {% if chosen %}
         <div class="mt-6">
@@ -96,7 +96,7 @@ breadcrumb above it has the gang as well, so nothing is lost.
                                           :nested="True"
                                           model="query"
                                           placeholder="Search {{ chosen }}" />
-                        {% if category_options or cost_ceiling > cost_floor or has_trade_points or has_exclusive %}
+                        {% if category_options or cost_ceiling > cost_floor or has_trade_points %}
                             {% comment %}
                             A size under the search field above them. These
                             refine what the field returned rather than
@@ -134,18 +134,14 @@ breadcrumb above it has the gang as well, so nothing is lost.
                                                       at_max_label="Any" />
                                 {% endif %}
                                 {% comment %}
-                                Gated on its own flag, not on has_trade_points: an
-                                exclusive line has trade_points=None ("E" answers
-                                no numeric question), so an exclusive-only list
-                                has TP nothing to slide — and this toggle is the
-                                only way to filter what it does have.
+                                No Exclusive toggle here. Exclusive means "sold
+                                by an equipment list rather than the Trading
+                                Post", which answers nothing a reader of either
+                                tab is asking: on a list almost everything is
+                                exclusive, and the Trading Post does not deal in
+                                them at all. A filter whose answer is "all" or
+                                "none" is a control that only ever looks broken.
                                 {% endcomment %}
-                                {% if has_exclusive %}
-                                    <c-n26.toggle label="Exclusive"
-                                                  size="xs"
-                                                  :checked="True"
-                                                  @change="includeExclusive = $event.target.checked" />
-                                {% endif %}
                             </div>
                         {% endif %}
                     </c-slot>
