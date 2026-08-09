@@ -175,7 +175,7 @@
                     </c-ui.button>
                 </form>
             {% endif %}
-            {% include "authoring/_composer.html" with show_keep_reusable=True composer_title="Build a new modifier" composer_description="Pick who it reaches and what it does; the fields for both follow." composer_class="rounded-box border border-box-border p-4" composer_submit_label="Add modifier" composer_cancel_url="" %}
+            {% include "authoring/_composer.html" with show_reusable_flag=True composer_title="Build a new modifier" composer_description="Pick who it reaches and what it does; the fields for both follow." composer_class="rounded-box border border-box-border p-4" composer_submit_label="Add modifier" composer_cancel_url="" %}
         </c-n26.form-section>
     {% endif %}
 {% endblock content %}

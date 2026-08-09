@@ -36,6 +36,6 @@
     {# variables rather than tags. #}
     {% url 'authoring-modifiers' as modifiers_url %}
     <div class="mt-6">
-        {% include "authoring/_composer.html" with show_keep_reusable=False composer_title="" composer_description="" composer_class="" composer_submit_label="Create modifier" composer_cancel_url=modifiers_url %}
+        {% include "authoring/_composer.html" with show_reusable_flag=False composer_title="" composer_description="" composer_class="" composer_submit_label="Create modifier" composer_cancel_url=modifiers_url %}
     </div>
 {% endblock content %}
