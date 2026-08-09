@@ -258,12 +258,30 @@ class TestWhatTheScreenShows:
             ("Savant", "Secondary"),
         ]
 
-    def test_a_fighter_with_no_grid_has_no_screen(
+    def test_a_fighter_with_no_grid_gets_a_page_that_says_so(
         self, client, player, gang, gridless, catalogue
     ):
+        """Nothing to learn is a thing to say, not a page to withhold: the
+        address names the fighter, and the gap is in the content."""
         nobody = hire_with_option(gang, gridless, "Nobody")
         client.force_login(player)
-        assert client.get(skills_url(nobody)).status_code == 404
+        response = client.get(skills_url(nobody))
+
+        assert response.status_code == 200
+        body = response.content.decode()
+        assert "not graded in any skill category" in body
+
+    def test_a_fighter_with_no_grid_is_not_asked_to_learn_anything(
+        self, client, player, gang, gridless, catalogue
+    ):
+        """No list, so no act at the foot of the page — a Learn button with
+        nothing selectable above it is a press that can only fail."""
+        nobody = hire_with_option(gang, gridless, "Nobody")
+        client.force_login(player)
+        body = client.get(skills_url(nobody)).content.decode()
+
+        # The page's only act would be Learn, and there is nothing to learn.
+        assert 'type="submit"' not in body
 
     def test_somebody_else_s_fighter_is_not_there(self, client, yolanda, catalogue):
         stranger = User.objects.create_user("stranger", is_staff=True)
@@ -307,10 +325,10 @@ class TestWhatTheScreenShows:
 class TestGettingToTheNextFighter:
     """The heading names one fighter, so it carries the way to the others.
 
-    Every row leads to that fighter's equip screen, which is where their
-    turn starts: a skills screen exists only for a fighter whose grid places
-    something, and a switcher would have to compute every card in the gang
-    to know which of them have one.
+    Every row leads to that fighter's own skills screen. Picking skills is
+    a job done down a roster, and a row that landed on a different screen
+    would break off halfway through it — which is also why the screen
+    exists for a fighter with nothing to learn.
     """
 
     def test_the_gang_s_other_fighters_are_offered(
@@ -320,8 +338,21 @@ class TestGettingToTheNextFighter:
         client.force_login(player)
         body = client.get(skills_url(yolanda)).content.decode()
 
-        assert reverse("n26-equip", args=[mad_donna.pk]) in body
+        assert skills_url(mad_donna) in body
         assert "Mad Donna" in body
+
+    def test_a_fighter_with_nothing_to_learn_is_still_offered(
+        self, client, player, gang, gridless, yolanda, catalogue
+    ):
+        """The row leads to a page that says there is nothing there, which
+        is the reader's answer — a switcher that dropped them would say
+        instead that the fighter is not in the gang."""
+        nobody = hire_with_option(gang, gridless, "Nobody")
+        client.force_login(player)
+        body = client.get(skills_url(yolanda)).content.decode()
+
+        assert skills_url(nobody) in body
+        assert client.get(skills_url(nobody)).status_code == 200
 
     def test_the_fighter_whose_screen_this_is_says_so(
         self, client, player, gang, gang_sister, yolanda, catalogue
@@ -332,8 +363,24 @@ class TestGettingToTheNextFighter:
         client.force_login(player)
         body = client.get(skills_url(yolanda)).content.decode()
 
-        hers = body.index(reverse("n26-equip", args=[yolanda.pk]))
+        # The href, not the bare path: the page posts to its own address
+        # with the collection on the query string, so the path appears in
+        # the form's action before it appears in the switcher.
+        hers = body.index(f'href="{skills_url(yolanda)}"')
         assert 'aria-current="page"' in body[hers : body.index("</a>", hers)]
+
+    def test_the_control_says_what_it_switches(
+        self, client, player, gang, gang_sister, yolanda, catalogue
+    ):
+        """Two switchers sit on this screen — the bar's gangs and the
+        heading's fighters — and a reader who cannot see them apart needs
+        their names to differ."""
+        hire_with_option(gang, gang_sister, "Mad Donna")
+        client.force_login(player)
+        body = client.get(skills_url(yolanda)).content.decode()
+
+        assert 'aria-label="Pick skills for another fighter"' in body
+        assert 'aria-label="Switch to another gang"' in body
 
     def test_somebody_else_s_roster_is_not_in_it(
         self, client, player, gang_type, gang_sister, yolanda, catalogue
@@ -348,7 +395,7 @@ class TestGettingToTheNextFighter:
         body = client.get(skills_url(yolanda)).content.decode()
 
         assert "Nobody Of Ours" not in body
-        assert reverse("n26-equip", args=[elsewhere.pk]) not in body
+        assert skills_url(elsewhere) not in body
 
 
 # --- The write -------------------------------------------------------------

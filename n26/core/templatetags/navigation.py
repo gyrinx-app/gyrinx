@@ -45,15 +45,24 @@ def gang_switcher(context, gang, named=True, menu_label="Switch to another gang"
     return build(context["request"], gang, named=named, menu_label=menu_label)
 
 
-@register.simple_tag
-def fighter_switcher(gang, miniature):
+@register.simple_tag(takes_context=True)
+def fighter_switcher(context, gang, miniature):
     """The gang's fighters, from the screen of one of them.
 
     A tag rather than view context: it is the same control on every
     fighter screen, and one query that only the pages drawing it should
     pay for. The rows are ``n26.core.navigation``'s — capped, scoped to
     the gang, and off the roster means out of the list.
+
+    Which screen the rows lead to is read off the request rather than
+    written at each call site: a page draws this to reach the *same*
+    screen for the next fighter, so the answer is already the page being
+    rendered and a name passed by hand is one more thing to get wrong —
+    a template variable that stops matching resolves to empty in
+    silence. A screen with no per-fighter address of its own, or a
+    render with no resolved route at all, falls back to the kit screen.
     """
     from n26.core.navigation import fighter_switcher as build
 
-    return build(gang, miniature)
+    match = getattr(context.get("request"), "resolver_match", None)
+    return build(gang, miniature, route=getattr(match, "url_name", "") or "")

@@ -181,15 +181,42 @@ class TestWhichFightersAreListed:
         switcher = fighter_switcher(gang, here)
         assert [item.label for item in switcher.items] == ["Vex"]
 
-    def test_every_row_leads_to_that_fighters_own_equip_screen(self, make_gang, hire):
+    def test_every_row_leads_to_the_screen_it_is_drawn_on(self, make_gang, hire):
+        """Switching fighter keeps the job: from the skills screen the rows
+        are skills screens, and a reader picking their way down the roster
+        is not dropped into a different task halfway."""
         gang = make_gang("The Ashen Choir")
         here = hire(gang, "Vex")
         other = hire(gang, "Karn")
-        switcher = fighter_switcher(gang, here)
+        switcher = fighter_switcher(gang, here, route="n26-learn")
         assert {item.href for item in switcher.items} == {
-            reverse("n26-equip", args=[here.pk]),
-            reverse("n26-equip", args=[other.pk]),
+            reverse("n26-learn", args=[here.pk]),
+            reverse("n26-learn", args=[other.pk]),
         }
+        assert switcher.menu_label == "Pick skills for another fighter"
+
+    def test_the_kit_screen_is_where_it_leads_by_default(self, make_gang, hire):
+        gang = make_gang("The Ashen Choir")
+        here = hire(gang, "Vex")
+        switcher = fighter_switcher(gang, here)
+        assert [item.href for item in switcher.items] == [
+            reverse("n26-equip", args=[here.pk])
+        ]
+        assert switcher.menu_label == "Equip another fighter"
+
+    def test_a_screen_with_no_address_of_its_own_leads_to_the_kit_screen(
+        self, make_gang, hire
+    ):
+        """A choice slot names one card and one question, so there is no
+        such page for anybody else. Rather than leave the control off those
+        screens, the rows go to the page every fighter has."""
+        gang = make_gang("The Ashen Choir")
+        here = hire(gang, "Vex")
+        switcher = fighter_switcher(gang, here, route="n26-choose")
+        assert [item.href for item in switcher.items] == [
+            reverse("n26-equip", args=[here.pk])
+        ]
+        assert switcher.menu_label == "Equip another fighter"
 
     def test_the_fighter_you_are_on_survives_the_cap(self, make_gang, hire):
         gang = make_gang("The Ashen Choir")

@@ -143,12 +143,34 @@ def gang_switcher(request, gang, named=True, menu_label="Switch to another gang"
     )
 
 
-def fighter_switcher(gang, miniature):
+#: The screens a fighter has an address of their own for, and what the
+#: switcher's chevron is called on each. A route absent from this map has
+#: no counterpart for another fighter — a choice slot names one card and
+#: one question, not a person — so its switcher leads to the kit screen,
+#: the page every fighter has. Adding a per-fighter screen means adding a
+#: line here; leaving it out costs a page its own destinations rather
+#: than breaking it.
+FIGHTER_SCREENS = {
+    "n26-equip": "Equip another fighter",
+    "n26-learn": "Pick skills for another fighter",
+}
+
+#: Where a screen with no per-fighter address sends the switcher.
+FIGHTER_FALLBACK = "n26-equip"
+
+
+def fighter_switcher(gang, miniature, route=FIGHTER_FALLBACK):
     """The gang's other fighters, from the screen of one of them.
 
     Every destination is the screen this is drawn on, for a different
     fighter: what a player wants after kitting one out is the next one,
-    and without this the way there is back to the sheet and in again.
+    and without this the way there is back to the sheet and in again. So
+    ``route`` is the screen being drawn — a name in ``FIGHTER_SCREENS``
+    — and anything else lands on the kit screen instead.
+
+    The chevron's name follows the destination, because a page draws a
+    gang switcher beside this one and two controls announced identically
+    tell a reader who cannot see where they sit nothing about either.
 
     Scoped to the gang by the query rather than by anything a caller
     passes — a switcher that could name someone else's fighter would be a
@@ -164,10 +186,13 @@ def fighter_switcher(gang, miniature):
 
     from n26.core.models import Miniature
 
+    if route not in FIGHTER_SCREENS:
+        route = FIGHTER_FALLBACK
+
     def item(row):
         return SwitcherItem(
             label=row.name,
-            href=reverse("n26-equip", args=[row.pk]),
+            href=reverse(route, args=[row.pk]),
             current=row.pk == miniature.pk,
         )
 
@@ -176,7 +201,7 @@ def fighter_switcher(gang, miniature):
     ).order_by("name")[:NAV_SIBLINGS]
     return Switcher(
         heading="Fighters",
-        menu_label="Equip another fighter",
+        menu_label=FIGHTER_SCREENS[route],
         placeholder="Search fighters",
         empty="No fighters match",
         items=with_current([item(row) for row in rows], item(miniature)),

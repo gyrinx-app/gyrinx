@@ -16,9 +16,12 @@ unplaced tier dropped — a skill nobody placed for them is not theirs to
 learn, however visible it is on a browse (``n26.core.browse`` keeps it
 there deliberately, and the roll-anything pick wants exactly that).
 
-A fighter whose grid places nothing has no screen here, not an empty
-one. The grid is the access; an unauthored grid is a content gap, and a
-404 says so in the only way that stays true when it is filled in.
+A fighter whose grid places nothing gets the screen anyway, saying
+there is nothing for them to learn. The grid is the access and an
+unauthored one is a content gap, but the address names a fighter rather
+than the gap: it is theirs whether or not anybody has graded them, so
+the switcher on the next fighter's screen can offer it without knowing
+which of them have a grid.
 
 What pressing writes is ``Operation.learn``: free, recorded, and caused
 by nothing, so what a fighter earned survives the row that opened the
@@ -29,7 +32,6 @@ import dataclasses
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.http import Http404
 from django.shortcuts import redirect, render
 from django.urls import reverse
 
@@ -126,9 +128,32 @@ def learn(request, pk):
     index = build_modifier_index([node.assignable for node in card.all_nodes()])
     computed = compute(card, index)
 
+    back = reverse("n26-gang", args=[gang.pk])
+
     collections = learnable_for(computed)
     if not collections:
-        raise Http404("No skills for this fighter")
+        # Nobody has graded this fighter in a category, so there is
+        # nothing they could learn — a gap in the content, and a page
+        # that says so. Refusing instead would put a dead row in the
+        # switcher every other fighter's skills screen draws.
+        return render(
+            request,
+            "n26/learn.html",
+            {
+                "gang": gang,
+                "miniature": miniature,
+                "nothing_to_learn": True,
+                "action": request.path,
+                "back": back,
+                # No act and no way out at the foot of the page: there is
+                # nothing to submit, and a lone Cancel under a page that
+                # asked nothing cancels nothing. The breadcrumb is the
+                # way back to the gang.
+                "submit_label": "",
+                "cancel_url": "",
+                "pick_lead": "",
+            },
+        )
 
     chosen = next(
         (c for c in collections if str(c.pk) == request.GET.get("list")),
@@ -152,7 +177,6 @@ def learn(request, pk):
         sections=[placement.section.name for placement in placements.values()],
     )
     offer = _marked(offer_from_view(listed, label=str(chosen)), _known_on(card))
-    back = reverse("n26-gang", args=[gang.pk])
     here = f"{request.path}?list={chosen.pk}"
 
     if request.method == "POST":
@@ -204,10 +228,13 @@ def learn(request, pk):
         {
             "gang": gang,
             "miniature": miniature,
+            "nothing_to_learn": False,
             "chosen": chosen,
             "offer": offer,
             "action": here,
             "back": back,
+            "submit_label": "Learn",
+            "cancel_url": back,
             # Which collection, when a fighter's grid reaches more than
             # one. Drawn as tabs only then: with a single collection
             # there is nothing to choose, and the heading names it.
@@ -216,8 +243,6 @@ def learn(request, pk):
             # component on the page with a slot of that name — the site
             # footer's columns have one — draws whatever the page
             # happens to have under it.
-            "pick_lead": (
-                f"What {miniature.name} may learn. Leaving this open costs nothing."
-            ),
+            "pick_lead": (f"Pick skills for {miniature.name}."),
         },
     )

@@ -11,13 +11,14 @@ skill learned here belongs to the fighter and answers no question.
 
 The sections are the tiers the fighter's grid names, and nothing else: the
 listing they browse keeps every unplaced set visible, but another house's sets
-are not theirs to learn.
+are not theirs to learn. A fighter whose grid names none of them gets the same
+page with a line where the list would be, and no act at the foot of it.
 
 Radios in a form, no script. A reader who leaves without pressing Save has
 changed nothing, and the footer offers the leaving to the same place a save
 lands on.
 {% endcomment %}
-{% block head_title %}{{ chosen }} — {{ miniature.name }}{% endblock head_title %}
+{% block head_title %}{% if nothing_to_learn %}Skills{% else %}{{ chosen }}{% endif %} — {{ miniature.name }}{% endblock head_title %}
 {% block nav_switcher %}
     {% gang_switcher gang as gang_switcher_ %}
     <c-n26.quick-switcher.of :switcher="gang_switcher_" />
@@ -27,21 +28,20 @@ lands on.
 {% endblock %}
 {% block content %}
     <c-n26.form-page action="{{ action }}"
-                     title="{{ miniature.name }}'s skills"
+                     title="{{ miniature.name }}"
                      lead="{{ pick_lead }}"
-                     submit_label="Learn"
-                     cancel_url="{{ back }}">
+                     submit_label="{{ submit_label }}"
+                     cancel_url="{{ cancel_url }}">
         {% comment %}
         The heading is about the fighter, so this offers the gang's others —
         the same control the equip screen carries beside its own heading, and
         the same thing a reader wants next: one fighter at a time, and the
         next one after this.
 
-        Every row lands on that fighter's equip screen rather than their
-        skills, because a skills screen only exists for a fighter whose grid
-        places something and a switcher cannot know which without computing
-        every card. The kit screen exists for all of them, and it is where a
-        fighter's turn starts anyway.
+        Every row lands on this same screen for that fighter, which is why
+        the page exists for a fighter with nothing to learn as well: a row
+        that led somewhere else would send a reader picking skills down the
+        roster off to a different job halfway through.
 
         Not what the bar offers, which is the reader's other gangs: the two
         controls sit on the same screen and switch different things.
@@ -63,20 +63,35 @@ lands on.
                 </c-ui.breadcrumbs.item>
             </c-ui.breadcrumbs>
         </c-slot>
-        {% csrf_token %}
-        {% comment %}
-        Which collection, when a grid reaches more than one — a link each, so the
-        page a reader is on is the page the address names. One collection draws
-        no strip: there is nothing to choose, and the heading above names it.
-        {% endcomment %}
-        {% if collection_tabs|length > 1 %}
-            <c-n26.tab-links label="Which list" :tabs="collection_tabs" />
+        {% if nothing_to_learn %}
+            {% comment %}
+            Nobody has graded this fighter in a category, so no list is theirs
+            to learn from. The screen still exists — the address names the
+            fighter, not the grid — and says why it is empty, because the fix
+            is in the content rather than anything the reader can press here.
+            {% endcomment %}
+            <p class="text-muted">
+                Nothing to learn. This fighter is not graded in any skill category, so
+                no skills are theirs to pick — a gap in the content rather than in the
+                fighter. A profile that grades a category, or something they carry
+                that opens one up, fills this page in.
+            </p>
+        {% else %}
+            {% csrf_token %}
+            {% comment %}
+            Which collection, when a grid reaches more than one — a link each, so the
+            page a reader is on is the page the address names. One collection draws
+            no strip: there is nothing to choose, and the heading above names it.
+            {% endcomment %}
+            {% if collection_tabs|length > 1 %}
+                <c-n26.tab-links label="Which list" :tabs="collection_tabs" />
+            {% endif %}
+            <c-n26.choice-offer :offer="offer">
+                <c-slot name="empty">
+                    Nothing here yet. The sets this fighter is graded in hold nothing to
+                    learn — which is a gap in the content rather than in the fighter.
+                </c-slot>
+            </c-n26.choice-offer>
         {% endif %}
-        <c-n26.choice-offer :offer="offer">
-            <c-slot name="empty">
-                Nothing here yet. The sets this fighter is graded in hold nothing to
-                learn — which is a gap in the content rather than in the fighter.
-            </c-slot>
-        </c-n26.choice-offer>
     </c-n26.form-page>
 {% endblock content %}
