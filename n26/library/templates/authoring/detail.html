@@ -52,9 +52,7 @@
                   class="space-y-5">
                 {% csrf_token %}
                 <input type="hidden" name="act" value="edit">
-                <div class="max-w-xl space-y-5">
-                    {% include "authoring/_form.html" with form=edit_form %}
-                </div>
+                <div class="max-w-xl space-y-5">{% include "authoring/_form.html" with form=edit_form %}</div>
                 {% if statline_cells %}
                     <c-n26.form-section title="{{ thing.statline_type }}"
                                         description="An empty box is a characteristic this {{ verbose_name }} does not have; a card prints it as a dash."
@@ -201,9 +199,9 @@
                 </form>
             {% endif %}
             {% comment %}
-            Continue leads to the composer's own address rather than back
-            here: this page is long, and redrawing it on every choice of
-            kind lands the reader at the top of it again.
+            Changing the kinds leads to the composer's own address rather
+            than back here: this page is long, and redrawing it on every
+            choice of kind lands the reader at the top of it again.
             {% endcomment %}
             {% url 'authoring-modifier-create' as compose_url %}
             {% include "authoring/_composer.html" with show_reusable_flag=True composer_action=compose_url composer_carrier_kind=kind composer_carrier_pk=thing.pk composer_title="Build a new modifier" composer_description="Pick who it reaches and what it does; the fields for both follow." composer_class="rounded-box border border-box-border p-4" composer_submit_label="Add modifier" composer_cancel_url="" %}

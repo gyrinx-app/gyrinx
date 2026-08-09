@@ -8,7 +8,7 @@ composer_chips, and show_reusable_flag.
 
   --- where step one leads ---
 
-`composer_action` is where Continue goes, and a caller that leaves it
+`composer_action` is where step one goes, and a caller that leaves it
 out is answered by the page it is already on. A carrier's page sends it
 to the composer's own address instead, naming itself in
 `composer_carrier_kind` and `composer_carrier_pk`: choosing the two
@@ -49,18 +49,51 @@ leaves one out gets a section with no heading.
     a plain link. Only once both kinds are chosen does the
     composer itself render.
     {% endcomment %}
+    {% comment %}
+    The press is only worth making when the pickers name a pair other
+    than the one below them: submitting the pair the page is already
+    drawn from fetches that same page again, and on a carrier's page it
+    scrolls the reader back to the top to do it. So the button goes dead
+    while the two match, and the two are the kinds in the address rather
+    than whatever the pickers happened to open on — a page reached with
+    no kinds at all is drawn from no pair, nothing the pickers can hold
+    matches, and the button is live at once. Which is what it must be:
+    the pickers have no empty option, so a button dead on their defaults
+    would leave a reader arriving fresh with no way past step one.
+
+    The pickers are read out of the document rather than mirrored into
+    Alpine, because they are drawn by the shared field include and a
+    filter box may be sitting over either of them. What that box does is
+    set the real select and fire a change, which is exactly what this
+    listens for.
+
+    With no script the button is what the server rendered: live. One
+    that only became pressable once Alpine had run would leave the
+    composer with no first step at all.
+    {% endcomment %}
     <form method="get"
           {% if composer_action %}action="{{ composer_action }}"{% endif %}
-          class="max-w-xl space-y-4">
+          class="max-w-xl space-y-4"
+          x-data="{ moved: false, served: '{{ composer_scope|escapejs }}|{{ composer_effect|escapejs }}', kinds() { const scope = document.getElementById('{{ kind_picker.scope_kind.auto_id }}'); const effect = document.getElementById('{{ kind_picker.effect_kind.auto_id }}'); return (scope ? scope.value : '') + '|' + (effect ? effect.value : ''); } }"
+          x-init="moved = kinds() !== served"
+          @change="moved = kinds() !== served">
         {% if composer_carrier_pk %}
             <input type="hidden" name="for_kind" value="{{ composer_carrier_kind }}">
             <input type="hidden" name="for" value="{{ composer_carrier_pk }}">
         {% endif %}
         {% include "authoring/_field.html" with form=kind_picker field=kind_picker.scope_kind %}
         {% include "authoring/_field.html" with form=kind_picker field=kind_picker.effect_kind %}
-        {# Small, and not the green that ends a form: this one ends a step, #}
-        {# and the act that finishes the composing is the one below it. #}
-        <c-n26.form-actions submit_label="Continue" submit_variant="default" size="sm" />
+        {% comment %}
+        Small, and named for what it does rather than for where it sits:
+        it fetches a differently shaped composer, which is starting
+        something, so it carries the colour that starts things and not
+        the green that ends the form below it.
+        {% endcomment %}
+        <div class="flex flex-wrap items-center justify-end gap-2">
+            <c-ui.button type="submit" variant="primary" size="sm" ::disabled="!moved">
+                Change modifier type
+            </c-ui.button>
+        </div>
     </form>
     {% if composer %}
         <form method="post" class="max-w-xl space-y-5">

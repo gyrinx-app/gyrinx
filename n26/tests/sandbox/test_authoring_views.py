@@ -2265,6 +2265,99 @@ def make_assorted_modifiers(prefix, client=None):
     )
 
 
+class TestTheButtonThatChangesTheModifierType:
+    """Step one of the composer picks the shape of everything below it,
+    and its button is named for that rather than for where it sits.
+
+    Pressed with the pair the page is already showing it fetches the
+    same page again — and on a carrier's page it scrolls the reader back
+    to the top to do it — so it is dead until one of the two kinds
+    moves. Dead is Alpine's doing, never the server's: served out of
+    service, a reader with no script would have no way past step one.
+    """
+
+    @staticmethod
+    def button(body):
+        """The submit at the foot of step one, as its whole tag."""
+        found = re.search(r"<button[^>]*>\s*Change modifier type", body)
+        assert found, "no change-the-kinds button on the page"
+        return found.group(0)
+
+    @pytest.fixture
+    def carrier(self, author, default_pack):
+        from n26.library.authoring import create_rule
+
+        return create_rule("Berserker")
+
+    def test_it_is_named_for_what_it_fetches(self, author, client, default_pack):
+        body = client.get("/n26/authoring/modifiers/new/").content.decode()
+
+        assert "Change modifier type" in body
+
+    def test_it_carries_the_colour_of_a_control_that_starts_a_form(
+        self, author, client, default_pack
+    ):
+        """It goes to a differently shaped composer, which is starting
+        something — not the green that ends the form below it."""
+        tag = self.button(client.get("/n26/authoring/modifiers/new/").content.decode())
+
+        assert "bg-accent" in tag
+        assert "bg-green" not in tag
+
+    def test_it_is_pressable_for_a_reader_with_no_script(
+        self, author, client, default_pack
+    ):
+        """The whole of step one is this button. Rendered out of service
+        it could only be brought back by script, and the composer would
+        have no first step at all without one."""
+        tag = self.button(client.get("/n26/authoring/modifiers/new/").content.decode())
+
+        assert re.search(r"\sdisabled[\s>]", tag) is None
+
+    def test_it_is_wired_to_go_dead_while_the_pickers_name_what_is_drawn(
+        self, author, client, default_pack
+    ):
+        body = client.get(
+            "/n26/authoring/modifiers/new/?scope_kind=targets_model&effect_kind=ef_adds"
+        ).content.decode()
+
+        assert "served: 'targets_model|ef_adds'" in body
+        assert ':disabled="!moved"' in self.button(body)
+
+    def test_a_page_drawn_from_no_kinds_matches_nothing_the_pickers_hold(
+        self, author, client, default_pack
+    ):
+        """The pickers have no empty option, so they open on real kinds
+        the moment the page is reached with none named. A button dead on
+        that pair would leave a reader arriving fresh with no way past
+        step one."""
+        body = client.get("/n26/authoring/modifiers/new/").content.decode()
+
+        assert "served: '|'" in body
+
+    def test_a_kind_that_is_not_one_cannot_break_out_of_the_wiring(
+        self, author, client, default_pack
+    ):
+        """The pair the page is drawn from is written into the script,
+        and it comes off the address, where anything at all can be
+        typed."""
+        body = client.get(
+            "/n26/authoring/modifiers/new/"
+            "?scope_kind=%27%2Balert%281%29%2B%27&effect_kind=ef_adds"
+        ).content.decode()
+
+        assert "'+alert(1)+'" not in body
+        assert "\\u0027" in body
+
+    def test_a_carriers_page_draws_the_same_button(self, carrier, client):
+        """The composer is one include on two surfaces, and the button
+        is inside it — a carrier's page must not be left with a step one
+        that says something else."""
+        body = client.get(f"/n26/authoring/rule/{carrier.pk}/").content.decode()
+
+        assert ':disabled="!moved"' in self.button(body)
+
+
 class TestFindingAModifierAmongHundreds:
     """A pack holds hundreds of modifiers, so the listing carries a
     search and a filter per facet.
