@@ -1316,7 +1316,21 @@ GROUPS: list[Group] = [
                     "it does draw is c-n26.form-actions, so the wrapper owns "
                     "the rule above the footer and nothing about the footer "
                     "itself — a form that is a section of somebody else's page "
-                    "reaches for the same component and ends identically."
+                    "reaches for the same component and ends identically. The "
+                    "heading is c-n26.page-header, and everything that header "
+                    "takes is handed on rather than reinvented: the trail, a "
+                    "mark before the title, the page's own controls, and a "
+                    "switcher on the title's line — because a form screen is a "
+                    "page and a reader on one of five fighters' skills wants "
+                    "the same way to the next that the kit screen gives them. "
+                    "The one prop that had to be renamed is the header's "
+                    "`actions`, which arrives as `header_actions`: this "
+                    "wrapper already had an `actions` meaning the extra "
+                    "control beside the submit, and the two are a screen "
+                    "apart. Every one of them is declared, which is the whole "
+                    "of the mechanism — a slot this wrapper did not declare "
+                    "would not be empty when nobody filled it, it would be "
+                    "whatever the page happened to hold under that name."
                 ),
             ),
             Component(

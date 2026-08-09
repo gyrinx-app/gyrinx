@@ -28,6 +28,26 @@ open slot needs a way back to the sheet that is not the browser's chrome.
                      lead="{{ pick_lead }}"
                      submit_label="Save"
                      cancel_url="{{ back }}">
+        {% comment %}
+        A fighter's question gets the gang's other fighters beside it, the
+        same control the equip and skills screens carry: answering for one
+        and then moving to the next is how a roster is worked through.
+
+        Only when a fighter was asked. The gang's own questions — an
+        affiliation, a territory — belong to nobody in particular, and a
+        list of fighters beside one of those would offer a switch to
+        somewhere the question does not exist.
+
+        Every row lands on that fighter's equip screen. A slot's address
+        names one card's carrier and one offer, so there is no such page for
+        anybody else; the kit screen is the fighter page they all have.
+        {% endcomment %}
+        {% if miniature %}
+            <c-slot name="trailing">
+                {% fighter_switcher gang miniature as fighter_switcher_ %}
+                <c-n26.quick-switcher.of :switcher="fighter_switcher_" />
+            </c-slot>
+        {% endif %}
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
                 <c-ui.breadcrumbs.item href="{% url 'n26-dashboard' %}">

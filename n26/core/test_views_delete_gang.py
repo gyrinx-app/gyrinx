@@ -110,6 +110,22 @@ class TestBeingAsked:
         assert body.count("Cancel") == 1
         assert body.count('type="submit"') == 1
 
+    def test_the_heading_offers_nowhere_else_to_go(
+        self, client, tester, gang, delete_url
+    ):
+        """A confirmation is a considered stop. The form wrapper can put a
+        switcher beside its heading, and this page does not take it up: a
+        control offering somewhere else to be, on the screen asking whether
+        you meant it, is an answer to a question nobody asked. The bar's
+        own switcher is the one on the page, and it is the chrome's rather
+        than this screen's.
+        """
+        client.force_login(tester)
+        body = client.get(delete_url).content.decode()
+
+        assert body.count('aria-haspopup="menu"') == 1
+        assert "Switch to another gang" in body
+
     def test_the_way_out_is_on_the_page(self, client, tester, gang, delete_url):
         """Cancel goes back to the sheet the press came from — a
         confirmation with only one button is a trap, not a question. It is

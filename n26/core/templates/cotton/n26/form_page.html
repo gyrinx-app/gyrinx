@@ -47,12 +47,22 @@ form that saves rather than creates, or destroys rather than either.
   lead — the line under it. What a reader needs before starting; not a
     restatement of the fields.
   breadcrumb — the trail above the title.
+  trailing — a control on the title's line, beside it: a switcher to the
+    page's siblings is the case it exists for. Handed straight to
+    c-n26.page-header, which is where the reasoning lives.
+  leading — a mark before the title, inside the h1. The header's as well.
+  header_actions — controls for the page as a whole, drawn top-right of the
+    heading.
   submit_label — the act's wording. Without one no submit is drawn.
   submit_variant — that button's variant. `success` by default.
   cancel_url — where the way out leads. Without one there is no cancel.
   cancel_label — the way out's wording. "Cancel" by default.
-  actions — further controls, drawn to the left of the pair. For the rare form
-    answering in more than one way; it does not displace the pair.
+  actions — further controls, drawn to the left of the pair at the *end* of
+    the form. For the rare form answering in more than one way; it does not
+    displace the pair. This is not `header_actions`: that one is about the
+    page and sits by the heading, this one is about the form and sits by its
+    submit, and the two are a screen apart. The header's keeps the longer
+    name because a form page's own footer is the commoner thing to fill.
   slot — the fields, normally as <c-n26.form-section>s. Goes inside the <form>,
     so a csrf token can go here too.
 {% endcomment %}
@@ -69,6 +79,13 @@ undeclared slot name is not empty when nobody fills it, it is whatever the
 enclosing scope has under that name. Without the declaration a page that fills
 this wrapper's `actions` has it drawn in the header inside as well, silently and
 twice.
+
+The three header slots below are declared for the other half of that rule: they
+are forwarded by hand, and an undeclared one would arrive in the header anyway —
+by falling through the scope — so nothing here would look broken until a page
+happened to hold a `trailing` of its own for some other reason and found it
+printed beside this heading. Declared, each has a real default of "" and the
+only way into the header is the forwarding below.
 {% endcomment %}
 <c-vars
     action=""
@@ -81,6 +98,9 @@ twice.
     cancel_url=""
     cancel_label="Cancel"
     actions=""
+    trailing=""
+    leading=""
+    header_actions=""
     class=""
 />
 
@@ -103,8 +123,22 @@ column until it stopped.
     embedding this puts {% csrf_token %} in the slot.
     {% endcomment %}
 
+    {% comment %}
+    A form screen's heading is a page heading, so it carries what any other
+    one does: the header owns the scale, the trail, the mark and the controls,
+    and this wrapper only hands them on. Forwarded as slots rather than
+    attributes because slot content is markup — an attribute would print a
+    switcher's HTML as source.
+
+    `header_actions` arrives under the header's own name for `actions`. The
+    two names cannot be one: this wrapper's `actions` is the footer's, beside
+    the submit.
+    {% endcomment %}
     <c-n26.page-header title="{{ title }}" lead="{{ lead }}">
         {% if breadcrumb %}<c-slot name="breadcrumb">{{ breadcrumb }}</c-slot>{% endif %}
+        {% if leading %}<c-slot name="leading">{{ leading }}</c-slot>{% endif %}
+        {% if trailing %}<c-slot name="trailing">{{ trailing }}</c-slot>{% endif %}
+        {% if header_actions %}<c-slot name="actions">{{ header_actions }}</c-slot>{% endif %}
     </c-n26.page-header>
 
     {% comment %}

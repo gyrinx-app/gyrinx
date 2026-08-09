@@ -351,6 +351,43 @@ class TestWhatOneCardMayPick:
         assert "Nothing is on offer here yet" in body
 
 
+class TestGettingToTheNextFighter:
+    """A fighter's question carries the gang's other fighters beside the
+    heading; the gang's own questions carry nobody.
+
+    Each row leads to that fighter's equip screen. A slot's address names
+    one card's carrier and one offer, so the page being looked at has no
+    counterpart for anybody else — the kit screen is the fighter page they
+    all have.
+    """
+
+    def test_a_fighters_question_offers_the_others(self, client, owner, gang, crew):
+        client.force_login(owner)
+        body = client.get(sheet_slots(gang)["Sorrow: Archetype"].href).content.decode()
+
+        assert reverse("n26-equip", args=[crew["ganger"].pk]) in body
+        assert "Rat" in body
+
+    def test_the_fighter_being_asked_is_marked_as_the_one_you_are_on(
+        self, client, owner, gang, crew
+    ):
+        client.force_login(owner)
+        body = client.get(sheet_slots(gang)["Sorrow: Archetype"].href).content.decode()
+
+        theirs = body.index(reverse("n26-equip", args=[crew["leader"].pk]))
+        assert 'aria-current="page"' in body[theirs : body.index("</a>", theirs)]
+
+    def test_the_gangs_own_question_offers_nobody(self, client, owner, gang, crew):
+        """An affiliation belongs to the gang rather than to anyone on the
+        roster, so a list of fighters beside it would offer a switch to
+        somewhere this question does not exist."""
+        client.force_login(owner)
+        body = client.get(sheet_slots(gang)["Affiliation"].href).content.decode()
+
+        for miniature in crew.values():
+            assert reverse("n26-equip", args=[miniature.pk]) not in body
+
+
 def gang_anchor(gang, assignable_name, crew):
     """The stored row whose assignable carries an offer."""
     for miniature in crew.values():

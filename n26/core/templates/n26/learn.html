@@ -31,6 +31,25 @@ lands on.
                      lead="{{ pick_lead }}"
                      submit_label="Learn"
                      cancel_url="{{ back }}">
+        {% comment %}
+        The heading is about the fighter, so this offers the gang's others —
+        the same control the equip screen carries beside its own heading, and
+        the same thing a reader wants next: one fighter at a time, and the
+        next one after this.
+
+        Every row lands on that fighter's equip screen rather than their
+        skills, because a skills screen only exists for a fighter whose grid
+        places something and a switcher cannot know which without computing
+        every card. The kit screen exists for all of them, and it is where a
+        fighter's turn starts anyway.
+
+        Not what the bar offers, which is the reader's other gangs: the two
+        controls sit on the same screen and switch different things.
+        {% endcomment %}
+        <c-slot name="trailing">
+            {% fighter_switcher gang miniature as fighter_switcher_ %}
+            <c-n26.quick-switcher.of :switcher="fighter_switcher_" />
+        </c-slot>
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
                 <c-ui.breadcrumbs.item href="{% url 'n26-dashboard' %}">

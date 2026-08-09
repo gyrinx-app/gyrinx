@@ -304,6 +304,53 @@ class TestWhatTheScreenShows:
         assert "only" in catfall.detail
 
 
+class TestGettingToTheNextFighter:
+    """The heading names one fighter, so it carries the way to the others.
+
+    Every row leads to that fighter's equip screen, which is where their
+    turn starts: a skills screen exists only for a fighter whose grid places
+    something, and a switcher would have to compute every card in the gang
+    to know which of them have one.
+    """
+
+    def test_the_gang_s_other_fighters_are_offered(
+        self, client, player, gang, gang_sister, yolanda, catalogue
+    ):
+        mad_donna = hire_with_option(gang, gang_sister, "Mad Donna")
+        client.force_login(player)
+        body = client.get(skills_url(yolanda)).content.decode()
+
+        assert reverse("n26-equip", args=[mad_donna.pk]) in body
+        assert "Mad Donna" in body
+
+    def test_the_fighter_whose_screen_this_is_says_so(
+        self, client, player, gang, gang_sister, yolanda, catalogue
+    ):
+        """A tick is a glyph and a tint is a colour; aria-current is what
+        tells a reader using neither which fighter they are on."""
+        hire_with_option(gang, gang_sister, "Mad Donna")
+        client.force_login(player)
+        body = client.get(skills_url(yolanda)).content.decode()
+
+        hers = body.index(reverse("n26-equip", args=[yolanda.pk]))
+        assert 'aria-current="page"' in body[hers : body.index("</a>", hers)]
+
+    def test_somebody_else_s_roster_is_not_in_it(
+        self, client, player, gang_type, gang_sister, yolanda, catalogue
+    ):
+        """A switcher that could name a stranger's fighter would be a way
+        of finding out that they exist."""
+        stranger = User.objects.create_user("stranger", is_staff=True)
+        theirs = found_gang("Other Bad Girls", gang_type, owner=stranger, budget=1000)
+        elsewhere = hire_with_option(theirs, gang_sister, "Nobody Of Ours")
+
+        client.force_login(player)
+        body = client.get(skills_url(yolanda)).content.decode()
+
+        assert "Nobody Of Ours" not in body
+        assert reverse("n26-equip", args=[elsewhere.pk]) not in body
+
+
 # --- The write -------------------------------------------------------------
 
 
