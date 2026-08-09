@@ -967,7 +967,20 @@ def targets_gang():
 
 
 def ef_adds(thing):
-    """Grants the target a subtype, skill, trait, collection or rule."""
+    """Grants the target a subtype, skill, trait, collection, rule or weapon.
+
+    A granted weapon is free kit: it arrives with its free firing lines,
+    adds nothing to the gang's rating, and goes when its granter goes.
+
+    **A granted weapon arrives too late for its carrier's unfiltered
+    rules.** Scopes are asked in order of how conditional they are, so a
+    narrow rule sees what a broad one did — and a scope with no
+    conditions is asked at the same time as the grant, which means
+    before it. A carrier that hands over a weapon and also says "all my
+    bearer's weapons gain this" arms every weapon except the one it just
+    handed over. Name the weapon (``targets_weapons(is_one_of(…))``) and
+    the rule is asked afterwards, of a card the weapon is already on.
+    """
     from n26.library.models import AddsAssignable
 
     return AddsAssignable.objects.create(**_assignable_kwarg(thing))
@@ -1033,7 +1046,7 @@ def op_adds_model(profile):
 
 
 def _assignable_kwarg(thing):
-    from n26.library.models import Collection, Rule, Skill, Subtype, Trait
+    from n26.library.models import Collection, Rule, Skill, Subtype, Trait, Weapon
 
     kinds = (
         (Subtype, "subtype"),
@@ -1041,6 +1054,7 @@ def _assignable_kwarg(thing):
         (Trait, "trait"),
         (Collection, "collection"),
         (Rule, "rule"),
+        (Weapon, "weapon"),
     )
     for model, name in kinds:
         if isinstance(thing, model):

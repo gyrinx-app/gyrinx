@@ -32,6 +32,7 @@ from n26.tests.sandbox.actions import (
     remove,
     removes,
     set_statline,
+    targets_gang,
     targets_model,
     targets_weapons,
 )
@@ -341,6 +342,31 @@ class TestRemoval:
         assign(stripper, miniature=yolanda)
         assert card_for(yolanda).type_line == "Fighter"
 
+    def test_a_removes_modifier_takes_back_a_granted_weapon(self, yolanda):
+        claws = create_weapon("Claws", profiles=[("", 0)])
+        beast = create_wargear("Beast")
+        modifier("Grants claws", targets_model(), adds(claws), carried_by=beast)
+        assign(beast, miniature=yolanda)
+        assert [weapon.name for weapon in card_for(yolanda).weapons] == ["Claws"]
+
+        muzzle = create_wargear("Muzzle")
+        modifier("Strips claws", targets_model(), removes(claws), carried_by=muzzle)
+        assign(muzzle, miniature=yolanda)
+        assert card_for(yolanda).weapons == []
+
+    def test_a_removes_modifier_leaves_a_weapon_the_gang_bought(self, yolanda):
+        """It reaches grants and nothing else. A bought weapon is a row
+        somebody paid for, and parting with one is an operation — never
+        something a card works out while being read."""
+        claws = create_weapon("Claws", profiles=[("", 0)])
+        give_weapon(yolanda, claws, paid=10)
+
+        muzzle = create_wargear("Muzzle")
+        modifier("Strips claws", targets_model(), removes(claws), carried_by=muzzle)
+        assign(muzzle, miniature=yolanda)
+
+        assert [weapon.name for weapon in card_for(yolanda).weapons] == ["Claws"]
+
 
 class TestValidation:
     def test_a_trait_cannot_be_added_to_a_model(self, db):
@@ -361,6 +387,20 @@ class TestValidation:
             name="Nonsense",
             targets_weapons=targets_weapons(),
             adds_assignable=adds(create_subtype("Mounted")),
+        )
+        with pytest.raises(ValidationError, match="cannot apply"):
+            bad.clean()
+
+    def test_a_weapon_cannot_be_given_to_the_gang(self, db):
+        """A gang holds no weapons: a gun is carried by whoever carries
+        it. So the gang's own card is never handed anything, and the
+        sheet drawing that card need not ask what it was granted."""
+        from n26.library.models import Modifier
+
+        bad = Modifier(
+            name="Nonsense",
+            targets_gang=targets_gang(),
+            adds_assignable=adds(create_weapon("Claws", profiles=[("", 0)])),
         )
         with pytest.raises(ValidationError, match="cannot apply"):
             bad.clean()

@@ -107,7 +107,7 @@ def modifier(name, scope, effect, carried_by=None, **kwargs):
 
 
 def adds(thing):
-    """An ``AddsAssignable`` naming a subtype, skill or trait."""
+    """An ``AddsAssignable`` naming a subtype, skill, trait or weapon."""
     return ef_adds(thing)
 
 

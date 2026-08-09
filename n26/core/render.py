@@ -732,6 +732,7 @@ def card_to_model_card(
             source=cause.name if cause else None,
             source_kind=kind_of(cause.assignable) if cause else None,
             reason=node.reason,
+            computed=node.computed,
         )
 
     def trait_lines(child, weapon_state):
@@ -787,7 +788,10 @@ def card_to_model_card(
             provenance=provenance_of(node),
         )
 
-    for node in card.roots:
+    # What the model owns, and then what a modifier handed it. A granted
+    # line is drawn like any other — a weapon with its firing lines — and
+    # tells itself apart by its provenance, which says it was computed.
+    for node in (*card.roots, *card.granted):
         if node.key in answers:
             # An answer is drawn as its choice's row, not as a loose
             # piece — except that an answered *subtype* is still a
@@ -979,6 +983,7 @@ def _provenance_within(card):
             source=cause.name if cause else None,
             source_kind=kind_of(cause.assignable) if cause else None,
             reason=node.reason,
+            computed=node.computed,
         )
 
     return provenance_of
@@ -987,7 +992,15 @@ def _provenance_within(card):
 def _gang_rows(gang_card, gang_computed):
     """The gang's own rows as lines, same skipping rules as a model card:
     a Hidden draws nothing, an answer is drawn as its choice's row, and
-    counters have their own readings."""
+    counters have their own readings.
+
+    ``roots`` alone, where a model card also draws what it was granted: a
+    gang is handed nothing. A grant is refused a gang for two independent
+    reasons — an added weapon goes to a model, and a model-scoped rule
+    reaches nobody on the gang's own card — so a gang holding a gun is
+    not a thing this edition can express. Should it ever become one, this
+    is where its line would go.
+    """
     from n26.library.models import Counter
 
     answers = (

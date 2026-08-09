@@ -84,6 +84,13 @@ GRANTABLE_FIELDS = {
     # A named special rule the bearer gains — "all Escher fighters may…",
     # carried by the gang type and reaching each member.
     "rule": "library.Rule",
+    # Free kit: a beast's claws, a vehicle's fixed gun. The weapon and its
+    # firing lines are worked out at read time, so they add nothing to the
+    # gang's rating, cost nothing, cannot be sold, and go when the thing
+    # that granted them goes. The only grantable kind with a price and
+    # with children of its own — see ``n26.core.effects``, which builds
+    # the card nodes a granted weapon needs.
+    "weapon": "library.Weapon",
 }
 
 
@@ -610,6 +617,13 @@ class AssignableChoice(models.Model):
         blank=True,
         related_name="+",
     )
+    weapon = models.ForeignKey(
+        "library.Weapon",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
 
     class Meta:
         abstract = True
@@ -625,14 +639,26 @@ class AssignableChoice(models.Model):
         return None
 
     def accepts(self, target_kind):
-        """Traits go on weapons; subtypes and skills go on models."""
+        """A trait goes on a firing line; everything else goes on a model.
+
+        A weapon included: it is the model that carries a gun, and the
+        gun's own firing lines are what a weapon-scoped modifier reaches
+        once the grant has put them on the card.
+        """
         if self.trait_id is not None:
             return target_kind == WEAPON_PROFILE
         return target_kind == MODEL
 
 
 class AddsAssignable(AssignableChoice):
-    """Gives the target a subtype, skill or trait it would not otherwise have."""
+    """Gives the target something it would not otherwise have.
+
+    A subtype, skill, trait, collection, rule — or a weapon, which is the
+    one grantable kind that has a price and firing lines of its own. A
+    granted weapon is free kit: it and its lines are worked out at read
+    time, so nothing is bought, nothing is worth anything, and it lasts
+    exactly as long as whatever granted it.
+    """
 
     class Meta:
         verbose_name = "adds assignable"
@@ -649,7 +675,13 @@ class AddsAssignable(AssignableChoice):
 
 
 class RemovesAssignable(AssignableChoice):
-    """Takes a subtype, skill or trait away, computed — Death of a Leader."""
+    """Takes one away, computed — Death of a Leader.
+
+    It reaches what other modifiers granted, never what was bought: a
+    stored row is a purchase, and unbuying one is an operation rather
+    than a read. So removing a weapon here cancels a grant of that
+    weapon and leaves a weapon the gang paid for alone.
+    """
 
     class Meta:
         verbose_name = "removes assignable"

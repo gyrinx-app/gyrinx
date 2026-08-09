@@ -19,6 +19,20 @@ Order of evaluation, fixed:
    content terminates instead of spinning.
 2. **Then removals**, so they beat additions whatever order sources load.
 3. **Then stat changes fold** — sets first, then shifts, which sum.
+
+Most of what a modifier grants is a fact — a subtype, a skill, a trait —
+and lands on the ``ComputedCard``. A granted **weapon** is not a fact but
+a thing with firing lines, and those lines have to be on the card for a
+weapon-scoped modifier to reach them and for a renderer to draw them. So
+``compute`` writes them onto ``card.granted``, clearing it first: the
+list is this function's output, and computing a card twice must not leave
+the bearer holding two of everything.
+
+The consequence for content: a granted weapon appears at the *end* of the
+round its grant ran in, so an unconditional weapon scope on the same
+carrier — asked during that round — does not see it. Naming the weapon
+makes the rule conditional and therefore later, which is what an author
+writing "these claws gain…" says anyway.
 """
 
 from dataclasses import dataclass, field
@@ -291,6 +305,10 @@ def compute(card, index):
         RequiresCompanions,
     )
 
+    # Granted lines are this function's output, not the card's content, so
+    # a card computed twice does not end up carrying two of everything.
+    card.granted.clear()
+
     computed = ComputedCard(
         card=card,
         weapons={
@@ -412,6 +430,7 @@ def compute(card, index):
                                 Contribution(
                                     thing=thing, source=label, source_kind=label_kind
                                 ),
+                                step.node,
                             )
                         )
                         step.granted = (*step.granted, str(thing))
@@ -473,8 +492,8 @@ def compute(card, index):
                 computed.plan.append(step)
 
         # Settle the round: additions first, then removals (agreed order).
-        for target, contribution in adds:
-            _place(computed, target, contribution)
+        for target, contribution, carrier in adds:
+            _place(computed, target, contribution, carrier)
         for target, contribution in removes:
             _unplace(computed, target, contribution)
         round_no += 1
@@ -722,8 +741,8 @@ def _fill_choice_slots(computed, offers, by_cause):
 
 def _bucket(computed, target, thing):
     """Where a contribution belongs: subtypes, skills, rules, collections,
-    or a weapon's traits."""
-    from n26.library.models import Collection, Rule, Skill, Subtype
+    a granted weapon, or a weapon's traits."""
+    from n26.library.models import Collection, Rule, Skill, Subtype, Weapon
 
     if target.kind == WEAPON_PROFILE:
         return computed.weapons[target.node.key], "traits"
@@ -735,15 +754,19 @@ def _bucket(computed, target, thing):
         return computed, "rules"
     if isinstance(thing, Collection):
         return computed, "collections"
+    if isinstance(thing, Weapon):
+        return computed, "granted_weapons"
     return None, None
 
 
-def _place(computed, target, contribution):
+def _place(computed, target, contribution, carrier=None):
     holder, kind = _bucket(computed, target, contribution.thing)
     if holder is None:
         return
     if kind == "traits":
         holder.added_traits.append(contribution)
+    elif kind == "granted_weapons":
+        _grant_weapon(computed, contribution, carrier)
     else:
         existing = getattr(holder, kind)
         if contribution.name not in {c.name for c in existing}:
@@ -756,9 +779,68 @@ def _unplace(computed, target, contribution):
         return
     if kind == "traits":
         holder.removed_traits.append(contribution)
+    elif kind == "granted_weapons":
+        _ungrant_weapon(computed, contribution)
     else:
         setattr(
             holder,
             kind,
             [c for c in getattr(holder, kind) if c.name != contribution.name],
         )
+
+
+def _grant_weapon(computed, contribution, carrier):
+    """Put a granted weapon on the card, with its free firing lines.
+
+    Free kit, and the card says so by what the lines are made of: no
+    assignment, so nothing to sell and nothing on the ledger, and a
+    rating of zero, so the gang is worth the same with it as without.
+
+    Only the lines that come with the gun. A paid firing line is ammo
+    somebody bought, and nobody bought this — so a granted weapon offers
+    none, and takes no accessories either: both hang off a purchase.
+
+    Every grant is its own weapon, where every grant of one skill is the
+    same skill: two things each handing the bearer a stub gun leave them
+    holding two stub guns.
+    """
+    from n26.core.card import Node
+
+    card = computed.card
+    weapon = contribution.thing
+    serial = len(card.granted)
+    node = Node(
+        assignable=weapon,
+        key=("granted", serial, weapon.pk),
+        rating=0,
+        caused_by_key=carrier.key if carrier is not None else None,
+        computed=True,
+    )
+    for profile in weapon.profiles.all():
+        if profile.price:
+            continue
+        line = Node(
+            assignable=profile,
+            key=("granted", serial, weapon.pk, profile.pk),
+            caused_by_key=node.key,
+            is_weapon_profile=True,
+            computed=True,
+        )
+        node.children.append(line)
+        # Registered here and not at the top of ``compute``: a later, more
+        # specific round may name this weapon and add a trait to it, and
+        # the trait needs somewhere to land.
+        computed.weapons[line.key] = ComputedWeapon(node=line)
+    card.granted.append(node)
+
+
+def _ungrant_weapon(computed, contribution):
+    """Take back a granted weapon — every copy of it, whoever gave it.
+
+    It reaches grants only. A weapon the gang bought is a stored row and
+    stays exactly where it is: unbuying is an operation, not a read.
+    """
+    card = computed.card
+    card.granted[:] = [
+        node for node in card.granted if node.assignable != contribution.thing
+    ]

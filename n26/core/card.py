@@ -58,6 +58,10 @@ class Node:
     #: it draws no row and adds no rating, because the model does not own
     #: it. Scoped by host, where a ``Hidden`` is scoped by kind.
     broadcast: bool = False
+    #: True when this line was worked out at read time and written
+    #: nowhere — a weapon a modifier grants. Nothing paid for it, so it
+    #: is worth nothing and there is nothing to sell.
+    computed: bool = False
     #: The stored row, when this card was built from stored rows.
     assignment: Assignment | None = None
 
@@ -104,6 +108,16 @@ class Card:
     #: by card — a weapon is bought once and counted once.
     full_rating: int = 0
 
+    #: Lines a modifier granted: a weapon the bearer never bought, with
+    #: its free firing lines beneath it. Filled in by
+    #: ``n26.core.effects.compute``, which clears and rebuilds the list on
+    #: every run — a card nobody has computed has none. Apart from
+    #: ``roots`` because ``roots`` are things the gang owns: these are
+    #: worth nothing, appear on no ledger, and cannot be sold, so
+    #: anything asking what a model *has* reads ``roots`` and anything
+    #: asking what a model's card *shows* reads both.
+    granted: list[Node] = field(default_factory=list)
+
     #: What kind of thing this card belongs to. Scopes read it — an
     #: unfiltered ``TargetsMiniature`` must not swallow a gang, nor
     #: ``TargetsGang`` a model — so each card type says what it hosts.
@@ -116,11 +130,15 @@ class Card:
         return sum(node.rating_with_extras for node in self.roots)
 
     def all_nodes(self):
-        for root in self.roots:
+        for root in (*self.roots, *self.granted):
             yield from root.walk()
 
     def weapon_profile_nodes(self):
-        """Every weapon profile on the card — what weapon-scoped modifiers reach."""
+        """Every weapon profile on the card — what weapon-scoped modifiers reach.
+
+        Granted lines included, which is what lets one modifier hand a
+        beast its claws and a second name those claws and arm them.
+        """
         return [node for node in self.all_nodes() if node.is_weapon_profile]
 
     def find(self, name):
@@ -194,6 +212,11 @@ class GangCard:
     #: Every member's ``Card``, keyed by miniature id, from the same
     #: fetch family — so a whole sheet stays a fixed number of queries.
     members: dict = field(default_factory=dict)
+    #: Lines a modifier granted, as on a model's card. A gang is handed
+    #: nothing today — a granted weapon goes to whoever carries it — but
+    #: both card kinds are computed by one function, and one that read
+    #: its own grants on one card and not the other would be a trap.
+    granted: list[Node] = field(default_factory=list)
 
     host_kind = GANG
 
@@ -202,7 +225,7 @@ class GangCard:
         return sum(node.rating_with_extras for node in self.stash_roots)
 
     def all_nodes(self):
-        for root in self.roots:
+        for root in (*self.roots, *self.granted):
             yield from root.walk()
 
     def weapon_profile_nodes(self):
@@ -568,6 +591,11 @@ def build_modifier_index(assignables, max_depth=3):
         "targets_weapons__has_traits__traits",
         "targets_weapons__in_categories__categories",
         "targets_weapons__is_one_of__weapons",
+        # A granted weapon is put on the card as lines, statlines and all,
+        # by ``compute``, which may not query. Its firing lines and what
+        # they are printed with therefore have to be here.
+        "adds_assignable__weapon__profiles__traits",
+        "adds_assignable__weapon__profiles__statline__stats__statline_type_stat__stat",
     )
 
     index = ModifierIndex()
