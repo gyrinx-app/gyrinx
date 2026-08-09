@@ -474,9 +474,125 @@ class TestBuyingALine:
         assert assignment.ledger_entry.trade_points == 0
 
 
+class TestSelling:
+    """A sale is the third act, and none of the other two: the thing goes,
+    and half of what it is *worth* comes back — never half of what was paid
+    for it, because those two part company at the first discount."""
+
+    def test_half_of_what_it_is_worth_lands_in_the_bank(self, gang, fighter, catalogue):
+        from n26.tests.sandbox.actions import sell
+
+        assignment = buy(fighter, thing=catalogue["autogun"], paid=20)
+        gang.refresh_from_db()
+        assert gang.credits == 1000 - 55 - 20
+
+        assert sell(assignment) == 10
+
+        gang.refresh_from_db()
+        assert gang.credits == 1000 - 55 - 20 + 10
+        # The gun stops counting the moment it is gone; the fighter is worth
+        # their hire and nothing else.
+        assert gang.rating == 55
+        assignment.refresh_from_db()
+        assert assignment.archived is True
+        assert_reconciled(gang)
+
+    def test_a_haggled_price_sells_for_half_of_the_full_one(
+        self, gang, fighter, catalogue
+    ):
+        """Bought at a discount, sold at half of what the gang owns. A sword
+        talked down to 60 is still a hundred credits of sword."""
+        from n26.tests.sandbox.actions import sell
+
+        assignment = buy(fighter, thing=catalogue["autogun"], paid=12, discount=8)
+        gang.refresh_from_db()
+        credits_before = gang.credits
+
+        assert sell(assignment) == 10
+
+        gang.refresh_from_db()
+        assert gang.credits == credits_before + 10
+        assert_reconciled(gang)
+
+    def test_nothing_sells_for_less_than_five(self, gang, fighter):
+        """Half of a trinket is a rounding error, and nobody hands a knife
+        over for nothing. Half of 9 is 5 by rounding up; half of 8 is 5
+        because that is the floor."""
+        from n26.tests.sandbox.actions import sell
+
+        for price, expected in ((9, 5), (8, 5), (1, 5)):
+            thing = create_wargear(f"Trinket {price}", price=price)
+            gang.refresh_from_db()
+            before = gang.credits
+            assert sell(buy(fighter, thing=thing)) == expected
+            gang.refresh_from_db()
+            assert gang.credits == before - price + expected
+        assert_reconciled(gang)
+
+    def test_a_gun_is_sold_with_its_ammo_and_paid_for_both(
+        self, gang, fighter, catalogue
+    ):
+        """What goes with the gun counts towards what the gun fetches: a
+        buyer pays for the thing as it stands, sight and rounds included."""
+        from n26.library.models import WeaponProfile
+        from n26.tests.sandbox.actions import buy_weapon_profile, sell
+
+        firestorm = WeaponProfile.objects.create(
+            name="Firestorm ammo",
+            annotation="Autogun",
+            weapon=catalogue["autogun"],
+            price=30,
+            position=1,
+        )
+        weapon_assignment = buy(fighter, thing=catalogue["autogun"], paid=20)
+        ammo = buy_weapon_profile(weapon_assignment, firestorm)
+        gang.refresh_from_db()
+        credits_before = gang.credits
+
+        # Half of 20 + 30, not half of the gun alone.
+        assert sell(weapon_assignment) == 25
+
+        gang.refresh_from_db()
+        assert gang.credits == credits_before + 25
+        assert gang.rating == 55
+        ammo.refresh_from_db()
+        assert ammo.archived is True
+        assert_reconciled(gang)
+
+    def test_the_ledger_says_sold_rather_than_refunded(self, gang, fighter, catalogue):
+        """A sale and a refund move credits the same way and mean different
+        things. The log has to be able to say which happened."""
+        from n26.core.render_text import ledger_to_text
+        from n26.tests.sandbox.actions import sell
+
+        assignment = buy(fighter, thing=catalogue["autogun"], paid=20)
+        sell(assignment, note="sold to a passing trader")
+
+        text = ledger_to_text(gang)
+        print("\n" + text)
+        assert "Sold: -10cr" in text
+        assert "Refunded" not in text
+
+    def test_a_sale_is_not_a_refund_of_what_was_paid(self, gang, fighter, catalogue):
+        """The two acts on one item, side by side: the whole 20 comes back
+        from a refund and half of it from a sale."""
+        from n26.tests.sandbox.actions import refund, sell
+
+        gang.refresh_from_db()
+        start = gang.credits
+        refund(buy(fighter, thing=catalogue["autogun"], paid=20))
+        gang.refresh_from_db()
+        assert gang.credits == start
+
+        sell(buy(fighter, thing=catalogue["autogun"], paid=20))
+        gang.refresh_from_db()
+        assert gang.credits == start - 20 + 10
+        assert_reconciled(gang)
+
+
 class TestRefunds:
-    """Distinct acts: remove keeps the money spent; refund gives it back;
-    selling at half waits for the stash."""
+    """Distinct acts: remove keeps the money spent; refund gives it back; a
+    sale returns half of what the thing is worth."""
 
     def test_a_refund_returns_the_money_and_the_rating(self, gang, fighter, catalogue):
         from n26.tests.sandbox.actions import refund

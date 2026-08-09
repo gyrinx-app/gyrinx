@@ -1,0 +1,100 @@
+{% comment %}
+<c-n26.owned-dialog> — confirm what is about to happen to something the gang owns.
+
+    <c-n26.owned-dialog :dialog="dialog">{% csrf_token %}</c-n26.owned-dialog>
+
+Three acts, one panel: sell it on for half of what it is worth, hand it to
+somebody else, or take it off the card. Which one is being confirmed arrives in
+`dialog` from n26.core.views.owned, along with everything only the server can
+say — the figure a sale will pay, and who else is on the roster.
+
+One component rather than three because the difference between them is a
+sentence and, for a move, a select: three files would be three copies of the
+same panel drifting apart a fix at a time. The panel itself is <c-n26.dialog>,
+which is where the open-state-lives-in-the-URL reasoning is written down.
+
+  --- what each one says ---
+
+A sale states its arithmetic. The figure is worked out from rows the reader
+cannot see, so a number with no working is a number to be taken on trust, and
+this one is money. A move states what it does *not* do: the thing keeps the
+rating it was pinned at, which is the question anyone moving a gun between
+fighters actually has. A removal states that the money stays spent, because the
+sale button directly above it says otherwise and the two must not be confused.
+
+  --- two ways to answer a move ---
+
+The stash is a button and the roster is a select, because they are not the same
+kind of choice: the stash is one place and always there, while which fighter is
+a list that may be long. Only the pressed submit is sent, so `to=stash`
+arriving is the whole of how the view tells them apart. With nobody else on the
+roster there is no select and no second act — the stash becomes the act itself,
+and a hidden field says so.
+
+  :dialog — what n26.core.views.owned.owned_dialog built: kind, title, the
+    sentence under it, where to post, where Cancel goes, and the roster.
+  modal — promote to the top layer. On by default; off draws the panel in the
+    page's flow, which is what a reader without scripting sees.
+  slot — the csrf token. A component has no request and renders none itself.
+{% endcomment %}
+<c-vars :dialog="None" :modal="True" class="" />
+
+<c-n26.dialog title="{{ dialog.title }}"
+              action="{{ dialog.action }}"
+              cancel_url="{{ dialog.cancel_url }}"
+              submit_label="{{ dialog.submit_label }}"
+              submit_variant="{{ dialog.submit_variant }}"
+              :modal="modal"
+              class="{{ class }}">
+    <c-slot name="lead">
+        {% if dialog.kind == "sell" %}
+            {{ dialog.sum }} It leaves the card with anything attached to it, and
+            stops counting towards the gang's rating.
+        {% elif dialog.kind == "reassign" %}
+            Where it lives changes; what it is worth does not — a move never
+            re-prices.
+        {% else %}
+            It comes off the card, along with anything attached to it. What was
+            paid for it stays spent.
+        {% endif %}
+    </c-slot>
+
+    {{ slot }}
+    {% comment %}
+    Which list the reader was shopping, carried through the press so they come
+    back to it rather than to the first tab of the strip.
+    {% endcomment %}
+    {% if dialog.list %}<input type="hidden" name="list" value="{{ dialog.list }}">{% endif %}
+
+    {% if dialog.kind == "reassign" %}
+        {% if dialog.models %}
+            {% comment %}
+            No placeholder row: the first name on the roster is selected from
+            the start, so Move always has an answer. A "Select an option" row
+            would make the modal open on a state where its own act does
+            nothing, and it is disabled, so a reader who left it alone would
+            press Move and be told there was nowhere to move to.
+            {% endcomment %}
+            <c-ui.field label="To" for="reassign-to">
+                <c-ui.select.native name="miniature" id="reassign-to" placeholder="">
+                    {% for model in dialog.models %}
+                        <c-ui.select.option value="{{ model.pk }}">{{ model.name }}</c-ui.select.option>
+                    {% endfor %}
+                </c-ui.select.native>
+            </c-ui.field>
+            <c-slot name="actions">
+                {% comment %}
+                A submit, not a link: it is one of the two answers to this form.
+                The kit writes its own type="button" after {{ attrs }} and HTML
+                keeps the first of a duplicate pair, which is what lets the
+                attribute here win.
+                {% endcomment %}
+                <c-ui.button type="submit" name="to" value="stash" size="md">
+                    To the stash
+                </c-ui.button>
+            </c-slot>
+        {% else %}
+            <input type="hidden" name="to" value="stash">
+        {% endif %}
+    {% endif %}
+</c-n26.dialog>

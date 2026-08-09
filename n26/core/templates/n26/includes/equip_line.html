@@ -11,6 +11,15 @@ this form's only kind of submit. The type="submit"-through-attrs trick is the
 one profile-picker.row documents — the kit button renders {{ attrs }} before
 its own type="button", and HTML keeps the first of a duplicate pair.
 
+  --- a row for something already carried ---
+
+Where the fighter holds one of these, the row says so instead of offering
+another: the count is the button, and pressing it opens the row onto the copies
+themselves, each with what can be done to it. It takes the disclosure's place
+rather than sitting beside it — `expanded` is the row's own state and this sets
+it, so there is one control and not two doing the same thing under different
+words.
+
   --- the price is a box ---
 
 The listing is a price list, not a tariff: a table that has agreed a discount
@@ -42,6 +51,7 @@ whatever the button is later made to say.
                               :trade_points="row.line.trade_points"
                               :exclusive="row.line.is_exclusive"
                               :notes="row.line.notes"
+                              :disclosure="False"
                               state="quoted: {{ row.line.credits }}, price: {{ row.line.credits }}">
     <c-slot name="price">
         {% include "n26/includes/equip_price.html" with field=row.price_field quoted=row.line.credits label=row.line.name %}
@@ -95,12 +105,39 @@ whatever the button is later made to say.
         </c-slot>
     {% endif %}
     <c-slot name="actions">
-        <c-ui.button size="sm"
-                     variant="success"
-                     type="submit"
-                     name="thing"
-                     value="{{ row.key }}">
-            Buy
-        </c-ui.button>
+        {% if row.owned %}
+            {% comment %}
+            The count in brackets, the way a card counts anything: the figure
+            is what the reader is being told, and the chevron says there is
+            more of it under here. Default rather than green — this row is
+            not offering to sell anybody anything.
+            {% endcomment %}
+            <c-ui.button size="sm"
+                         class="inline-flex items-center gap-1.5"
+                         @click="expanded = !expanded"
+                         ::aria-expanded="expanded"
+                         aria-label="{{ row.owned|length }} owned — what to do with {% if row.owned|length == 1 %}it{% else %}them{% endif %}">
+                <span class="tabular-nums">({{ row.owned|length }})</span>
+                <span class="n26-icon-only">
+                    <c-n26.icon name="chevron-down"
+                                class="size-3 transition-transform"
+                                stroke_width="2.5"
+                                ::class="{ 'rotate-180': expanded }" />
+                </span>
+            </c-ui.button>
+        {% else %}
+            <c-ui.button size="sm"
+                         variant="success"
+                         type="submit"
+                         name="thing"
+                         value="{{ row.key }}">
+                Buy
+            </c-ui.button>
+        {% endif %}
     </c-slot>
+    {% if row.owned %}
+        <c-slot name="details">
+            <c-n26.owned-lines :things="row.owned" />
+        </c-slot>
+    {% endif %}
 </c-n26.collection-picker.item>

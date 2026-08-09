@@ -33,6 +33,32 @@ from n26.core.models import (
     Reason,
 )
 
+#: The least a sale ever returns. Half of a knife is nothing, and nobody
+#: hands a knife over for nothing.
+MINIMUM_PROCEEDS = 5
+
+
+def proceeds_for(rating):
+    """What selling something worth ``rating`` puts back in the gang's hand.
+
+    Half, rounded up, never under :data:`MINIMUM_PROCEEDS`. Worth, not
+    outlay: a sword haggled down to 60 is still a hundred credits of sword,
+    and rating is what the gang owns.
+    """
+    return max(MINIMUM_PROCEEDS, -(-rating // 2))
+
+
+def sale_of(assignment):
+    """What selling this would move: the rows that go, and what comes back.
+
+    Asked before the act as well as during it, so the confirmation quotes
+    the figure the sale will actually pay rather than a second arithmetic
+    that could disagree with it.
+    """
+    rows = [row for row in [assignment, *subtree(assignment)] if not row.archived]
+    rating = sum(row.rating for row in rows)
+    return rows, rating, proceeds_for(rating)
+
 
 class NotEnoughCredits(Exception):
     """A spend would take the gang below zero credits.
@@ -181,8 +207,8 @@ class Operation:
 
         Removal and refund are deliberately different acts: ``remove``
         archives and keeps the money spent; this archives the same subtree
-        *and* gives the credits back. Selling at half price is a third
-        thing, waiting on the stash.
+        *and* gives the credits back. ``sell`` is the third of them, and
+        returns half of what the thing is worth rather than what was paid.
 
         Each refunded line's entry is settled to zero with a matching
         event, so folding the events still reproduces the entry and the
@@ -227,6 +253,53 @@ class Operation:
                 ]
             )
         return assignment
+
+    def sell(self, assignment, note=""):
+        """Sell something on, and put half of what it is worth in the bank.
+
+        The third act beside ``remove`` and ``refund``: removal archives and
+        keeps the money spent, a refund undoes the purchase and returns
+        every credit of it, and a sale is a later trade — the thing goes,
+        and what comes back is :func:`proceeds_for` of its **rating**, not
+        of what was paid for it. Those two part company the moment anything
+        is discounted, and rating is what the gang owns.
+
+        The subtree is sold with it and counts towards the figure: a gun's
+        paid ammo and its sight go with the gun, so what the gang is giving
+        up is the whole of it. Every line archives, so none of them counts
+        towards rating any more; each entry keeps saying what its thing was
+        worth, because it was worth that.
+
+        The credits land on the sold line's own entry, whose ``paid`` drops
+        by what came back — a sale makes the gang less out of pocket for
+        the thing than it was, and the discount absorbs the difference so
+        that ``paid = list_price - discount`` still holds. Folding the
+        events therefore still reproduces the entry, which is the invariant
+        ``n26.reconcile`` exists to check.
+
+        Returns what the gang was paid.
+        """
+        rows, _, proceeds = sale_of(assignment)
+        for target in rows:
+            self.touched(target.miniature_root)
+            target.archived = True
+            target.archived_at = _now()
+            target.save(update_fields=["archived", "archived_at", "modified"])
+            # One sale, one payment: the lines that rode along are sold
+            # too, but the money is the root's — a buyer pays for the gun
+            # with the sight on it, not twice.
+            self.event(
+                target,
+                LedgerEvent.Kind.SOLD,
+                credits_delta=-proceeds if target is assignment else 0,
+                note=note,
+            )
+        entry = getattr(assignment, "ledger_entry", None)
+        if entry is not None:
+            entry.paid -= proceeds
+            entry.discount += proceeds
+            entry.save(update_fields=["discount", "paid", "modified"])
+        return proceeds
 
     # --- composites ------------------------------------------------------
 

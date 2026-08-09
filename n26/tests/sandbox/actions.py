@@ -300,6 +300,15 @@ def refund(assignment, actor=None, note=""):
         return op.refund(assignment, note=note)
 
 
+def sell(assignment, actor=None, note=""):
+    """Sell something on for half of what it is worth. Returns the proceeds."""
+    from n26.core.operations import operation
+
+    gang = assignment.gang_root
+    with operation(gang, actor=actor or gang.owner) as op:
+        return op.sell(assignment, note=note)
+
+
 def create_assignment_set(miniature, name, assignments):
     """A named selection of the model's equipment — one Model Card."""
     from n26.core.models import AssignmentSet

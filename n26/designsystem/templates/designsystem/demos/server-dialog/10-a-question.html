@@ -1,0 +1,13 @@
+{# title: The panel, on its own #}
+{# note: modal="" draws it in the page. The real screen leaves it on and the dialog promotes itself with showModal() — which would cover this page — and the panel is also exactly what a reader without scripting gets. #}
+{# layout: full #}
+<c-n26.dialog title="Disband The Ashen Choir?"
+              action="#"
+              cancel_url="#"
+              submit_label="Disband"
+              submit_variant="danger"
+              modal="">
+    <c-slot name="lead">
+        Twelve fighters and everything they carry. There is no way back from this.
+    </c-slot>
+</c-n26.dialog>

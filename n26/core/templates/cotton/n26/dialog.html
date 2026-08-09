@@ -1,0 +1,139 @@
+{% comment %}
+<c-n26.dialog> — a question the server decided to ask, and the form that answers it.
+
+    <c-n26.dialog title="Sell the Meltagun?" action="/n26/assignments/1/sell/"
+                  cancel_url="/n26/fighters/2/equip/?list=3"
+                  submit_label="Sell" submit_variant="danger">
+        <c-slot name="lead">Half of 135¢, rounded up — 68¢.</c-slot>
+        {% csrf_token %}
+    </c-n26.dialog>
+
+The panel every server-decided dialog in the edition is built from: the shell,
+the heading, the promotion to a real modal, and the footer. What differs
+between one and the next is the question and the fields under it, and those are
+the slot.
+
+  --- open is a server state ---
+
+The page draws this only when the URL says so, so there is no trigger, no toggle
+and no client-side open flag — the dialog is in the HTML or it is not. That is
+what makes a press work with scripting off, and what makes an open dialog a link
+somebody can send.
+
+The kit's c-ui.dialog is the other shape: a trigger beside content teleported
+into a <template> and revealed by Alpine. With the open state already decided by
+the server and no script running, it would draw nothing at all. So this is a
+native <dialog open> — a panel in the page's flow on its own, promoted to a real
+modal (top layer, backdrop, Escape, trapped focus) by showModal() where Alpine
+is there to call it. `static m-0` is what it degrades to: a panel sits in the
+flow at the top of the page, and both classes come off at the moment the
+promotion succeeds, because a modal is placed by the browser's own inset and
+needs `margin: auto` to sit in the middle of the screen rather than in its
+top-left corner.
+
+Escape closes a modal by itself, which would leave the page on screen while the
+URL still named the thing being asked about. So dismissing navigates: the close
+event and Cancel both go to cancel_url, and the address bar keeps agreeing with
+the page.
+
+  --- one at a time ---
+
+The heading's id is fixed rather than minted, because the open state is the
+server's: a page draws at most one of these, so there is nothing for a second
+copy to collide with. Two on one page would be two open dialogs, which is not a
+state the URL can express.
+
+  title — the question, as the heading.
+  lead — a sentence under it: what pressing will do, what it will pay, what it
+    will take away. A slot, so a caller can compose it from figures.
+  action — where the answer posts.
+  cancel_url — where Cancel and a dismissed dialog go. Without one there is no
+    way out but the act, so give it one.
+  submit_label / submit_variant — the act's wording and colour, as
+    <c-n26.form-actions> takes them: danger where it destroys something.
+  actions — further controls, drawn left of Cancel by the footer. A second
+    submit here is how a dialog offers two acts; see <c-n26.form-actions>.
+  modal — promote to the top layer. On by default; off draws the panel in the
+    page's flow, which is what a reader without scripting sees.
+  slot — the csrf token, the hidden fields, and whatever the question needs
+    answering with. A component has no request and renders no token itself.
+{% endcomment %}
+<c-vars
+    title=""
+    lead=""
+    action=""
+    cancel_url=""
+    submit_label=""
+    submit_variant="success"
+    cancel_label="Cancel"
+    :modal="True"
+    class=""
+/>
+
+{% comment %}
+The promotion takes the `open` attribute off before calling showModal(),
+because showModal() on a dialog that already has it throws instead of
+upgrading it.
+
+It takes the attribute off rather than calling close(). close() is a
+dismissal — it fires a `close` event, and the handler below answers a close by
+navigating away, so a promotion that closed the dialog first would send the
+reader off this page on the way to opening the modal. Removing the attribute
+hides the panel without dismissing anything.
+
+The work is a method on the data rather than an expression in x-init because
+Alpine compiles a directive's value in expression position, where a `try`
+statement is a syntax error. Alpine reports that to the console and skips the
+directive, so a statement written inline is not a promotion that fails — it is
+a promotion that never runs, leaving the panel sitting above the page with
+nothing to say why.
+
+A promotion that does fail must not cost the reader the fallback: the server
+decided this dialog is open, and the panel in the page's flow is the whole of
+it with no script. So the attribute goes back on, `promoted` stays false, the
+panel keeps its in-flow presentation, and the exception is logged rather than
+swallowed.
+{% endcomment %}
+<dialog open
+        {% if modal %}x-data="{
+            promoted: false,
+            promote(dialog) {
+                try {
+                    dialog.removeAttribute('open');
+                    dialog.showModal();
+                    this.promoted = true;
+                } catch (error) {
+                    console.error(error);
+                    dialog.setAttribute('open', '');
+                }
+            }
+        }"
+        x-init="promote($el)"
+        :class="{ 'static m-0': !promoted, 'm-auto': promoted }"
+        @close="window.location = '{{ cancel_url }}'"{% endif %}
+        aria-labelledby="n26-dialog-title"
+        {{ attrs }}
+        class="static m-0 w-full max-w-lg rounded-box border border-box-border bg-surface p-0 text-ink-900 shadow-xl backdrop:bg-black/50 dark:bg-ink-900 dark:text-ink-100 {{ class }}">
+    <form method="post" action="{{ action }}" class="space-y-5 p-6">
+        <div class="space-y-1.5">
+            <h2 id="n26-dialog-title"
+                class="text-lg font-semibold tracking-tight text-ink-900 dark:text-ink-100">
+                {{ title }}
+            </h2>
+            {% if lead %}<p class="text-sm text-muted">{{ lead }}</p>{% endif %}
+        </div>
+
+        {{ slot }}
+
+        {% comment %}
+        The same footer a form page ends with, drawn by the same component: this
+        dialog is a form, and there is no reason a form inside a panel should end
+        differently from one filling a screen. Cancel goes somewhere — this page
+        with nothing named in its URL — and nothing it does needs a form.
+        {% endcomment %}
+        <c-n26.form-actions submit_label="{{ submit_label }}"
+                            submit_variant="{{ submit_variant }}"
+                            cancel_url="{{ cancel_url }}"
+                            cancel_label="{{ cancel_label }}">{{ actions }}</c-n26.form-actions>
+    </form>
+</dialog>

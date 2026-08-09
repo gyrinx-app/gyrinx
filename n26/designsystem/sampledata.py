@@ -472,6 +472,7 @@ def context():
         **nav_context(),
         **trading_post_context(),
         **hire_context(),
+        **owned_context(),
         **gang_sheet_context(),
         **dashboard_context(),
     }
@@ -1314,6 +1315,84 @@ CHANGELOG = [
         ),
     },
 ]
+
+
+# ------------------------------------------------------------- what is owned
+
+# A shop row for something the fighter already has, and the three
+# confirmations behind it. Real OwnedThings, because the components end up
+# typed against what n26.core.owned produces and a rename upstream should
+# fail at import rather than at a glance.
+
+
+@dataclass(frozen=True)
+class _Roster:
+    """Stands in for a Miniature: someone the move dialog can offer."""
+
+    pk: str
+    name: str
+
+
+def owned_context():
+    """What a fighter is carrying, and the three things that can happen to it."""
+    from n26.core.owned import OwnedPart, OwnedThing
+
+    meltagun = OwnedThing(
+        id="meltagun",
+        name="Meltagun",
+        rating=135,
+        parts=[
+            OwnedPart(
+                id="melta-round",
+                name="Melta round",
+                rating=20,
+                sell_href="#",
+                remove_href="#",
+            )
+        ],
+        sell_href="#",
+        reassign_href="#",
+        remove_href="#",
+    )
+    stub = OwnedThing(
+        id="stub-gun",
+        name="Stub gun",
+        rating=5,
+        sell_href="#",
+        reassign_href="#",
+        remove_href="#",
+    )
+    named = {"cancel_url": "#", "action": "#", "list": "", "name": "Meltagun"}
+    return {
+        "owned_things": [meltagun, stub],
+        # The gun and its round together, which is what a sale of the gun
+        # is priced on: what goes with it counts towards what it fetches.
+        "owned_sell_dialog": {
+            **named,
+            "kind": "sell",
+            "title": "Sell Meltagun?",
+            "rating": 155,
+            "proceeds": 78,
+            "sum": "Half of 155¢, rounded up — 78¢.",
+            "submit_label": "Sell",
+            "submit_variant": "danger",
+        },
+        "owned_move_dialog": {
+            **named,
+            "kind": "reassign",
+            "title": "Move Meltagun",
+            "models": [_Roster("nell", "Nell"), _Roster("vex", "Vex")],
+            "submit_label": "Move",
+            "submit_variant": "primary",
+        },
+        "owned_remove_dialog": {
+            **named,
+            "kind": "remove",
+            "title": "Delete Meltagun?",
+            "submit_label": "Delete",
+            "submit_variant": "danger",
+        },
+    }
 
 
 def dashboard_context():

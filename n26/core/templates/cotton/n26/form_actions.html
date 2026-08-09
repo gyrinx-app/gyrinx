@@ -35,6 +35,13 @@ of equal weight beside it makes a reader stop and read both to find the one they
 want. Text at rest and a button under the pointer is the right weight for a
 control that is only wanted when the answer is no.
 
+  --- a form with two acts ---
+
+Only the submit that was pressed is sent, which is how a form offering two acts
+tells them apart: the second one goes in the slot carrying its own name and
+value, and the act at the end needs no name, because its press is the one that
+sends nothing extra.
+
   submit_label — the act's wording. Without one no submit is drawn.
   submit_variant — the act's colour. `success` by default, because the button
     that ends a form usually brings a thing into existence; `danger` where it

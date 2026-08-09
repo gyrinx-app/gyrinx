@@ -39,6 +39,10 @@ here too, so a call site states each number once.
     Given one, the name becomes a disclosure button; without one it is plain
     text. Rendered only once opened, so a long list does not pay for detail
     nobody asked to see.
+  :disclosure — draw that button. Off where the row's own actions carry the
+    control instead: `expanded` is this row's state and anything inside it can
+    set it, so a row whose action button opens the detail wants one control and
+    not two saying the same thing.
   keywords — extra searchable text that is not on screen.
   icon — a small leading mark, for state worth spotting down the list rather
     than reading. The column is reserved whether or not a row has one: most
@@ -64,6 +68,7 @@ here too, so a call site states each number once.
     :exclusive="False"
     keywords=""
     details_label="card"
+    :disclosure="True"
     :notes="[]"
     state=""
     class=""
@@ -132,7 +137,7 @@ here too, so a call site states each number once.
         least of them. It says what it opens rather than pointing at it: "Show
         card" is a promise a chevron cannot make.
         {% endcomment %}
-        {% if details %}
+        {% if details and disclosure %}
             <button type="button" @click="expanded = !expanded" :aria-expanded="expanded"
                     class="flex shrink-0 items-center gap-1 rounded-control px-1.5 py-0.5 text-xs
                            text-muted hover:bg-ink-500/10 hover:text-ink-900 focus-ring

@@ -1059,30 +1059,96 @@ GROUPS: list[Group] = [
                 ),
             ),
             Component(
+                # Not "dialog": the kit's own c-ui.dialog has that slug, and a
+                # second component answering to it would take its page.
+                slug="server-dialog",
+                tag="c-n26.dialog",
+                template="n26/dialog.html",
+                summary="A question the server decided to ask, and the form that answers it.",
+                needs=(ALPINE,),
+                notes=(
+                    "The panel every server-decided dialog is built from, and "
+                    "the only kind of dialog here whose open state is a server "
+                    "state: the page draws it when the URL says so, which is "
+                    "what makes it a link, makes it survive a reload, and makes "
+                    "the press that opened it work with scripting off. "
+                    "c-ui.dialog is the other shape — a trigger beside content "
+                    "teleported into a <template> and revealed by Alpine — and "
+                    "with the answer already decided by the server and no "
+                    "script running it draws nothing at all. So this is a "
+                    "native <dialog open>: a panel in the flow of the page on "
+                    "its own, promoted to a real modal by showModal() where "
+                    "Alpine is there to call it, which brings the top layer, "
+                    "the backdrop, Escape and a focus trap without any of them "
+                    "being written here. Dismissing navigates rather than "
+                    "hiding, because a dialog closed in place would leave the "
+                    "page on screen while the URL still named what it was "
+                    "asking about. It was two copies of that dance before this "
+                    "existed — hiring's and the shop's — which is one copy more "
+                    "than a promotion this fiddly can survive."
+                ),
+            ),
+            Component(
                 slug="hire-dialog",
                 tag="c-n26.hire-dialog",
                 template="n26/hire_dialog.html",
                 summary="The one question a press leaves: what is this fighter called?",
                 needs=(ALPINE,),
                 notes=(
-                    "The only component here whose open state is a server "
-                    "state. The page draws it when the URL names a pressed "
-                    "profile, which is what makes the dialog a link, makes it "
-                    "survive a reload, and makes pressing Hire work with "
-                    "scripting off. c-ui.dialog is the other shape — a trigger "
-                    "beside content teleported into a <template> and revealed "
-                    "by Alpine — and with the answer already decided by the "
-                    "server and no script running it draws nothing at all. So "
-                    "this is a native <dialog open>: a panel in the flow of the "
-                    "page on its own, promoted to a real modal by showModal() "
-                    "where Alpine is there to call it, which brings the top "
-                    "layer, the backdrop, Escape and a focus trap without any "
-                    "of them being written here. Dismissing navigates rather "
-                    "than hiding, because a dialog closed in place would leave "
-                    "a list on screen while the URL still named a profile. The "
-                    "profile and its options are hidden fields, not controls: "
-                    "they were answered by the row, and the way to change them "
-                    "is to go back to it."
+                    "c-n26.dialog with hiring's question in it. What is left "
+                    "here is the question and the fields under it: the profile "
+                    "and its options are hidden fields rather than controls, "
+                    "because they were answered by the row that was pressed and "
+                    "the way to change them is to go back to it. The price in "
+                    "the lead is the whole answer the row was configured to and "
+                    "not the advertised one — an option ticked upstairs is "
+                    "charged here, so it is named here."
+                ),
+            ),
+            Component(
+                slug="owned-dialog",
+                tag="c-n26.owned-dialog",
+                template="n26/owned_dialog.html",
+                summary="Confirm a sale, a move or a removal of something the gang owns.",
+                needs=(ALPINE,),
+                notes=(
+                    "One panel for three acts, because the difference between "
+                    "them is a sentence and, for a move, a select — three files "
+                    "would be three copies of the same dialog drifting apart a "
+                    "fix at a time. Each says the thing a reader cannot work "
+                    "out from the page: a sale states its arithmetic, because "
+                    "the figure comes from rows nobody can see and it is money; "
+                    "a move states what it does not do, since the question "
+                    "anyone moving a gun between fighters has is whether it "
+                    "costs anything; a removal states that the money stays "
+                    "spent, because the Sell button directly above it says "
+                    "otherwise. The stash is a button and the roster a select "
+                    "because they are not the same kind of choice — one place "
+                    "that is always there, against a list that may be long — "
+                    "and only the pressed submit is sent, which is the whole of "
+                    "how the view tells the two apart."
+                ),
+            ),
+            Component(
+                slug="owned-lines",
+                tag="c-n26.owned-lines",
+                template="n26/owned_lines.html",
+                summary="What a model is already carrying, and what can happen to it.",
+                notes=(
+                    "The inside of a shop row for something the fighter already "
+                    "has. Drawn the way a card draws the same rows — the thing, "
+                    "what it contributed, its parts indented under it — so a "
+                    "reader recognises what they are looking at; the weapon's "
+                    "own firing line is not among them for the same reason the "
+                    "card gives it no row, which is that it *is* the weapon. "
+                    "Sell leads, because it is what anybody came here to do, "
+                    "and the rarer two share a chevron. A part offers no move: "
+                    "it belongs to the thing it hangs off, and Operation.move "
+                    "refuses an assignment with a parent, so a control for it "
+                    "would be a press that cannot work. Every control is a link "
+                    "to a real address — the dialog is a server state, and the "
+                    "listing's own form wraps every row on the page, so a form "
+                    "in here would be a form inside a form."
                 ),
             ),
             Component(

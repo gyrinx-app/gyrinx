@@ -29,6 +29,18 @@ breadcrumb above it has the gang as well, so nothing is lost.
     {% include 'n26/_nav.html' %}
 {% endblock %}
 {% block content %}
+    {% comment %}
+    Before the listing, and outside its form: with scripting off this is a panel
+    in the flow of the page rather than a modal over it, and a panel below three
+    hundred rows is one nobody finds. Outside the form because it is a form
+    itself — HTML has no nested forms — and the listing wraps every row on the
+    page.
+    {% endcomment %}
+    {% if dialog %}
+        <c-n26.owned-dialog :dialog="dialog">
+            {% csrf_token %}
+        </c-n26.owned-dialog>
+    {% endif %}
     <c-n26.page-header title="Equip {{ miniature.name }}">
         {% comment %}
         The heading is about the fighter, so this offers the gang's others —

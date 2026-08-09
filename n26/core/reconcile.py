@@ -75,7 +75,8 @@ def total_spent(gang):
     """Every credit the gang has laid out, summed from the event log.
 
     Includes events on archived assignments — removing something is not a
-    refund. Selling will append its own event when it exists.
+    refund. A refund and a sale each append an event of their own, so both
+    show here as spend coming back.
     """
     from n26.core.models import LedgerEvent
 

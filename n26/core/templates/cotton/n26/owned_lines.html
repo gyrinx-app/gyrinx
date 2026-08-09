@@ -1,0 +1,100 @@
+{% comment %}
+<c-n26.owned-lines> — what the model is already carrying, and what can happen to it.
+
+    <c-n26.owned-lines :things="row.owned" />
+
+Takes n26.core.owned.OwnedThing: one line per copy the model holds, with a line
+beneath for each part hanging off it — a gun's paid ammo, a sight bolted to it.
+Drawn the way a card draws the same rows, so a reader recognises what they are
+looking at: the thing, what it contributed, and its parts indented under it. The
+weapon's own firing line is not among them, for the same reason the card gives
+it no row of its own — it *is* the weapon.
+
+  --- what each line can do ---
+
+Sell and the menu, in that order, because selling is the one anybody came here
+to do; handing a thing to another fighter and taking it off the roster are the
+rarer two and share a chevron. Sell is red: it takes a thing away, whatever it
+puts in the bank.
+
+A part offers no move. It belongs to the thing it hangs off — ammo is ammo *for*
+a gun — and Operation.move refuses an assignment with a parent, so offering it
+here would be offering a press that cannot work.
+
+Every control is a link to a real address: the dialog is a server state, so the
+press that opens it is a navigation and not a script. That also keeps this out
+of the listing's own form, which wraps every row on the page — a form inside a
+form is not a thing HTML has.
+
+  :things — a list of n26.core.owned.OwnedThing, links already filled in.
+{% endcomment %}
+<c-vars :things="None" class="" />
+
+<div class="flex flex-col gap-1 {{ class }}">
+    {% for thing in things %}
+        <div class="flex min-h-9 items-center gap-2">
+            <span class="min-w-0 flex-1 text-sm text-ink-900 dark:text-ink-100">{{ thing.name }}</span>
+            {% comment %}
+            The same fixed-width price column the rows above use, so what a
+            thing contributed lines up with what the listing is asking for it.
+            Zero draws nothing: a line that added nothing to the rating has no
+            figure to state, and a column of noughts reads as a price of none.
+            {% endcomment %}
+            <span class="n26-cp-price shrink-0 text-sm text-ink-900 dark:text-ink-100">
+                {% if thing.rating %}{{ thing.rating }}¢{% endif %}
+            </span>
+            <span class="flex shrink-0 items-center gap-1">
+                <c-ui.button size="sm" variant="danger" href="{{ thing.sell_href }}">Sell</c-ui.button>
+                <c-ui.dropdown align="end" min_width="10rem">
+                    <c-slot name="trigger">
+                        <c-ui.button size="sm"
+                                     class="px-1.5!"
+                                     aria-label="More for {{ thing.name }}"
+                                     title="More for {{ thing.name }}"
+                                     aria-haspopup="menu"
+                                     ::aria-expanded="dropdownMenu">
+                            <span class="n26-icon-only">
+                                <c-n26.icon name="chevron-down"
+                                            class="size-3 transition-transform"
+                                            stroke_width="2.5"
+                                            ::class="{ 'rotate-180': dropdownMenu }" />
+                            </span>
+                        </c-ui.button>
+                    </c-slot>
+                    <c-ui.dropdown.item href="{{ thing.reassign_href }}">Reassign</c-ui.dropdown.item>
+                    <c-ui.dropdown.item href="{{ thing.remove_href }}">Delete</c-ui.dropdown.item>
+                </c-ui.dropdown>
+            </span>
+        </div>
+
+        {% for part in thing.parts %}
+            <div class="flex min-h-9 items-center gap-2 pl-4">
+                <span class="min-w-0 flex-1 text-sm text-ink-900 dark:text-ink-100">{{ part.name }}</span>
+                <span class="n26-cp-price shrink-0 text-sm text-ink-900 dark:text-ink-100">
+                    {% if part.rating %}+{{ part.rating }}¢{% endif %}
+                </span>
+                <span class="flex shrink-0 items-center gap-1">
+                    <c-ui.button size="sm" variant="danger" href="{{ part.sell_href }}">Sell</c-ui.button>
+                    <c-ui.dropdown align="end" min_width="10rem">
+                        <c-slot name="trigger">
+                            <c-ui.button size="sm"
+                                         class="px-1.5!"
+                                         aria-label="More for {{ part.name }}"
+                                         title="More for {{ part.name }}"
+                                         aria-haspopup="menu"
+                                         ::aria-expanded="dropdownMenu">
+                                <span class="n26-icon-only">
+                                    <c-n26.icon name="chevron-down"
+                                                class="size-3 transition-transform"
+                                                stroke_width="2.5"
+                                                ::class="{ 'rotate-180': dropdownMenu }" />
+                                </span>
+                            </c-ui.button>
+                        </c-slot>
+                        <c-ui.dropdown.item href="{{ part.remove_href }}">Remove</c-ui.dropdown.item>
+                    </c-ui.dropdown>
+                </span>
+            </div>
+        {% endfor %}
+    {% endfor %}
+</div>

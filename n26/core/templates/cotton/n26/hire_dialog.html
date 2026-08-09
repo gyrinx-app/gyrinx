@@ -12,27 +12,10 @@ which options were answered by the row that was pressed, so they arrive here as
 hidden fields rather than as controls: changing them means going back to the
 row. What is left is a name, and the price the answer adds up to.
 
-  --- open is a server state ---
-
-The page draws this only when the URL names a pressed profile, so there is no
-trigger, no toggle and no client-side open flag — the dialog is in the HTML or
-it is not. That is what makes pressing Hire work with scripting off, and what
-makes the open dialog a link somebody can send.
-
-The kit's c-ui.dialog is the other shape: a trigger beside content teleported
-into a <template> and revealed by Alpine. With the open state already decided
-by the server and no script running, it would draw nothing at all. So this is a
-native <dialog open> — a panel in the page's flow on its own, promoted to a real
-modal (top layer, backdrop, Escape, trapped focus) by showModal() where Alpine
-is there to call it. `static m-0` is what it degrades to: a panel sits in the
-flow at the top of the page, and both classes come off at the moment the
-promotion succeeds, because a modal is placed by the browser's own inset and
-needs `margin: auto` to sit in the middle of the screen rather than in its
-top-left corner.
-
-Escape closes a modal by itself, which would leave a list on screen while the
-URL still names a profile. So dismissing navigates: the close event and Cancel
-both go to cancel_url, and the address bar keeps agreeing with the page.
+The panel, the promotion and the footer are <c-n26.dialog>, which every
+server-decided dialog in the edition is built from — this is that shell with
+hiring's one question in it. What is worth knowing about how the open state
+works is documented there.
 
   action — where the name posts. The hire page itself.
   profile — the profile pressed, named in the title.
@@ -60,88 +43,34 @@ both go to cancel_url, and the address bar keeps agreeing with the page.
     class=""
 />
 
-{% comment %}
-The promotion takes the `open` attribute off before calling showModal(),
-because showModal() on a dialog that already has it throws instead of
-upgrading it.
+<c-n26.dialog title="Hire a {{ profile }}"
+              action="{{ action }}"
+              cancel_url="{{ cancel_url }}"
+              submit_label="Hire"
+              :modal="modal"
+              class="{{ class }}">
+    {% comment %}
+    The price is the whole answer the row was configured to, not the advertised
+    one — an option ticked upstairs is charged here, so it is named here too.
+    A slot rather than an attribute, because a set's name may hold an ampersand
+    and an attribute would carry it here already escaped.
+    {% endcomment %}
+    <c-slot name="lead">{{ price }}¢{% if choices %} — {{ choices|join:", " }}{% endif %}</c-slot>
 
-It takes the attribute off rather than calling close(). close() is a
-dismissal — it fires a `close` event, and the handler below answers a close by
-navigating away, so a promotion that closed the dialog first would send the
-reader off this page on the way to opening the modal. Removing the attribute
-hides the panel without dismissing anything.
+    {{ slot }}
+    {% for field in fields %}<input type="hidden" name="{{ field.name }}" value="{{ field.value }}">{% endfor %}
 
-The work is a method on the data rather than an expression in x-init because
-Alpine compiles a directive's value in expression position, where a `try`
-statement is a syntax error. Alpine reports that to the console and skips the
-directive, so a statement written inline is not a promotion that fails — it is
-a promotion that never runs, leaving the panel sitting above the page with
-nothing to say why.
-
-A promotion that does fail must not cost the reader the fallback: the server
-decided this dialog is open, and the panel in the page's flow is the whole of
-it with no script. So the attribute goes back on, `promoted` stays false, the
-panel keeps its in-flow presentation, and the exception is logged rather than
-swallowed.
-{% endcomment %}
-<dialog open
-        {% if modal %}x-data="{
-            promoted: false,
-            promote(dialog) {
-                try {
-                    dialog.removeAttribute('open');
-                    dialog.showModal();
-                    this.promoted = true;
-                } catch (error) {
-                    console.error(error);
-                    dialog.setAttribute('open', '');
-                }
-            }
-        }"
-        x-init="promote($el)"
-        :class="{ 'static m-0': !promoted, 'm-auto': promoted }"
-        @close="window.location = '{{ cancel_url }}'"{% endif %}
-        aria-labelledby="hire-dialog-title"
-        {{ attrs }}
-        class="static m-0 w-full max-w-lg rounded-box border border-box-border bg-surface p-0 text-ink-900 shadow-xl backdrop:bg-black/50 dark:bg-ink-900 dark:text-ink-100 {{ class }}">
-    <form method="post" action="{{ action }}" class="space-y-5 p-6">
-        {{ slot }}
-        {% for field in fields %}<input type="hidden" name="{{ field.name }}" value="{{ field.value }}">{% endfor %}
-        <div class="space-y-1.5">
-            <h2 id="hire-dialog-title"
-                class="text-lg font-semibold tracking-tight text-ink-900 dark:text-ink-100">
-                Hire a {{ profile }}
-            </h2>
-            {% comment %}
-            The price is the whole answer the row was configured to, not the
-            advertised one — an option ticked upstairs is charged here, so it is
-            named here too.
-            {% endcomment %}
-            <p class="text-sm text-muted">
-                {{ price }}¢{% if choices %} — {{ choices|join:", " }}{% endif %}
-            </p>
-        </div>
-
-        {% comment %}
-        Autofocus, because the dialog exists to be typed in: a modal that opens
-        with the cursor nowhere makes a reader click before they can answer.
-        {% endcomment %}
-        <c-ui.field label="Name"
-                    description="Optional — you can name them later."
-                    error="x"
-                    :form="form"
-                    name="name"
-                    for="fighter-name">
-            <c-ui.input id="fighter-name" name="name" autocomplete="off" autofocus="autofocus"
-                        value="{{ form.name.value|default:'' }}" />
-        </c-ui.field>
-
-        {% comment %}
-        The same footer a form page ends with, drawn by the same component: this
-        dialog is a form, and there is no reason a form inside a panel should end
-        differently from one filling a screen. Cancel goes somewhere — this page
-        without a profile named — and nothing it does needs a form.
-        {% endcomment %}
-        <c-n26.form-actions submit_label="Hire" cancel_url="{{ cancel_url }}" />
-    </form>
-</dialog>
+    {% comment %}
+    Autofocus, because the dialog exists to be typed in: a modal that opens
+    with the cursor nowhere makes a reader click before they can answer.
+    {% endcomment %}
+    <c-ui.field label="Name"
+                description="Optional — you can name them later."
+                error="x"
+                :form="form"
+                name="name"
+                for="fighter-name">
+        <c-ui.input id="fighter-name" name="name" autocomplete="off" autofocus="autofocus"
+                    value="{{ form.name.value|default:'' }}" />
+    </c-ui.field>
+</c-n26.dialog>

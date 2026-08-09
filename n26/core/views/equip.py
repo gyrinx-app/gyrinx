@@ -9,6 +9,7 @@ from django.shortcuts import redirect, render
 from django.utils.text import slugify
 
 from n26.core.browse import UNCATEGORISED
+from n26.core.owned import thing_key as _thing_key
 from n26.core.views.permissions import _own_miniature_or_404
 
 #: The most a till will take for one line. No price in the game comes
@@ -26,13 +27,6 @@ _WHOLE_CREDITS = re.compile(r"[0-9]+")
 
 class BadPrice(Exception):
     """A typed price that is not a whole number of credits in range."""
-
-
-def _thing_key(thing):
-    """One string naming a browsed line's item — what the Buy buttons
-    submit. Model label plus pk, the same pair ``browse`` dedupes on,
-    because a pk alone is ambiguous across the assignable tables."""
-    return f"{thing._meta.label_lower}:{thing.pk}"
 
 
 def _parts_field(key):
@@ -167,18 +161,22 @@ def collection_tabs(collections, chosen):
     ]
 
 
-def _row(line):
+def _row(line, owned=()):
     """One line as the template draws it: the identity its Buy submits,
     the box its price is typed into, and its parts as tickable inputs
     with price boxes of their own.
 
     A part prints its bare name — "warp round", not "warp round
     (Autogun)" — because it is drawn under the gun that already says so.
+
+    ``owned`` is the copies of this thing the fighter is already carrying,
+    which is what turns the row's Buy into a way into what they have.
     """
     key = _thing_key(line.thing)
     return {
         "line": line,
         "key": key,
+        "owned": owned,
         "price_field": _price_field(key),
         "parts_field": _parts_field(key),
         "parts": [
@@ -226,6 +224,12 @@ def equip(request, pk):
     the gun you are buying is built, not a second thing on the list.
     Ammo for a gun a fighter already owns has no route here yet.
 
+    A row for something the fighter already has says so instead of
+    offering another: the count opens the row onto the copies they are
+    carrying, each with the three things that can happen to it — sold,
+    handed on, taken off. That is read off the card this page already
+    built, so a listing of hundreds of rows still costs no query for it.
+
     A purchase stays on the page: kitting out a fighter is a run of
     purchases, and the breadcrumb is the way back.
     """
@@ -235,6 +239,8 @@ def equip(request, pk):
     from n26.core.card import build_card, build_modifier_index
     from n26.core.effects import compute
     from n26.core.operations import NotEnoughCredits, operation
+    from n26.core.owned import owned_things
+    from n26.core.views.owned import link_owned, owned_dialog
     from n26.library.models import Collection, Family, get_default_pack
     from n26.library.standard_content import TRADING_POST_COLLECTION
 
@@ -354,6 +360,14 @@ def equip(request, pk):
             )
         return redirect(back)
 
+    # What this fighter is already carrying, keyed the way the rows are, so
+    # a row asks one dictionary rather than the database. The links are
+    # filled in here because the URL space is the view's business — the
+    # dialogs open over this page, on the list being read, and Cancel
+    # comes back to it.
+    at = f"{request.path}?list={chosen.pk}" if chosen is not None else request.path
+    owned = link_owned(owned_things(card), at)
+
     lines = list(view.all_lines()) if view is not None else []
     trade_points = [
         line.trade_points for line in lines if line.trade_points is not None
@@ -391,13 +405,23 @@ def equip(request, pk):
                     "categories": [
                         {
                             "name": category.name,
-                            "lines": [_row(line) for line in category.lines],
+                            "lines": [
+                                _row(line, owned.get(_thing_key(line.thing), []))
+                                for line in category.lines
+                            ],
                         }
                         for category in section.categories
                     ],
                 }
                 for index, (name, section) in enumerate(named_sections)
             ],
+            # The confirmation the URL says is open, if any: sell, move or
+            # remove one row of this fighter's card. A server state, so it
+            # is a link, it survives a reload, and it is drawn rather than
+            # revealed by a script.
+            "dialog": owned_dialog(
+                request, card, at=at, miniature=miniature, gang=gang
+            ),
             # Registration names — see the hire view: a row in an unnamed
             # category registers under its section's name, and a list that
             # omits one hides those rows client-side.

@@ -1069,6 +1069,182 @@ def test_the_count_above_the_list_counts_the_section_on_screen(
     assert "get total() { return this.onScreen.length }" in body
 
 
+def buy_one(gang, fighter, tester, thing, **kwargs):
+    """One of these on the fighter, through the ledger like anything else."""
+    with operation(gang, actor=tester) as op:
+        return op.buy(fighter, thing=thing, **kwargs)
+
+
+def test_a_row_for_something_owned_counts_it_instead_of_offering_another(
+    client, tester, gang, fighter, house_list
+):
+    """The count is the button. A reader looking at a row for a thing they
+    are already carrying is asking what to do with the one they have."""
+    from n26.library.models import Wargear
+
+    knife = Wargear.objects.get(name="Knife")
+    client.force_login(tester)
+    rows = client.get(equip_url(fighter, house_list)).context["section_rows"]
+    lines = {row["line"].name: row for row in rows[0]["categories"][0]["lines"]}
+    assert lines["Knife"]["owned"] == []
+
+    buy_one(gang, fighter, tester, knife, paid=10)
+    buy_one(gang, fighter, tester, knife, paid=10)
+
+    body = client.get(equip_url(fighter, house_list))
+    rows = body.context["section_rows"]
+    lines = {row["line"].name: row for row in rows[0]["categories"][0]["lines"]}
+    assert len(lines["Knife"]["owned"]) == 2
+    assert lines["Sword"]["owned"] == []
+    # Two swords' worth of Buy on the page, one for each row that is still
+    # offering one — and none for the knife.
+    assert f'value="{key_of(knife)}"' not in body.content.decode()
+
+
+def test_a_thing_taken_off_the_card_stops_being_counted(
+    client, tester, gang, fighter, house_list
+):
+    from n26.library.models import Wargear
+
+    knife = Wargear.objects.get(name="Knife")
+    assignment = buy_one(gang, fighter, tester, knife, paid=10)
+    with operation(gang, actor=tester) as op:
+        op.remove(assignment)
+
+    client.force_login(tester)
+    rows = client.get(equip_url(fighter, house_list)).context["section_rows"]
+    lines = {row["line"].name: row for row in rows[0]["categories"][0]["lines"]}
+    assert lines["Knife"]["owned"] == []
+
+
+def test_the_owned_row_offers_the_three_things_that_can_happen(
+    client, tester, gang, fighter, house_list
+):
+    from n26.library.models import Wargear
+
+    assignment = buy_one(
+        gang, fighter, tester, Wargear.objects.get(name="Knife"), paid=10
+    )
+    client.force_login(tester)
+    body = client.get(equip_url(fighter, house_list)).content.decode()
+
+    for act in ("sell", "reassign", "remove"):
+        assert f"?list={house_list.pk}&amp;{act}={assignment.pk}" in body
+
+
+def test_no_dialog_until_the_url_asks_for_one(client, tester, fighter, house_list):
+    client.force_login(tester)
+    assert client.get(equip_url(fighter, house_list)).context["dialog"] is None
+
+
+def test_a_sale_confirmation_states_its_arithmetic(
+    client, tester, gang, fighter, house_list
+):
+    """The figure is worked out from rows the reader cannot see, and it is
+    money, so the dialog shows its working. Thirty-five halves to
+    seventeen and a half, and a sale rounds the player's way."""
+    from n26.library.models import Wargear
+
+    sword = buy_one(gang, fighter, tester, Wargear.objects.get(name="Sword"), paid=35)
+    client.force_login(tester)
+    response = client.get(f"{equip_url(fighter, house_list)}&sell={sword.pk}")
+    body = response.content.decode()
+
+    assert response.context["dialog"]["proceeds"] == 18
+    assert "Half of 35¢, rounded up — 18¢." in body
+    assert "<dialog open" in body
+    assert reverse("n26-sell", args=[sword.pk]) in body
+
+
+def test_a_sale_of_something_worth_almost_nothing_names_the_floor(
+    client, tester, gang, fighter, house_list
+):
+    from n26.library.authoring import create_wargear
+
+    trinket = buy_one(gang, fighter, tester, create_wargear("Charm", price=4), paid=4)
+    client.force_login(tester)
+    body = client.get(
+        f"{equip_url(fighter, house_list)}&sell={trinket.pk}"
+    ).content.decode()
+
+    assert "5¢: half of 4¢ is less than the 5¢ a sale never goes under." in body
+
+
+def test_a_move_offers_the_stash_and_the_roster(
+    client, tester, gang, fighter, house_list
+):
+    from n26.library.models import Wargear
+
+    knife = buy_one(gang, fighter, tester, Wargear.objects.get(name="Knife"), paid=10)
+    with operation(gang, actor=tester) as op:
+        op.hire(fighter.membership.assignable, "Nell")
+
+    client.force_login(tester)
+    response = client.get(f"{equip_url(fighter, house_list)}&reassign={knife.pk}")
+    body = response.content.decode()
+
+    assert [model.name for model in response.context["dialog"]["models"]] == ["Nell"]
+    assert 'name="to" value="stash"' in body
+    assert 'name="miniature"' in body
+
+
+def test_a_move_with_nobody_else_on_the_roster_is_a_move_to_the_stash(
+    client, tester, gang, fighter, house_list
+):
+    """One fighter and a stash is not a choice between two places, so the
+    only act on the form is the one place it can go."""
+    from n26.library.models import Wargear
+
+    knife = buy_one(gang, fighter, tester, Wargear.objects.get(name="Knife"), paid=10)
+    client.force_login(tester)
+    response = client.get(f"{equip_url(fighter, house_list)}&reassign={knife.pk}")
+    body = response.content.decode()
+
+    assert response.context["dialog"]["submit_label"] == "To the stash"
+    assert '<input type="hidden" name="to" value="stash">' in body
+    assert 'name="miniature"' not in body
+
+
+def test_a_removal_says_the_money_stays_spent(
+    client, tester, gang, fighter, house_list
+):
+    from n26.library.models import Wargear
+
+    knife = buy_one(gang, fighter, tester, Wargear.objects.get(name="Knife"), paid=10)
+    client.force_login(tester)
+    body = client.get(
+        f"{equip_url(fighter, house_list)}&remove={knife.pk}"
+    ).content.decode()
+
+    assert "stays spent" in body
+    assert reverse("n26-remove", args=[knife.pk]) in body
+
+
+def test_a_dialog_naming_a_row_off_this_card_draws_nothing(
+    client, tester, gang, fighter, house_list, make_profile
+):
+    """The card is the permission check. A row belonging to somebody else's
+    fighter is not on it, so the URL names nothing and the page is just the
+    page."""
+    stranger = User.objects.create_user("stranger")
+    theirs = Gang.objects.create(
+        name="Theirs",
+        owner=stranger,
+        gang_type=gang.gang_type,
+        starting_credits=100,
+        credits=100,
+    )
+    with operation(theirs, actor=stranger) as op:
+        outsider = op.hire(make_profile("Bruiser", price=0), "Grud")
+
+    client.force_login(tester)
+    response = client.get(
+        f"{equip_url(fighter, house_list)}&sell={outsider.membership.pk}"
+    )
+    assert response.status_code == 200
+    assert response.context["dialog"] is None
+
+
 def test_someone_elses_fighter_is_not_found(client, fighter):
     stranger = User.objects.create_user("stranger", is_staff=True)
     client.force_login(stranger)

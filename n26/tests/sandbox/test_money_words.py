@@ -37,12 +37,12 @@ import inspect
 import pytest
 from django.apps import apps
 
-from n26.core import browse, card, hire, notes, preview, render
+from n26.core import browse, card, hire, notes, owned, preview, render
 
 #: Every module whose structures a player-facing surface reads.
 #: ``preview`` is player-adjacent — the scratch card an author reads is
 #: the same card a player will — so its structures keep the same words.
-PLAYER_FACING = (render, hire, browse, card, notes, preview)
+PLAYER_FACING = (render, hire, browse, card, notes, owned, preview)
 
 #: Apps whose stored fields the rule covers — ours, not Django's own.
 OUR_APPS = ("library", "n26")
@@ -93,7 +93,13 @@ def offending(names):
 def test_there_is_something_to_check():
     """A guard that discovers nothing guards nothing."""
     found = {structure.__name__ for structure in structures()}
-    assert {"ModelCard", "WeaponLine", "WeaponProfileLine", "HireOption"} <= found
+    assert {
+        "ModelCard",
+        "WeaponLine",
+        "WeaponProfileLine",
+        "HireOption",
+        "OwnedThing",
+    } <= found
     stored = {model.__name__ for model in stored_models()}
     assert {"Weapon", "Profile", "CollectionEntry", "LedgerEntry"} <= stored
 

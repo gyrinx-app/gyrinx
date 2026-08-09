@@ -92,6 +92,12 @@ class LedgerEvent(Base):
         REPRICED = "repriced", "Repriced"
         REMOVED = "removed", "Removed"
         REFUNDED = "refunded", "Refunded"
+        # Its own kind, not a small refund: a refund undoes a purchase and
+        # hands back what was paid, a sale is a later trade at half of what
+        # the thing is worth. The ledger is asked which of the two happened
+        # — by a reader, and by anyone reconciling the books — and only a
+        # kind of its own can answer.
+        SOLD = "sold", "Sold"
 
     assignment = models.ForeignKey(
         "n26.Assignment", on_delete=models.CASCADE, related_name="ledger_events"

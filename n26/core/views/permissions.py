@@ -31,6 +31,35 @@ def _own_gang_or_404(request, pk):
         raise Http404("No such gang") from None
 
 
+def _own_assignment_or_404(request, pk):
+    """One of the viewer's own assignments, live and in a live gang.
+
+    Scoped by ``gang_root``, which every assignment carries whatever it
+    hangs off — so a weapon on a fighter, a sight on that weapon and a
+    crate in the stash are all reached the same way, and none of them by
+    somebody else. Archived rows are out: a thing already sold is not
+    something to sell again, and a second press of a stale button must
+    find nothing rather than charge the gang twice.
+    """
+    from n26.core.models import Assignment
+
+    try:
+        return get_object_or_404(
+            Assignment.objects.select_related(
+                "ledger_entry",
+                "gang_root__owner",
+                "gang_root__stash",
+                "miniature_root",
+            ),
+            pk=pk,
+            gang_root__owner=request.user,
+            gang_root__archived=False,
+            archived=False,
+        )
+    except ValidationError:
+        raise Http404("No such assignment") from None
+
+
 def _own_miniature_or_404(request, pk):
     """The fighter, if theirs to act on — the miniature-shaped twin of
     ``_own_gang_or_404``, with the same bad-ULID guard. Archived
