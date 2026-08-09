@@ -341,8 +341,32 @@ def _check_progression_counters():
     )
 
 
+def skills_collection_sweeps():
+    """Every kind this collection lists: what a model learns rather than
+    carries. A power is not a skill, and both are here because a grid
+    places both into the same tiers — a kind missing from here is one no
+    fighter can be shown."""
+    from n26.library.models import Power, Skill
+
+    return (Skill, Power)
+
+
 def _create_skills_collection():
-    from n26.library.models.collection import Collection, CollectionSection
+    """The collection, its tiers, and a sweep per kind it lists.
+
+    Swept rather than listed by hand: membership is being that kind of
+    thing, so authoring a skill puts it in front of every fighter whose
+    grid names its set, with nothing to remember. Tops up an existing
+    collection for the same reason the post does — a kind added later
+    would otherwise be invisible.
+    """
+    from django.contrib.contenttypes.models import ContentType
+
+    from n26.library.models.collection import (
+        Collection,
+        CollectionSection,
+        CollectionSelector,
+    )
 
     collection, _ = Collection.objects.get_or_create(name=SKILLS_COLLECTION)
     for position, (name, is_default) in enumerate(SKILL_TIERS):
@@ -351,10 +375,22 @@ def _create_skills_collection():
             name=name,
             defaults={"position": position, "is_default": is_default},
         )
+    for position, model in enumerate(skills_collection_sweeps()):
+        CollectionSelector.objects.get_or_create(
+            collection=collection,
+            of_kind=ContentType.objects.get_for_model(model),
+            defaults={"position": position},
+        )
 
 
 def _check_skills_collection():
-    from n26.library.models.collection import Collection, CollectionSection
+    from django.contrib.contenttypes.models import ContentType
+
+    from n26.library.models.collection import (
+        Collection,
+        CollectionSection,
+        CollectionSelector,
+    )
 
     present = _count(Collection, name=SKILLS_COLLECTION)
     present += _count(
@@ -362,7 +398,15 @@ def _check_skills_collection():
         collection__name=SKILLS_COLLECTION,
         name__in=[name for name, _ in SKILL_TIERS],
     )
-    return present, 1 + len(SKILL_TIERS)
+    present += _count(
+        CollectionSelector,
+        collection__name=SKILLS_COLLECTION,
+        of_kind__in=[
+            ContentType.objects.get_for_model(model)
+            for model in skills_collection_sweeps()
+        ],
+    )
+    return present, 1 + len(SKILL_TIERS) + len(skills_collection_sweeps())
 
 
 def _skill_rows():
@@ -604,7 +648,9 @@ STANDARD_CONTENT = {
                 "The collection whose Primary, Secondary and Other "
                 "tiers the printed skill grids place skill sets into. "
                 "A gang list's Primary column is a placement aimed at "
-                "its Primary tier."
+                "its Primary tier. It sweeps in every skill and every "
+                "power, so what a fighter may learn follows from their "
+                "grid alone."
             ),
             check=_check_skills_collection,
             create=_create_skills_collection,
