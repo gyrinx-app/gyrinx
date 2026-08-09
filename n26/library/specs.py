@@ -69,17 +69,19 @@ class _Sourced:
 class One(_Sourced):
     """One row of a model — a foreign key pick.
 
-    ``filtered_by`` names the relations the form must respect when
-    narrowing the queryset — ``("collection",)`` on a section pick means
-    "a section of *that* collection", enforced in the generated form's
-    ``clean()`` in words (step 2).
+    ``filtered_by`` names the relations a pick must respect —
+    ``("collection",)`` on a section pick means "a section of *that*
+    collection". It **refuses** in the generated form's ``clean()``, in
+    words, and leaves the picker offering everything: the rows it turns
+    away are still worth seeing, since a section of the wrong collection
+    is a mistake an author can make and should be told about by name.
 
     ``within`` names the accessor on the thing a part is being added to
     that lists the only rows worth offering — ``"option_groups"`` on an
-    axis pick means "an axis of *this* profile". Unlike ``filtered_by``
-    it narrows the picker as well as refusing a stray, because the rows
-    it excludes belong to other people's things and there is nothing to
-    be gained by showing them.
+    axis pick means "an axis of *this* profile". This one narrows the
+    picker *and* refuses. The rows it excludes belong to other people's
+    things, so there is nothing to be gained by offering them, and the
+    refusal is what stops a submission naming one anyway.
     """
 
     model: type = None
