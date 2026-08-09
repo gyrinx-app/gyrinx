@@ -26,20 +26,22 @@ component's own page shows it working; this shows it working under a header.
             </c-ui.breadcrumbs>
         </c-slot>
     </c-n26.page-header>
-    {% comment %}
-    Which list, above the filter bar: the coarse choice a reader makes before
-    any narrowing means anything. On the real screen each tab is a URL the
-    server answers; here they are anchors, so the strip can be looked at
-    without a database behind it.
-    {% endcomment %}
-    <c-n26.tab-links class="mt-6" label="Which list" :tabs="trading_post_tabs" />
-    <c-n26.collection-picker :categories="trading_post_categories"
+    <c-n26.collection-picker class="mt-6"
+                             :categories="trading_post_categories"
                              :sections="trading_post_sections"
                              cost_floor="{{ trading_post_cost_floor }}"
                              cost_ceiling="{{ trading_post_cost_ceiling }}"
                              tp_ceiling="{{ trading_post_tp_ceiling }}"
                              noun="items">
         <c-slot name="filters">
+            {% comment %}
+            Which list, at the top of the pinned bar: the coarse choice a reader
+            makes before any narrowing means anything, and one of the three
+            bands that stay on screen while the rows scroll under them. On the
+            real screen each tab is a URL the server answers; here they are
+            anchors, so the strip can be looked at without a database behind it.
+            {% endcomment %}
+            <c-n26.tab-links label="Which list" :tabs="trading_post_tabs" />
             {% comment %}
             Nested, like the real screen's: there the whole listing is one form
             whose buttons buy, so the bar is a <div> inside it and narrows rows

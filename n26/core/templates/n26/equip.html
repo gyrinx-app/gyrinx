@@ -58,9 +58,10 @@ breadcrumb above it has the gang as well, so nothing is lost.
     </c-n26.page-header>
     {% comment %}
     Which list, as the page's top-level choice: a fighter's own lists — the ones
-    their built-ins carry — then the Trading Post. Above the filter bar, because
-    choosing the list you are shopping is a larger decision than narrowing what
-    it shows, and the filters only ever mean anything within one of them.
+    their built-ins carry — then the Trading Post. Drawn at the top of the
+    pinned bar, above the search, because choosing the list you are shopping is
+    a larger decision than narrowing what it shows, and the filters only ever
+    mean anything within one of them.
 
     Links, not client state: a list is a place you can be, so it goes in the URL
     — linkable, back-button-friendly, and the server renders the one you are on.
@@ -69,16 +70,13 @@ breadcrumb above it has the gang as well, so nothing is lost.
     {% endcomment %}
     {% if chosen %}
         <div class="mt-6">
-            {% if collection_tabs|length > 1 %}
-                <c-n26.tab-links label="Which list" :tabs="collection_tabs" />
-            {% endif %}
             <form method="post"
                   action="{% url 'n26-equip' miniature.pk %}?list={{ chosen.pk }}">
                 {% csrf_token %}
                 {% comment %}
-                Sections keep their own strip, under the filters. The two
-                strips are choosing different things at different sizes: the
-                one above the bar picks which list you are shopping and costs
+                Sections keep their own strip, at the bottom of the same pinned
+                bar. The two strips are choosing different things at different
+                sizes: the upper one picks which list you are shopping and costs
                 a page load, this one picks which shelf of that list is on
                 screen and costs nothing. Stacking the sections instead would
                 put a shelf's worth of rows between one heading and the next,
@@ -92,6 +90,18 @@ breadcrumb above it has the gang as well, so nothing is lost.
                                          tp_ceiling="{{ tp_ceiling }}"
                                          noun="items">
                     <c-slot name="filters">
+                        {% comment %}
+                        In the picker's filters slot rather than above it,
+                        because that slot is what the picker keeps pinned: the
+                        three bands a reader steers with — which list, how it is
+                        narrowed, which shelf — stay on screen together as the
+                        rows scroll under them. Left outside, this one would
+                        scroll away and the reader would have to go back up the
+                        page to change lists.
+                        {% endcomment %}
+                        {% if collection_tabs|length > 1 %}
+                            <c-n26.tab-links label="Which list" :tabs="collection_tabs" />
+                        {% endif %}
                         <c-n26.search-bar :live="True"
                                           :nested="True"
                                           model="query"

@@ -966,7 +966,14 @@ GROUPS: list[Group] = [
                 needs=(ALPINE, KIT_JS, COLLAPSE),
                 notes=(
                     "The filter bar sticks, because a filter you have to scroll back "
-                    "up to reach is one you use once; categories collapse, because "
+                    "up to reach is one you use once — and everything a reader steers "
+                    "with sticks in the same box: the filters slot, the readout and "
+                    "the section strip. One box rather than several, because each "
+                    "sticky band after the first would have to be told how tall the "
+                    "ones above it are, and a wrong number either overlaps a band or "
+                    "leaves a stripe of scrolling list wedged between two. Stacked "
+                    "inside one box they just follow each other and the page sets a "
+                    "single offset. Categories collapse, because "
                     "thirty rows is a lot of thumb; and every control applies on "
                     "touch, so the loop is filter, look, adjust rather than filter, "
                     "wait, go back. Items register their own facets on init, so the "

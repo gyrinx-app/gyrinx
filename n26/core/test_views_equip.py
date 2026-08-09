@@ -877,6 +877,67 @@ def test_a_price_typed_on_an_unticked_round_charges_nothing(
     assert_reconciled(gang)
 
 
+def pinned_tags(body):
+    """Every tag inside the picker's one pinned box.
+
+    Walked rather than matched on the order things appear in the page: what
+    makes the bands stay on screen together is that they are *inside* that
+    box, and a test comparing positions would pass just as happily with one
+    of them left outside it.
+    """
+    from html.parser import HTMLParser
+
+    class Inside(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.depth = 0
+            self.tags = []
+
+        def handle_starttag(self, tag, attrs):
+            found = dict(attrs)
+            if self.depth:
+                self.tags.append(found)
+                if tag == "div":
+                    self.depth += 1
+            # The box that reads the offset, not the page that sets it: the
+            # layout puts --n26-sticky-top on <body>, so matching the name
+            # alone starts the walk at the whole document.
+            elif "var(--n26-sticky-top" in (found.get("style") or ""):
+                self.depth = 1
+
+        def handle_endtag(self, tag):
+            if self.depth and tag == "div":
+                self.depth -= 1
+
+    reader = Inside()
+    reader.feed(body)
+    return reader.tags
+
+
+def test_the_bands_a_reader_steers_with_stay_on_screen_together(
+    client, tester, fighter, house_list
+):
+    """Which list, how it is narrowed, and which shelf: all three stay put
+    while the rows scroll under them. They are pinned by sitting in one
+    sticky box rather than three, so no band has to know how tall the ones
+    above it are — a number only measurement gives, and a wrong one either
+    overlaps a band or leaves a stripe of scrolling list between two."""
+    from n26.library.authoring import create_trading_post
+
+    create_trading_post()
+
+    client.force_login(tester)
+    body = client.get(equip_url(fighter, house_list)).content.decode()
+
+    assert body.count("--n26-sticky-top, 0px") == 1
+    inside = pinned_tags(body)
+    assert any(tag.get("aria-label") == "Which list" for tag in inside)
+    assert any(tag.get("role") == "search" for tag in inside)
+    assert any(tag.get("role") == "tablist" for tag in inside)
+    # The rows themselves are not: they are what scrolls under it.
+    assert not any(tag.get("name") == "thing" for tag in inside)
+
+
 def test_the_count_above_the_list_counts_the_shelf_on_screen(
     client, tester, fighter, house_list
 ):
