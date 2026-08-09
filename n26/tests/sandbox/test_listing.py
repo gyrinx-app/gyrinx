@@ -285,7 +285,11 @@ class TestWhatACopyOffers:
 
         assert copy.sell.label == "Sell"
         assert copy.sell.tone == DANGER
-        assert [action.label for action in copy.more] == ["Reassign", "Delete"]
+        assert [action.label for action in copy.more] == [
+            "Reassign",
+            "Refund",
+            "Delete",
+        ]
         assert {action.tone for action in copy.more} == {SECONDARY}
 
     def test_every_act_on_a_copy_is_a_link_to_a_confirmation(
@@ -302,13 +306,16 @@ class TestWhatACopyOffers:
         assert copy.sell.target == f"{AT}&sell={first.pk}"
         assert [action.target for action in copy.more] == [
             f"{AT}&reassign={first.pk}",
+            f"{AT}&refund={first.pk}",
             f"{AT}&remove={first.pk}",
         ]
 
     def test_a_part_is_offered_no_move(self, fighter, house_list, armed):
         """A part belongs to the thing it hangs off, and ``Operation.move``
         refuses an assignment with a parent — so offering one here would
-        be offering a press that cannot work."""
+        be offering a press that cannot work. It keeps the rest: buying
+        the wrong ammunition is as easy a mistake as buying the wrong
+        gun."""
         _, ammo, _ = armed
         row = rows_by_name(listing_for(fighter, house_list))["Autogun"]
         (part,) = [
@@ -318,7 +325,7 @@ class TestWhatACopyOffers:
             if part.id == str(ammo.pk)
         ]
 
-        assert [action.label for action in part.more] == ["Remove"]
+        assert [action.label for action in part.more] == ["Refund", "Remove"]
         assert part.sell.target == f"{AT}&sell={ammo.pk}"
 
 

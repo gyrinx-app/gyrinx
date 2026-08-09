@@ -1241,7 +1241,7 @@ def test_a_thing_taken_off_the_card_stops_being_counted(
     assert isinstance(rows["Knife"], PricedRow)
 
 
-def test_the_owned_row_offers_the_three_things_that_can_happen(
+def test_the_owned_row_offers_everything_that_can_happen_to_a_copy(
     client, tester, gang, fighter, house_list
 ):
     from n26.library.models import Wargear
@@ -1252,7 +1252,7 @@ def test_the_owned_row_offers_the_three_things_that_can_happen(
     client.force_login(tester)
     body = client.get(equip_url(fighter, house_list)).content.decode()
 
-    for act in ("sell", "reassign", "remove"):
+    for act in ("sell", "reassign", "refund", "remove"):
         assert f"?list={house_list.pk}&amp;{act}={assignment.pk}" in body
 
 
@@ -1342,6 +1342,34 @@ def test_a_removal_says_the_money_stays_spent(
 
     assert "stays spent" in body
     assert reverse("n26-remove", args=[knife.pk]) in body
+
+
+def test_a_refund_names_what_was_paid_and_not_what_it_is_worth(
+    client, tester, gang, fighter, house_list
+):
+    """Three acts take a thing away and the money is the whole difference
+    between them, so the confirmation names its own number. This knife was
+    haggled to nothing like it: a sale would fetch 18¢, a removal returns
+    nothing, and a refund hands back the 5¢ that was paid."""
+    from n26.library.models import Wargear
+
+    knife = buy_one(
+        gang,
+        fighter,
+        tester,
+        Wargear.objects.get(name="Knife"),
+        paid=5,
+        list_price=35,
+        discount=30,
+    )
+    client.force_login(tester)
+    body = client.get(
+        f"{equip_url(fighter, house_list)}&refund={knife.pk}"
+    ).content.decode()
+
+    assert "5¢ comes back" in body
+    assert "not what it is worth" in body
+    assert reverse("n26-refund", args=[knife.pk]) in body
 
 
 def test_a_dialog_naming_a_row_off_this_card_draws_nothing(

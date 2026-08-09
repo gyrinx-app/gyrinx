@@ -1,8 +1,8 @@
 """What a fighter already owns — selling it, handing it on, taking it off.
 
-Three acts, three addresses, one shape each: a POST names the assignment
+Four acts, four addresses, one shape each: a POST names the assignment
 in its path, an ``operation`` writes it, and the reader lands back where
-they pressed. The three are addressed by *assignment* rather than by
+they pressed. They are addressed by *assignment* rather than by
 fighter, because that is what they are about — a weapon on a fighter, a
 sight on that weapon, a crate in the stash are all one row — and because
 the next screen that wants them (a gang sheet, a stash page) then needs
@@ -14,7 +14,7 @@ reload, and is drawn by the server rather than revealed by a script. The
 press behind it is a real form to a real address, so it works with
 scripting switched off.
 
-The three acts are deliberately distinct, and the ledger says which
+The four acts are deliberately distinct, and the ledger says which
 happened:
 
 ``sell``
@@ -22,6 +22,10 @@ happened:
     Not a refund: what was paid has nothing to do with it.
 ``reassign``
     A move to another model or to the stash. No money, and no re-pricing.
+``refund``
+    Undoing the purchase: every credit that was paid comes back. What was
+    paid and what the thing is worth part company at the first discount,
+    which is why this is not a sale.
 ``remove``
     Off the card, money stays spent.
 """
@@ -102,11 +106,12 @@ def _other_models(gang, miniature):
 def owned_dialog(request, card, *, at, miniature, gang):
     """The confirmation the URL says is open, as a template's worth of facts.
 
-    One of ``?sell=``, ``?reassign=`` or ``?remove=``, naming a row of
-    this card. A name that is not on the card draws nothing at all: a
-    stale link is a page without a dialog, not an error worth a screen.
+    One of the query parameters in :data:`n26.core.owned.CONFIRMATIONS`,
+    naming a row of this card. A name that is not on the card draws
+    nothing at all: a stale link is a page without a dialog, not an error
+    worth a screen.
     """
-    from n26.core.operations import MINIMUM_PROCEEDS, sale_of
+    from n26.core.operations import MINIMUM_PROCEEDS, refund_of, sale_of
 
     for kind in CONFIRMATIONS:
         named = request.GET.get(kind)
@@ -162,6 +167,23 @@ def owned_dialog(request, card, *, at, miniature, gang):
             # a second control and becomes the act.
             "submit_label": "Move" if models else "To the stash",
             "submit_variant": "primary",
+        }
+
+    if kind == "refund":
+        _, paid = refund_of(assignment)
+        # The figure is what the ledger says was handed over, which is not
+        # on the page anywhere and is not the price the listing quotes —
+        # so the sentence says which number it is as well as what it is.
+        return dialog | {
+            "title": f"Refund {name}?",
+            "proceeds": paid,
+            "sum": (
+                f"{paid}¢ comes back — what was paid for it, not what it is worth."
+                if paid
+                else "Nothing was paid for this, so nothing comes back."
+            ),
+            "submit_label": "Refund",
+            "submit_variant": "danger",
         }
 
     return dialog | {
@@ -316,4 +338,41 @@ def remove_assignment(request, pk):
         action="remove",
     )
     messages.success(request, f"Removed {name}.")
+    return redirect(_back_to(request, miniature, gang))
+
+
+@login_required
+@require_POST
+def refund_assignment(request, pk):
+    """Undo the purchase: it archives, and every credit paid comes back.
+
+    What was *paid*, not what it is worth — see ``Operation.refund``. The
+    figure is read before the write, because afterwards every entry in
+    the subtree has been settled to zero and there is nothing left to add
+    up.
+    """
+    from n26.analytics import EventVerb, N26Noun, record
+    from n26.core.operations import operation, refund_of
+
+    assignment = _possession_or_404(request, pk)
+    gang = assignment.gang_root
+    miniature = assignment.miniature_root
+    name = str(assignment.assignable)
+    _, paid = refund_of(assignment)
+
+    with operation(gang, actor=request.user) as op:
+        op.refund(assignment)
+
+    record(
+        request,
+        N26Noun.ASSIGNMENT,
+        EventVerb.ARCHIVE,
+        assignment,
+        gang_id=str(gang.pk),
+        miniature_id=str(miniature.pk) if miniature else None,
+        thing=name,
+        action="refund",
+        refunded=paid,
+    )
+    messages.success(request, f"Refunded {name} — {paid}¢ back.")
     return redirect(_back_to(request, miniature, gang))

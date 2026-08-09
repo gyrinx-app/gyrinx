@@ -1,10 +1,10 @@
 """What a gang already owns: selling it, handing it on, taking it off.
 
-The three routes are addressed by assignment rather than by fighter, so
-what is pinned here is the wiring around ``Operation.sell``, ``move`` and
-``remove`` — that a press writes the right one, that the books still
-agree afterwards, that nobody reaches another player's rows, and that a
-GET writes nothing at all.
+The four routes are addressed by assignment rather than by fighter, so
+what is pinned here is the wiring around ``Operation.sell``, ``move``,
+``refund`` and ``remove`` — that a press writes the right one, that the
+books still agree afterwards, that nobody reaches another player's rows,
+and that a GET writes nothing at all.
 
 The arithmetic itself has its own tests, in the sandbox suite where the
 operations live.
@@ -219,6 +219,106 @@ class TestReassigning:
         assert_reconciled(gang)
 
 
+class TestRefunding:
+    """Undoing a purchase: the thing goes and every credit paid comes back.
+
+    The act that is easy to confuse with the other two that take a thing
+    away, so what is pinned here is the money. A removal keeps it, a sale
+    returns half of what the thing is worth, and this returns what was
+    handed over — which for a haggled sword is a third number again.
+    """
+
+    def test_a_refund_returns_what_was_paid_and_not_what_it_is_worth(
+        self, client, tester, gang, sword
+    ):
+        client.force_login(tester)
+        gang.refresh_from_db()
+        before = gang.credits
+
+        response = client.post(url("n26-refund", sword))
+
+        assert response.status_code == 302
+        gang.refresh_from_db()
+        # The sixty that was paid, not the hundred it is worth and not the
+        # fifty a sale would have fetched.
+        assert gang.credits == before + 60
+        assert gang.rating == 0
+        sword.refresh_from_db()
+        assert sword.archived is True
+        assert_reconciled(gang)
+
+    def test_a_gun_and_its_ammo_are_refunded_together(
+        self, client, tester, gang, fighter
+    ):
+        """They were bought on one press, so they come back on one."""
+        from n26.library.authoring import add_weapon_profile, create_weapon
+
+        autogun = create_weapon("Autogun", profiles=[("", 0)], price=20)
+        warp = add_weapon_profile(autogun, name="warp round", price=10)
+        with operation(gang, actor=tester) as op:
+            gun = op.give_weapon(fighter, autogun, paid=20)
+            ammo = op.buy_weapon_profile(gun, warp)
+        gang.refresh_from_db()
+        before = gang.credits
+
+        client.force_login(tester)
+        client.post(url("n26-refund", gun))
+
+        gang.refresh_from_db()
+        assert gang.credits == before + 30
+        gun.refresh_from_db()
+        ammo.refresh_from_db()
+        assert gun.archived is True
+        assert ammo.archived is True
+        assert_reconciled(gang)
+
+    def test_ammo_can_be_refunded_without_the_gun(self, client, tester, gang, fighter):
+        """Buying the wrong ammunition is as easy a mistake as buying the
+        wrong gun, and undoing it leaves the fighter their gun."""
+        from n26.library.authoring import add_weapon_profile, create_weapon
+
+        autogun = create_weapon("Autogun", profiles=[("", 0)], price=20)
+        warp = add_weapon_profile(autogun, name="warp round", price=10)
+        with operation(gang, actor=tester) as op:
+            gun = op.give_weapon(fighter, autogun, paid=20)
+            ammo = op.buy_weapon_profile(gun, warp)
+        gang.refresh_from_db()
+        before = gang.credits
+
+        client.force_login(tester)
+        client.post(url("n26-refund", ammo))
+
+        gang.refresh_from_db()
+        assert gang.credits == before + 10
+        gun.refresh_from_db()
+        ammo.refresh_from_db()
+        assert ammo.archived is True
+        assert gun.archived is False
+        assert gang.rating == 20
+        assert_reconciled(gang)
+
+    def test_something_nobody_paid_for_refunds_nothing_and_still_goes(
+        self, client, tester, gang, fighter
+    ):
+        """A gift is not a purchase, so there is nothing to undo — but the
+        thing still leaves the card, because that is the other half of
+        what the act does."""
+        gift = create_wargear("Charm", price=15)
+        with operation(gang, actor=tester) as op:
+            given = op.buy(fighter, thing=gift, paid=0, list_price=15, discount=15)
+        gang.refresh_from_db()
+        before = gang.credits
+
+        client.force_login(tester)
+        client.post(url("n26-refund", given))
+
+        gang.refresh_from_db()
+        assert gang.credits == before
+        given.refresh_from_db()
+        assert given.archived is True
+        assert_reconciled(gang)
+
+
 class TestRemoving:
     """Off the card, and the money stays spent."""
 
@@ -272,7 +372,9 @@ class TestWhatMayBePressedOn:
     one — whatever a hand-made URL says.
     """
 
-    @pytest.mark.parametrize("route", ["n26-sell", "n26-reassign", "n26-remove"])
+    @pytest.mark.parametrize(
+        "route", ["n26-sell", "n26-reassign", "n26-refund", "n26-remove"]
+    )
     def test_a_fighter_is_not_kit(self, client, tester, gang, fighter, sword, route):
         client.force_login(tester)
         gang.refresh_from_db()
@@ -293,7 +395,9 @@ class TestWhatMayBePressedOn:
         assert gang.rating == 100
         assert_reconciled(gang)
 
-    @pytest.mark.parametrize("route", ["n26-sell", "n26-reassign", "n26-remove"])
+    @pytest.mark.parametrize(
+        "route", ["n26-sell", "n26-reassign", "n26-refund", "n26-remove"]
+    )
     def test_the_gang_itself_is_not_kit(self, client, tester, gang, route):
         """The founding row carries the gang's type, its equipment lists and
         every gang-wide rule. Taking it away would take all of that."""
@@ -311,7 +415,9 @@ class TestWhatMayBePressedOn:
         assert gang.founding_id == founding.pk
         assert_reconciled(gang)
 
-    @pytest.mark.parametrize("route", ["n26-sell", "n26-reassign", "n26-remove"])
+    @pytest.mark.parametrize(
+        "route", ["n26-sell", "n26-reassign", "n26-refund", "n26-remove"]
+    )
     def test_what_a_fighter_knows_is_not_kit(
         self, client, tester, gang, fighter, route
     ):
@@ -350,7 +456,9 @@ class TestWhoMayPress:
     """Every one of these writes, so every one of them is guarded — and
     none of them is a GET."""
 
-    @pytest.mark.parametrize("route", ["n26-sell", "n26-reassign", "n26-remove"])
+    @pytest.mark.parametrize(
+        "route", ["n26-sell", "n26-reassign", "n26-refund", "n26-remove"]
+    )
     def test_a_stranger_finds_nothing(self, client, gang, sword, route):
         stranger = User.objects.create_user("stranger")
         client.force_login(stranger)
@@ -361,13 +469,17 @@ class TestWhoMayPress:
         assert sword.archived is False
         assert_reconciled(gang)
 
-    @pytest.mark.parametrize("route", ["n26-sell", "n26-reassign", "n26-remove"])
+    @pytest.mark.parametrize(
+        "route", ["n26-sell", "n26-reassign", "n26-refund", "n26-remove"]
+    )
     def test_signing_out_is_signing_out(self, client, sword, route):
         response = client.post(url(route, sword))
         assert response.status_code == 302
         assert "/accounts/login/" in response.url
 
-    @pytest.mark.parametrize("route", ["n26-sell", "n26-reassign", "n26-remove"])
+    @pytest.mark.parametrize(
+        "route", ["n26-sell", "n26-reassign", "n26-refund", "n26-remove"]
+    )
     def test_a_get_writes_nothing(self, client, tester, gang, sword, route):
         """A link that spent money by being followed would be spent by a
         crawler, a prefetch, or a reload of the wrong page."""
@@ -383,7 +495,9 @@ class TestWhoMayPress:
         assert gang.credits == before
         assert_reconciled(gang)
 
-    @pytest.mark.parametrize("route", ["n26-sell", "n26-reassign", "n26-remove"])
+    @pytest.mark.parametrize(
+        "route", ["n26-sell", "n26-reassign", "n26-refund", "n26-remove"]
+    )
     def test_a_pk_that_is_not_a_ulid_is_not_found(self, client, tester, route):
         client.force_login(tester)
         assert client.post(reverse(route, args=["nonsense"])).status_code == 404

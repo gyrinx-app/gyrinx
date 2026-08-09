@@ -1114,12 +1114,15 @@ GROUPS: list[Group] = [
                 slug="owned-dialog",
                 tag="c-n26.owned-dialog",
                 template="n26/owned_dialog.html",
-                summary="Confirm a sale, a move or a removal of something the gang owns.",
+                summary=(
+                    "Confirm a sale, a move, a refund or a removal of "
+                    "something the gang owns."
+                ),
                 needs=(ALPINE,),
                 notes=(
-                    "One panel for three acts, because the difference between "
-                    "them is a sentence and, for a move, a select — three files "
-                    "would be three copies of the same dialog drifting apart a "
+                    "One panel for four acts, because the difference between "
+                    "them is a sentence and, for a move, a select — four files "
+                    "would be four copies of the same dialog drifting apart a "
                     "fix at a time. Each says the thing a reader cannot work "
                     "out from the page: a sale states its arithmetic, because "
                     "the figure comes from rows nobody can see and it is money; "
@@ -1127,7 +1130,9 @@ GROUPS: list[Group] = [
                     "anyone moving a gun between fighters has is whether it "
                     "costs anything; a removal states that the money stays "
                     "spent, because the Sell button directly above it says "
-                    "otherwise. The stash is a button and the roster a select "
+                    "otherwise; and a refund names what was paid, which is the "
+                    "one number that tells it apart from the other two acts "
+                    "that also take the thing away. The stash is a button and the roster a select "
                     "because they are not the same kind of choice — one place "
                     "that is always there, against a list that may be long — "
                     "and only the pressed submit is sent, which is the whole of "
@@ -1147,7 +1152,10 @@ GROUPS: list[Group] = [
                     "own firing line is not among them for the same reason the "
                     "card gives it no row, which is that it *is* the weapon. "
                     "Sell leads, because it is what anybody came here to do, "
-                    "and the rarer two share a chevron. A part offers no move: "
+                    "and the rarer acts share a chevron. Which of them is red "
+                    "is the row's own word rather than this component's, so an "
+                    "act added to the structure appears here in the right "
+                    "colour with nothing edited. A part offers no move: "
                     "it belongs to the thing it hangs off, and Operation.move "
                     "refuses an assignment with a parent, so a control for it "
                     "would be a press that cannot work. Every control is a link "

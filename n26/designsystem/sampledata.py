@@ -1493,6 +1493,7 @@ def carried():
             parts=parts,
             sell_href="#",
             reassign_href="#",
+            refund_href="#",
             remove_href="#",
         )
 
@@ -1502,6 +1503,7 @@ def carried():
         name="Melta round",
         rating=20,
         sell_href="#",
+        refund_href="#",
         remove_href="#",
     )
     held = {}
@@ -1553,6 +1555,20 @@ def owned_context():
             "models": [_Roster("nell", "Nell"), _Roster("vex", "Vex")],
             "submit_label": "Move",
             "submit_variant": "primary",
+        },
+        # The same gun, priced the other way: a sale returns half of the
+        # 155¢ it is worth, a refund returns the 120¢ somebody actually
+        # handed over. The two figures differ here on purpose — this gun
+        # was haggled down, which is the case that makes the distinction
+        # visible at all.
+        "owned_refund_dialog": {
+            **named,
+            "kind": "refund",
+            "title": "Refund Meltagun?",
+            "proceeds": 120,
+            "sum": "120¢ comes back — what was paid for it, not what it is worth.",
+            "submit_label": "Refund",
+            "submit_variant": "danger",
         },
         "owned_remove_dialog": {
             **named,

@@ -3,7 +3,7 @@
 A listing asks two questions of a fighter's card. Does this fighter
 already own one of these? And if so, what exactly — which copy, worth
 what, with what hanging off it — so the reader can sell it, hand it to
-somebody else, or take it off the card.
+somebody else, undo the purchase, or take it off the card.
 
 Both answers come off the card the page has already built. Nothing here
 queries, which is the whole point: a listing is hundreds of rows, and an
@@ -44,7 +44,7 @@ from n26.library.models.assignable import Family
 #: naming one row of the card. Both sides read this tuple: the rows that
 #: draw the controls and the view that answers the URL behind them, so
 #: neither can invent a question the other does not know.
-CONFIRMATIONS = ("sell", "reassign", "remove")
+CONFIRMATIONS = ("sell", "reassign", "refund", "remove")
 
 
 def with_query(url, **params):
@@ -96,6 +96,7 @@ class OwnedPart:
     name: str
     rating: int
     sell_href: str
+    refund_href: str
     remove_href: str
 
 
@@ -114,6 +115,7 @@ class OwnedThing:
     parts: tuple[OwnedPart, ...]
     sell_href: str
     reassign_href: str
+    refund_href: str
     remove_href: str
 
 
@@ -152,6 +154,7 @@ def _parts_of(node, at):
                 name=_part_name(child),
                 rating=child.rating,
                 sell_href=with_query(at, sell=pk),
+                refund_href=with_query(at, refund=pk),
                 remove_href=with_query(at, remove=pk),
             )
         )
@@ -213,6 +216,7 @@ def owned_things(card, at):
                 parts=_parts_of(node, at),
                 sell_href=with_query(at, sell=pk),
                 reassign_href=with_query(at, reassign=pk),
+                refund_href=with_query(at, refund=pk),
                 remove_href=with_query(at, remove=pk),
             )
         )

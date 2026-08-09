@@ -60,6 +60,28 @@ def sale_of(assignment):
     return rows, rating, proceeds_for(rating)
 
 
+def refund_of(assignment):
+    """What refunding this would move: the rows that go, and what comes back.
+
+    Asked before the act as well as during it, for the same reason
+    :func:`sale_of` is — a confirmation that quotes its own arithmetic is
+    a confirmation that can disagree with the press underneath it.
+
+    What comes back is what was **paid**, every credit of it, across the
+    whole subtree: a gun's ammo was bought on the same press and is
+    refunded on this one. That is a different number from a sale's, which
+    is half of what the thing is *worth*, and the two part company the
+    moment anything is discounted or given away.
+    """
+    rows = [row for row in [assignment, *subtree(assignment)] if not row.archived]
+    paid = sum(
+        entry.paid
+        for row in rows
+        if (entry := getattr(row, "ledger_entry", None)) is not None
+    )
+    return rows, paid
+
+
 class NotEnoughCredits(Exception):
     """A spend would take the gang below zero credits.
 
@@ -217,9 +239,8 @@ class Operation:
         returned for the ledger's sake, but TP never outlives its session,
         so nothing is ever re-spendable.
         """
-        for target in [assignment, *subtree(assignment)]:
-            if target.archived:
-                continue
+        rows, _ = refund_of(assignment)
+        for target in rows:
             self.touched(target.miniature_root)
             target.archived = True
             target.archived_at = _now()

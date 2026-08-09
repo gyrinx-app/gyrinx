@@ -287,15 +287,21 @@ def copy_row(copy):
                 name=part.name,
                 rating=part.rating,
                 sell=Action("Sell", LINK, part.sell_href, DANGER),
-                # Removed rather than deleted: what is left afterwards is
-                # still the fighter's gun.
-                more=(Action("Remove", LINK, part.remove_href, SECONDARY),),
+                # A part is refundable for the same reason it is sellable:
+                # somebody paid for the wrong ammunition as easily as for
+                # the wrong gun. Removed rather than deleted, because what
+                # is left afterwards is still the fighter's gun.
+                more=(
+                    Action("Refund", LINK, part.refund_href, SECONDARY),
+                    Action("Remove", LINK, part.remove_href, SECONDARY),
+                ),
             )
             for part in copy.parts
         ),
         sell=Action("Sell", LINK, copy.sell_href, DANGER),
         more=(
             Action("Reassign", LINK, copy.reassign_href, SECONDARY),
+            Action("Refund", LINK, copy.refund_href, SECONDARY),
             Action("Delete", LINK, copy.remove_href, SECONDARY),
         ),
     )

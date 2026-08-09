@@ -26,6 +26,7 @@ from n26.core.views.hire import hire_fighter
 from n26.core.views.learn import learn
 from n26.core.views.owned import (
     reassign_assignment,
+    refund_assignment,
     remove_assignment,
     sell_assignment,
 )
@@ -45,6 +46,7 @@ __all__ = [
     "print_gang",
     "print_setup",
     "reassign_assignment",
+    "refund_assignment",
     "remove_assignment",
     "sell_assignment",
 ]

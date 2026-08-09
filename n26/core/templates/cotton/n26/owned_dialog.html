@@ -3,10 +3,11 @@
 
     <c-n26.owned-dialog :dialog="dialog">{% csrf_token %}</c-n26.owned-dialog>
 
-Three acts, one panel: sell it on for half of what it is worth, hand it to
-somebody else, or take it off the card. Which one is being confirmed arrives in
-`dialog` from n26.core.views.owned, along with everything only the server can
-say — the figure a sale will pay, and who else is on the roster.
+Four acts, one panel: sell it on for half of what it is worth, hand it to
+somebody else, undo the purchase, or take it off the card. Which one is being
+confirmed arrives in `dialog` from n26.core.views.owned, along with everything
+only the server can say — the figure a sale or a refund will pay, and who else
+is on the roster.
 
 One component rather than three because the difference between them is a
 sentence and, for a move, a select: three files would be three copies of the
@@ -21,6 +22,12 @@ this one is money. A move states what it does *not* do: the thing keeps the
 rating it was pinned at, which is the question anyone moving a gun between
 fighters actually has. A removal states that the money stays spent, because the
 sale button directly above it says otherwise and the two must not be confused.
+
+A refund has to be told apart from both of the acts that also take a thing
+away, and the difference is entirely in the money: a removal keeps it, a sale
+returns half of what the thing is *worth*, and this returns what was *paid*.
+Three sentences that would each be right about the wrong act, so each names its
+own number.
 
   --- two ways to answer a move ---
 
@@ -53,6 +60,9 @@ and a hidden field says so.
         {% elif dialog.kind == "reassign" %}
             Where it lives changes; what it is worth does not — a move never
             re-prices.
+        {% elif dialog.kind == "refund" %}
+            {{ dialog.sum }} It leaves the card with anything attached to it,
+            and the purchase is undone rather than traded away.
         {% else %}
             It comes off the card, along with anything attached to it. What was
             paid for it stays spent.
