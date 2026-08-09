@@ -637,6 +637,36 @@ def create_default_set(name, members=(), price=0, **kwargs):
     return default_set
 
 
+def _free_set_name(carrier, **shared):
+    """A name for this carrier's own set of built-ins that nothing else
+    in the pack has taken.
+
+    The set is named after the thing that comes with it, so an author
+    reading a list of sets can tell whose is whose. But a name is not an
+    identity: an exotic beast is both a piece of wargear a gang buys and
+    the model that arrives when it does, and both are called the same
+    thing — while a set name may appear only once in a pack. So the kind
+    goes in when the plain name is spoken for, and a number after that.
+    """
+    from itertools import chain, count
+
+    from n26.library.models import DefaultAssignmentSet
+    from n26.library.models.pack import default_pack_id
+
+    label = getattr(carrier, "authoring_label", None) or str(carrier)
+    kind = carrier._meta.verbose_name
+    pack = shared.get("pack") or default_pack_id()
+    taken = DefaultAssignmentSet.objects.filter(pack=pack)
+
+    # Chained rather than collected: the numbered names never run out,
+    # and a tuple of them would never finish being built.
+    tries = chain(
+        (f"{label} built-ins", f"{label} ({kind}) built-ins"),
+        (f"{label} ({kind}) built-ins {number}" for number in count(2)),
+    )
+    return next(name for name in tries if not taken.filter(name__iexact=name).exists())
+
+
 def add_built_in(carrier, thing, amount=0, position=None, **kwargs):
     """Something ``carrier`` always comes with, materialised when it is
     acquired — a profile's equipment list, its starting kit, its
@@ -646,9 +676,8 @@ def add_built_in(carrier, thing, amount=0, position=None, **kwargs):
 
     if carrier.built_ins is None:
         shared = {"pack": kwargs["pack"]} if "pack" in kwargs else {}
-        label = getattr(carrier, "authoring_label", None) or str(carrier)
         carrier.built_ins = DefaultAssignmentSet.objects.create(
-            name=f"{label} built-ins", **shared
+            name=_free_set_name(carrier, **shared), **shared
         )
         carrier.save()
     return add_default_member(

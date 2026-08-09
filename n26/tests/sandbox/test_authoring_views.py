@@ -1567,7 +1567,11 @@ class TestTheGangSurface:
 
         response = client.post(
             f"/n26/authoring/profile/{ganger.pk}/",
-            {"thing_kind": "collection", "thing_collection": str(escher_list.pk)},
+            {
+                "act": "built_in",
+                "thing_kind": "collection",
+                "thing_collection": str(escher_list.pk),
+            },
         )
         assert response.status_code == 302
 
@@ -1600,7 +1604,12 @@ class TestTheGangSurface:
 
         client.post(
             f"/n26/authoring/profile/{ganger.pk}/",
-            {"thing_kind": "counter", "thing_counter": str(xp.pk), "amount": "6"},
+            {
+                "act": "built_in",
+                "thing_kind": "counter",
+                "thing_counter": str(xp.pk),
+                "amount": "6",
+            },
         )
         ganger.refresh_from_db()
         member = ganger.built_in_members.get()
@@ -1614,7 +1623,8 @@ class TestTheGangSurface:
         """A kind chosen with nothing picked refuses in words."""
         _, ganger = self.make_ganger(client, person_type)
         response = client.post(
-            f"/n26/authoring/profile/{ganger.pk}/", {"thing_kind": "collection"}
+            f"/n26/authoring/profile/{ganger.pk}/",
+            {"act": "built_in", "thing_kind": "collection"},
         )
         assert response.status_code == 200
         assert "Pick or name a collection." in response.content.decode()
@@ -3337,6 +3347,202 @@ class TestRemovingABuiltIn:
         assert client.get(self.address(member)).status_code == 404
         assert client.post(self.address(member), {}).status_code == 404
         assert ganger.built_in_members.count() == 3
+
+
+class TestAnythingCanComeWithSomething:
+    """Coming with something is not a fighter entry's privilege.
+
+    ``built_ins`` is a column on the assignable mixin, so a piece of
+    wargear that always arrives with a weapon — a beast and its claws —
+    is as ordinary as a fighter and their equipment list. The pages have
+    to offer it wherever the model allows it, or a rule that works
+    perfectly well cannot be written down.
+    """
+
+    @pytest.fixture
+    def beast(self, author, default_pack):
+        from n26.library.authoring import create_wargear
+
+        return create_wargear("Dustback Helamite", price=45)
+
+    @pytest.fixture
+    def claws(self, author, default_pack):
+        from n26.library.authoring import create_weapon
+
+        return create_weapon("Helamite claws", profiles=[("", 0)])
+
+    def address(self, thing):
+        return f"/n26/authoring/wargear/{thing.pk}/"
+
+    def test_a_wargear_can_be_given_a_weapon_from_its_own_page(
+        self, beast, claws, client
+    ):
+        added = client.post(
+            self.address(beast),
+            {"act": "built_in", "thing_kind": "weapon", "thing_weapon": str(claws.pk)},
+        )
+
+        assert added.status_code == 302
+        beast.refresh_from_db()
+        assert [str(row.assignable) for row in beast.built_in_members] == [
+            "Helamite claws"
+        ]
+
+    def test_and_the_page_then_says_what_it_comes_with(self, beast, claws, client):
+        client.post(
+            self.address(beast),
+            {"act": "built_in", "thing_kind": "weapon", "thing_weapon": str(claws.pk)},
+        )
+        body = client.get(self.address(beast)).content.decode()
+
+        assert "Comes with" in body
+        assert "Helamite claws" in body
+
+    def test_a_carrier_coming_with_nothing_says_so_rather_than_hiding(
+        self, beast, client
+    ):
+        body = client.get(self.address(beast)).content.decode()
+
+        assert "Comes with" in body
+        assert "None yet" in body
+
+    def test_the_words_do_not_name_the_one_carrier_they_started_on(self, beast, client):
+        """A fighter entry is hired and a piece of wargear is bought, so
+        the section cannot describe itself as something a hire gets."""
+        body = client.get(self.address(beast)).content.decode()
+
+        assert "the moment it is acquired" in body
+        assert "hire of this profile" not in body
+
+    def test_the_line_can_be_taken_off_again(self, beast, claws, client):
+        from n26.library.authoring import add_built_in
+
+        member = add_built_in(beast, claws)
+        beast.refresh_from_db()
+
+        asked = client.get(f"/n26/authoring/built-ins/{member.pk}/remove/")
+        assert asked.status_code == 200
+        # The page names the thing holding the set, which is not a
+        # profile and must still be found and linked.
+        assert "Dustback Helamite" in asked.content.decode()
+
+        removed = client.post(f"/n26/authoring/built-ins/{member.pk}/remove/")
+        assert removed.status_code == 302
+        assert removed["Location"] == self.address(beast)
+        assert not beast.built_in_members.exists()
+        # Only the membership went.
+        claws.refresh_from_db()
+
+    def test_a_beast_that_is_also_a_model_still_gets_its_own_set(
+        self, beast, claws, client, person_type, gang_type
+    ):
+        """An exotic beast is two rows: the wargear a gang buys, and the
+        model that arrives when it does. Both are called the same thing,
+        and a set of built-ins may be named only once in a pack — so the
+        second one to be given anything has to be named around the
+        first, rather than refusing the press."""
+        from n26.library.authoring import add_built_in, create_profile, create_subtype
+
+        twin = create_profile("Dustback Helamite", person_type, gang_type, price=45)
+        add_built_in(twin, create_subtype("Exotic Beast"))
+
+        added = client.post(
+            self.address(beast),
+            {"act": "built_in", "thing_kind": "weapon", "thing_weapon": str(claws.pk)},
+        )
+
+        assert added.status_code == 302
+        beast.refresh_from_db()
+        assert [str(row.assignable) for row in beast.built_in_members] == [
+            "Helamite claws"
+        ]
+        # Two sets, each named for the thing that holds it.
+        assert beast.built_ins.name == "Dustback Helamite (wargear) built-ins"
+        assert twin.built_ins.name == "Dustback Helamite built-ins"
+
+    def test_a_weapon_keeps_its_firing_lines_and_gains_the_section(self, claws, client):
+        """The first page to carry two sections of parts. A weapon's
+        firing lines are its own; coming with something is everyone's,
+        and the two must not stand in for each other."""
+        body = client.get(f"/n26/authoring/weapon/{claws.pk}/").content.decode()
+
+        assert "Weapon profiles" in body
+        assert "Comes with" in body
+        assert 'value="built_in"' in body
+
+    def test_the_kinds_own_parts_are_what_a_post_naming_nothing_means(
+        self, claws, client
+    ):
+        """Two forms post to one address, so one of them has to say
+        which it is. The kind's own is the one that says nothing —
+        adding a firing line is unchanged by the arrival of the other."""
+        added = client.post(
+            f"/n26/authoring/weapon/{claws.pk}/",
+            {"name": "Warp round", "price": "10"},
+        )
+
+        assert added.status_code == 302
+        assert claws.profiles.filter(name="Warp round").exists()
+        assert not claws.built_in_members.exists()
+
+
+class TestEveryCarrierIsOfferedTheSection:
+    """Discovering guard: which pages offer built-ins is read off the
+    model, never listed, so a new assignable kind gets the section
+    without anyone remembering to add it.
+
+    The one gap is a kind whose page is a shape of its own, which draws
+    none of the shared sections. That gap is named here so a second
+    bespoke page is a decision somebody makes rather than a section
+    that quietly stops being offered.
+    """
+
+    @staticmethod
+    def carriers():
+        from n26.library.views import _model_for
+
+        return {
+            kind
+            for kind, verb in LEAF_KINDS.items()
+            if hasattr(_model_for(specs()[verb]), "built_in_members")
+        }
+
+    def test_there_is_something_to_check(self):
+        assert len(self.carriers()) > 10
+
+    def test_the_foundation_shapes_are_not_among_them(self):
+        """A characteristic and a section are not things a fighter is
+        given, so nothing about them comes with anything."""
+        assert not self.carriers() & {"stat", "statline-type", "section", "category"}
+
+    def test_every_carrier_is_offered_it(self):
+        from n26.library.views import BUILT_INS_PART, _part_sections
+
+        without = sorted(
+            kind
+            for kind in self.carriers()
+            if BUILT_INS_PART not in _part_sections(kind)
+        )
+        assert not without, (
+            "These kinds can come with things at model level but their pages "
+            f"do not offer it: {without}. Which pages draw the section is "
+            "derived from the model — do not narrow the derivation to make "
+            "this pass."
+        )
+
+    def test_the_only_carrier_with_a_page_of_its_own_shape_is_the_collection(self):
+        """A bespoke page draws none of the shared sections, so it is
+        the one way a carrier can be offered the section in principle
+        and never see it."""
+        from n26.library.views import DETAIL_VIEWS
+
+        bespoke = sorted(self.carriers() & set(DETAIL_VIEWS))
+        assert bespoke == ["collection"], (
+            f"{bespoke} have pages of their own shape, which draw no built-ins "
+            "section. A collection is a list of what may be bought, so coming "
+            "with something is not a question it answers; decide the same for "
+            "any new one rather than leaving it out by accident."
+        )
 
 
 class TestAGangTypeThatCannotBeFounded:

@@ -67,7 +67,7 @@ DEFAULT_ASSIGNABLE_FIELDS = (
 
 
 class DefaultAssignmentSet(Content):
-    """A named set of things a profile can come with."""
+    """A named set of things an assignable can come with."""
 
     name = models.CharField(max_length=200)
     price = models.PositiveIntegerField(
@@ -95,11 +95,13 @@ class DefaultAssignmentSet(Content):
 class DefaultAssignment(NamesAnAssignable, Content):
     """One thing something always comes with when it is acquired.
 
-    A profile's built-ins are these rows: the weapons in its hands at
-    hire, a skill it always knows, a counter's opening value — and
-    **access to a collection**, which is how a fighter entry names the
-    equipment list it uses. No choice is offered; a thing that may be
-    swapped for something else is an option, not a built-in.
+    Anything assignable can carry these rows, and they read differently
+    on each. A fighter entry comes with the weapons in its hands at
+    hire, a skill it always knows, a counter's opening value, and access
+    to a collection — which is how it names the equipment list it uses.
+    A piece of wargear comes with whatever arrives with it: a beast with
+    its claws. No choice is offered; a thing that may be swapped for
+    something else is an option, not a built-in.
 
     Deliberately parallel to ``n26.Assignment`` — same mixin, same
     ``assignable=`` constructor, same ``assignable`` property — because that

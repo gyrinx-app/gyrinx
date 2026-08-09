@@ -68,14 +68,22 @@
             </form>
         </c-n26.form-section>
     {% endif %}
-    {% if has_parts %}
-        <c-n26.form-section title="{{ part_verbose_name_plural|capfirst }}"
-                            description="{{ parts_description }}"
+    {% comment %}
+    A page may carry more than one section of parts. A weapon has firing
+    lines that only weapons have, and — like everything an author can
+    give a fighter — it can also come with something. Each section is a
+    form of its own posting back here, and each names itself in `act` so
+    the view knows which was pressed; the kind's own parts name nothing,
+    there being at most one such section.
+    {% endcomment %}
+    {% for section in part_sections %}
+        <c-n26.form-section title="{{ section.part_verbose_name_plural|capfirst }}"
+                            description="{{ section.parts_description }}"
                             class="mt-8">
-            {% if parts %}
+            {% if section.parts %}
                 <c-ui.table>
                     <tbody>
-                        {% for part in parts %}
+                        {% for part in section.parts %}
                             <tr>
                                 <td>{{ part.label }}</td>
                                 {% comment %}
@@ -103,36 +111,37 @@
                 </c-ui.description>
             {% endif %}
         </c-n26.form-section>
-        <c-n26.form-section title="Add a {{ part_verbose_name }}" class="mt-10">
-            {% if part_help %}
+        <c-n26.form-section title="Add a {{ section.part_verbose_name }}" class="mt-10">
+            {% if section.part_help %}
                 <c-n26.prose class="max-w-2xl">
-                    {% for paragraph in part_help %}<p>{{ paragraph }}</p>{% endfor %}
+                    {% for paragraph in section.part_help %}<p>{{ paragraph }}</p>{% endfor %}
                 </c-n26.prose>
             {% endif %}
             <form method="post"
-                  {% if form.is_multipart %}enctype="multipart/form-data"{% endif %}
+                  {% if section.form.is_multipart %}enctype="multipart/form-data"{% endif %}
                   class="max-w-xl space-y-5">
                 {% csrf_token %}
-                {% include "authoring/_form.html" %}
-                {% if statline_form %}
+                {% if section.act %}<input type="hidden" name="act" value="{{ section.act }}">{% endif %}
+                {% include "authoring/_form.html" with form=section.form %}
+                {% if section.statline_form %}
                     <c-n26.form-section title="{{ thing.statline_type }}"
                                         class="rounded-box border border-box-border p-4">
                         <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                            {% for field in statline_form %}
-                                {% include "authoring/_field.html" with form=statline_form %}
+                            {% for field in section.statline_form %}
+                                {% include "authoring/_field.html" with form=section.statline_form %}
                             {% endfor %}
                         </div>
                     </c-n26.form-section>
-                {% elif wants_statline %}
+                {% elif section.wants_statline %}
                     <c-ui.description>
                         This {{ verbose_name }} has no statline shape set, so its
-                        {{ part_verbose_name_plural }} carry no stats.
+                        {{ section.part_verbose_name_plural }} carry no stats.
                     </c-ui.description>
                 {% endif %}
-                <c-n26.form-actions submit_label="Add {{ part_verbose_name }}" />
+                <c-n26.form-actions submit_label="Add {{ section.part_verbose_name }}" />
             </form>
         </c-n26.form-section>
-    {% endif %}
+    {% endfor %}
     {% if with_modifiers %}
         <c-n26.form-section title="Modifiers"
                             description="What this {{ verbose_name }} does once assigned — each modifier is one scope and one effect, computed onto cards."

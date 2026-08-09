@@ -60,7 +60,7 @@ name runs the button off the end of the page.
         {% endif %}
         {% if riders %}
             <c-n26.form-section title="These go with it"
-                                description="Ammo lines ride their gun: each arrives stacked on the weapon that comes in the same hire, so with the weapon gone they name a gun nothing brings.">
+                                description="Ammo lines ride their gun: each arrives stacked on the weapon that arrives with it, so with the weapon gone they name a gun nothing brings.">
                 <c-ui.table>
                     <tbody>
                         {% for rider in riders %}
@@ -91,15 +91,20 @@ name runs the button off the end of the page.
                         {% endfor %}
                     </tbody>
                 </c-ui.table>
+                {% comment %}
+                "Acquired" rather than "hired": a set may be held by a
+                fighter entry, which is hired, or by a piece of wargear,
+                which is bought, and the sentence has to be true of both.
+                {% endcomment %}
                 <c-ui.description>
-                    Only what is hired from here on. Anything already hired was
-                    given {{ label }} at the moment it was hired and keeps it.
+                    Only what is acquired from here on. Anything already holding
+                    {{ label }} was given it at the moment it was acquired and keeps it.
                 </c-ui.description>
             </c-n26.form-section>
         {% else %}
             <c-ui.alert variant="info" title="Nothing comes with this set">
                 {{ set_name }} is held by nothing, so taking a line out of it
-                changes nothing that is hired today.
+                changes nothing anyone can acquire today.
             </c-ui.alert>
         {% endif %}
     </c-n26.form-page>

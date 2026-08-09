@@ -143,6 +143,9 @@ def _built_in_parts(parts):
     return parts.prefetch_related(*DefaultAssignment.ASSIGNABLE_FIELDS)
 
 
+#: A kind's own parts: the things only that kind has, added to one of
+#: its rows over time. At most one section per kind, and a post naming
+#: no section is for this one.
 DETAIL_KINDS = {
     "weapon": {
         "verb": "add_weapon_profile",
@@ -158,26 +161,44 @@ DETAIL_KINDS = {
         "describe": _describe_statline_stat,
         "parts_hint": lambda parts: parts.select_related("stat"),
     },
-    # The words are overridden because the part model is a
-    # DefaultAssignment — accurate, and nothing an author says.
-    "profile": {
-        "verb": "add_built_in",
-        "parts": "built_in_members",
-        "statline": False,
-        "describe": _describe_built_in,
-        "parts_label": "comes with",
-        "part_name": "built-in",
-        "parts_hint": _built_in_parts,
-        "parts_description": (
-            "What every hire of this profile is given, free, at the moment "
-            "it is hired. Taking a line off changes what future hires come "
-            "with; the thing itself stays in the library."
-        ),
-        # Where a row's Remove control leads. A part is taken off at its
-        # own address, never from the listing, because what the act means
-        # cannot be read off the row.
-        "removes": "authoring-built-in-remove",
-    },
+}
+
+
+#: What a thing always comes with, in the same shape as a kind's own
+#: parts — but filed apart from them, because this is not one kind's
+#: section. Every assignable can carry built-ins, so which pages draw
+#: it is read off the model (``_carries_built_ins``) rather than listed,
+#: and it sits alongside whatever else the kind carries: a weapon has
+#: firing lines *and* can come with something.
+#:
+#: Naming itself in ``act`` is what lets it do that. A post that names
+#: no section is for the kind's own parts, of which there is at most
+#: one; this one shares its page and so has to say which form was
+#: pressed.
+#:
+#: The words are ours rather than the part model's, because the row is a
+#: DefaultAssignment — accurate, and nothing an author says. They avoid
+#: naming any one carrier: a profile is hired and a piece of wargear is
+#: bought, and both come with what is listed here.
+BUILT_INS_PART = {
+    "act": "built_in",
+    "verb": "add_built_in",
+    "parts": "built_in_members",
+    "statline": False,
+    "describe": _describe_built_in,
+    "parts_label": "comes with",
+    "part_name": "built-in",
+    "parts_hint": _built_in_parts,
+    "parts_description": (
+        "What comes with this, free, the moment it is acquired — hired, "
+        "for a profile; bought, for a weapon or a piece of wargear. Taking "
+        "a line off changes only what is acquired next: the thing itself "
+        "stays in the library, and anything already holding it keeps it."
+    ),
+    # Where a row's Remove control leads. A part is taken off at its
+    # own address, never from the listing, because what the act means
+    # cannot be read off the row.
+    "removes": "authoring-built-in-remove",
 }
 
 
@@ -187,6 +208,29 @@ def _carries_modifiers(kind):
     shapes. Derived, not enumerated: a new assignable kind gets its
     modifier section without anyone remembering to say so."""
     return hasattr(_model_for(_spec_for(kind)), "modifiers")
+
+
+def _carries_built_ins(kind):
+    """Whether this kind's rows can come with things.
+
+    ``built_ins`` is a column on the assignable mixin, so coming with
+    something is universal among assignables and absent from the
+    foundation shapes — read off the model for the same reason
+    modifiers are, so a new assignable kind gets the section without
+    anyone remembering to say so.
+    """
+    return hasattr(_model_for(_spec_for(kind)), "built_in_members")
+
+
+def _part_sections(kind):
+    """Every section of parts this kind's page draws, in the order they
+    appear: what only this kind has, then what anything can come with."""
+    sections = []
+    if kind in DETAIL_KINDS:
+        sections.append(DETAIL_KINDS[kind])
+    if _carries_built_ins(kind):
+        sections.append(BUILT_INS_PART)
+    return sections
 
 
 def _statline_editor_for(thing):
@@ -671,8 +715,14 @@ def detail(request, kind, pk):
     the same form inside its edit form, so a fighter's characteristics
     are typed where its name and price are.
 
+    A page may carry more than one section of parts: a weapon has firing
+    lines of its own *and*, like every assignable, can come with things.
+    Each section says which it is, so a post reaches the form that was
+    pressed; the one saying nothing is the kind's own.
+
     Kinds in ``DETAIL_VIEWS`` have a page of their own shape instead —
-    a collection's page previews what its definition means right now.
+    a collection's page previews what its definition means right now,
+    and draws none of these sections.
     """
     own_view = DETAIL_VIEWS.get(kind)
     if own_view is not None:
@@ -680,12 +730,19 @@ def detail(request, kind, pk):
     spec = _spec_for(kind)
     model = _model_for(spec)
     thing = get_object_or_404(model, pk=pk)
-    detail_of = DETAIL_KINDS.get(kind)
+    sections = _part_sections(kind)
     with_modifiers = _carries_modifiers(kind)
 
     composer = None
     act = request.POST.get("act", "")
-    if request.method == "POST" and act and with_modifiers and act != "edit":
+    posted_to = next((one for one in sections if one.get("act", "") == act), None)
+    if (
+        request.method == "POST"
+        and act
+        and with_modifiers
+        and act != "edit"
+        and posted_to is None
+    ):
         response, composer = _modifier_action(request, kind, thing, act)
         if response is not None:
             return response
@@ -719,16 +776,17 @@ def detail(request, kind, pk):
         edit_form = edit_class.opened_on(thing)
         statline_edit = statline_class.opened_on(thing) if statline_class else None
 
-    if detail_of is not None:
-        part_spec = specs()[detail_of["verb"]]
+    drawn = []
+    for section in sections:
+        part_spec = specs()[section["verb"]]
         part_model = _model_for(part_spec)
         form_class = generate_form(part_spec)
         statline_class = (
             statline_form_for(thing.statline_type)
-            if detail_of["statline"] and thing.statline_type
+            if section["statline"] and thing.statline_type
             else None
         )
-        if request.method == "POST" and not act:
+        if section is posted_to and request.method == "POST":
             form = form_class(request.POST, request.FILES)
             statline_form = statline_class(request.POST) if statline_class else None
             forms_valid = form.is_valid() and (
@@ -739,18 +797,18 @@ def detail(request, kind, pk):
                     part = part_spec.verb(thing, **form.verb_data())
                     if statline_form is not None:
                         statline_form.save(part)
-                said, _ = detail_of["describe"](part)
+                said, _ = section["describe"](part)
                 messages.success(request, f"Added {said}.")
                 return redirect("authoring-detail", kind=kind, pk=pk)
         else:
             form = form_class()
             statline_form = statline_class() if statline_class else None
-        removes = detail_of.get("removes")
+        removes = section.get("removes")
         parts = []
-        for part in detail_of.get("parts_hint", lambda parts: parts)(
-            getattr(thing, detail_of["parts"]).all()
+        for part in section.get("parts_hint", lambda parts: parts)(
+            getattr(thing, section["parts"]).all()
         ):
-            label, notes = detail_of["describe"](part)
+            label, notes = section["describe"](part)
             parts.append(
                 {
                     "label": label,
@@ -760,23 +818,23 @@ def detail(request, kind, pk):
                     "remove_url": reverse(removes, args=[part.pk]) if removes else "",
                 }
             )
-        part_context = {
-            "has_parts": True,
-            "part_verbose_name": detail_of.get(
-                "part_name", part_model._meta.verbose_name
-            ),
-            "part_verbose_name_plural": detail_of.get(
-                "parts_label", part_model._meta.verbose_name_plural
-            ),
-            "parts_description": detail_of.get("parts_description", ""),
-            "part_help": kind_help(part_model),
-            "wants_statline": detail_of["statline"],
-            "parts": parts,
-            "form": form,
-            "statline_form": statline_form,
-        }
-    else:
-        part_context = {"has_parts": False}
+        drawn.append(
+            {
+                "act": section.get("act", ""),
+                "part_verbose_name": section.get(
+                    "part_name", part_model._meta.verbose_name
+                ),
+                "part_verbose_name_plural": section.get(
+                    "parts_label", part_model._meta.verbose_name_plural
+                ),
+                "parts_description": section.get("parts_description", ""),
+                "part_help": kind_help(part_model),
+                "wants_statline": section["statline"],
+                "parts": parts,
+                "form": form,
+                "statline_form": statline_form,
+            }
+        )
 
     return render(
         request,
@@ -788,7 +846,7 @@ def detail(request, kind, pk):
             "verbose_name_plural": model._meta.verbose_name_plural,
             "edit_form": edit_form,
             "statline_cells": statline_edit.cells() if statline_edit else None,
-            **part_context,
+            "part_sections": drawn,
             **(
                 _modifier_section(request, thing, composer)
                 if with_modifiers
