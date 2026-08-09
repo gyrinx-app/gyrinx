@@ -68,7 +68,7 @@
                 <c-n26.collection-picker.category name="{{ category.name }}">
                     {% for line in category.lines %}
                         <c-n26.collection-picker.item name="{{ line.name }}"
-                                                      :cost="line.credits"
+                                                      :price="line.credits"
                                                       :trade_points="line.trade_points"
                                                       :exclusive="line.is_exclusive"
                                                       :notes="line.notes">

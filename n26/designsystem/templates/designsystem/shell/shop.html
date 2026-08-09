@@ -86,7 +86,7 @@ component's own page shows it working; this shows it working under a header.
                     <c-n26.collection-picker.category name="{{ category.name }}">
                         {% for line in category.lines %}
                             <c-n26.collection-picker.item name="{{ line.name }}"
-                                                          :cost="line.credits"
+                                                          :price="line.credits"
                                                           :trade_points="line.trade_points"
                                                           :exclusive="line.is_exclusive"
                                                           :notes="line.notes"
@@ -99,7 +99,7 @@ component's own page shows it working; this shows it working under a header.
                                 out is a shell that cannot show the row running
                                 out of width on a phone.
                                 {% endcomment %}
-                                <c-slot name="price">
+                                <c-slot name="price_control">
                                     {% include "n26/includes/equip_price.html" with field="price" quoted=line.credits label=line.name price_ceiling=trading_post_price_ceiling %}
                                 </c-slot>
                                 {% if line.name in trading_post_in_stash %}

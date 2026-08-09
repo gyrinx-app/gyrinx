@@ -47,13 +47,13 @@ button would be is an invisible copy of it, which keeps the columns together
 whatever the button is later made to say.
 {% endcomment %}
 <c-n26.collection-picker.item name="{{ row.line.name }}"
-                              :cost="row.line.credits"
+                              :price="row.line.credits"
                               :trade_points="row.line.trade_points"
                               :exclusive="row.line.is_exclusive"
                               :notes="row.line.notes"
                               :disclosure="False"
                               state="quoted: {{ row.line.credits }}, price: {{ row.line.credits }}">
-    <c-slot name="price">
+    <c-slot name="price_control">
         {% include "n26/includes/equip_price.html" with field=row.price_field quoted=row.line.credits label=row.line.name %}
     </c-slot>
     {% if row.parts %}

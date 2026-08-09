@@ -7,7 +7,7 @@
         </c-slot>
         <c-n26.collection-picker.section name="Weapons">
             <c-n26.collection-picker.category name="Pistols">
-                <c-n26.collection-picker.item name="Autopistol" :cost="10" :trade_points="0">
+                <c-n26.collection-picker.item name="Autopistol" :price="10" :trade_points="0">
                     <c-slot name="actions"><c-ui.button size="sm">Add</c-ui.button></c-slot>
                     <c-slot name="details">…the whole thing, on demand…</c-slot>
                 </c-n26.collection-picker.item>
@@ -31,7 +31,7 @@ is filter, look, adjust, rather than filter, wait, discover, go back.
   --- how it filters ---
 
 One list of facets on this component, not per group. Items register themselves
-on init — name, category, cost, trade points, exclusivity, searchable text — so the counts, the
+on init — name, category, price, trade points, exclusivity, searchable text — so the counts, the
 "showing" readout and each group's own visibility are all the same array read
 three ways, and no total is stored anywhere to fall out of date.
 
@@ -123,7 +123,7 @@ dispatches, and listens for `filter-reset` to be told.
 
         matches(facets) {
             if (this.query && !facets.search.includes(this.query.trim().toLowerCase())) return false;
-            if (facets.cost < this.minCost || facets.cost > this.maxCost) return false;
+            if (facets.price < this.minCost || facets.price > this.maxCost) return false;
             {% comment %}
             Exclusive items answer no numeric question. "E" is not a rarity, it
             is "equipment list only", so it sits in no trade-points range —

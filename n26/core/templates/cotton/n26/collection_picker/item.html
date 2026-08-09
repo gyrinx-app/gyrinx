@@ -1,7 +1,7 @@
 {% comment %}
-<c-n26.collection-picker.item> — one row: what it is, what it costs, what you can do.
+<c-n26.collection-picker.item> — one row: what it is, what it asks, what you can do.
 
-    <c-n26.collection-picker.item name="Autopistol" :cost="10" :trade_points="0" keywords="pistol">
+    <c-n26.collection-picker.item name="Autopistol" :price="10" :trade_points="0" keywords="pistol">
         <c-slot name="icon"><c-n26.icon name="check" /></c-slot>
         <c-slot name="actions"><c-ui.button size="sm" variant="success">Add</c-ui.button></c-slot>
     </c-n26.collection-picker.item>
@@ -20,14 +20,14 @@ Searchable text is built here, lowercased once at registration, rather than in
 the predicate. It runs on every keystroke against every item; doing the casing
 per comparison is work repeated for no reason.
 
-Cost, trade points and exclusivity are props rather than slot content because the sliders filter on
+Price, trade points and exclusivity are props rather than slot content because the sliders filter on
 them — a facet the parent has to read cannot be markup only. They are rendered
 here too, so a call site states each number once.
 
   name — shown, and searched.
-  :cost — credits. Rendered as a badge, and what the cost slider caps.
-  :trade_points — what it costs in trade points at a post that charges them.
-    What the trade-points slider filters on.
+  :price — credits. Rendered as a badge, and what the price slider caps.
+  :trade_points — what a post charging them asks instead. What the
+    trade-points slider filters on.
   :exclusive — equipment list only. Shows "E" rather than a number, and is
     dropped the moment the trade-points slider narrows, because "E" answers no
     numeric question — the same rule n26.browse.narrow follows.
@@ -50,33 +50,36 @@ here too, so a call site states each number once.
     ragged edge that reads as broken rather than as sparse.
   meta — extra content after the name, before the actions.
   actions — buttons. Keep them small; there is one of these per row.
-  price — replaces the rendered cost, for a row whose price depends on something
-    the reader is choosing, or is a box the reader types in. Rendered in the same
-    fixed-width column, so a list of live prices and fixed ones still lines up.
-    `:cost` is still required and is still what the slider filters on: a filter
-    has to agree with itself between keystrokes, so it reads the row's advertised
-    price, not its current one.
+  price_control — what to draw in the price column instead of the figure: a box
+    the reader types in, or a number that moves with something they are choosing.
+    Rendered in the same fixed-width column, so a list of live prices and fixed
+    ones still lines up. `:price` is still required and is still what the slider
+    filters on — a filter has to agree with itself between keystrokes, so it
+    reads what the row advertises and never what the control currently says.
+    That is the whole of why these are two names: one is the number the list is
+    asking, the other is a control that may be showing something else.
   state — extra Alpine state merged into this row's scope, as object-literal
     properties. The row's slots all render inside it, so this is how a caller
-    gives the price slot and the rows slot something to share; an x-data of their
+    gives price_control and the rows slot something to share; an x-data of their
     own inside a slot would put them in sibling scopes that cannot see each other.
 {% endcomment %}
 <c-vars
     name=""
-    :cost="0"
+    :price="0"
     :trade_points="0"
     :exclusive="False"
     keywords=""
     details_label="card"
     :disclosure="True"
     :notes="[]"
+    price_control=""
     state=""
     class=""
 />
 
 <div x-data="{ facets: {
         name: {{ name|json_dumps }},
-        cost: {{ cost|default:0 }},
+        price: {{ price|default:0 }},
         tradePoints: {{ trade_points|default:0 }},
         exclusive: {{ exclusive|yesno:"true,false" }},
         search: {% if keywords %}{{ name|add:' '|add:keywords|lower|json_dumps }}{% else %}{{ name|lower|json_dumps }}{% endif %},
@@ -174,7 +177,7 @@ here too, so a call site states each number once.
     145¢ row put their buttons in different places, and a column of buttons that
     almost lines up reads worse than one that plainly does not.
     {% endcomment %}
-    <span class="n26-cp-price shrink-0 text-sm text-ink-900 dark:text-ink-100">{% if price %}{{ price }}{% else %}{{ cost }}¢{% endif %}</span>
+    <span class="n26-cp-price shrink-0 text-sm text-ink-900 dark:text-ink-100">{% if price_control %}{{ price_control }}{% else %}{{ price }}¢{% endif %}</span>
 
     {% if actions %}<span class="flex shrink-0 items-center gap-1">{{ actions }}</span>{% endif %}
     </div>

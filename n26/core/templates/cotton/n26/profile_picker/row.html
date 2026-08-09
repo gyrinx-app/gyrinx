@@ -58,7 +58,7 @@ The composed name is a sketch — a real app has an id here.
 {% with scope=value|default:entry.name|slugify %}
 <c-n26.collection-picker.item
     name="{{ entry.name }}"
-    :cost="entry.base_price"
+    :price="entry.base_price"
     keywords="{{ entry.profile_type }}"
     state="total: {{ entry.base_price }}, base: {{ entry.base_price }},
            retotal($el) {
@@ -91,7 +91,7 @@ The composed name is a sketch — a real app has an id here.
     so the digits do not jitter as it changes — a number that shifts sideways
     while you read it draws attention to the wrong thing.
     {% endcomment %}
-    <c-slot name="price">
+    <c-slot name="price_control">
         <span class="tabular-nums" x-text="total + '¢'">{{ entry.base_price }}¢</span>
     </c-slot>
 
