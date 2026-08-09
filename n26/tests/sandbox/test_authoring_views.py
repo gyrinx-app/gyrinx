@@ -3058,3 +3058,153 @@ class TestAuthoringPagesDoNotScaleQueriesWithContent:
         self.assert_flat(
             client, "/n26/authoring/modifiers/", grow, django_assert_num_queries
         )
+
+
+class TestRemovingABuiltIn:
+    """A carrier's built-ins can be taken back off, one line at a time.
+
+    What goes is the membership. The thing named stays in the library,
+    the carrier's other lines stay, and models hired before the removal
+    keep what they were hired with — built-ins are materialised at the
+    moment of hiring and nothing retracts them, so a removal reaches
+    future hires only.
+    """
+
+    @pytest.fixture
+    def ganger(self, author, default_pack, person_type, gang_type):
+        """A fighter entry coming with a list, a gun and the gun's ammo."""
+        from n26.library.authoring import (
+            add_built_in,
+            create_collection,
+            create_profile,
+            create_weapon,
+        )
+
+        profile = create_profile("Ganger", person_type, gang_type, price=50)
+        autogun = create_weapon("Autogun", profiles=[("", 0), ("Warp round", 10)])
+        add_built_in(profile, create_collection("House Escher Equipment List"))
+        add_built_in(profile, autogun)
+        add_built_in(profile, autogun.profiles.get(name="Warp round"))
+        profile.refresh_from_db()
+        return profile
+
+    def address(self, member):
+        return f"/n26/authoring/built-ins/{member.pk}/remove/"
+
+    def test_the_profile_page_offers_a_way_off_each_line(self, ganger, client):
+        member = ganger.built_in_members.get(collection__isnull=False)
+        body = client.get(f"/n26/authoring/profile/{ganger.pk}/").content.decode()
+
+        assert self.address(member) in body
+        # And the section says which of the two acts that control is.
+        assert "the thing itself stays in the library" in body
+
+    def test_asking_changes_nothing(self, ganger, client):
+        member = ganger.built_in_members.get(collection__isnull=False)
+        response = client.get(self.address(member))
+
+        assert response.status_code == 200
+        body = response.content.decode()
+        assert "House Escher Equipment List" in body
+        assert "stays in the library" in body
+        assert ganger.built_in_members.count() == 3
+
+    def test_removing_takes_off_exactly_that_line(self, ganger, client):
+        from n26.library.models import Collection
+
+        member = ganger.built_in_members.get(collection__isnull=False)
+        response = client.post(self.address(member))
+
+        assert response.status_code == 302
+        assert response["Location"] == f"/n26/authoring/profile/{ganger.pk}/"
+        assert not ganger.built_in_members.filter(collection__isnull=False).exists()
+        # The gun and its ammo are untouched, and so is the list itself:
+        # it is content of its own, and only the line naming it went.
+        assert ganger.built_in_members.count() == 2
+        assert Collection.objects.filter(name="House Escher Equipment List").exists()
+
+    def test_ammo_goes_with_its_gun(self, ganger, client):
+        """A weapon profile in the set arrives stacked on the weapon
+        coming in the same hire. Left behind it would name a gun nothing
+        brings, which refuses at the moment of hiring."""
+        from n26.library.models import WeaponProfile
+
+        member = ganger.built_in_members.get(weapon__isnull=False)
+        client.post(self.address(member))
+
+        assert [str(row.assignable) for row in ganger.built_in_members] == [
+            "House Escher Equipment List"
+        ]
+        # Both of the weapon's lines are still in the library.
+        assert WeaponProfile.objects.filter(weapon__name="Autogun").count() == 2
+
+    def test_the_page_names_what_goes_with_the_gun(self, ganger, client):
+        member = ganger.built_in_members.get(weapon__isnull=False)
+        body = client.get(self.address(member)).content.decode()
+
+        assert "These go with it" in body
+        assert "Warp round" in body
+
+    def test_a_set_two_things_come_with_names_them_both(
+        self, ganger, client, person_type, gang_type
+    ):
+        """Nothing makes a set of defaults belong to one carrier, so the
+        page asks who holds it rather than assuming."""
+        from n26.library.authoring import create_profile
+
+        juve = create_profile("Juve", person_type, gang_type)
+        juve.built_ins = ganger.built_ins
+        juve.save()
+
+        member = ganger.built_in_members.get(collection__isnull=False)
+        body = client.get(self.address(member)).content.decode()
+        assert "More than one thing comes with this set" in body
+        assert "Juve" in body
+
+        response = client.post(self.address(member))
+        # No one page to return to when several things hold the set.
+        assert response["Location"] == "/n26/authoring/"
+        assert not juve.built_in_members.filter(collection__isnull=False).exists()
+
+    def test_a_model_hired_before_the_removal_keeps_its_kit(
+        self, ganger, client, gang_type
+    ):
+        from n26.core.models import Assignment
+        from n26.core.reconcile import assert_reconciled
+        from n26.tests.sandbox.actions import found_gang, hire
+
+        gang = found_gang(
+            "The Bad Girls",
+            gang_type,
+            owner=User.objects.create_user("player-owner"),
+            budget=1000,
+        )
+        early = hire(gang, ganger, "Early")
+
+        member = ganger.built_in_members.get(weapon__isnull=False)
+        client.post(self.address(member))
+
+        late = hire(gang, ganger, "Late")
+        assert Assignment.objects.filter(
+            miniature=early, weapon__name="Autogun"
+        ).exists()
+        assert not Assignment.objects.filter(
+            miniature=late, weapon__name="Autogun"
+        ).exists()
+        assert_reconciled(gang)
+
+    def test_a_stranger_is_sent_to_log_in(self, ganger, client):
+        member = ganger.built_in_members.get(collection__isnull=False)
+        client.logout()
+        response = client.get(self.address(member))
+
+        assert response.status_code == 302
+        assert "login" in response["Location"]
+
+    def test_a_plain_user_is_refused_and_cannot_post(self, ganger, client):
+        member = ganger.built_in_members.get(collection__isnull=False)
+        client.force_login(User.objects.create_user("player"))
+
+        assert client.get(self.address(member)).status_code == 404
+        assert client.post(self.address(member), {}).status_code == 404
+        assert ganger.built_in_members.count() == 3

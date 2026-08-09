@@ -1,0 +1,106 @@
+{% extends "authoring/base.html" %}
+{% comment %}
+The question asked before a built-in is taken off, at an address of its
+own. A page rather than a prompt: it survives a reload, Back is a real
+answer, and it works with scripting switched off. Nothing here changes
+anything — the form's POST is the act, and following the link that leads
+here is not.
+
+The page exists to tell two acts apart. Beside a weapon's name, "remove"
+reads as one that deletes the weapon, and this one does not: it takes
+one line out of one set of defaults. So the heading names the set, the
+first thing said is what stays, and the act is worded as removal *from*
+somewhere rather than removal of something.
+
+Two further facts a reader cannot see from the row it was reached from,
+and both change what the act means: a set may be held by more than one
+thing, and a weapon takes its ammo lines with it.
+
+The act names only the direction it points. The heading above it has
+already named both the line and the set, and a label repeating the set's
+name runs the button off the end of the page.
+{% endcomment %}
+{% block head_title %}Remove {{ label }}{% endblock head_title %}
+{% block content %}
+    <c-n26.form-page action="{% url 'authoring-built-in-remove' thing.pk %}"
+                     title="Remove {{ label }} from {{ set_name }}?"
+                     lead="Only the line goes: the {{ kind_name }} itself stays in the library."
+                     submit_label="Remove from the set"
+                     submit_variant="danger"
+                     cancel_url="{{ back }}">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Content library</c-ui.breadcrumbs.item>
+                {% if holders|length == 1 and holders.0.kind %}
+                    <c-ui.breadcrumbs.item href="{% url 'authoring-detail' holders.0.kind holders.0.pk %}">
+                        {{ holders.0.label }}
+                    </c-ui.breadcrumbs.item>
+                {% endif %}
+                <c-ui.breadcrumbs.item :current="True">
+                    Remove
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% csrf_token %}
+        {% comment %}
+        What is true, and only what is true. The membership goes and
+        nothing puts it back; the thing named is untouched, and so is
+        anything already carrying it — built-ins are given at the moment
+        of acquiring, and nothing retracts an assignment.
+        {% endcomment %}
+        <c-ui.alert variant="info" title="The {{ kind_name }} is not deleted">
+            {{ label }} stays in the library and on everything else that names it.
+            What goes is this one line of {{ set_name }}.
+        </c-ui.alert>
+        {% if shared %}
+            <c-ui.alert variant="warning" title="More than one thing comes with this set">
+                Everything below shares {{ set_name }}, so all of them stop
+                coming with {{ label }}.
+            </c-ui.alert>
+        {% endif %}
+        {% if riders %}
+            <c-n26.form-section title="These go with it"
+                                description="Ammo lines ride their gun: each arrives stacked on the weapon that comes in the same hire, so with the weapon gone they name a gun nothing brings.">
+                <c-ui.table>
+                    <tbody>
+                        {% for rider in riders %}
+                            <tr>
+                                <td>{{ rider }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </c-ui.table>
+            </c-n26.form-section>
+        {% endif %}
+        {% if holders %}
+            <c-n26.form-section title="What stops coming with it">
+                <c-ui.table>
+                    <tbody>
+                        {% for holder in holders %}
+                            <tr>
+                                <td class="whitespace-nowrap">
+                                    {% if holder.kind %}
+                                        <c-n26.link href="{% url 'authoring-detail' holder.kind holder.pk %}">{{ holder.label }}</c-n26.link>
+                                    {% else %}
+                                        {{ holder.label }}
+                                    {% endif %}
+                                </td>
+                                <td class="text-muted">{{ holder.kind_name }}</td>
+                                <td class="w-full text-muted">{{ holder.how }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </c-ui.table>
+                <c-ui.description>
+                    Only what is hired from here on. Anything already hired was
+                    given {{ label }} at the moment it was hired and keeps it.
+                </c-ui.description>
+            </c-n26.form-section>
+        {% else %}
+            <c-ui.alert variant="info" title="Nothing comes with this set">
+                {{ set_name }} is held by nothing, so taking a line out of it
+                changes nothing that is hired today.
+            </c-ui.alert>
+        {% endif %}
+    </c-n26.form-page>
+{% endblock content %}

@@ -208,6 +208,19 @@ class DefaultAssignment(NamesAnAssignable, Content):
     def __str__(self):
         return str(self.assignable) if self.assignable else "nothing"
 
+    @property
+    def dependent_members(self):
+        """The set's other members that stop making sense without this one.
+
+        Ammo lines ride their gun: a weapon profile materialises stacked
+        on the assignment of a weapon arriving in the same acquisition,
+        so with the weapon gone it names a gun nothing brings, and
+        acquiring the carrier refuses.
+        """
+        if self.weapon_id is None:
+            return DefaultAssignment.objects.none()
+        return self.default_set.members.filter(weapon_profile__weapon_id=self.weapon_id)
+
 
 #: Which kinds may offer options. Narrow on purpose: a profile offers
 #: them at hire, a wargear offers them when bought. Widening is one line

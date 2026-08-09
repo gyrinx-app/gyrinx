@@ -53,6 +53,14 @@ urlpatterns = [
         authoring_views.modifier_delete,
         name="authoring-modifier-delete",
     ),
+    # A built-in is a row of a set of defaults, not one of the authored
+    # kinds, so taking one off has an address of its own rather than
+    # riding the kind/pk routes below.
+    path(
+        "authoring/built-ins/<str:pk>/remove/",
+        authoring_views.built_in_remove,
+        name="authoring-built-in-remove",
+    ),
     path(
         "authoring/foundations/",
         authoring_views.foundations,

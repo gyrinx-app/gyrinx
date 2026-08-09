@@ -23,6 +23,7 @@ from django.contrib.admin.views.decorators import staff_member_required
 from django.db import IntegrityError, transaction
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils.html import escape
 from django.utils.safestring import mark_safe
 from django.utils.text import capfirst
@@ -167,6 +168,15 @@ DETAIL_KINDS = {
         "parts_label": "comes with",
         "part_name": "built-in",
         "parts_hint": _built_in_parts,
+        "parts_description": (
+            "What every hire of this profile is given, free, at the moment "
+            "it is hired. Taking a line off changes what future hires come "
+            "with; the thing itself stays in the library."
+        ),
+        # Where a row's Remove control leads. A part is taken off at its
+        # own address, never from the listing, because what the act means
+        # cannot be read off the row.
+        "removes": "authoring-built-in-remove",
     },
 }
 
@@ -248,6 +258,23 @@ def _forward_relations(model):
     ]
 
 
+def _kind_slugs():
+    """Which authoring page each model's rows are read on."""
+    return {_model_for(specs()[verb]): kind for kind, verb in LEAF_KINDS.items()}
+
+
+def _named_row(row, model, slugs):
+    """One row, as a page naming other people's things prints it."""
+    return {
+        "label": _label_for(row),
+        "kind_name": str(model._meta.verbose_name),
+        # A kind with no authoring page of its own is still named; only
+        # the link is missing.
+        "kind": slugs.get(model),
+        "pk": row.pk,
+    }
+
+
 def _carriers(modifier):
     """Everything holding this modifier, named and linked.
 
@@ -256,22 +283,43 @@ def _carriers(modifier):
     delete, and cost the same query — one per kind, a fixed number
     whatever the pack holds.
     """
-    slugs = {_model_for(specs()[verb]): kind for kind, verb in LEAF_KINDS.items()}
+    slugs = _kind_slugs()
     found = []
     for model in _assignable_models():
         rows = model.objects.select_related(*_forward_relations(model))
         for row in rows.filter(modifiers=modifier):
-            found.append(
-                {
-                    "label": _label_for(row),
-                    "kind_name": str(model._meta.verbose_name),
-                    # A kind with no authoring page of its own is still
-                    # named; only the link is missing.
-                    "kind": slugs.get(model),
-                    "pk": row.pk,
-                }
-            )
+            found.append(_named_row(row, model, slugs))
     return sorted(found, key=lambda carrier: (carrier["kind_name"], carrier["label"]))
+
+
+def _holders_of(default_set):
+    """Everything that arrives with this set of defaults, named and linked.
+
+    Usually one thing — a profile's built-ins are founded for that
+    profile — but nothing makes that so: any assignable may point its
+    ``built_ins`` at any set, and an option offers one as an
+    alternative. A page about to change what a set holds asks who is
+    holding it rather than assuming.
+    """
+    from n26.library.models import Option
+
+    slugs = _kind_slugs()
+    found = []
+    for model in _assignable_models():
+        rows = model.objects.select_related(*_forward_relations(model))
+        for row in rows.filter(built_ins=default_set):
+            found.append({**_named_row(row, model, slugs), "how": "comes with it"})
+    for option in Option.objects.filter(default_set=default_set).select_related(
+        *Option.ASSIGNABLE_FIELDS
+    ):
+        carrier = option.carrier
+        found.append(
+            {
+                **_named_row(carrier, type(carrier), slugs),
+                "how": "offers it as an option",
+            }
+        )
+    return sorted(found, key=lambda holder: (holder["kind_name"], holder["label"]))
 
 
 def _reading_sentences(modifiers):
@@ -657,6 +705,21 @@ def detail(request, kind, pk):
         else:
             form = form_class()
             statline_form = statline_class() if statline_class else None
+        removes = detail_of.get("removes")
+        parts = []
+        for part in detail_of.get("parts_hint", lambda parts: parts)(
+            getattr(thing, detail_of["parts"]).all()
+        ):
+            label, notes = detail_of["describe"](part)
+            parts.append(
+                {
+                    "label": label,
+                    "notes": notes,
+                    # Blank for a kind whose parts cannot be taken off
+                    # here; the row simply draws no control.
+                    "remove_url": reverse(removes, args=[part.pk]) if removes else "",
+                }
+            )
         part_context = {
             "has_parts": True,
             "part_verbose_name": detail_of.get(
@@ -665,17 +728,10 @@ def detail(request, kind, pk):
             "part_verbose_name_plural": detail_of.get(
                 "parts_label", part_model._meta.verbose_name_plural
             ),
+            "parts_description": detail_of.get("parts_description", ""),
             "part_help": kind_help(part_model),
             "wants_statline": detail_of["statline"],
-            "parts": [
-                {"label": label, "notes": notes}
-                for label, notes in (
-                    detail_of["describe"](part)
-                    for part in detail_of.get("parts_hint", lambda parts: parts)(
-                        getattr(thing, detail_of["parts"]).all()
-                    )
-                )
-            ],
+            "parts": parts,
             "form": form,
             "statline_form": statline_form,
         }
@@ -742,6 +798,74 @@ def _modifier_action(request, kind, thing, act):
     else:
         raise Http404(f"No such action: {act}")
     return redirect("authoring-detail", kind=kind, pk=thing.pk), None
+
+
+def _back_to(holders):
+    """Where the built-in page's way out leads.
+
+    The one thing holding the set when exactly one does, which is where
+    the reader came from. With several holders there is no single page
+    to return to, so the way out is the library's front door.
+    """
+    pages = [holder for holder in holders if holder["kind"]]
+    if len(pages) == 1:
+        return reverse("authoring-detail", args=[pages[0]["kind"], pages[0]["pk"]])
+    return reverse("authoring-index")
+
+
+@staff_member_required
+def built_in_remove(request, pk):
+    """The question asked before a built-in is taken off, at its own address.
+
+    What goes is the *membership*. The weapon, skill or equipment list
+    named stays in the library and everything else holding it is
+    untouched — worth saying before anything happens, because a control
+    beside a weapon's name reads as one that deletes weapons.
+
+    A page rather than a control in the row, because two things decide
+    what the act means and neither can be read off the row: a set of
+    defaults may be held by more than one thing, and a gun takes its
+    ammo lines with it. GET asks and changes nothing; the POST from
+    this page is the act.
+    """
+    from n26.library import authoring
+    from n26.library.models import DefaultAssignment
+
+    member = get_object_or_404(
+        DefaultAssignment.objects.select_related(
+            "default_set", *DefaultAssignment.ASSIGNABLE_FIELDS
+        ),
+        pk=pk,
+    )
+    holders = _holders_of(member.default_set)
+    back = _back_to(holders)
+
+    if request.method == "POST":
+        said = _label_for(member.assignable)
+        with transaction.atomic():
+            authoring.remove_default_member(member)
+        messages.success(
+            request,
+            f"Took {said} out of {member.default_set.name}. "
+            f"The {said} itself is untouched.",
+        )
+        return redirect(back)
+
+    riders = member.dependent_members.select_related("weapon_profile__weapon")
+    return render(
+        request,
+        "authoring/built_in_remove.html",
+        {
+            "thing": member,
+            "label": _label_for(member.assignable),
+            "kind_name": str(member.assignable._meta.verbose_name),
+            "set_name": member.default_set.name,
+            "holders": holders,
+            "shared": len(holders) > 1,
+            "riders": [_label_for(rider.assignable) for rider in riders],
+            "back": back,
+        },
+    )
 
 
 def _composer_state(request, attach_to=None, bound_composer=None):

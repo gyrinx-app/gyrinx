@@ -675,6 +675,26 @@ def add_default_member(default_set, thing, amount=0, position=None, **kwargs):
     )
 
 
+def remove_default_member(member):
+    """Take one thing back out of a set of defaults.
+
+    Only the membership goes. The thing named — the weapon, the skill,
+    the equipment list — stays in the library untouched, and so does
+    the set, even when this was its last member: a carrier that comes
+    with nothing still has somewhere to put the next thing.
+
+    Ammo lines go with their gun (``dependent_members``), because a
+    weapon profile left behind names a weapon nothing brings.
+
+    What has already been acquired keeps it: built-ins are materialised
+    when a carrier is acquired, and nothing retracts an assignment. This
+    changes what future acquisitions come with.
+    """
+    for dependent in member.dependent_members:
+        dependent.delete()
+    member.delete()
+
+
 def offer_option(carrier, default_set, position=0, group=None, **kwargs):
     """Add an alternative offered when ``carrier`` is acquired.
 

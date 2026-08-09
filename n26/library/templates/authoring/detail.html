@@ -54,14 +54,30 @@
         </c-n26.form-section>
     {% endif %}
     {% if has_parts %}
-        <c-n26.form-section title="{{ part_verbose_name_plural|capfirst }}" class="mt-8">
+        <c-n26.form-section title="{{ part_verbose_name_plural|capfirst }}"
+                            description="{{ parts_description }}"
+                            class="mt-8">
             {% if parts %}
                 <c-ui.table>
                     <tbody>
                         {% for part in parts %}
                             <tr>
                                 <td>{{ part.label }}</td>
-                                <td class="text-right text-muted">{{ part.notes|join:" · " }}</td>
+                                {% comment %}
+                                Removing is a question asked at its own address, not an
+                                act done from here: what it means depends on what else
+                                holds the set, which this row cannot say.
+                                {% endcomment %}
+                                {% if part.remove_url %}
+                                    <td class="w-full text-muted">{{ part.notes|join:" · " }}</td>
+                                    <td class="text-right">
+                                        <c-ui.button href="{{ part.remove_url }}" size="sm" variant="ghost">
+                                            Remove
+                                        </c-ui.button>
+                                    </td>
+                                {% else %}
+                                    <td class="text-right text-muted">{{ part.notes|join:" · " }}</td>
+                                {% endif %}
                             </tr>
                         {% endfor %}
                     </tbody>
