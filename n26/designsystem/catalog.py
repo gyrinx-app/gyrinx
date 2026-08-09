@@ -1267,6 +1267,32 @@ GROUPS: list[Group] = [
                 ),
             ),
             Component(
+                slug="form-actions",
+                tag="c-n26.form-actions",
+                template="n26/form_actions.html",
+                summary="How a form ends: the way out, then the act.",
+                notes=(
+                    "Every form's footer, decided once. The screens had already "
+                    "disagreed — an outlined Cancel beside a green Hire here, a "
+                    "text link after a red Delete there — and none of that was "
+                    "anybody's decision; it was four footers written by hand. "
+                    "So the order and the alignment are not props: the way out "
+                    "is left of the act, the pair is right-aligned where the "
+                    "eye finishes the last field, and the act is last because "
+                    "it is what the form is for. Cancel is an href and never a "
+                    "submit, because leaving is not a submission and a reader "
+                    "pressing it should land where they already were; a form "
+                    "with nowhere to go back to passes no cancel_url and gets "
+                    "no cancel, which beats one that leads somewhere "
+                    "arbitrary. It is ghost so the two do not compete — the act "
+                    "carries the colour that says what it does, and a cancel of "
+                    "equal weight beside it makes a reader read both to find "
+                    "the one they want. c-n26.form-page draws its footer with "
+                    "this rather than repeating it, so a page form and a dialog "
+                    "end the same way."
+                ),
+            ),
+            Component(
                 slug="form-page",
                 tag="c-n26.form-page",
                 template="n26/form_page.html",
@@ -1286,7 +1312,11 @@ GROUPS: list[Group] = [
                     "read as a group without a box round it. The footer is "
                     "optional: a form whose submit lives elsewhere passes no "
                     "submit_label and gets none, which is how the hire screen "
-                    "avoids a Create button under a list of Hire buttons."
+                    "avoids a Create button under a list of Hire buttons. What "
+                    "it does draw is c-n26.form-actions, so the wrapper owns "
+                    "the rule above the footer and nothing about the footer "
+                    "itself — a form that is a section of somebody else's page "
+                    "reaches for the same component and ends identically."
                 ),
             ),
             Component(

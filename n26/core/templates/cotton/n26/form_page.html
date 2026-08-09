@@ -28,14 +28,17 @@ what makes a group read as a group without a box around it.
 
   --- the footer is optional ---
 
-`submit_label` draws the primary action above a rule at the end. A form whose
-submit lives somewhere else leaves it out and gets no footer at all — the hire
-screen does, because every Hire button in its list is a submit and a Create at
-the bottom would be a second answer to a question already answered.
+`submit_label` draws the act above a rule at the end, and `cancel_url` puts the
+way out beside it. A form whose submit lives somewhere else leaves both out and
+gets no footer at all — the hire screen does, because every Hire button in its
+list is a submit and a Create at the bottom would be a second answer to a
+question already answered.
 
-Green, because the library's rule is that the button which brings a thing into
-existence is `success`. Override with `submit_variant` for a form that saves
-rather than creates.
+The footer itself is <c-n26.form-actions>, shared with every form that is not a
+whole page, so the order, the alignment and the quiet cancel are the same
+wherever a form ends. Green, because the library's rule is that the button which
+brings a thing into existence is `success`. Override with `submit_variant` for a
+form that saves rather than creates, or destroys rather than either.
 
   action, method — where and how it posts. GET for a search form.
   form — the Django form, for its non-field errors. Fields read it themselves
@@ -44,10 +47,12 @@ rather than creates.
   lead — the line under it. What a reader needs before starting; not a
     restatement of the fields.
   breadcrumb — the trail above the title.
-  submit_label — the primary action's wording. Without one there is no footer.
+  submit_label — the act's wording. Without one no submit is drawn.
   submit_variant — that button's variant. `success` by default.
-  actions — a footer of your own, for the rare form needing more than one
-    control. Replaces the generated button.
+  cancel_url — where the way out leads. Without one there is no cancel.
+  cancel_label — the way out's wording. "Cancel" by default.
+  actions — further controls, drawn to the left of the pair. For the rare form
+    answering in more than one way; it does not displace the pair.
   slot — the fields, normally as <c-n26.form-section>s. Goes inside the <form>,
     so a csrf token can go here too.
 {% endcomment %}
@@ -58,6 +63,12 @@ and a Django form's str() is the whole form rendered as HTML, so it would
 terminate the attribute and dump a second copy of the form into the page. That is
 the same bug the c-ui.error override exists for, and declaring the prop is what
 keeps it out of attrs.
+
+`actions` is declared for the same reason c-n26.page-header declares it: an
+undeclared slot name is not empty when nobody fills it, it is whatever the
+enclosing scope has under that name. Without the declaration a page that fills
+this wrapper's `actions` has it drawn in the header inside as well, silently and
+twice.
 {% endcomment %}
 <c-vars
     action=""
@@ -67,6 +78,9 @@ keeps it out of attrs.
     :form="None"
     submit_label=""
     submit_variant="success"
+    cancel_url=""
+    cancel_label="Cancel"
+    actions=""
     class=""
 />
 
@@ -103,14 +117,16 @@ column until it stopped.
     {{ slot }}
 
     {% comment %}
-    A rule, so the form has a visible end rather than trailing off, and the
-    action right-aligned where the eye finishes the last field.
+    A rule, so the form has a visible end rather than trailing off. What sits
+    under it is c-n26.form-actions, the same footer a dialog or a section-sized
+    form draws — this wrapper owns the rule above it and nothing else about it.
     {% endcomment %}
-    {% if actions or submit_label %}
-        <div class="flex justify-end gap-2 border-t border-box-border pt-6">
-            {% if actions %}{{ actions }}{% else %}
-                <c-ui.button type="submit" variant="{{ submit_variant }}">{{ submit_label }}</c-ui.button>
-            {% endif %}
+    {% if actions or submit_label or cancel_url %}
+        <div class="border-t border-box-border pt-6">
+            <c-n26.form-actions submit_label="{{ submit_label }}"
+                                submit_variant="{{ submit_variant }}"
+                                cancel_url="{{ cancel_url }}"
+                                cancel_label="{{ cancel_label }}">{{ actions }}</c-n26.form-actions>
         </div>
     {% endif %}
 </form>

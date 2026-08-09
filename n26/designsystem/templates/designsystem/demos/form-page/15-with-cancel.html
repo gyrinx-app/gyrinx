@@ -1,0 +1,14 @@
+{# title: With a way out #}
+{# note: cancel_url opts the page into the pair, drawn by c-n26.form-actions — the same footer a dialog gets. A form that asks for a decision needs it: a confirmation with one button is a trap rather than a question. #}
+{# layout: full #}
+<c-n26.form-page action="#"
+                 title="Delete The Ashen Choir?"
+                 lead="Escher — 4 fighters, 640¢ rating."
+                 submit_label="Delete gang"
+                 submit_variant="danger"
+                 cancel_url="#">
+    <c-ui.alert variant="warning" title="You cannot undo this">
+        Deleting takes The Ashen Choir out of your gangs. Its fighters and
+        everything they carry go with it.
+    </c-ui.alert>
+</c-n26.form-page>

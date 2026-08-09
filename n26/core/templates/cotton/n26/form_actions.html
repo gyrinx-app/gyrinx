@@ -1,0 +1,70 @@
+{% comment %}
+<c-n26.form-actions> — how a form ends: the way out, then the act.
+
+    <c-n26.form-actions submit_label="Hire" cancel_url="/gangs/1/hire/" />
+
+    <c-n26.form-actions submit_label="Delete gang" submit_variant="danger"
+                        cancel_url="/gangs/1/" />
+
+Every form on the site ends the same way, and this is where that is decided
+once. <c-n26.form-page> draws its footer with this, so a full-page form gets it
+by filling in props; anything that is not a form-page — a dialog, or one of
+several forms on a page — writes the tag itself. Two hosts, one definition, and
+no screen composing a footer of its own.
+
+  --- the order and the alignment are not props ---
+
+The way out sits left of the act, and the pair is right-aligned where the eye
+finishes the last field. The act comes last because it is what the form is for,
+and a reader running down the fields meets the alternative on the way to it.
+Neither is a choice a call site can make: buttons that swap places between
+screens are buttons a reader has to read before pressing.
+
+  --- cancel is a link, and it is quiet ---
+
+Cancel navigates. It is an href — never a submit, and never a scripted step back
+through history — because leaving is not a submission, and a reader who presses
+it should land where they already were rather than wherever this form would have
+sent them. It is drawn only when it has somewhere to lead: a form with nowhere
+to go back to leaves cancel_url out and gets no cancel at all, which is better
+than one that goes somewhere arbitrary.
+
+Ghost, so the two do not compete. The act carries the colour that says what it
+does — green brings something into existence, red takes it away — and a cancel
+of equal weight beside it makes a reader stop and read both to find the one they
+want. Text at rest and a button under the pointer is the right weight for a
+control that is only wanted when the answer is no.
+
+  submit_label — the act's wording. Without one no submit is drawn.
+  submit_variant — the act's colour. `success` by default, because the button
+    that ends a form usually brings a thing into existence; `danger` where it
+    takes one away, `primary` where it only carries on.
+  cancel_url — where the way out leads. Without one there is no cancel.
+  cancel_label — the way out's wording. "Cancel" by default.
+  size — both buttons' size, for a footer that ends a step rather than a screen.
+  slot — further controls, drawn to the left of the pair. For the rare form
+    answering in more than one way; the pair keeps its place regardless.
+{% endcomment %}
+<c-vars
+    submit_label=""
+    submit_variant="success"
+    cancel_url=""
+    cancel_label="Cancel"
+    size="md"
+    class=""
+/>
+
+{% comment %}
+Wrapping rather than shrinking: on a narrow screen two buttons that will not fit
+on one line drop onto two, still right-aligned, rather than squeezing their
+wording to nothing.
+{% endcomment %}
+<div {{ attrs }} class="flex flex-wrap items-center justify-end gap-2 {{ class }}">
+    {{ slot }}
+    {% if cancel_url %}
+        <c-ui.button variant="ghost" size="{{ size }}" href="{{ cancel_url }}">{{ cancel_label }}</c-ui.button>
+    {% endif %}
+    {% if submit_label %}
+        <c-ui.button type="submit" variant="{{ submit_variant }}" size="{{ size }}">{{ submit_label }}</c-ui.button>
+    {% endif %}
+</div>
