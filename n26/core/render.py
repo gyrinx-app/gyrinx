@@ -1033,21 +1033,65 @@ def _gang_rows(gang_card, gang_computed):
     return rows, sorted(rules, key=lambda line: line.name)
 
 
-def render_gang(gang, with_effects=True):
-    """A whole gang sheet. A fixed number of queries, whatever its size."""
-    from n26.core.card import build_gang_card, build_modifier_index
-    from n26.core.effects import compute, compute_gang, counter_readings
+def roster(gang):
+    """The gang's models, in the order a printed gang list reads.
+
+    By the profile's home category — Leader, then Champions, and so on
+    down the taxonomy's own positions — and by name within a rank. A
+    model somebody's purchase brought in (a pet, a deployed platform)
+    sorts directly after its owner, whatever its own rank: the book
+    prints the beast with its keeper. One query, sorted here, because
+    the owner half of a key lives on another row of the same list.
+    """
     from n26.core.models import Miniature
 
-    models = list(
+    members = list(
         Miniature.objects.filter(
             membership__gang=gang,
             membership__archived=False,
             # Ownership is derived by walking membership -> what caused it -> the
             # model that carried the purchase. Joined here so a roster of pets
-            # costs no more queries than a roster without.
-        ).select_related("membership__caused_by__miniature_root")
+            # costs no more queries than a roster without. The profile's home
+            # category rides along for the same reason: it is the rank half
+            # of the sort key.
+        ).select_related(
+            "membership__caused_by__miniature_root",
+            "membership__profile__category__section",
+        )
     )
+    by_pk = {member.pk: member for member in members}
+
+    def rank(member):
+        """Where this model's rank sorts: its category's own place in the
+        taxonomy, uncategorised after everything placed."""
+        profile = member.membership.profile if member.membership else None
+        category = profile.category if profile else None
+        if category is None:
+            return (99, 99)
+        return (category.section.position, category.position)
+
+    def key(member):
+        owner = member.owned_by
+        anchor = by_pk.get(owner.pk, member) if owner is not None else member
+        return (
+            *rank(anchor),
+            anchor.name.casefold(),
+            str(anchor.pk),
+            # The owner first, then what it brought, then everyone else
+            # whose name ties.
+            0 if anchor is member else 1,
+            member.name.casefold(),
+        )
+
+    return sorted(members, key=key)
+
+
+def render_gang(gang, with_effects=True):
+    """A whole gang sheet. A fixed number of queries, whatever its size."""
+    from n26.core.card import build_gang_card, build_modifier_index
+    from n26.core.effects import compute, compute_gang, counter_readings
+
+    models = roster(gang)
     gang_card = build_gang_card(gang)
     cards = gang_card.members
 

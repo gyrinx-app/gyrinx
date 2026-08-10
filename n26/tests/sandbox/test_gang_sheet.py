@@ -223,6 +223,101 @@ class TestComputedGang:
         assert [(reading.name, reading.value) for reading in readings] == [("Meat", 3)]
 
 
+class TestTheRosterOrder:
+    """Fighters print in the gang list's own order, not the alphabet's.
+
+    Rank first (the profile's home category, by the taxonomy's
+    positions), name within a rank, and a model somebody's purchase
+    brought in — a pet — directly after its owner. The first edition's
+    roster is the reference order.
+    """
+
+    @pytest.fixture
+    def ranks(self, default_pack):
+        from n26.tests.sandbox.actions import create_category
+
+        return {
+            name: create_category("Gang List", name, position)
+            for position, name in enumerate(["Leader", "Champion", "Ganger", "Pet"])
+        }
+
+    @pytest.fixture
+    def ranked_crew(self, gang, ranks, make_profile):
+        """Hired in no particular order, named against the alphabet —
+        so only the rank ordering can put them right."""
+        from n26.tests.sandbox.actions import hire_with_option
+
+        for name, rank in [
+            ("Bob", "Ganger"),
+            ("Zed", "Leader"),
+            ("Wilma", "Ganger"),
+            ("Ann", "Champion"),
+        ]:
+            profile = make_profile(f"{rank} entry {name}", category=ranks[rank])
+            hire_with_option(gang, profile, name)
+        return gang
+
+    def test_rank_beats_the_alphabet_and_the_hire_order(self, ranked_crew):
+        sheet = render_gang(ranked_crew)
+        assert [card.name for card in sheet.models] == [
+            "Zed",
+            "Ann",
+            "Bob",
+            "Wilma",
+        ]
+
+    def test_a_pet_rides_with_its_owner(self, ranked_crew, ranks, make_profile):
+        """Ann's pet sorts directly after Ann — not under Pets at the
+        end, and not alphabetically among the fighters."""
+        from n26.core.browse import browse
+        from n26.core.models import Miniature
+        from n26.tests.sandbox.actions import (
+            buy,
+            create_collection,
+            create_wargear,
+            modifier,
+            op_adds_model,
+            targets_model,
+        )
+
+        beast = make_profile("Pet entry", category=ranks["Pet"])
+        leash = create_wargear("Sumpkroc leash", price=50)
+        modifier(
+            "The leash brings a Sumpkroc",
+            targets_model(),
+            op_adds_model(beast),
+            carried_by=leash,
+        )
+        shop = create_collection("Pet Shop", entries=[(leash, {})])
+
+        ann = Miniature.objects.get(name="Ann")
+        buy(ann, next(browse(shop).all_lines()))
+        # The spawned model takes the profile's name until renamed.
+        sheet = render_gang(ranked_crew)
+        assert [card.name for card in sheet.models] == [
+            "Zed",
+            "Ann",
+            "Pet entry",
+            "Bob",
+            "Wilma",
+        ]
+
+    def test_the_unranked_sort_after_everyone_placed(self, ranked_crew, make_profile):
+        from n26.tests.sandbox.actions import hire_with_option
+
+        profile = make_profile("Uncategorised entry")
+        hire_with_option(ranked_crew, profile, "Aaron")
+
+        sheet = render_gang(ranked_crew)
+        assert [card.name for card in sheet.models] == [
+            "Zed",
+            "Ann",
+            "Bob",
+            "Wilma",
+            "Aaron",
+        ]
+
+
 class TestTheSheetDerives:
     def test_rows_choices_and_stash(self, gang, yolanda, house_list):
         from n26.core.browse import browse

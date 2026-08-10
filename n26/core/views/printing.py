@@ -30,18 +30,13 @@ class _Selection:
 
 
 def _roster(gang):
-    """The models a print covers — the same set the gang sheet draws.
-
-    The ownership join rides along for ``build_model_card``'s owned_by,
-    as it does in ``render_gang``.
+    """The models a print covers — the same set the gang sheet draws,
+    in the same order: a print is the sheet on paper, and the two
+    disagreeing about who comes first would read as a bug on either.
     """
-    from n26.core.models import Miniature
+    from n26.core.render import roster
 
-    return list(
-        Miniature.objects.filter(
-            membership__gang=gang, membership__archived=False
-        ).select_related("membership__caused_by__miniature_root")
-    )
+    return roster(gang)
 
 
 def _print_rows(gang, miniatures, weapon_ids=None):
