@@ -960,10 +960,13 @@ def card_to_model_card(
 
 
 def _counter_value(node):
-    """What a counter node stands at. Zero on a card built from library
-    alone: a preview has no assignment to hold a value."""
+    """What a counter node stands at: the stored value — or, on a card
+    built from library alone, what the built-in says it opens at, which
+    is exactly what the hire will write."""
     held = getattr(node.assignment, "counter_value", None) if node.assignment else None
-    return held.value if held else 0
+    if held is not None:
+        return held.value
+    return node.opens_at
 
 
 def _weapon_changes(weapon_state):

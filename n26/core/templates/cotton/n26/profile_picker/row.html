@@ -68,9 +68,12 @@ The composed name is a sketch — a real app has an id here.
     :price="entry.base_price"
     keywords="{{ entry.profile_type }}"
     state="total: {{ entry.base_price }}, base: {{ entry.base_price }},
+           mainpick: 0,
            retotal($el) {
                this.total = [...$el.querySelectorAll('input[data-total]:checked')]
                    .reduce((sum, input) => sum + (Number(input.dataset.total) - this.base), this.base);
+               const picked = $el.querySelector('input[name$=\':0\']:checked');
+               if (picked && picked.value !== '') { this.mainpick = Number(picked.value); }
            }"
     class="{{ class }}">
 
@@ -224,14 +227,32 @@ The composed name is a sketch — a real app has an id here.
     {% endif %}
 
     {% comment %}
-    The default option's card, and only ever that one. Which card to show when
-    there are several is a real question, and this is the honest answer: the one
-    a fighter starts as before anything under it is touched. Following the
-    controls would mean a card per combination, which is the explosion n26.hire
-    groups options to avoid.
+    One card per option of the main pick, the selected one showing — pick
+    the arc welder and the card in front of you carries the arc welder.
+    Every card is served in the HTML (each was already built; the data
+    layer makes one per option against an otherwise-default selection)
+    and the radios only decide which is visible, so nothing here asks the
+    server anything. Without scripting, the default option's card shows —
+    the one a fighter starts as.
+
+    The further sets stay off the card: following *every* control would
+    mean a card per combination, which is the explosion n26.hire groups
+    options to avoid. The main pick is what decides what a fighter
+    fundamentally is; the rest add to it and print their price beside
+    their tick box.
     {% endcomment %}
     <c-slot name="details">
-        <c-n26.model-card :card="entry.default_option.card" />
+        {% for option in entry.options %}
+            {% if forloop.first %}
+                <div x-show="mainpick === {{ forloop.counter0 }}">
+                    <c-n26.model-card :card="option.card" />
+                </div>
+            {% else %}
+                <div x-show="mainpick === {{ forloop.counter0 }}" x-cloak>
+                    <c-n26.model-card :card="option.card" />
+                </div>
+            {% endif %}
+        {% endfor %}
     </c-slot>
 </c-n26.collection-picker.item>
 {% endwith %}

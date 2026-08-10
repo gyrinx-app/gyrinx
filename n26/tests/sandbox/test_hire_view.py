@@ -342,6 +342,100 @@ class TestTheHireEntry:
         assert beast.membership.ledger_entry.paid == chosen.total_price
 
 
+class TestStartingXPOnThePreview:
+    """A hire opens at its printed Starting XP, and the preview card says
+    so before anyone is hired — the built-in carries the opening value,
+    and a card built from library alone reads it from there."""
+
+    def test_the_preview_card_opens_at_the_printed_xp(
+        self, person_type, gang_type, default_pack
+    ):
+        from n26.library.authoring import add_built_in, create_counter
+
+        profile = Profile.objects.create(
+            name="Brute Ogryn",
+            profile_type=person_type,
+            gang_type=gang_type,
+            price=210,
+        )
+        add_built_in(profile, create_counter("XP"), amount=61)
+
+        entry = build_hire_entry(profile)
+        assert entry.default_option.card.xp == 61
+
+    def test_the_card_you_get_still_matches_it(self, gang, person_type, gang_type):
+        """The equivalence this file exists for, extended to XP: the
+        preview and the hired card say the same number."""
+        from n26.library.authoring import add_built_in, create_counter
+
+        profile = Profile.objects.create(
+            name="Brute Ogryn",
+            profile_type=person_type,
+            gang_type=gang_type,
+            price=210,
+        )
+        add_built_in(profile, create_counter("XP"), amount=61)
+
+        promised = build_hire_entry(profile).default_option.card
+        hired = build_model_card(hire_with_option(gang, profile, "Grunt"))
+        assert promised.xp == hired.xp == 61
+
+
+class TestTheCardFollowsTheMainPick:
+    """Pick the arc welder and the card in front of you carries it.
+
+    Every main-pick option's card is served in the row's HTML — each was
+    already built, one per option against an otherwise-default selection
+    — and the radios only decide which is visible. Without scripting the
+    default card shows.
+    """
+
+    @pytest.fixture
+    def ogryn(self, person_type, gang_type, default_pack):
+        profile = Profile.objects.create(
+            name="Brute Ogryn",
+            profile_type=person_type,
+            gang_type=gang_type,
+            price=210,
+        )
+        offer_option(profile, "As standard", price=0, position=0)
+        offer_option(
+            profile,
+            "With arc welder",
+            price=25,
+            thing=create_wargear("Arc welder mk-VII"),
+            position=1,
+        )
+        return profile
+
+    def drawn(self, profile):
+        from django.template import Context, Template
+        from django_cotton.compiler_regex import CottonCompiler
+
+        entry = build_hire_entry(profile)
+        return Template(
+            CottonCompiler().process(
+                '<c-n26.profile-picker.row :entry="entry" value="ogryn" />'
+            )
+        ).render(Context({"entry": entry}))
+
+    def test_every_main_pick_card_is_on_the_row(self, ogryn):
+        body = self.drawn(ogryn)
+        # The wargear's own name renders only inside its option's card —
+        # the radio label says "With arc welder", never the item's name.
+        assert "Arc welder mk-VII" in body
+        assert 'x-show="mainpick === 0"' in body
+        assert 'x-show="mainpick === 1"' in body
+
+    def test_only_the_default_card_shows_before_anything_is_pressed(self, ogryn):
+        """The alternatives arrive cloaked; scripting only ever narrows
+        what is already there."""
+        body = self.drawn(ogryn)
+        cloaked = body.count('x-show="mainpick === 1" x-cloak')
+        assert cloaked == 1
+        assert 'x-show="mainpick === 0" x-cloak' not in body
+
+
 class TestAnOptionalPickOnTheRow:
     """A one-or-none set on the hire screen: radios, none of them
     checked by the data, and a "None" row that makes taking nothing

@@ -62,6 +62,11 @@ class Node:
     #: nowhere — a weapon a modifier grants. Nothing paid for it, so it
     #: is worth nothing and there is nothing to sell.
     computed: bool = False
+    #: What a counter member opens at, on a card built from library alone
+    #: — a preview's Starting XP. A stored card ignores it: the value
+    #: lives on the assignment, and this is what the hire will write
+    #: there.
+    opens_at: int = 0
     #: The stored row, when this card was built from stored rows.
     assignment: Assignment | None = None
 
@@ -505,6 +510,9 @@ def build_card_from_profile(profile, option=None):
                 key=next(counter),
                 caused_by_key=root.key,
                 reason=Reason.DEFAULT,
+                # A counter's opening value — Starting XP — so the preview
+                # says what the hire will write.
+                opens_at=member.amount,
             )
             if isinstance(assignable, Weapon):
                 node.children.extend(
