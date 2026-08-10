@@ -539,13 +539,21 @@ class Operation:
             self._grant_free_profiles(weapon, assignment)
         return assignment
 
-    def _grant_free_profiles(self, weapon, assignment):
+    def _grant_free_profiles(self, weapon, assignment, sold_separately=frozenset()):
         """A weapon's free profiles ride along with it, however it arrived.
 
         Bought or granted as default equipment, a weapon is the same weapon:
         without this its card line would have no statline and no traits.
+
+        ``sold_separately`` names the profiles the listing behind this
+        purchase prices as rows of their own. Those are not the weapon —
+        they are the next thing the buyer may pay for — so granting them
+        here would hand over free what the listing charges 55 credits
+        for, and leave a second copy when the buyer pays anyway.
         """
         for profile in weapon.profiles.filter(price=0):
+            if profile.pk in sold_separately:
+                continue
             self.assign(
                 profile,
                 parent=assignment,
@@ -640,7 +648,9 @@ class Operation:
             **kwargs,
         )
         if isinstance(thing, Weapon):
-            self._grant_free_profiles(thing, bought)
+            self._grant_free_profiles(
+                thing, bought, sold_separately=_sold_separately(line, entry, thing)
+            )
         if hasattr(thing, "resolve_selection"):
             self._materialise_defaults(bought, taken)
         return bought
@@ -782,6 +792,36 @@ def subtree(assignment):
                 found[related.pk] = related
                 frontier.append(related)
     return list(found.values())
+
+
+def _sold_separately(line, entry, weapon):
+    """The profile ids the listing behind a purchase sells apart from the gun.
+
+    A listing that names an ammo type as a row of its own — priced its
+    own way — is selling it, not including it. A purchase made through a
+    collection entry asks that collection which of this weapon's
+    profiles it lists; a swept line carries the same split as its parts.
+    A purchase with no listing behind it — a hire's built-in weapon, an
+    owner's hand-set gift — includes everything, which is what content
+    means by a zero-priced profile.
+    """
+    from n26.library.models import CollectionEntry, WeaponProfile
+
+    if entry is not None:
+        return set(
+            CollectionEntry.objects.filter(
+                collection_id=entry.collection_id,
+                weapon_profile__weapon=weapon,
+            ).values_list("weapon_profile_id", flat=True)
+        )
+    if line is not None:
+        return {
+            part.thing.pk
+            for part in getattr(line, "parts", ())
+            if isinstance(part.thing, WeaponProfile)
+            and part.thing.weapon_id == weapon.pk
+        }
+    return frozenset()
 
 
 @contextmanager

@@ -567,6 +567,120 @@ class TestSelling:
         assert ammo.archived is True
         assert_reconciled(gang)
 
+
+class TestBuyingAManyProfiledGun:
+    """A gun whose ammo the list sells separately arrives without it.
+
+    Real ammo is priced by the list, not by the profile — the library
+    rows sit at 0 and each list's entry says what *it* charges — so
+    "free rides along" read off the profile's own price handed over
+    every ammo type on the book's shelf: bought through the Palanite
+    list, a launcher arrived with the choke gas the list charges 55
+    for, and paying anyway stacked a second copy.
+    """
+
+    @pytest.fixture
+    def launcher(self, taxonomy, default_pack):
+        return create_weapon(
+            "Subjugator grenade launcher",
+            price=60,
+            category=taxonomy["auto"],
+            profiles=[
+                ("", 0),
+                ("frag grenades", 0),
+                ("choke gas grenades", 0),
+                ("krak grenades", 0),
+            ],
+        )
+
+    @pytest.fixture
+    def enforcer_list(self, launcher, default_pack):
+        """The gun, and two of its ammo types priced as the list's own rows."""
+        choke = launcher.profiles.get(name="choke gas grenades")
+        krak = launcher.profiles.get(name="krak grenades")
+        return create_collection(
+            "Palanite Enforcers Equipment List",
+            entries=[
+                (launcher, {}),
+                (choke, {"price_override": 55}),
+                (krak, {"price_override": 60}),
+            ],
+        )
+
+    def gun_line(self, enforcer_list):
+        return next(
+            line
+            for line in browse(enforcer_list).all_lines()
+            if line.name == "Subjugator grenade launcher"
+        )
+
+    def test_the_gun_arrives_with_only_its_own_lines(
+        self, gang, fighter, enforcer_list
+    ):
+        from n26.core.render import build_model_card
+
+        buy(fighter, self.gun_line(enforcer_list))
+
+        (weapon,) = build_model_card(fighter).weapons
+        assert sorted(p.name for p in weapon.profiles) == ["", "frag grenades"]
+        assert_reconciled(gang)
+
+    def test_paying_for_the_ammo_adds_it_exactly_once(
+        self, gang, fighter, enforcer_list
+    ):
+        from n26.core.operations import operation
+        from n26.core.render import build_model_card
+
+        line = self.gun_line(enforcer_list)
+        gun = buy(fighter, line)
+        choke = next(part for part in line.parts if "choke" in part.name)
+        # Onto the gun, as the till buys a part: a profile belongs to one
+        # particular weapon, not to the fighter carrying it.
+        with operation(gang, actor=gang.owner) as op:
+            op.buy(gun, choke)
+
+        (weapon,) = build_model_card(fighter).weapons
+        assert sorted(p.name for p in weapon.profiles) == [
+            "",
+            "choke gas grenades",
+            "frag grenades",
+        ]
+        assert_reconciled(gang)
+
+    def test_a_hire_built_in_gun_still_comes_whole(
+        self, gang, launcher, enforcer_list, make_profile
+    ):
+        """No listing stands behind a hire's kit: the built-in launcher
+        means the loadout the content wrote, every zero-priced line
+        included."""
+        from n26.core.render import build_model_card
+        from n26.tests.sandbox.actions import create_default_set
+
+        profile = make_profile("Subjugator", price=100)
+        profile.built_ins = create_default_set(
+            "Subjugator built-ins", members=[launcher]
+        )
+        profile.save()
+        hired = hire_with_option(gang, profile, "Sanction")
+
+        (weapon,) = build_model_card(hired).weapons
+        assert sorted(p.name for p in weapon.profiles) == [
+            "",
+            "choke gas grenades",
+            "frag grenades",
+            "krak grenades",
+        ]
+
+    def test_an_off_list_gift_still_comes_whole(self, gang, fighter, launcher):
+        from n26.core.render import build_model_card
+
+        buy(fighter, thing=launcher, paid=0)
+
+        (weapon,) = build_model_card(fighter).weapons
+        assert len(weapon.profiles) == 4
+
+
+class TestSellingKeepsItsStory:
     def test_the_ledger_says_sold_rather_than_refunded(self, gang, fighter, catalogue):
         """A sale and a refund move credits the same way and mean different
         things. The log has to be able to say which happened."""
