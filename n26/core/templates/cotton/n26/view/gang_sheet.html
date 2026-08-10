@@ -156,27 +156,37 @@ into a variable of its own would find it drawn here as well.
         </c-slot>
     </c-n26.page-header>
 
-    {% if details %}{{ details }}{% endif %}
-
     {% comment %}
+    The standing facts and the buttons share a line where there is room:
+    both are header furniture, small and over quickly, and each on its own
+    row spends two lines of every fighter's screen on one line's worth of
+    content. On a phone they stack — facts first, then actions — because a
+    shared row that wrapped mid-list would interleave the two.
+
     Wraps rather than scrolls, and the secondary run drops under the primary one on
     a phone. A row of actions that scrolls sideways hides the destructive one behind
     an edge, which is the wrong thing to hide behind an edge — better it wraps and
     the page gets a line taller.
 
-    Right-aligned, matching where the page keeps its other figures: the wealth
-    strip sits at the header's far end, and the buttons line up under it rather
-    than hanging off the title's edge with the width of the page between them.
+    The buttons keep the right edge (ml-auto, so a gang with no details
+    still puts them there), matching where the page keeps its other
+    figures: the wealth strip sits at the header's far end, and the
+    buttons line up under it rather than hanging off the title's edge with
+    the width of the page between them. shrink-0 so squeezing the row
+    wraps the facts, never squashes a button.
     {% endcomment %}
-    <div class="flex flex-wrap items-center justify-end gap-x-2 gap-y-2">
-        <div class="flex flex-wrap items-center gap-2">
-            {{ actions }}
-        </div>
-        {% if secondary_actions %}
+    <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        {% if details %}{{ details }}{% endif %}
+        <div class="flex flex-wrap items-center justify-end gap-x-2 gap-y-2 md:ml-auto md:shrink-0">
             <div class="flex flex-wrap items-center gap-2">
-                {{ secondary_actions }}
+                {{ actions }}
             </div>
-        {% endif %}
+            {% if secondary_actions %}
+                <div class="flex flex-wrap items-center gap-2">
+                    {{ secondary_actions }}
+                </div>
+            {% endif %}
+        </div>
     </div>
 
     <c-n26.stash :lines="sheet.stash" :total="sheet.stash_rating">
