@@ -388,10 +388,11 @@ class Optioned(models.Model):
         """The sets a hire takes, given what the player named.
 
         ``selection`` is a single set, a list of sets, or ``None``. It
-        lists only what was *chosen*: any one-of group not named falls
-        back to its head, and any-of groups take exactly what was named.
-        Naming two sets from a one-of group, or a set this does not
-        offer, is refused — that is a caller bug, not a player choice.
+        lists only what was *chosen*: a one-of group not named falls
+        back to its head; any-of and one-or-none groups take exactly
+        what was named, which may be nothing. Naming two sets from an
+        exclusive group, or a set this does not offer, is refused —
+        that is a caller bug, not a player choice.
         """
         named = list(
             selection
@@ -406,13 +407,13 @@ class Optioned(models.Model):
             named_here = [s for s in sets if s.pk in named_pks]
             for chosen in named_here:
                 named_pks.remove(chosen.pk)
-            one_of = group is None or group.choose == "one"
-            if one_of and len(named_here) > 1:
+            exclusive = group is None or group.choose in ("one", "one-or-none")
+            if exclusive and len(named_here) > 1:
                 raise ValueError(
                     f"{group.name if group else 'The options'} of {self.name} "
-                    f"offer exactly one choice; {len(named_here)} were named."
+                    f"offer at most one choice; {len(named_here)} were named."
                 )
-            if one_of and not named_here:
+            if not named_here and (group is None or group.choose == "one"):
                 named_here = sets[:1]
             taken.extend(named_here)
         if named_pks:

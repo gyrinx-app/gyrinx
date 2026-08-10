@@ -250,6 +250,10 @@ class OptionGroup(NamesAnAssignable, Content):
         ONE = "one", "One of the following"
         #: "May select any of the below options" — any number, none unasked.
         ANY = "any", "Any of the following"
+        #: The book's "may take one of the following": at most one, and
+        #: none unasked — the alternatives exclude each other but taking
+        #: neither is fine.
+        ONE_OR_NONE = "one-or-none", "One of the following, or none"
 
     profile = models.ForeignKey(
         "library.Profile",
@@ -274,13 +278,14 @@ class OptionGroup(NamesAnAssignable, Content):
         ),
     )
     choose = models.CharField(
-        max_length=10,
+        max_length=20,
         choices=Choose,
         default=Choose.ONE,
         help_text=(
             "One of the following: the first option is taken unless the "
             "player picks another. Any of the following: none are taken "
-            "unless the player adds them."
+            "unless the player adds them. One of the following, or none: "
+            "at most one, and none unless the player picks it."
         ),
     )
     position = models.PositiveIntegerField(default=0)

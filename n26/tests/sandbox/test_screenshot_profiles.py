@@ -496,7 +496,7 @@ class TestTheSanctioner:
             "Concussion cannon (keeps baton)",
             "Sanction pattern man-catcher (keeps claw)",
         )
-        with pytest.raises(ValueError, match="exactly one"):
+        with pytest.raises(ValueError, match="at most one"):
             hire_with_option(gang, sanctioner, "Unit 7", option=selection)
 
 

@@ -342,6 +342,69 @@ class TestTheHireEntry:
         assert beast.membership.ledger_entry.paid == chosen.total_price
 
 
+class TestAnOptionalPickOnTheRow:
+    """A one-or-none set on the hire screen: radios, none of them
+    checked by the data, and a "None" row that makes taking nothing
+    pressable — a pressed radio group cannot otherwise be unpressed."""
+
+    @pytest.fixture
+    def grenadier(self, person_type, gang_type, default_pack):
+        from n26.library.authoring import create_option_group
+
+        profile = Profile.objects.create(
+            name="Grenadier",
+            profile_type=person_type,
+            gang_type=gang_type,
+            price=100,
+        )
+        maybe = create_option_group(profile, "A grenade", choose="one-or-none")
+        offer_option(
+            profile,
+            "Choke gas",
+            price=15,
+            thing=create_wargear("Choke gas grenades"),
+            group=maybe,
+        )
+        return profile
+
+    def test_the_entry_marks_no_default_and_charges_nothing_for_it(self, grenadier):
+        entry = build_hire_entry(grenadier)
+        maybe = entry.groups[1]
+        assert maybe.choose == "one-or-none"
+        # Even a single option is a choice: taking it or not.
+        assert maybe.offers_a_choice is True
+        assert not any(option.is_default for option in maybe.options)
+        assert entry.base_price == 100
+
+    def test_the_row_draws_a_checked_none_radio(self, grenadier):
+        from django.template import Context, Template
+        from django_cotton.compiler_regex import CottonCompiler
+
+        entry = build_hire_entry(grenadier)
+        drawn = Template(
+            CottonCompiler().process(
+                '<c-n26.profile-picker.row :entry="entry" value="grenadier" />'
+            )
+        ).render(Context({"entry": entry}))
+        assert "Choose one, or none" in drawn
+        assert ">None</span>" in drawn
+        assert 'value=""' in drawn
+
+    def test_taking_nothing_is_not_a_pick(self, grenadier):
+        from django.http import QueryDict
+
+        from n26.core.views.hire import _picks
+
+        entry = build_hire_entry(grenadier)
+        scope = str(grenadier.pk).lower()
+        none_taken = QueryDict(f"{scope}:1=")
+        assert _picks(none_taken, grenadier, entry) == []
+
+        one_taken = QueryDict(f"{scope}:1=0")
+        (pick,) = _picks(one_taken, grenadier, entry)
+        assert pick.option.name == "Choke gas"
+
+
 class TestTheWholeScreen:
     @pytest.fixture
     def roster(self, person_type, gang_type, default_pack, weapons, make_statline):

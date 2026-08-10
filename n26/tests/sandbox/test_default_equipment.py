@@ -249,6 +249,66 @@ class TestChoicesAreNotForced:
         assert khimerix.offers_a_choice is True
 
 
+class TestAnOptionalPick:
+    """A one-or-none set — the book's "may take one of the following".
+
+    The alternatives exclude each other, and taking neither is fine:
+    nothing is taken unless the player picks it, so the advertised
+    price never includes it.
+    """
+
+    @pytest.fixture
+    def grenadier(self, person_type, gang_type, default_pack):
+        from n26.library.authoring import create_option_group
+
+        profile = Profile.objects.create(
+            name="Grenadier",
+            profile_type=person_type,
+            gang_type=gang_type,
+            price=100,
+        )
+        maybe = create_option_group(profile, "A grenade", choose="one-or-none")
+        for position, (name, price) in enumerate([("Choke gas", 15), ("Stun", 10)]):
+            offer_option(
+                profile,
+                name,
+                default_set=create_default_set(
+                    name, members=[create_weapon(name + " grenades")], price=price
+                ),
+                group=maybe,
+                position=position,
+            )
+        return profile
+
+    def test_nothing_is_taken_unasked(self, gang, grenadier):
+        assert grenadier.resolve_selection() == []
+        assert grenadier.price_with() == 100
+
+        fighter = hire_with_option(gang, grenadier, "Vex")
+        assert weapon_names(fighter) == []
+        assert fighter.membership.ledger_entry.paid == 100
+        assert_reconciled(gang)
+
+    def test_picking_one_takes_it_and_charges_it(self, gang, grenadier):
+        choke = next(
+            s
+            for s in (o.default_set for o in grenadier.options.all())
+            if s.name == "Choke gas"
+        )
+        assert grenadier.resolve_selection(choke) == [choke]
+        assert grenadier.price_with(choke) == 115
+
+        fighter = hire_with_option(gang, grenadier, "Vex", option=choke)
+        assert weapon_names(fighter) == ["Choke gas grenades"]
+        assert fighter.membership.ledger_entry.paid == 115
+        assert_reconciled(gang)
+
+    def test_two_from_the_set_are_refused(self, gang, grenadier):
+        both = [o.default_set for o in grenadier.options.all()]
+        with pytest.raises(ValueError, match="at most one"):
+            grenadier.resolve_selection(both)
+
+
 class TestRemoval:
     def test_removing_the_hire_takes_its_kit(self, gang, khimerix):
         beast = hire_with_option(gang, khimerix, "Growler")

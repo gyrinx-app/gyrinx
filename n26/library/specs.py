@@ -723,6 +723,14 @@ def _build_registry():
             {"thing": Union(over=built_in_kinds, through=DefaultAssignment)},
             model=DefaultAssignment,
         ),
+        # One more thing inside a set that already exists — how an
+        # option comes to bring two items. Same union as a built-in,
+        # because both write the same row.
+        Spec(
+            authoring.add_default_member,
+            {"thing": Union(over=built_in_kinds, through=DefaultAssignment)},
+            model=DefaultAssignment,
+        ),
         # The choice a thing offers when it is acquired. No set appears
         # here: the author says what the option is called, what it costs
         # and what it brings, and the verb founds the set that holds it.

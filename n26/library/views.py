@@ -161,9 +161,19 @@ def _brought_by(option):
     return option.default_set.members.all()
 
 
+#: The rulebook's phrase for each way a set is picked — the words the
+#: page's headings and the option form's "joins" line both use, held in
+#: one place so the two cannot drift.
+HOW_A_SET_IS_PICKED = {
+    "one": "one of the following",
+    "any": "any of the following",
+    "one-or-none": "one of the following, or none",
+}
+
+
 def _describe_option_group(group):
     """One set of options: how it is picked, and how many it offers."""
-    taken = "one of the following" if group.choose == "one" else "any of the following"
+    taken = HOW_A_SET_IS_PICKED[group.choose]
     offered = len(group.options.all())
     return group.name, [taken, f"{offered} option{'' if offered == 1 else 's'}"]
 
@@ -857,6 +867,9 @@ def _hire_options_context(request, kind, thing, drawn):
         return {
             "label": label,
             "notes": notes,
+            # Where a second item joins this option — an option bringing
+            # a claw and a baton is one option, not two.
+            "add_url": reverse("authoring-option-add", args=[option.pk]),
             "remove_url": reverse("authoring-option-remove", args=[option.pk]),
         }
 
@@ -896,7 +909,7 @@ def _hire_options_context(request, kind, thing, drawn):
             }
         )
 
-    how = {"one": "one of the following", "any": "any of the following"}
+    how = HOW_A_SET_IS_PICKED
     acquired = "hiring" if kind == "profile" else "buying"
     return {
         "title": "Hire options" if kind == "profile" else "Options when bought",
@@ -1199,6 +1212,55 @@ def _carrier_page(carrier):
     if kind is None:
         return reverse("authoring-index")
     return reverse("authoring-detail", args=[kind, carrier.pk])
+
+
+@staff_member_required
+def option_add(request, pk):
+    """One more thing inside an option, at an address of its own.
+
+    An option that hands over two items — "a claw and a baton" — is one
+    option bringing both, so the second item joins the first option's
+    set rather than becoming an option of its own. A page rather than a
+    row control because the picker is a whole form: a kind, the row of
+    that kind, and whatever attaching it asks for.
+    """
+    from n26.library.models import Option
+
+    option = get_object_or_404(
+        Option.objects.select_related(
+            "group", "default_set", *Option.ASSIGNABLE_FIELDS
+        ),
+        pk=pk,
+    )
+    carrier = option.carrier
+    back = _carrier_page(carrier)
+    spec = specs()["add_default_member"]
+    form_class = generate_form(spec)
+
+    if request.method == "POST":
+        form = form_class(request.POST, request.FILES, carrier=carrier)
+        if form.is_valid():
+            with transaction.atomic():
+                member = spec.verb(option.default_set, **form.verb_data())
+            messages.success(
+                request, f"{option.name} now also brings {member.assignable}."
+            )
+            return redirect(back)
+    else:
+        form = form_class(carrier=carrier)
+
+    return render(
+        request,
+        "authoring/option_add.html",
+        {
+            "thing": option,
+            "label": option.name,
+            "carrier": carrier,
+            "brings": [_label_for(member.assignable) for member in _brought_by(option)],
+            "form": form,
+            "back": back,
+        },
+    )
 
 
 @staff_member_required

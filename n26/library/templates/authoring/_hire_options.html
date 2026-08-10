@@ -22,8 +22,10 @@ Takes `hire_options` (built by views._hire_options_context) and `thing`.
                     <span class="font-medium">
                         {% if group.choose == "one" %}
                             One of the following
-                        {% else %}
+                        {% elif group.choose == "any" %}
                             Any of the following
+                        {% else %}
+                            One of the following, or none
                         {% endif %}
                     </span>
                     <span class="text-muted">
@@ -41,7 +43,10 @@ Takes `hire_options` (built by views._hire_options_context) and `thing`.
                                 <tr>
                                     <td>{{ part.label }}</td>
                                     <td class="w-full text-muted">{{ part.notes|join:" · " }}</td>
-                                    <td class="text-right">
+                                    <td class="text-right whitespace-nowrap">
+                                        <c-ui.button href="{{ part.add_url }}" size="sm" variant="ghost">
+                                            Add to it
+                                        </c-ui.button>
                                         <c-ui.button href="{{ part.remove_url }}" size="sm" variant="ghost">
                                             Remove
                                         </c-ui.button>

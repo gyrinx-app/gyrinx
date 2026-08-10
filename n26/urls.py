@@ -92,6 +92,11 @@ urlpatterns = [
     # rather than being authored kinds of their own, so withdrawing
     # either has an address here instead of riding the kind/pk routes.
     path(
+        "authoring/options/<str:pk>/add/",
+        authoring_views.option_add,
+        name="authoring-option-add",
+    ),
+    path(
         "authoring/options/<str:pk>/remove/",
         authoring_views.option_remove,
         name="authoring-option-remove",

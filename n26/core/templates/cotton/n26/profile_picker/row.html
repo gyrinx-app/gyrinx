@@ -158,7 +158,13 @@ The composed name is a sketch — a real app has an id here.
                         {% if not forloop.first %}
                             <div class="mt-1 flex min-h-8 items-center gap-2 border-t border-box-border pt-2">
                                 <span class="text-xs font-semibold uppercase tracking-wide text-muted">
-                                    {% if group.choose == "one" %}Choose one{% else %}Choose any{% endif %}
+                                    {% if group.choose == "one" %}
+                                        Choose one
+                                    {% elif group.choose == "any" %}
+                                        Choose any
+                                    {% else %}
+                                        Choose one, or none
+                                    {% endif %}
                                 </span>
                             </div>
                         {% endif %}
@@ -179,7 +185,7 @@ The composed name is a sketch — a real app has an id here.
                             charged is the fighter's total on the row.
                             {% endcomment %}
                             <label class="flex min-h-9 cursor-pointer items-center gap-2 rounded-control py-0.5 hover:bg-ink-500/5">
-                                <input type="{% if group.choose == 'one' %}radio{% else %}checkbox{% endif %}"
+                                <input type="{% if group.choose == 'any' %}checkbox{% else %}radio{% endif %}"
                                        name="{{ scope }}:{{ forloop.parentloop.counter0 }}"
                                        value="{{ forloop.counter0 }}"
                                        data-total="{{ option.total_price }}"
@@ -191,6 +197,26 @@ The composed name is a sketch — a real app has an id here.
                                 {% endif %}
                             </label>
                         {% endfor %}
+                        {% comment %}
+                        A one-or-none set starts with nothing taken, and a
+                        radio group with nothing checked cannot say so — once
+                        pressed, radios cannot be unpressed. "None" is the row
+                        that makes taking nothing pressable, checked from the
+                        start, contributing nothing to the total (its
+                        data-total is the base, a zero delta). Its empty value
+                        is what the submission parser skips.
+                        {% endcomment %}
+                        {% if group.choose == "one-or-none" %}
+                            <label class="flex min-h-9 cursor-pointer items-center gap-2 rounded-control py-0.5 hover:bg-ink-500/5">
+                                <input type="radio"
+                                       name="{{ scope }}:{{ forloop.counter0 }}"
+                                       value=""
+                                       data-total="{{ entry.base_price }}"
+                                       checked
+                                       class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
+                                <span class="min-w-0 text-sm text-ink-900 dark:text-ink-100 sm:truncate">None</span>
+                            </label>
+                        {% endif %}
                     {% endif %}
                 {% endfor %}
             </div>

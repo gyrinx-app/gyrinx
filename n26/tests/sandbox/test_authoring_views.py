@@ -1935,6 +1935,59 @@ class TestOfferingAChoice:
         assert not DefaultAssignmentSet.objects.filter(pk=gathered).exists()
         rifle.refresh_from_db()
 
+    def test_an_option_grows_a_second_item_through_its_own_page(
+        self, author, client, profile
+    ):
+        """The swap that hands over two items — "a claw and a baton" —
+        is one option bringing both, grown one item at a time."""
+        from n26.library.authoring import create_weapon
+
+        create_weapon("Shock baton", profiles=[("Standard", 0)])
+        claw = create_weapon("Assault claw", profiles=[("Standard", 0)])
+        self.add_option(
+            client,
+            profile,
+            name="Claw and baton",
+            price="20",
+            thing_kind="weapon",
+            thing_weapon=str(claw.pk),
+        )
+        option = profile.options.get()
+
+        page = client.get(f"/n26/authoring/options/{option.pk}/add/").content.decode()
+        assert "Add to Claw and baton" in page
+        assert "Already brings: Assault claw" in page
+
+        from n26.library.models import Weapon
+
+        baton = Weapon.objects.get(name="Shock baton")
+        done = client.post(
+            f"/n26/authoring/options/{option.pk}/add/",
+            {"thing_kind": "weapon", "thing_weapon": str(baton.pk)},
+        )
+        assert done.status_code == 302
+        assert [m.assignable.name for m in option.default_set.members.all()] == [
+            "Assault claw",
+            "Shock baton",
+        ]
+        body = client.get(self.page(client, profile)).content.decode()
+        assert "brings Assault claw, Shock baton" in body
+
+    def test_a_set_may_offer_one_or_none(self, author, client, profile):
+        """The book's "may take one of the following": exclusive
+        alternatives, none of them forced."""
+        from n26.library.models import OptionGroup
+
+        response = client.post(
+            self.page(client, profile),
+            {"act": "option-set", "name": "A grenade", "choose": "one-or-none"},
+        )
+        assert response.status_code == 302
+        assert OptionGroup.objects.get(name="A grenade").choose == "one-or-none"
+
+        body = client.get(self.page(client, profile)).content.decode()
+        assert "One of the following, or none" in body
+
     def test_removing_a_set_takes_its_options_with_it(self, author, client, profile):
         from n26.library.authoring import create_option_group
         from n26.library.models import Option, OptionGroup

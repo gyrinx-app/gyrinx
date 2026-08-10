@@ -1,0 +1,40 @@
+{% extends "authoring/base.html" %}
+{% comment %}
+One more thing inside an option, at an address of its own. An option
+that hands over two items — "a claw and a baton" — is one option
+bringing both, and this is where the second item joins it. A page
+rather than a control in the option's row because the picker is a
+whole form: a kind, the row of that kind, and whatever attaching it
+asks for.
+{% endcomment %}
+{% block head_title %}Add to {{ label }}{% endblock head_title %}
+{% block content %}
+    <c-n26.form-page action="{% url 'authoring-option-add' thing.pk %}"
+                     title="Add to {{ label }}"
+                     lead="One more thing a player gets by taking {{ label }} on {{ carrier }} — at no further price: the option's own price covers everything it brings."
+                     submit_label="Add it"
+                     cancel_url="{{ back }}">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Content library</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{{ back }}">
+                    {{ carrier }}
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Add to {{ label }}
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% csrf_token %}
+        {% if brings %}
+            <c-ui.description>
+                Already brings: {% for thing_name in brings %}{{ thing_name }}{% if not forloop.last %}, {% endif %}{% endfor %}.
+            </c-ui.description>
+        {% else %}
+            <c-ui.description>
+                Brings nothing yet.
+            </c-ui.description>
+        {% endif %}
+        {% include "authoring/_form.html" with form=form %}
+    </c-n26.form-page>
+{% endblock content %}

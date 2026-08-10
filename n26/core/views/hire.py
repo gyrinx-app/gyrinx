@@ -79,6 +79,10 @@ def _picks(data, profile, entry):
     for group_index, group in enumerate(entry.groups):
         field = f"{scope}:{group_index}"
         for value in data.getlist(field):
+            # A one-or-none group's "None" radio submits an empty value:
+            # the player chose to take nothing, which is not a pick.
+            if value == "":
+                continue
             # isdigit before int: a negative index is a real index from
             # the far end, so "-1" would quietly resolve to another
             # option in the group rather than being refused like every

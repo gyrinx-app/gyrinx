@@ -73,9 +73,10 @@ class HireGroup:
 
         A pick-one set with a single option is not a choice: the head
         is taken unasked and there is nothing else to pick. An any-of
-        set with one option is — taking it or not is the choice.
+        or one-or-none set with one option is — taking it or not is
+        the choice.
         """
-        return len(self.options) > 1 or self.choose == "any"
+        return len(self.options) > 1 or self.choose != "one"
 
 
 @dataclass
