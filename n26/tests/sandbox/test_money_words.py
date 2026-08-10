@@ -143,22 +143,22 @@ def test_no_player_facing_structure_carries_a_qualifier():
     )
 
 
-# --- An axis is never named to a player -------------------------------------
+# --- A set of options is never labelled to a player --------------------------
 #
-# An option group's name is the author's word for one question a profile
-# asks at hire — "Melee weapons", "Additional grenades". The player is
-# being shown the answers, with the fighter they apply to directly above
-# them, so a heading naming the question is a second vocabulary they
-# never agreed to and one more thing to read past. Same rule as the
+# An option group's name is the author's label for one set a profile
+# offers at hire — "Melee weapons", "Additional grenades". The player is
+# being shown the options, with the fighter they apply to directly above
+# them, so a heading naming the set is a second vocabulary they never
+# agreed to and one more thing to read past. Same rule as the
 # qualifier, guarded the same way: the structures a player's screen is
 # drawn from must not carry it anywhere.
 
 
-def hire_entry_with_a_named_axis():
-    """A profile offering one axis, named as distinctively as possible.
+def hire_entry_with_a_labelled_set():
+    """A profile offering one set, labelled as distinctively as possible.
 
     A walk over what comes out is only as good as the name it looks for,
-    so the name is one no template, stylesheet or price could contain by
+    so the label is one no template, stylesheet or price could contain by
     accident.
     """
     from django.contrib.auth.models import User  # noqa: F401
@@ -179,15 +179,15 @@ def hire_entry_with_a_named_axis():
     profile = create_profile(
         "Arachni-Rig", ProfileType.objects.get(name="Fighter"), gang_type, price=275
     )
-    axis = create_option_group(profile, AXIS_NAME, choose="any")
+    grenades = create_option_group(profile, SET_LABEL, choose="any")
     offer_option(
-        profile, "Rad gun", price=35, thing=create_wargear("Rad gun"), group=axis
+        profile, "Rad gun", price=35, thing=create_wargear("Rad gun"), group=grenades
     )
     return build_hire_entry(profile)
 
 
-#: The author's word for the axis, which nothing a player reads may echo.
-AXIS_NAME = "Weapon hardpoints (author's shorthand)"
+#: The author's label for the set, which nothing a player reads may echo.
+SET_LABEL = "Weapon hardpoints (author's shorthand)"
 
 
 def every_value_in(thing, seen=None):
@@ -213,33 +213,33 @@ def every_value_in(thing, seen=None):
 
 
 @pytest.mark.django_db
-def test_no_player_facing_structure_carries_an_axis_name():
+def test_no_player_facing_structure_carries_a_set_label():
     """Walked rather than listed: a new field on any of the hire
     structures is covered without anyone remembering to come back."""
     from n26.library.models import OptionGroup
 
-    entry = hire_entry_with_a_named_axis()
+    entry = hire_entry_with_a_labelled_set()
     offenders = [
         value
         for value in every_value_in(entry)
         if isinstance(value, OptionGroup)
-        or (isinstance(value, str) and AXIS_NAME in value)
+        or (isinstance(value, str) and SET_LABEL in value)
     ]
     assert not offenders, (
-        f"{offenders} would put an author's name for a question in front of "
-        f"the player answering it. An axis is shown as grouping — the "
-        f"controls together, a rule between axes — and never as a heading."
+        f"{offenders} would put an author's label for a set in front of "
+        f"the player picking from it. A set is shown as grouping — the "
+        f"controls together, a rule between sets — and never as a heading."
     )
 
 
 @pytest.mark.django_db
 def test_a_hire_row_shows_the_answers_and_not_the_question():
     """The end of the chain: the drawn row names every option and never
-    the axis they sit on."""
+    the set they sit in."""
     from django.template import Context, Template
     from django_cotton.compiler_regex import CottonCompiler
 
-    entry = hire_entry_with_a_named_axis()
+    entry = hire_entry_with_a_labelled_set()
     # Cotton's tags are rewritten by a template loader, so a template
     # built from a string never sees them; running the compiler by hand
     # is what lets a test write the call site it is checking.
@@ -250,7 +250,7 @@ def test_a_hire_row_shows_the_answers_and_not_the_question():
     ).render(Context({"entry": entry}))
     assert "Rad gun" in drawn
     assert "Choose any" in drawn
-    assert AXIS_NAME not in drawn
+    assert SET_LABEL not in drawn
 
 
 @pytest.mark.django_db

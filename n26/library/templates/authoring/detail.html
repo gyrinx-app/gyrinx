@@ -148,6 +148,14 @@
             </form>
         </c-n26.form-section>
     {% endfor %}
+    {% comment %}
+    Options and their sets are drawn as one section, grouped the way a
+    hire offers them, so they leave the generic loop to an include of
+    their own. Their two acts still post back here like any section's.
+    {% endcomment %}
+    {% if hire_options %}
+        {% include "authoring/_hire_options.html" %}
+    {% endif %}
     {% if with_modifiers %}
         <c-n26.form-section title="Modifiers"
                             description="What this {{ verbose_name }} does once assigned — each modifier is one scope and one effect, computed onto cards."

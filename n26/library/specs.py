@@ -54,7 +54,7 @@ class _Sourced:
 
         Django names a field after its column unless told otherwise, so
         a field that says something different is a field whose author
-        wanted a particular word in front of a reader: "Axis" above a
+        wanted a particular word in front of a reader: "Set" above a
         column called ``group``. Where nothing was said, the form's own
         derivation says the same thing and this stays out of the way.
         """
@@ -78,7 +78,7 @@ class One(_Sourced):
 
     ``within`` names the accessor on the thing a part is being added to
     that lists the only rows worth offering — ``"option_groups"`` on an
-    axis pick means "an axis of *this* profile". This one narrows the
+    set pick means "a set of *this* profile's". This one narrows the
     picker *and* refuses. The rows it excludes belong to other people's
     things, so there is nothing to be gained by offering them, and the
     refusal is what stops a submission naming one anyway.

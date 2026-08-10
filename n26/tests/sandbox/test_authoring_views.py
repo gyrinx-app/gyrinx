@@ -1718,10 +1718,10 @@ class TestOfferingAChoice:
     of it through the pages.
 
     The author's whole vocabulary here is a name, a price, what it
-    brings and which axis. They never meet a set of default
-    assignments: the verb founds one and names it for itself, because
-    two profiles may both offer "As standard" while a set name may
-    appear only once in a pack.
+    brings and which set of options it joins. They never meet a set of
+    default assignments: the verb founds one and names it for itself,
+    because two profiles may both offer "As standard" while a set name
+    may appear only once in a pack.
     """
 
     @pytest.fixture
@@ -1740,8 +1740,8 @@ class TestOfferingAChoice:
         self, author, client, profile
     ):
         body = client.get(self.page(client, profile)).content.decode()
-        assert "This is acquired one way." in body
-        assert "Add an option to offer a choice instead." in body
+        assert "Hired the same way every time." in body
+        assert "Add an option to offer an alternative." in body
 
     def test_an_option_founds_the_set_that_holds_what_it_brings(
         self, author, client, profile
@@ -1791,7 +1791,7 @@ class TestOfferingAChoice:
         assert "Gaseous eruption breath, Razor-sharp talons" in body
 
     def test_an_option_may_bring_nothing(self, author, client, profile):
-        """The head of a one-of axis is often "as standard": the choice
+        """The head of a pick-one set is often "as standard": the choice
         is the other ones, and this is what taking none of them means."""
         response = self.add_option(client, profile, name="As standard", price="0")
         assert response.status_code == 302
@@ -1818,9 +1818,7 @@ class TestOfferingAChoice:
         assert profile.options.get().name == other.options.get().name == "As standard"
         assert profile.options.get().default_set != other.options.get().default_set
 
-    def test_the_options_with_no_axis_are_the_basic_choice(
-        self, author, client, profile
-    ):
+    def test_the_options_with_no_set_are_the_main_pick(self, author, client, profile):
         self.add_option(client, profile, name="As standard", price="0")
         self.add_option(client, profile, name="with a long rifle", price="35")
 
@@ -1831,46 +1829,70 @@ class TestOfferingAChoice:
             "As standard",
             "with a long rifle",
         ]
-        assert "basic choice" in client.get(self.page(client, profile)).content.decode()
+        body = client.get(self.page(client, profile)).content.decode()
+        assert "One of the following" in body
+        assert "the first is what you get" in body
 
-    def test_a_further_axis_is_made_and_then_answered(self, author, client, profile):
+    def test_a_further_set_is_made_and_then_filled(self, author, client, profile):
         from n26.library.models import OptionGroup
 
         response = client.post(
             self.page(client, profile),
-            {"act": "axis", "name": "Additional grenades", "choose": "any"},
+            {"act": "option-set", "name": "Additional grenades", "choose": "any"},
         )
         assert response.status_code == 302
-        axis = OptionGroup.objects.get(name="Additional grenades")
-        assert axis.carrier == profile
-        assert axis.choose == "any"
+        grenades = OptionGroup.objects.get(name="Additional grenades")
+        assert grenades.carrier == profile
+        assert grenades.choose == "any"
 
         self.add_option(
-            client, profile, name="Choke gas", price="50", group=str(axis.pk)
+            client, profile, name="Choke gas", price="50", group=str(grenades.pk)
         )
         option = profile.options.get()
-        assert option.group == axis
+        assert option.group == grenades
 
         body = client.get(self.page(client, profile)).content.decode()
+        assert "Any of the following" in body
         assert "Additional grenades" in body
-        assert "any number" in body
-        assert "1 option" in body
+        assert "players never see it" in body
+        assert "Choke gas" in body
 
-    def test_the_axis_picker_offers_this_profiles_axes_and_no_others(
+    def test_an_add_control_pins_the_set_it_was_pressed_on(
+        self, author, client, profile
+    ):
+        """Each set's add control carries the set in the URL, and the
+        form says in words where the option will land — there is no
+        picker to get wrong."""
+        from n26.library.authoring import create_option_group
+
+        grenades = create_option_group(profile, "Extra grenades", choose="any")
+
+        body = client.get(self.page(client, profile)).content.decode()
+        assert f"?set={grenades.pk}#add-option" in body
+
+        pinned = client.get(
+            f"{self.page(client, profile)}?set={grenades.pk}"
+        ).content.decode()
+        assert "This option joins Extra grenades — any of the following." in pinned
+
+        plain = client.get(self.page(client, profile)).content.decode()
+        assert "This option joins the main pick" in plain
+
+    def test_a_forged_set_from_another_profile_is_refused(
         self, author, client, profile, person_type, gang_type
     ):
-        """An axis belongs to the thing that asks it, so a picker
-        offering somebody else's would offer a choice that cannot be
-        made — and the form refuses one submitted anyway."""
+        """A set belongs to the thing that offers it. The page never
+        offers another profile's sets, and the form refuses one
+        submitted anyway."""
         from n26.library.authoring import create_option_group, create_profile
 
         mine = create_option_group(profile, "Melee weapons")
         other = create_profile("Juve", person_type, gang_type, price=25)
-        theirs = create_option_group(other, "Somebody else's axis")
+        theirs = create_option_group(other, "Somebody else's pick")
 
         body = client.get(self.page(client, profile)).content.decode()
         assert "Melee weapons" in body
-        assert "Somebody else's axis" not in body
+        assert "Somebody else's pick" not in body
 
         response = self.add_option(
             client, profile, name="Stray", price="0", group=str(theirs.pk)
@@ -1913,24 +1935,28 @@ class TestOfferingAChoice:
         assert not DefaultAssignmentSet.objects.filter(pk=gathered).exists()
         rifle.refresh_from_db()
 
-    def test_removing_an_axis_takes_its_options_with_it(self, author, client, profile):
+    def test_removing_a_set_takes_its_options_with_it(self, author, client, profile):
         from n26.library.authoring import create_option_group
         from n26.library.models import Option, OptionGroup
 
-        axis = create_option_group(profile, "Additional grenades", choose="any")
+        grenades = create_option_group(profile, "Additional grenades", choose="any")
         self.add_option(
-            client, profile, name="Choke gas", price="50", group=str(axis.pk)
+            client, profile, name="Choke gas", price="50", group=str(grenades.pk)
         )
-        self.add_option(client, profile, name="Stun", price="30", group=str(axis.pk))
+        self.add_option(
+            client, profile, name="Stun", price="30", group=str(grenades.pk)
+        )
 
-        body = client.get(f"/n26/authoring/axes/{axis.pk}/remove/").content.decode()
-        assert "Remove the Additional grenades axis?" in body
+        body = client.get(
+            f"/n26/authoring/option-sets/{grenades.pk}/remove/"
+        ).content.decode()
+        assert "Stop offering these options?" in body
         assert "Choke gas" in body
         assert "Stun" in body
 
-        done = client.post(f"/n26/authoring/axes/{axis.pk}/remove/")
+        done = client.post(f"/n26/authoring/option-sets/{grenades.pk}/remove/")
         assert done["Location"] == self.page(client, profile)
-        assert not OptionGroup.objects.filter(pk=axis.pk).exists()
+        assert not OptionGroup.objects.filter(pk=grenades.pk).exists()
         assert not Option.objects.filter(profile=profile).exists()
 
     def test_what_was_authored_here_is_what_a_hire_screen_offers(

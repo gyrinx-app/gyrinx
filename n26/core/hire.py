@@ -52,16 +52,16 @@ class HireOption:
 
 @dataclass
 class HireGroup:
-    """One axis of the choice a profile offers.
+    """One set of the options a profile offers.
 
     ``choose`` is "one" (radio: exactly one, the default marked) or
     "any" (checkboxes: take any number, none by default).
 
-    An axis has no name here, deliberately. The one the content carries
-    is the author's word for the question — a player is shown the
-    answers, and a heading naming the question would be a second
-    vocabulary they never agreed to. What a reader needs is that these
-    answers go together, which is the grouping itself.
+    A set has no name here, deliberately. The one the content carries
+    is the author's label for their own page — a player is shown the
+    options, and a heading naming the set would be a second vocabulary
+    they never agreed to. What a reader needs is that these options go
+    together, which is the grouping itself.
     """
 
     choose: str
@@ -69,18 +69,18 @@ class HireGroup:
 
     @property
     def offers_a_choice(self):
-        """Whether this axis is worth putting in front of anyone.
+        """Whether this set is worth putting in front of anyone.
 
-        A one-of axis with a single option is not a question: the head
+        A pick-one set with a single option is not a choice: the head
         is taken unasked and there is nothing else to pick. An any-of
-        axis with one option is — taking it or not is the choice.
+        set with one option is — taking it or not is the choice.
         """
         return len(self.options) > 1 or self.choose == "any"
 
 
 @dataclass
 class HireEntry:
-    """One profile a player could hire, with every axis of the choice."""
+    """One profile a player could hire, with every set of its options."""
 
     profile: object
     #: The default group first — never empty, "As standard" is synthesised
@@ -98,7 +98,7 @@ class HireEntry:
 
     @property
     def options(self):
-        """The default group's options — the axis every profile has."""
+        """The default group's options — the set every profile has."""
         return self.groups[0].options
 
     @property
@@ -140,7 +140,7 @@ class HireSection:
 
 
 def build_hire_entry(profile, index=None):
-    """Every axis of this profile's hire, each option with the card you'd get.
+    """Every set of this profile's options, each with the card you'd get.
 
     Pass ``index`` to share one modifier index across a whole list; without
     one it is built here, for a single entry.

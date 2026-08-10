@@ -1046,15 +1046,15 @@ _GANG_LIST = [
     ),
 ]
 
-#: A second axis of choice, for the profiles that have one.
+#: A second set of options, for the profiles that have one.
 #:
 #: Option groups are the answer to combinatorial blow-up: twelve authored sets
-#: where flat combinations needed forty. A group is an axis — "choose one" is a
-#: radio, "choose any" is checkboxes — and the hire view shows one card per
-#: option against an otherwise-default selection, never one card per combination.
+#: where flat combinations needed forty. "Choose one" is a radio, "choose any"
+#: is checkboxes — and the hire view shows one card per option against an
+#: otherwise-default selection, never one card per combination.
 #:
-#: An axis carries no name here because the structure carries none: what the
-#: content calls one is written for authors, and a player reads the answers.
+#: A set carries no label here because the structure carries none: what the
+#: content calls one is written for authors, and a player reads the options.
 _OPTION_GROUPS = {
     "Gang Queen": [
         ("any", [("photo-goggles", 35), ("bio-booster", 35)]),
@@ -1066,11 +1066,11 @@ _OPTION_GROUPS = {
 
 
 def extra_groups(profile_name, subtype, base_price):
-    """The named axes a profile offers beyond its plain options.
+    """The further sets a profile offers beyond its plain options.
 
     Every option carries a card, as main builds them: that option against an
     otherwise-default selection, never one card per combination. So a price here
-    is the base plus this one surcharge, and never a running total across axes.
+    is the base plus this one surcharge, and never a running total across sets.
     """
     return [
         HireGroup(
@@ -1080,7 +1080,7 @@ def extra_groups(profile_name, subtype, base_price):
                     name=option_name,
                     price=surcharge,
                     total_price=base_price + surcharge,
-                    # Nothing in a named group is the default unless the axis is
+                    # Nothing in a named group is the default unless the set is
                     # a one-of: "choose any" starts with none taken.
                     is_default=(choose == "one" and number == 0),
                     card=_hire_card(

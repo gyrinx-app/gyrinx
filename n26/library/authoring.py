@@ -755,10 +755,10 @@ def offer_option(
     standard". Pass ``default_set`` to offer kit that already exists,
     and the set's own price stands.
 
-    Omit ``group`` for the carrier's basic choice; pass one for a
-    further axis (``create_option_group``). New options go to the end of
-    whichever axis they join, so the first one an author adds to a
-    one-of axis is the one taken unasked.
+    Omit ``group`` for the carrier's main pick-one set; pass one for a
+    further set (``create_option_group``). New options go to the end of
+    whichever set they join, so the first one an author adds to a
+    pick-one set is the one taken unasked.
 
     ``amount`` is what the thing being brought asks for where it asks
     for anything — a counter's opening value — and reaches the member
@@ -813,10 +813,10 @@ def stop_offering(option):
 
 
 def create_option_group(carrier, name, choose="one", position=None, **kwargs):
-    """A further axis of choice — ``choose`` is "one" or "any".
+    """A further set of options — ``choose`` is "one" or "any".
 
-    The name is the author's alone; a player is shown the answers and
-    never the question. New axes go after the ones already there.
+    The name is the author's alone; a player is shown the options and
+    never the set's label. New sets go after the ones already there.
     """
     from n26.library.models import OptionGroup
 
@@ -828,10 +828,10 @@ def create_option_group(carrier, name, choose="one", position=None, **kwargs):
 
 
 def remove_option_group(group):
-    """Take an axis of choice off a carrier, and the options on it.
+    """Take a set of options off a carrier, and the options in it.
 
-    The answers go with the question. An axis is what makes its options
-    alternatives to each other; loose in the basic choice they would
+    The options go with their set, which is what makes them
+    alternatives to each other; loose in the main pick they would
     compete with the standard loadout instead, which is a different
     offer from the one the author wrote.
     """

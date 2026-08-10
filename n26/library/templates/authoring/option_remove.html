@@ -8,8 +8,7 @@ changes anything — the form's POST is the act.
 Two facts change what the act means and neither can be read off the row
 it was reached from: the kit an option brings is reached through that
 option and nothing else, so it goes with it; and an option may be the
-last answer its axis has, which leaves a question with nothing to
-answer it.
+last one in its set, which leaves a pick with nothing to offer.
 
 What the option *names* — the weapon, the wargear — is a separate thing
 from the option, and the first line says so, because a control beside a
@@ -44,15 +43,15 @@ weapon's name reads as one that deletes weapons.
             Anyone who took {{ label }} keeps what it brought them. This
             changes what the next hire may choose.
         </c-ui.alert>
-        {% if axis %}
+        {% if set_label %}
             <c-ui.description>
-                This answers {{ axis }}.
+                One of the {{ set_label }} options.
             </c-ui.description>
         {% endif %}
-        {% if last_on_its_axis %}
-            <c-ui.alert variant="warning" title="{{ axis }} will have no answers left">
-                An axis with nothing on it asks a question nobody can answer.
-                Take the axis off too, or give it another option.
+        {% if last_in_its_set %}
+            <c-ui.alert variant="warning"
+                        title="{{ set_label }} will be left with no options">
+                Remove the set too, or add another option to it.
             </c-ui.alert>
         {% endif %}
         {% if brings %}

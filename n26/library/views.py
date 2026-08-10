@@ -144,16 +144,16 @@ def _built_in_parts(parts):
 
 
 def _describe_option(option):
-    """One alternative, as the author needs to check it: which axis it
-    answers, what taking it adds, and what it brings.
+    """One option, as the author needs to check it: what taking it
+    adds to the price, and what it brings.
 
-    The axis is named here and nowhere a player looks — this is the page
-    where an author decides which question they are editing.
+    Which set it belongs to is not said here — the page draws options
+    under their set's own heading, so the row repeating it would be
+    noise.
     """
-    axis = option.group.name if option.group_id else "basic choice"
     brings = ", ".join(_label_for(member.assignable) for member in _brought_by(option))
-    price = f"+{option.default_set.price}cr" if option.default_set.price else "no extra"
-    return option.name, [axis, price, brings or "brings nothing"]
+    price = f"+{option.default_set.price}cr"
+    return option.name, [price, f"brings {brings}" if brings else "brings nothing"]
 
 
 def _brought_by(option):
@@ -162,21 +162,21 @@ def _brought_by(option):
 
 
 def _describe_option_group(group):
-    """One axis: how many answers it takes, and how many it offers."""
-    taken = "exactly one" if group.choose == "one" else "any number"
+    """One set of options: how it is picked, and how many it offers."""
+    taken = "one of the following" if group.choose == "one" else "any of the following"
     offered = len(group.options.all())
     return group.name, [taken, f"{offered} option{'' if offered == 1 else 's'}"]
 
 
 def _option_parts(parts):
-    """The options of one carrier, listed axis by axis.
+    """The options of one carrier, listed set by set.
 
     Their own ordering is by position alone, which is what a hire needs:
-    within an axis, the first is the one taken unasked. On a page
-    listing every axis at once that interleaves them — the first answer
-    to the second question sits between the first and second answers to
-    the basic choice — so the axis leads here. The basic choice is
-    first, having no axis at all.
+    within a set, the first is the one taken unasked. On a page listing
+    every set at once that interleaves them — the first option of the
+    second set sits between the first and second options of the main
+    one — so the set leads here. The main pick-one set is first, having
+    no group row at all.
     """
     from django.db.models import F
 
@@ -269,46 +269,37 @@ OPTIONS_PART = {
     "parts": "options",
     "statline": False,
     "describe": _describe_option,
-    "parts_label": "choices offered",
+    "parts_label": "options",
     "part_name": "option",
     "parts_hint": _option_parts,
     "parts_description": (
-        "What may be picked instead of, or as well as, the standard "
-        "loadout. Options with no axis form the basic choice: exactly one "
-        "of those is taken, and the first is taken unasked. Adding one "
-        "option to a thing hired one way is what turns it into a choice."
+        "What a player picks when this is acquired. Each option's price "
+        "is added to the base price."
     ),
     "nothing_yet": (
-        "This is acquired one way. Add an option to offer a choice instead."
+        "Acquired the same way every time. Add an option to offer an alternative."
     ),
     "removes": "authoring-option-remove",
 }
 
-#: The further axes of choice a thing offers. A carrier needs none —
-#: options with no axis are the basic choice — so this section is for
-#: the second question and the third: choke gas *and* stun grenades,
-#: each answered on its own.
-AXES_PART = {
-    "act": "axis",
+#: A further set of options — the rulebook's second "…of the following"
+#: list on one entry. A carrier needs none: options created without a
+#: set form the main pick-one set on their own.
+OPTION_SETS_PART = {
+    "act": "option-set",
     "verb": "create_option_group",
     "parts": "option_groups",
     "statline": False,
     "describe": _describe_option_group,
-    "parts_label": "further axes",
-    "part_name": "axis",
+    "parts_label": "sets of options",
+    "part_name": "set of options",
     "parts_hint": lambda parts: parts.prefetch_related("options"),
     "parts_description": (
-        "A second question this asks when it is acquired, answered apart "
-        "from the basic choice — prices add up rather than every "
-        "combination being written out. An axis is named for you and "
-        "never shown to a player: they see the answers and the wording "
-        "of each is the option's own."
+        "For a separate, further pick — a Sanctioner chooses its melee "
+        "weapon and may also add grenades. Prices add up."
     ),
-    "nothing_yet": (
-        "None — and most things need none. The basic choice above is one "
-        "axis already; a second is for a question answered apart from it."
-    ),
-    "removes": "authoring-axis-remove",
+    "nothing_yet": "",
+    "removes": "authoring-option-set-remove",
 }
 
 
@@ -348,10 +339,9 @@ def _part_sections(kind):
     appear: what only this kind has, then what anything can come with,
     then what it lets the buyer choose between.
 
-    The choices come last, and the axes after the options: an author
-    writes what a thing comes with before writing what may be swapped
-    for it, and the basic choice covers most of what they need before
-    a second axis is worth making.
+    The options come last, and their sets after them for the post
+    routing's sake — the page draws the two as one section
+    (``_hire_options_context``), grouped the way a hire offers them.
     """
     sections = []
     if kind in DETAIL_KINDS:
@@ -359,7 +349,7 @@ def _part_sections(kind):
     if _carries_built_ins(kind):
         sections.append(BUILT_INS_PART)
     if _offers_options(kind):
-        sections.extend([OPTIONS_PART, AXES_PART])
+        sections.extend([OPTIONS_PART, OPTION_SETS_PART])
     return sections
 
 
@@ -833,6 +823,105 @@ def create(request, kind):
 
 
 @staff_member_required
+def _hire_options_context(request, kind, thing, drawn):
+    """The two option sections as one drawn block, grouped as a hire
+    offers them: each set under a heading in the rulebook's own words
+    ("one of the following", "any of the following"), options beneath
+    it, and an add control per set.
+
+    The option form's set is decided by which control was pressed — it
+    rides the URL (``?set=``) into the form as a hidden field, so the
+    form itself never asks. A refusal on that hidden field would be
+    invisible, so it is said again as a form-wide error.
+    """
+    by_act = {section["act"]: section for section in drawn}
+    option_section = by_act.get("option")
+    sets_section = by_act.get("option-set")
+    if option_section is None or sets_section is None:
+        return None
+
+    form = option_section["form"]
+    if form.is_bound:
+        picked = form.data.get("group") or ""
+        for error in form.errors.get("group", []):
+            form.add_error(None, error)
+    else:
+        picked = request.GET.get("set", "")
+    joins = thing.option_groups.filter(pk=picked).first() if picked else None
+    if not form.is_bound and joins is not None:
+        form.initial["group"] = joins.pk
+    form.fields["group"].widget = forms.HiddenInput()
+
+    def row(option):
+        label, notes = _describe_option(option)
+        return {
+            "label": label,
+            "notes": notes,
+            "remove_url": reverse("authoring-option-remove", args=[option.pk]),
+        }
+
+    grouped = [
+        (group, [row(o) for o in opts]) for group, opts in thing.grouped_offers()
+    ]
+    # A set with no options yet still needs its heading and its add
+    # control on the page, or the author who just made it has nowhere
+    # to go next.
+    seen = {group.pk for group, _ in grouped if group is not None}
+    grouped += [
+        (group, []) for group in thing.option_groups.all() if group.pk not in seen
+    ]
+
+    blocks = []
+    for group, rows in grouped:
+        if group is None and not rows:
+            # No main set is not an empty main set: the hire simply
+            # offers no pick-one. The add form below still defaults to
+            # it, so the way in stays open.
+            continue
+        blocks.append(
+            {
+                "choose": group.choose if group else "one",
+                "label": group.name if group else "",
+                "options": rows,
+                "add_url": (
+                    f"{request.path}?set={group.pk}#add-option"
+                    if group
+                    else f"{request.path}#add-option"
+                ),
+                "remove_url": (
+                    reverse("authoring-option-set-remove", args=[group.pk])
+                    if group
+                    else ""
+                ),
+            }
+        )
+
+    how = {"one": "one of the following", "any": "any of the following"}
+    acquired = "hiring" if kind == "profile" else "buying"
+    return {
+        "title": "Hire options" if kind == "profile" else "Options when bought",
+        "description": (
+            f"What a player picks when {acquired} this. "
+            "Each option's price is added to the base price."
+        ),
+        "nothing_yet": (
+            f"{'Hired' if kind == 'profile' else 'Bought'} the same way every "
+            "time. Add an option to offer an alternative."
+        ),
+        "groups": blocks,
+        "option": option_section,
+        "sets": sets_section,
+        "joins_text": (
+            f"This option joins {joins.name} — {how[joins.choose]}."
+            if joins
+            else (
+                "This option joins the main pick — one of the following; "
+                "the first option is what you get if the player doesn't choose."
+            )
+        ),
+    }
+
+
 def detail(request, kind, pk):
     """One thing, and the parts added to it over time.
 
@@ -967,6 +1056,11 @@ def detail(request, kind, pk):
             }
         )
 
+    hire_options = None
+    if _offers_options(kind):
+        hire_options = _hire_options_context(request, kind, thing, drawn)
+        drawn = [s for s in drawn if s["act"] not in ("option", "option-set")]
+
     return render(
         request,
         "authoring/detail.html",
@@ -978,6 +1072,7 @@ def detail(request, kind, pk):
             "edit_form": edit_form,
             "statline_cells": statline_edit.cells() if statline_edit else None,
             "part_sections": drawn,
+            "hire_options": hire_options,
             **(
                 _modifier_section(request, thing, composer)
                 if with_modifiers
@@ -1099,7 +1194,7 @@ def built_in_remove(request, pk):
 
 
 def _carrier_page(carrier):
-    """The page of the thing an option or an axis belongs to."""
+    """The page of the thing an option or a set of options belongs to."""
     kind = _kind_slugs().get(type(carrier))
     if kind is None:
         return reverse("authoring-index")
@@ -1116,10 +1211,10 @@ def option_remove(request, pk):
     nothing else can reach it — while the weapons and skills it names
     stay in the library untouched.
 
-    Taking the last option off an axis leaves the axis with nothing to
-    answer it, and taking every option off the basic choice makes the
-    thing hired one way again. Both are said here, because both are
-    changes to what a hire screen offers rather than to this row alone.
+    Taking the last option out of a set leaves the set empty, and taking
+    every option out of the main pick makes the thing hired one way
+    again. Both are said here, because both are changes to what a hire
+    screen offers rather than to this row alone.
     """
     from n26.library import authoring
     from n26.library.models import Option
@@ -1153,13 +1248,13 @@ def option_remove(request, pk):
             "thing": option,
             "label": option.name,
             "carrier": carrier,
-            "axis": option.group.name if option.group_id else "",
+            "set_label": option.group.name if option.group_id else "",
             "brings": [_label_for(member.assignable) for member in _brought_by(option)],
             # A set founded for this option is reached through it and
             # nothing else, so it goes when the option does. One offered
             # somewhere else as well stays, and so does everything in it.
             "shared_with": shared_with,
-            "last_on_its_axis": bool(option.group_id)
+            "last_in_its_set": bool(option.group_id)
             and option.group.options.count() == 1,
             "back": back,
         },
@@ -1167,14 +1262,14 @@ def option_remove(request, pk):
 
 
 @staff_member_required
-def axis_remove(request, pk):
-    """The question asked before an axis of choice is taken off.
+def option_set_remove(request, pk):
+    """The question asked before a set of options is taken off.
 
-    The answers go with the question, and that is the whole reason this
-    is a page: the row says how many options an axis holds and not what
-    becomes of them. Loose in the basic choice they would compete with
-    the standard loadout instead of with each other, which is a
-    different offer from the one the author wrote — so they go too.
+    The options go with their set, and that is the whole reason this is
+    a page: the heading says how many options a set holds and not what
+    becomes of them. Loose in the main pick they would compete with the
+    standard loadout instead of with each other, which is a different
+    offer from the one the author wrote — so they go too.
     """
     from n26.library import authoring
     from n26.library.models import OptionGroup
@@ -1197,7 +1292,7 @@ def axis_remove(request, pk):
 
     return render(
         request,
-        "authoring/axis_remove.html",
+        "authoring/option_set_remove.html",
         {
             "thing": group,
             "label": group.name,

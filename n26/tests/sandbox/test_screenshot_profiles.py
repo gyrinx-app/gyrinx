@@ -7,7 +7,7 @@ a different corner of the machinery:
 * **Van Saar Ash Wastes 'Arachni-Rig'** — a vehicle; an any-of option
   group ("may select any of the below"); each gun knocking a point off
   Attacks via a ``Hidden`` carrier, stacking when both are taken.
-* **Enforcer 'Sanctioner' Pattern Automata** — three axes summing: a
+* **Enforcer 'Sanctioner' Pattern Automata** — three sets summing: a
   one-of melee group (replace claw and/or baton with one pick), and an
   any-of group of extra grenade types that are **weapon profiles**
   stacking onto the launcher array from the built-ins.
@@ -196,7 +196,7 @@ def arachni_rig(vehicle_type, gang_type, default_pack):
         effects=[(_targets_model(), changes_stat(attacks, "worsen", 1))],
     )
 
-    # "It may select any of the below options" — one any-of axis; taking
+    # "It may select any of the below options" — one any-of set; taking
     # both is two sets, two conversions, minus two Attacks.
     hardpoints = create_option_group(profile, "Weapon hardpoints", choose="any")
     for position, (name, cost) in enumerate([("Rad gun", 35), ("Plasma gun", 75)]):
@@ -362,10 +362,10 @@ def sanctioner(fighter_type, gang_type, default_pack):
     )
     profile.save()
 
-    # The melee axis: "replace their pacifier assault claw and/or heavy
+    # The melee set: "replace their pacifier assault claw and/or heavy
     # shock baton with ONE of the following" — a one-of, so its states are
     # enumerated: keep both, or drop either or both for the one pick.
-    # Ten sets, not forty: the grenade axes below multiply outside it.
+    # Ten sets, not forty: the grenade picks below multiply outside it.
     position = iter(range(100))
     offer_option(
         profile,
@@ -388,7 +388,7 @@ def sanctioner(fighter_type, gang_type, default_pack):
                 position=next(position),
             )
 
-    # The additional grenade types: an any-of axis whose members are
+    # The additional grenade types: an any-of set whose members are
     # weapon profiles, stacking onto the array the built-ins bring.
     grenades = create_option_group(
         profile, "Additional grenade types", choose="any", position=1
@@ -424,7 +424,7 @@ class TestTheSanctioner:
         launcher = next(w for w in card.weapons if w.name == "Grenade launcher array")
         assert ammo_names(launcher) == ["Smoke grenades"]
 
-    def test_the_axes_sum_instead_of_multiplying(self, sanctioner):
+    def test_the_sets_sum_instead_of_multiplying(self, sanctioner):
         # Ten melee states plus two grenade toggles: twelve authored sets
         # where flat one-of combinations would need forty.
         assert sanctioner.options.count() == 12
@@ -685,13 +685,13 @@ class TestTheHireScreen:
     def roster(self, gang_type, arachni_rig, sanctioner, exo_driller, zerker):
         return gang_type
 
-    def test_every_card_is_offered_with_its_axes(self, roster):
+    def test_every_card_is_offered_with_its_sets(self, roster):
         entries = build_hire_list(roster)
         by_name = {entry.name: entry for entry in entries}
 
         rig = by_name["Van Saar Ash Wastes 'Arachni-Rig'"]
         assert rig.base_price == 275
-        # Two axes: the basic choice, then the hardpoints. What the
+        # Two sets: the main pick, then the hardpoints. What the
         # author calls the second one is not here to be asserted on —
         # a player is shown the answers, never the question.
         assert [g.choose for g in rig.groups] == ["one", "any"]

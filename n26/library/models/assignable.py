@@ -340,8 +340,8 @@ class Optioned(models.Model):
     def option_sets(self):
         """The default group's sets, default first.
 
-        The plain axis anything may have: options an author created
-        without naming a group. Further axes live in ``option_groups()``.
+        The main pick anything may have: options an author created
+        without naming a group. Further sets live in ``option_groups()``.
 
         Ordered by ``Option``'s own Meta rather than an ``order_by``
         here, so a prefetched list is used as-is: re-ordering would issue a
@@ -354,7 +354,7 @@ class Optioned(models.Model):
         ]
 
     def grouped_offers(self):
-        """Every axis of the choice, in order: ``[(group, [options])]``.
+        """Every set of the offer, in order: ``[(group, [options])]``.
 
         The default group comes first as ``(None, [options])``, present
         only when ungrouped options exist; then each named group by
@@ -373,7 +373,7 @@ class Optioned(models.Model):
         return [(group, by_group[group.pk if group else None]) for group in heads]
 
     def grouped_options(self):
-        """The same axes, as the sets a selection is made of.
+        """The same sets, as the default-sets a selection is made of.
 
         A selection names sets, because a set is what materialises;
         what the option offering it is called is a question for whatever

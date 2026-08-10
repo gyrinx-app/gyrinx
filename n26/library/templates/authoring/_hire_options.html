@@ -1,0 +1,106 @@
+{% comment %}
+The options a thing offers when acquired, drawn as one section — the
+sets an author wrote, each under a heading in the rulebook's own words,
+so an admin transcribing "may be armed with one of the following…" sees
+that sentence on the page they are filling in.
+
+Two forms share the section. "Add an option" is pinned to a set by the
+control that was pressed — each set's add link carries ?set= in the URL
+and the form holds it as a hidden field, so the form never asks — and
+"Offer another set of options" makes the next set. Two acts, one
+section: the acts route the POST, the drawing is ours.
+
+Takes `hire_options` (built by views._hire_options_context) and `thing`.
+{% endcomment %}
+<c-n26.form-section title="{{ hire_options.title }}"
+                    description="{{ hire_options.description }}"
+                    class="mt-8">
+    {% if hire_options.groups %}
+        {% for group in hire_options.groups %}
+            <div{% if not forloop.first %} class="mt-6"{% endif %}>
+                <p class="text-sm">
+                    <span class="font-medium">
+                        {% if group.choose == "one" %}
+                            One of the following
+                        {% else %}
+                            Any of the following
+                        {% endif %}
+                    </span>
+                    <span class="text-muted">
+                        {% if group.label %}
+                            — {{ group.label }} (your label — players never see it)
+                        {% elif group.choose == "one" %}
+                            — the first is what you get if the player doesn't choose
+                        {% endif %}
+                    </span>
+                </p>
+                {% if group.options %}
+                    <c-ui.table>
+                        <tbody>
+                            {% for part in group.options %}
+                                <tr>
+                                    <td>{{ part.label }}</td>
+                                    <td class="w-full text-muted">{{ part.notes|join:" · " }}</td>
+                                    <td class="text-right">
+                                        <c-ui.button href="{{ part.remove_url }}" size="sm" variant="ghost">
+                                            Remove
+                                        </c-ui.button>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </c-ui.table>
+                {% else %}
+                    <c-ui.description>
+                        No options yet — add one, or remove the set.
+                    </c-ui.description>
+                {% endif %}
+                <div class="mt-1">
+                    <c-ui.button href="{{ group.add_url }}" size="sm" variant="ghost">
+                        Add an option here
+                    </c-ui.button>
+                    {% if group.remove_url %}
+                        <c-ui.button href="{{ group.remove_url }}" size="sm" variant="ghost">
+                            Remove this set
+                        </c-ui.button>
+                    {% endif %}
+                </div>
+            </div>
+        {% endfor %}
+    {% else %}
+        <c-ui.description>
+            {{ hire_options.nothing_yet }}
+        </c-ui.description>
+    {% endif %}
+</c-n26.form-section>
+<c-n26.form-section title="Add an option"
+                    id="add-option"
+                    description="{{ hire_options.joins_text }}"
+                    class="mt-10">
+    {% if hire_options.option.part_help %}
+        <c-n26.prose class="max-w-2xl">
+            {% for paragraph in hire_options.option.part_help %}<p>{{ paragraph }}</p>{% endfor %}
+        </c-n26.prose>
+    {% endif %}
+    <form method="post" class="max-w-xl space-y-5">
+        {% csrf_token %}
+        <input type="hidden" name="act" value="{{ hire_options.option.act }}">
+        {% include "authoring/_form.html" with form=hire_options.option.form %}
+        <c-n26.form-actions submit_label="Add option" />
+    </form>
+</c-n26.form-section>
+<c-n26.form-section title="Offer another set of options"
+                    description="{{ hire_options.sets.parts_description }}"
+                    class="mt-10">
+    {% if hire_options.sets.part_help %}
+        <c-n26.prose class="max-w-2xl">
+            {% for paragraph in hire_options.sets.part_help %}<p>{{ paragraph }}</p>{% endfor %}
+        </c-n26.prose>
+    {% endif %}
+    <form method="post" class="max-w-xl space-y-5">
+        {% csrf_token %}
+        <input type="hidden" name="act" value="{{ hire_options.sets.act }}">
+        {% include "authoring/_form.html" with form=hire_options.sets.form %}
+        <c-n26.form-actions submit_label="Add set" />
+    </form>
+</c-n26.form-section>

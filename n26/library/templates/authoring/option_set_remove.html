@@ -1,22 +1,22 @@
 {% extends "authoring/base.html" %}
 {% comment %}
-The question asked before an axis of choice is taken off, at an address
+The question asked before a set of options is taken off, at an address
 of its own. A page rather than a prompt: it survives a reload, Back is a
 real answer, and it works with scripting switched off. Nothing here
 changes anything — the form's POST is the act.
 
-The page exists for one fact the row cannot show: the answers go with
-the question. Loose in the basic choice the options would compete with
-the standard loadout rather than with each other, which is a different
+The page exists for one fact the heading cannot show: the options go
+with their set. Loose in the main pick they would compete with the
+standard loadout rather than with each other, which is a different
 offer from the one the author wrote — so they are listed here, by name,
 before anything happens.
 {% endcomment %}
 {% block head_title %}Remove {{ label }}{% endblock head_title %}
 {% block content %}
-    <c-n26.form-page action="{% url 'authoring-axis-remove' thing.pk %}"
-                     title="Remove the {{ label }} axis?"
-                     lead="{{ carrier }} will stop asking this when it is acquired."
-                     submit_label="Remove the axis"
+    <c-n26.form-page action="{% url 'authoring-option-set-remove' thing.pk %}"
+                     title="Stop offering these options?"
+                     lead="{{ carrier }} will stop offering the {{ label }} pick when it is acquired."
+                     submit_label="Remove the set"
                      submit_variant="danger"
                      cancel_url="{{ back }}">
         <c-slot name="breadcrumb">
@@ -32,12 +32,12 @@ before anything happens.
         </c-slot>
         {% csrf_token %}
         <c-ui.alert variant="info" title="Nothing already hired changes">
-            Anyone who answered this keeps what they took. This changes what
-            the next hire is asked.
+            Anyone who already picked one keeps what they took. This changes
+            what the next hire is offered.
         </c-ui.alert>
         {% if options %}
-            <c-n26.form-section title="These go with it"
-                                description="An axis is what makes its options alternatives to each other, so they are withdrawn with it. Everything they name — the weapons, the wargear — stays in the library.">
+            <c-n26.form-section title="These options go with it"
+                                description="The set is what makes them alternatives to each other, so they are withdrawn with it. Everything they name — the weapons, the wargear — stays in the library.">
                 <c-ui.table>
                     <tbody>
                         {% for option in options %}
@@ -49,8 +49,8 @@ before anything happens.
                 </c-ui.table>
             </c-n26.form-section>
         {% else %}
-            <c-ui.alert variant="info" title="Nothing is on this axis">
-                It offers no options, so removing it changes nothing anyone
+            <c-ui.alert variant="info" title="This set has no options">
+                It offers nothing, so removing it changes nothing anyone
                 can choose today.
             </c-ui.alert>
         {% endif %}

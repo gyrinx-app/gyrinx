@@ -369,7 +369,7 @@ class GeneratedForm(forms.Form):
                 # The narrowed queryset has already refused a stray, so
                 # this is the case where nothing narrowed it: a form
                 # built without its carrier would otherwise accept an
-                # axis belonging to somebody else's profile.
+                # set of options belonging to somebody else's profile.
                 if picked is not None and picked.carrier != self.carrier:
                     self.add_error(name, f"That belongs to {picked.carrier}.")
             if isinstance(kind, One) and "collection" in kind.filtered_by:

@@ -13,11 +13,12 @@ n26.hire hands us the answer. A group's `choose` is "one" or "any", which is
 radios or checkboxes, and the data layer has already marked the default of every
 one-of group. We render what it says rather than deciding again here.
 
-An axis is never named on this row. The content carries a name for one, but it
-is the author's word for the question and a player is here to answer it — so
-the grouping is shown as grouping (the controls together, a rule between axes,
-a line saying how many to take) and never as a heading naming the question.
-The structure does not carry the name at all, which is what makes that certain.
+A set of options is never named on this row. The content carries a label for
+one, but it is the author's word for their own page and a player is here to
+pick — so the grouping is shown as grouping (the controls together, a rule
+between sets, a line saying how many to take) and never as a heading naming
+the set. The structure does not carry the label at all, which is what makes
+that certain.
 
 The price on the row is the price of the configuration currently on screen, and
 it moves as the controls move. A fixed price beside controls that change it is
@@ -136,20 +137,20 @@ The composed name is a sketch — a real app has an id here.
                 {% for group in entry.groups %}
                     {% comment %}
                     A group with one option is not a choice — the entry's own
-                    structure says which axes are worth asking about. Drawing a
+                    structure says which sets are worth asking about. Drawing a
                     lone radio beside "As standard" asks a reader to consider
                     something they cannot change.
                     {% endcomment %}
                     {% if group.offers_a_choice %}
                         {% comment %}
-                        What an axis is called is the author's word for the
-                        question, and a player is being shown the answers — so
+                        What a set is called is the author's label for their
+                        own page, and a player is being shown the options — so
                         the heading says how many of them to take and nothing
-                        else. The second and later axes are ruled off from the
+                        else. The second and later sets are ruled off from the
                         one above, which is the whole of how a reader is told
-                        these answers go together.
+                        these options go together.
 
-                        The first axis gets no rule and no heading beyond its
+                        The first set gets no rule and no heading beyond its
                         controls: the fighter's own row is directly above it,
                         saying what is being configured, and radios that are
                         plainly one group need no label to say so.

@@ -18,15 +18,16 @@ A profile offers its options at hire; a mount in an equipment list offers
 them when bought. Same grammar, so the same two models — which is why
 they name a *carrier* rather than a profile.
 
-Options come in **groups**, and each group is one axis of the choice:
+Options come in **groups**, and each group is one set of the offer — the
+rulebook's "one of the following" or "any of the following":
 
 * Ungrouped options form the carrier's *default group* — no row to create
   first, an author just adds options. It is **one-of**: a hire takes
   exactly one, the head of the list unasked.
-* An ``OptionGroup`` is a further axis. ``choose`` says how it
-  works: ``ONE`` is another one-of (exactly one, head is the default);
-  ``ANY`` is the rulebook's "may select any of the below options" —
-  take any number, none by default.
+* An ``OptionGroup`` is a further set, for a separate pick. ``choose``
+  says how it works: ``ONE`` is another one-of (exactly one, head is the
+  default); ``ANY`` is the rulebook's "may select any of the below
+  options" — take any number, none by default.
 
 Pricing is a sum: a hire costs ``profile.price`` plus the built-ins'
 price plus every chosen set's price. Usually only one of those carries
@@ -34,7 +35,7 @@ the base number, and which one is the content manager's choice — put it
 all on ``built_ins`` and leave the profile's own ``price`` at zero, or
 the other way round.
 
-Axes that are genuinely entangled (the Sanctioner replaces its claw
+Picks that are genuinely entangled (the Sanctioner replaces its claw
 and/or baton with *one* pick) stay one-of, enumerated as combinations
 within their group — the content manager decides how to carve it up.
 """
@@ -93,26 +94,23 @@ class DefaultAssignmentSet(Content):
 
 
 class DefaultAssignment(NamesAnAssignable, Content):
-    """One thing something always comes with when it is acquired.
+    """One thing something always comes with, free, when it is acquired.
 
-    Anything assignable can carry these rows, and they read differently
-    on each. A fighter entry comes with the weapons in its hands at
-    hire, a skill it always knows, a counter's opening value, and access
-    to a collection — which is how it names the equipment list it uses.
+    A fighter entry comes with the weapons in its hands at hire, a skill
+    it always knows, a counter's opening value, and its equipment list.
     A piece of wargear comes with whatever arrives with it: a beast with
     its claws. No choice is offered; a thing that may be swapped for
     something else is an option, not a built-in.
-
-    Deliberately parallel to ``n26.Assignment`` — same mixin, same
-    ``assignable=`` constructor, same ``assignable`` property — because that
-    is exactly what it becomes at hire: one of these makes one of those,
-    free, caused by the membership.
-
-    The permitted kinds differ, and should: a player can be assigned a
-    fighter profile, but a profile cannot *come with* one. That is what
-    ``OpAddsMiniature`` is for.
     """
 
+    # Deliberately parallel to ``n26.Assignment`` — same mixin, same
+    # ``assignable=`` constructor, same ``assignable`` property — because
+    # that is exactly what it becomes at hire: one of these makes one of
+    # those, free, caused by the membership. The permitted kinds differ,
+    # and should: a player can be assigned a fighter profile, but a
+    # profile cannot come with one — that is what ``OpAddsMiniature`` is
+    # for. (A comment, not the docstring: the docstring is shown to
+    # authors on the authoring pages.)
     ASSIGNABLE_FIELDS = DEFAULT_ASSIGNABLE_FIELDS
 
     #: The key assignable kinds use in their ``ATTACHMENT_ASKS`` to say
@@ -231,29 +229,27 @@ OPTION_CARRIER_FIELDS = ("profile", "wargear")
 
 
 class OptionGroup(NamesAnAssignable, Content):
-    """One axis of choice a thing offers when it is acquired.
+    """A further set of options, for a separate, additional pick.
 
-    A Sanctioner picks its melee loadout *and* whether it takes choke gas
-    *and* whether it takes stun grenades — three groups, prices summing,
-    instead of every combination spelt out as its own set.
-
-    Only extra axes need a row: options with no group form the carrier's
-    default group, so the first option an author creates needs nothing
-    made first.
-
-    The carrier is a union of one nullable key per kind — the same shape
-    ``Assignment`` and ``DefaultAssignment`` use, because assignables are
-    a mixin with no shared table. Both keys share a related name, so
-    ``thing.option_groups`` reads the same on a profile and a wargear.
+    A Sanctioner chooses its melee weapon *and* may add grenades —
+    two sets, prices adding up, instead of every combination written
+    out. Most things need no set made at all: options created without
+    one form the main pick-one set on their own.
     """
 
+    # The carrier is a union of one nullable key per kind — the same
+    # shape ``Assignment`` and ``DefaultAssignment`` use, because
+    # assignables are a mixin with no shared table. Both keys share a
+    # related name, so ``thing.option_groups`` reads the same on a
+    # profile and a wargear. (A comment, not the docstring: the
+    # docstring is shown to authors on the authoring pages.)
     ASSIGNABLE_FIELDS = OPTION_CARRIER_FIELDS
 
     class Choose(models.TextChoices):
         #: Exactly one of the group's sets; the head of the list unasked.
-        ONE = "one", "Exactly one"
+        ONE = "one", "One of the following"
         #: "May select any of the below options" — any number, none unasked.
-        ANY = "any", "Any number"
+        ANY = "any", "Any of the following"
 
     profile = models.ForeignKey(
         "library.Profile",
@@ -271,12 +267,10 @@ class OptionGroup(NamesAnAssignable, Content):
     )
     name = models.CharField(
         max_length=200,
-        verbose_name="Name (authoring only)",
+        verbose_name="Label (players never see this)",
         help_text=(
-            "What this axis is called while you are writing it, e.g. "
-            '"Melee weapons" or "Additional grenades". Never shown to a '
-            "player: a hire screen puts the answers in front of them and "
-            "the question is what the answers are. Name it for yourself."
+            'A label to tell sets apart on this page, e.g. "Extra '
+            'grenades". Players never see it.'
         ),
     )
     choose = models.CharField(
@@ -284,8 +278,9 @@ class OptionGroup(NamesAnAssignable, Content):
         choices=Choose,
         default=Choose.ONE,
         help_text=(
-            "Exactly one takes the first option unasked, and picking "
-            "another replaces it. Any number starts with none taken."
+            "One of the following: the first option is taken unless the "
+            "player picks another. Any of the following: none are taken "
+            "unless the player adds them."
         ),
     )
     position = models.PositiveIntegerField(default=0)
@@ -306,22 +301,23 @@ class OptionGroup(NamesAnAssignable, Content):
 
     @property
     def carrier(self):
-        """The thing offering this axis. Reads better than ``assignable``
+        """The thing offering this set. Reads better than ``assignable``
         for a row that *belongs to* one rather than *names* one."""
         return self.assignable
 
 
 class Option(NamesAnAssignable, Content):
-    """One alternative a thing offers when it is acquired.
+    """One thing a player may pick when this is acquired.
 
-    The name is the player's: it is what a hire screen writes beside the
-    tick box, so it says what taking this gets you. The set of things it
-    brings is named separately and only for authors — set names must be
-    unique across a pack, so two profiles both offering "As standard"
-    would fight over one name, and whichever lost would show a player
-    the name of a bag rather than the name of a choice.
+    The name and the price are what the hire screen shows them.
     """
 
+    # The set of things an option brings is named separately and only
+    # for authors: set names are unique across a pack, so two profiles
+    # both offering "As standard" would fight over one name — the verb
+    # derives a set name from the carrier instead. (A comment, not the
+    # docstring: the docstring is shown to authors on the authoring
+    # pages.)
     ASSIGNABLE_FIELDS = OPTION_CARRIER_FIELDS
 
     profile = models.ForeignKey(
@@ -351,10 +347,11 @@ class Option(NamesAnAssignable, Content):
         null=True,
         blank=True,
         related_name="options",
-        verbose_name="Axis",
+        verbose_name="Set",
         help_text=(
-            "The axis this option belongs to. Blank puts it in the basic "
-            "choice — exactly one of those is taken, the first unasked."
+            "The set of options this joins. Blank is the main pick-one "
+            "set: one of those is taken, the first unless the player "
+            "chooses another."
         ),
     )
     default_set = models.ForeignKey(

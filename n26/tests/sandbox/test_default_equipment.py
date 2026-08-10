@@ -9,7 +9,7 @@ Nothing is ever *replaced*. A choice decides which set materialises at
 hire, and the option not taken simply never comes into being — which is
 what keeps this clear of v1's inherited-then-overridden mess.
 
-Two independent axes are modelled as the combinations, because the choice
+Two independent picks are modelled as the combinations, because the choice
 is one-of. A profile is ``(built_ins, [options])``: the built-ins always
 come, and the head of the options list is what a hire takes unasked.
 """
@@ -167,7 +167,7 @@ class TestChoosingAnOption:
         )
         assert razor_entry.paid == 0
 
-    def test_both_axes_at_once(self, gang, khimerix):
+    def test_both_picks_at_once(self, gang, khimerix):
         both = khimerix.options.get(default_set__name="Eruption and razors").default_set
         beast = hire_with_option(gang, khimerix, "Growler", option=both)
 
