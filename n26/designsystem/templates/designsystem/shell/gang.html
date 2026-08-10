@@ -38,10 +38,16 @@ a page and its chrome is not visible in either one alone.
         <c-slot name="details">
             <c-n26.detail-list>
                 {% comment %}
-                The gang's open questions and its counters in one strip: the
-                choices know where their own pickers are, the counters have
-                nowhere to go yet.
+                The gang's rules, open questions and counters in one strip:
+                the rules are settled facts from the gang type (one row —
+                one answer to one question), the choices know where their
+                own pickers are, the counters have nowhere to go yet.
                 {% endcomment %}
+                {% if gang.rules %}
+                    <c-n26.detail-list.row label="Rules" :editable="False">
+                        {% for rule in gang.rules %}{{ rule.name }}{% if not forloop.last %}, {% endif %}{% endfor %}
+                    </c-n26.detail-list.row>
+                {% endif %}
                 <c-n26.choice-slots :choices="gang.choices" />
                 {% for counter in gang.counters %}
                     <c-n26.detail-list.row label="{{ counter.name }}" value="{{ counter.value }}" />

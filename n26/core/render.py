@@ -440,8 +440,12 @@ class GangSheet:
     #: The colour the owner picked, drawn as a mark wherever the gang is
     #: named. A palette name the theme resolves, or empty for no colour.
     colour: str = ""
-    #: The gang's own rows — its founding, the house list, its rules.
+    #: The gang's own rows — its founding, the house list.
     rows: list[AssignableLine] = field(default_factory=list)
+    #: The gang's special rules, apart from the other rows for the same
+    #: reason a model card keeps its rules apart from its kit: the sheet
+    #: prints them under their own term.
+    rules: list[AssignableLine] = field(default_factory=list)
     #: Gang-level choices — a Venator's ranked skill trees.
     choices: list[ChoiceLine] = field(default_factory=list)
     #: Counters the gang keeps, with their standing values.
@@ -992,14 +996,16 @@ def _provenance_within(card):
 def _gang_rows(gang_card, gang_computed):
     """The gang's own rows as lines, same skipping rules as a model card:
     a Hidden draws nothing, an answer is drawn as its choice's row, and
-    counters have their own readings.
+    counters have their own readings. Rules come back as their own list,
+    dispatched the way a model card keeps rules apart from kit.
 
     ``roots`` alone, where a model card also draws what it was granted: a
-    gang is handed nothing. A grant is refused a gang for two independent
-    reasons — an added weapon goes to a model, and a model-scoped rule
-    reaches nobody on the gang's own card — so a gang holding a gun is
-    not a thing this edition can express. Should it ever become one, this
-    is where its line would go.
+    gang is handed nothing. A grant is refused a gang (``accepts`` in
+    the modifier models says grants land on models), so a gang holding
+    a gun — or a computedly granted rule — is not a thing this edition
+    can express. Should either become one, this is where its line would
+    go, folded in from ``ComputedGang`` the way a model card folds in
+    its contributions.
     """
     from n26.library.models import Counter
 
@@ -1014,13 +1020,17 @@ def _gang_rows(gang_card, gang_computed):
     )
     provenance_of = _provenance_within(gang_card)
     rows = []
+    rules = []
     for node in gang_card.roots:
         if node.key in answers:
             continue
         if isinstance(node.assignable, (Hidden, Counter)):
             continue
+        if isinstance(node.assignable, Rule):
+            rules.append(AssignableLine(name=node.name, provenance=provenance_of(node)))
+            continue
         rows.append(AssignableLine(name=node.name, provenance=provenance_of(node)))
-    return rows
+    return rows, sorted(rules, key=lambda line: line.name)
 
 
 def render_gang(gang, with_effects=True):
@@ -1055,6 +1065,7 @@ def render_gang(gang, with_effects=True):
         gang_computed = compute_gang(gang_card, index)
 
     stash_provenance = _provenance_within(gang_card)
+    gang_rows, gang_rules = _gang_rows(gang_card, gang_computed)
     return GangSheet(
         name=gang.name,
         gang_type=gang.gang_type.name,
@@ -1062,7 +1073,8 @@ def render_gang(gang, with_effects=True):
         credits=gang.credits,
         wealth=gang.wealth,
         colour=gang.colour,
-        rows=_gang_rows(gang_card, gang_computed),
+        rows=gang_rows,
+        rules=gang_rules,
         choices=choice_lines(gang_computed, host=GANG_SLOT_HOST),
         counters=(
             gang_computed.counters if gang_computed else counter_readings(gang_card)

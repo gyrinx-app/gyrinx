@@ -123,6 +123,9 @@ def render_gang_sheet(sheet):
     if sheet.rows:
         names = ", ".join(line.name for line in sheet.rows)
         lines.append(f"Gang: {names}")
+    if sheet.rules:
+        names = ", ".join(line.name for line in sheet.rules)
+        lines.append(f"Rules: {names}")
     for counter in sheet.counters:
         lines.append(f"{counter.name}: {counter.value}")
     for choice in sheet.choices:

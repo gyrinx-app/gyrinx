@@ -1302,7 +1302,15 @@ def gang_sheet():
         rows=[
             AssignableLine(name="Founded in Cycle 3"),
             AssignableLine(name="Escher house list"),
-            _granted("Toxin Trade", "Escher", "gang type"),
+        ],
+        # One assigned to the gang directly and one that arrived with the
+        # founding, whose provenance names the gang type that brought it.
+        rules=[
+            AssignableLine(name="Chem Dealers"),
+            AssignableLine(
+                name="Toxin Trade",
+                provenance=Provenance(source="Escher", source_kind="gang type"),
+            ),
         ],
         choices=CHOICES,
         counters=[_reading("Reputation", 7), _reading("Meat", 3)],

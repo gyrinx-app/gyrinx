@@ -243,6 +243,28 @@ class TestTheSheetDerives:
         # The answer row is drawn as the choice's line, never twice.
         assert "Overwatch" not in [line.name for line in sheet.rows]
 
+    def test_the_gangs_rules_are_their_own_list(self, gang):
+        """A rule on the gang is dispatched apart from the other rows —
+        the sheet prints rules under their own term, as a model card
+        does. Stored rows only: a ``targets_gang`` grant is refused
+        (grants land on models), and the plan says so rather than the
+        rule quietly not appearing."""
+        assign(create_rule("Chem Dealers"), gang=gang)
+        modifier(
+            "The house trades in toxins",
+            targets_gang(),
+            _adds(create_rule("Toxin Trade")),
+            carried_by=gang.gang_type,
+        )
+
+        sheet = render_gang(gang)
+        assert [line.name for line in sheet.rules] == ["Chem Dealers"]
+        assert "Chem Dealers" not in [line.name for line in sheet.rows]
+
+        computed = gang_computed(gang)
+        step = next(s for s in computed.plan if "toxins" in str(s.modifier))
+        assert step.outcome == "skipped"
+
     def test_the_gangs_colour_rides_the_sheet(self, gang):
         """The mark drawn beside a gang's name comes off the sheet like
         everything else a page shows, so a heading and the row that
@@ -266,10 +288,12 @@ class TestTheSheetDerives:
         from n26.core.browse import browse
 
         buy(gang.stash, next(browse(house_list).all_lines()))
+        assign(create_rule("Chem Dealers"), gang=gang)
         text = gang_to_text(gang)
         print("\n" + text)
 
         assert "Gang: Escher, House List" in text
+        assert "Rules: Chem Dealers" in text
         assert "Skill: — (not chosen)" in text
         assert "Stash — 15cr" in text
         assert "  Lasgun — 15cr" in text

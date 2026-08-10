@@ -76,9 +76,20 @@ that said it twice would be spending the width the name needs.
         choices and no counters would pay a line of space for an element with
         nothing in it. The component draws the slot only if it is filled.
         {% endcomment %}
-        {% if sheet.choices or sheet.counters %}
+        {% if sheet.rules or sheet.choices or sheet.counters %}
             <c-slot name="details">
                 <c-n26.detail-list>
+                    {% comment %}
+                    The gang's rules are one answer to one question — which is
+                    why they share a row (see detail_list/row.html) — and a
+                    settled fact: they come from the gang type, so there is
+                    nothing here to press.
+                    {% endcomment %}
+                    {% if sheet.rules %}
+                        <c-n26.detail-list.row label="Rules" :editable="False">
+                            {% for rule in sheet.rules %}{{ rule.name }}{% if not forloop.last %}, {% endif %}{% endfor %}
+                        </c-n26.detail-list.row>
+                    {% endif %}
                     <c-n26.choice-slots :choices="sheet.choices" />
                     {% for counter in sheet.counters %}
                         <c-n26.detail-list.row label="{{ counter.name }}"
