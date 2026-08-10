@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   test:
-    runs-on: [gyrinx-ubuntu-2]
+    runs-on: ubuntu-latest
     services:
       postgres:
         image: postgres:16.4

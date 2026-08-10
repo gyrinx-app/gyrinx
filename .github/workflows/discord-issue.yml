@@ -6,7 +6,7 @@ on:
 
 jobs:
   create-issue:
-    runs-on: [gyrinx-ubuntu-2]
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       issues: write
