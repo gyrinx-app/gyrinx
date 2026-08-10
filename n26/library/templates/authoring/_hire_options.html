@@ -1,14 +1,19 @@
 {% comment %}
-The options a thing offers when acquired, drawn as one section — the
-sets an author wrote, each under a heading in the rulebook's own words,
-so an admin transcribing "may be armed with one of the following…" sees
-that sentence on the page they are filling in.
+The options a thing offers when acquired, drawn as one section — each
+set an outlined card, headed in the rulebook's own words, so an admin
+transcribing "may be armed with one of the following…" sees that
+sentence on the page they are filling in. The main pick wears a badge,
+and the standard option of every pick-one set wears one too, because
+"which one do you get if you say nothing" was the question this page
+kept making people ask.
 
-Two forms share the section. "Add an option" is pinned to a set by the
-control that was pressed — each set's add link carries ?set= in the URL
-and the form holds it as a hidden field, so the form never asks — and
-"Offer another set of options" makes the next set. Two acts, one
-section: the acts route the POST, the drawing is ours.
+Two forms share the section, folded closed until needed. "Add an
+option" is pinned to a set by the control that was pressed — each
+card's add button carries ?set= (or ?add=option for the main pick) in
+the URL, so the redrawn page arrives with the form open and the form
+holds the destination as a hidden field — and "Offer another set of
+options" makes the next set. Two acts, one section: the acts route the
+POST, the drawing is ours.
 
 Takes `hire_options` (built by views._hire_options_context) and `thing`.
 {% endcomment %}
@@ -17,95 +22,143 @@ Takes `hire_options` (built by views._hire_options_context) and `thing`.
                     class="mt-8">
     {% if hire_options.groups %}
         {% for group in hire_options.groups %}
-            <div{% if not forloop.first %} class="mt-6"{% endif %}>
-                <p class="text-sm">
-                    <span class="font-medium">
-                        {% if group.choose == "one" %}
-                            One of the following
-                        {% elif group.choose == "any" %}
-                            Any of the following
-                        {% else %}
-                            One of the following, or none
+            <c-ui.card variant="outline"
+                       padding="none"
+                       class="max-w-3xl {% if not forloop.first %}mt-4{% endif %}">
+                <c-slot name="header">
+                    <div class="flex flex-wrap items-baseline justify-between gap-2">
+                        <p class="text-sm">
+                            <span class="font-semibold text-ink-900 dark:text-ink-100">{{ group.how|capfirst }}</span>
+                            {% comment %}
+                            No class= on c-ui.badge: it does not declare one,
+                            so a passed class renders as a second class
+                            attribute and the browser drops the badge's own —
+                            an unstyled badge, silently.
+                            {% endcomment %}
+                            {% if group.is_main %}
+                                <c-ui.badge color="blue" size="xs">
+                                    Main pick
+                                </c-ui.badge>
+                                <span class="text-xs text-muted">— the first is what you get if the player doesn't choose</span>
+                            {% else %}
+                                <span class="text-xs text-muted">— {{ group.label }} (your label — players never see it)</span>
+                            {% endif %}
+                        </p>
+                        {% if group.remove_url %}
+                            <c-n26.link href="{{ group.remove_url }}" tone="danger" class="text-xs">
+                                Remove this set
+                            </c-n26.link>
                         {% endif %}
-                    </span>
-                    <span class="text-muted">
-                        {% if group.label %}
-                            — {{ group.label }} (your label — players never see it)
-                        {% elif group.choose == "one" %}
-                            — the first is what you get if the player doesn't choose
-                        {% endif %}
-                    </span>
-                </p>
+                    </div>
+                </c-slot>
                 {% if group.options %}
                     <c-ui.table>
+                        <thead>
+                            <tr>
+                                <th>Option</th>
+                                <th>Extra price</th>
+                                <th class="w-full">Brings</th>
+                                <th></th>
+                            </tr>
+                        </thead>
                         <tbody>
                             {% for part in group.options %}
                                 <tr>
-                                    <td>{{ part.label }}</td>
-                                    <td class="w-full text-muted">{{ part.notes|join:" · " }}</td>
+                                    <td class="whitespace-nowrap">
+                                        {{ part.label }}
+                                        {% if part.standard %}
+                                            <c-ui.badge color="blue" size="xs">
+                                                Standard
+                                            </c-ui.badge>
+                                        {% endif %}
+                                    </td>
+                                    <td class="whitespace-nowrap">{{ part.price }}</td>
+                                    <td class="w-full">{{ part.brings }}</td>
                                     <td class="text-right whitespace-nowrap">
-                                        <c-ui.button href="{{ part.add_url }}" size="sm" variant="ghost">
+                                        <c-n26.link href="{{ part.add_url }}" class="me-3 text-xs">
                                             Add to it
-                                        </c-ui.button>
-                                        <c-ui.button href="{{ part.remove_url }}" size="sm" variant="ghost">
+                                        </c-n26.link>
+                                        <c-n26.link href="{{ part.remove_url }}" tone="danger" class="text-xs">
                                             Remove
-                                        </c-ui.button>
+                                        </c-n26.link>
                                     </td>
                                 </tr>
                             {% endfor %}
                         </tbody>
                     </c-ui.table>
                 {% else %}
-                    <c-ui.description>
-                        No options yet — add one, or remove the set.
-                    </c-ui.description>
+                    <div class="px-6 py-3">
+                        <c-ui.description>
+                            No options yet — add one, or remove the set.
+                        </c-ui.description>
+                    </div>
                 {% endif %}
-                <div class="mt-1">
-                    <c-ui.button href="{{ group.add_url }}" size="sm" variant="ghost">
+                <div class="border-t border-box-border px-6 py-3">
+                    <c-n26.link href="{{ group.add_url }}"
+                                class="inline-flex items-center gap-1 text-sm">
+                        <c-slot name="leading">
+                            <c-n26.icon name="plus" class="size-3.5" stroke_width="2" />
+                        </c-slot>
                         Add an option here
-                    </c-ui.button>
-                    {% if group.remove_url %}
-                        <c-ui.button href="{{ group.remove_url }}" size="sm" variant="ghost">
-                            Remove this set
-                        </c-ui.button>
-                    {% endif %}
+                    </c-n26.link>
                 </div>
-            </div>
+            </c-ui.card>
         {% endfor %}
     {% else %}
         <c-ui.description>
             {{ hire_options.nothing_yet }}
         </c-ui.description>
     {% endif %}
-</c-n26.form-section>
-<c-n26.form-section title="Add an option"
-                    id="add-option"
-                    description="{{ hire_options.joins_text }}"
-                    class="mt-10">
-    {% if hire_options.option.part_help %}
-        <c-n26.prose class="max-w-2xl">
-            {% for paragraph in hire_options.option.part_help %}<p>{{ paragraph }}</p>{% endfor %}
-        </c-n26.prose>
-    {% endif %}
-    <form method="post" class="max-w-xl space-y-5">
-        {% csrf_token %}
-        <input type="hidden" name="act" value="{{ hire_options.option.act }}">
-        {% include "authoring/_form.html" with form=hire_options.option.form %}
-        <c-n26.form-actions submit_label="Add option" />
-    </form>
-</c-n26.form-section>
-<c-n26.form-section title="Offer another set of options"
-                    description="{{ hire_options.sets.parts_description }}"
-                    class="mt-10">
-    {% if hire_options.sets.part_help %}
-        <c-n26.prose class="max-w-2xl">
-            {% for paragraph in hire_options.sets.part_help %}<p>{{ paragraph }}</p>{% endfor %}
-        </c-n26.prose>
-    {% endif %}
-    <form method="post" class="max-w-xl space-y-5">
-        {% csrf_token %}
-        <input type="hidden" name="act" value="{{ hire_options.sets.act }}">
-        {% include "authoring/_form.html" with form=hire_options.sets.form %}
-        <c-n26.form-actions submit_label="Add set" />
-    </form>
+    {% comment %}
+    The two forms, folded. :expanded comes from the view: a control that
+    leads here (?set= / ?add=) or a submission refused with errors
+    arrives open; otherwise the fold keeps the page short.
+    {% endcomment %}
+    <div id="add-option" class="mt-8">
+        <c-ui.collapse :expanded="hire_options.option_open">
+            <c-slot name="trigger">
+                <span class="text-lg font-semibold text-ink-900 dark:text-ink-100">Add an option</span>
+            </c-slot>
+            <div class="mt-3 max-w-xl space-y-5">
+                <c-ui.alert variant="info" title="Where it goes">
+                    {{ hire_options.joins_text }} To aim somewhere else, press
+                    that set's own "Add an option here".
+                </c-ui.alert>
+                {% if hire_options.option.part_help %}
+                    <c-n26.prose class="max-w-2xl">
+                        {% for paragraph in hire_options.option.part_help %}<p>{{ paragraph }}</p>{% endfor %}
+                    </c-n26.prose>
+                {% endif %}
+                <form method="post" class="space-y-5">
+                    {% csrf_token %}
+                    <input type="hidden" name="act" value="{{ hire_options.option.act }}">
+                    {% include "authoring/_form.html" with form=hire_options.option.form %}
+                    <c-n26.form-actions submit_label="Add option" />
+                </form>
+            </div>
+        </c-ui.collapse>
+    </div>
+    <div id="add-set" class="mt-6">
+        <c-ui.collapse :expanded="hire_options.sets_open">
+            <c-slot name="trigger">
+                <span class="text-lg font-semibold text-ink-900 dark:text-ink-100">Offer another set of options</span>
+            </c-slot>
+            <div class="mt-3 max-w-xl space-y-5">
+                <c-ui.description>
+                    {{ hire_options.sets.parts_description }}
+                </c-ui.description>
+                {% if hire_options.sets.part_help %}
+                    <c-n26.prose class="max-w-2xl">
+                        {% for paragraph in hire_options.sets.part_help %}<p>{{ paragraph }}</p>{% endfor %}
+                    </c-n26.prose>
+                {% endif %}
+                <form method="post" class="space-y-5">
+                    {% csrf_token %}
+                    <input type="hidden" name="act" value="{{ hire_options.sets.act }}">
+                    {% include "authoring/_form.html" with form=hire_options.sets.form %}
+                    <c-n26.form-actions submit_label="Add set" />
+                </form>
+            </div>
+        </c-ui.collapse>
+    </div>
 </c-n26.form-section>

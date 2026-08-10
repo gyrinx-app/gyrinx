@@ -115,6 +115,10 @@ underlying spec.
   nothing (use `<c-slot>`); write `&amp;` not `&` in attributes; the
   platform's cotton checker does not scan n26 templates, so the
   `:field=` vs `field=` mistake is unguarded here — check your colons.
+  Passing `class=` to a component whose `<c-vars>` does not declare it
+  (the kit's `c-ui.badge`, for one) renders a *second* class attribute
+  via `{{ attrs }}` — the browser keeps the first and silently drops
+  the component's entire styling.
 
 ## Tests
 

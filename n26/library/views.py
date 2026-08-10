@@ -850,6 +850,19 @@ def _hire_options_context(request, kind, thing, drawn):
     if option_section is None or sets_section is None:
         return None
 
+    def named_set(pk):
+        """The set ``pk`` names on *this* carrier, else None — a stray
+        or malformed pk (a hand-edited URL) is nobody's set, not an
+        error page."""
+        from django.core.exceptions import ValidationError
+
+        if not pk:
+            return None
+        try:
+            return thing.option_groups.filter(pk=pk).first()
+        except ValidationError:
+            return None
+
     form = option_section["form"]
     if form.is_bound:
         picked = form.data.get("group") or ""
@@ -857,16 +870,21 @@ def _hire_options_context(request, kind, thing, drawn):
             form.add_error(None, error)
     else:
         picked = request.GET.get("set", "")
-    joins = thing.option_groups.filter(pk=picked).first() if picked else None
+    joins = named_set(picked)
     if not form.is_bound and joins is not None:
         form.initial["group"] = joins.pk
     form.fields["group"].widget = forms.HiddenInput()
 
     def row(option):
-        label, notes = _describe_option(option)
+        label, _ = _describe_option(option)
+        brings = ", ".join(
+            _label_for(member.assignable) for member in _brought_by(option)
+        )
         return {
             "label": label,
-            "notes": notes,
+            "price": f"+{option.default_set.price}cr",
+            "brings": brings or "nothing",
+            "standard": False,
             # Where a second item joins this option — an option bringing
             # a claw and a baton is one option, not two.
             "add_url": reverse("authoring-option-add", args=[option.pk]),
@@ -891,15 +909,23 @@ def _hire_options_context(request, kind, thing, drawn):
             # offers no pick-one. The add form below still defaults to
             # it, so the way in stays open.
             continue
+        choose = group.choose if group else "one"
+        if choose == "one" and rows:
+            rows[0]["standard"] = True
         blocks.append(
             {
-                "choose": group.choose if group else "one",
+                "is_main": group is None,
+                "choose": choose,
+                "how": HOW_A_SET_IS_PICKED[choose],
                 "label": group.name if group else "",
                 "options": rows,
+                # ?add=option (or ?set=) is what tells the redrawn page
+                # to arrive with the add-option form open — the control
+                # pressed is the state, and it lives in the URL.
                 "add_url": (
                     f"{request.path}?set={group.pk}#add-option"
                     if group
-                    else f"{request.path}#add-option"
+                    else f"{request.path}?add=option#add-option"
                 ),
                 "remove_url": (
                     reverse("authoring-option-set-remove", args=[group.pk])
@@ -924,6 +950,12 @@ def _hire_options_context(request, kind, thing, drawn):
         "groups": blocks,
         "option": option_section,
         "sets": sets_section,
+        # The forms fold closed; a press that leads to one — or a
+        # submission refused with errors — arrives with it open.
+        "option_open": (
+            form.is_bound or bool(picked) or request.GET.get("add") == "option"
+        ),
+        "sets_open": (sets_section["form"].is_bound or request.GET.get("add") == "set"),
         "joins_text": (
             f"This option joins {joins.name} — {how[joins.choose]}."
             if joins

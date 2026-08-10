@@ -1799,9 +1799,8 @@ class TestOfferingAChoice:
         option = profile.options.get()
         assert option.name == "As standard"
         assert not option.default_set.members.exists()
-        assert (
-            "brings nothing" in client.get(self.page(client, profile)).content.decode()
-        )
+        # The Brings cell says so in one word.
+        assert ">nothing<" in client.get(self.page(client, profile)).content.decode()
 
     def test_two_profiles_may_both_offer_as_standard(
         self, author, client, profile, person_type, gang_type
@@ -1971,7 +1970,7 @@ class TestOfferingAChoice:
             "Shock baton",
         ]
         body = client.get(self.page(client, profile)).content.decode()
-        assert "brings Assault claw, Shock baton" in body
+        assert "Assault claw, Shock baton" in body
 
     def test_a_set_may_offer_one_or_none(self, author, client, profile):
         """The book's "may take one of the following": exclusive

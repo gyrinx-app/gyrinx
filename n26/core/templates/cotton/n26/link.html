@@ -38,7 +38,8 @@ them. |safe restores the marking .strip drops, so markup in the slot survives.
 
   href — renders an <a>; without it, a <span>.
   underline — hover (default), always, or none.
-  tone — accent (default), current to inherit the surrounding colour, or muted.
+  tone — accent (default), current to inherit the surrounding colour, muted, or
+    danger for a link that removes something.
   leading — content before the text, outside the underline.
   trailing — content after the text, outside the underline.
 {% endcomment %}<c-vars
@@ -52,6 +53,7 @@ them. |safe restores the marking .strip drops, so markup in the slot survives.
         'accent': 'text-accent hover:text-accent-content',
         'current': 'text-current',
         'muted': 'text-muted hover:text-ink-800 dark:hover:text-ink-200',
+        'danger': 'text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300',
     }"
     :underline_classes="{
         'hover': 'no-underline hover:underline focus-visible:underline underline-offset-2',
