@@ -209,3 +209,13 @@ class TestTheShellStillDraws:
         page = reader.get("/n26/design/shell/new-gang/").content.decode()
         assert 'name="gang_type"' in page
         assert "Escher (HoB)" in page
+
+    def test_the_shop_shell_draws_a_row_that_asks_a_question(self, reader):
+        """One line in the sample catalogue offers alternatives at the
+        till — a mount and its weapon swaps — so this is where that
+        control is documented. The sample carries what the real browse
+        produces, so a page that draws it is the proof the two agree."""
+        page = reader.get("/n26/design/shell/shop/").content.decode()
+        assert "Grav-cutter plasma guns" in page
+        assert "+15¢" in page
+        assert "Choose one, or none" in page

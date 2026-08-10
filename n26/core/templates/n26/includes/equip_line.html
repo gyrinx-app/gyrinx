@@ -31,9 +31,20 @@ every input in the list on the same column however many rows have one.
     <c-slot name="price_control">
         {% include "n26/includes/equip_price.html" with field=row.price_field quoted=row.price label=row.name %}
     </c-slot>
-    {% if row.options %}
+    {% comment %}
+    Both kinds of extra row go in the one slot: the choices buying this asks
+    for, then the parts that ride along with it. Nothing carries both today —
+    a weapon has ammo and a wargear has options — and one slot means neither
+    has to know about the other if something ever does.
+    {% endcomment %}
+    {% if row.choices or row.options %}
         <c-slot name="rows">
-            {% include "n26/includes/equip_options.html" %}
+            {% if row.choices %}
+                {% include "n26/includes/equip_choices.html" %}
+            {% endif %}
+            {% if row.options %}
+                {% include "n26/includes/equip_options.html" %}
+            {% endif %}
         </c-slot>
     {% endif %}
     <c-slot name="actions">

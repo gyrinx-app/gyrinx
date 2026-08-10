@@ -78,6 +78,9 @@ reader might want belongs, with the press it feeds.
                     {% include "n26/includes/row_action.html" with action=row.buy.buy %}
                 </span>
             </div>
+            {% if row.buy.choices %}
+                {% include "n26/includes/equip_choices.html" with row=row.buy %}
+            {% endif %}
             {% if row.buy.options %}
                 {% include "n26/includes/equip_options.html" with row=row.buy %}
             {% endif %}

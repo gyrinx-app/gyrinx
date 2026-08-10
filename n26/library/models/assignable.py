@@ -209,10 +209,18 @@ class Assignable(models.Model):
         """The credit price a catalogue prints, before any override.
 
         A plain field for most things; ``base`` replaces it where a
-        collection prices this its own way. ``Optioned`` overrides this
-        to compose — a thing that comes with kit costs the package.
+        collection prices this its own way.
+
+        A kind that comes with kit composes instead (``price_with``): a
+        mount advertises the package — itself, its built-ins and whatever
+        comes as standard — because that is what buying it takes. Asked
+        of the price rather than left to a subclass override: an
+        assignable is a stack of mixins, and one further down the stack
+        cannot replace a method one further up.
         """
-        return self.price if base is None else base
+        own = self.price if base is None else base
+        composed = getattr(self, "price_with", None)
+        return own if composed is None else composed(base=own)
 
 
 class UsableBy(models.Model):
@@ -421,17 +429,13 @@ class Optioned(models.Model):
             raise ValueError(f"{self.name} does not offer: {', '.join(strays)}.")
         return taken
 
-    def reference_price(self, base=None):
-        """The advertised price — the whole package, not just the item.
-
-        Composed rather than read: acquiring this buys its built-ins and
-        whichever option comes as standard, so the stored ``price`` is
-        only the first term.
-        """
-        return self.price_with(base=base)
-
     def price_with(self, selection=None, base=None):
         """This, its built-ins, and every set taken with it.
+
+        The advertised price is this with nothing named — composed rather
+        than read, because acquiring this buys its built-ins and whichever
+        option comes as standard, so the stored ``price`` is only the
+        first term. ``Assignable.reference_price`` asks for exactly that.
 
         ``selection`` as in ``resolve_selection`` — a set, a list of sets,
         or ``None`` for the advertised price (each one-of group's default;
@@ -448,6 +452,14 @@ class Optioned(models.Model):
             + (self.built_ins.price if self.built_ins else 0)
             + sum(chosen.price for chosen in taken)
         )
+
+
+#: What ``grouped_offers`` reads, as prefetch paths. A listing that
+#: prefetches these for every kind carrying ``Optioned`` puts the choices
+#: in front of a buyer without a query per line — the option rows, the
+#: group each belongs to, and the set each would materialise, which is
+#: also where an option's price is stored.
+OPTION_OFFER_PATHS = ("options__group", "options__default_set")
 
 
 class Wargear(Content, Assignable, UsableBy, Optioned):

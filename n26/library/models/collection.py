@@ -416,7 +416,12 @@ class CollectionSelector(Content):
         """
         from django.db.models import Prefetch
 
-        from n26.library.models.assignable import USABLE_BY_LISTS, UsableBy
+        from n26.library.models.assignable import (
+            OPTION_OFFER_PATHS,
+            USABLE_BY_LISTS,
+            Optioned,
+            UsableBy,
+        )
 
         model = self.of_kind.model_class()
         found = model.objects.filter(self.as_selector().as_q(model)).select_related(
@@ -425,6 +430,11 @@ class CollectionSelector(Content):
         if issubclass(model, UsableBy):
             # So marking a swept listing usable costs no extra queries.
             found = found.prefetch_related(*USABLE_BY_LISTS)
+        if issubclass(model, Optioned):
+            # So a swept thing that offers alternatives at the till — a
+            # mount and its weapon swaps — puts them on screen without a
+            # query per row.
+            found = found.prefetch_related(*OPTION_OFFER_PATHS)
         if self.with_trade_point_price and hasattr(model, "profiles"):
             found = found.prefetch_related(
                 Prefetch(

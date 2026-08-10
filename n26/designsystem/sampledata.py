@@ -9,7 +9,14 @@ from dataclasses import dataclass, replace
 
 from django.utils.text import slugify
 
-from n26.core.browse import CategoryGroup, CollectionView, PricedLine, SectionGroup
+from n26.core.browse import (
+    CategoryGroup,
+    CollectionView,
+    OfferedGroup,
+    OfferedOption,
+    PricedLine,
+    SectionGroup,
+)
 from n26.core.hire import (
     STANDARD_OPTION_NAME,
     HireCategory,
@@ -295,6 +302,13 @@ _CATALOGUE = [
             ("Master-crafted toolkit", 45, 0, True),
         ],
     ),
+    (
+        "Equipment",
+        "Mounts",
+        [
+            ("Grav-cutter", 150, 12, False),
+        ],
+    ),
 ]
 
 
@@ -325,6 +339,54 @@ PAID_PARTS = {
     "Boltgun": [("Kraken round", 15, 10)],
     "Meltagun": [("Melta round", 20, 11)],
 }
+
+#: The questions a line asks before it will sell you the thing, keyed by
+#: the item that asks them, as ``(choose, [(name, surcharge)])``. A mount
+#: comes with a weapon and will swap it for a dearer one; a fitting may be
+#: added or left off. Both are ways the thing being bought is built rather
+#: than second things on the list, so they are controls under one Buy.
+#:
+#: One item carries both kinds, because the two are drawn differently and
+#: the second set is what puts a rule and a "how many to take" line on the
+#: screen. The surcharges are distances from the row's own price, which is
+#: what the real browse computes: the standard option adds nothing.
+OFFERED = {
+    "Grav-cutter": [
+        (
+            "one",
+            [
+                ("Grav-cutter grenade launchers", 0),
+                ("Grav-cutter heavy stubbers", 10),
+                ("Grav-cutter plasma guns", 15),
+            ],
+        ),
+        ("one-or-none", [("Smoke dispenser", 20)]),
+    ],
+}
+
+
+def _offered_choices(name):
+    """The alternatives one line offers, as the structure browse builds.
+
+    ``default_set`` is what a purchase would materialise, and the gallery
+    buys nothing — so the sample names none, exactly as a line with no
+    alternatives carries none.
+    """
+    return tuple(
+        OfferedGroup(
+            choose=choose,
+            options=tuple(
+                OfferedOption(
+                    name=option,
+                    surcharge=surcharge,
+                    is_default=(choose == "one" and position == 0),
+                    default_set=None,
+                )
+                for position, (option, surcharge) in enumerate(options)
+            ),
+        )
+        for choose, options in OFFERED.get(name, ())
+    )
 
 
 def _part_lines(name, category):
@@ -380,6 +442,7 @@ def trading_post() -> CollectionView:
                         # to draw. Nothing is removed — we inform, never police.
                         notes=USE_NOTES.get(name, ()),
                         parts=_part_lines(name, category),
+                        choices=_offered_choices(name),
                     )
                     for name, credits, trade_points, exclusive in items
                 ],

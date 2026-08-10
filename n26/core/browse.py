@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 
 from n26.core.notes import WARNING, Note
 from n26.core.taxonomy import group_by_home
-from n26.library.models import price_of
+from n26.library.models import Optioned, price_of
 
 
 @dataclass(frozen=True)
@@ -50,6 +50,46 @@ EQUIPMENT_LIST = Terms()
 #: the listing. What makes shopping "at a trading post" is the terms you
 #: shop on, not the collection you shop from.
 TRADING_POST = Terms(charges_trade_points=True, shows_exclusive=False)
+
+
+@dataclass(frozen=True)
+class OfferedOption:
+    """One alternative a line offers the buyer — a mount's plasma guns.
+
+    ``surcharge`` is what taking this adds to the line's own price, which
+    is not the same as the set's stored price: the quoted price already
+    includes whatever a pick-one set takes unasked, so the number worth
+    printing beside an option is the distance from there. Taking the head
+    of a pick-one set therefore adds nothing, and a swap adds the
+    difference. It may be negative, where the alternative is the cheaper
+    one.
+
+    ``default_set`` is what materialises if this is taken — the thing
+    ``Operation.buy`` is handed as ``option=``.
+    """
+
+    name: str
+    surcharge: int
+    is_default: bool
+    default_set: object
+
+
+@dataclass(frozen=True)
+class OfferedGroup:
+    """One set of the alternatives a line offers.
+
+    ``choose`` is "one" (exactly one, the default marked), "any" (take any
+    number, none by default) or "one-or-none" (at most one, none by
+    default) — the same three the hire view draws.
+
+    The set has no name here, deliberately, exactly as at hire: the one
+    the content carries is the author's label for their own page, and a
+    player is shown the options rather than the question. What a reader
+    needs is that these go together, which is the grouping itself.
+    """
+
+    choose: str
+    options: tuple = ()
 
 
 @dataclass(frozen=True)
@@ -89,6 +129,11 @@ class PricedLine:
     #: part is itself a PricedLine, so the till buys one the same way:
     #: onto the gun's own assignment, which is what a profile hangs off.
     parts: tuple = ()
+    #: The alternatives this line offers at the till — a mount's grenade
+    #: launchers or, for a surcharge, its plasma guns. Sets that offer no
+    #: real choice are left out, so anything here is worth asking about.
+    #: Empty for everything that offers none, which is most of a listing.
+    choices: tuple = ()
 
     @property
     def name(self):
@@ -158,7 +203,11 @@ def browse(collection, terms=EQUIPMENT_LIST):
     *definition*, never its size.
     """
     from n26.library.models import CollectionEntry
-    from n26.library.models.assignable import USABLE_BY_LISTS, UsableBy
+    from n26.library.models.assignable import (
+        OPTION_OFFER_PATHS,
+        USABLE_BY_LISTS,
+        UsableBy,
+    )
     from n26.library.models.collection import ENTRY_ASSIGNABLE_FIELDS
 
     lines = {}
@@ -181,6 +230,7 @@ def browse(collection, terms=EQUIPMENT_LIST):
                     charges_trade_points=terms.charges_trade_points,
                     shows_trade_points=in_trade_points,
                     parts=_swept_parts(thing, terms, in_trade_points),
+                    choices=_offered_choices(thing),
                 ),
             )
 
@@ -201,6 +251,17 @@ def browse(collection, terms=EQUIPMENT_LIST):
                     CollectionEntry._meta.get_field(name).related_model, UsableBy
                 )
                 for listed in USABLE_BY_LISTS
+            ),
+            # The alternatives a line offers at the till, derived for every
+            # kind that can carry them — so a list of a hundred mounts puts
+            # their swaps on screen for the same queries as a list of one.
+            *(
+                f"{name}__{path}"
+                for name in ENTRY_ASSIGNABLE_FIELDS
+                if issubclass(
+                    CollectionEntry._meta.get_field(name).related_model, Optioned
+                )
+                for path in OPTION_OFFER_PATHS
             ),
         )
     )
@@ -225,10 +286,54 @@ def browse(collection, terms=EQUIPMENT_LIST):
                 parts=_entry_parts(
                     ammo.get(entry.weapon_id, ()), terms, in_trade_points
                 ),
+                choices=_offered_choices(thing),
             ),
         )
 
     return _sectioned(str(collection), lines.values())
+
+
+def _offered_choices(thing):
+    """The sets of alternatives this thing puts to a buyer.
+
+    Read off the same offer a hire reads (``Optioned.grouped_offers``), so
+    a mount's swaps are one description of the content however it is
+    acquired. Prefetched by the browse, so a listing pays no query per
+    line; a thing that offers nothing has nothing here.
+
+    Sets that are not a choice are left out: a pick-one set with a single
+    option is taken unasked, and drawing it would ask a reader to consider
+    something they cannot change. What comes back is what a surface draws
+    *and* what the till reads a submitted answer against, so a set missing
+    here is one nothing can name.
+    """
+    if not isinstance(thing, Optioned):
+        return ()
+    groups = []
+    for group, offered in thing.grouped_offers():
+        choose = group.choose if group is not None else "one"
+        one_of = choose == "one"
+        if one_of and len(offered) < 2:
+            continue
+        # A pick-one set's head is already in the price the line quotes, so
+        # what an option adds is measured from there: taking the head adds
+        # nothing and a swap adds the difference.
+        included = offered[0].price if one_of else 0
+        groups.append(
+            OfferedGroup(
+                choose=choose,
+                options=tuple(
+                    OfferedOption(
+                        name=option.name,
+                        surcharge=option.price - included,
+                        is_default=one_of and position == 0,
+                        default_set=option.default_set,
+                    )
+                    for position, option in enumerate(offered)
+                ),
+            )
+        )
+    return tuple(groups)
 
 
 def _ammo_by_weapon(entries):

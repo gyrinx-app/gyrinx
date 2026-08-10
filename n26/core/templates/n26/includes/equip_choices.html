@@ -1,0 +1,85 @@
+{% comment %}
+The questions a row asks before it will sell you the thing: a mount's grenade
+launchers or, for a surcharge, its plasma guns. Expects `row` — an
+n26.core.listing.PricedRow.
+
+Controls rather than a second row on the list, because that is what they are: a
+mount's guns are not a thing you buy from this screen, they are a way the mount
+you are buying is built. So there is one Buy on the row and everything under it
+configures that one purchase, exactly as a fighter's options work on the hire
+page — same three modes, drawn the same way, read back the same way as indices
+into the row the server re-derives.
+
+Which control is not a style choice: the set's `choose` says whether exactly one
+is taken (radios, the standard one already selected), any number (tick boxes,
+none selected), or at most one (radios with a None row). Nothing here decides it
+again.
+
+A set is never named. The label the content carries is the author's word for
+their own page, and a player is here to pick — so a set is shown as grouping,
+with a line saying how many to take, and never as a heading naming it.
+
+The surcharge follows the name rather than sitting in the price column: it is a
+different kind of number from the figure in the box above, which is the one
+anyone is charged, and it is measured from that figure — so the standard option
+adds nothing and prints nothing.
+
+Works with no script running: every control posts its own value and the till
+does the arithmetic. What is lost without one is the price box updating as the
+radios move.
+{% endcomment %}
+{% for group in row.choices %}
+    {% comment %}
+    Every set after the first is ruled off from the one above and says how many
+    to take, which is the whole of how a reader is told these go together. The
+    first needs neither: the row it belongs to is directly above it, saying what
+    is being configured, and controls that are plainly one group say so
+    themselves.
+    {% endcomment %}
+    {% if not forloop.first %}
+        <div class="mt-1 flex min-h-8 items-center gap-2 border-t border-box-border pt-2">
+            <span class="text-xs font-semibold uppercase tracking-wide text-muted">
+                {% if group.choose == "one" %}
+                    Choose one
+                {% elif group.choose == "any" %}
+                    Choose any
+                {% else %}
+                    Choose one, or none
+                {% endif %}
+            </span>
+        </div>
+    {% endif %}
+    {% for option in group.options %}
+        {% comment %}
+        The whole line is the label, so the hit target is the row rather than a
+        control the width of a fingertip — this list is read on a phone.
+        {% endcomment %}
+        <label class="flex min-h-9 cursor-pointer items-center gap-2 rounded-control py-0.5 hover:bg-ink-500/5">
+            <input type="{% if group.choose == 'any' %}checkbox{% else %}radio{% endif %}"
+                   name="{{ group.field }}"
+                   value="{{ option.value }}"
+                   {% if option.is_default %}checked{% endif %}
+                   class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
+            <span class="min-w-0 text-sm text-ink-900 dark:text-ink-100 sm:truncate">{{ option.name }}</span>
+            {% if option.surcharge_label %}
+                <span class="shrink-0 text-xs text-muted">{{ option.surcharge_label }}</span>
+            {% endif %}
+        </label>
+    {% endfor %}
+    {% comment %}
+    A one-or-none set starts with nothing taken, and radios cannot be unpressed
+    once pressed — so "None" is the row that makes taking nothing pressable,
+    checked from the start and adding nothing. Its empty value is what the till
+    skips.
+    {% endcomment %}
+    {% if group.choose == "one-or-none" %}
+        <label class="flex min-h-9 cursor-pointer items-center gap-2 rounded-control py-0.5 hover:bg-ink-500/5">
+            <input type="radio"
+                   name="{{ group.field }}"
+                   value=""
+                   checked
+                   class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
+            <span class="min-w-0 text-sm text-ink-900 dark:text-ink-100 sm:truncate">None</span>
+        </label>
+    {% endif %}
+{% endfor %}

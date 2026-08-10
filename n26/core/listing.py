@@ -77,6 +77,20 @@ def parts_field(key):
     return f"{slugify(key)}:parts"
 
 
+def choice_field(key, group):
+    """The input name one set of a line's alternatives shares.
+
+    Scoped by the line and then by the set, because one form holds the
+    whole listing and a line may put more than one question: without the
+    line's scope a mount's swap would arrive with another row's press, and
+    without the set's the two questions would be one radio group where
+    answering the second unanswers the first. Slugified for the same
+    reason the rest are — the template renders the slug, and reading the
+    raw key back would ignore every choice made in a real browser.
+    """
+    return f"{slugify(key)}:option:{group}"
+
+
 def price_field(key, index=None):
     """The input name a line's price is typed into — the row's own, or
     one of its parts'.
@@ -134,6 +148,49 @@ class OptionRow:
 
 
 @dataclass(frozen=True)
+class ChoiceOption:
+    """One answer a reader may give to a question a row asks.
+
+    ``value`` is its place in the set the server re-derives, which is what
+    the control submits — naming it any other way would let a tampered
+    form ask for something the row never offered.
+
+    ``surcharge`` is what taking it adds to the figure in the row's price
+    box, and ``surcharge_label`` is that as a reader sees it. Nothing is
+    drawn where taking it changes nothing.
+    """
+
+    name: str
+    value: str
+    surcharge: int
+    is_default: bool
+
+    @property
+    def surcharge_label(self):
+        if self.surcharge == 0:
+            return ""
+        sign = "+" if self.surcharge > 0 else "−"
+        return f"{sign}{abs(self.surcharge)}¢"
+
+
+@dataclass(frozen=True)
+class ChoiceGroup:
+    """One question a row asks, and the answers on offer.
+
+    ``choose`` is the row's own word for how the question works — "one",
+    "any", "one-or-none" — and drawing it as radios or tick boxes is the
+    template's business, the same division as a tone and a colour.
+
+    The set is never named to a reader; see ``n26.core.browse``.
+    """
+
+    choose: str
+    #: The input every answer in this set shares.
+    field: str
+    options: tuple[ChoiceOption, ...]
+
+
+@dataclass(frozen=True)
 class PricedRow:
     """Something for sale, and what buying it here asks for."""
 
@@ -149,6 +206,9 @@ class PricedRow:
     parts_field: str
     options: tuple[OptionRow, ...]
     buy: Action
+    #: The questions buying this asks — a mount's weapon swap. Empty for
+    #: everything that asks none, which is most of a listing.
+    choices: tuple[ChoiceGroup, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -273,6 +333,31 @@ def _options_of(line, key):
     )
 
 
+def _choices_of(line, key):
+    """The line's offered alternatives as controls, in the line's own order.
+
+    The order is load-bearing: a control submits its place in the set and
+    the till reads that place against the line it re-derives, so this
+    walks the browsed line and never a second derivation of it.
+    """
+    return tuple(
+        ChoiceGroup(
+            choose=group.choose,
+            field=choice_field(key, index),
+            options=tuple(
+                ChoiceOption(
+                    name=option.name,
+                    value=str(position),
+                    surcharge=option.surcharge,
+                    is_default=option.is_default,
+                )
+                for position, option in enumerate(group.options)
+            ),
+        )
+        for index, group in enumerate(line.choices)
+    )
+
+
 def priced_row(line):
     """One line of a browsed collection as a row that offers to sell it."""
     key = thing_key(line.thing)
@@ -290,6 +375,7 @@ def priced_row(line):
         # collection and finds the line itself, so a tampered form can
         # name nothing that is not on the list.
         buy=Action(label="Buy", kind=SUBMIT, target=key, tone=PRIMARY),
+        choices=_choices_of(line, key),
     )
 
 

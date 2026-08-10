@@ -910,11 +910,15 @@ class TestTradingPostMembership:
         post's *definition*, never its size. One for the selector rows,
         one per sweep, one for the weapon sweep's nested profiles, four
         use-restriction prefetches for each sweep whose kind can carry
-        them (an accessory cannot), one for the entries."""
+        them (an accessory cannot), one for the wargear sweep's options —
+        the one kind here that can offer alternatives at the till — and
+        one for the entries. Nothing stocked offers any, so the group and
+        set rows behind an option are never asked for: an empty level
+        ends the chain."""
         from n26.tests.sandbox.actions import create_trading_post
 
         post = create_trading_post()
-        with django_assert_num_queries(14):
+        with django_assert_num_queries(15):
             view = browse(post, TRADING_POST)
             for line in view.all_lines():
                 for part in line.parts:
