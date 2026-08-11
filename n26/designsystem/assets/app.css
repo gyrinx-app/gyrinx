@@ -98,10 +98,22 @@
 :root {
     /* Accent: primary buttons, links, focus ring, active states. The kit's
      * default accent is ink-900 — a near-black that makes a primary button and a
-     * heading the same colour, so nothing on the page reads as *the* action. */
+     * heading the same colour, so nothing on the page reads as *the* action.
+     *
+     * The label on an accent fill is dark, not white: amber is a light hue, and
+     * white on amber-500 is 2.1:1 — under the 4.5:1 that body text needs, so a
+     * primary button's own wording would be the least legible text on the page.
+     * The near-black end of the same hue reads at 7:1 and still belongs to the
+     * amber rather than looking like a black label somebody dropped on top.
+     *
+     * accent-content is a step down the ramp, not two: the kit spends it as the
+     * primary button's hover *fill* as well as on hover text, so it is read
+     * against the dark label above — amber-600 keeps that pairing at 4.7:1,
+     * where amber-700 would drop it to 3:1 and make a button hardest to read at
+     * the moment the pointer is on it. */
     --color-accent: var(--color-amber-500);
     --color-accent-content: var(--color-amber-600);
-    --color-accent-foreground: #ffffff;
+    --color-accent-foreground: var(--color-amber-950);
 
     /* Re-tone the neutral to gray, a true neutral against the warm accent.
      * Every --color-ink-* step is re-pointed rather than a few: the scale is used
