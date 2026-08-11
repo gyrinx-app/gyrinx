@@ -91,58 +91,62 @@
  * the root element, and an inline style beats any stylesheet rule. So this is the
  * starting point, not a cage — themes you build in the panel behave as before.
  *
- * Every value below is a token, never a literal colour: --color-mist-* and
- * --color-blue-* are both the kit's, so a component that resolves one of these at
- * runtime still finds a defined variable. */
+ * Every value below is a token, never a literal colour: --color-gray-* and
+ * --color-amber-* are both Tailwind's own, primed by the @source inline above,
+ * so a component that resolves one of these at runtime still finds a defined
+ * variable. */
 :root {
     /* Accent: primary buttons, links, focus ring, active states. The kit's
      * default accent is ink-900 — a near-black that makes a primary button and a
      * heading the same colour, so nothing on the page reads as *the* action. */
-    --color-accent: var(--color-blue-500);
-    --color-accent-content: var(--color-blue-600);
+    --color-accent: var(--color-amber-500);
+    --color-accent-content: var(--color-amber-600);
     --color-accent-foreground: #ffffff;
 
-    /* Re-tone the neutral to mist, which is a cooler grey than the kit's zinc.
+    /* Re-tone the neutral to gray, a true neutral against the warm accent.
      * Every --color-ink-* step is re-pointed rather than a few: the scale is used
      * as a scale — borders at 200, muted text at 400, body at 800 — and moving
      * some steps and not others would bend the ramp rather than shift it. */
-    --color-ink-50: var(--color-mist-50);
-    --color-ink-100: var(--color-mist-100);
-    --color-ink-200: var(--color-mist-200);
-    --color-ink-300: var(--color-mist-300);
-    --color-ink-400: var(--color-mist-400);
-    --color-ink-500: var(--color-mist-500);
-    --color-ink-600: var(--color-mist-600);
-    --color-ink-700: var(--color-mist-700);
-    --color-ink-800: var(--color-mist-800);
-    --color-ink-900: var(--color-mist-900);
-    --color-ink-950: var(--color-mist-950);
-    --color-bg: var(--color-mist-50);
+    --color-ink-50: var(--color-gray-50);
+    --color-ink-100: var(--color-gray-100);
+    --color-ink-200: var(--color-gray-200);
+    --color-ink-300: var(--color-gray-300);
+    --color-ink-400: var(--color-gray-400);
+    --color-ink-500: var(--color-gray-500);
+    --color-ink-600: var(--color-gray-600);
+    --color-ink-700: var(--color-gray-700);
+    --color-ink-800: var(--color-gray-800);
+    --color-ink-900: var(--color-gray-900);
+    --color-ink-950: var(--color-gray-950);
+    --color-bg: var(--color-gray-50);
 
-    /* Corner radius, by role. Both at the same value, which is a decision and not
-     * an oversight: a card and the input inside it sharing a radius reads as one
-     * material rather than as a rounded thing holding a rounder thing. */
-    --radius-control: 0.25rem;
-    --radius-box: 0.25rem;
+    /* Corner radius, by role. Square, and both at the same value: a card and the
+     * input inside it sharing a radius reads as one material rather than as a
+     * rounded thing holding a rounder thing. Components that halve or scale the
+     * token — a checkbox at 0.5×, a pill at rounded-full — still work from it, so
+     * squaring here squares the set rather than leaving a few odd corners. */
+    --radius-control: 0;
+    --radius-box: 0;
 
-    /* Form controls */
-    --focus-ring-width: 2px;
+    /* Form controls. A wider ring, because a square control has no curve to catch
+     * the eye and the ring is the whole of what says "focused". */
+    --focus-ring-width: 3px;
     --shadow-input: 0 1px 2px 0 rgb(0 0 0 / 0.05);
 
-    /* Structural surfaces. No shadow on a card: the border and the surface tint
-     * already separate it from the page, and a shadow on top of both is the third
-     * way of saying one thing. Inputs and buttons keep theirs — they are pressable
-     * and the elevation is what says so. */
-    --shadow-box: none;
+    /* Structural surfaces, lifted the same hair as the inputs: with the corners
+     * square the border alone is a thin argument for where a card ends, and the
+     * faintest elevation separates it from the page without reading as depth. */
+    --shadow-box: 0 1px 2px 0 rgb(0 0 0 / 0.05);
 }
 
 .dark {
-    /* A lighter accent, so it stays vivid on a dark surface. blue-500 on
-     * mist-950 is dim enough to read as disabled rather than as the action. */
-    --color-accent: var(--color-blue-400);
-    --color-accent-content: var(--color-blue-300);
-    --color-accent-foreground: var(--color-blue-950);
-    --color-bg: var(--color-mist-950);
+    /* A lighter accent, so it stays vivid on a dark surface. amber-500 on
+     * gray-950 is dim enough to read as disabled rather than as the action, and
+     * the foreground goes dark because white on amber is unreadable. */
+    --color-accent: var(--color-amber-400);
+    --color-accent-content: var(--color-amber-300);
+    --color-accent-foreground: var(--color-amber-950);
+    --color-bg: var(--color-gray-950);
 }
 
 @layer base {
