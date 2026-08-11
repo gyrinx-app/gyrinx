@@ -1,5 +1,5 @@
 {# title: An empty stash #}
-{# note: Without an `empty` slot the component draws nothing at all — an empty stash is not worth a heading. Given one, it says so in a sentence rather than showing a zero, because "0¢" invites the reader to work out what it means. #}
+{# note: The card is drawn either way — it holds a grid slot, and a slot that appears and disappears with the contents moves every fighter after it around the grid. It says so in a sentence rather than showing a zero, because "0¢" invites the reader to work out what it means; pass an `empty` slot to say it in your own words. #}
 <c-n26.stash :lines="None" :total="0">
     <c-slot name="empty">
         Nothing in the stash. Anything the gang owns but nobody is carrying will appear here.

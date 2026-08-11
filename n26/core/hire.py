@@ -267,7 +267,10 @@ def hireable_profiles(gang_type):
         "members__weapon_profile__statline__stats__statline_type_stat__stat",
     )
     return (
-        Profile.objects.filter(gang_type=gang_type)
+        # A profile that is not hireable is not a secret — its card still
+        # previews wherever it is granted — it just is not for sale here:
+        # a pet arrives behind its collar, not off the hire screen.
+        Profile.objects.filter(gang_type=gang_type, hireable=True)
         # category__section rides along for the section headings — without
         # it, grouping a listing costs two queries per profile.
         .select_related("profile_type", "built_ins", "category__section")

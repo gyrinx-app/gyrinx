@@ -185,7 +185,16 @@ that said it twice would be spending the width the name needs.
                             <c-ui.dropdown.item href="#">
                                 Cards
                             </c-ui.dropdown.item>
-                            <c-ui.dropdown.item variant="danger" href="#">
+                            {% comment %}
+                            Both open a question rather than acting: the URL
+                            names the fighter and the sheet answers with the
+                            dialog below, so a press works with no script and
+                            an open question is an address someone can send.
+                            {% endcomment %}
+                            <c-ui.dropdown.item href="?refund={{ member.id }}">
+                                Refund
+                            </c-ui.dropdown.item>
+                            <c-ui.dropdown.item variant="danger" href="?delete={{ member.id }}">
                                 Delete
                             </c-ui.dropdown.item>
                         </c-ui.dropdown>
@@ -199,6 +208,56 @@ that said it twice would be spending the width the name needs.
     state — the pencil is a link to ?rename=<pk>, so the question works
     with scripting off and an open dialog is a page someone can reload.
     {% endcomment %}
+    {% comment %}
+    The leaving dialogs, when the URL asks about a member. One question,
+    two answers each: the act on everything, or the kit money was paid
+    for moved to the stash first — where every line keeps its pinned
+    rating, because a move never re-prices. The stash button is offered
+    only when there is such a line to move; built-ins stay with the
+    fighter either way, because a free knife in the stash is clutter the
+    next hire re-arms without.
+    {% endcomment %}
+    {% if leaving %}
+        {% if leaving.kind == "delete" %}
+            <c-n26.dialog title="Delete {{ leaving.miniature.name }}?"
+                          action="{% url 'n26-delete-fighter' leaving.miniature.pk %}"
+                          cancel_url="{% url 'n26-gang' gang.pk %}"
+                          submit_label="Delete everything"
+                          submit_variant="danger">
+                <c-slot name="lead">
+                    They leave the roster with their kit and anything it
+                    brought. What was paid stays spent.
+                </c-slot>
+                {% csrf_token %}
+                {% if leaving.stashable %}
+                    <c-slot name="actions">
+                        <c-ui.button type="submit" name="kit" value="stash" size="md">
+                            Stash their kit, then delete
+                        </c-ui.button>
+                    </c-slot>
+                {% endif %}
+            </c-n26.dialog>
+        {% else %}
+            <c-n26.dialog title="Refund {{ leaving.miniature.name }}?"
+                          action="{% url 'n26-refund-fighter' leaving.miniature.pk %}"
+                          cancel_url="{% url 'n26-gang' gang.pk %}"
+                          submit_label="Refund everything — {{ leaving.full_paid }}¢">
+                <c-slot name="lead">
+                    What was actually paid comes back — free and granted
+                    things return nothing. They leave the roster with
+                    anything not stashed.
+                </c-slot>
+                {% csrf_token %}
+                {% if leaving.stashable %}
+                    <c-slot name="actions">
+                        <c-ui.button type="submit" name="kit" value="stash" size="md">
+                            Stash kit, refund {{ leaving.fighter_paid }}¢
+                        </c-ui.button>
+                    </c-slot>
+                {% endif %}
+            </c-n26.dialog>
+        {% endif %}
+    {% endif %}
     {% if renaming %}
         <c-n26.dialog title="Rename {{ renaming.name }}"
                       action="{% url 'n26-rename-fighter' renaming.pk %}"

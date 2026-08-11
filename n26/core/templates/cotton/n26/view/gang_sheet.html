@@ -189,15 +189,18 @@ into a variable of its own would find it drawn here as well.
         </div>
     </div>
 
-    <c-n26.stash :lines="sheet.stash" :total="sheet.stash_rating">
-        {% if stash_empty %}<c-slot name="empty">{{ stash_empty }}</c-slot>{% endif %}
-    </c-n26.stash>
-
     {% comment %}
     Fighters last and given the whole width. auto-rows-min keeps a short card
     short; items-start would only align them, not stop them stretching.
+
+    The stash leads the grid — the first slot, where v1's printed roster put
+    it — as a card among the cards: a place gear lives, beside the people
+    who carry the rest of it.
     {% endcomment %}
     <div class="grid auto-rows-min grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <c-n26.stash :lines="sheet.stash" :total="sheet.stash_rating">
+            {% if stash_empty %}<c-slot name="empty">{{ stash_empty }}</c-slot>{% endif %}
+        </c-n26.stash>
         {{ members }}
     </div>
 </div>

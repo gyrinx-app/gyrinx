@@ -18,9 +18,11 @@ from n26.core.views.equip import equip
 from n26.core.views.gangs import (
     create_gang,
     dashboard,
+    delete_fighter,
     delete_gang,
     gang_sheet,
     gangs,
+    refund_fighter,
     rename_fighter,
 )
 from n26.core.views.hire import hire_fighter
@@ -37,6 +39,7 @@ __all__ = [
     "choose",
     "create_gang",
     "dashboard",
+    "delete_fighter",
     "delete_gang",
     "equip",
     "gang_sheet",
@@ -48,6 +51,7 @@ __all__ = [
     "print_setup",
     "reassign_assignment",
     "refund_assignment",
+    "refund_fighter",
     "remove_assignment",
     "rename_fighter",
     "sell_assignment",

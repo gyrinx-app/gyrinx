@@ -22,8 +22,10 @@ urlpatterns = [
     # the offer and the offer itself, so one route answers a fighter's
     # choice and the gang's alike — see n26.core.views.choose.
     path("gangs/<str:pk>/choose/<str:slot>/", views.choose, name="n26-choose"),
-    # The act behind the gang sheet's rename dialog; GET just reopens it.
+    # The acts behind the gang sheet's dialogs; GET just reopens each one.
     path("fighters/<str:pk>/rename/", views.rename_fighter, name="n26-rename-fighter"),
+    path("fighters/<str:pk>/delete/", views.delete_fighter, name="n26-delete-fighter"),
+    path("fighters/<str:pk>/refund/", views.refund_fighter, name="n26-refund-fighter"),
     path("fighters/<str:pk>/equip/", views.equip, name="n26-equip"),
     # Addressed by fighter, not by slot: what they may learn is their
     # grid rather than a question anybody asked — see n26.core.views.learn.

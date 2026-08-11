@@ -1791,7 +1791,7 @@ GROUPS: list[Group] = [
                 slug="stash",
                 tag="c-n26.stash",
                 template="n26/stash/index.html",
-                summary="The gang's storage, grouped by kind.",
+                summary="The gang's storage, as a card in the roster's grid.",
                 parts=(
                     Part(
                         "c-n26.stash.group",
@@ -1800,6 +1800,11 @@ GROUPS: list[Group] = [
                     ),
                 ),
                 notes=(
+                    "A card among the fighters' cards, because the stash is a "
+                    "place gear lives the way a fighter is: it takes the grid's "
+                    "first slot, so what the gang holds and who holds what read "
+                    "as one layout, and moving something between a card and the "
+                    "stash is a move between two like things on one screen. "
                     "Grouped by what kind each item is, because that is the "
                     "question actually asked of a stash: you scan it for "
                     "armour, not for the thing called Mesh armour, and a flat "
@@ -1807,13 +1812,13 @@ GROUPS: list[Group] = [
                     "on and wrap rather than taking a row each — the stash is a "
                     "footnote on a gang sheet, not the point of it — and ratings "
                     "sit against their own item, since nothing is being compared "
-                    "down a stash. The total goes on the heading, not under the "
-                    "last row where it would read as belonging to that row. Drawn "
-                    "through c-n26.assignable-lines, so something a modifier put "
-                    "there carries the mark it would on a card. "
-                    "supplies the groups: StashLine has a name, a rating and a "
-                    "provenance but not a kind, so the grouping cannot come from a "
-                    "GangSheet alone."
+                    "down a stash. The total sits on the header line, where a "
+                    "fighter's card puts its rating and for the same reason. An "
+                    "empty stash still draws the card: it holds a grid slot "
+                    "either way, and a slot that comes and goes with the "
+                    "contents moves every fighter after it around the grid. "
+                    "Drawn through c-n26.assignable-lines, so something a "
+                    "modifier put there carries the mark it would on a card."
                 ),
             ),
             Component(

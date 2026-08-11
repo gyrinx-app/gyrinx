@@ -3,61 +3,71 @@
 
     <c-n26.stash :lines="gang.stash" :total="gang.stash_rating" />
 
-Takes the sheet's own flat list and groups it here, by what kind of thing each
-item is. That is the question actually asked of a stash: nobody scans it for "the
-thing called Mesh armour", they scan it for armour or for a spare weapon, and an
-ungrouped list makes that a read of every line.
+A card, built to sit in the same grid as the fighters. The stash is a place
+gear lives the way a fighter is a place gear lives, so it takes a grid slot
+of its own rather than a strip above the roster — what the gang holds and
+who holds what read as one layout, and moving something between a card and
+the stash is moving it between two like things on one screen.
+
+Takes the sheet's own flat list and groups it here, by what kind of thing
+each item is. That is the question actually asked of a stash: nobody scans
+it for "the thing called Mesh armour", they scan it for armour or for a
+spare weapon, and an ungrouped list makes that a read of every line.
 
   --- why the grouping is this component's job ---
 
 n26.render keeps GangSheet.stash flat on purpose, because whether a renderer
-groups by kind, sorts by rating or prints straight through is presentational — a
-text sheet and a web sheet will not agree, so the structure does not choose for
-them. This one groups, so it does the grouping.
-
-It needs nothing from the caller to do it: StashLine.kind carries the kind, put
-there by render_gang while the assignables were still in hand. dictsort before
-regroup because regroup starts a new group whenever the key changes rather than
-gathering equal keys — handed an unsorted list it silently produces "weapon,
-wargear, weapon" as three groups, which looks like a data problem and is not one.
-
-Each group is a row of the shape <c-n26.detail-list> uses: a quiet label, and the
-items beside it. It is not that component, because these values are not editable —
-moving something out of the stash is an act on the item, not an edit of the stash
-— but it matches its rhythm, so the two read as one page rather than as two lists
-that happen to be adjacent.
+groups by kind, sorts by rating or prints straight through is presentational
+— a text sheet and a web sheet will not agree, so the structure does not
+choose for them. This one groups, so it does the grouping. dictsort before
+regroup because regroup starts a new group whenever the key changes rather
+than gathering equal keys — handed an unsorted list it silently produces
+"weapon, wargear, weapon" as three groups, which looks like a data problem
+and is not one.
 
   --- the total ---
 
-On the heading, not at the foot. What the storage is worth is a fact about the
-storage, and a figure under the last row reads as belonging to that row. It is
-also already in the wealth strip further up as St, which is why this one is quiet:
-it is a reminder of a number, not the place that number lives.
+On the header line, where a fighter's card puts its rating, and for the same
+reason: what the card is worth is a fact about the card. It is also already
+in the wealth strip further up as St, which is why this one is quiet — a
+reminder of a number, not the place that number lives.
+
+An empty stash still draws the card: it holds a grid slot either way, and a
+slot that appears and disappears with the contents moves every fighter after
+it around the grid.
 
   :lines — n26.render.StashLine objects, straight from GangSheet.stash.
   :total — what the whole stash is pinned at, in credits.
-  empty — what to show when there is nothing. Without it, nothing is drawn at all,
-    because an empty stash is not worth a heading.
+  empty — what to say when there is nothing.
 {% endcomment %}
 <c-vars :lines="None" :total="0" empty="" class="" />
 
-{% if lines %}
-    <section class="{{ class }}">
-        <h2 class="flex items-baseline gap-2 text-sm font-semibold text-ink-900 dark:text-ink-100">
-            Stash
-            <span class="text-xs font-normal tabular-nums text-muted">{{ total }}¢</span>
-        </h2>
-
-        <dl class="mt-1 flex flex-col gap-1">
+<c-ui.card padding="none" class="{{ class }}">
+    <c-slot name="header">
+        {% comment %}
+        -mx-2 for the reason the model card's header carries it: the kit's
+        header band hardcodes px-6 where every row below is px-4, so the
+        name would start eight pixels further in than the contents.
+        {% endcomment %}
+        <div class="-mx-2 flex items-start gap-3">
+            <div class="min-w-0 flex-1 font-semibold">Stash</div>
+            <span class="shrink-0 text-sm tabular-nums text-muted">{{ total }}¢</span>
+        </div>
+    </c-slot>
+    {% if lines %}
+        <dl class="flex flex-col gap-1 px-4 py-3">
             {% regroup lines|dictsort:"kind" by kind as kinds %}
             {% for kind in kinds %}
                 <c-n26.stash.group label="{{ kind.grouper }}" :lines="kind.list" />
             {% endfor %}
         </dl>
-    </section>
-{% elif empty %}
-    <section class="{{ class }}">
-        <h2 class="text-sm font-semibold text-ink-900 dark:text-ink-100">Stash</h2>
-        <p class="mt-1 text-xs text-muted">{{ empty }}</p>
-    </section>
-{% endif %}
+    {% else %}
+        <p class="px-4 py-3 text-xs text-muted">
+            {% if empty.strip %}
+                {{ empty }}
+            {% else %}
+                Nothing in the stash yet.
+            {% endif %}
+        </p>
+    {% endif %}
+</c-ui.card>

@@ -132,10 +132,18 @@ def gang_sheet(request, pk):
     sheet = render_gang(gang)
     link_slots(gang, sheet, *sheet.models)
     link_skills(*sheet.models)
+    # One question at a time: a URL naming two dialogs draws the leaving
+    # one, because two open modals is not a state the page can mean.
+    leaving = _leaving(request, gang)
     return render(
         request,
         "n26/gang_sheet.html",
-        {"gang": gang, "sheet": sheet, "renaming": _renaming(request, gang)},
+        {
+            "gang": gang,
+            "sheet": sheet,
+            "renaming": None if leaving else _renaming(request, gang),
+            "leaving": leaving,
+        },
     )
 
 
@@ -147,19 +155,155 @@ def _renaming(request, gang):
     stale link, somebody else's fighter, a pk that is not a ULID — is a
     page without a dialog rather than an error worth a screen.
     """
+    return _fighter_named(request, gang, "rename")
+
+
+def _fighter_named(request, gang, param):
+    """The live member ``param`` names in this gang, or None.
+
+    The same shrug as ``_renaming``'s: a stale link, somebody else's
+    fighter, or a pk that is not a ULID is a page without a dialog.
+    """
     from django.core.exceptions import ValidationError
 
     from n26.core.models import Miniature
 
-    named = request.GET.get("rename")
+    named = request.GET.get(param)
     if not named:
         return None
     try:
-        return Miniature.objects.get(
+        return Miniature.objects.select_related("membership").get(
             pk=named, membership__gang=gang, membership__archived=False
         )
     except Miniature.DoesNotExist, ValidationError:
         return None
+
+
+def _kit_roots(miniature):
+    """The live root assignments the model carries — its own kit, not
+    the parts hanging off it."""
+    from n26.core.models import Assignment
+
+    return list(
+        Assignment.objects.filter(
+            miniature=miniature, parent__isnull=True, archived=False
+        ).select_related("ledger_entry")
+    )
+
+
+def _leaving(request, gang):
+    """The delete or refund question ``?delete=``/``?refund=`` says is open.
+
+    The dialog quotes its own arithmetic, so everything it says is
+    computed here from the same functions the act will use: what a full
+    refund returns, what the fighter alone returns, and how many kit
+    lines a stash disposal would move — only lines money was paid for,
+    because a built-in knife moved to the stash is clutter the next hire
+    re-arms for free.
+    """
+    from n26.core.operations import refund_of, subtree
+
+    for kind in ("delete", "refund"):
+        miniature = _fighter_named(request, gang, kind)
+        if miniature is not None:
+            break
+    else:
+        return None
+
+    membership = miniature.membership
+    in_hire = {membership.pk, *(row.pk for row in subtree(membership))}
+    roots = _kit_roots(miniature)
+    _, fighter_paid = refund_of(membership)
+    extra_paid = sum(refund_of(root)[1] for root in roots if root.pk not in in_hire)
+    stashable = sum(1 for root in roots if refund_of(root)[1] > 0)
+    return {
+        "kind": kind,
+        "miniature": miniature,
+        "full_paid": fighter_paid + extra_paid,
+        "fighter_paid": fighter_paid,
+        "stashable": stashable,
+    }
+
+
+@login_required
+def delete_fighter(request, pk):
+    """Delete one model: the fighter goes, and what was paid stays spent."""
+    return _dismiss(request, pk, kind="delete")
+
+
+@login_required
+def refund_fighter(request, pk):
+    """Refund one model: the fighter goes, and what was paid comes back.
+
+    Paid, not worth: a refund undoes purchases, so what returns is the
+    ledger's own figure — free and granted things return nothing.
+    """
+    return _dismiss(request, pk, kind="refund")
+
+
+def _dismiss(request, pk, kind):
+    """The act behind both leaving dialogs.
+
+    ``kit=stash`` first moves every kit line money was paid for to the
+    stash — where each keeps its pinned rating, because a move never
+    re-prices — and then the fighter leaves with whatever is left: the
+    built-ins, and anything their gear brought in. GET reopens the
+    dialog instead of acting.
+    """
+    from n26.analytics import EventVerb, N26Noun, record
+    from n26.core.operations import operation, refund_of, subtree
+    from n26.core.views.permissions import _own_miniature_or_404
+
+    miniature = _own_miniature_or_404(request, pk)
+    membership = miniature.membership
+    gang = membership.gang
+    sheet_url = reverse("n26-gang", args=[gang.pk])
+    if request.method != "POST":
+        return redirect(f"{sheet_url}?{kind}={miniature.pk}")
+
+    was = miniature.name
+    stash_kit = request.POST.get("kit") == "stash"
+    with operation(gang, actor=request.user) as op:
+        moved = 0
+        if stash_kit:
+            for root in _kit_roots(miniature):
+                if refund_of(root)[1] > 0:
+                    op.move(root, gang.stash, note=f"{was} left it behind")
+                    moved += 1
+        # What the whole departure returns, asked before anything is
+        # archived: refund_of skips archived rows, so asking afterwards
+        # would answer zero.
+        in_hire = {membership.pk, *(row.pk for row in subtree(membership))}
+        remaining = [root for root in _kit_roots(miniature) if root.pk not in in_hire]
+        paid_back = 0
+        if kind == "refund":
+            paid_back = refund_of(membership)[1] + sum(
+                refund_of(root)[1] for root in remaining
+            )
+        act = op.refund if kind == "refund" else op.remove
+        act(membership)
+        for root in remaining:
+            if not root.archived:
+                act(root)
+
+    record(
+        request,
+        N26Noun.MODEL,
+        EventVerb.DELETE,
+        miniature,
+        kind=kind,
+        kit="stash" if stash_kit else "with",
+        refunded=paid_back,
+    )
+    stashed = f" Their kit is in the stash ({moved} line{'s' if moved != 1 else ''})."
+    if kind == "refund":
+        messages.success(
+            request,
+            f"Refunded {was} — {paid_back}¢ back." + (stashed if moved else ""),
+        )
+    else:
+        messages.success(request, f"Deleted {was}." + (stashed if moved else ""))
+    return redirect(sheet_url)
 
 
 @login_required

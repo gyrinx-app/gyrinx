@@ -115,6 +115,15 @@ class Profile(Content, Assignable, Optioned):
         related_name="profiles",
         help_text="The kind of gang this profile belongs to. Every profile has one.",
     )
+    hireable = models.BooleanField(
+        default=True,
+        verbose_name="Offered for hire",
+        help_text=(
+            "Untick for a model nobody hires directly — one that arrives "
+            "when something else brings it, a pet behind its collar. An "
+            "“adds a model” effect can still bring it in."
+        ),
+    )
     # ``built_ins`` comes from the Assignable mixin: coming with things is
     # a property of anything acquirable, not of profiles alone. A mount
     # comes with its guns; a gang type comes with its equipment list.

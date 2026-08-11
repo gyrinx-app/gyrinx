@@ -705,6 +705,7 @@ def _build_registry():
                 "category": One(
                     model=Category, optional=True, source=(Profile, "category")
                 ),
+                "hireable": Bool(source=(Profile, "hireable")),
                 "qualifier": Text(source=(Profile, "qualifier")),
                 "library_author_help": Text(
                     source=(Profile, "library_author_help"), long=True

@@ -54,7 +54,12 @@ def _hireable(gang, pk):
     from n26.library.models import Profile
 
     try:
-        return Profile.objects.filter(pk=pk, gang_type=gang.gang_type).first()
+        # hireable, because the list only offers such profiles: a POST
+        # naming one that is not is a crafted request, and the answer to
+        # it is the same as to a profile from somebody else's list.
+        return Profile.objects.filter(
+            pk=pk, gang_type=gang.gang_type, hireable=True
+        ).first()
     except ValidationError:
         return None
 

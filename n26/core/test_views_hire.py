@@ -546,3 +546,18 @@ def test_the_figures_strip_counts_the_roster_and_quotes_the_books(
     body = client.get(hire_url(gang)).content.decode()
     assert ">1</dd>" in body
     assert f">{gang.credits}\u00a2</dd>" in body
+
+
+def test_a_profile_not_offered_for_hire_is_not_on_the_screen(
+    client, tester, gang, ganger
+):
+    """A pet arrives behind its collar, not off the hire screen: the flag
+    takes it out of the list, and a POST naming it anyway is answered like
+    a profile from somebody else's list."""
+    ganger.hireable = False
+    ganger.save(update_fields=["hireable"])
+    client.force_login(tester)
+    assert str(ganger.pk) not in client.get(hire_url(gang)).content.decode()
+    response = client.post(hire_url(gang), {"profile": str(ganger.pk), "name": "Vex"})
+    assert response.status_code == 200
+    assert not Miniature.objects.filter(membership__gang=gang).exists()
