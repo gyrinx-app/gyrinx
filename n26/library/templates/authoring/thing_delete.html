@@ -1,0 +1,39 @@
+{% extends "authoring/base.html" %}
+{% comment %}
+The question asked before an authored row leaves the library, at an
+address of its own. A page rather than a prompt: it survives a reload,
+Back is a real answer, and it works with scripting switched off.
+Nothing here changes anything — the form's POST is the act.
+
+Deleting is for the unused. Every reference protects its target — a
+gang's assignment, a list's entry, an option's kit — so a row anybody
+relies on is refused in words, and the way to make it deletable is to
+remove those references first.
+{% endcomment %}
+{% block head_title %}Delete {{ label }}{% endblock head_title %}
+{% block content %}
+    <c-n26.form-page action="{% url 'authoring-thing-delete' kind thing.pk %}"
+                     title="Delete {{ label }}?"
+                     lead="For good: the {{ verbose_name }} leaves the library. There is no undo."
+                     submit_label="Delete it"
+                     submit_variant="danger"
+                     cancel_url="{{ back }}">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Content library</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{{ back }}">
+                    {{ label }}
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Delete
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% csrf_token %}
+        <c-ui.alert variant="info" title="Anything still using it refuses this">
+            A gang that holds it, a list that sells it, an option that
+            brings it — each protects it. If any exist, nothing is
+            deleted and this page says who they are.
+        </c-ui.alert>
+    </c-n26.form-page>
+{% endblock content %}

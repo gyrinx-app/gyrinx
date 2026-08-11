@@ -917,6 +917,20 @@ def create_collection(
     return collection
 
 
+def delete_content(row):
+    """Take an authored row out of the library for good.
+
+    The database refuses wherever anything still points at it — an
+    assignment on somebody's gang, a collection entry, an option's kit
+    — because every such reference protects its target: content that
+    has been used is history, not clutter. The caller turns that
+    refusal into words. Reusable modifiers attached to the row survive
+    it — they may be carried elsewhere, so they are not this row's to
+    take.
+    """
+    row.delete()
+
+
 def add_entry(
     collection,
     thing,

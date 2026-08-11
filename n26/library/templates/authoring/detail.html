@@ -66,6 +66,18 @@
                     <c-n26.form-actions submit_label="Save changes" />
                 </div>
             </form>
+            {% comment %}
+            A link to a page, not a button in this form — deleting has
+            its own address, its own question, and its own refusal when
+            anything still uses the row.
+            {% endcomment %}
+            <div class="mt-4">
+                <c-n26.link href="{% url 'authoring-thing-delete' kind thing.pk %}"
+                            tone="danger"
+                            class="text-sm">
+                    Delete this {{ verbose_name }}…
+                </c-n26.link>
+            </div>
         </c-n26.form-section>
     {% endif %}
     {% comment %}

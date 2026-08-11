@@ -1715,6 +1715,75 @@ class TestTheGangSurface:
         assert not ganger.built_in_members.exists()
 
 
+class TestDeletingAThing:
+    """Deleting is for the unused: an untouched row leaves the library
+    for good; a row anything relies on is refused in words."""
+
+    def test_an_unused_affiliation_is_deleted_for_good(
+        self, author, client, default_pack
+    ):
+        from n26.library.authoring import create_affiliation
+        from n26.library.models import Affiliation
+
+        stray = create_affiliation("Never Chosen")
+        page = f"/n26/authoring/affiliation/{stray.pk}/delete/"
+
+        asked = client.get(page).content.decode()
+        assert "Delete Never Chosen?" in asked
+        assert "no undo" in asked
+
+        done = client.post(page)
+        assert done["Location"] == "/n26/authoring/affiliation/"
+        assert not Affiliation.objects.filter(pk=stray.pk).exists()
+
+    def test_a_row_in_use_is_refused_in_words(self, author, client, default_pack):
+        from n26.library.authoring import create_affiliation, create_collection
+        from n26.library.models import Affiliation
+
+        held = create_affiliation("Clan House Outcast")
+        create_collection("Affiliations", entries=[(held, {})])
+
+        page = f"/n26/authoring/affiliation/{held.pk}/delete/"
+        refused = client.post(page, follow=True)
+        assert refused.redirect_chain[-1][0] == page
+        assert "still in use" in refused.content.decode()
+        assert Affiliation.objects.filter(pk=held.pk).exists()
+
+    def test_a_deleted_carrier_leaves_its_reusable_modifier_behind(
+        self, author, client, default_pack
+    ):
+        from n26.library.authoring import (
+            create_rule,
+            create_skill,
+            ef_adds,
+            targets_model,
+        )
+        from n26.library.authoring import modifier as compose
+        from n26.library.models import Modifier, Rule
+
+        rule = create_rule("Fleeting")
+        compose(
+            "Grants a skill",
+            targets_model(),
+            ef_adds(create_skill("Sprint")),
+            attach_to=rule,
+        )
+
+        done = client.post(f"/n26/authoring/rule/{rule.pk}/delete/")
+        assert done.status_code == 302
+        assert not Rule.objects.filter(pk=rule.pk).exists()
+        # Reusable rows shared with other carriers are not this row's
+        # to take.
+        assert Modifier.objects.filter(name="Grants a skill").exists()
+
+    def test_the_detail_page_offers_the_way_there(self, author, client, default_pack):
+        from n26.library.authoring import create_affiliation
+
+        stray = create_affiliation("Never Chosen")
+        body = client.get(f"/n26/authoring/affiliation/{stray.pk}/").content.decode()
+        assert f"/n26/authoring/affiliation/{stray.pk}/delete/" in body
+
+
 class TestOfferingAChoice:
     """A profile hired one way, turned into a profile with choices — all
     of it through the pages.

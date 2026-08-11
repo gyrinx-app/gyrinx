@@ -1247,6 +1247,56 @@ def _carrier_page(carrier):
 
 
 @staff_member_required
+def thing_delete(request, kind, pk):
+    """The question asked before an authored row leaves the library.
+
+    Deleting is for the unused: the database protects every reference —
+    a gang's assignment, a list's entry, an option's kit — so a row
+    anybody relies on is refused, in words, and nothing half-happens.
+    A page rather than a prompt, as every destructive act here is.
+    """
+    from django.db.models import ProtectedError
+
+    from n26.library import authoring
+
+    spec = _spec_for(kind)
+    model = _model_for(spec)
+    thing = get_object_or_404(model, pk=pk)
+    back = reverse("authoring-detail", args=[kind, pk])
+
+    if request.method == "POST":
+        said = getattr(thing, "authoring_label", str(thing))
+        try:
+            with transaction.atomic():
+                authoring.delete_content(thing)
+        except ProtectedError as refusal:
+            held_by = list(refusal.protected_objects)
+            named = ", ".join(str(row) for row in held_by[:3])
+            more = f" and {len(held_by) - 3} more" if len(held_by) > 3 else ""
+            messages.error(
+                request,
+                f"{said} is still in use — {named}{more} point at it. "
+                "Remove those first; content that has been used is "
+                "history, not clutter.",
+            )
+            return redirect(request.path)
+        messages.success(request, f"Deleted {said}.")
+        return redirect("authoring-leaf", kind=kind)
+
+    return render(
+        request,
+        "authoring/thing_delete.html",
+        {
+            "thing": thing,
+            "kind": kind,
+            "label": getattr(thing, "authoring_label", str(thing)),
+            "verbose_name": model._meta.verbose_name,
+            "back": back,
+        },
+    )
+
+
+@staff_member_required
 def option_add(request, pk):
     """One more thing inside an option, at an address of its own.
 

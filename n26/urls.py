@@ -133,6 +133,11 @@ urlpatterns = [
         name="authoring-create",
     ),
     path(
+        "authoring/<slug:kind>/<str:pk>/delete/",
+        authoring_views.thing_delete,
+        name="authoring-thing-delete",
+    ),
+    path(
         "authoring/<slug:kind>/<str:pk>/",
         authoring_views.detail,
         name="authoring-detail",
