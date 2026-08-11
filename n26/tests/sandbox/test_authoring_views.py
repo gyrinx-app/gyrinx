@@ -1339,8 +1339,10 @@ class TestAWeaponsOwnLine:
         body = client.get(f"/n26/authoring/weapon/{autogun.pk}/").content.decode()
         # Labelled with the weapon and saying why — never a blank cell,
         # which would read as a name someone forgot.
-        assert "<td>Autogun</td>" in body
-        row = body.split("<td>Autogun</td>", 1)[1].split("</tr>", 1)[0]
+        assert '<td class="whitespace-nowrap">Autogun</td>' in body
+        row = body.split('<td class="whitespace-nowrap">Autogun</td>', 1)[1].split(
+            "</tr>", 1
+        )[0]
         assert "own line" in row  # apostrophe is escaped in the markup
         assert "SR 8&quot;" in row  # the stats, as they will print
         assert "LR 24&quot;" in row
@@ -1365,8 +1367,8 @@ class TestAWeaponsOwnLine:
         # The row itself, not the field help — which also mentions the
         # weapon's own line, since that is what leaving the name blank
         # means.
-        assert "<td>Warp round</td>" in body
-        row = body.split("<td>Warp round</td>", 1)[1]
+        assert '<td class="whitespace-nowrap">Warp round</td>' in body
+        row = body.split('<td class="whitespace-nowrap">Warp round</td>', 1)[1]
         assert "+10cr" in row.split("</tr>", 1)[0]
         assert "own line" not in row.split("</tr>", 1)[0]
 
