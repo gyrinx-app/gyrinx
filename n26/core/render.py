@@ -203,6 +203,27 @@ class WeaponLine:
         return next((p for p in self.profiles if not p.name), None)
 
     @property
+    def own_stats(self):
+        """The characteristics the weapon's own row carries, if any.
+
+        Having an unnamed profile and having stats to print on the
+        weapon's line are two different facts, and a combi-weapon is
+        where they part company: it carries an unnamed profile that is
+        the weapon's identity — "Combi-weapon (laspistol/meltagun)" —
+        and does its shooting entirely through the named profiles
+        beneath, so the weapon's own row has nothing to put in the stat
+        columns.
+
+        A renderer asks this rather than asking whether an own line
+        exists, because what it needs to know is whether the name shares
+        the row with anything: alone on it, the name takes the whole
+        width instead of being squeezed into the first column while the
+        rest of the row stands empty.
+        """
+        own = self.own_line
+        return own.statline.cells if own is not None else []
+
+    @property
     def named_profiles(self):
         """The profiles that get a row beneath the weapon — the named ones.
 

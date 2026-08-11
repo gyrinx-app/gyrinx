@@ -413,10 +413,19 @@ question "Buys from" was there to answer, and closer to hand.
                         price. Both grenade profiles are free, which is exactly the
                         case a count or a price would get wrong.
                         {% endcomment %}
-                        {% with own=weapon.own_line %}
+                        {% comment %}
+                        The question is whether the weapon's own row carries
+                        stats, not whether it has an unnamed profile — see
+                        WeaponLine.own_stats. A combi-weapon has one and it
+                        has no characteristics, so the name would otherwise
+                        sit in the first column with the rest of the row empty
+                        beside it, wrapping to three lines while nine columns
+                        of nothing waited to its right.
+                        {% endcomment %}
+                        {% with own=weapon.own_line stats=weapon.own_stats %}
                         <tr class="{% if not forloop.first %}border-t border-box-border{% endif %}">
-                            {% if own %}
-                                <c-n26.statline.cells :cells="own.statline.cells">
+                            {% if stats %}
+                                <c-n26.statline.cells :cells="stats">
                                     <c-slot name="leading">
                                         <td class="px-4 py-1.5 text-ink-900 dark:text-ink-100">
                                             {{ weapon.name }}
@@ -432,9 +441,15 @@ question "Buys from" was there to answer, and closer to hand.
 
                         {% if own.traits %}
                             <tr>
-                                {# Aligned as the named profiles' traits are, and for the reason given there. #}
-                                <td></td>
-                                <td colspan="{{ own.statline.cells|length }}"
+                                {% comment %}
+                                Aligned as the named profiles' traits are, and
+                                for the reason given there — except on a row
+                                whose name spanned the table, where there is no
+                                name column to clear and the traits start where
+                                the name did.
+                                {% endcomment %}
+                                {% if stats %}<td></td>{% endif %}
+                                <td colspan="{% if stats %}{{ stats|length }}{% else %}99{% endif %}"
                                     class="px-2 pb-2 text-xs text-ink-900 dark:text-ink-100">
                                     <c-n26.assignable-lines :lines="own.traits" :ratings="False" />
                                 </td>

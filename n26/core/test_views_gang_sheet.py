@@ -185,3 +185,40 @@ def test_the_stash_keeps_its_prices(client, tester, gang):
     body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
     assert "Ammo crate" in body
     assert "25¢" in body
+
+
+def test_a_weapon_with_no_stats_of_its_own_gives_its_name_the_whole_row(
+    client, tester, gang, make_profile, make_statline
+):
+    """A combi-weapon carries an unnamed profile that is the weapon's identity
+    and does its shooting through the named ones beneath, so its own row has
+    nothing for the stat columns. The name takes the width rather than wrapping
+    in the first column with nine empty ones beside it.
+
+    Having an unnamed profile and having stats to print are two different
+    facts; this is where they part company.
+    """
+    from n26.library.authoring import add_weapon_profile, create_weapon
+
+    profile = make_profile("Ganger", price=55)
+    make_statline(profile)
+
+    combi = create_weapon("Combi-weapon (laspistol/meltagun)", price=115)
+    # The weapon's own line: named for nothing, and with no characteristics —
+    # the shape a combi-weapon really has in the library.
+    add_weapon_profile(combi, name="")
+    for name in ("laspistol", "meltagun"):
+        add_weapon_profile(combi, name=name)
+
+    with operation(gang, actor=tester) as op:
+        fighter = op.hire(profile, "Vex", paid=55)
+        op.give_weapon(fighter, combi, paid=115)
+
+    client.force_login(tester)
+    body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
+
+    assert "Combi-weapon (laspistol/meltagun)" in body
+    # The name's cell spans the table rather than sitting in column one.
+    start = body.index("Combi-weapon (laspistol/meltagun)")
+    cell = body.rindex("<td", 0, start)
+    assert "colspan" in body[cell:start]

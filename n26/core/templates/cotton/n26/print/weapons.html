@@ -73,21 +73,26 @@ as one block of statistics rather than two tables near each other.
         grenade profiles are free, which is the case a count or a price gets
         wrong.
             {% endcomment %}
-            {% with own=weapon.own_line %}
-                <tr {% if own.traits or not own %}class="is-continued"{% endif %}>
+            {% with own=weapon.own_line stats=weapon.own_stats %}
+                <tr {% if own.traits or not stats %}class="is-continued"{% endif %}>
                     {% comment %}
-                Without an own line the name spans the table, and that span is a
-                real column count rather than the colspan="99" the screen card
-                gets away with. That table is auto-layout, where an oversized
-                colspan is clamped harmlessly; this one is table-layout: fixed,
-                where it is taken at face value — the browser lays out a table of
-                99 columns and squeezes the nine real ones into a ninth of the
-                width. It renders as a heap of overlapping numbers, and only on
-                the weapons whose profiles are separately named.
+                With no stats on the weapon's own row the name spans the table,
+                and that span is a real column count rather than the
+                colspan="99" the screen card gets away with. That table is
+                auto-layout, where an oversized colspan is clamped harmlessly;
+                this one is table-layout: fixed, where it is taken at face
+                value — the browser lays out a table of 99 columns and squeezes
+                the nine real ones into a ninth of the width. It renders as a
+                heap of overlapping numbers.
+
+                Stats rather than an own line, because the two part company on
+                a combi-weapon: it has an unnamed profile carrying the weapon's
+                identity and no characteristics of its own, and the row is as
+                empty as one with no unnamed profile at all.
                     {% endcomment %}
-                    <td {% if not own %}colspan="{{ card.weapons.0.profiles.0.statline.cells|length|add:1 }}"{% endif %}>{{ weapon.name }} <span class="n26-print-cost">({{ weapon.base_rating }}¢)</span>{% if weapon.accessories %} <span class="n26-print-subname">{% for accessory in weapon.accessories %}+ {{ accessory.name }}{% if not forloop.last %} {% endif %}{% endfor %}</span>{% endif %}</td>
-                    {% if own %}
-                        {% for cell in own.statline.cells %}
+                    <td {% if not stats %}colspan="{{ card.weapons.0.profiles.0.statline.cells|length|add:1 }}"{% endif %}>{{ weapon.name }} <span class="n26-print-cost">({{ weapon.base_rating }}¢)</span>{% if weapon.accessories %} <span class="n26-print-subname">{% for accessory in weapon.accessories %}+ {{ accessory.name }}{% if not forloop.last %} {% endif %}{% endfor %}</span>{% endif %}</td>
+                    {% if stats %}
+                        {% for cell in stats %}
                             <td class="is-centered{% if cell.first_of_group %} is-group{% endif %}">{{ cell.value|default:"-" }}</td>
                         {% endfor %}
                     {% endif %}
@@ -98,8 +103,8 @@ as one block of statistics rather than two tables near each other.
                     An empty cell under the name column, so the traits line up
                     with the leftmost stat rather than with the weapon's name.
                         {% endcomment %}
-                        <td></td>
-                        <td colspan="{{ own.statline.cells|length }}" class="n26-print-traits">
+                        {% if stats %}<td></td>{% endif %}
+                        <td colspan="{% if stats %}{{ stats|length }}{% else %}{{ card.weapons.0.profiles.0.statline.cells|length|add:1 }}{% endif %}" class="n26-print-traits">
                             {% for trait in own.traits %}{{ trait.name }}{% if not forloop.last %}, {% endif %}{% endfor %}
                         </td>
                     </tr>
