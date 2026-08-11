@@ -1,10 +1,13 @@
-"""Model cards — a model's assignments, in memory, in one query.
+"""Model cards — a model's assignments, in memory, from a fixed fetch.
 
 A card is what a model looks like: its profile, its weapons, the ammo and
-accessories hung off them. Building one costs **one** database query. The
-tree is not walked in the database; every assignment carries the model at
-the top of its chain, so they all come back flat and are reassembled here
-by parent.
+accessories hung off them. Building one costs **one** row query, then a
+fixed set of narrow hydration passes (``hydrate_rows``) — narrow because
+Postgres plans a join across every content kind in tens of milliseconds
+and executes it in one, and the planning is paid on every query. The tree
+is not walked in the database; every assignment carries the model at the
+top of its chain, so they all come back flat and are reassembled here by
+parent.
 
 The point of doing it this way is that the ergonomic reads — a node's
 rating, its children, its total with extras — are then plain Python on rows
@@ -299,17 +302,38 @@ class GangCard:
         )
 
 
-def card_rows(with_statlines=False, **filters):
-    """The flat fetch every card build starts from — one query.
+def _flat_rows(**filters):
+    """The bare row fetch a card build starts from — one query.
 
-    ``with_statlines`` pulls each profile's characteristics along too, which
-    rendering needs and plain assignment work does not. It costs a few more
-    queries, but a *fixed* few: without it, rendering a gang would query per
-    model.
+    Only the money rides the join: every build reads each row's ledger
+    entry and the table is narrow. The content a row names is loaded
+    afterwards, in narrow passes — see ``hydrate_rows``.
     """
-    rows = Assignment.objects.filter(archived=False, **filters).select_related(
+    return list(
+        Assignment.objects.filter(archived=False, **filters).select_related(
+            "ledger_entry"
+        )
+    )
+
+
+def hydrate_rows(rows, with_statlines=False):
+    """Load everything a card build reads off ``rows`` — narrow passes,
+    never a wide join.
+
+    Joined, the assignable kinds and their chains make a select so wide
+    that Postgres spends tens of milliseconds *planning* it and one
+    executing it — and with no prepared statements the planning is paid
+    on every query. As narrow prefetches each pass plans in microseconds,
+    a kind no row names never queries at all, and two row sets hydrated
+    together pay once.
+
+    ``with_statlines`` pulls each profile's characteristics along too,
+    which rendering needs and plain assignment work does not.
+    """
+    from django.db.models import prefetch_related_objects
+
+    paths = [
         *ASSIGNABLE_FIELDS,
-        "ledger_entry",
         "profile_role",
         "counter_value",
         "profile__profile_type",
@@ -320,26 +344,36 @@ def card_rows(with_statlines=False, **filters):
         # category asks each profile for its weapon. Without this the
         # asking is a query per profile, from inside compute.
         "weapon_profile__weapon",
-    )
+    ]
     if with_statlines:
-        rows = rows.prefetch_related(
+        paths += [
             "profile__statline__stats__statline_type_stat__stat",
             "weapon_profile__statline__stats__statline_type_stat__stat",
             "weapon_profile__traits",
-        )
-    return list(rows)
+        ]
+    prefetch_related_objects(rows, *paths)
+    return rows
 
 
-def gang_rows(gang, with_statlines=False):
-    """What the gang itself holds: its founding, and what that brought.
+def card_rows(with_statlines=False, **filters):
+    """The flat fetch every card build starts from: one row query,
+    hydrated. Builds fetching more than one row set hydrate them
+    together instead — one pass covers any number of fetches.
+    """
+    return hydrate_rows(_flat_rows(**filters), with_statlines=with_statlines)
+
+
+def gang_rows(gang):
+    """What the gang itself holds, bare: its founding, and what that
+    brought.
 
     Hosted on the gang with no model of their own, so they belong to
-    every member's card and to none of their ratings.
+    every member's card and to none of their ratings. Hydrate with the
+    rest of the build's rows — see ``hydrate_rows``.
     """
     if gang is None:
         return []
-    return card_rows(
-        with_statlines=with_statlines,
+    return _flat_rows(
         gang_root=gang,
         miniature_root__isnull=True,
         # The stash is the gang's too, but it is storage, not a fact
@@ -407,20 +441,17 @@ def assemble(miniature, rows, assignment_set=None, broadcast=()):
 def build_card(miniature, with_statlines=False, assignment_set=None):
     """A model's card: everything it owns, or one named selection.
 
-    Two queries rather than one: the model's own rows, then the gang's,
-    which ride along so gang-wide modifiers reach this card. A whole
-    gang's worth still costs a fixed number — see ``build_cards_for_gang``,
-    where both come back in the same fetch.
+    Two row queries rather than one — the model's own rows, then the
+    gang's, which ride along so gang-wide modifiers reach this card —
+    hydrated together in one pass. A whole gang's worth still costs a
+    fixed number — see ``build_cards_for_gang``, where both come back
+    in the same fetch.
     """
     membership = miniature.membership if miniature is not None else None
-    return assemble(
-        miniature,
-        card_rows(miniature_root=miniature, with_statlines=with_statlines),
-        assignment_set=assignment_set,
-        broadcast=gang_rows(
-            membership.gang if membership else None, with_statlines=with_statlines
-        ),
-    )
+    own = _flat_rows(miniature_root=miniature)
+    shared = gang_rows(membership.gang if membership else None)
+    hydrate_rows([*own, *shared], with_statlines=with_statlines)
+    return assemble(miniature, own, assignment_set=assignment_set, broadcast=shared)
 
 
 def build_cards_for_gang(gang, with_statlines=True):
@@ -450,10 +481,11 @@ def _forest(rows):
 def build_gang_card(gang, with_statlines=True, assignment_set=None):
     """The gang's own card, its stash, and every member's card.
 
-    The same fetch family as ever: one query for everything hosted under
-    the gang except the stash, plus one for its contents — kept
+    The same fetch family as ever: one row query for everything hosted
+    under the gang except the stash, plus one for its contents — kept
     apart because stash rows belong on no member's card and nothing in
-    them broadcasts (storage, not facts about anyone).
+    them broadcasts (storage, not facts about anyone) — then one shared
+    hydration pass over both.
 
     An ``assignment_set`` filters every member's card through the same
     seam ``build_card`` uses — a selection of equipment roots that may
@@ -461,9 +493,11 @@ def build_gang_card(gang, with_statlines=True, assignment_set=None):
     """
     grouped = {}
     shared = []
-    rows = card_rows(
-        gang_root=gang, stash_root__isnull=True, with_statlines=with_statlines
-    )
+    rows = _flat_rows(gang_root=gang, stash_root__isnull=True)
+    # Storage rows ride the same hydration pass as everyone's — a
+    # second pass would repeat every narrow query for a handful of rows.
+    stash_rows = _flat_rows(gang_root=gang, stash_root__isnull=False)
+    hydrate_rows([*rows, *stash_rows], with_statlines=with_statlines)
     for row in rows:
         if row.miniature_root_id is None:
             shared.append(row)
@@ -472,15 +506,7 @@ def build_gang_card(gang, with_statlines=True, assignment_set=None):
     return GangCard(
         gang=gang,
         roots=_forest(shared),
-        stash_roots=_forest(
-            card_rows(
-                gang_root=gang,
-                stash_root__isnull=False,
-                # Storage, drawn as names and ratings — nobody reads a
-                # statline off it, so its fetch never pays for them.
-                with_statlines=False,
-            )
-        ),
+        stash_roots=_forest(stash_rows),
         members={
             miniature_id: assemble(
                 None, rows, assignment_set=assignment_set, broadcast=shared

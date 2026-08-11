@@ -6,8 +6,8 @@ stage has one job:
 ```
 models/        rows: Gang, Miniature, Assignment, LedgerEntry, Stash
 operations.py  the only writer — every change to player data goes through it
-card.py        loads a gang's rows into an in-memory tree, in a pinned
-               two queries
+card.py        loads a gang's rows into an in-memory tree: a pinned two
+               row queries, one shared hydration pass
 effects.py     computes what the rules do to a card — pure, no queries
 render.py      plain dataclasses a template can draw (ModelCard, GangSheet)
 browse.py      collections as one rendered shape, whatever their species
@@ -41,8 +41,8 @@ underlying spec.
 
 - **`effects.compute()` issues no queries and must stay that way.**
   Everything it needs is loaded by `card.py`. If compute needs a new
-  relation, add it to `build_modifier_index` or `card_rows`'s
-  `select_related` — then update the tests that pin exact query counts.
+  relation, add it to `build_modifier_index` or `hydrate_rows`'s
+  paths — then update the tests that pin exact query counts.
 - The query budget is an invariant, not a hope: a whole gang is a fixed
   number of queries however many models and however much kit. Tests
   check the count stays flat as the gang grows.

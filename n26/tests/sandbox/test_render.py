@@ -256,11 +256,11 @@ class TestTheGangSheet:
 
         assert (few_models, many_models) == (2, 12)
         assert few == many, f"{few} queries for 2 models, {many} for 12"
-        # Roughly: the models, the flat assignment fetch, the statline
+        # Roughly: the models, the two flat assignment fetches, a narrow
+        # hydration pass per relation the cards hold, the statline
         # prefetch chain, one per assignable kind for the modifier index,
-        # the stash read that wealth includes, and the stash *contents*
-        # fetch the sheet draws (design/gang-sheet.md).
-        assert many <= 18, f"{many} queries is more than this should ever need"
+        # and the stash read that wealth includes (design/gang-sheet.md).
+        assert many <= 30, f"{many} queries is more than this should ever need"
 
 
 class TestTheTextRenderer:

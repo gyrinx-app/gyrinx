@@ -171,6 +171,11 @@ class TestTheNumbers:
 
         profile = make_profile("Ganger", price=50)
         hire_with_option(gang, profile, "One")
+        # The first lasgun goes in before the first measurement: a
+        # hydration pass only fires for kinds the rows name, so a fair
+        # comparison grows what the stash already holds rather than
+        # putting a weapon in it for the first time.
+        buy(gang.stash, lasgun_line(house_list))
 
         def measure():
             with CaptureQueriesContext(connection) as captured:

@@ -1,8 +1,9 @@
 """The model card, built fully in memory and tested without rendering.
 
 The card is the hot read path: a model's profile, weapons, ammo and
-accessories. It must cost one query, and every ergonomic read on it —
-a line's rating, its children, its total with extras — must cost none.
+accessories. It must cost a fixed fetch that never grows with the card,
+and every ergonomic read on it — a line's rating, its children, its
+total with extras — must cost none.
 """
 
 import pytest
@@ -56,11 +57,16 @@ def yolanda(gang_type, player, library):
 
 
 class TestBuildingACard:
-    def test_it_costs_a_fixed_two_queries(self, yolanda, django_assert_num_queries):
+    def test_it_costs_two_row_queries_and_a_fixed_hydration(
+        self, yolanda, django_assert_num_queries
+    ):
         """The model's own rows, then its gang's — the latter ride every
-        member's card so gang-wide rules reach them. A whole gang costs
-        one fetch for both; see ``build_cards_for_gang``."""
-        with django_assert_num_queries(2):
+        member's card so gang-wide rules reach them — then one narrow
+        hydration pass per relation this card actually holds; a kind no
+        row names never queries. A whole gang costs one fetch for both;
+        see ``build_cards_for_gang``. Pinned so it changes deliberately;
+        the scaling test below is what holds it flat."""
+        with django_assert_num_queries(11):
             card = build_card(yolanda)
             # Walking the whole tree and reading every line costs nothing more.
             assert sum(node.rating for node in card.all_nodes()) == 255
@@ -146,17 +152,32 @@ class TestCardsFollowRemoval:
 
 
 class TestScaling:
-    def test_a_big_card_is_still_one_query(
-        self, gang_type, player, library, django_assert_num_queries
-    ):
-        """Query count is a function of the code, not of how much is on the card."""
+    def test_a_big_card_costs_what_a_small_one_does(self, gang_type, player, library):
+        """Query count is a function of the code, not of how much is on
+        the card. Both measurements hold the same *kinds* of thing — a
+        hydration pass only fires for kinds the card names, so the fair
+        comparison grows what is already there."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
         gang = found_gang("The Long Hunt", gang_type, owner=player, budget=5000)
         mini = hire(gang, library["hunt_champion"], "Yolanda", paid=130)
-        for _ in range(10):
+
+        def arm():
             shotgun = give_weapon(mini, library["shotgun"], paid=60)
             buy_weapon_profile(shotgun, library["shotgun"].profiles.get(price=30))
 
-        with django_assert_num_queries(2):
-            card = build_card(mini)
-            # 31 the model owns, plus the gang's founding riding along.
-            assert len(list(card.all_nodes())) == 32
+        def measure():
+            with CaptureQueriesContext(connection) as captured:
+                card = build_card(mini)
+                assert list(card.all_nodes())
+            return len(captured.captured_queries)
+
+        arm()
+        few = measure()
+        for _ in range(9):
+            arm()
+        many = measure()
+        assert few == many
+        # 31 the model owns, plus the gang's founding riding along.
+        assert len(list(build_card(mini).all_nodes())) == 32
