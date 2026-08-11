@@ -513,12 +513,18 @@ order, and Tab-then-Enter works with the panel's script and without it.
                     </c-ui.input>
                 </div>
                 {% comment %}
-                Pulled up by a pixel, so the rule under the last row lands on
-                the panel's own edge instead of beside it. Each row draws its
-                own rule (see the item), which is what keeps filtering from
-                stranding one at the top of the list.
+                No negative bottom margin here, however tidy it would make
+                the last row's rule: a negative margin shrinks the box's
+                layout height but not the scrollable overflow it leaves in
+                the panel around it, so the panel becomes a scroll container
+                with exactly one pixel of scroll — a scrollbar and a wheel
+                jiggle on a list that fits. The last visible row's own rule
+                sitting a pixel inside the panel's edge is the cheaper of
+                the two. Each row draws its own rule (see the item), which
+                is what keeps filtering from stranding one at the top of
+                the list.
                 {% endcomment %}
-                <div :id="$id('n26-switcher') + '-list'" class="-mb-px max-h-72 overflow-y-auto">{{ slot }}</div>
+                <div :id="$id('n26-switcher') + '-list'" class="max-h-72 overflow-y-auto">{{ slot }}</div>
                 {% comment %}
                 x-cloak, so a reader with no script never sees a line about a
                 filter they do not have.

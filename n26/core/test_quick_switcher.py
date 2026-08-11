@@ -193,6 +193,14 @@ class TestStayingOnTheScreen:
         strip = html.split("<noscript>")[1]
         assert "max-w-full" in strip
 
+    def test_a_list_that_fits_leaves_the_panel_nothing_to_scroll(self):
+        """A negative bottom margin on the list shrinks its layout height
+        but not the scrollable overflow it leaves behind, so the panel
+        around it becomes a scroll container with exactly one pixel of
+        scroll — a scrollbar and a wheel jiggle on a list that fits the
+        screen."""
+        assert "-mb-px" not in panel()
+
 
 class TestMovingThroughItFromTheKeyboard:
     """Open, two letters, Down, Enter — and the reader's hands never leave the
