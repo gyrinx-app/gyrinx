@@ -40,6 +40,14 @@ them. |safe restores the marking .strip drops, so markup in the slot survives.
   underline — hover (default), always, or none.
   tone — accent (default), current to inherit the surrounding colour, muted, or
     danger for a link that removes something.
+
+    The accent tone is the accent's *text* colour, which is a different shade
+    from the fill on a primary button: a light accent that works as a surface is
+    unreadable as words on the page. It holds that colour on hover and lets the
+    underline be the whole of the change — a hover that shifted the shade would
+    have to pick between going lighter, which costs contrast just as the pointer
+    arrives, and going darker, which is the colour the button's hover fill has
+    already taken.
   leading — content before the text, outside the underline.
   trailing — content after the text, outside the underline.
 {% endcomment %}<c-vars
@@ -50,7 +58,7 @@ them. |safe restores the marking .strip drops, so markup in the slot survives.
     trailing=""
     class=""
     :tone_classes="{
-        'accent': 'text-accent hover:text-accent-content',
+        'accent': 'text-accent-text',
         'current': 'text-current',
         'muted': 'text-muted hover:text-ink-800 dark:hover:text-ink-200',
         'danger': 'text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300',

@@ -95,10 +95,10 @@ selection as it was when the panel opened and dispatches nothing.
 
                 <div class="pb-2 text-sm">
                     <button type="button" @click="values = allValues.slice()"
-                            class="rounded text-accent hover:underline focus-ring">All</button>
+                            class="rounded text-accent-text hover:underline focus-ring">All</button>
                     <span class="px-1 text-muted">/</span>
                     <button type="button" @click="values = []"
-                            class="rounded text-accent hover:underline focus-ring">None</button>
+                            class="rounded text-accent-text hover:underline focus-ring">None</button>
                 </div>
 
                 <div class="max-h-72 space-y-2 overflow-y-auto py-1">
@@ -108,7 +108,7 @@ selection as it was when the panel opened and dispatches nothing.
                             <span class="text-muted">·</span>
                             <button type="button"
                                     @click="values = [{{ option.value|json_dumps }}]"
-                                    class="shrink-0 rounded text-sm text-accent hover:underline focus-ring">only</button>
+                                    class="shrink-0 rounded text-sm text-accent-text hover:underline focus-ring">only</button>
                         </div>
                     {% endfor %}
                 </div>

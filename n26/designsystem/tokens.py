@@ -54,11 +54,17 @@ BUCKETS: tuple[Bucket, ...] = (
             ),
             Token(
                 "--color-accent-content",
-                "The hover step, and accent-coloured text that has to stay readable.",
+                "The hover step: a solid button's fill under the pointer.",
             ),
             Token(
                 "--color-accent-foreground",
                 "Text and icons drawn on top of an accent fill.",
+            ),
+            Token(
+                "--color-accent-text",
+                "The accent as words on the page — links, text buttons, a changed "
+                "characteristic. A different shade from the fill, because a light "
+                "accent that works as a surface is unreadable as text.",
             ),
             Token(
                 "--color-accent-muted",

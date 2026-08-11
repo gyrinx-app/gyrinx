@@ -77,6 +77,22 @@
     --font-sans:
         "mynor-variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
         Roboto, "Helvetica Neue", Arial, sans-serif;
+
+    /* The accent as *text*, which the fill cannot also be.
+     *
+     * One hue cannot do both jobs when it is a light one: the shade that makes a
+     * good button fill is 2:1 against the page and unreadable as words on it,
+     * and the shade that reads as words is too dark to be the fill. So a fill
+     * and a text colour are two tokens, and a component picks by what it is
+     * drawing — bg-accent for a surface, text-accent-text for words and for the
+     * glyphs that carry meaning.
+     *
+     * Declared here rather than in :root below because Tailwind generates the
+     * text-accent-text utility from @theme; a custom property alone would leave
+     * the class undefined, and an undefined class is silent. The value is the
+     * light one and .dark overrides it, which is how the kit's own component
+     * tokens work. */
+    --color-accent-text: var(--color-amber-700);
 }
 
 /* This project's theme, over the kit's defaults.
@@ -110,7 +126,11 @@
      * primary button's hover *fill* as well as on hover text, so it is read
      * against the dark label above — amber-600 keeps that pairing at 4.7:1,
      * where amber-700 would drop it to 3:1 and make a button hardest to read at
-     * the moment the pointer is on it. */
+     * the moment the pointer is on it.
+     *
+     * The fourth of the set, --color-accent-text, is declared in @theme above so
+     * that its utility generates. It is the accent for words rather than for
+     * fills, and it is a different shade because a light hue cannot be both. */
     --color-accent: var(--color-amber-500);
     --color-accent-content: var(--color-amber-600);
     --color-accent-foreground: var(--color-amber-950);
@@ -158,6 +178,9 @@
     --color-accent: var(--color-amber-400);
     --color-accent-content: var(--color-amber-300);
     --color-accent-foreground: var(--color-amber-950);
+    /* Words in the accent go the other way from light mode: lighter than the
+     * fill rather than darker, because the page under them is dark. */
+    --color-accent-text: var(--color-amber-300);
     --color-bg: var(--color-gray-950);
 }
 

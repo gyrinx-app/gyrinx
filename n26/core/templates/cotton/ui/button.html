@@ -26,6 +26,14 @@ green-600, where the surround is dark and the same shade would sink into it.
 `danger` has no dark-mode pair and probably should — not fixed here, because
 changing an existing variant's colours is a separate decision from adding one.
 
+The same arithmetic decides which accent token a variant reaches for. `primary`
+solid is a *fill*, so it takes bg-accent with the dark label accent-foreground
+gives it. `text` and the outlined `primary` draw words instead, so they take
+text-accent-text — the accent at a shade that can be read on the page, which the
+fill's shade cannot. Neither shifts colour on hover: the underline and the tint
+are the change, and moving the shade would cost contrast at the moment the
+pointer arrives.
+
   --- keeping the shadow ---
 
 app.css gives solid buttons their inset shadow by matching background utilities
@@ -54,16 +62,16 @@ shipped variants against these before deleting anything.
         'subtle': 'bg-ink-100 text-ink-600 dark:bg-ink-300/10 dark:text-ink-300 border border-transparent',
         'danger': 'bg-red-500 text-white hover:bg-red-600 border border-transparent',
         'ghost': 'bg-transparent text-ink-800 dark:text-white hover:bg-ink-100 dark:hover:bg-ink-800 border border-transparent',
-        'text': 'bg-transparent text-accent hover:text-accent-content hover:underline border border-transparent',
+        'text': 'bg-transparent text-accent-text hover:underline border border-transparent',
     }"
     :outlined_variants="{
         'default': 'border border-ink-200 text-ink-800 hover:bg-ink-100 dark:border-ink-700 dark:text-ink-300 dark:hover:bg-ink-800',
-        'primary': 'border border-accent text-accent hover:bg-accent/10',
+        'primary': 'border border-accent text-accent-text hover:bg-accent/10',
         'success': 'border border-green-700 text-green-700 hover:bg-green-700/10 dark:border-green-500 dark:text-green-500 dark:hover:bg-green-500/10',
         'subtle': 'border border-ink-200 text-ink-800 hover:bg-ink-100 dark:border-ink-700 dark:text-ink-300 dark:hover:bg-ink-800',
         'danger': 'border border-red-500 text-red-500 hover:bg-red-500/10',
         'ghost': 'border border-ink-400 text-ink-600 hover:bg-ink-100 dark:border-ink-600 dark:text-ink-400 dark:hover:bg-ink-800',
-        'text': 'text-accent hover:text-accent-content hover:underline',
+        'text': 'text-accent-text hover:underline',
     }"
     :size_classes="{
         'xs': 'text-xs py-1 px-2',

@@ -257,14 +257,14 @@ dispatches, and listens for `filter-reset` to be told.
 
             <span x-show="filtering" x-cloak class="flex items-center gap-3">
                 <button type="button" @click="reset()"
-                        class="rounded text-accent hover:underline focus-ring">Clear filters</button>
+                        class="rounded text-accent-text hover:underline focus-ring">Clear filters</button>
             </span>
 
             <span class="ml-auto flex items-center gap-3">
                 <button type="button" @click="toggleAll(true)"
-                        class="rounded text-accent hover:underline focus-ring">Expand all</button>
+                        class="rounded text-accent-text hover:underline focus-ring">Expand all</button>
                 <button type="button" @click="toggleAll(false)"
-                        class="rounded text-accent hover:underline focus-ring">Collapse all</button>
+                        class="rounded text-accent-text hover:underline focus-ring">Collapse all</button>
             </span>
         </div>
 
@@ -446,7 +446,7 @@ dispatches, and listens for `filter-reset` to be told.
         {% if empty %}{{ empty }}{% else %}
             Nothing matches those filters.
             <button type="button" @click="reset()"
-                    class="rounded text-accent hover:underline focus-ring">Clear them</button>
+                    class="rounded text-accent-text hover:underline focus-ring">Clear them</button>
         {% endif %}
     </div>
 </div>

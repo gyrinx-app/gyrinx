@@ -264,7 +264,7 @@ label goes on naming the control and goes on focusing it when clicked.
                          @mousemove="active = option.index"
                          class="flex cursor-pointer items-center gap-2 px-3 py-1.5 text-sm text-ink-900 dark:text-ink-100"
                          :class="option.index === active ? 'bg-ink-100 dark:bg-ink-800' : ''">
-                        <span class="flex size-4 shrink-0 items-center text-accent">
+                        <span class="flex size-4 shrink-0 items-center text-accent-text">
                             <c-n26.icon name="check" class="size-4" stroke_width="2" x-show="option.selected" />
                         </span>
                         <span class="min-w-0 flex-1 truncate" x-text="option.label"></span>
