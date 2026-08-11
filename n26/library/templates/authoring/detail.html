@@ -85,7 +85,12 @@
                     <tbody>
                         {% for part in section.parts %}
                             <tr>
-                                <td>{{ part.label }}</td>
+                                {% comment %}
+                                nowrap, because the notes cell's w-full
+                                otherwise squeezes this one to a word a
+                                line — and the name is what the row is.
+                                {% endcomment %}
+                                <td class="whitespace-nowrap">{{ part.label }}</td>
                                 {% comment %}
                                 Removing is a question asked at its own address, not an
                                 act done from here: what it means depends on what else

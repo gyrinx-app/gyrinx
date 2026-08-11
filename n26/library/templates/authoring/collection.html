@@ -45,7 +45,7 @@
                     <tbody>
                         {% for entry in entries %}
                             <tr>
-                                <td>{{ entry.label }}</td>
+                                <td class="whitespace-nowrap">{{ entry.label }}</td>
                                 <td class="w-full text-right text-muted">{{ entry.notes|join:" · " }}</td>
                                 <td class="text-right">
                                     <c-n26.link href="{{ entry.remove_url }}" tone="danger" class="text-xs">
@@ -86,7 +86,7 @@
                 <tbody>
                     {% for section in schema_sections %}
                         <tr>
-                            <td>{{ section.name }}</td>
+                            <td class="whitespace-nowrap">{{ section.name }}</td>
                             <td class="w-full text-muted">{% if section.is_default %}default — unplaced categories fall here{% endif %}</td>
                         </tr>
                     {% endfor %}
