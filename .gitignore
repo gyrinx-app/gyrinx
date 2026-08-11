@@ -44,3 +44,6 @@ _cotton_test_host/
 
 # The n26 edition's working design docs — local research material, never committed
 /n26/design/
+
+# Claude working screenshots — never content
+.claude/notes/tmp-*.png
