@@ -241,7 +241,7 @@ question "Buys from" was there to answer, and closer to hand.
         {% endcomment %}
         <dt class="font-semibold text-ink-900 dark:text-ink-100">Skills</dt>
         <dd class="min-w-0 text-ink-900 dark:text-ink-100">
-            <c-n26.assignable-lines :lines="card.skills" />
+            <c-n26.assignable-lines :lines="card.skills" :ratings="False" />
             {% comment %}
             The two things a reader can do about a fighter's skills, in the row
             that says what they have. Composed side by side, and either may be
@@ -300,7 +300,7 @@ question "Buys from" was there to answer, and closer to hand.
         {% if card.rules %}
             <dt class="font-semibold text-ink-900 dark:text-ink-100">Rules</dt>
             <dd class="min-w-0 text-ink-900 dark:text-ink-100">
-                <c-n26.assignable-lines :lines="card.rules" />
+                <c-n26.assignable-lines :lines="card.rules" :ratings="False" />
             </dd>
         {% endif %}
 
@@ -317,13 +317,13 @@ question "Buys from" was there to answer, and closer to hand.
         {% if card.powers %}
             <dt class="font-semibold text-ink-900 dark:text-ink-100">Powers</dt>
             <dd class="min-w-0 text-ink-900 dark:text-ink-100">
-                <c-n26.assignable-lines :lines="card.powers" />
+                <c-n26.assignable-lines :lines="card.powers" :ratings="False" />
             </dd>
         {% endif %}
 
         <dt class="font-semibold text-ink-900 dark:text-ink-100">Gear</dt>
         <dd class="min-w-0 text-ink-900 dark:text-ink-100">
-            <c-n26.assignable-lines :lines="card.equipment" />
+            <c-n26.assignable-lines :lines="card.equipment" :ratings="False" />
         </dd>
 
         {% comment %}
@@ -419,20 +419,13 @@ question "Buys from" was there to answer, and closer to hand.
                                 <c-n26.statline.cells :cells="own.statline.cells">
                                     <c-slot name="leading">
                                         <td class="px-4 py-1.5 text-ink-900 dark:text-ink-100">
-                                            {% comment %}
-                                            The weapon's own line comes free with it and shows
-                                            the weapon's rating; a named profile is ammo bought
-                                            later, so it shows only what it added.
-                                            {% endcomment %}
                                             {{ weapon.name }}
-                                            <span class="whitespace-nowrap">({{ weapon.base_rating }}¢)</span>
                                         </td>
                                     </c-slot>
                                 </c-n26.statline.cells>
                             {% else %}
                                 <td colspan="99" class="px-4 pt-2 text-ink-900 dark:text-ink-100">
                                     {{ weapon.name }}
-                                    <span class="whitespace-nowrap">({{ weapon.base_rating }}¢)</span>
                                 </td>
                             {% endif %}
                         </tr>
@@ -443,7 +436,7 @@ question "Buys from" was there to answer, and closer to hand.
                                 <td></td>
                                 <td colspan="{{ own.statline.cells|length }}"
                                     class="px-2 pb-2 text-xs text-ink-900 dark:text-ink-100">
-                                    <c-n26.assignable-lines :lines="own.traits" />
+                                    <c-n26.assignable-lines :lines="own.traits" :ratings="False" />
                                 </td>
                             </tr>
                         {% endif %}
@@ -455,7 +448,6 @@ question "Buys from" was there to answer, and closer to hand.
                                     <c-slot name="leading">
                                         <td class="px-4 py-1.5 text-ink-900 dark:text-ink-100">
                                             <span class="pl-4">{{ profile.name }}</span>
-                                            {% if profile.rating %}<span class="whitespace-nowrap">(+{{ profile.rating }}¢)</span>{% endif %}
                                         </td>
                                     </c-slot>
                                 </c-n26.statline.cells>
@@ -477,7 +469,7 @@ question "Buys from" was there to answer, and closer to hand.
                                     <td></td>
                                     <td colspan="{{ profile.statline.cells|length }}"
                                         class="px-2 pb-2 text-xs text-ink-900 dark:text-ink-100">
-                                        <c-n26.assignable-lines :lines="profile.traits" />
+                                        <c-n26.assignable-lines :lines="profile.traits" :ratings="False" />
                                     </td>
                                 </tr>
                             {% endif %}
@@ -523,7 +515,7 @@ question "Buys from" was there to answer, and closer to hand.
                                     {% endcomment %}
                                     <span class="pl-4">
                                         <span aria-hidden="true">+</span>
-                                        <c-n26.assignable-lines :lines="weapon.accessories" />
+                                        <c-n26.assignable-lines :lines="weapon.accessories" :ratings="False" />
                                     </span>
                                 </td>
                             </tr>

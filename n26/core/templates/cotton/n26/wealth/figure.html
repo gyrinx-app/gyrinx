@@ -20,8 +20,12 @@ mouse, and "R" is not a word.
     remember which figures carry it.
   unit — what the figure is denominated in: ¢ unless said otherwise. A figure
     that counts things rather than money passes an empty one.
+  unset — why this figure has no answer, as a sentence. Given one, the cell
+    draws a muted em dash carrying it and ignores `value`. For a figure that is
+    not zero but absent: a gang with no budget has not spent nothing, it has
+    nothing to spend against, and a 0¢ there would be read as bankrupt.
 {% endcomment %}
-<c-vars short="" full="" :value="0" unit="¢" />
+<c-vars short="" full="" :value="0" unit="¢" unset="" />
 
 <div class="flex flex-col items-center px-3">
     {% comment %}
@@ -35,5 +39,20 @@ mouse, and "R" is not a word.
             <c-slot name="content">{{ full }}</c-slot>
         </c-ui.tooltip>
     </dt>
-    <dd class="whitespace-nowrap text-sm tabular-nums text-ink-900 dark:text-ink-100">{{ value }}{{ unit }}</dd>
+    {% comment %}
+    An em dash rather than the number, when there is no number to give. It is
+    muted because it is the absence of a figure rather than a figure, and it
+    carries the reason the way the label above carries its full name — the same
+    tooltip, so a reader who taps one learns the other works too.
+    {% endcomment %}
+    {% if unset %}
+        <dd class="whitespace-nowrap text-sm text-muted">
+            <c-ui.tooltip size="sm">
+                <span class="cursor-help">&mdash;</span>
+                <c-slot name="content">{{ unset }}</c-slot>
+            </c-ui.tooltip>
+        </dd>
+    {% else %}
+        <dd class="whitespace-nowrap text-sm tabular-nums text-ink-900 dark:text-ink-100">{{ value }}{{ unit }}</dd>
+    {% endif %}
 </div>

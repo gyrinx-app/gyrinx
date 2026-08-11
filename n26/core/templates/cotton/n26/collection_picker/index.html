@@ -427,20 +427,18 @@ dispatches, and listens for `filter-reset` to be told.
     </div>
 
     {% comment %}
-    The rule between groups belongs to each group, not to this container as a
-    divide-y. Tailwind's divider keys off the [hidden] attribute, and x-show sets
-    display:none instead — so every hidden category would leave its separator
-    behind and the list would grow stray lines as you filtered.
+    No rules between the groups. A filtered list of three hundred rows drew a
+    line under every section and category it was still showing, and the lines
+    were the loudest thing on a screen whose job is to be read down — the
+    headings' own weight and case say where a group starts, which is what type
+    is for.
 
-    The rule *above* the first group is this container's border-top — except
-    under `tabs`, where the strip has already drawn one. Two lines a few pixels
-    apart is what the tab strip's own margin plus this border were producing, and
-    it reads as a mistake rather than as two deliberate rules. Whichever thing is
-    directly above the list owns the line between them.
+    Nothing here draws a divider, so nothing has to worry about the divide-y
+    trap either: Tailwind's divider keys off [hidden] and x-show sets
+    display:none instead, so a hidden group would have left its separator
+    behind and the list would have grown stray lines as a reader typed.
     {% endcomment %}
-    <div class="{% if not tabs %}border-t border-box-border{% endif %}">
-        {{ slot }}
-    </div>
+    <div>{{ slot }}</div>
 
     <div x-show="shown === 0" x-cloak class="px-1 py-10 text-center text-sm text-ink-900 dark:text-ink-100">
         {% if empty %}{{ empty }}{% else %}

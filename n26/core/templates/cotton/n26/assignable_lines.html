@@ -27,11 +27,17 @@ afford one per modified cell; a list cannot afford one per item.
 
 Empty renders an em dash, not a muted "None": the card has no second-class text.
 
-A line's rating is drawn when it has one and zero draws nothing, which is what
-lets one component serve every list: the stash reads with its prices on, a
-card's gear states what each piece contributed, and skills and traits — which
-contribute nothing — stay bare names rather than gaining a row of noughts.
+A line's rating is drawn when it has one, when the caller wants ratings at all,
+and zero draws nothing — which is what lets one component serve every list: the
+stash reads with its prices on, and skills and traits, which contribute nothing,
+stay bare names rather than gaining a row of noughts.
+
+Whether money belongs in the list at all is the surface's call, not the line's. A
+fighter's card is read while playing, where what a piece of gear cost the gang
+months ago answers no question at the table — so the card asks for none, and the
+stash, which is read while deciding what to sell, keeps them.
 
   :lines — a list of n26.render.AssignableLine, or anything with the same shape: a
     name, a provenance, and optionally a rating.
-{% endcomment %}<c-vars :lines="None" />{% if lines %}{% for line in lines %}{% if line.provenance.computed %}<span class="underline decoration-dotted underline-offset-2" title="{% if line.provenance.source %}From {{ line.provenance.source }}{% if line.provenance.source_kind %} ({{ line.provenance.source_kind }}){% endif %}{% else %}Granted, not printed{% endif %}">{{ line.name }}</span>{% else %}{{ line.name }}{% endif %}{% if line.rating %} <span class="tabular-nums">{{ line.rating }}¢</span>{% endif %}{% if not forloop.last %}, {% endif %}{% endfor %}{% else %}&mdash;{% endif %}
+  :ratings — draw each line's rating beside it. On by default; a card passes False.
+{% endcomment %}<c-vars :lines="None" :ratings="True" />{% if lines %}{% for line in lines %}{% if line.provenance.computed %}<span class="underline decoration-dotted underline-offset-2" title="{% if line.provenance.source %}From {{ line.provenance.source }}{% if line.provenance.source_kind %} ({{ line.provenance.source_kind }}){% endif %}{% else %}Granted, not printed{% endif %}">{{ line.name }}</span>{% else %}{{ line.name }}{% endif %}{% if ratings and line.rating %} <span class="tabular-nums">{{ line.rating }}¢</span>{% endif %}{% if not forloop.last %}, {% endif %}{% endfor %}{% else %}&mdash;{% endif %}

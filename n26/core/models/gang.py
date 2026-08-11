@@ -82,6 +82,17 @@ class Gang(Base, Owned, Archived, Rated):
         return self.credits
 
     @property
+    def credits_unlimited(self):
+        """Whether this gang spends against a budget at all.
+
+        No starting credits means no ceiling: the gang buys what it likes
+        and its number is its rating, so the credits figure counts
+        nothing. A surface draws that as "no answer" rather than as a
+        zero, which is what a gang that has spent everything shows.
+        """
+        return self.starting_credits is None
+
+    @property
     def stash_rating(self):
         """What the stash holds, or 0 before one exists. Column reads."""
         stash = getattr(self, "stash", None)

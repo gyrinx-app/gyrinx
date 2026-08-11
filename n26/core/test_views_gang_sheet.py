@@ -138,3 +138,50 @@ def test_the_dashboard_links_to_the_sheet(client, tester, gang):
     client.force_login(tester)
     body = client.get(reverse("n26-dashboard")).content.decode()
     assert reverse("n26-gang", args=[gang.pk]) in body
+
+
+def test_a_card_states_what_a_fighter_is_worth_and_no_other_money(
+    client, tester, gang, make_profile, make_statline
+):
+    """A card is read while playing, where what a gun cost the gang months ago
+    answers nothing at the table. So the fighter's own rating stays — it is
+    what they are worth now — and the per-item prices go."""
+    from n26.library.authoring import create_weapon
+
+    profile = make_profile("Ganger", price=55)
+    make_statline(profile)
+    with operation(gang, actor=tester) as op:
+        fighter = op.hire(profile, "Vex", paid=55)
+        op.give_weapon(fighter, create_weapon("Autogun", price=30), paid=30)
+
+    client.force_login(tester)
+    body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
+
+    assert "Autogun" in body
+    # The fighter's rating, on the header badge.
+    assert "85¢" in body
+    # Not the gun's price beside its name, in either shape the card had.
+    assert "(30¢)" not in body
+    assert "(+30¢)" not in body
+
+
+def test_the_stash_keeps_its_prices(client, tester, gang):
+    """The card and the stash read the same component; only the card asked it
+    to stop. A stash is read while deciding what to sell, where the figure is
+    the whole point."""
+    from n26.core.browse import browse
+    from n26.core.models import Stash
+    from n26.library.authoring import create_collection, create_wargear
+
+    # This file's gang is built directly rather than founded, so it has no
+    # storage yet; founding is what normally makes one.
+    Stash.objects.create(gang=gang)
+    crate = create_wargear("Ammo crate", price=25)
+    listing = create_collection("Trading Post", entries=[(crate, {})])
+    with operation(gang, actor=tester) as op:
+        op.buy(gang.stash, next(browse(listing).all_lines()))
+
+    client.force_login(tester)
+    body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
+    assert "Ammo crate" in body
+    assert "25¢" in body

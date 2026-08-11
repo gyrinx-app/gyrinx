@@ -35,8 +35,7 @@ an item outside a category would be reaching for a name that exists nowhere — 
 <div x-data="{ open: {{ open|lower }}, sectionName: {{ name|json_dumps }}, categoryName: null }"
      x-show="countInSection(sectionName) > 0 && sectionIsActive(sectionName)"
      @collection-picker-toggle.window="open = $event.detail.open"
-     x-cloak
-     :class="tabbed ? '' : 'border-b border-box-border'">
+     x-cloak>
 
     {% comment %}
     A search forces the panel open without touching `open`, so clearing the

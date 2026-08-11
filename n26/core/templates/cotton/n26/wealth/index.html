@@ -26,7 +26,21 @@ The type scale, padding and tabular figures are mirrored from
 <c-n26.statline.cells> on purpose, and a test holds them to it, because the two
 sit inches apart on a gang sheet and reading as one system is the whole job.
 
-  :sheet — a n26.render.GangSheet.
+  --- a gang with no budget ---
+
+Founding without a ceiling is a real state — the player buys what they own and
+the gang's number is its rating — and in it the credits figure counts nothing.
+It draws an em dash saying so rather than 0¢, which is what a gang that has
+spent its last credit shows and reads as bankrupt.
+
+Both `credits` and `credits_unlimited` come off whatever is passed, so the two
+cannot disagree: a Gang answers from its own starting_credits and a GangSheet
+carries the answer the gang gave when it was derived. The positive form is the
+one asked for, so anything that does not know the question keeps drawing the
+number it always did.
+
+  :sheet — a n26.render.GangSheet, or anything carrying the same figures: the
+    Gang model does, which is what the hire and equip screens pass.
   class — passed to the scroll container. Where a page wants the strip fenced
     off, `border-l border-box-border pl-3` is the rule it used to draw itself.
 {% endcomment %}
@@ -46,7 +60,10 @@ one a reader is most often after.
 <div class="overflow-x-auto {{ class }}">
     <dl class="flex w-max items-stretch">
         <c-n26.wealth.figure short="R" full="Rating" :value="sheet.rating" />
-        <c-n26.wealth.figure short="Cr" full="Credits" :value="sheet.credits" />
+        <c-n26.wealth.figure short="Cr"
+                             full="Credits"
+                             :value="sheet.credits"
+                             unset="{% if sheet.credits_unlimited %}Unlimited credits{% endif %}" />
         <c-n26.wealth.figure short="St" full="Stash" :value="sheet.stash_rating" />
         <c-n26.wealth.figure short="W" full="Wealth" :value="sheet.wealth" />
     </dl>

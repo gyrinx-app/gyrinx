@@ -609,12 +609,46 @@
         justify-content: center;
     }
 
+    /* A row is not a tier, so it does not pay a tier's gutter.
+     *
+     * Rows never hold a chevron — the tiers above them do — and reserving a
+     * chevron's width on every one of them spent the indent that says which
+     * things are the list's own items and which hang off them. A hair of rail
+     * keeps a row's text off the container's edge and leaves the width to the
+     * step below it. */
+    .n26-cp-rail {
+        flex: none;
+        width: 0.25rem;
+    }
+
     /* Anything hanging off a row — its options, its notes, the card behind its
-     * disclosure — starts where the row's own text does, past the chevron
-     * gutter and no further. One step of indent in the whole list, and it is the
-     * step that says "this belongs to the line above". */
+     * disclosure — steps in from it, and lands where the tiers' own text starts.
+     * One step of indent for belonging to the line above. */
     .n26-cp-inset {
         padding-left: calc(1.125rem + var(--spacing) * 2);
+    }
+
+    /* A second step, for what hangs off something that is itself hanging off a
+     * row: the options under a named set ("Choose any"). Without it the set's
+     * label and the options it governs sit on one line of indent, and a reader
+     * scanning down cannot see where one set's answers stop. */
+    .n26-cp-substep {
+        padding-left: calc(var(--spacing) * 3);
+    }
+
+    /* The kit's tab strip asks for this class and defines it nowhere: it pairs
+     * overflow-x-auto with .no-scrollbar, so on any machine that paints
+     * scrollbars rather than overlaying them the strip carried a permanent
+     * horizontal bar under three tabs that fit.
+     *
+     * Defined here rather than fixed by dropping the overflow: the scroll is
+     * load-bearing at narrow widths, where the tabs genuinely do not fit and
+     * swiping them is how they are reached. What is not wanted is the *bar*. */
+    .no-scrollbar {
+        scrollbar-width: none;
+    }
+    .no-scrollbar::-webkit-scrollbar {
+        display: none;
     }
 
     /* No gap before the first breadcrumb.

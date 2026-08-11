@@ -108,11 +108,15 @@ here too, so a call site states each number once.
     <div class="flex min-h-9 items-center gap-2">
 
     {% comment %}
-    A row keeps the gutter and never a chevron in it. The chevrons belong to the
-    tiers above — the section and the category — and one on every row as well made
-    a column of them where two thirds meant "this opens a tier" and one third meant
-    "there is more to read", which is two ideas wearing the same mark. The empty
-    gutter stays so a row's name still lines up with the headings above it.
+    A row never holds a chevron: those belong to the tiers above — the section
+    and the category — and one on every row as well made a column of them where
+    two thirds meant "this opens a tier" and one third meant "there is more to
+    read", which is two ideas wearing the same mark.
+
+    So a row pays a hair of rail rather than a chevron's width. Reserving the
+    width aligned a row's name with the headings above it and spent, on every
+    row, the indent that now says which things are the list's own items and
+    which hang off them.
 
     The disclosure is a named button instead, which can say what it opens; a
     chevron cannot. See below.
@@ -122,7 +126,7 @@ here too, so a call site states each number once.
     would push every name in the list right to mark the few rows that carry one.
     {% endcomment %}
     <span class="flex min-w-0 flex-1 items-center gap-2 text-sm text-ink-900 dark:text-ink-100">
-        <span class="n26-cp-gutter" aria-hidden="true"></span>
+        <span class="n26-cp-rail" aria-hidden="true"></span>
         {% comment %}
         Wraps on a phone, truncates from sm up. The name is what a reader is
         scanning for and the row's height is not, so on a narrow screen the
@@ -130,7 +134,7 @@ here too, so a call site states each number once.
         line spends the only thing on the row that cannot be recovered by
         looking elsewhere. With room, truncation keeps the columns tidy.
         {% endcomment %}
-        <span class="min-w-0 sm:truncate">{{ name }}</span>
+        <span class="min-w-0 font-semibold sm:truncate">{{ name }}</span>
 
         {% if icon %}<span class="n26-icon-inline shrink-0 text-muted">{{ icon }}</span>{% endif %}
 

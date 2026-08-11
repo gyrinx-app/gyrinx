@@ -452,6 +452,10 @@ class GangSheet:
     counters: list = field(default_factory=list)
     stash: list[StashLine] = field(default_factory=list)
     stash_rating: int = 0
+    #: A gang founded without a budget never spends against one, so its
+    #: credits figure counts nothing. Stated rather than inferred from a
+    #: zero, which is also what a gang that has spent everything has.
+    credits_unlimited: bool = False
     #: Remarks worth drawing — the same tree answering two slots. Loud
     #: or quiet per the note's level; never a gate.
     notes: list = field(default_factory=list)
@@ -1121,6 +1125,7 @@ def render_gang(gang, with_effects=True):
         gang_type=gang.gang_type.name,
         rating=gang.rating,
         credits=gang.credits,
+        credits_unlimited=gang.credits_unlimited,
         wealth=gang.wealth,
         colour=gang.colour,
         rows=gang_rows,

@@ -30,14 +30,14 @@ radios move.
 {% endcomment %}
 {% for group in row.choices %}
     {% comment %}
-    Every set after the first is ruled off from the one above and says how many
-    to take, which is the whole of how a reader is told these go together. The
-    first needs neither: the row it belongs to is directly above it, saying what
-    is being configured, and controls that are plainly one group say so
-    themselves.
+    Every set after the first says how many to take, and its answers step in
+    from that label — the two together are how a reader is told where one set's
+    answers stop. The first set needs neither: the row it belongs to is directly
+    above it, saying what is being configured, and controls that are plainly one
+    group say so themselves.
     {% endcomment %}
     {% if not forloop.first %}
-        <div class="mt-1 flex min-h-8 items-center gap-2 border-t border-box-border pt-2">
+        <div class="mt-1 flex min-h-8 items-center gap-2 pt-1">
             <span class="text-xs font-semibold uppercase tracking-wide text-muted">
                 {% if group.choose == "one" %}
                     Choose one
@@ -54,7 +54,7 @@ radios move.
         The whole line is the label, so the hit target is the row rather than a
         control the width of a fingertip — this list is read on a phone.
         {% endcomment %}
-        <label class="flex min-h-9 cursor-pointer items-center gap-2 rounded-control py-0.5 hover:bg-ink-500/5">
+        <label class="flex min-h-9 cursor-pointer items-center gap-2 rounded-control py-0.5 hover:bg-ink-500/5 {% if not forloop.parentloop.first %}n26-cp-substep{% endif %}">
             <input type="{% if group.choose == 'any' %}checkbox{% else %}radio{% endif %}"
                    name="{{ group.field }}"
                    value="{{ option.value }}"
@@ -73,7 +73,7 @@ radios move.
     skips.
     {% endcomment %}
     {% if group.choose == "one-or-none" %}
-        <label class="flex min-h-9 cursor-pointer items-center gap-2 rounded-control py-0.5 hover:bg-ink-500/5">
+        <label class="flex min-h-9 cursor-pointer items-center gap-2 rounded-control py-0.5 hover:bg-ink-500/5 {% if not forloop.first %}n26-cp-substep{% endif %}">
             <input type="radio"
                    name="{{ group.field }}"
                    value=""
