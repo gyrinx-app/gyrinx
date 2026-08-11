@@ -1117,6 +1117,27 @@ def roster(gang):
     return sorted(members, key=key)
 
 
+def stash_lines(gang_card):
+    """The stash as drawable lines, from a gang card already built.
+
+    Derived from the card rather than fetched, so a page that has one —
+    the sheet, a print — pays nothing further for its stash block.
+    """
+    stash_provenance = _provenance_within(gang_card)
+    return [
+        StashLine(
+            name=node.name,
+            rating=node.rating_with_extras,
+            kind=kind_of(node.assignable),
+            provenance=stash_provenance(node),
+        )
+        for node in gang_card.stash_roots
+        # No row of its own is the kind's whole contract — a chosen
+        # option's Hidden carrier rides the stash invisibly.
+        if not isinstance(node.assignable, Hidden)
+    ]
+
+
 def render_gang(gang, with_effects=True):
     """A whole gang sheet. A fixed number of queries, whatever its size."""
     from n26.core.card import build_gang_card, build_modifier_index
@@ -1139,7 +1160,6 @@ def render_gang(gang, with_effects=True):
         computed = {model_id: compute(card, index) for model_id, card in cards.items()}
         gang_computed = compute_gang(gang_card, index)
 
-    stash_provenance = _provenance_within(gang_card)
     gang_rows, gang_rules = _gang_rows(gang_card, gang_computed)
     return GangSheet(
         name=gang.name,
@@ -1155,18 +1175,7 @@ def render_gang(gang, with_effects=True):
         counters=(
             gang_computed.counters if gang_computed else counter_readings(gang_card)
         ),
-        stash=[
-            StashLine(
-                name=node.name,
-                rating=node.rating_with_extras,
-                kind=kind_of(node.assignable),
-                provenance=stash_provenance(node),
-            )
-            for node in gang_card.stash_roots
-            # No row of its own is the kind's whole contract — a chosen
-            # option's Hidden carrier rides the stash invisibly.
-            if not isinstance(node.assignable, Hidden)
-        ],
+        stash=stash_lines(gang_card),
         stash_rating=gang_card.stash_rating,
         notes=gang_computed.notes if gang_computed else [],
         models=[

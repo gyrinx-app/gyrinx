@@ -24,31 +24,31 @@
                 worth. A card like any other so it obeys the same fragmentation
                 rules — it must arrive on paper whole, not straddle the fold.
                 {% endcomment %}
-                <c-n26.print.card title="{{ sheet.name }}"
-                                  subtitle="{{ sheet.gang_type }}"
-                                  badge="{{ sheet.wealth }}¢">
+                <c-n26.print.card title="{{ gang.name }}"
+                                  subtitle="{{ gang.gang_type.name }}"
+                                  badge="{{ gang.wealth }}¢">
                     <c-n26.print.columns>
                         <c-n26.print.column>
                             <c-n26.print.entry label="Rating">
-                                {{ sheet.rating }}¢
+                                {{ gang.rating }}¢
                             </c-n26.print.entry>
                             <c-n26.print.entry label="Credits">
-                                {{ sheet.credits }}¢
+                                {{ gang.credits }}¢
                             </c-n26.print.entry>
                         </c-n26.print.column>
                         <c-n26.print.column>
                             <c-n26.print.entry label="Stash">
-                                {{ sheet.stash_rating }}¢
+                                {{ stash_rating }}¢
                             </c-n26.print.entry>
                             <c-n26.print.entry label="Wealth">
-                                {{ sheet.wealth }}¢
+                                {{ gang.wealth }}¢
                             </c-n26.print.entry>
                         </c-n26.print.column>
                     </c-n26.print.columns>
                 </c-n26.print.card>
             {% endif %}
-            {% if include_stash and sheet.stash %}
-                <c-n26.print.card title="Stash" badge="{{ sheet.stash_rating }}¢">
+            {% if include_stash and stash %}
+                <c-n26.print.card title="Stash" badge="{{ stash_rating }}¢">
                     <c-n26.print.table>
                         <c-slot name="head">
                             <tr>
@@ -59,7 +59,7 @@
                                 {# djlint:on #}
                             </tr>
                         </c-slot>
-                        {% for line in sheet.stash %}
+                        {% for line in stash %}
                             <tr>
                                 <td>{{ line.name }}</td>
                                 <td>{{ line.kind|capfirst }}</td>
