@@ -236,7 +236,10 @@ def create_gang(request):
                 starting_credits=budget,
             )
             messages.success(request, f"Founded {gang.name}.")
-            return redirect("n26-dashboard")
+            # Straight to the new gang's own sheet: hiring is the next
+            # thing a founder does, and the dashboard is a detour past
+            # every gang they already have.
+            return redirect("n26-gang", pk=gang.pk)
     else:
         form = CreateGangForm()
 

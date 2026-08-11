@@ -137,6 +137,7 @@ def hire_fighter(request, pk):
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.forms import HireFighterForm
     from n26.core.hire import build_hire_entry, build_hire_list, section_hire_list
+    from n26.core.models import Miniature
     from n26.core.operations import NotEnoughCredits, operation
 
     gang = _own_gang_or_404(request, pk)
@@ -252,6 +253,12 @@ def hire_fighter(request, pk):
             "form": form,
             "dialog": dialog,
             "hire_list": hire_list,
+            # How many models the gang already fields, for the figures
+            # strip beside the wealth: hiring is decided against what is
+            # already on the roster as much as against the credits.
+            "roster_count": Miniature.objects.filter(
+                membership__gang=gang, membership__archived=False
+            ).count(),
             # The tab strip, one tab per section. This list is also the
             # picker's whole navigation once tabs are on: a section whose
             # name is missing here can never be the active tab, and its

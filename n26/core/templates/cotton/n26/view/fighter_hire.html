@@ -49,6 +49,11 @@ on from.
     through several hires, so the plural is the honest word for it.
   form — a Django form, for its non-field errors.
   breadcrumb — the trail above the title: the owner, then the gang.
+  figures — the numbers a hire is decided against: the gang's wealth strip,
+    with the roster count beside it. Drawn under the lead, above the notice
+    and the list, so the credits a press will spend are on the same screen
+    as the press. Server-rendered per request, so a hire's redirect brings
+    the strip back already updated.
   notice — what happened last time: the confirmation of a hire, or the refusal
     of one. Drawn under the lead, above the list.
   slot — the picker.
@@ -59,6 +64,7 @@ on from.
     heading="Hire Fighters"
     :form="None"
     notice=""
+    figures=""
     breadcrumb=""
     class=""
 />
@@ -85,6 +91,8 @@ change what they are buying — to be discovered.
     that quietly omitted one would be worse than one that never claimed to. The
     page embedding this puts {% csrf_token %} in the slot.
     {% endcomment %}
+
+    {{ figures }}
 
     {% comment %}
     No wrapper of its own: an unfilled slot is empty, and a div here would draw

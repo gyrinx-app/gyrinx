@@ -18,8 +18,10 @@ mouse, and "R" is not a word.
   full — what it stands for, revealed on hover or tap.
   :value — credits, as an integer. The ¢ is drawn here so a caller never has to
     remember which figures carry it.
+  unit — what the figure is denominated in: ¢ unless said otherwise. A figure
+    that counts things rather than money passes an empty one.
 {% endcomment %}
-<c-vars short="" full="" :value="0" />
+<c-vars short="" full="" :value="0" unit="¢" />
 
 <div class="flex flex-col items-center px-3">
     {% comment %}
@@ -33,5 +35,5 @@ mouse, and "R" is not a word.
             <c-slot name="content">{{ full }}</c-slot>
         </c-ui.tooltip>
     </dt>
-    <dd class="whitespace-nowrap text-sm tabular-nums text-ink-900 dark:text-ink-100">{{ value }}¢</dd>
+    <dd class="whitespace-nowrap text-sm tabular-nums text-ink-900 dark:text-ink-100">{{ value }}{{ unit }}</dd>
 </div>

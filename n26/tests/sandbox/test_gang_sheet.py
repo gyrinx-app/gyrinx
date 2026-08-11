@@ -317,6 +317,34 @@ class TestTheRosterOrder:
             "Aaron",
         ]
 
+    def test_the_ladder_runs_across_sections(self, ranked_crew, make_profile):
+        """A Hanger-on is filed under Supplementary Profiles, a Vehicle
+        under Gang List — and the roster ranks by the category's own
+        position whichever section holds it, so a supplementary rank can
+        muster before a gang list one. Ranked by section first, every
+        supplementary fighter could only ever sort after the whole gang
+        list."""
+        from n26.tests.sandbox.actions import create_category, hire_with_option
+
+        vehicle = create_category("Gang List", "Vehicle", position=7)
+        hanger_on = create_category("Supplementary Profiles", "Hanger-on", position=6)
+        hire_with_option(
+            ranked_crew, make_profile("Vehicle entry", category=vehicle), "Truck"
+        )
+        hire_with_option(
+            ranked_crew, make_profile("Hanger-on entry", category=hanger_on), "Dok"
+        )
+
+        sheet = render_gang(ranked_crew)
+        assert [card.name for card in sheet.models] == [
+            "Zed",
+            "Ann",
+            "Bob",
+            "Wilma",
+            "Dok",
+            "Truck",
+        ]
+
 
 class TestTheSheetDerives:
     def test_rows_choices_and_stash(self, gang, yolanda, house_list):

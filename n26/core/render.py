@@ -1059,19 +1059,22 @@ def roster(gang):
             # of the sort key.
         ).select_related(
             "membership__caused_by__miniature_root",
-            "membership__profile__category__section",
+            "membership__profile__category",
         )
     )
     by_pk = {member.pk: member for member in members}
 
     def rank(member):
-        """Where this model's rank sorts: its category's own place in the
-        taxonomy, uncategorised after everything placed."""
+        """Where this model's rank sorts: the category's position alone,
+        one ladder across sections. Ranked by the section first, a
+        supplementary Hanger-on could only ever sort where its whole
+        section sorts — after every rank the gang list holds, Vehicles
+        included. Uncategorised after everything placed."""
         profile = member.membership.profile if member.membership else None
         category = profile.category if profile else None
         if category is None:
-            return (99, 99)
-        return (category.section.position, category.position)
+            return (1, 0)
+        return (0, category.position)
 
     def key(member):
         owner = member.owned_by

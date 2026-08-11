@@ -525,3 +525,24 @@ def test_the_sheet_links_to_the_hire_page(client, tester, gang):
     client.force_login(tester)
     body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
     assert hire_url(gang) in body
+
+
+def test_the_figures_strip_counts_the_roster_and_quotes_the_books(
+    client, tester, gang, ganger
+):
+    """Hiring is decided against what the gang already fields and what it
+    has left to spend, so both stand above the list — and because the
+    strip is rendered per request, the redirect after a hire brings it
+    back already updated."""
+    client.force_login(tester)
+    body = client.get(hire_url(gang)).content.decode()
+    assert "Models in the gang" in body
+    # The count is the one unitless figure in the strip.
+    assert ">0</dd>" in body
+    assert f">{gang.credits}\u00a2</dd>" in body
+
+    client.post(hire_url(gang), {"profile": str(ganger.pk), "name": "Vex"})
+    gang.refresh_from_db()
+    body = client.get(hire_url(gang)).content.decode()
+    assert ">1</dd>" in body
+    assert f">{gang.credits}\u00a2</dd>" in body

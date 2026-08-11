@@ -171,7 +171,7 @@ class TestTheChangelogPanel:
         failed to load."""
         changelog_entry("Not for this edition", "N23")
         body = client.get("/n26/").content.decode()
-        assert "What&#x27;s new" in body
+        assert "Updates" in body
         assert "Nothing new yet." in body
 
     def test_the_body_is_sanitised(self, tester, client, default_pack):
@@ -943,9 +943,10 @@ class TestFoundingAGang:
             },
         )
         assert response.status_code == 302
-        assert response["Location"] == "/n26/"
 
         gang = Gang.objects.get(name="The Bad Girls")
+        # Straight to the new gang's own sheet, where hiring is one press.
+        assert response["Location"] == f"/n26/gangs/{gang.pk}/"
         assert gang.owner == tester
         assert gang.gang_type == gang_type
         assert gang.starting_credits == 1000

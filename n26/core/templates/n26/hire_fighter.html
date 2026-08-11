@@ -58,6 +58,21 @@ be read in one.
     <c-n26.view.fighter-hire action="{% url 'n26-hire-fighter' gang.pk %}"
                              gang="{{ gang.name }}"
                              :form="form">
+        {% comment %}
+        The numbers a hire is decided against: how many models the gang
+        already fields, and the wealth strip — rating, credits left,
+        stash, the total. The gang itself carries the four figures, so
+        this is the same strip the sheet shows; the count takes no ¢,
+        being a count.
+        {% endcomment %}
+        <c-slot name="figures">
+            <div class="flex items-center">
+                <dl class="flex w-max items-stretch">
+                    <c-n26.wealth.figure short="M" full="Models in the gang" :value="roster_count" unit="" />
+                </dl>
+                <c-n26.wealth :sheet="gang" class="border-l border-box-border pl-3" />
+            </div>
+        </c-slot>
         <c-slot name="notice">
             {% include "n26/includes/messages.html" %}
         </c-slot>
