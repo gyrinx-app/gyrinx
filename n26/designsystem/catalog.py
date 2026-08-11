@@ -1736,6 +1736,28 @@ GROUPS: list[Group] = [
                 ),
             ),
             Component(
+                slug="gang-figures",
+                tag="c-n26.gang-figures",
+                template="n26/gang_figures.html",
+                summary=(
+                    "The numbers a spending decision is made against: the "
+                    "roster count beside the wealth strip."
+                ),
+                needs=(ALPINE, KIT_JS),
+                notes=(
+                    "The hire list and the equipment listing both draw this "
+                    "above their rows, because hiring and buying are decided "
+                    "against how many models the gang fields and what it has "
+                    "left to spend — and a reader mid-decision should not have "
+                    "to go back to the sheet to check. The count wears the "
+                    "wealth strip's own cell so the row reads as one system, "
+                    "but it is not wealth, so it stands in a strip of its own "
+                    "with the money fenced off behind the rule. It takes no ¢, "
+                    "being a count — the one place the figure cell's unit is "
+                    "turned off rather than assumed."
+                ),
+            ),
+            Component(
                 slug="detail-list",
                 tag="c-n26.detail-list",
                 template="n26/detail_list/index.html",

@@ -1474,3 +1474,27 @@ def test_the_sheet_links_each_card_to_equip(client, tester, gang, fighter):
     client.force_login(tester)
     body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
     assert reverse("n26-equip", args=[fighter.pk]) in body
+
+
+def test_the_figures_and_the_roster_line_stand_above_the_listing(
+    client, tester, gang, fighter, make_profile, make_statline
+):
+    """The same strip the hire screen carries, and under it every fighter
+    with their pinned rating — the one being equipped named in ink, the
+    others as links to this same screen for them."""
+    profile = make_profile("Champ", price=40)
+    make_statline(profile)
+    with operation(gang, actor=tester) as op:
+        other = op.hire(profile, "Karn", paid=40)
+
+    client.force_login(tester)
+    body = client.get(equip_url(fighter)).content.decode()
+    assert "Models in the gang" in body
+    assert ">2</dd>" in body
+    gang.refresh_from_db()
+    assert f">{gang.credits}\u00a2</dd>" in body
+    # Karn links to his own equip screen, with his rating beside the name.
+    assert equip_url(other) in body
+    assert f"{other.rating}\u00a2" in body
+    # Vex is where the reader already is: named, marked, not a link.
+    assert 'aria-current="page"' in body

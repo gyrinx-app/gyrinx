@@ -70,6 +70,34 @@ breadcrumb above it has the gang as well, so nothing is lost.
         </c-slot>
     </c-n26.page-header>
     {% comment %}
+    The numbers a purchase is decided against, and the roster it is
+    decided across: the same figures strip the hire screen carries, then
+    every fighter with their pinned rating on one wrapping line. Each
+    name is this same screen for that fighter — equipping is done down
+    the roster, and the ratings say at a glance who has had their share —
+    with the fighter being equipped named in ink rather than linked.
+    {% endcomment %}
+    <div class="mt-4 flex flex-col gap-2">
+        <c-n26.gang-figures :gang="gang" :count="roster_count" />
+        <p class="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm">
+            {% for member in roster %}
+                {% if member.pk == miniature.pk %}
+                    <span aria-current="page"
+                          class="font-medium text-ink-900 dark:text-ink-100">
+                        {{ member.name }}
+                        <span class="font-normal tabular-nums text-muted">{{ member.rating }}¢</span>
+                    </span>
+                {% else %}
+                    <a href="{% url 'n26-equip' member.pk %}"
+                       class="text-ink-600 hover:text-ink-900 focus-ring dark:text-ink-400 dark:hover:text-white">
+                        {{ member.name }}
+                        <span class="tabular-nums text-muted">{{ member.rating }}¢</span>
+                    </a>
+                {% endif %}
+            {% endfor %}
+        </p>
+    </div>
+    {% comment %}
     What the fighter already owns is a *state of a row*, not a list of its own:
     a row for something they are carrying draws the count where Buy would be,
     and opens onto the copies themselves. See n26/includes/equip_line.html.

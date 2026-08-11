@@ -1,0 +1,29 @@
+{% comment %}
+<c-n26.gang-figures> — the numbers a spending decision is made against.
+
+    <c-n26.gang-figures :gang="gang" :count="roster_count" />
+
+The roster count, then the wealth strip — rating, credits left, stash and
+the total. Drawn above the hire list and the equipment listing, because
+hiring and buying are both decided against how many models the gang fields
+and what it has left to spend, and a reader mid-decision should not have to
+go back to the sheet to check. Server-rendered per request, so the redirect
+after a purchase brings it back already updated.
+
+The count is a figure in the wealth strip's own clothes — same cell, same
+type — but it is not wealth, so it stands in a strip of its own with the
+money fenced off by the rule the wealth component documents for exactly
+this seam.
+
+  :gang — anything carrying the four worth figures; the Gang model itself
+    does, and so does a rendered GangSheet.
+  :count — how many models the gang fields.
+{% endcomment %}
+<c-vars :gang="None" :count="0" class="" />
+
+<div {{ attrs }} class="flex items-center {{ class }}">
+    <dl class="flex w-max items-stretch">
+        <c-n26.wealth.figure short="M" full="Models in the gang" :value="count" unit="" />
+    </dl>
+    <c-n26.wealth :sheet="gang" class="border-l border-box-border pl-3" />
+</div>
