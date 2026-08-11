@@ -457,13 +457,14 @@ class CollectionSelector(Content):
 
 
 class CollectionEntry(NamesAnAssignable, Content):
-    """One item a collection contains, with optional price overrides.
-
-    Same mixin as a player's ``Assignment`` and a profile's
-    ``DefaultAssignment`` — ``assignable=`` routes to the right column,
-    exactly one may be set.
+    """One item a collection lists, at this list's own price where an
+    override says so and at the item's own otherwise.
     """
 
+    # Same mixin as a player's Assignment and a profile's
+    # DefaultAssignment — ``assignable=`` routes to the right column,
+    # exactly one may be set. (A comment, not the docstring: the
+    # docstring is shown to authors on the authoring pages.)
     ASSIGNABLE_FIELDS = ENTRY_ASSIGNABLE_FIELDS
 
     #: The key assignable kinds use in their ``ATTACHMENT_ASKS`` to say
