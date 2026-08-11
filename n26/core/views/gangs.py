@@ -143,6 +143,10 @@ def gang_sheet(request, pk):
             "sheet": sheet,
             "renaming": None if leaving else _renaming(request, gang),
             "leaving": leaving,
+            # A gang founded without a budget never spent credits, so
+            # there is nothing a refund could give back: its cards offer
+            # Delete alone.
+            "budgeted": gang.starting_credits is not None,
         },
     )
 
@@ -210,6 +214,12 @@ def _leaving(request, gang):
     else:
         return None
 
+    # A gang founded without a budget never spent credits, so there is
+    # nothing to give back: a refund asked of it is a deletion, and the
+    # dialog says so rather than offering 0¢.
+    if kind == "refund" and gang.starting_credits is None:
+        kind = "delete"
+
     membership = miniature.membership
     in_hire = {membership.pk, *(row.pk for row in subtree(membership))}
     roots = _kit_roots(miniature)
@@ -257,6 +267,10 @@ def _dismiss(request, pk, kind):
     miniature = _own_miniature_or_404(request, pk)
     membership = miniature.membership
     gang = membership.gang
+    # No budget, no refund: the gang never spent credits, so the act
+    # behind either address is the same deletion the dialog promised.
+    if kind == "refund" and gang.starting_credits is None:
+        kind = "delete"
     sheet_url = reverse("n26-gang", args=[gang.pk])
     if request.method != "POST":
         return redirect(f"{sheet_url}?{kind}={miniature.pk}")

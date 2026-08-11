@@ -170,3 +170,44 @@ class TestRefunding:
         assert gang.stash_rating == GUN_PRICE
         assert gang.rating == 0
         assert_reconciled(gang)
+
+
+class TestAGangWithNoBudget:
+    """A gang founded without a budget never spent credits, so there is
+    nothing a refund could give back: its cards offer Delete alone, and
+    a refund asked for anyway is answered as the deletion it is."""
+
+    @pytest.fixture
+    def unbudgeted(self, gang):
+        gang.starting_credits = None
+        gang.save(update_fields=["starting_credits"])
+        return gang
+
+    def test_the_card_offers_no_refund(self, client, owner, unbudgeted, armed):
+        client.force_login(owner)
+        body = client.get(reverse("n26-gang", args=[unbudgeted.pk])).content.decode()
+        assert f"?delete={armed.pk}" in body
+        assert f"?refund={armed.pk}" not in body
+
+    def test_a_refund_address_asks_the_delete_question(
+        self, client, owner, unbudgeted, armed
+    ):
+        """Cancel, stash, delete — never a 0¢ refund to puzzle over."""
+        client.force_login(owner)
+        url = reverse("n26-gang", args=[unbudgeted.pk])
+        body = client.get(f"{url}?refund={armed.pk}").content.decode()
+        assert "Delete everything" in body
+        assert "Stash their kit, then delete" in body
+        assert "Refund everything" not in body
+
+    def test_a_refund_post_deletes_and_returns_nothing(
+        self, client, owner, unbudgeted, armed
+    ):
+        client.force_login(owner)
+        credits_before = unbudgeted.credits
+        client.post(refund_url(armed))
+        unbudgeted.refresh_from_db()
+        assert roster(unbudgeted) == []
+        assert unbudgeted.credits == credits_before
+        assert unbudgeted.rating == 0
+        assert_reconciled(unbudgeted)

@@ -190,10 +190,16 @@ that said it twice would be spending the width the name needs.
                             names the fighter and the sheet answers with the
                             dialog below, so a press works with no script and
                             an open question is an address someone can send.
+
+                            Refund only where there is a budget being spent —
+                            a gang founded without one never paid credits, so
+                            there is nothing a refund could give back.
                             {% endcomment %}
-                            <c-ui.dropdown.item href="?refund={{ member.id }}">
-                                Refund
-                            </c-ui.dropdown.item>
+                            {% if budgeted %}
+                                <c-ui.dropdown.item href="?refund={{ member.id }}">
+                                    Refund
+                                </c-ui.dropdown.item>
+                            {% endif %}
                             <c-ui.dropdown.item variant="danger" href="?delete={{ member.id }}">
                                 Delete
                             </c-ui.dropdown.item>

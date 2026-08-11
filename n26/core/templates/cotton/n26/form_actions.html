@@ -14,11 +14,12 @@ no screen composing a footer of its own.
 
   --- the order and the alignment are not props ---
 
-The way out sits left of the act, and the pair is right-aligned where the eye
-finishes the last field. The act comes last because it is what the form is for,
-and a reader running down the fields meets the alternative on the way to it.
-Neither is a choice a call site can make: buttons that swap places between
-screens are buttons a reader has to read before pressing.
+The way out sits first, the act last, and the row is right-aligned where the
+eye finishes the last field. The act comes last because it is what the form is
+for, and a reader running down the fields meets every alternative — the way
+out, then any lesser act — on the way to it. Neither is a choice a call site
+can make: buttons that swap places between screens are buttons a reader has to
+read before pressing.
 
   --- cancel is a link, and it is quiet ---
 
@@ -49,8 +50,9 @@ sends nothing extra.
   cancel_url — where the way out leads. Without one there is no cancel.
   cancel_label — the way out's wording. "Cancel" by default.
   size — both buttons' size, for a footer that ends a step rather than a screen.
-  slot — further controls, drawn to the left of the pair. For the rare form
-    answering in more than one way; the pair keeps its place regardless.
+  slot — further controls, drawn between the way out and the act. For the rare
+    form answering in more than one way: the reader still meets Cancel first
+    and the form's own act still ends the row.
 {% endcomment %}
 <c-vars
     submit_label=""
@@ -67,10 +69,10 @@ on one line drop onto two, still right-aligned, rather than squeezing their
 wording to nothing.
 {% endcomment %}
 <div {{ attrs }} class="flex flex-wrap items-center justify-end gap-2 {{ class }}">
-    {{ slot }}
     {% if cancel_url %}
         <c-ui.button variant="ghost" size="{{ size }}" href="{{ cancel_url }}">{{ cancel_label }}</c-ui.button>
     {% endif %}
+    {{ slot }}
     {% if submit_label %}
         <c-ui.button type="submit" variant="{{ submit_variant }}" size="{{ size }}">{{ submit_label }}</c-ui.button>
     {% endif %}

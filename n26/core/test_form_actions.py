@@ -119,16 +119,17 @@ class TestAFormThatTakesSomethingAway:
 
 
 class TestFurtherControls:
-    """The rare form answering in more than one way keeps the pair's place."""
+    """The rare form answering in more than one way keeps the frame: the
+    way out still opens the row, and the form's own act still ends it."""
 
-    def test_the_slot_is_drawn_left_of_the_pair(self):
+    def test_the_slot_is_drawn_between_the_way_out_and_the_act(self):
         html = render(
             '<c-n26.form-actions submit_label="Import" cancel_url="/x/">'
             '<c-ui.button type="submit" variant="default">Preview</c-ui.button>'
             "</c-n26.form-actions>"
         )
 
-        assert html.index("Preview") < html.index("Cancel") < html.index("Import")
+        assert html.index("Cancel") < html.index("Preview") < html.index("Import")
 
 
 class TestTheFormPageFooter:
