@@ -326,24 +326,31 @@ class TestTheChord:
             """
         )
 
-    def test_the_chord_listens_on_the_window(self):
+    def test_the_chord_listens_on_the_window_in_the_capture_phase(self):
         """A listener on the switcher itself would only hear keys the reader
         had already brought to it, and the whole point is reaching it from
-        wherever focus happens to be."""
+        wherever focus happens to be. Capture, because on the way up any
+        handler between the key's target and the window could stop the
+        event, and a chord that works everywhere except inside one widget
+        reads as broken."""
         html = self.chorded()
-        assert "window.addEventListener('keydown', this.chord);" in html
+        assert "window.addEventListener('keydown', this.chord, true);" in html
 
-    def test_the_chord_is_alt_shift_and_the_physical_key(self):
+    def test_the_chord_is_alt_shift_and_the_letter_matched_two_ways(self):
         """With ⌥ held, event.key is whatever glyph the layout types on that
-        key — not an F — so the match has to be on event.code. ⌘ and Ctrl
-        disqualify it: a wider chord that happens to contain this one is
-        someone else's shortcut."""
+        key — not an F — so the letter is found by the physical key or by
+        the legacy keyCode, which follows the letter wherever a remapped
+        layout put it. ⌘ and Ctrl disqualify the chord: a wider one that
+        happens to contain this one is someone else's shortcut."""
         html = self.chorded()
         assert (
             "if (!event.altKey || !event.shiftKey || event.metaKey || event.ctrlKey) return;"
             in html
         )
-        assert "if (event.code !== 'KeyF') return;" in html
+        assert (
+            "if (event.code !== 'KeyF' && event.keyCode !== 'F'.charCodeAt(0)) return;"
+            in html
+        )
 
     def test_the_letter_is_written_up_whatever_case_it_was_passed_in(self):
         html = self.chorded()
@@ -363,7 +370,7 @@ class TestTheChord:
 
     def test_the_listener_is_removed_with_the_component(self):
         html = self.chorded()
-        assert "window.removeEventListener('keydown', this.chord);" in html
+        assert "window.removeEventListener('keydown', this.chord, true);" in html
 
     def test_a_switcher_with_no_hotkey_carries_none_of_it(self):
         """The chord is opt-in per placement: a page draws several of these,

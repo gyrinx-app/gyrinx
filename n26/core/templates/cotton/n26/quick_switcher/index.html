@@ -452,27 +452,30 @@ order, and Tab-then-Enter works with the panel's script and without it.
                          window.addEventListener('resize', this.refit);
                          window.addEventListener('scroll', this.refit, true);
                          {% if hotkey %}
-                         // The chord listens on the window, because it is
-                         // for reaching this control from wherever focus
-                         // happens to be — a listener on the switcher would
-                         // only hear keys the reader had already brought to
-                         // it. The physical key is what is matched: with ⌥
-                         // held, event.key is whatever glyph the layout
-                         // types on that key, and it is not an F.
+                         // The chord listens on the window, capture phase:
+                         // it is for reaching this control from wherever
+                         // focus happens to be, and on the way up any
+                         // handler could stop the event before it arrived.
+                         // The letter is matched two ways because neither
+                         // covers everyone alone — with ⌥ held, event.key
+                         // is whatever glyph the layout types there, never
+                         // the letter. event.code is the physical key,
+                         // which a remapped layout (Dvorak) moves; keyCode
+                         // follows the letter wherever the layout put it.
                          this.chord = (event) => {
                              if (!event.altKey || !event.shiftKey || event.metaKey || event.ctrlKey) return;
-                             if (event.code !== 'Key{{ hotkey|upper }}') return;
+                             if (event.code !== 'Key{{ hotkey|upper }}' && event.keyCode !== '{{ hotkey|upper }}'.charCodeAt(0)) return;
                              event.preventDefault();
                              this.dropdownMenu ? this.close() : this.open();
                          };
-                         window.addEventListener('keydown', this.chord);
+                         window.addEventListener('keydown', this.chord, true);
                          {% endif %}
                      },
                      destroy() {
                          window.removeEventListener('resize', this.refit);
                          window.removeEventListener('scroll', this.refit, true);
                          {% if hotkey %}
-                         window.removeEventListener('keydown', this.chord);
+                         window.removeEventListener('keydown', this.chord, true);
                          {% endif %}
                      },
                  }"

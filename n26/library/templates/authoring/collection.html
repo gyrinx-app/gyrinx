@@ -3,7 +3,11 @@
 {% block head_title %}
     {{ thing }}
 {% endblock head_title %}
-{% block nav_heading %}{{ thing }}{% endblock nav_heading %}
+{% comment %}
+No nav_heading: the bar says where you are standing — Collections,
+carried by its switcher's leading link — and the collection itself is
+the page heading's to name.
+{% endcomment %}
 {% block content %}
     <c-n26.page-header title="{{ thing }}">
         {% comment %}

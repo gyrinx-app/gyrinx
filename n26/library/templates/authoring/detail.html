@@ -3,7 +3,12 @@
 {% block head_title %}
     {{ thing }}
 {% endblock head_title %}
-{% block nav_heading %}{{ thing }}{% endblock nav_heading %}
+{% comment %}
+No nav_heading: the bar says where you are standing — the kind, carried
+by its switcher's leading link — and the thing being looked at is the
+page heading's to name. A row's name in the bar would say the same
+thing twice, a line apart.
+{% endcomment %}
 {% block content %}
     <c-n26.page-header title="{{ thing }}">
         {% comment %}
