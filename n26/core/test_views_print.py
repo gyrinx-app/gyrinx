@@ -202,6 +202,55 @@ class TestThePrintPage:
         assert "Vex" in body
         assert "Rating" not in body  # the header's figure strip
 
+    def test_a_bigger_roster_costs_no_more_queries_to_print(
+        self, client, tester, gang, roster, make_profile
+    ):
+        """The page derives the gang once — header, stash and every card
+        from one build — so printing costs the same queries however many
+        models are on the paper or how much they carry."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from n26.library.authoring import create_weapon
+
+        client.force_login(tester)
+        profile = make_profile("Reinforcement", price=40)
+        axe = create_weapon("Axe", price=10)
+
+        def measure():
+            with CaptureQueriesContext(connection) as captured:
+                assert client.get(print_url(gang)).status_code == 200
+            return len(captured.captured_queries)
+
+        # The first request pays one-time caches nothing after it does;
+        # what is measured is the page's own budget.
+        measure()
+        few = measure()
+        for index in range(3):
+            with operation(gang, actor=tester) as op:
+                hired = op.hire(profile, f"More {index}")
+                op.give_weapon(hired, axe, paid=10)
+        assert measure() == few
+
+    def test_the_page_fetches_the_gangs_rows_once(self, client, tester, gang, roster):
+        """One derivation serves the header, the stash and every card:
+        the gang's assignments are fetched exactly twice — its own rows
+        and its stash's — not once per block that draws them."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        client.force_login(tester)
+        client.get(print_url(gang))
+        with CaptureQueriesContext(connection) as captured:
+            assert client.get(print_url(gang)).status_code == 200
+        row_fetches = [
+            query["sql"]
+            for query in captured.captured_queries
+            if query["sql"].startswith("SELECT")
+            and 'FROM "n26_assignment"' in query["sql"]
+        ]
+        assert len(row_fetches) == 2
+
     def test_someone_elses_config_is_ignored(self, client, tester, gang, roster):
         """A config id belonging to another gang falls back to printing
         everything — the URL names a thing the viewer does not hold."""

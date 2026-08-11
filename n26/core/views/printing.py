@@ -39,15 +39,17 @@ def _roster(gang):
     return roster(gang)
 
 
-def _print_rows(gang, miniatures, weapon_ids=None):
+def _print_rows(gang, gang_card, miniatures, weapon_ids=None):
     """A print card per model: filtered, computed, columned.
 
-    ``weapon_ids`` of None means everything; a set means only those
-    weapon assignments show. Wargear always rides — the selection is
-    about which guns clutter the card, so every wargear row of the
-    gang's joins the selected set before it filters anything.
+    ``gang_card`` is the gang already built — the same build the header
+    and stash blocks read, so a print derives the gang once however much
+    of it is ticked. ``weapon_ids`` of None means everything; a set means
+    only those weapon assignments show. Wargear always rides — the
+    selection is about which guns clutter the card, so every wargear row
+    of the gang's joins the selected set before it filters anything.
     """
-    from n26.core.card import build_card, build_gang_card, build_modifier_index
+    from n26.core.card import build_card, build_modifier_index
     from n26.core.effects import compute
     from n26.core.models import Assignment
     from n26.core.printing import detail_columns
@@ -60,12 +62,11 @@ def _print_rows(gang, miniatures, weapon_ids=None):
         ).values_list("pk", flat=True)
         selection = _Selection(set(weapon_ids) | set(wargear))
 
-    # One fetch for the whole run and one modifier index shared by every
-    # card: a card build pays for its queries mostly in planning, so a
-    # print that built each model's card alone would cost seconds on a
-    # full roster.
-    gang_card = build_gang_card(gang, with_statlines=True, assignment_set=selection)
-    cards = gang_card.members
+    # The selection re-deals the cards from rows already fetched, and one
+    # modifier index is shared by every card: a card build pays for its
+    # queries mostly in planning, so a print that built each model's card
+    # alone would cost seconds on a full roster.
+    cards = gang_card.members_under(selection)
     index = build_modifier_index(
         [node.assignable for card in cards.values() for node in card.all_nodes()]
         + [node.assignable for node in gang_card.all_nodes()]
@@ -202,24 +203,28 @@ def print_gang(request, pk):
     without one, everything.
     """
     from n26.analytics import EventVerb, N26Noun, record
-    from n26.core.render import render_gang
+    from n26.core.card import build_gang_card
+    from n26.core.render import stash_lines
 
     gang = _own_gang_or_404(request, pk)
     config = _config_for(request, gang)
-    sheet = render_gang(gang)
+    # One derivation serves the whole page — the header's figures, the
+    # stash block and every model's card all read this build.
+    gang_card = build_gang_card(gang)
+    miniatures = _roster(gang)
 
     if config is not None:
         wanted = {str(pk) for pk in config.miniatures.values_list("pk", flat=True)}
-        miniatures = [m for m in _roster(gang) if str(m.pk) in wanted]
         rows = _print_rows(
             gang,
-            miniatures,
+            gang_card,
+            [m for m in miniatures if str(m.pk) in wanted],
             weapon_ids=set(config.assignments.values_list("pk", flat=True)),
         )
         include_header = config.include_header
         include_stash = config.include_stash
     else:
-        rows = _print_rows(gang, _roster(gang))
+        rows = _print_rows(gang, gang_card, miniatures)
         include_header = True
         include_stash = True
 
@@ -240,8 +245,9 @@ def print_gang(request, pk):
         "n26/print_gang.html",
         {
             "gang": gang,
-            "sheet": sheet,
             "rows": rows,
+            "stash": stash_lines(gang_card),
+            "stash_rating": gang_card.stash_rating,
             "include_header": include_header,
             "include_stash": include_stash,
         },

@@ -241,6 +241,10 @@ def browse(collection, terms=EQUIPMENT_LIST):
         collection.entries.prefetch_related(
             *ENTRY_ASSIGNABLE_FIELDS,
             *(f"{name}__category__section" for name in ENTRY_ASSIGNABLE_FIELDS),
+            # What each line always comes with: pricing a line composes
+            # the set's own price in, so a list of mounts prices the
+            # packages without a query per line.
+            *(f"{name}__built_ins" for name in ENTRY_ASSIGNABLE_FIELDS),
             # Use-restriction lists, derived for every kind carrying the
             # mixin — so noting a whole listing costs no extra queries,
             # whichever kind an author narrowed and however they narrowed it.

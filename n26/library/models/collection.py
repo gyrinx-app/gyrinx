@@ -455,7 +455,11 @@ class CollectionSelector(Content):
 
         model = self.of_kind.model_class()
         found = model.objects.filter(self.as_selector().as_q(model)).select_related(
-            "category__section"
+            # built_ins because pricing a swept line composes the set's
+            # own price in — without it, a sweep full of kitted things
+            # pays a query per row at the till.
+            "category__section",
+            "built_ins",
         )
         if issubclass(model, UsableBy):
             # So marking a swept listing usable costs no extra queries.

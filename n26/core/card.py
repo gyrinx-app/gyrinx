@@ -222,12 +222,34 @@ class GangCard:
     #: both card kinds are computed by one function, and one that read
     #: its own grants on one card and not the other would be a trap.
     granted: list[Node] = field(default_factory=list)
+    #: The flat rows each member's card was dealt from, kept so a
+    #: selection can re-deal the cards without another fetch — see
+    #: ``members_under``.
+    member_rows: dict = field(default_factory=dict, repr=False)
+    #: The gang-hosted rows that ride every member's card as broadcast.
+    shared_rows: list = field(default_factory=list, repr=False)
 
     host_kind = GANG
 
     @property
     def stash_rating(self):
         return sum(node.rating_with_extras for node in self.stash_roots)
+
+    def members_under(self, assignment_set):
+        """Every member's card re-dealt under a selection — in memory.
+
+        The rows are already on this card; only the assembly differs, so
+        a print run's ticked weapons never pay for a second fetch. With
+        no selection the cards as dealt are the answer.
+        """
+        if assignment_set is None:
+            return self.members
+        return {
+            miniature_id: assemble(
+                None, rows, assignment_set=assignment_set, broadcast=self.shared_rows
+            )
+            for miniature_id, rows in self.member_rows.items()
+        }
 
     def all_nodes(self):
         for root in (*self.roots, *self.granted):
@@ -465,6 +487,8 @@ def build_gang_card(gang, with_statlines=True, assignment_set=None):
             )
             for miniature_id, rows in grouped.items()
         },
+        member_rows=grouped,
+        shared_rows=shared,
     )
 
 

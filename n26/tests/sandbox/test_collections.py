@@ -958,6 +958,41 @@ class TestScaling:
 
         assert measure(small) == measure(big)
 
+    def test_lines_that_come_with_kit_cost_no_more_queries_as_the_list_grows(
+        self, taxonomy
+    ):
+        """A line's advertised price composes its built-in kit's price
+        in. The kit's set loads with the listing, so a list of kitted
+        mounts prices the packages for the same queries as a list of
+        one — and each package really is priced as one."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        def stable(count):
+            mounts = []
+            for index in range(count):
+                saddle = create_wargear(f"Saddle {count}-{index}", price=15)
+                mount = create_wargear(
+                    f"Mount {count}-{index}", price=50, category=taxonomy["auto"]
+                )
+                mount.built_ins = create_default_set(
+                    f"Mount {count}-{index} kit", members=[saddle], price=15
+                )
+                mount.save()
+                mounts.append(mount)
+            return mounts
+
+        small = create_collection("Small stable", entries=stable(2))
+        big = create_collection("Big stable", entries=stable(12))
+
+        def measure(collection):
+            with CaptureQueriesContext(connection) as captured:
+                lines = list(browse(collection).all_lines())
+                assert lines and all(line.credits == 65 for line in lines)
+            return len(captured.captured_queries)
+
+        assert measure(small) == measure(big)
+
 
 class TestTradingPostMembership:
     """The Trading Post's membership is *having a trade point price* —
