@@ -917,6 +917,51 @@ def create_collection(
     return collection
 
 
+def add_entry(
+    collection,
+    thing,
+    price_override=None,
+    trade_point_override=None,
+    position=None,
+    **kwargs,
+):
+    """One more item a collection lists — the curated row.
+
+    The overrides are what an entry may state; left blank, the item
+    sells at its own reference price. New entries go to the end.
+    """
+    from n26.library.models import CollectionEntry
+
+    if position is None:
+        position = collection.entries.count()
+    return CollectionEntry.objects.create(
+        collection=collection,
+        assignable=thing,
+        price_override=price_override,
+        trade_point_override=trade_point_override,
+        position=position,
+        **kwargs,
+    )
+
+
+def remove_entry(entry):
+    """Stop listing one item. The thing named stays in the library and
+    on every other list that names it — only this collection's row
+    goes."""
+    entry.delete()
+
+
+def add_section(collection, name, is_default=False, position=None, **kwargs):
+    """One more tier in a collection's schema — "Primary", "Affiliations".
+
+    New sections go after the ones already there; ``is_default`` marks
+    where unplaced categories fall, at most one per collection.
+    """
+    if position is None:
+        position = collection.sections.count()
+    return section_of(collection, name, position, is_default=is_default, **kwargs)
+
+
 def create_trading_post(name="Trading Post", contains=None, entries=(), **kwargs):
     """A collection whose membership is *having a trade point price*:
     every weapon and wargear with a TP set, swept in — never listed by

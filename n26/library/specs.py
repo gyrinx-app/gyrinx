@@ -261,6 +261,7 @@ def _build_registry():
         Category,
         ChangesStat,
         Collection,
+        CollectionEntry,
         CollectionSection,
         Counter,
         CounterAtLeast,
@@ -306,6 +307,11 @@ def _build_registry():
     built_in_kinds = {
         name: f"library.{DefaultAssignment._meta.get_field(name).related_model.__name__}"
         for name in DEFAULT_ASSIGNABLE_FIELDS
+    }
+    # What a collection entry may list, derived the same way.
+    entry_kinds = {
+        name: f"library.{CollectionEntry._meta.get_field(name).related_model.__name__}"
+        for name in CollectionEntry.ASSIGNABLE_FIELDS
     }
 
     specs = [
@@ -714,6 +720,24 @@ def _build_registry():
                     source=(Collection, "library_author_help"), long=True
                 ),
             },
+        ),
+        # One curated row. What listing each kind asks for — the price
+        # and trade-point overrides — comes from the kind's own
+        # ATTACHMENT_ASKS, resolved through the union.
+        Spec(
+            authoring.add_entry,
+            {"thing": Union(over=entry_kinds, through=CollectionEntry)},
+            model=CollectionEntry,
+        ),
+        # One tier of a collection's schema — where placements point and
+        # where a pick-list's answers live.
+        Spec(
+            authoring.add_section,
+            {
+                "name": Text(source=(CollectionSection, "name")),
+                "is_default": Bool(source=(CollectionSection, "is_default")),
+            },
+            model=CollectionSection,
         ),
         Spec(
             authoring.add_built_in,

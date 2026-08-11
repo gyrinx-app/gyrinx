@@ -2098,8 +2098,150 @@ class TestTheCollectionPage:
         assert "every wargear with a TP price" in body
         assert "Boltgun" in body
         assert "Kraken round" in body  # nested under its gun
-        assert "House-pattern needler" not in body
+        # Nowhere but the add-entry picker, which offers the whole
+        # library by design — the *preview* must not have swept it in.
+        import re
+
+        outside_pickers = re.sub(r"<select[\s\S]*?</select>", "", body)
+        assert "House-pattern needler" not in outside_pickers
         assert "Ranged Weapons" in body  # sectioned like the book
+
+    def test_an_entry_is_added_priced_and_removed_through_the_page(
+        self, author, client, default_pack
+    ):
+        """Curation without a spreadsheet: the page lists the row at the
+        collection's own price, and stops listing it without touching
+        the thing named."""
+        from n26.library.authoring import create_collection, create_wargear
+        from n26.library.models import CollectionEntry, Wargear
+
+        blade = create_wargear("Escher blade", price=15)
+        house_list = create_collection("House Escher Equipment List")
+        page = f"/n26/authoring/collection/{house_list.pk}/"
+
+        response = client.post(
+            page,
+            {
+                "act": "entry",
+                "thing_kind": "wargear",
+                "thing_wargear": str(blade.pk),
+                "price_override": "10",
+            },
+        )
+        assert response.status_code == 302
+        entry = CollectionEntry.objects.get(collection=house_list)
+        assert entry.assignable == blade
+        assert entry.price_override == 10
+
+        body = client.get(page).content.decode()
+        assert "10cr here" in body
+
+        done = client.post(f"/n26/authoring/entries/{entry.pk}/remove/")
+        assert done["Location"] == page
+        assert not CollectionEntry.objects.filter(collection=house_list).exists()
+        assert Wargear.objects.filter(pk=blade.pk).exists()
+
+    def test_a_second_default_section_is_refused_in_words(
+        self, author, client, default_pack
+    ):
+        from n26.library.authoring import create_collection
+
+        picks = create_collection("Affiliations")
+        page = f"/n26/authoring/collection/{picks.pk}/"
+
+        first = client.post(
+            page, {"act": "section", "name": "Affiliations", "is_default": "on"}
+        )
+        assert first.status_code == 302
+        again = client.post(
+            page, {"act": "section", "name": "Another", "is_default": "on"}
+        )
+        assert again.status_code == 200
+        assert "already has a default section" in again.content.decode()
+        assert picks.sections.count() == 1
+
+    def test_the_affiliation_pick_list_is_buildable_end_to_end(
+        self, author, client, default_pack, gang_type
+    ):
+        """The whole guide, through the pages: affiliations, the menu
+        collection with its default section and entries, the hidden
+        carrier armed by the composer, the gang type's built-in — and
+        then a player's picker offering exactly the two answers."""
+        from n26.core.render import render_gang
+        from n26.library.models import Affiliation, Collection, Hidden
+        from n26.tests.sandbox.actions import found_gang
+
+        # The carriers and the menu, every row through a page.
+        for name in ("Clanless Outcast", "Clan House Outcast"):
+            client.post("/n26/authoring/affiliation/new/", {"name": name})
+        client.post("/n26/authoring/collection/new/", {"name": "Affiliations"})
+        picks = Collection.objects.get(name="Affiliations")
+        page = f"/n26/authoring/collection/{picks.pk}/"
+        client.post(
+            page, {"act": "section", "name": "Affiliations", "is_default": "on"}
+        )
+        for name in ("Clanless Outcast", "Clan House Outcast"):
+            made = client.post(
+                page,
+                {
+                    "act": "entry",
+                    "thing_kind": "affiliation",
+                    "thing_affiliation": str(Affiliation.objects.get(name=name).pk),
+                },
+            )
+            assert made.status_code == 302
+
+        # The question: a hidden carrier, armed on its own page.
+        client.post("/n26/authoring/hidden/new/", {"name": "Affiliation"})
+        hidden = Hidden.objects.get(name="Affiliation")
+        section = picks.sections.get()
+        composed = client.post(
+            f"/n26/authoring/hidden/{hidden.pk}/",
+            {
+                "act": "compose",
+                "scope_kind": "targets_gang",
+                "effect_kind": "ef_offers_choice",
+                "what-model": "affiliation",
+                "what-from_section": str(section.pk),
+                "what-label": "affiliation",
+                "what-answer_host": "bearer",
+                "conditions-TOTAL_FORMS": "0",
+                "conditions-INITIAL_FORMS": "0",
+                "conditions-MIN_NUM_FORMS": "0",
+                "conditions-MAX_NUM_FORMS": "1000",
+            },
+        )
+        assert composed.status_code == 302
+
+        # Into the gang type's Comes with, through its page.
+        aboard = client.post(
+            f"/n26/authoring/gang-type/{gang_type.pk}/",
+            {
+                "act": "built_in",
+                "thing_kind": "hidden",
+                "thing_hidden": str(hidden.pk),
+            },
+        )
+        assert aboard.status_code == 302
+
+        # The player's side of the seam: found a gang, press the choice.
+        # Staff, because the edition is fenced behind a group the test
+        # database has no data migration to create.
+        from django.contrib.auth.models import User
+
+        owner = User.objects.create_user("outcast-founder", is_staff=True)
+        # The page changed the row; this test's instance predates it.
+        gang_type.refresh_from_db()
+        gang = found_gang("The Unmade", gang_type, owner=owner)
+        line = next(
+            slot
+            for slot in render_gang(gang).choices
+            if slot.kind_label == "Affiliation"
+        )
+        client.force_login(owner)
+        picker = client.get(f"/n26/gangs/{gang.pk}/choose/{line.key}/").content.decode()
+        assert "Clanless Outcast" in picker
+        assert "Clan House Outcast" in picker
 
     def test_membership_by_criteria_updates_itself(self, author, client, default_pack):
         """Author a weapon through the pages and it is simply there —

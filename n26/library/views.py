@@ -1952,19 +1952,59 @@ def _tp_words(line):
 
 @staff_member_required
 def collection_page(request, pk):
-    """A collection, previewed: what its definition means right now.
+    """A collection: its definition, edited here, and what it means.
 
     The definition is sweeps and entries; the preview is the same
     ``browse`` structure the player-side listing draws, so what an
     author sees here is exactly what a gang will get. Membership by
     criteria keeps itself: author a weapon with a TP price and it is
     simply here on the next load, ammo rows riding under their gun.
+
+    Curation happens on this page: an entry form (the union picker,
+    with each kind's own override asks) and a section form for the
+    schema. Two acts, as the parts pages have them, so a post says
+    which form was pressed.
     """
     from n26.core.browse import browse
     from n26.library.models import Collection
     from n26.library.models.collection import ENTRY_ASSIGNABLE_FIELDS
 
     collection = get_object_or_404(Collection, pk=pk)
+
+    entry_spec = specs()["add_entry"]
+    section_spec = specs()["add_section"]
+    entry_form_class = generate_form(entry_spec)
+    section_form_class = generate_form(section_spec)
+    entry_form = entry_form_class(carrier=collection)
+    section_form = section_form_class(carrier=collection)
+
+    if request.method == "POST":
+        act = request.POST.get("act", "")
+        if act == "entry":
+            entry_form = entry_form_class(request.POST, carrier=collection)
+            if entry_form.is_valid():
+                with transaction.atomic():
+                    made = entry_spec.verb(collection, **entry_form.verb_data())
+                messages.success(request, f"{collection} now lists {made.assignable}.")
+                return redirect("authoring-detail", kind="collection", pk=pk)
+        elif act == "section":
+            section_form = section_form_class(request.POST, carrier=collection)
+            if section_form.is_valid():
+                try:
+                    with transaction.atomic():
+                        made = section_spec.verb(collection, **section_form.verb_data())
+                except IntegrityError:
+                    # The schema's two uniquenesses, said in words: one
+                    # name per collection, one default per collection.
+                    section_form.add_error(
+                        None,
+                        "This collection already has a section by that "
+                        "name, or already has a default section.",
+                    )
+                else:
+                    messages.success(request, f"Added the {made.name} section.")
+                    return redirect("authoring-detail", kind="collection", pk=pk)
+
     view = browse(collection)
 
     sections = []
@@ -2010,7 +2050,13 @@ def collection_page(request, pk):
             notes.append(f"{entry.price_override}cr here")
         if entry.trade_point_override is not None:
             notes.append(f"TP {entry.trade_point_override} here")
-        entries.append({"label": _label_for(entry.assignable), "notes": notes})
+        entries.append(
+            {
+                "label": _label_for(entry.assignable),
+                "notes": notes,
+                "remove_url": reverse("authoring-entry-remove", args=[entry.pk]),
+            }
+        )
 
     return render(
         request,
@@ -2020,8 +2066,52 @@ def collection_page(request, pk):
             "kind_help": kind_help(Collection),
             "sweeps": [str(selector) for selector in collection.selectors.all()],
             "entries": entries,
+            "schema_sections": list(collection.sections.all()),
+            "entry_form": entry_form,
+            "entry_help": kind_help(_model_for(entry_spec)),
+            "section_form": section_form,
+            "section_help": kind_help(_model_for(section_spec)),
             "sections": sections,
             "line_count": line_count,
+        },
+    )
+
+
+@staff_member_required
+def entry_remove(request, pk):
+    """The question asked before a listing row is taken off.
+
+    What goes is the *entry* — this collection's row for the thing, its
+    overrides included. The thing named stays in the library and on
+    every other list that names it, and nothing already bought changes:
+    a purchase pinned its own record at the till.
+    """
+    from n26.library import authoring
+    from n26.library.models import CollectionEntry
+    from n26.library.models.collection import ENTRY_ASSIGNABLE_FIELDS
+
+    entry = get_object_or_404(
+        CollectionEntry.objects.select_related("collection", *ENTRY_ASSIGNABLE_FIELDS),
+        pk=pk,
+    )
+    collection = entry.collection
+    back = reverse("authoring-detail", args=["collection", collection.pk])
+
+    if request.method == "POST":
+        said = _label_for(entry.assignable)
+        with transaction.atomic():
+            authoring.remove_entry(entry)
+        messages.success(request, f"{collection} no longer lists {said}.")
+        return redirect(back)
+
+    return render(
+        request,
+        "authoring/entry_remove.html",
+        {
+            "thing": entry,
+            "label": _label_for(entry.assignable),
+            "collection": collection,
+            "back": back,
         },
     )
 

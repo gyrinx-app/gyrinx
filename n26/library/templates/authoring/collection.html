@@ -46,7 +46,12 @@
                         {% for entry in entries %}
                             <tr>
                                 <td>{{ entry.label }}</td>
-                                <td class="text-right text-muted">{{ entry.notes|join:" · " }}</td>
+                                <td class="w-full text-right text-muted">{{ entry.notes|join:" · " }}</td>
+                                <td class="text-right">
+                                    <c-n26.link href="{{ entry.remove_url }}" tone="danger" class="text-xs">
+                                        Remove
+                                    </c-n26.link>
+                                </td>
                             </tr>
                         {% endfor %}
                     </tbody>
@@ -57,6 +62,47 @@
                 Nothing defined yet — no sweeps, no entries.
             </c-ui.description>
         {% endif %}
+    </c-n26.form-section>
+    <c-n26.form-section title="Add an entry"
+                        description="One more item this collection lists. Leave the overrides blank to sell it at its own reference price."
+                        class="mt-10">
+        {% if entry_help %}
+            <c-n26.prose class="max-w-2xl">
+                {% for paragraph in entry_help %}<p>{{ paragraph }}</p>{% endfor %}
+            </c-n26.prose>
+        {% endif %}
+        <form method="post" class="max-w-xl space-y-5">
+            {% csrf_token %}
+            <input type="hidden" name="act" value="entry">
+            {% include "authoring/_form.html" with form=entry_form %}
+            <c-n26.form-actions submit_label="Add entry" />
+        </form>
+    </c-n26.form-section>
+    <c-n26.form-section title="Sections"
+                        description="The collection's schema: the tiers placements point at, and where a pick-list's answers live. Most collections need none."
+                        class="mt-10">
+        {% if schema_sections %}
+            <c-ui.table>
+                <tbody>
+                    {% for section in schema_sections %}
+                        <tr>
+                            <td>{{ section.name }}</td>
+                            <td class="w-full text-muted">{% if section.is_default %}default — unplaced categories fall here{% endif %}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </c-ui.table>
+        {% else %}
+            <c-ui.description>
+                No sections — the whole collection is one flat listing.
+            </c-ui.description>
+        {% endif %}
+        <form method="post" class="max-w-xl space-y-5">
+            {% csrf_token %}
+            <input type="hidden" name="act" value="section">
+            {% include "authoring/_form.html" with form=section_form %}
+            <c-n26.form-actions submit_label="Add section" />
+        </form>
     </c-n26.form-section>
     <c-n26.form-section title="Preview ({{ line_count }} line{{ line_count|pluralize }})"
                         description="What the definition means right now — author an item that fits and it appears here on the next load. Browsed as a plain list; a trading trip withholds “E” rows and charges the TP shown."
