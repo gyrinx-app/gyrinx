@@ -881,6 +881,7 @@ def create_collection(
     name,
     entries=(),
     contains=(),
+    prices_its_entries=True,
     qualifier="",
     library_author_help="",
     **kwargs,
@@ -896,6 +897,7 @@ def create_collection(
     shared = {"pack": kwargs["pack"]} if "pack" in kwargs else {}
     collection = Collection.objects.create(
         name=name,
+        prices_its_entries=prices_its_entries,
         qualifier=qualifier,
         library_author_help=library_author_help,
         **kwargs,

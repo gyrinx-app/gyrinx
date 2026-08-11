@@ -2023,15 +2023,44 @@ def collection_page(request, pk):
 
     entry_spec = specs()["add_entry"]
     section_spec = specs()["add_section"]
+    edit_class = generate_form(_spec_for("collection"))
     entry_form_class = generate_form(entry_spec)
     section_form_class = generate_form(section_spec)
+    edit_form = edit_class.opened_on(collection)
     entry_form = entry_form_class(carrier=collection)
     section_form = section_form_class(carrier=collection)
 
+    def narrowed(form):
+        """The entry form asks what *this* collection's entries take —
+        a menu's ask for a price would be a question with no meaning."""
+        asks = collection.entry_asks()
+        for ask in ("price_override", "trade_point_override"):
+            if ask not in asks:
+                form.fields.pop(ask, None)
+        return form
+
+    entry_form = narrowed(entry_form)
+
     if request.method == "POST":
         act = request.POST.get("act", "")
-        if act == "entry":
-            entry_form = entry_form_class(request.POST, carrier=collection)
+        if act == "edit":
+            edit_form = edit_class.opened_on(collection, request.POST, request.FILES)
+            if edit_form.is_valid():
+                try:
+                    with transaction.atomic():
+                        edit_form.apply_to(collection)
+                except IntegrityError:
+                    edit_form.add_error(
+                        "name",
+                        "A collection named "
+                        f"“{edit_form.cleaned_data['name']}” already exists "
+                        "in this pack.",
+                    )
+                else:
+                    messages.success(request, f"Saved {collection}.")
+                    return redirect("authoring-detail", kind="collection", pk=pk)
+        elif act == "entry":
+            entry_form = narrowed(entry_form_class(request.POST, carrier=collection))
             if entry_form.is_valid():
                 with transaction.atomic():
                     made = entry_spec.verb(collection, **entry_form.verb_data())
@@ -2057,6 +2086,13 @@ def collection_page(request, pk):
 
     view = browse(collection)
 
+    # The schema's own promise, kept on the preview: unplaced categories
+    # fall into the default section, so the group of things with no home
+    # prints under its name rather than "(no section)".
+    default_section = next(
+        (row for row in collection.sections.all() if row.is_default), None
+    )
+
     sections = []
     line_count = 0
     for section in view.sections:
@@ -2065,7 +2101,7 @@ def collection_page(request, pk):
             rows = []
             for line in category.lines:
                 notes = []
-                if line.entry is not None:
+                if line.entry is not None and collection.prices_its_entries:
                     notes.append("priced by this list")
                 rows.append(
                     {
@@ -2091,7 +2127,16 @@ def collection_page(request, pk):
                     )
                     line_count += 1
             categories.append({"name": category.name, "rows": rows})
-        sections.append({"name": section.name, "categories": categories})
+        sections.append(
+            {
+                # The schema's own promise, kept on the preview: unplaced
+                # categories fall into the default section, so the group
+                # with no home prints under its name, never "(no section)".
+                "name": section.name
+                or (default_section.name if default_section else ""),
+                "categories": categories,
+            }
+        )
 
     entries = []
     for entry in collection.entries.prefetch_related(*ENTRY_ASSIGNABLE_FIELDS):
@@ -2117,12 +2162,32 @@ def collection_page(request, pk):
             "sweeps": [str(selector) for selector in collection.selectors.all()],
             "entries": entries,
             "schema_sections": list(collection.sections.all()),
+            "edit_form": edit_form,
             "entry_form": entry_form,
             "entry_help": kind_help(_model_for(entry_spec)),
             "section_form": section_form,
             "section_help": kind_help(_model_for(section_spec)),
             "sections": sections,
             "line_count": line_count,
+            "priced": collection.prices_its_entries,
+            "entry_description": (
+                "One more item this collection lists. Leave the overrides "
+                "blank to sell it at its own reference price."
+                if collection.prices_its_entries
+                else "One more answer this menu offers. Nothing is for "
+                "sale here, so listing an item asks for nothing but the "
+                "item."
+            ),
+            "preview_description": (
+                "What the definition means right now — author an item "
+                "that fits and it appears here on the next load. Browsed "
+                "as a plain list; a trading trip withholds “E” rows and "
+                "charges the TP shown."
+                if collection.prices_its_entries
+                else "What the definition means right now — the answers "
+                "this menu puts in front of a player, under its own "
+                "headings."
+            ),
         },
     )
 

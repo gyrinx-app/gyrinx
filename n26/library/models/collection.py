@@ -240,6 +240,36 @@ class Collection(Content, Assignable):
 
     family = Family.GANG
 
+    #: What listing an entry here asks an author for, beyond the pick.
+    #: A shop's entries state prices; a menu's — a pick list of
+    #: affiliations behind a choice — have nothing to state, so its
+    #: entry form asks for nothing and its preview prints no money.
+    #: The seam every surface reads is ``entry_asks()`` below, so a
+    #: further flag with further asks changes one function.
+    prices_its_entries = models.BooleanField(
+        default=True,
+        verbose_name="Prices its entries",
+        help_text=(
+            "On for anything sold from — prices and Trade Points may be "
+            "stated per entry. Off for a menu, like a pick list behind "
+            "a choice: nothing is for sale, so listing an item asks "
+            "for nothing but the item."
+        ),
+    )
+
+    def entry_asks(self):
+        """The extra fields an entry of *this* collection takes.
+
+        The entry form shows exactly these, and the page's tables print
+        columns for no more — one answer, read by both, so the form and
+        the preview cannot disagree about whether money is involved.
+        """
+        return (
+            ("price_override", "trade_point_override")
+            if self.prices_its_entries
+            else ()
+        )
+
     objects = CollectionManager()
 
     class Meta:

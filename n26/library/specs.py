@@ -715,6 +715,7 @@ def _build_registry():
             authoring.create_collection,
             {
                 "name": Text(source=(Collection, "name")),
+                "prices_its_entries": Bool(source=(Collection, "prices_its_entries")),
                 "qualifier": Text(source=(Collection, "qualifier")),
                 "library_author_help": Text(
                     source=(Collection, "library_author_help"), long=True

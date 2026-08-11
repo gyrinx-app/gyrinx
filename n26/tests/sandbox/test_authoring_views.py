@@ -2231,6 +2231,87 @@ class TestTheCollectionPage:
         assert "already has a default section" in again.content.decode()
         assert picks.sections.count() == 1
 
+    def test_the_preview_files_the_unplaced_under_the_default_section(
+        self, author, client, default_pack
+    ):
+        """The schema's promise, kept on the page: unplaced categories
+        fall into the default section, so a pick list of homeless
+        things prints under its own heading, never "(no section)"."""
+        from n26.library.authoring import (
+            add_section,
+            create_affiliation,
+            create_collection,
+        )
+
+        picks = create_collection(
+            "Affiliations", entries=[(create_affiliation("Clanless Outcast"), {})]
+        )
+        add_section(picks, "Affiliations", is_default=True)
+
+        body = client.get(f"/n26/authoring/collection/{picks.pk}/").content.decode()
+        assert "(no section)" not in body
+        assert "Clanless Outcast" in body
+
+    def test_a_menu_asks_for_no_prices_and_prints_none(
+        self, author, client, default_pack
+    ):
+        """A collection that prices nothing — a pick list behind a
+        choice — asks its author for nothing but the item, and its
+        preview prints no money."""
+        from n26.library.authoring import create_affiliation, create_collection
+        from n26.library.models import CollectionEntry
+
+        menu = create_collection(
+            "Affiliations",
+            prices_its_entries=False,
+            entries=[(create_affiliation("Clanless Outcast"), {})],
+        )
+        page = f"/n26/authoring/collection/{menu.pk}/"
+
+        body = client.get(page).content.decode()
+        assert "Price override" not in body
+        assert "Trade point override" not in body
+        assert ">credits</th>" not in body
+        assert "asks for nothing but the item" in body
+
+        # And adding through the narrowed form still works.
+        made = client.post(
+            page,
+            {
+                "act": "entry",
+                "thing_kind": "affiliation",
+                "thing_affiliation": str(create_affiliation("Mutant Outcast").pk),
+            },
+        )
+        assert made.status_code == 302
+        assert CollectionEntry.objects.filter(collection=menu).count() == 2
+
+    def test_the_collection_is_edited_on_its_own_page(
+        self, author, client, default_pack
+    ):
+        from n26.library.authoring import create_collection
+        from n26.library.models import Collection
+
+        listing = create_collection("House Escher Equipment List")
+        page = f"/n26/authoring/collection/{listing.pk}/"
+
+        saved = client.post(
+            page,
+            {
+                "act": "edit",
+                "edit-name": "House Escher Armoury",
+                "edit-qualifier": "",
+                "edit-library_author_help": "",
+            },
+        )
+        assert saved.status_code == 302
+        listing.refresh_from_db()
+        assert listing.name == "House Escher Armoury"
+        # The unchecked box: an edit that says nothing about prices
+        # turns them off, as a checkbox submits.
+        assert listing.prices_its_entries is False
+        assert Collection.objects.filter(name="House Escher Armoury").exists()
+
     def test_the_affiliation_pick_list_is_buildable_end_to_end(
         self, author, client, default_pack, gang_type
     ):

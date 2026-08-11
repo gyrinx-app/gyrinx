@@ -31,13 +31,21 @@
             <p>{{ thing.library_author_help }}</p>
         </c-n26.prose>
     {% endif %}
-    <div class="mt-3">
-        <c-n26.link href="{% url 'authoring-thing-delete' 'collection' thing.pk %}"
-                    tone="danger"
-                    class="text-sm">
-            Delete this collection…
-        </c-n26.link>
-    </div>
+    <c-n26.form-section title="This collection" class="mt-8">
+        <form method="post" class="max-w-xl space-y-5">
+            {% csrf_token %}
+            <input type="hidden" name="act" value="edit">
+            {% include "authoring/_form.html" with form=edit_form %}
+            <c-n26.form-actions submit_label="Save changes" />
+        </form>
+        <div class="mt-4">
+            <c-n26.link href="{% url 'authoring-thing-delete' 'collection' thing.pk %}"
+                        tone="danger"
+                        class="text-sm">
+                Delete this collection…
+            </c-n26.link>
+        </div>
+    </c-n26.form-section>
     <c-n26.form-section title="Definition" class="mt-8">
         {% if sweeps or entries %}
             {% if sweeps %}
@@ -71,7 +79,7 @@
         {% endif %}
     </c-n26.form-section>
     <c-n26.form-section title="Add an entry"
-                        description="One more item this collection lists. Leave the overrides blank to sell it at its own reference price."
+                        description="{{ entry_description }}"
                         class="mt-10">
         {% if entry_help %}
             <c-n26.prose class="max-w-2xl">
@@ -112,15 +120,17 @@
         </form>
     </c-n26.form-section>
     <c-n26.form-section title="Preview ({{ line_count }} line{{ line_count|pluralize }})"
-                        description="What the definition means right now — author an item that fits and it appears here on the next load. Browsed as a plain list; a trading trip withholds “E” rows and charges the TP shown."
+                        description="{{ preview_description }}"
                         class="mt-10">
         {% for section in sections %}
             <c-ui.table class="mt-2">
                 <thead>
                     <tr>
                         <th>{{ section.name|default:"(no section)" }}</th>
-                        <th class="text-right">credits</th>
-                        <th class="text-right">TP</th>
+                        {% if priced %}
+                            <th class="text-right">credits</th>
+                            <th class="text-right">TP</th>
+                        {% endif %}
                         <th></th>
                     </tr>
                 </thead>
@@ -128,7 +138,7 @@
                     {% for category in section.categories %}
                         {% if category.name %}
                             <tr>
-                                <th colspan="4">{{ category.name }}</th>
+                                <th colspan="{% if priced %}4{% else %}2{% endif %}">{{ category.name }}</th>
                             </tr>
                         {% endif %}
                         {% for row in category.rows %}
@@ -137,8 +147,10 @@
                                     {% if row.nested %}<span class="text-muted">—</span>{% endif %}
                                     {{ row.name }}
                                 </td>
-                                <td class="text-right tabular-nums">{{ row.credits }}</td>
-                                <td class="text-right tabular-nums">{{ row.tp }}</td>
+                                {% if priced %}
+                                    <td class="text-right tabular-nums">{{ row.credits }}</td>
+                                    <td class="text-right tabular-nums">{{ row.tp }}</td>
+                                {% endif %}
                                 <td class="text-right text-muted">{{ row.notes|join:" · " }}</td>
                             </tr>
                         {% endfor %}
