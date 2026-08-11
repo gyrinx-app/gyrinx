@@ -21,6 +21,7 @@
                        href="{% url 'core:dice' %}?m=d6&d=1">
                         <i class="bi-dice-6"></i>
                     </a>
+                    {% include "core/includes/edition_toggle.html" with extra_classes="d-inline-flex d-lg-none" %}
                     {% include "core/includes/notification_nav_button.html" with extra_classes="d-lg-none" %}
                 {% endif %}
                 <button class="navbar-toggler"
@@ -112,6 +113,7 @@
                 </ul>
                 <div class="d-flex flex-column flex-sm-row gap-2">
                     {% if user.is_authenticated %}
+                        {% include "core/includes/edition_toggle.html" with extra_classes="d-none d-lg-inline-flex align-self-center" %}
                         {% include "core/includes/notification_nav_button.html" with extra_classes="d-none d-lg-inline-flex align-items-center" %}
                         <a href="{% url 'core:account_home' %}" class="btn btn-outline-light">
                             <i class="bi-gear"></i>

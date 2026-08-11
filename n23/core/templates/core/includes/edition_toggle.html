@@ -1,0 +1,28 @@
+{% load group_tags %}
+{% comment %}
+    The edition pill: N23 and N26, the one you are in filled, the other a
+    link to its front page. Rendered in two places with different responsive
+    visibility (`extra_classes`), mirroring the inbox button: beside it on
+    mobile, and beside it again on desktop.
+
+    Only for accounts the n26 gate would let through — staff and the
+    "N26 Testers" group. For anyone else the N26 half would be a door that
+    404s, so they get no pill at all.
+
+    The filled segment is the cotton badge; the hollow one is a plain quiet
+    link, because the segment you are in is a fact and the other is the only
+    thing here to press.
+{% endcomment %}
+{% if user.is_staff or user|in_group:"N26 Testers" %}
+    <div class="align-items-center border border-secondary rounded-pill p-1 {{ extra_classes }}"
+         role="group"
+         aria-label="Edition">
+        <c-badge href="{% url 'core:index' %}"
+                 :pill="True"
+                 title="You are in the classic app"
+                 aria-current="true">N23</c-badge>
+        <a href="{% url 'n26-dashboard' %}"
+           title="Go to the N26 preview"
+           class="small text-secondary text-decoration-none px-1">N26</a>
+    </div>
+{% endif %}

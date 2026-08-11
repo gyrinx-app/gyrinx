@@ -108,3 +108,13 @@ class HireFighterForm(forms.Form):
         label="Name",
         help_text="Optional — you can name them later.",
     )
+
+
+class RenameFighterForm(forms.Form):
+    """The one fact a rename changes.
+
+    Required where the hire form's name is not: "you can name them later"
+    is that form's promise, and this form is the later it promised.
+    """
+
+    name = forms.CharField(max_length=200, label="Name")

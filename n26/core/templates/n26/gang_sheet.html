@@ -145,6 +145,24 @@ that said it twice would be spending the width the name needs.
         <c-slot name="members">
             {% for member in sheet.models %}
                 <c-n26.model-card :card="member">
+                    {% comment %}
+                    The way to a fighter's own name: a quiet pencil on the
+                    name's line, leading to the rename dialog the URL opens
+                    below. A link, so it works with no script and an open
+                    dialog is an address someone can send.
+                    {% endcomment %}
+                    <c-slot name="name_action">
+                        <c-ui.button variant="ghost"
+                                     size="xs"
+                                     class="ms-1 -mt-0.5 px-1! align-middle"
+                                     href="?rename={{ member.id }}"
+                                     aria-label="Rename {{ member.name }}"
+                                     title="Rename">
+                            <span class="n26-icon-only">
+                                <c-n26.icon name="pencil" class="size-3.5 text-ink-500 dark:text-ink-400" />
+                            </span>
+                        </c-ui.button>
+                    </c-slot>
                     <c-slot name="actions">
                         {% comment %}
                         Equip is the one you came for and the only per-model act
@@ -176,4 +194,26 @@ that said it twice would be spending the width the name needs.
             {% endfor %}
         </c-slot>
     </c-n26.view.gang-sheet>
+    {% comment %}
+    The rename dialog, when the URL names a member. Open is a server
+    state — the pencil is a link to ?rename=<pk>, so the question works
+    with scripting off and an open dialog is a page someone can reload.
+    {% endcomment %}
+    {% if renaming %}
+        <c-n26.dialog title="Rename {{ renaming.name }}"
+                      action="{% url 'n26-rename-fighter' renaming.pk %}"
+                      cancel_url="{% url 'n26-gang' gang.pk %}"
+                      submit_label="Rename">
+            {% csrf_token %}
+            <c-ui.field label="Name" for="model-name">
+                <c-ui.input id="model-name"
+                            name="name"
+                            required
+                            maxlength="200"
+                            autocomplete="off"
+                            autofocus="autofocus"
+                            value="{{ renaming.name }}" />
+            </c-ui.field>
+        </c-n26.dialog>
+    {% endif %}
 {% endblock content %}

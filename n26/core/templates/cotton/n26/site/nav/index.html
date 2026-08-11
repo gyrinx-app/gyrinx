@@ -23,23 +23,25 @@ its burger.
 
   --- the bar names the page; the drawer holds the places ---
 
-The bar reads left to right as one sentence: the burger, the brand, then the
-page's own name after a middle dot. Every page can name itself there, because
-the name no longer competes with anything — the links live in the drawer, so
-the space beside the brand is the page's for good rather than on loan.
+The bar reads left to right as one sentence: the brand, then the page's own
+name. Every page can name itself there, because the name competes with
+nothing — the links live in the drawer, so the space beside the brand is the
+page's for good rather than on loan.
 
-The burger is the first thing in the bar rather than the last. It opens a panel
-from the left edge, and a control that opens something from the left belongs on
-that side; putting it opposite makes the panel arrive from somewhere the reader
-was not looking. It is the same control at every width, not one that appears
-below md: a burger is only predictable if you already know the window is narrow,
-so someone who learns where the links live on a phone would have to learn again
-on a laptop.
+The burger is the last thing in the bar, past the account menu, and its panel
+comes from the right edge — a control that opens something belongs on the side
+the thing arrives from. It is the same control at every width, not one that
+appears below md: a burger is only predictable if you already know the window
+is narrow, so someone who learns where the links live on a phone would have to
+learn again on a laptop. A hairline separates it from the account menu, because
+the two are the bar's two "more" controls and side by side with nothing between
+them they read as one.
 
-The account menu stays outermost on the right, where signing in or out — which
-adds and removes buttons — cannot shift it. It is also where the controls a
-reader touches once and never again live, the colour scheme among them: the
-bar's one row of horizontal space belongs to what the page is.
+The account menu keeps the right-hand group with the burger, where signing in
+or out — which adds and removes buttons — cannot shift either. That group is
+also where the controls a reader touches once and never again live, the colour
+scheme among them: the bar's one row of horizontal space belongs to what the
+page is.
 
   --- what it kept from the kit ---
 
@@ -111,62 +113,6 @@ there: the Gangs link in that same list is the whole roster.
 <header {{ attrs }} class="n26-site-nav {% if sticky %}sticky top-0{% else %}relative{% endif %}
                            z-40 w-full border-b border-ink-200 dark:border-ink-800 {{ class }}">
     <div class="flex h-14 items-center gap-2 px-4">
-        {% comment %}
-        The drawer's root is display:contents, so the burger sits in this row as
-        if the drawer were not wrapped around it. The panel teleports to the
-        body, which also takes it out of this header's `dark` subtree — the bar
-        stays dark in both modes, the drawer follows the reader's theme.
-        {% endcomment %}
-        <c-ui.drawer side="left" size="sm">
-            <button type="button"
-                    @click="drawerOpen = true"
-                    aria-label="{{ drawer_label }}"
-                    title="{{ drawer_label }}"
-                    class="inline-flex shrink-0 cursor-pointer items-center rounded-control p-2
-                           text-ink-600 hover:bg-ink-100 focus-ring
-                           dark:text-ink-300 dark:hover:bg-ink-800">
-                <c-n26.icon name="bars-3" class="size-5" />
-            </button>
-            <c-slot name="header">
-                <a href="{{ href }}" class="n26-site-brand focus-ring">
-                    {% if logo %}{{ logo }}{% endif %}
-                    {% if title %}<span>{{ title }}</span>{% endif %}
-                </a>
-            </c-slot>
-            <c-slot name="content">
-                {% comment %}
-                Styled by the container rather than by each item, which is what
-                lets the same list be drawn here and in the noscript strip
-                below: a navbar item is a bare <a> carrying an is-current
-                marker, and whatever holds it decides the look.
-
-                A place with no page yet is a <span> rather than an <a>, so it
-                is in the list without being a door that opens on nothing.
-
-                The current page keeps the accent and takes the weight with it —
-                it is the one row here that is a state rather than a destination.
-                {% endcomment %}
-                <nav class="-mx-2 flex flex-col
-                            [&>a]:flex [&>a]:items-center [&>a]:gap-3
-                            [&>a]:rounded-control [&>a]:px-3 [&>a]:py-2
-                            [&>a]:text-sm [&>a]:transition-colors
-                            [&>a]:text-ink-700 dark:[&>a]:text-ink-300
-                            [&>a:hover]:bg-ink-100 dark:[&>a:hover]:bg-ink-800
-                            [&>.is-current]:font-medium
-                            [&>.is-current]:text-accent
-                            [&>span]:flex [&>span]:items-center [&>span]:gap-2
-                            [&>span]:px-3 [&>span]:py-2 [&>span]:text-sm
-                            [&>span]:text-ink-400 dark:[&>span]:text-ink-500">{{ slot }}</nav>
-                {% if gangs.strip %}
-                    <div class="my-3 h-px bg-ink-200 dark:bg-ink-800" role="separator"></div>
-                    <h2 class="px-1 pb-1 text-xs font-medium tracking-wide text-ink-500 uppercase dark:text-ink-400">
-                        Your gangs
-                    </h2>
-                    <div class="-mx-2 flex flex-col">{{ gangs }}</div>
-                {% endif %}
-            </c-slot>
-        </c-ui.drawer>
-
         {% comment %}
         The wordmark is what goes when the window narrows, and the mark beside
         it stays. Below sm the bar is: a logo that is still a link home, and
@@ -258,6 +204,73 @@ there: the Gangs link in that same list is the whole roster.
                     {% if menu %}{{ menu }}{% endif %}
                 </c-ui.dropdown>
             {% endif %}
+
+            {% comment %}
+            A hairline between the account menu and the burger: they are
+            the bar's two "more" controls, and with nothing between them
+            they read as one. Decorative, so it says nothing aloud.
+            {% endcomment %}
+            <span aria-hidden="true" class="h-6 w-px shrink-0 bg-ink-200 dark:bg-ink-700"></span>
+
+            {% comment %}
+            The drawer's root is display:contents, so the burger sits in
+            this row as if the drawer were not wrapped around it. The
+            panel teleports to the body, which also takes it out of this
+            header's `dark` subtree — the bar stays dark in both modes,
+            the drawer follows the reader's theme. It comes from the
+            right, which is where the control that opens it now lives.
+            {% endcomment %}
+            <c-ui.drawer side="right" size="sm">
+                <button type="button"
+                        @click="drawerOpen = true"
+                        aria-label="{{ drawer_label }}"
+                        title="{{ drawer_label }}"
+                        class="inline-flex shrink-0 cursor-pointer items-center rounded-control p-2
+                               text-ink-600 hover:bg-ink-100 focus-ring
+                               dark:text-ink-300 dark:hover:bg-ink-800">
+                    <c-n26.icon name="bars-3" class="size-5" />
+                </button>
+                <c-slot name="header">
+                    <a href="{{ href }}" class="n26-site-brand focus-ring">
+                        {% if logo %}{{ logo }}{% endif %}
+                        {% if title %}<span>{{ title }}</span>{% endif %}
+                    </a>
+                </c-slot>
+                <c-slot name="content">
+                    {% comment %}
+                    Styled by the container rather than by each item, which is
+                    what lets the same list be drawn here and in the noscript
+                    strip below: a navbar item is a bare <a> carrying an
+                    is-current marker, and whatever holds it decides the look.
+
+                    A place with no page yet is a <span> rather than an <a>, so
+                    it is in the list without being a door that opens on
+                    nothing.
+
+                    The current page keeps the accent and takes the weight with
+                    it — it is the one row here that is a state rather than a
+                    destination.
+                    {% endcomment %}
+                    <nav class="-mx-2 flex flex-col
+                                [&>a]:flex [&>a]:items-center [&>a]:gap-3
+                                [&>a]:rounded-control [&>a]:px-3 [&>a]:py-2
+                                [&>a]:text-sm [&>a]:transition-colors
+                                [&>a]:text-ink-700 dark:[&>a]:text-ink-300
+                                [&>a:hover]:bg-ink-100 dark:[&>a:hover]:bg-ink-800
+                                [&>.is-current]:font-medium
+                                [&>.is-current]:text-accent
+                                [&>span]:flex [&>span]:items-center [&>span]:gap-2
+                                [&>span]:px-3 [&>span]:py-2 [&>span]:text-sm
+                                [&>span]:text-ink-400 dark:[&>span]:text-ink-500">{{ slot }}</nav>
+                    {% if gangs.strip %}
+                        <div class="my-3 h-px bg-ink-200 dark:bg-ink-800" role="separator"></div>
+                        <h2 class="px-1 pb-1 text-xs font-medium tracking-wide text-ink-500 uppercase dark:text-ink-400">
+                            Your gangs
+                        </h2>
+                        <div class="-mx-2 flex flex-col">{{ gangs }}</div>
+                    {% endif %}
+                </c-slot>
+            </c-ui.drawer>
         </div>
     </div>
 

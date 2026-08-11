@@ -21,6 +21,7 @@ from n26.core.views.gangs import (
     delete_gang,
     gang_sheet,
     gangs,
+    rename_fighter,
 )
 from n26.core.views.hire import hire_fighter
 from n26.core.views.learn import learn
@@ -48,5 +49,6 @@ __all__ = [
     "reassign_assignment",
     "refund_assignment",
     "remove_assignment",
+    "rename_fighter",
     "sell_assignment",
 ]

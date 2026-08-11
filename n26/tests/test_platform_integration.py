@@ -285,11 +285,11 @@ class TestTheNavigation:
     """A bar that names the page, a drawer that holds the places, an
     account menu that holds the doors.
 
-    The bar reads left to right as one sentence — burger, brand, the
-    page's own name — with the controls at the far end. Everywhere a
-    reader can go is behind the burger: the area's pages, and their own
-    gangs under them. Everything about the account, including the
-    staff-only doors, is behind their name.
+    The bar reads left to right as one sentence — brand, the page's own
+    name — with the controls at the far end and the burger last of all.
+    Everywhere a reader can go is behind the burger: the area's pages,
+    and their own gangs under them. Everything about the account,
+    including the staff-only doors, is behind their name.
     """
 
     @pytest.fixture
@@ -298,26 +298,42 @@ class TestTheNavigation:
         client.force_login(user)
         return user
 
-    def test_the_bar_reads_burger_brand_then_page(self, tester, client, default_pack):
+    def test_the_bar_reads_brand_page_then_the_controls(
+        self, tester, client, default_pack
+    ):
         bar = nav_bar(client.get("/n26/").content.decode())
         positions = in_order(
             bar,
-            'aria-label="Open navigation menu"',
             "n26-site-brand",
             "Home",
+            'aria-label="Open account menu"',
+            'aria-label="Open navigation menu"',
         )
         assert positions == sorted(positions)
 
-    def test_the_controls_sit_at_the_far_end(self, tester, client, default_pack):
-        """Past the page's name, so nothing the page says can push them
-        around and a reader finds them in the same place every time."""
+    def test_the_burger_is_last_and_kept_apart_from_the_account(
+        self, tester, client, default_pack
+    ):
+        """The account menu and the burger are the bar's two "more"
+        controls; the hairline between them is what keeps them from
+        reading as one. Decorative, so it says nothing aloud."""
         bar = nav_bar(client.get("/n26/").content.decode())
         positions = in_order(
             bar,
-            "n26-site-brand",
             'aria-label="Open account menu"',
+            'aria-hidden="true" class="h-6 w-px',
+            'aria-label="Open navigation menu"',
         )
         assert positions == sorted(positions)
+
+    def test_the_drawer_arrives_from_the_side_its_control_lives_on(
+        self, tester, client, default_pack
+    ):
+        """The burger is at the right edge, so a panel sliding in from
+        the left would arrive from somewhere the reader was not
+        looking."""
+        drawer = nav_drawer(client.get("/n26/").content.decode())
+        assert "right-0" in drawer
 
     def test_the_colour_scheme_is_behind_the_account_menu(
         self, tester, client, default_pack
@@ -666,6 +682,51 @@ class TestTheNavigation:
         body = client.get("/n26/authoring/modifiers/").content.decode()
         assert "Modifiers" in nav_bar(body)
         assert ">Foundations</a>" in nav_drawer(body)
+
+
+class TestTheEditionToggle:
+    """One pill in each edition's bar: the segment you are in filled, the
+    other a plain link to the other edition's front page. Only readers
+    the n26 gate lets through see it at all — for anyone else the N26
+    half would be a door that 404s."""
+
+    def test_the_n26_bar_offers_the_way_back(self, tester, client, default_pack):
+        bar = nav_bar(client.get("/n26/").content.decode())
+        assert 'aria-label="Edition"' in bar
+        assert 'title="Go to the classic app"' in bar
+        # The segment you are in is a fact, said as one.
+        assert 'title="You are in the N26 preview"' in bar
+
+    def test_the_pill_sits_left_of_the_account_menu(self, tester, client, default_pack):
+        bar = nav_bar(client.get("/n26/").content.decode())
+        positions = in_order(
+            bar,
+            'aria-label="Edition"',
+            'aria-label="Open account menu"',
+        )
+        assert positions == sorted(positions)
+
+    def test_the_classic_bar_offers_the_preview_to_a_tester(self, tester, client):
+        """The same account the gate passes sees the pill on the classic
+        side; ``tester`` is a group member, not staff, so this is the
+        gate's weaker half doing the deciding."""
+        body = client.get("/").content.decode()
+        assert 'aria-label="Edition"' in body
+        assert 'title="Go to the N26 preview"' in body
+
+    def test_the_classic_bar_offers_it_to_staff(self, client):
+        client.force_login(User.objects.create_user("boss", is_staff=True))
+        body = client.get("/").content.decode()
+        assert 'aria-label="Edition"' in body
+
+    def test_everyone_else_sees_no_pill(self, client):
+        """The beta is invisible, not locked: an account the gate would
+        404 gets no pill saying the other edition exists."""
+        client.force_login(User.objects.create_user("regular"))
+        assert 'aria-label="Edition"' not in client.get("/").content.decode()
+
+    def test_a_visitor_sees_no_pill(self, client):
+        assert 'aria-label="Edition"' not in client.get("/").content.decode()
 
 
 class TestTheSiteBanner:

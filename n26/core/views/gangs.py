@@ -3,6 +3,7 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect, render
+from django.urls import reverse
 
 from n26.core.views.permissions import _own_gang_or_404
 
@@ -131,7 +132,67 @@ def gang_sheet(request, pk):
     sheet = render_gang(gang)
     link_slots(gang, sheet, *sheet.models)
     link_skills(*sheet.models)
-    return render(request, "n26/gang_sheet.html", {"gang": gang, "sheet": sheet})
+    return render(
+        request,
+        "n26/gang_sheet.html",
+        {"gang": gang, "sheet": sheet, "renaming": _renaming(request, gang)},
+    )
+
+
+def _renaming(request, gang):
+    """The model ``?rename=`` says is being renamed, if it is on this roster.
+
+    Open is a server state: the sheet draws the rename dialog only when
+    the URL names one of the gang's own live members. Anything else — a
+    stale link, somebody else's fighter, a pk that is not a ULID — is a
+    page without a dialog rather than an error worth a screen.
+    """
+    from django.core.exceptions import ValidationError
+
+    from n26.core.models import Miniature
+
+    named = request.GET.get("rename")
+    if not named:
+        return None
+    try:
+        return Miniature.objects.get(
+            pk=named, membership__gang=gang, membership__archived=False
+        )
+    except Miniature.DoesNotExist, ValidationError:
+        return None
+
+
+@login_required
+def rename_fighter(request, pk):
+    """Rename one model: the act behind the gang sheet's dialog.
+
+    The name is the model's own and nothing the books watch — no rating
+    moves, no ledger row is written — so this is a plain save rather
+    than an operation. GET reopens the dialog instead of acting, so the
+    address can be followed, sent, or reloaded without renaming anyone.
+    """
+    from n26.analytics import EventVerb, N26Noun, record
+    from n26.core.forms import RenameFighterForm
+    from n26.core.views.permissions import _own_miniature_or_404
+
+    miniature = _own_miniature_or_404(request, pk)
+    sheet_url = reverse("n26-gang", args=[miniature.membership.gang_id])
+    if request.method != "POST":
+        return redirect(f"{sheet_url}?rename={miniature.pk}")
+
+    form = RenameFighterForm(request.POST)
+    if not form.is_valid():
+        messages.error(request, "A model needs a name.")
+        return redirect(f"{sheet_url}?rename={miniature.pk}")
+
+    was = miniature.name
+    miniature.name = form.cleaned_data["name"]
+    if miniature.name == was:
+        return redirect(sheet_url)
+    miniature.save(update_fields=["name"])
+    record(request, N26Noun.MODEL, EventVerb.UPDATE, miniature, renamed_from=was)
+    messages.success(request, f"Renamed {was} to {miniature.name}.")
+    return redirect(sheet_url)
 
 
 @login_required

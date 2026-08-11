@@ -1,0 +1,41 @@
+{% comment %}
+<c-n26.site.edition-toggle> — which edition you are in, and the way to the other.
+
+    <c-n26.site.edition-toggle />
+
+A two-segment pill for the bar: N23 and N26, the segment you are in filled,
+the other a way out. Nothing toggles in place — changing edition is going
+somewhere, so both segments are plain links to their edition's front page and
+the pill works with no script.
+
+Drawn only where the reader can follow both links. Every /n26/ page is behind
+the testers' gate already, so this edition's bar draws it unconditionally;
+the classic app's bar draws its own copy only for accounts the gate would
+pass, or the pill would be a door that 404s for everyone else.
+
+The N23 link is the site root, written as a path: naming the other edition's
+route here would import its URL names across the editions' boundary, and the
+root is the one address that is the site's own rather than either edition's —
+today the classic app answers it.
+
+Ghost-quiet, like the switcher beside the page's name: the filled segment is
+a fact, not a control competing with the page, and the hollow one only says
+it can be pressed when the pointer is on it.
+
+  class — extra classes on the pill.
+{% endcomment %}
+<c-vars class="" />
+<span {{ attrs }}
+      role="group"
+      aria-label="Edition"
+      class="inline-flex shrink-0 items-center rounded-full border border-ink-300 p-0.5 text-xs dark:border-ink-700 {{ class }}">
+    <a href="/"
+       title="Go to the classic app"
+       class="rounded-full px-2 py-0.5 text-ink-500 transition-colors hover:text-ink-900 focus-ring
+              dark:text-ink-400 dark:hover:text-white">N23</a>
+    <a href="{% url 'n26-dashboard' %}"
+       aria-current="true"
+       title="You are in the N26 preview"
+       class="rounded-full bg-ink-200 px-2 py-0.5 font-medium text-ink-900 focus-ring
+              dark:bg-ink-700 dark:text-white">N26</a>
+</span>

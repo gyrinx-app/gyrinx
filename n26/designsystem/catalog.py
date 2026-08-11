@@ -2182,11 +2182,14 @@ GROUPS: list[Group] = [
                     "there after a middle dot. A bar that held both had to choose, "
                     "and the page that most needed naming — a half-filled form, "
                     "whose title is the first thing to scroll away — was exactly "
-                    "the page whose links then went missing. The burger is on the "
-                    "left because the panel arrives from the left, and it is the "
-                    "same control at every width rather than one that appears "
-                    "below md: a burger is only predictable if you already know "
-                    "the window is narrow. Items stay the kit's c-ui.navbar.item "
+                    "the page whose links then went missing. The burger is the "
+                    "last thing in the bar, past the account menu with a hairline "
+                    'between them — they are the bar\'s two "more" controls, and '
+                    "side by side with nothing between them they read as one — "
+                    "and the panel arrives from the right, the side its control "
+                    "lives on. It is the same control at every width rather than "
+                    "one that appears below md: a burger is only predictable if "
+                    "you already know the window is narrow. Items stay the kit's c-ui.navbar.item "
                     "— a bare <a> its container styles, which is what lets one "
                     "list be drawn in the drawer and again in the noscript strip "
                     "under the bar. That strip is not decoration: Alpine builds "
@@ -2216,6 +2219,25 @@ GROUPS: list[Group] = [
                         "Light, dark or the machine's own setting, as one "
                         "segmented control in the account menu.",
                     ),
+                ),
+            ),
+            Component(
+                slug="site-edition-toggle",
+                tag="c-n26.site.edition-toggle",
+                template="n26/site/edition_toggle.html",
+                summary=("Which edition you are in, and the way to the other."),
+                notes=(
+                    "A two-segment pill: the filled segment is the edition this "
+                    "bar belongs to, the hollow one is a plain link to the "
+                    "other's front page — nothing toggles in place, because "
+                    "changing edition is going somewhere, and two links need no "
+                    "script. Quiet on purpose: the filled half is a fact rather "
+                    "than a control competing with the page, and the hollow half "
+                    "only says it can be pressed when the pointer is on it. It "
+                    "is drawn only where a reader can follow both links — every "
+                    "/n26/ page already sits behind the testers' gate, and the "
+                    "classic bar's copy checks the same gate itself, or the pill "
+                    "would be a door that 404s."
                 ),
             ),
             Component(

@@ -317,6 +317,13 @@ banner, is_impersonating / impersonator, gtm_container_id, messages, user.
             {% endif %}
             <c-slot name="actions">
                 {% comment %}
+                The way to the other edition, left of the account menu.
+                Everyone on this page passed the testers' gate, so there is
+                no membership to check here — the classic app's bar does
+                that for its own copy.
+                {% endcomment %}
+                <c-n26.site.edition-toggle />
+                {% comment %}
                 A visitor with no account menu still needs somewhere to change
                 the scheme, so for them the toggle stays in the bar — where
                 there is room for it, the sign-in buttons being the only other

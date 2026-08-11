@@ -52,6 +52,9 @@ question "Buys from" was there to answer, and closer to hand.
     draws one of these behind every row and nothing on it should be pressable.
   notes — the player's own notes about this fighter, as rendered markup.
   lore — their backstory, the same.
+  name_action — a control about the name itself, drawn on the name's own line
+    right after it: the gang sheet passes its rename pencil. Print sheets and
+    preview cards pass nothing and the name stands alone.
   notes_href, lore_href — where each Edit goes. Either alone is enough to draw the
     section: an empty one with an Edit is how a reader learns they can write it.
 
@@ -73,6 +76,7 @@ question "Buys from" was there to answer, and closer to hand.
     avatar=""
     notes=""
     lore=""
+    name_action=""
     class=""
 />
 
@@ -156,7 +160,16 @@ question "Buys from" was there to answer, and closer to hand.
             that happen to agree. n26.render_text drops it on the same test.
             {% endcomment %}
             <div class="min-w-0 flex-1">
-                <div class="font-semibold">{{ card.name }}</div>
+                {% comment %}
+                name_action rides the name's own line, after it, so a
+                control about the name (the sheet's rename pencil) hugs
+                the words it acts on rather than joining the acts on the
+                right. A slot, not a fixture: the print sheet and the
+                hire preview pass nothing and draw nothing.
+                {% endcomment %}
+                <div class="font-semibold">
+                    {{ card.name }}{% if name_action %}{{ name_action }}{% endif %}
+                </div>
                 {% if card.profile_name and card.profile_name != card.name %}
                     <div class="text-sm text-muted">{{ card.profile_name }}</div>
                 {% endif %}
