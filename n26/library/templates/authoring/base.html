@@ -7,25 +7,25 @@ carry — a whole head, an inline stylesheet, message rendering — the
 layout owns; what remains is only what is authoring's.
 {% endcomment %}
 {% comment %}
-"Content library" is the default name in the bar: the leaves and the detail
-pages are reached from the index and say their own name in their heading
-a line below, so naming the area there is more use than repeating them.
-Pages that are a place of their own override this block.
-{% endcomment %}
-{% block nav_heading %}Content library{% endblock nav_heading %}
-{% comment %}
 Every authoring page offers the kinds of content from the bar. An author
 works down a list of kinds rather than down one kind, so Weapons from
 Categories should be one press wherever they are standing.
 
-The chevron on its own: the heading beside it has already named the page,
-and a switcher that repeated it would be furniture. `kind` is the slug of
-the kind being shown, and is empty on the pages that show none — those
-open the same list with nothing marked.
+The linked shape: the leading link names where the page sits — the kind's
+own listing when the page is showing one, the library index when it is
+not — and the chevron beside it is the way across to another kind. So a
+detail page's bar reads the thing's name (the heading, from the page)
+and then "Weapons ▾": one press up, one press across. `kind` is the slug
+of the kind being shown, and is empty on the pages that show none.
+
+The same chord as every other bar switcher, so ⌥⇧F means "the bar's
+switcher" wherever an author is standing.
 {% endcomment %}
+{% block nav_heading %}
+{% endblock nav_heading %}
 {% block nav_switcher %}
-    {% kinds_switcher kind as bar_kinds_ %}
-    <c-n26.quick-switcher.of :switcher="bar_kinds_" />
+    {% kinds_switcher kind named=True as bar_kinds_ %}
+    <c-n26.quick-switcher.of :switcher="bar_kinds_" hotkey="f" />
 {% endblock nav_switcher %}
 {% comment %}
 The same drawer as the rest of the app, with this page marked in it: the

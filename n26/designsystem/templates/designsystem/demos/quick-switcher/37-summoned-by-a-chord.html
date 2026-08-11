@@ -1,0 +1,13 @@
+{# title: Summoned by a chord #}
+{# note: Press ⌥⇧F anywhere on this page and this panel opens with the caret already in the filter; press it again and it closes. The chevron's tooltip carries the chord, because a shortcut nothing on the screen mentions is one nobody finds, and aria-keyshortcuts says the same thing to a screen reader. The chord is the physical key — a layout that types some other glyph on that key still lands it. The application spends two: ⌥⇧F is the bar's switcher on every screen, and ⌥⇧R the one beside a page's own heading. One letter per page, because two controls answering one chord would both open. #}
+<c-n26.quick-switcher label="The Ashen Choir"
+                      href="#the-ashen-choir"
+                      heading="Switch gang"
+                      menu_label="Your other gangs"
+                      placeholder="Search gangs"
+                      hotkey="f">
+    <c-n26.quick-switcher.item label="The Ashen Choir" href="#the-ashen-choir" :current="True" />
+    <c-n26.quick-switcher.item label="Pit of Teeth" href="#pit-of-teeth" />
+    <c-n26.quick-switcher.item label="The Rust Sermon" href="#the-rust-sermon" />
+    <c-n26.quick-switcher.item label="Salt and Iron" href="#salt-and-iron" />
+</c-n26.quick-switcher>

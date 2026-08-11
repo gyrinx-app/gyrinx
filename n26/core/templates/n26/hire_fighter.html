@@ -24,7 +24,7 @@ that said it twice would be spending the width the name needs.
 {% endcomment %}
 {% block nav_switcher %}
     {% gang_switcher gang as gang_switcher_ %}
-    <c-n26.quick-switcher.of :switcher="gang_switcher_" />
+    <c-n26.quick-switcher.of :switcher="gang_switcher_" hotkey="f" />
 {% endblock nav_switcher %}
 {% block nav_items %}
     {% include 'n26/_nav.html' with here='gangs' %}

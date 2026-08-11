@@ -9,7 +9,7 @@ a page and its chrome is not visible in either one alone.
 {% endcomment %}
 {% block head_title %}{{ gang.name }}{% endblock head_title %}
 {% block nav_switcher %}
-    <c-n26.quick-switcher.of :switcher="sample_switcher" />
+    <c-n26.quick-switcher.of :switcher="sample_switcher" hotkey="f" />
 {% endblock nav_switcher %}
 {% block nav_items %}
     {% include 'designsystem/shell/_nav.html' with here='gang' %}
@@ -27,7 +27,7 @@ a page and its chrome is not visible in either one alone.
         together.
         {% endcomment %}
         <c-slot name="switcher">
-            <c-n26.quick-switcher.of :switcher="sample_heading_switcher" />
+            <c-n26.quick-switcher.of :switcher="sample_heading_switcher" hotkey="r" />
         </c-slot>
         <c-slot name="owner_flair">
             <c-n26.flair.staff />

@@ -17,7 +17,7 @@ open slot needs a way back to the sheet that is not the browser's chrome.
 {% block head_title %}{{ offer.label }} — {{ gang.name }}{% endblock head_title %}
 {% block nav_switcher %}
     {% gang_switcher gang as gang_switcher_ %}
-    <c-n26.quick-switcher.of :switcher="gang_switcher_" />
+    <c-n26.quick-switcher.of :switcher="gang_switcher_" hotkey="f" />
 {% endblock nav_switcher %}
 {% block nav_items %}
     {% include 'n26/_nav.html' with here='gangs' %}
@@ -45,7 +45,7 @@ open slot needs a way back to the sheet that is not the browser's chrome.
         {% if miniature %}
             <c-slot name="trailing">
                 {% fighter_switcher gang miniature as fighter_switcher_ %}
-                <c-n26.quick-switcher.of :switcher="fighter_switcher_" />
+                <c-n26.quick-switcher.of :switcher="fighter_switcher_" hotkey="r" />
             </c-slot>
         {% endif %}
         <c-slot name="breadcrumb">

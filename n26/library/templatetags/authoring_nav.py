@@ -13,7 +13,7 @@ register = template.Library()
 
 
 @register.simple_tag
-def kinds_switcher(here="", menu_label="Switch kind"):
+def kinds_switcher(here="", menu_label="Switch kind", named=False):
     """Every kind of content, as somewhere to go.
 
     Costs no query: the kinds are a dict and their names come off the
@@ -22,6 +22,12 @@ def kinds_switcher(here="", menu_label="Switch kind"):
 
     ``here`` is the kind slug the page is showing. A page showing none
     passes nothing and the list opens with no row marked.
+
+    ``named`` draws the leading link: the kind's own listing when the
+    page is showing one, the library index when it is not — so from a
+    row's page the name is the way up to its listing, and the chevron
+    the way across to another kind. The bar wants that; beside a heading
+    that already names the kind, the default chevron alone is right.
 
     ``menu_label`` is the chevron's accessible name. A page drawing this
     twice — once in the bar, once beside its heading — must name the
@@ -51,7 +57,17 @@ def kinds_switcher(here="", menu_label="Switch kind"):
         ),
         key=lambda item: item.label,
     )
+    label = ""
+    href = ""
+    if named:
+        marked = next((item for item in items if item.current), None)
+        if marked is not None:
+            label, href = marked.label, marked.href
+        else:
+            label, href = "Content library", reverse("authoring-index")
     return Switcher(
+        label=label,
+        href=href,
         heading="Kinds of content",
         menu_label=menu_label,
         placeholder="Search kinds",

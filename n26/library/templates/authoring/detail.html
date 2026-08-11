@@ -13,7 +13,7 @@
         {% endcomment %}
         <c-slot name="trailing">
             {% siblings_switcher kind thing as siblings_ %}
-            <c-n26.quick-switcher.of :switcher="siblings_" />
+            <c-n26.quick-switcher.of :switcher="siblings_" hotkey="r" />
         </c-slot>
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>

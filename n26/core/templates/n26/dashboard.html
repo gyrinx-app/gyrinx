@@ -1,4 +1,5 @@
 {% extends "n26/layouts/base.html" %}
+{% load navigation %}
 {% load richtext %}
 {% comment %}
 The edition's front page: the signed-in user's gangs and the site
@@ -12,7 +13,15 @@ does that too, and pressing Search hands the query to the gangs page,
 which can find gangs this tab never carried.
 {% endcomment %}
 {% block head_title %}Home{% endblock head_title %}
-{% block nav_heading %}Home{% endblock nav_heading %}
+{% comment %}
+The bar names the page through the switcher rather than a plain heading:
+the name is a link, and the chevron beside it offers the app's other
+places — the same pattern a gang's screens use for their siblings.
+{% endcomment %}
+{% block nav_switcher %}
+    {% places_switcher here='home' as places_ %}
+    <c-n26.quick-switcher.of :switcher="places_" hotkey="f" />
+{% endblock nav_switcher %}
 {% block nav_items %}
     {% include 'n26/_nav.html' with here='home' %}
 {% endblock %}

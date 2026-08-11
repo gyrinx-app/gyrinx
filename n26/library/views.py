@@ -2158,6 +2158,7 @@ def collection_page(request, pk):
         "authoring/collection.html",
         {
             "thing": collection,
+            "kind": "collection",
             "kind_help": kind_help(Collection),
             "sweeps": [str(selector) for selector in collection.selectors.all()],
             "entries": entries,

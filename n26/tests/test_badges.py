@@ -118,7 +118,9 @@ class TestTheBadgeBesideAName:
         than out of a second guess made here."""
         body = client.get("/n26/gangs/new/").content.decode()
         bar = body[: body.index("</header>")]
-        menu = bar[bar.index('role="menu"') :]
+        # The last role="menu" in the bar: the switcher's panel is one
+        # too, and the account menu sits at the far end, after it.
+        menu = bar[bar.rindex('role="menu"') :]
         assert "patron" in menu
         assert badge_svg(GUILDER).strip() in menu
 
@@ -129,7 +131,10 @@ class TestTheBadgeBesideAName:
         it, and a name shown there without its badge would be the one
         place in the chrome that disagreed about who this is."""
         body = client.get("/n26/gangs/new/").content.decode()
-        button = body[: body.index('role="menu"')]
+        # Everything before the account menu, which is the last
+        # role="menu" in the header — the bar's switcher panel is an
+        # earlier one, and nothing in it carries a badge.
+        button = body[: body[: body.index("</header>")].rindex('role="menu"')]
         assert "patron" in button
         assert badge_svg(GUILDER).strip() in button
 

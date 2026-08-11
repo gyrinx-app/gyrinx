@@ -311,6 +311,69 @@ class TestMovingThroughItFromTheKeyboard:
         assert html.count('href="/n26/gangs/2/"') == 2
 
 
+class TestTheChord:
+    """⌥⇧ plus a letter reaches the switcher from anywhere on the page, and
+    the page has to say so — a shortcut nothing on the screen mentions is one
+    nobody finds. Nothing a server-rendered test can do presses a key, so what
+    is pinned is the listener, what it matches, and the words that advertise
+    it."""
+
+    def chorded(self) -> str:
+        return render(
+            f"""
+            <c-n26.quick-switcher heading="Switch gang" menu_label="Your other gangs"
+                                  hotkey="f">{ITEMS}</c-n26.quick-switcher>
+            """
+        )
+
+    def test_the_chord_listens_on_the_window(self):
+        """A listener on the switcher itself would only hear keys the reader
+        had already brought to it, and the whole point is reaching it from
+        wherever focus happens to be."""
+        html = self.chorded()
+        assert "window.addEventListener('keydown', this.chord);" in html
+
+    def test_the_chord_is_alt_shift_and_the_physical_key(self):
+        """With ⌥ held, event.key is whatever glyph the layout types on that
+        key — not an F — so the match has to be on event.code. ⌘ and Ctrl
+        disqualify it: a wider chord that happens to contain this one is
+        someone else's shortcut."""
+        html = self.chorded()
+        assert (
+            "if (!event.altKey || !event.shiftKey || event.metaKey || event.ctrlKey) return;"
+            in html
+        )
+        assert "if (event.code !== 'KeyF') return;" in html
+
+    def test_the_letter_is_written_up_whatever_case_it_was_passed_in(self):
+        html = self.chorded()
+        assert "'KeyF'" in html
+        assert "'Keyf'" not in html
+
+    def test_a_second_press_closes_what_the_first_opened(self):
+        html = self.chorded()
+        assert "this.dropdownMenu ? this.close() : this.open();" in html
+
+    def test_the_chevron_advertises_the_chord(self):
+        """The tooltip for a reader with a pointer to hover, aria-keyshortcuts
+        for one whose page is being read aloud."""
+        html = self.chorded()
+        assert 'title="Your other gangs (⌥⇧F)"' in html
+        assert 'aria-keyshortcuts="Alt+Shift+F"' in html
+
+    def test_the_listener_is_removed_with_the_component(self):
+        html = self.chorded()
+        assert "window.removeEventListener('keydown', this.chord);" in html
+
+    def test_a_switcher_with_no_hotkey_carries_none_of_it(self):
+        """The chord is opt-in per placement: a page draws several of these,
+        and only the ones a chord was spent on may answer one."""
+        html = panel()
+        assert "this.chord" not in html
+        assert 'aria-keyshortcuts="Alt+Shift' not in html
+        assert "⌥⇧" not in html
+
+
 ALPINE_ATTR = re.compile(r'(?:x-data|x-init|x-effect|@[\w.]+|:[\w:.-]+)="([^"]*)"')
 
 

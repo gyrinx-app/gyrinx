@@ -18,8 +18,12 @@ heading already names the current thing passes (`switcher.unnamed`).
   :switcher — the Switcher to draw. Its `items` are the destinations.
   align — which edge of the trigger the panel hangs from: start or end.
   min_width — the panel's minimum width, as a CSS length.
+  hotkey — a letter; ⌥⇧ plus it opens the panel from anywhere on the
+    page. A placement concern, so it is passed here rather than carried
+    by the structure: which chord a control answers depends on where on
+    the page it was put, not on what it lists.
 {% endcomment %}
-<c-vars :switcher="None" align="start" min_width="16rem" class="" />
+<c-vars :switcher="None" align="start" min_width="16rem" hotkey="" class="" />
 
 <c-n26.quick-switcher label="{{ switcher.label }}"
                       href="{{ switcher.href }}"
@@ -30,6 +34,7 @@ heading already names the current thing passes (`switcher.unnamed`).
                       empty="{{ switcher.empty }}"
                       align="{{ align }}"
                       min_width="{{ min_width }}"
+                      hotkey="{{ hotkey }}"
                       class="{{ class }}"
                       {{ attrs }}>
     {% for item in switcher.items %}

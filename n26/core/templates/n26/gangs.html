@@ -1,4 +1,5 @@
 {% extends "n26/layouts/base.html" %}
+{% load navigation %}
 {% comment %}
 Every gang you own, and the way to found another.
 
@@ -15,7 +16,15 @@ Founding is the page's action, in the header, because a list of gangs is
 where someone goes when they want one more.
 {% endcomment %}
 {% block head_title %}Gangs{% endblock head_title %}
-{% block nav_heading %}Gangs{% endblock nav_heading %}
+{% comment %}
+The bar names the page through the switcher rather than a plain heading:
+the name is a link, and the chevron beside it offers the app's other
+places — the same pattern a gang's screens use for their siblings.
+{% endcomment %}
+{% block nav_switcher %}
+    {% places_switcher here='gangs' as places_ %}
+    <c-n26.quick-switcher.of :switcher="places_" hotkey="f" />
+{% endblock nav_switcher %}
 {% block nav_items %}
     {% include 'n26/_nav.html' with here='gangs' %}
 {% endblock %}

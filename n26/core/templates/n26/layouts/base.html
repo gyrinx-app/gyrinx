@@ -168,9 +168,17 @@ banner, is_impersonating / impersonator, gtm_container_id, messages, user.
             business. Fill both and the bar reads "Foundations" and then a
             chevron; fill only this one and the switcher carries the name
             itself, which is what a gang's screens do.
+
+            The default is the app's own places, so no screen is without a
+            bar switcher: the chord that opens it (⌥⇧F) has to land
+            everywhere, and a page that is not one of anything still has
+            somewhere worth going. Pages that are one of something override
+            the block, keeping the same chord on their own list.
             {% endcomment %}
             <c-slot name="switcher">
                 {% block nav_switcher %}
+                    {% places_switcher as places_ %}
+                    <c-n26.quick-switcher.of :switcher="places_" hotkey="f" />
                 {% endblock nav_switcher %}
             </c-slot>
             {% comment %}

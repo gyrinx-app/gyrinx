@@ -77,6 +77,50 @@ def with_current(items, current):
     return (current, *items)
 
 
+def places_switcher(request, here=""):
+    """The app's places, as the bar's switcher on pages that are no one thing.
+
+    Every screen keeps a switcher in the bar so the keyboard way into it
+    works everywhere, and on the pages that are not one of anything — the
+    dashboard, the listings — the list it offers is the app itself: the
+    same places the drawer holds, authoring included for the accounts
+    that write content. Costs no query; every row is a named route.
+
+    ``here`` is the drawer slug of the place the page is, and is what
+    turns the label on: a page that is one of the places names itself as
+    the leading link, and a page that is none of them passes nothing and
+    gets the chevron alone beside its own heading.
+    """
+    from django.urls import reverse
+
+    places = [
+        ("home", "Home", reverse("n26-dashboard")),
+        ("gangs", "Gangs", reverse("n26-gangs")),
+    ]
+    user = getattr(request, "user", None)
+    if user is not None and user.is_staff:
+        places += [
+            ("library", "Content library", reverse("authoring-index")),
+            ("modifiers", "Modifiers", reverse("authoring-modifiers")),
+            ("foundations", "Foundations", reverse("authoring-foundations")),
+            ("ingest", "Ingest", reverse("authoring-ingest")),
+        ]
+    items = tuple(
+        SwitcherItem(label=label, href=href, current=slug == here)
+        for slug, label, href in places
+    )
+    named = next((item for item in items if item.current), None)
+    return Switcher(
+        label=named.label if named else "",
+        href=named.href if named else "",
+        heading="Pages",
+        menu_label="Go to another page",
+        placeholder="Search pages",
+        empty="No pages match",
+        items=items,
+    )
+
+
 def owned_gangs(request):
     """The signed-in reader's gangs, at most ``NAV_SIBLINGS`` of them.
 

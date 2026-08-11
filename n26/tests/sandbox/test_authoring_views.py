@@ -479,6 +479,51 @@ class TestSwitchingBetweenKindsAndRows:
             rf'<a href="/n26/authoring/rule/{other.pk}/"[^>]*aria-current="page"', body
         )
 
+    def test_the_bars_switcher_is_linked_to_where_the_page_sits(
+        self, author, client, default_pack
+    ):
+        """The linked shape everywhere: on a kind's pages the leading link
+        is the kind's own listing — from a row's page that is the way up —
+        and on the pages that are no kind it is the library index."""
+        from n26.library.authoring import create_rule
+
+        here = create_rule("Lead Ritual")
+
+        listing = client.get("/n26/authoring/rule/").content.decode()
+        assert ">Special rules</span>" in listing
+        rows_page = client.get(f"/n26/authoring/rule/{here.pk}/").content.decode()
+        assert ">Special rules</span>" in rows_page
+
+        elsewhere = client.get("/n26/authoring/foundations/").content.decode()
+        assert ">Content library</span>" in elsewhere
+        assert 'href="/n26/authoring/"' in elsewhere
+
+    def test_the_collection_page_sits_under_its_own_kind(
+        self, author, client, default_pack
+    ):
+        """A bespoke detail page is still a row of its kind, so its bar
+        names Collections like any other row's names its listing."""
+        from n26.library.authoring import create_collection
+
+        row = create_collection("Armoury")
+        body = client.get(f"/n26/authoring/collection/{row.pk}/").content.decode()
+        assert ">Collections</span>" in body
+        assert 'href="/n26/authoring/collection/"' in body
+
+    def test_every_authoring_page_answers_the_two_chords(
+        self, author, client, default_pack
+    ):
+        """⌥⇧F reaches the bar's switcher and ⌥⇧R the one beside the
+        heading, here as on a gang's screens — the point of a chord is
+        that it means the same thing wherever the author is standing."""
+        from n26.library.authoring import create_rule
+
+        here = create_rule("Lead Ritual")
+        for url in ("/n26/authoring/rule/", f"/n26/authoring/rule/{here.pk}/"):
+            body = client.get(url).content.decode()
+            assert 'aria-keyshortcuts="Alt+Shift+F"' in body, url
+            assert 'aria-keyshortcuts="Alt+Shift+R"' in body, url
+
     def test_the_sibling_list_does_not_grow_with_the_kind(
         self, author, client, default_pack
     ):

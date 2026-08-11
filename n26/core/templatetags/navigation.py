@@ -27,6 +27,21 @@ def drawer_gangs(context):
 
 
 @register.simple_tag(takes_context=True)
+def places_switcher(context, here=""):
+    """The app's places, for the bar of a page that is not one of anything.
+
+    The layout draws this as the default bar switcher, so the keyboard way
+    into the bar works on every screen; pages that are one of something —
+    a gang, a kind of content — override the block with their own. ``here``
+    is the drawer slug of the place the page is, and naming it is what
+    puts the leading link on.
+    """
+    from n26.core.navigation import places_switcher as build
+
+    return build(context.get("request"), here=here)
+
+
+@register.simple_tag(takes_context=True)
 def gang_switcher(context, gang, named=True, menu_label="Switch to another gang"):
     """The switcher on a screen that belongs to one gang.
 

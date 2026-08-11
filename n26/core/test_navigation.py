@@ -22,6 +22,7 @@ from n26.core.navigation import (
     fighter_switcher,
     gang_switcher,
     owned_gangs,
+    places_switcher,
 )
 
 pytestmark = pytest.mark.django_db
@@ -126,6 +127,42 @@ class TestWhatItCosts:
             make_gang(f"Gang {index:02d}")
         with django_assert_num_queries(1):
             gang_switcher(request_for(tester), here)
+
+
+class TestThePlaces:
+    """The default bar switcher on a page that is not one of anything lists
+    the app itself, so the keyboard way into the bar lands everywhere."""
+
+    def test_it_lists_the_apps_places(self, tester):
+        switcher = places_switcher(request_for(tester))
+        assert [item.label for item in switcher.items] == [
+            "Home",
+            "Gangs",
+            "Content library",
+            "Modifiers",
+            "Foundations",
+            "Ingest",
+        ]
+
+    def test_authoring_is_not_offered_to_a_reader_who_does_not_write(self, stranger):
+        """The drawer draws the authoring section for staff only, and a
+        switcher that named those pages for everyone would be the drawer
+        disagreeing with itself."""
+        switcher = places_switcher(request_for(stranger))
+        assert [item.label for item in switcher.items] == ["Home", "Gangs"]
+
+    def test_naming_the_place_turns_the_leading_link_on(self, tester):
+        """The linked shape: a page that is one of the places names itself
+        as the way back to itself, exactly as a gang's screens do."""
+        switcher = places_switcher(request_for(tester), here="home")
+        assert switcher.label == "Home"
+        assert switcher.href == reverse("n26-dashboard")
+        assert [item.label for item in switcher.items if item.current] == ["Home"]
+
+    def test_a_page_that_is_no_place_gets_the_chevron_alone(self, tester):
+        switcher = places_switcher(request_for(tester))
+        assert switcher.label == ""
+        assert not any(item.current for item in switcher.items)
 
 
 @pytest.fixture
@@ -275,13 +312,39 @@ class TestTheBar:
         assert 'aria-label="Switch to another gang"' in body
         assert "Pit of Teeth" in body
 
-    def test_a_page_that_is_not_one_of_anything_has_no_switcher(
+    def test_a_page_that_is_not_one_of_a_gang_offers_the_apps_places(
         self, client, tester, make_gang
     ):
+        """The gangs listing is no one gang, so the bar switches pages
+        instead — named, because the listing is one of the app's places,
+        with the same chord every bar switcher answers."""
         make_gang("The Ashen Choir")
         client.force_login(tester)
         body = client.get(reverse("n26-gangs")).content.decode()
         assert 'aria-label="Switch to another gang"' not in body
+        assert 'aria-label="Go to another page"' in body
+        assert reverse("n26-dashboard") in body
+        assert "(⌥⇧F)" in body
+
+    def test_the_dashboard_names_itself_in_the_bar(self, client, tester):
+        client.force_login(tester)
+        body = client.get(reverse("n26-dashboard")).content.decode()
+        assert 'aria-label="Go to another page"' in body
+        assert ">Home</span>" in body
+        assert reverse("n26-gangs") in body
+
+    def test_the_bar_and_the_heading_answer_different_chords(
+        self, client, tester, make_gang
+    ):
+        """⌥⇧F is the bar's switcher and ⌥⇧R the heading's, on every screen
+        that has both — two controls answering one chord would both open."""
+        here = make_gang("The Ashen Choir")
+        client.force_login(tester)
+        body = client.get(reverse("n26-gang", args=[here.pk])).content.decode()
+        assert 'aria-keyshortcuts="Alt+Shift+F"' in body
+        assert 'aria-keyshortcuts="Alt+Shift+R"' in body
+        assert "(⌥⇧F)" in body
+        assert "(⌥⇧R)" in body
 
 
 class TestTheHeading:

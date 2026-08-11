@@ -159,6 +159,14 @@ order, and Tab-then-Enter works with the panel's script and without it.
     because on its own the chevron has no words beside it to borrow.
   placeholder — the filter's placeholder, and its accessible name.
   empty — what to show when the filter matches nothing.
+  hotkey — a single letter. ⌥⇧ plus it opens the panel from anywhere on
+    the page and puts the caret in the filter; pressed again it closes.
+    The chevron's tooltip and aria-keyshortcuts say so, because a chord
+    nothing on the screen mentions is one nobody finds. Matched on the
+    physical key (event.code), so a layout that types another glyph on
+    that key still lands the chord. One letter per page: two controls
+    answering one chord would both open, and the reader gets whichever
+    panel the other happens to cover.
   align — which edge of the switcher the panel hangs from: start or end.
     Either way the panel is kept inside the window.
   min_width — the panel's minimum width, as a CSS length. Capped at the width of
@@ -181,6 +189,7 @@ order, and Tab-then-Enter works with the panel's script and without it.
         align="start"
         min_width="16rem"
         trigger_words=""
+        hotkey=""
         class="" />
 <div {{ attrs }} data-quick-switcher class="inline-block max-w-full {{ class }}">
     <c-n26.button-group>
@@ -238,11 +247,18 @@ order, and Tab-then-Enter works with the panel's script and without it.
                 this is the one that has to give — the account menu's sits
                 alone at the far end with nothing to match it to.
                 {% endcomment %}
+                {% comment %}
+                The tooltip and aria-keyshortcuts carry the chord when there
+                is one: a shortcut nothing on the screen mentions is one
+                nobody finds, and the chevron is the control the chord
+                stands in for.
+                {% endcomment %}
                 <c-ui.button variant="ghost"
                              size="sm"
                              class="shrink-0 {% if trigger_words.strip %}inline-flex items-center gap-1.5 px-2!{% else %}px-1.5!{% endif %}"
                              aria-label="{{ menu_label|default:heading }}"
-                             title="{{ menu_label|default:heading }}"
+                             title="{{ menu_label|default:heading }}{% if hotkey %} (⌥⇧{{ hotkey|upper }}){% endif %}"
+                             aria-keyshortcuts="{% if hotkey %}Alt+Shift+{{ hotkey|upper }}{% endif %}"
                              aria-haspopup="menu"
                              ::aria-expanded="dropdownMenu">
                     {% comment %}
@@ -298,6 +314,7 @@ order, and Tab-then-Enter works with the panel's script and without it.
                      gutter: 8,
                      tries: 0,
                      refit: null,
+                     {% if hotkey %}chord: null,{% endif %}
                      register(el, facets) {
                          const row = { id: this.$id('n26-switcher') + '-option-' + this.items.length, el, ...facets };
                          this.items.push(row);
@@ -434,10 +451,29 @@ order, and Tab-then-Enter works with the panel's script and without it.
                          this.refit = () => { if (this.dropdownMenu) requestAnimationFrame(() => this.fit()) };
                          window.addEventListener('resize', this.refit);
                          window.addEventListener('scroll', this.refit, true);
+                         {% if hotkey %}
+                         // The chord listens on the window, because it is
+                         // for reaching this control from wherever focus
+                         // happens to be — a listener on the switcher would
+                         // only hear keys the reader had already brought to
+                         // it. The physical key is what is matched: with ⌥
+                         // held, event.key is whatever glyph the layout
+                         // types on that key, and it is not an F.
+                         this.chord = (event) => {
+                             if (!event.altKey || !event.shiftKey || event.metaKey || event.ctrlKey) return;
+                             if (event.code !== 'Key{{ hotkey|upper }}') return;
+                             event.preventDefault();
+                             this.dropdownMenu ? this.close() : this.open();
+                         };
+                         window.addEventListener('keydown', this.chord);
+                         {% endif %}
                      },
                      destroy() {
                          window.removeEventListener('resize', this.refit);
                          window.removeEventListener('scroll', this.refit, true);
+                         {% if hotkey %}
+                         window.removeEventListener('keydown', this.chord);
+                         {% endif %}
                      },
                  }"
                  class="flex max-w-[calc(100vw-1rem)] flex-col">

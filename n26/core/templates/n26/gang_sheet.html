@@ -27,7 +27,7 @@ that said it twice would be spending the width the name needs.
 {% endcomment %}
 {% block nav_switcher %}
     {% gang_switcher gang as gang_switcher_ %}
-    <c-n26.quick-switcher.of :switcher="gang_switcher_" />
+    <c-n26.quick-switcher.of :switcher="gang_switcher_" hotkey="f" />
 {% endblock nav_switcher %}
 {% block nav_items %}
     {% include 'n26/_nav.html' with here='gangs' %}
@@ -49,7 +49,7 @@ that said it twice would be spending the width the name needs.
         {% endcomment %}
         <c-slot name="switcher">
             {% gang_switcher gang named=False menu_label="Your other gangs" as heading_gangs_ %}
-            <c-n26.quick-switcher.of :switcher="heading_gangs_" />
+            <c-n26.quick-switcher.of :switcher="heading_gangs_" hotkey="r" />
         </c-slot>
         {% comment %}
         The badge is a fact about the owner, and which one they hold is the

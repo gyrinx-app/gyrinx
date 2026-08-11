@@ -1980,7 +1980,12 @@ GROUPS: list[Group] = [
                     "whichever edge it crosses. Nudged rather than flipped to the "
                     "trigger's other side, because flipping helps a trigger near an "
                     "edge and does nothing for one in the middle of a phone with a "
-                    "panel wider than either side of it."
+                    "panel wider than either side of it. A hotkey letter turns on "
+                    "a page-wide chord — ⌥⇧ plus it opens the panel from wherever "
+                    "focus is, with the caret landing in the filter — and the "
+                    "chevron's tooltip and aria-keyshortcuts both say so. The "
+                    "application spends two: ⌥⇧F for the bar's switcher on every "
+                    "screen, ⌥⇧R for the one beside a page's own heading."
                 ),
                 parts=(
                     Part(

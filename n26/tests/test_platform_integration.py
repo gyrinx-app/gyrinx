@@ -234,29 +234,46 @@ def nav_drawer(body):
     return header[start : header.index("</template>", start)]
 
 
+def without_noscript(text):
+    """``text`` with every <noscript> block cut out.
+
+    The bar's switcher draws its own scriptless strip inside the bar, so
+    "the first <noscript>" no longer names any one thing and the blocks
+    have to go before a substring search means anything.
+    """
+    while "<noscript>" in text:
+        start = text.index("<noscript>")
+        end = text.index("</noscript>", start) + len("</noscript>")
+        text = text[:start] + text[end:]
+    return text
+
+
 def nav_bar(body):
-    """The row across the top, with the drawer's panel and the no-script
-    strip cut out — both repeat the links, so a bare substring search
-    could not tell which copy it had found."""
+    """The row across the top, with the drawer's panel and every
+    no-script strip cut out — all of them repeat links, so a bare
+    substring search could not tell which copy it had found."""
     header = body[body.index("<header") : body.index("</header>")]
     start = header.index(TELEPORT)
     end = header.index("</template>", start) + len("</template>")
-    bar = header[:start] + header[end:]
-    return bar[: bar.index("<noscript>")]
+    return without_noscript(header[:start] + header[end:])
 
 
 def nav_noscript(body):
     """The flat list of links under the bar, drawn for a reader whose
-    browser ran no script and so has no drawer to open."""
+    browser ran no script and so has no drawer to open. The last
+    <noscript> in the header: the bar's switcher carries one of its own,
+    inside the bar and so before this one."""
     header = body[body.index("<header") : body.index("</header>")]
-    return header[header.index("<noscript>") : header.index("</noscript>")]
+    start = header.rindex("<noscript>")
+    return header[start : header.index("</noscript>", start)]
 
 
 def account_menu(body):
-    """The panel behind the reader's own name. The header's one
-    role="menu" region, and the account items live only in it."""
+    """The panel behind the reader's own name. The last role="menu"
+    region in the bar: the switcher's panel is one too, and the account
+    sits at the far end, after it."""
     bar = nav_bar(body)
-    return bar[bar.index('role="menu"') :]
+    return bar[bar.rindex('role="menu"') :]
 
 
 def in_order(text, *fragments):
