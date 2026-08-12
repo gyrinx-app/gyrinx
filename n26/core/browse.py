@@ -579,6 +579,13 @@ def offered_by(slot, computed, terms=EQUIPMENT_LIST):
     whole kind. Either way this is a **list to offer**, never a rule:
     ``Operation.choose`` checks the kind and nothing else, so an
     owner may still hand over something off-list.
+
+    Both branches offer the offer's own kind and nothing else. A tier is
+    not a kind: a fighter whose Primary sets include a family of powers
+    browses skills and powers under one heading, and a question asking
+    for a skill is not answered by a power — the slot would read as open
+    however the answer was written. Narrowing the list is not policing
+    it; drawing a button that cannot work is the harm.
     """
     offer = slot.offer
     section = getattr(offer, "from_section", None) if offer is not None else None
@@ -593,7 +600,12 @@ def offered_by(slot, computed, terms=EQUIPMENT_LIST):
         fallback=collection.default_section(),
         name=slot.kind_label,
     )
-    return narrow(placed, sections=[section.name], name=slot.kind_label)
+    return narrow(
+        placed,
+        sections=[section.name],
+        kinds=offer.of_kind.model_class(),
+        name=slot.kind_label,
+    )
 
 
 def with_fit_notes(view, weapon):
@@ -635,6 +647,7 @@ def narrow(
     trade_points=None,
     categories=None,
     sections=None,
+    kinds=None,
     include_exclusive=True,
     without_warnings=False,
     name=None,
@@ -653,6 +666,11 @@ def narrow(
     only unique within its section (the rulebook has Primitive Weapons
     under both Ranged and Close Combat), so matching by name would
     silently pick up both.
+
+    ``kinds`` is a class or a tuple of them, keeping only lines whose
+    thing is one. A collection holds whatever it lists — one sweep of
+    skills and another of powers file into the same tiers — so a surface
+    that can only deal in one kind says which.
 
     Filtering by ``trade_points`` drops Exclusive items — "E" is not a
     number and sits in no numeric range. Ask for them with
@@ -674,6 +692,8 @@ def narrow(
     def keeps(line):
         home = getattr(line.thing, "category", None)
         if wanted_categories is not None and home not in wanted_categories:
+            return False
+        if kinds is not None and not isinstance(line.thing, kinds):
             return False
         if line.is_exclusive:
             if not include_exclusive or trade_points is not None:

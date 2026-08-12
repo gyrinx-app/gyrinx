@@ -259,9 +259,12 @@ def _dismiss(request, pk, kind):
     re-prices — and then the fighter leaves with whatever is left: the
     built-ins, and anything their gear brought in. GET reopens the
     dialog instead of acting.
+
+    A refusal from the operation unwinds the whole departure, so the
+    fighter is still there afterwards and the sheet says why.
     """
     from n26.analytics import EventVerb, N26Noun, record
-    from n26.core.operations import operation, refund_of, subtree
+    from n26.core.operations import Refusal, operation, refund_of, subtree
     from n26.core.views.permissions import _own_miniature_or_404
 
     miniature = _own_miniature_or_404(request, pk)
@@ -277,28 +280,34 @@ def _dismiss(request, pk, kind):
 
     was = miniature.name
     stash_kit = request.POST.get("kit") == "stash"
-    with operation(gang, actor=request.user) as op:
-        moved = 0
-        if stash_kit:
-            for root in _kit_roots(miniature):
-                if refund_of(root)[1] > 0:
-                    op.move(root, gang.stash, note=f"{was} left it behind")
-                    moved += 1
-        # What the whole departure returns, asked before anything is
-        # archived: refund_of skips archived rows, so asking afterwards
-        # would answer zero.
-        in_hire = {membership.pk, *(row.pk for row in subtree(membership))}
-        remaining = [root for root in _kit_roots(miniature) if root.pk not in in_hire]
-        paid_back = 0
-        if kind == "refund":
-            paid_back = refund_of(membership)[1] + sum(
-                refund_of(root)[1] for root in remaining
-            )
-        act = op.refund if kind == "refund" else op.remove
-        act(membership)
-        for root in remaining:
-            if not root.archived:
-                act(root)
+    try:
+        with operation(gang, actor=request.user) as op:
+            moved = 0
+            if stash_kit:
+                for root in _kit_roots(miniature):
+                    if refund_of(root)[1] > 0:
+                        op.move(root, gang.stash, note=f"{was} left it behind")
+                        moved += 1
+            # What the whole departure returns, asked before anything is
+            # archived: refund_of skips archived rows, so asking afterwards
+            # would answer zero.
+            in_hire = {membership.pk, *(row.pk for row in subtree(membership))}
+            remaining = [
+                root for root in _kit_roots(miniature) if root.pk not in in_hire
+            ]
+            paid_back = 0
+            if kind == "refund":
+                paid_back = refund_of(membership)[1] + sum(
+                    refund_of(root)[1] for root in remaining
+                )
+            act = op.refund if kind == "refund" else op.remove
+            act(membership)
+            for root in remaining:
+                if not root.archived:
+                    act(root)
+    except Refusal as refusal:
+        messages.error(request, str(refusal))
+        return redirect(sheet_url)
 
     record(
         request,

@@ -24,6 +24,7 @@ from n26.core.reconcile import assert_reconciled
 from n26.core.render import build_choice_offer, render_gang
 from n26.library.models import Affiliation, Archetype, Skill, SkillTree
 from n26.tests.sandbox.actions import (
+    add_entry,
     choose,
     create_affiliation,
     create_archetype,
@@ -32,6 +33,7 @@ from n26.tests.sandbox.actions import (
     create_default_set,
     create_gang_type,
     create_hidden,
+    create_power,
     create_profile,
     create_skill,
     create_skill_tree,
@@ -207,6 +209,32 @@ def profiles(gang_list, subtypes, pick_lists, person_type):
 
 
 @pytest.fixture
+def whispers(gang_list, subtypes, skills_collection):
+    """A family of powers filed in the skills collection, Primary for
+    Leaders — what a psychic gang list looks like.
+
+    Powers are not skills, and both sit in one collection under one set
+    of tiers: the fighter who browses skills at Primary browses these
+    beside them.
+    """
+    collection, tiers = skills_collection
+    family = create_category("Wyrd Powers", "Psychoteric Whispers")
+    powers = {
+        name: create_power(name, "Double", category=family, position=position)
+        for position, name in enumerate(["Mind Lock", "Warp Sight"], start=1)
+    }
+    for power in powers.values():
+        add_entry(collection, power)
+    modifier(
+        "Outcasts: the whispers are Primary for Leaders",
+        targets_model(with_subtypes=[subtypes["leader"]]),
+        places(family, tiers["primary"]),
+        carried_by=gang_list,
+    )
+    return powers
+
+
+@pytest.fixture
 def gang(gang_list, owner):
     return found_gang("The Forgotten", gang_list, owner=owner)
 
@@ -349,6 +377,57 @@ class TestWhatOneCardMayPick:
             sheet_slots(gang)["Sorrow: Primary skill"].href
         ).content.decode()
         assert "Nothing is on offer here yet" in body
+
+
+class TestATierHoldingTwoKinds:
+    """The list is what may answer the question, and only that.
+
+    A tier is not a kind: a Leader whose Primary sets include a family of
+    powers browses skills and powers under the one heading, and the
+    question they carry asks for a skill. A power drawn beside the skills
+    would be a button that cannot work — the slot reads as answered only
+    where the answer matches the offer, so a power would leave the
+    question open with a stray row beside it.
+    """
+
+    def test_a_skill_question_lists_the_skills_and_not_the_powers(
+        self, gang, crew, archetypes, whispers
+    ):
+        choose(gang_anchor(gang, "Outcast Leader", crew), archetypes["Brawler"])
+        offer = offer_for(sheet_slots(gang)["Sorrow: Primary skill"])
+
+        assert names_on(offer) == {"Berserker", "Parry"}
+        assert [group.name for group in offer.groups] == ["Combat"]
+
+    def test_a_tier_of_nothing_but_powers_offers_nothing(self, gang, crew, whispers):
+        """Without the archetype no skill set is Primary, so the whispers
+        are all that tier holds — and the question says it has nothing on
+        offer rather than drawing presses that write nothing."""
+        assert offer_for(sheet_slots(gang)["Sorrow: Primary skill"]).is_empty
+
+    def test_the_powers_are_still_there_to_browse(
+        self, gang, crew, whispers, skills_collection
+    ):
+        """Nothing is hidden from the fighter. The family really is in
+        their Primary tier, so a screen that deals in powers finds it
+        there — it is the skill question, and only that, which declines to
+        offer them."""
+        from n26.core.browse import browse, placements_for, regrouped_by_placement
+
+        collection, _ = skills_collection
+        computed = fighter_computed(crew["leader"])
+        view = regrouped_by_placement(
+            browse(collection),
+            placements_for(computed, collection),
+            fallback=collection.default_section(),
+        )
+
+        primary = next(
+            section for section in view.sections if section.name == "Primary"
+        )
+        assert "Psychoteric Whispers" in [
+            category.name for category in primary.categories
+        ]
 
 
 class TestGettingToTheNextFighter:
@@ -528,6 +607,52 @@ class TestAnsweringOne:
         assert response.status_code == 302
         assert Assignment.objects.count() == before
         assert not sheet_slots(gang)["Affiliation"].is_resolved
+
+
+class TestAPressTheDomainWillNotTake:
+    """A press is answered in words, whatever it names. Nothing a reader
+    can send to one of these addresses is worth an error page: the whole
+    of the flow is one list and one button, so the list is the answer."""
+
+    def post(self, client, href, thing):
+        return client.post(href, {"thing": f"{thing._meta.label_lower}:{thing.pk}"})
+
+    def test_a_power_cannot_answer_a_question_about_skills(
+        self, client, owner, gang, crew, archetypes, whispers
+    ):
+        """A power filed in the fighter's Primary tier, pressed at the
+        skill question. It is not on the list, so the press writes
+        nothing, says why, and comes back to the list."""
+        choose(gang_anchor(gang, "Outcast Leader", crew), archetypes["Brawler"])
+        client.force_login(owner)
+        href = sheet_slots(gang)["Sorrow: Primary skill"].href
+        before = Assignment.objects.count()
+
+        response = self.post(client, href, whispers["Mind Lock"])
+
+        assert response.status_code == 302
+        assert Assignment.objects.count() == before
+        assert sheet_slots(gang)["Sorrow: Primary skill"].is_resolved is False
+        assert "not one of the things on offer" in client.get(href).content.decode()
+
+    def test_an_answer_of_the_wrong_kind_is_refused_in_words(
+        self, gang, crew, whispers
+    ):
+        """The operation's own guard, under whatever asks it. A pick that
+        cannot resolve the slot is declined with a sentence a player could
+        read, and the transaction unwinds — so no surface can leave an
+        answer that answers nothing."""
+        from n26.core.operations import Refusal, operation
+
+        before = Assignment.objects.count()
+        with pytest.raises(Refusal) as refused:
+            with operation(gang, actor=gang.owner) as op:
+                op.choose(
+                    gang.founding, whispers["Mind Lock"], miniature=crew["leader"]
+                )
+
+        assert str(refused.value) == "Outcasts does not offer a choice of power."
+        assert Assignment.objects.count() == before
 
 
 class TestAddressesThatShouldNotResolve:

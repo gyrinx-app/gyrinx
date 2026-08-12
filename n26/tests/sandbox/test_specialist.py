@@ -18,6 +18,7 @@ from django.core.exceptions import ValidationError
 from n26.core.card import build_card, build_modifier_index
 from n26.core.effects import compute
 from n26.core.models import Assignment
+from n26.core.operations import Refusal
 from n26.core.render import build_model_card
 from n26.core.render_text import render_model_card
 from n26.library.models import (
@@ -151,12 +152,15 @@ class TestChoosing:
         assert picked.caused_by == anchor_of(yolanda)
 
     def test_only_offered_kinds_may_be_chosen(self, yolanda):
-        with pytest.raises(ValueError, match="does not offer a choice of trait"):
+        """A refusal rather than an error: the sentence is one a player
+        could be shown, because a screen that drew the press has to say
+        something."""
+        with pytest.raises(Refusal, match="does not offer a choice of trait"):
             choose(anchor_of(yolanda), Trait.objects.create(name="Melee"))
 
     def test_an_unoffering_anchor_refuses(self, yolanda, specialisations):
         ganger_assignment = assign(create_subtype("Ganger"), miniature=yolanda)
-        with pytest.raises(ValueError, match="does not offer"):
+        with pytest.raises(Refusal, match="does not offer"):
             choose(ganger_assignment, specialisations["sharpshooter"])
 
 

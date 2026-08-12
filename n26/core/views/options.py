@@ -66,7 +66,7 @@ def fighter_options(request, pk):
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.hire import build_hire_entry
-    from n26.core.operations import NotEnoughCredits, operation
+    from n26.core.operations import Refusal, operation
     from n26.core.render import roster, summarise_roster
     from n26.core.views.hire import _chosen, _picks
 
@@ -83,7 +83,7 @@ def fighter_options(request, pk):
         try:
             with operation(gang, actor=request.user) as op:
                 op.rechoose(miniature.membership, option=_chosen(picks))
-        except NotEnoughCredits as refusal:
+        except Refusal as refusal:
             messages.error(request, str(refusal))
             return redirect(here)
         except ValueError:

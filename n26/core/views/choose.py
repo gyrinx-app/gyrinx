@@ -142,12 +142,15 @@ def choose(request, pk, slot):
     question has one answer; two rows answering one slot would resolve it
     to whichever loaded first.
 
-    Nothing here refuses a pick. The list is short because the offer is
-    narrow, not because anything is being withheld, and leaving the slot
-    open costs nothing — the way back is the gang.
+    Nothing here withholds a pick. The list is short because the offer is
+    narrow, and leaving the slot open costs nothing — the way back is the
+    gang. The operation may still refuse the press: a pick that would not
+    answer the question, or a gang with no room in its budget. Either way
+    the reader is told and lands back on the list, because a page that
+    drew the button owes an answer rather than a traceback.
     """
     from n26.analytics import EventVerb, N26Noun, record
-    from n26.core.operations import NotEnoughCredits, operation
+    from n26.core.operations import Refusal, operation
     from n26.core.render import build_choice_offer
 
     gang = _own_gang_or_404(request, pk)
@@ -177,7 +180,7 @@ def choose(request, pk, slot):
                 if held is not None and held.assignment is not None:
                     op.remove(held.assignment)
                 op.choose(found.anchor, picked.thing, **_host(found))
-        except NotEnoughCredits as refusal:
+        except Refusal as refusal:
             messages.error(request, str(refusal))
             return redirect(request.path)
         # Which question was answered and with what. Changing your mind

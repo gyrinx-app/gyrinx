@@ -114,7 +114,7 @@ def learn(request, pk):
     )
     from n26.core.card import build_card, build_modifier_index
     from n26.core.effects import compute
-    from n26.core.operations import NotEnoughCredits, operation
+    from n26.core.operations import Refusal, operation
     from n26.core.render import offer_from_view
     from n26.core.views.equip import collection_tabs
 
@@ -206,7 +206,7 @@ def learn(request, pk):
         try:
             with operation(gang, actor=request.user) as op:
                 learned = op.learn(miniature, picked.thing)
-        except NotEnoughCredits as refusal:
+        except Refusal as refusal:
             messages.error(request, str(refusal))
             return redirect(here)
         record(

@@ -14,6 +14,10 @@ reload, and is drawn by the server rather than revealed by a script. The
 press behind it is a real form to a real address, so it works with
 scripting switched off.
 
+An operation that refuses an act answers on the screen it was pressed
+from — a control the page drew is owed a sentence, not a traceback — and
+nothing is written, because the refusal unwinds the transaction.
+
 The four acts are deliberately distinct, and the ledger says which
 happened:
 
@@ -224,15 +228,20 @@ def sell_assignment(request, pk):
     reader to check it against.
     """
     from n26.analytics import EventVerb, N26Noun, record
-    from n26.core.operations import operation
+    from n26.core.operations import Refusal, operation
 
     assignment = _possession_or_404(request, pk)
     gang = assignment.gang_root
     miniature = assignment.miniature_root
     name = str(assignment.assignable)
+    back = _back_to(request, miniature, gang)
 
-    with operation(gang, actor=request.user) as op:
-        proceeds = op.sell(assignment)
+    try:
+        with operation(gang, actor=request.user) as op:
+            proceeds = op.sell(assignment)
+    except Refusal as refusal:
+        messages.error(request, str(refusal))
+        return redirect(back)
 
     record(
         request,
@@ -246,7 +255,7 @@ def sell_assignment(request, pk):
         proceeds=proceeds,
     )
     messages.success(request, f"Sold {name} for {proceeds}¢.")
-    return redirect(_back_to(request, miniature, gang))
+    return redirect(back)
 
 
 @login_required
@@ -259,7 +268,7 @@ def reassign_assignment(request, pk):
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.models import Miniature
-    from n26.core.operations import operation
+    from n26.core.operations import Refusal, operation
 
     assignment = _possession_or_404(request, pk)
     gang = assignment.gang_root
@@ -295,8 +304,12 @@ def reassign_assignment(request, pk):
         messages.error(request, f"There is nowhere to move {name} to.")
         return redirect(back)
 
-    with operation(gang, actor=request.user) as op:
-        op.move(assignment, destination)
+    try:
+        with operation(gang, actor=request.user) as op:
+            op.move(assignment, destination)
+    except Refusal as refusal:
+        messages.error(request, str(refusal))
+        return redirect(back)
 
     record(
         request,
@@ -323,15 +336,20 @@ def remove_assignment(request, pk):
     on saying the gang once owned this — it simply stops counting.
     """
     from n26.analytics import EventVerb, N26Noun, record
-    from n26.core.operations import operation
+    from n26.core.operations import Refusal, operation
 
     assignment = _possession_or_404(request, pk)
     gang = assignment.gang_root
     miniature = assignment.miniature_root
     name = str(assignment.assignable)
+    back = _back_to(request, miniature, gang)
 
-    with operation(gang, actor=request.user) as op:
-        op.remove(assignment)
+    try:
+        with operation(gang, actor=request.user) as op:
+            op.remove(assignment)
+    except Refusal as refusal:
+        messages.error(request, str(refusal))
+        return redirect(back)
 
     record(
         request,
@@ -344,7 +362,7 @@ def remove_assignment(request, pk):
         action="remove",
     )
     messages.success(request, f"Removed {name}.")
-    return redirect(_back_to(request, miniature, gang))
+    return redirect(back)
 
 
 @login_required
@@ -358,7 +376,7 @@ def refund_assignment(request, pk):
     up.
     """
     from n26.analytics import EventVerb, N26Noun, record
-    from n26.core.operations import operation, refund_of
+    from n26.core.operations import Refusal, operation, refund_of
 
     assignment = _possession_or_404(request, pk)
     gang = assignment.gang_root
@@ -369,9 +387,14 @@ def refund_assignment(request, pk):
     miniature = assignment.miniature_root
     name = str(assignment.assignable)
     _, paid = refund_of(assignment)
+    back = _back_to(request, miniature, gang)
 
-    with operation(gang, actor=request.user) as op:
-        op.refund(assignment)
+    try:
+        with operation(gang, actor=request.user) as op:
+            op.refund(assignment)
+    except Refusal as refusal:
+        messages.error(request, str(refusal))
+        return redirect(back)
 
     record(
         request,
@@ -385,4 +408,4 @@ def refund_assignment(request, pk):
         refunded=paid,
     )
     messages.success(request, f"Refunded {name} — {paid}¢ back.")
-    return redirect(_back_to(request, miniature, gang))
+    return redirect(back)

@@ -16,6 +16,7 @@ admin ingestion would.
 """
 
 from n26.library.authoring import (  # noqa: F401 — re-exported for the suites
+    add_entry,
     attach_modifiers_to,
     counter_at_least,
     create_affiliation,

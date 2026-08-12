@@ -14,6 +14,7 @@ from django.contrib.auth.models import User
 from n26.core.browse import browse
 from n26.core.card import build_card
 from n26.core.models import Assignment
+from n26.core.operations import Refusal
 from n26.core.reconcile import assert_reconciled
 from n26.core.render import build_ledger, build_model_card, render_gang
 from n26.tests.sandbox.actions import (
@@ -144,7 +145,7 @@ class TestMoving:
     def test_a_child_cannot_move_alone(self, gang, yolanda, house_list):
         bought = buy(gang.stash, lasgun_line(house_list))
         (profile_row,) = bought.children.all()
-        with pytest.raises(ValueError, match="move that instead"):
+        with pytest.raises(Refusal, match="move that instead"):
             move(profile_row, to=yolanda)
 
 

@@ -31,6 +31,10 @@ underlying spec.
 - **Refuse at the boundary.** `NotEnoughCredits` is raised from
   `settle()` so the whole transaction unwinds. Do not add mid-operation
   affordability checks.
+- **A refusal a player can reach is a `Refusal`**, and its message is a
+  sentence written for them: views catch that one class, show it, and
+  redirect. A content bug or a caller mistake is not one — nobody can
+  press their way to it, so it stays an ordinary error with a traceback.
 - Display-only state (`AssignmentSet`) deliberately bypasses operations.
   Keep the line clean: if a feature costs money or changes a rating, it
   goes through an operation.

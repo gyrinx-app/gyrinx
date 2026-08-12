@@ -82,12 +82,28 @@ def refund_of(assignment):
     return rows, paid
 
 
-class NotEnoughCredits(Exception):
+class Refusal(Exception):
+    """An operation will not do this, and the message says why.
+
+    Raised inside the operation, so the transaction unwinds and nothing
+    is left half-written. A view catches it, shows the sentence, and
+    sends the reader back to the page they pressed on — so the sentence
+    is written for the player who pressed the button.
+
+    What belongs here is an act some control really offered and the
+    domain declines: an overspend, a pick that cannot answer the
+    question it was given. What does not is a content bug or a caller
+    mistake — nobody can press their way to one, the sentence would mean
+    nothing to a player, and an unhandled error is the right answer.
+    """
+
+
+class NotEnoughCredits(Refusal):
     """A spend would take the gang below zero credits.
 
     Raised at the operation boundary, so the whole operation rolls back —
-    nothing is half-bought. This is the one place we reject rather than
-    inform: the founding budget "may not be exceeded", and the
+    nothing is half-bought. This is the one *rule* we enforce rather than
+    inform about: the founding budget "may not be exceeded", and the
     alternative is a database IntegrityError with nobody's name on it.
     Allowing debt is simply raising or clearing the budget.
     """
@@ -98,6 +114,26 @@ class NotEnoughCredits(Exception):
         super().__init__(
             f"Not enough credits: this spend leaves {gang.name} {shortfall}cr "
             f"short of their {gang.starting_credits}cr budget."
+        )
+
+
+class NotOnOffer(Refusal):
+    """The thing picked cannot answer the question that was asked.
+
+    A choice names one kind of thing and only that kind answers it: a
+    question about skills is not answered by the powers filed beside them
+    in the same collection, because a slot reads as resolved only where
+    the answer matches the offer. The pick screen lists what may answer
+    (``n26.core.browse.offered_by``), so a press that lands here is a
+    stale page or a hand-made address rather than a choice worth writing.
+    """
+
+    def __init__(self, anchor, chosen):
+        self.anchor = anchor
+        self.chosen = chosen
+        super().__init__(
+            f"{anchor.assignable} does not offer a choice of "
+            f"{type(chosen)._meta.verbose_name}."
         )
 
 
@@ -613,6 +649,13 @@ class Operation:
         Specialist subtype's); the answer is a free assignment caused by it,
         so removing the carrier takes the answer along, and the computed
         slot reads as resolved because this row exists.
+
+        Something of a kind the offer does not name is refused
+        (:class:`NotOnOffer`), because it would not answer: the slot
+        resolves by the same match, so the question would stay open with
+        a stray row beside it. Within the kind nothing is checked — a
+        narrowed offer shortens the list a picker draws and is not a rule,
+        so an owner may still hand over something off-list.
         """
         from n26.core import select
         from n26.library.models.modifier import OffersChoice
@@ -624,10 +667,7 @@ class Operation:
             and modifier.effect.selector().matches(select.matchable(chosen))
         ]
         if not matched:
-            raise ValueError(
-                f"{anchor.assignable} does not offer a choice of "
-                f"{type(chosen)._meta.verbose_name}."
-            )
+            raise NotOnOffer(anchor, chosen)
         # The answer lands on the host the offer names: the bearer of
         # the question by default — a fighter's choice on the fighter, a
         # gang's (a Venator's ranked trees) on the gang — or the gang,
@@ -844,7 +884,7 @@ class Operation:
         from n26.core.models import LedgerEvent, Miniature, Stash
 
         if assignment.parent_id is not None:
-            raise ValueError(
+            raise Refusal(
                 f"{assignment.assignable} is attached to "
                 f"{assignment.parent.assignable} — move that instead."
             )

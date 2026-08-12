@@ -167,9 +167,9 @@ def _dialog(request, profile, picks, scope="gang"):
 def hire_fighter(request, pk):
     """The gang list, and the dialog that turns a press into a fighter.
 
-    An overspend is refused by the operation itself (``NotEnoughCredits``
-    unwinds the transaction), and lands back here as a message: nothing
-    half-written, nothing lost but a click.
+    A refusal comes from the operation itself — an overspend unwinds the
+    transaction — and lands back here as a message: nothing half-written,
+    nothing lost but a click.
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.forms import HireFighterForm
@@ -183,7 +183,7 @@ def hire_fighter(request, pk):
         supplementary_profiles,
     )
     from n26.core.models import Miniature
-    from n26.core.operations import NotEnoughCredits, operation
+    from n26.core.operations import Refusal, operation
 
     gang = _own_gang_or_404(request, pk)
     scope = _scope(request)
@@ -207,7 +207,7 @@ def hire_fighter(request, pk):
                             form.cleaned_data["name"] or profile.name,
                             option=_chosen(picks),
                         )
-                except NotEnoughCredits as refusal:
+                except Refusal as refusal:
                     messages.error(request, str(refusal))
                     return redirect(back)
                 except ValueError:

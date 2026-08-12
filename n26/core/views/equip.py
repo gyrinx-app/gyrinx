@@ -247,7 +247,7 @@ def equip(request, pk):
     from n26.core.card import build_card, build_modifier_index
     from n26.core.effects import compute
     from n26.core.listing import build_listing
-    from n26.core.operations import NotEnoughCredits, operation
+    from n26.core.operations import Refusal, operation
     from n26.core.owned import owned_things
     from n26.core.views.owned import owned_dialog
     from n26.library.models import Collection, Family, get_default_pack
@@ -348,7 +348,7 @@ def equip(request, pk):
                 # was showing.
                 for part, part_paid in paid_for:
                     op.buy(bought, line=part, **_charge(part, part_paid))
-        except NotEnoughCredits as refusal:
+        except Refusal as refusal:
             messages.error(request, str(refusal))
             return redirect(back)
         except ValueError:
