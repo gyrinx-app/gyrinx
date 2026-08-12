@@ -1117,6 +1117,70 @@ def roster(gang):
     return sorted(members, key=key)
 
 
+@dataclass(frozen=True)
+class RosterGroup:
+    """One (profile, rank) the gang fields, and how many of them."""
+
+    profile: str
+    category: str
+    count: int
+
+
+@dataclass(frozen=True)
+class RosterLine:
+    """One model in the ratings tally: its name and its pinned rating."""
+
+    name: str
+    rating: int
+
+
+@dataclass
+class RosterSummary:
+    """The roster reduced to its arithmetic — what a reader tallies.
+
+    Two readings of the same list: which profiles at which ranks and how
+    many of each, and every model with its pinned rating. Both keep the
+    roster's own order — a group sits where its first member does, so a
+    pet's row follows its keeper's the way the gang list prints them.
+    """
+
+    groups: list[RosterGroup]
+    models: list[RosterLine]
+    count: int
+    rating: int
+
+
+def summarise_roster(members):
+    """Reduce the list :func:`roster` returns to a :class:`RosterSummary`.
+
+    Takes the members already fetched — their profile and its rank ride
+    the same rows — so this issues no queries of its own. The rating
+    total is the sum of the models listed, which is what the tally's
+    last row must equal: the gang's own rating figure also counts what
+    no single model carries.
+    """
+    tallies: dict[tuple[str, str], int] = {}
+    for member in members:
+        profile = member.membership.profile if member.membership else None
+        category = profile.category if profile is not None else None
+        home = (
+            profile.name if profile is not None else "",
+            category.name if category is not None else "",
+        )
+        tallies[home] = tallies.get(home, 0) + 1
+    return RosterSummary(
+        groups=[
+            RosterGroup(profile=profile, category=category, count=count)
+            for (profile, category), count in tallies.items()
+        ],
+        models=[
+            RosterLine(name=member.name, rating=member.rating) for member in members
+        ],
+        count=len(members),
+        rating=sum(member.rating for member in members),
+    )
+
+
 def stash_lines(gang_card):
     """The stash as drawable lines, from a gang card already built.
 

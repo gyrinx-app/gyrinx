@@ -431,11 +431,12 @@ def equip(request, pk):
     # to find out what they are shopping.
     tabs = collection_tabs(collections, chosen)
     from n26.core.render import roster as gang_roster
+    from n26.core.render import summarise_roster
 
     # The whole roster in the gang list's own order, one query: the
-    # figures strip counts it, and the inline line under the heading
-    # names each fighter with their pinned rating — a reader equipping
-    # down a roster is deciding against both. The count is computed here
+    # header's figures count it, and the roster tally beside them lists
+    # every model with its pinned rating — a reader equipping down a
+    # roster is deciding against both. The count is computed here
     # because a filter inside a cotton :attribute silently comes out as
     # nothing.
     roster = gang_roster(gang)
@@ -454,8 +455,8 @@ def equip(request, pk):
                 and miniature.membership.profile.category
                 else ""
             ),
-            "roster": roster,
             "roster_count": len(roster),
+            "summary": summarise_roster(roster),
             "collections": collections,
             "collection_tabs": tabs,
             "chosen": chosen,

@@ -99,7 +99,14 @@ region between here and the call site.
 />
 
 <c-ui.card padding="none" class="{{ class }}">
-    <c-slot name="header">
+    {% comment %}
+    The header is the card's own band, not the kit's header slot: the kit
+    band hardcodes px-6 where every row below is px-4, so the widest line
+    on the card had the least room to be wide in. Drawing it here puts
+    the name on the same margin as the tables with no arithmetic to keep
+    in step.
+    {% endcomment %}
+    <div class="border-b border-box-border px-4 py-3">
         {% comment %}
         One line: the name, what you can do, what it costs.
 
@@ -117,20 +124,7 @@ region between here and the call site.
         items-start, so the buttons and the rating stay level with the first line
         of a wrapping name instead of drifting to its middle.
         {% endcomment %}
-        {% comment %}
-        -mx-2 because the kit's header band is px-6 and hardcodes it, where every
-        row below is px-4: the name started eight pixels further in than Skills
-        and the rating ended eight pixels further out, so the widest line on the
-        card had the least room to be wide in. Pulling back two is what puts the
-        header on the same margin as the tables.
-
-        A negative margin rather than a rule of our own, because the padding is a
-        utility on a kit element we do not own — there is no prop for it, and
-        anything overriding it would have to be unlayered and keyed on a class
-        added for the purpose. Two pixels of arithmetic against one hardcoded
-        value is the smaller thing to keep in step.
-        {% endcomment %}
-        <div class="-mx-2 flex items-start gap-3">
+        <div class="flex items-start gap-3">
             {% comment %}
             The fighter's own photograph, before their name — the order you
             recognise a model in, and the reason to have one at all: on a gang
@@ -221,7 +215,7 @@ region between here and the call site.
                 {% if actions %}<div class="flex flex-nowrap items-center gap-2">{{ actions }}</div>{% endif %}
             </div>
         </div>
-    </c-slot>
+    </div>
 
     {% comment %}
     The rulebook's layout: M–Sv on the first row, Ld–Int on the second, and the

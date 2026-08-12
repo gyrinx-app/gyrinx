@@ -52,6 +52,15 @@ is named by the page's own heading directly below.
             </c-ui.breadcrumbs>
         </c-slot>
         {% comment %}
+        The numbers a per-model decision is made against, in the corner
+        the gang sheet keeps its own — and the roster's arithmetic beside
+        them, one press away.
+        {% endcomment %}
+        <c-slot name="actions">
+            <c-n26.gang-figures :gang="gang" :count="roster_count" />
+            <c-n26.roster-summary :summary="summary" />
+        </c-slot>
+        {% comment %}
         The rename pencil, as the sheet draws it — a link, so the dialog
         is an address; ?back=edit brings the act back to this page.
         {% endcomment %}

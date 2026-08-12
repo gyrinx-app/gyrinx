@@ -952,10 +952,7 @@ GROUPS: list[Group] = [
                     "arrow keys and a panel that swaps underneath. It wraps rather "
                     "than scrolling sideways, because names come from content and a "
                     "horizontal scroller hides tabs past the edge of a phone behind a "
-                    "gesture nobody is told about. The pill variant exists for a "
-                    "second strip on a screen whose underline is already taken: two "
-                    "underlined rows read as two rows of page tabs, where pills say "
-                    "a choice within the screen rather than a face of it."
+                    "gesture nobody is told about."
                 ),
             ),
             Component(
@@ -1748,16 +1745,40 @@ GROUPS: list[Group] = [
                 ),
                 needs=(ALPINE, KIT_JS),
                 notes=(
-                    "The hire list and the equipment listing both draw this "
-                    "above their rows, because hiring and buying are decided "
-                    "against how many models the gang fields and what it has "
-                    "left to spend — and a reader mid-decision should not have "
-                    "to go back to the sheet to check. The count wears the "
-                    "wealth strip's own cell so the row reads as one system, "
-                    "but it is not wealth, so it stands in a strip of its own "
-                    "with the money fenced off behind the rule. It takes no ¢, "
-                    "being a count — the one place the figure cell's unit is "
-                    "turned off rather than assumed."
+                    "The hire list draws this above its rows and the model "
+                    "screens keep it in their header's far corner, because "
+                    "hiring and buying are decided against how many models the "
+                    "gang fields and what it has left to spend — and a reader "
+                    "mid-decision should not have to go back to the sheet to "
+                    "check. The count wears the wealth strip's own cell so the "
+                    "row reads as one system, but it is not wealth, so it "
+                    "stands in a strip of its own with the money fenced off "
+                    "behind the rule. It takes no ¢, being a count — the one "
+                    "place the figure cell's unit is turned off rather than "
+                    "assumed."
+                ),
+            ),
+            Component(
+                slug="roster-summary",
+                tag="c-n26.roster-summary",
+                template="n26/roster_summary.html",
+                summary="The roster's arithmetic behind a calculator: counts and ratings.",
+                needs=(ALPINE, KIT_JS),
+                notes=(
+                    "The two sums a player does on their fingers mid-decision: "
+                    "which profiles at which ranks and how many of each, and "
+                    "every model with its pinned rating, totalled. A dropdown "
+                    "beside the gang's figures rather than a block of the page, "
+                    "because these are numbers checked in passing — a page that "
+                    "printed the whole tally would spend a screen of every "
+                    "visit on what most visits skim. Two small tabs of one "
+                    "panel, because they are two readings of one list; both "
+                    "keep the roster's own order, pets after their keepers, so "
+                    "the tally reads down the way the sheet does. The totals "
+                    "row is the check: the count is the M figure beside the "
+                    "trigger, and the ratings total is the sum of the models "
+                    "listed — which the gang's own rating figure need not "
+                    "equal, since a gang can carry worth no single model does."
                 ),
             ),
             Component(

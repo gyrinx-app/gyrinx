@@ -27,6 +27,10 @@ to n26.core.navigation.
     pass <c-n26.quick-switcher.of> pointed at this same screen for each of them.
   breadcrumb — the trail above the name. The pages build it, because who owns
     the gang and where its sheet lives are their business.
+  actions — the header's far end, opposite the name: the gang's figures and
+    the roster tally, the numbers a per-model decision is made against. The
+    same corner the gang sheet keeps its wealth strip in, so a reader's eye
+    finds the money in one place on every screen.
 {% endcomment %}
 <c-vars
     :miniature="None"
@@ -34,6 +38,7 @@ to n26.core.navigation.
     active="edit"
     switcher=""
     breadcrumb=""
+    actions=""
     class=""
 />
 {% load navigation %}
@@ -45,6 +50,9 @@ to n26.core.navigation.
         {% endif %}
         {% if breadcrumb.strip %}
             <c-slot name="breadcrumb">{{ breadcrumb }}</c-slot>
+        {% endif %}
+        {% if actions.strip %}
+            <c-slot name="actions">{{ actions }}</c-slot>
         {% endif %}
     </c-n26.page-header>
     {% model_screen_tabs miniature active as screen_tabs_ %}

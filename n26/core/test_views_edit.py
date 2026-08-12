@@ -58,6 +58,10 @@ class TestTheModelsOwnPage:
         assert "Edit model" in body
         assert reverse("n26-equip", args=[vex.pk]) in body
         assert "Save notes" in body
+        # The gang's figures and the roster tally ride the header's far
+        # corner, the same corner the sheet keeps its wealth strip in.
+        assert "Models in the gang" in body
+        assert "Roster breakdown" in body
 
     def test_the_equip_face_wears_it_too(self, client, tester, gang, vex):
         """The equip screen offers the way back to the Edit face, so the

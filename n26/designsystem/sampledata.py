@@ -615,11 +615,55 @@ def sample_miniature():
     return SimpleNamespace(pk="sample", name="Vesna Krail")
 
 
+def roster_summary():
+    """The roster tally, in the shape ``n26.render.summarise_roster`` builds.
+
+    Real dataclasses so the demo and the views cannot drift about what a
+    tally is. The rows are a plausible mid-campaign gang: several ranks,
+    two profiles that repeat, and pets — whose groups sit where their
+    first keeper's does, exactly as the real reduction leaves them.
+    """
+    from n26.core.render import RosterGroup, RosterLine, RosterSummary
+
+    groups = [
+        RosterGroup(profile="Charter Master", category="Leader", count=1),
+        RosterGroup(profile="Gyrinx Cat", category="Pet", count=2),
+        RosterGroup(profile="Drill Master", category="Champion", count=2),
+        RosterGroup(profile="Drill-kyn", category="Specialist", count=1),
+        RosterGroup(profile="Drill-kyn", category="Ganger", count=1),
+        RosterGroup(profile="Digger", category="Juve", count=2),
+        RosterGroup(profile="Gearhead", category="Crew", count=1),
+        RosterGroup(profile="Claim Jumper", category="Hanger-on", count=1),
+        RosterGroup(profile="Techmite Autoveyor", category="Pet", count=1),
+    ]
+    models = [
+        RosterLine(name="Vesna Krail", rating=135),
+        RosterLine(name="Whiskers", rating=40),
+        RosterLine(name="Sister Yara", rating=105),
+        RosterLine(name="Ilse Vandt", rating=95),
+        RosterLine(name="Vex", rating=55),
+        RosterLine(name="Sull", rating=55),
+        RosterLine(name="Pit", rating=30),
+        RosterLine(name="Spanner", rating=30),
+        RosterLine(name="Gears", rating=60),
+        RosterLine(name="The Jumper", rating=80),
+        RosterLine(name="Mote", rating=40),
+        RosterLine(name="Tick", rating=25),
+    ]
+    return RosterSummary(
+        groups=groups,
+        models=models,
+        count=sum(group.count for group in groups),
+        rating=sum(line.rating for line in models),
+    )
+
+
 def context():
     return {
         "houses": HOUSES,
         "gang_owner": OWNER,
         "sample_miniature": sample_miniature(),
+        "sample_roster_summary": roster_summary(),
         # Every demo that draws a gang type's badge needs the artwork as a
         # string, because that is what the library stores and what the component
         # sanitises. One name for it, so the demos cannot show two drawings.

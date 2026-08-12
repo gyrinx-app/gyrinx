@@ -30,6 +30,7 @@ caller's notes box is called the same thing.
   lead — the model's rank, under the name.
   switcher — a control after the name, for the gang's other models.
   breadcrumb — the trail above the name.
+  actions — the header's far end: the gang's figures and the roster tally.
   name_action — a control on the name's own line: the rename pencil.
   notes — the notes form, whole.
 {% endcomment %}
@@ -39,6 +40,7 @@ caller's notes box is called the same thing.
     lead=""
     switcher=""
     breadcrumb=""
+    actions=""
     name_action=""
     notes=""
     class=""
@@ -51,6 +53,9 @@ caller's notes box is called the same thing.
         {% endif %}
         {% if breadcrumb.strip %}
             <c-slot name="breadcrumb">{{ breadcrumb }}</c-slot>
+        {% endif %}
+        {% if actions.strip %}
+            <c-slot name="actions">{{ actions }}</c-slot>
         {% endif %}
     </c-n26.model-header>
 

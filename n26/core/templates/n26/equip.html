@@ -72,35 +72,16 @@ breadcrumb above it has the gang as well, so nothing is lost.
                 </c-ui.breadcrumbs.item>
             </c-ui.breadcrumbs>
         </c-slot>
+        {% comment %}
+        The numbers a purchase is decided against, in the corner the gang
+        sheet keeps its own — and beside them the roster's arithmetic,
+        one press away rather than a line of the page.
+        {% endcomment %}
+        <c-slot name="actions">
+            <c-n26.gang-figures :gang="gang" :count="roster_count" />
+            <c-n26.roster-summary :summary="summary" />
+        </c-slot>
     </c-n26.model-header>
-    {% comment %}
-    The numbers a purchase is decided against, and the roster it is
-    decided across: the same figures strip the hire screen carries, then
-    every fighter with their pinned rating on one wrapping line. Each
-    name is this same screen for that fighter — equipping is done down
-    the roster, and the ratings say at a glance who has had their share —
-    with the fighter being equipped named in ink rather than linked.
-    {% endcomment %}
-    <div class="mt-4 flex flex-col gap-2">
-        <c-n26.gang-figures :gang="gang" :count="roster_count" />
-        <p class="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm">
-            {% for member in roster %}
-                {% if member.pk == miniature.pk %}
-                    <span aria-current="page"
-                          class="font-medium text-ink-900 dark:text-ink-100">
-                        {{ member.name }}
-                        <span class="font-normal tabular-nums text-muted">{{ member.rating }}¢</span>
-                    </span>
-                {% else %}
-                    <a href="{% url 'n26-equip' member.pk %}"
-                       class="text-ink-600 hover:text-ink-900 focus-ring dark:text-ink-400 dark:hover:text-white">
-                        {{ member.name }}
-                        <span class="tabular-nums text-muted">{{ member.rating }}¢</span>
-                    </a>
-                {% endif %}
-            {% endfor %}
-        </p>
-    </div>
     {% comment %}
     What the fighter already owns is a *state of a row*, not a list of its own:
     a row for something they are carrying draws the count where Buy would be,
@@ -113,18 +94,30 @@ breadcrumb above it has the gang as well, so nothing is lost.
     {% endcomment %}
     {% comment %}
     Which list, as the page's top-level choice: a fighter's own lists — the ones
-    their built-ins carry — then the Trading Post. Drawn at the top of the
-    pinned bar, above the search, because choosing the list you are shopping is
-    a larger decision than narrowing what it shows, and the filters only ever
-    mean anything within one of them.
+    their built-ins carry — then the Trading Post, as a sidebar down the left of
+    the listing. A rail rather than a strip over the rows, because choosing the
+    list you are shopping is a larger decision than narrowing what it shows and
+    should not sit among the filters that only mean anything within one of them.
+    On a phone the rail takes the full width above the listing.
 
     Links, not client state: a list is a place you can be, so it goes in the URL
     — linkable, back-button-friendly, and the server renders the one you are on.
-    One list draws no strip; there is nothing to choose, and the search box
+    One list draws no rail; there is nothing to choose, and the search box
     names the list it searches.
     {% endcomment %}
     {% if chosen %}
-        <div class="mt-6">
+        <div class="mt-6 grid grid-cols-1 gap-x-6 gap-y-4 {% if collection_tabs|length > 1 %}md:grid-cols-[11rem_minmax(0,1fr)]{% endif %}">
+            {% if collection_tabs|length > 1 %}
+                <c-ui.navlist variant="sidebar" aria-label="Which list" class="self-start text-sm">
+                    {% for tab in collection_tabs %}
+                        <c-ui.navlist.item href="{{ tab.href }}"
+                                           :current="tab.current"
+                                           {% if tab.title and tab.title != tab.label %}title="{{ tab.title }}"{% endif %}>
+                            {{ tab.label }}
+                        </c-ui.navlist.item>
+                    {% endfor %}
+                </c-ui.navlist>
+            {% endif %}
             <form method="post"
                   action="{% url 'n26-equip' miniature.pk %}?list={{ chosen.pk }}">
                 {% csrf_token %}
@@ -148,20 +141,11 @@ breadcrumb above it has the gang as well, so nothing is lost.
                         {% comment %}
                         In the picker's filters slot rather than above it,
                         because that slot is what the picker keeps pinned: the
-                        three bands a reader steers with — which list, how it is
-                        narrowed, which section — stay on screen together as the
-                        rows scroll under them. Left outside, this one would
-                        scroll away and the reader would have to go back up the
-                        page to change lists.
+                        bands a reader steers with — how the list is narrowed,
+                        which section is on screen — stay together as the rows
+                        scroll under them. Which list is the rail's business,
+                        beside the listing rather than pinned over it.
                         {% endcomment %}
-                        {% comment %}
-                        Pills, not the underline: the page's own tabs above
-                        already own the underline, and two underlined strips
-                        on one screen read as two rows of page tabs.
-                        {% endcomment %}
-                        {% if collection_tabs|length > 1 %}
-                            <c-n26.tab-links label="Which list" :tabs="collection_tabs" variant="pill" />
-                        {% endif %}
                         <c-n26.search-bar :live="True"
                                           :nested="True"
                                           model="query"

@@ -1,0 +1,85 @@
+{% comment %}
+<c-n26.roster-summary> — the roster's arithmetic, behind a calculator.
+
+    <c-n26.roster-summary :summary="summary" />
+
+A dropdown beside the gang's figures answering the two sums a player does on
+their fingers mid-decision: what the gang fields (each profile at each rank,
+counted) and what each model is worth (every rating, totalled). Two tabs of
+one panel because they are two readings of one list — a reader flips between
+them the way they flip a gang list over — and the panel is where they belong
+rather than the page, because these are numbers checked in passing, not
+content a screen is about.
+
+Both tables keep the roster's own order, pets after their keepers, so the
+tally reads down the same way the sheet does. The totals row is the check:
+the count is the M figure beside the trigger, and the ratings total is the
+sum of the models listed — which the gang's own rating figure need not
+equal, since a gang can carry worth no single model does.
+
+  :summary — a n26.render.RosterSummary.
+{% endcomment %}
+{% comment %}
+class is declared but not forwarded to c-ui.dropdown: the kit's dropdown
+does not declare one, and an undeclared class lands in {{ attrs }} ahead
+of the root's own — the browser keeps the first class attribute it sees
+and the dropdown loses its positioning context entirely.
+{% endcomment %}
+<c-vars :summary="None" class="" />
+
+<span class="{{ class }}">
+<c-ui.dropdown min_width="18rem">
+    <c-slot name="trigger">
+        <c-ui.button size="sm"
+                     variant="default"
+                     aria-label="Roster breakdown"
+                     title="Roster breakdown">
+            <span class="n26-icon-only gap-0.5">
+                <c-n26.icon name="calculator" class="size-4" />
+                <c-n26.icon name="chevron-down" class="size-3" stroke_width="2.5" />
+            </span>
+        </c-ui.button>
+    </c-slot>
+    <div class="px-3 py-2">
+        <c-ui.tabs size="sm">
+            <c-ui.tabs.tab name="Profiles">
+                <table class="w-full text-sm">
+                    <tbody>
+                        {% for group in summary.groups %}
+                            <tr>
+                                <td class="py-0.5 pr-3 text-ink-900 dark:text-ink-100">{{ group.profile }}</td>
+                                <td class="py-0.5 pr-3 text-muted">{{ group.category }}</td>
+                                <td class="py-0.5 text-right tabular-nums text-ink-900 dark:text-ink-100">{{ group.count }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr class="border-t border-box-border font-semibold text-ink-900 dark:text-ink-100">
+                            <td class="pt-1" colspan="2">Total</td>
+                            <td class="pt-1 text-right tabular-nums">{{ summary.count }}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </c-ui.tabs.tab>
+            <c-ui.tabs.tab name="Ratings">
+                <table class="w-full text-sm">
+                    <tbody>
+                        {% for model in summary.models %}
+                            <tr>
+                                <td class="py-0.5 pr-3 text-ink-900 dark:text-ink-100">{{ model.name }}</td>
+                                <td class="py-0.5 text-right tabular-nums text-ink-900 dark:text-ink-100">{{ model.rating }}¢</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr class="border-t border-box-border font-semibold text-ink-900 dark:text-ink-100">
+                            <td class="pt-1">Total</td>
+                            <td class="pt-1 text-right tabular-nums">{{ summary.rating }}¢</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </c-ui.tabs.tab>
+        </c-ui.tabs>
+    </div>
+</c-ui.dropdown>
+</span>

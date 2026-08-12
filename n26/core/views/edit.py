@@ -29,7 +29,7 @@ def edit_fighter(request, pk):
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.forms import FighterNotesForm
-    from n26.core.render import render_gang
+    from n26.core.render import render_gang, roster, summarise_roster
     from n26.core.views.choose import link_slots
     from n26.core.views.gangs import _fighter_named
     from n26.core.views.learn import link_skills
@@ -58,6 +58,9 @@ def edit_fighter(request, pk):
         raise Http404("No such model")
 
     profile = miniature.membership.profile
+    # The header's far corner: the gang's figures and the roster tally,
+    # the same numbers the equip face keeps there. One query.
+    members = roster(gang)
     return render(
         request,
         "n26/fighter_edit.html",
@@ -65,6 +68,8 @@ def edit_fighter(request, pk):
             "miniature": miniature,
             "gang": gang,
             "card": card,
+            "roster_count": len(members),
+            "summary": summarise_roster(members),
             # The role beside the name: the rank the profile is filed
             # under, which is what a reader checking "which of my models
             # is this" wants said once at the top. The bare name — the

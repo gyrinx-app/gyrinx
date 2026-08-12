@@ -291,9 +291,11 @@ def test_a_lone_list_draws_no_strip_and_the_search_box_says_where_you_are(
 
 
 def test_a_tab_drops_the_words_every_tab_shares(client, tester, gang, fighter):
-    """Every tab is a list to buy from, so a name that ends by saying so
-    spends the strip's width on the one word they all have. The full name
-    stays on the link for anyone who wants it."""
+    """Every row of the rail is a list to buy from, so a name that ends by
+    saying so spends the rail's width on the one word they all have. The
+    full name stays on the link for anyone who wants it."""
+    import re
+
     from n26.library.authoring import create_trading_post
 
     nomads = create_collection(
@@ -305,7 +307,7 @@ def test_a_tab_drops_the_words_every_tab_shares(client, tester, gang, fighter):
 
     client.force_login(tester)
     body = client.get(equip_url(fighter, nomads)).content.decode()
-    assert ">Ash Waste Nomads<" in body
+    assert re.search(r">\s*Ash Waste Nomads\s*<", body)
     assert 'title="Ash Waste Nomads Equipment List"' in body
 
 
@@ -1021,11 +1023,11 @@ def pinned_tags(body):
 def test_the_bands_a_reader_steers_with_stay_on_screen_together(
     client, tester, fighter, house_list
 ):
-    """Which list, how it is narrowed, and which section: all three stay put
-    while the rows scroll under them. They are pinned by sitting in one
-    sticky box rather than three, so no band has to know how tall the ones
-    above it are — a number only measurement gives, and a wrong one either
-    overlaps a band or leaves a stripe of scrolling list between two."""
+    """How the list is narrowed and which section is on screen: both stay
+    put while the rows scroll under them, pinned by sitting in one sticky
+    box rather than two, so neither band has to know how tall the other
+    is. Which list is the rail's business — beside the listing, not
+    pinned over it — so it must not be in the box."""
     from n26.library.authoring import create_trading_post
 
     create_trading_post()
@@ -1034,8 +1036,9 @@ def test_the_bands_a_reader_steers_with_stay_on_screen_together(
     body = client.get(equip_url(fighter, house_list)).content.decode()
 
     assert body.count("--n26-sticky-top, 0px") == 1
+    assert 'aria-label="Which list"' in body
     inside = pinned_tags(body)
-    assert any(tag.get("aria-label") == "Which list" for tag in inside)
+    assert not any(tag.get("aria-label") == "Which list" for tag in inside)
     assert any(tag.get("role") == "search" for tag in inside)
     assert any(tag.get("role") == "tablist" for tag in inside)
     # The rows themselves are not: they are what scrolls under it.

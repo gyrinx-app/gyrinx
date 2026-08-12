@@ -5,6 +5,10 @@
     <c-slot name="switcher">
         <c-n26.quick-switcher.of :switcher="sample_fighter_switcher" />
     </c-slot>
+    <c-slot name="actions">
+        <c-n26.gang-figures :gang="gang" :count="sample_roster_summary.count" />
+        <c-n26.roster-summary :summary="sample_roster_summary" />
+    </c-slot>
     <c-slot name="breadcrumb">
         <c-ui.breadcrumbs>
             <c-ui.breadcrumbs.item href="#">

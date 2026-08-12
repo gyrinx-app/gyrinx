@@ -72,8 +72,8 @@ the target can be muted and each can carry a tooltip naming it.
                                 {% if forloop.last and type_line %}
                                     <c-slot name="trailing">
                                         <th scope="col" colspan="{{ wide|sub:narrow|sub:1|at_least:1 }}"
-                                            class="border-l border-box-border px-2 py-0 text-center text-xs font-semibold text-ink-900 dark:text-ink-100">Type</th>
-                                        <th scope="col" class="border-l border-box-border px-2 py-0 text-center text-xs font-semibold text-ink-900 dark:text-ink-100">XP</th>
+                                            class="border-l border-box-border px-2 py-0.5 text-center text-xs font-semibold text-ink-900 dark:text-ink-100">Type</th>
+                                        <th scope="col" class="border-l border-box-border px-2 py-0.5 text-center text-xs font-semibold text-ink-900 dark:text-ink-100">XP</th>
                                     </c-slot>
                                 {% endif %}
                             </c-n26.statline.header>
@@ -83,7 +83,7 @@ the target can be muted and each can carry a tooltip naming it.
                                 {% if forloop.last and type_line %}
                                     <c-slot name="trailing">
                                         <td colspan="{{ wide|sub:narrow|sub:1|at_least:1 }}"
-                                            class="border-l border-box-border px-2 py-0 text-center text-ink-900 dark:text-ink-100">{{ type_line }}</td>
+                                            class="border-l border-box-border px-2 py-0.5 text-center text-ink-900 dark:text-ink-100">{{ type_line }}</td>
                                         {% comment %}
                                         Current and target, told apart by weight
                                         rather than by a label there is no room
@@ -103,7 +103,7 @@ the target can be muted and each can carry a tooltip naming it.
                                         in this markup becoming gaps around the
                                         slash.
                                         {% endcomment %}
-                                        <td class="border-l border-box-border px-2 py-0 text-center tabular-nums text-ink-900 dark:text-ink-100">
+                                        <td class="border-l border-box-border px-2 py-0.5 text-center tabular-nums text-ink-900 dark:text-ink-100">
                                             {% if xp_target %}
                                                 <span class="inline-flex items-baseline">
                                                     <c-ui.tooltip size="sm" content="Current">{{ xp }}</c-ui.tooltip>
