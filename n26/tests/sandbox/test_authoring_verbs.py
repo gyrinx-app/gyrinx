@@ -97,3 +97,15 @@ class TestGlue:
             attach_to=carrier,
         )
         assert list(carrier.modifiers.all()) == [row]
+
+
+class TestAWeaponsOwnLineNamesItself:
+    """A profile's annotation defaults to its weapon's name, so the
+    column must take any name the name column took."""
+
+    def test_a_long_weapon_name_fits_its_profiles_annotation(self):
+        from n26.library.authoring import add_weapon_profile, create_weapon
+
+        weapon = create_weapon("W" * 200, price=15)
+        profile = add_weapon_profile(weapon)
+        assert profile.annotation == weapon.name

@@ -76,8 +76,11 @@ class Assignable(models.Model):
     """
 
     name = models.CharField(max_length=200)
+    # As long as a name: a weapon profile's annotation defaults to its
+    # weapon's name, so a shorter column here would refuse a name the
+    # name column accepted.
     annotation = models.CharField(
-        max_length=100,
+        max_length=200,
         blank=True,
         help_text="Shown in brackets after the name, e.g. Ammo (5+).",
     )

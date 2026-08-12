@@ -432,3 +432,31 @@ class TestEverySpecGeneratesAForm:
                 or any(field_name.startswith(f"{p}_") for p in signature.parameters)
                 or root in signature.parameters
             )
+
+    @pytest.mark.parametrize("name", sorted(specs()), ids=str)
+    def test_every_sourced_text_field_carries_its_columns_limit(self, name):
+        """An overlong value must be this field's own refusal, never the
+        database refusing the INSERT as a 500. The limit is the source
+        column's, resolved rather than restated, so the two cannot drift."""
+        from n26.library.specs import Text
+
+        spec = specs()[name]
+        form = generate_form(spec)()
+        for field_name, kind in spec.fields.items():
+            if not isinstance(kind, Text) or kind.source is None:
+                continue
+            model, column = kind.source
+            expected = getattr(model._meta.get_field(column), "max_length", None)
+            assert form.fields[field_name].max_length == expected, (
+                f"{name}.{field_name}: form allows what {model.__name__}."
+                f"{column} refuses"
+            )
+
+    def test_an_overlong_qualifier_is_words_not_a_500(self):
+        """The regression, by name: a qualifier past its column redisplays
+        with the limit named instead of reaching the database."""
+        form = generate_form(specs()["add_weapon_profile"])(
+            data={"name": "hotshot", "price": "5", "qualifier": "q" * 101}
+        )
+        assert not form.is_valid()
+        assert "qualifier" in form.errors

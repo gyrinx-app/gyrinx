@@ -48,6 +48,19 @@ class _Sourced:
         return str(model._meta.get_field(field_name).help_text)
 
     @property
+    def max_length(self):
+        """The column's own limit, resolved on read — None where it has none.
+
+        The form enforces this so an overlong value is a validation
+        error with the field named, rather than the database refusing
+        the INSERT and the author getting a 500 with nobody's name on it.
+        """
+        if self.source is None:
+            return None
+        model, field_name = self.source
+        return getattr(model._meta.get_field(field_name), "max_length", None)
+
+    @property
     def label(self):
         """What the model field calls itself, where it calls itself
         anything — ``None`` otherwise, leaving the form to derive one.
