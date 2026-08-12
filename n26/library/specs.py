@@ -286,6 +286,7 @@ def _build_registry():
         Hidden,
         InCategories,
         IsOneOf,
+        IsProfile,
         LastingEffect,
         OffersChoice,
         OpAddsMiniature,
@@ -332,7 +333,9 @@ def _build_registry():
         Spec(
             authoring.targets_model,
             {
-                "conditions": Conditions(kinds=("has_subtypes", "counter_at_least")),
+                "conditions": Conditions(
+                    kinds=("has_subtypes", "is_profile", "counter_at_least")
+                ),
                 "when_directly_assigned": Bool(
                     source=(TargetsMiniature, "when_directly_assigned")
                 ),
@@ -341,6 +344,10 @@ def _build_registry():
         Spec(
             authoring.has_subtypes,
             {"subtypes": Many(model=Subtype, source=(HasSubtypes, "subtypes"))},
+        ),
+        Spec(
+            authoring.is_profile,
+            {"profiles": Many(model=Profile, source=(IsProfile, "profiles"))},
         ),
         Spec(
             authoring.counter_at_least,

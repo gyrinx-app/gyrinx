@@ -130,7 +130,7 @@ class TargetsMiniature(models.Model):
     #: check (n26.E003/E004) verifies this names exactly the condition
     #: models that FK this scope — a condition nothing folds would be
     #: silently dead.
-    CONDITIONS = ("has_subtypes", "counter_at_least")
+    CONDITIONS = ("has_subtypes", "is_profile", "counter_at_least")
 
     #: Positional, not factual — read off the carrier node, like
     #: ``TargetsAttachedWeapon``. An archetype's Champion row applies to
@@ -257,6 +257,45 @@ class HasSubtypes(models.Model):
             # An empty row narrows nothing — never "matches nobody".
             return None
         return select.Any(*(select.Has(subtype) for subtype in wanted))
+
+
+class IsProfile(models.Model):
+    """Condition: the model is one of these profiles, named outright.
+
+    For a row about particular entries where no subtype picks them out —
+    an archetype's Champion row reaches "Outcast Champion" the profile,
+    not everything ranked champion. Being an entry is identity, not a
+    possession: the fighter matchable's thing is their profile, so this
+    folds to ``Exactly`` where ``HasSubtypes`` folds to ``Has``.
+    """
+
+    scope = models.ForeignKey(
+        TargetsMiniature,
+        on_delete=models.CASCADE,
+        related_name="is_profile",
+    )
+    profiles = models.ManyToManyField(
+        "library.Profile",
+        related_name="+",
+        help_text="The model must be one of these profiles.",
+    )
+
+    class Meta:
+        verbose_name = "is the profile"
+        verbose_name_plural = "is the profile"
+
+    def __str__(self):
+        wanted = list(self.profiles.all()) if self.pk else []
+        return " or ".join(str(profile) for profile in wanted) + " models"
+
+    def as_condition(self):
+        from n26.core import select
+
+        wanted = list(self.profiles.all())
+        if not wanted:
+            # An empty row narrows nothing — never "matches nobody".
+            return None
+        return select.Any(*(select.Exactly(profile) for profile in wanted))
 
 
 class CounterAtLeast(models.Model):

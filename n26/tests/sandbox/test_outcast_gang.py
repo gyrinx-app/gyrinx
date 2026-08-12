@@ -16,9 +16,13 @@ What this pins:
 * the archetype tables per rank, one carrier per printed archetype,
   **including the Wyrd counts proof** (Wyrd runs one Primary short at
   every rank; Wyrd Powers supplies it);
+* **how a rank row targets, as the printed sheet has it**: the Leader
+  row hangs off the shared Leader *subtype*, so every Leader variant
+  receives it; the Champion and Hive Scum rows name their *profiles*
+  outright (``is_profile``), so a same-ranked outsider reads nothing;
 * "…all models except Champions": the Champion row is **bearer only**
-  (``TargetsMiniature.bearer_only``) — what a Champion gets if *they*
-  pick it, inert in the gang's radiated copy;
+  (``TargetsMiniature.when_directly_assigned``) — what a Champion gets
+  if *they* pick it, inert in the gang's radiated copy;
 * **chained choices**: Clan House's answer offers the house pick —
   a slot caused by a slot's answer, no new machinery;
 * affiliations as scoped access grants;
@@ -32,6 +36,7 @@ from n26.core.browse import offered_by, placements_for
 from n26.core.card import build_card, build_gang_card, build_modifier_index
 from n26.core.effects import compute, compute_gang
 from n26.core.render_text import gang_to_text
+from n26.library.authoring import has_subtypes, is_profile, targets_model
 from n26.library.models import Affiliation, Archetype, Skill
 from n26.tests.sandbox.actions import (
     adds,
@@ -55,7 +60,6 @@ from n26.tests.sandbox.actions import (
     requires_companions,
     section_of,
     targets_gang,
-    targets_model,
 )
 
 pytestmark = pytest.mark.django_db
@@ -102,10 +106,12 @@ def skills_collection(sets):
 
 @pytest.fixture
 def subtypes(db):
+    """The generic rank vocabulary — shared across gang lists, which is
+    exactly why the Champion and Hive Scum rows cannot hang off it."""
     return {
-        "leader": create_subtype("Outcast Leader"),
-        "champion": create_subtype("Outcast Champion"),
-        "scum": create_subtype("Outcast Hive Scum"),
+        "leader": create_subtype("Leader"),
+        "champion": create_subtype("Champion"),
+        "scum": create_subtype("Hive Scum"),
         "wyrd": create_subtype("Wyrd"),
     }
 
@@ -167,54 +173,54 @@ ARCHETYPES = {
 
 
 @pytest.fixture
-def archetypes(sets, skills_collection, subtypes):
+def archetypes(sets, skills_collection, subtypes, profiles):
     """One carrier per printed archetype, all three rank rows aboard.
 
-    The Champion row is **bearer only**: it
+    Targeting reads off the printed sheet: the Leader row hangs off the
+    Leader *subtype*, so every Leader variant receives it; the Champion
+    and Hive Scum rows name their *profiles* outright — the rank
+    subtypes are shared vocabulary, and naming the entry keeps a
+    same-ranked outsider out of the archetype's reach.
+
+    The Champion row is also **bearer only**: it
     says what a Champion gets *if they pick this archetype* — inert when
     it radiates from the gang, active when a Champion carries
     their own copy. Hosting decides; the content is one table."""
     _, tiers = skills_collection
 
+    scopes = {
+        "leader": lambda: targets_model(has_subtypes(subtypes["leader"])),
+        "champion": lambda: targets_model(
+            is_profile(profiles["champion"]), when_directly_assigned=True
+        ),
+        "scum": lambda: targets_model(is_profile(profiles["scum"])),
+    }
     made = {}
     for name, table in ARCHETYPES.items():
         archetype = create_archetype(name)
-        for rank in ("leader", "scum"):
-            for set_key, tier in table[rank].items():
+        for rank, row in table.items():
+            for set_key, tier in row.items():
                 modifier(
                     f"{name} {rank}: {set_key} {tier}",
-                    targets_model(with_subtypes=[subtypes[rank]]),
+                    scopes[rank](),
                     places(sets[set_key], tiers[tier]),
                     carried_by=archetype,
                 )
-        for set_key, tier in table["champion"].items():
-            modifier(
-                f"{name} champion: {set_key} {tier}",
-                targets_model(with_subtypes=[subtypes["champion"]], bearer_only=True),
-                places(sets[set_key], tiers[tier]),
-                carried_by=archetype,
-            )
         made[name] = archetype
 
     # Wyrds treat Wyrd Powers as Primary and gain the Wyrd Subtype —
     # at every rank, per the counts (design/outcasts.md): radiated for
     # Leader and Hive Scum, bearer-only for a Champion's own pick.
-    for suffix, kwargs in (
-        ("radiated", dict(with_subtypes=[subtypes["leader"], subtypes["scum"]])),
-        (
-            "champion",
-            dict(with_subtypes=[subtypes["champion"]], bearer_only=True),
-        ),
-    ):
+    for rank in scopes:
         modifier(
-            f"Wyrd ({suffix}): powers are Primary",
-            targets_model(**kwargs),
+            f"Wyrd {rank}: powers are Primary",
+            scopes[rank](),
             places(sets["wyrd powers"], tiers["primary"]),
             carried_by=made["Wyrd"],
         )
         modifier(
-            f"Wyrd ({suffix}): gains the Wyrd subtype",
-            targets_model(**kwargs),
+            f"Wyrd {rank}: gains the Wyrd subtype",
+            scopes[rank](),
             adds(subtypes["wyrd"]),
             carried_by=made["Wyrd"],
         )
@@ -222,13 +228,12 @@ def archetypes(sets, skills_collection, subtypes):
 
 
 @pytest.fixture
-def pick_lists(archetypes, affiliations):
+def affiliation_lists(affiliations):
     """One small collection per question, so each offer narrows to
     exactly its own list."""
     affiliation_tokens, house_tokens = affiliations
     made = {}
     for key, name, things in [
-        ("archetypes", "Archetypes", archetypes.values()),
         ("affiliations", "Affiliations", affiliation_tokens.values()),
         ("houses", "Clan Houses", house_tokens.values()),
     ]:
@@ -275,7 +280,7 @@ def affiliations(subtypes, house_lists, mutations):
             effects=[
                 (
                     targets_model(
-                        with_subtypes=[subtypes["leader"], subtypes["champion"]]
+                        has_subtypes(subtypes["leader"], subtypes["champion"])
                     ),
                     adds(house_list),
                 ),
@@ -295,7 +300,7 @@ def affiliations(subtypes, house_lists, mutations):
             effects=[
                 (
                     targets_model(
-                        with_subtypes=[subtypes["leader"], subtypes["champion"]]
+                        has_subtypes(subtypes["leader"], subtypes["champion"])
                     ),
                     adds(create_collection("Aranthian Equipment List")),
                 ),
@@ -306,10 +311,10 @@ def affiliations(subtypes, house_lists, mutations):
 
 
 @pytest.fixture
-def outcasts(subtypes, skills_collection, archetypes, affiliations, pick_lists):
+def outcasts(subtypes, skills_collection, affiliations, affiliation_lists):
     """The gang type: the affiliation slot, the gang rules, the ratio
     ask. The archetype slot is *not* here — it rides the Leader
-    (see ``profiles``): Leader → Gang → fighters."""
+    (see ``archetype_question``): Leader → Gang → fighters."""
     _, tiers = skills_collection
     _, house_tokens = affiliations
     gang_type = create_gang_type("Outcasts")
@@ -319,7 +324,9 @@ def outcasts(subtypes, skills_collection, archetypes, affiliations, pick_lists):
         "Outcasts: the Leader chooses an Affiliation",
         targets_gang(),
         offers_choice(
-            Affiliation, from_section=pick_lists["affiliations"], label="affiliation"
+            Affiliation,
+            from_section=affiliation_lists["affiliations"],
+            label="affiliation",
         ),
         carried_by=affiliation_slot,
     )
@@ -330,7 +337,7 @@ def outcasts(subtypes, skills_collection, archetypes, affiliations, pick_lists):
         "Clan House: choose one of the six Houses",
         targets_gang(),
         offers_choice(
-            Affiliation, from_section=pick_lists["houses"], label="clan house"
+            Affiliation, from_section=affiliation_lists["houses"], label="clan house"
         ),
         carried_by=tokens["clan_house"],
     )
@@ -348,7 +355,7 @@ def outcasts(subtypes, skills_collection, archetypes, affiliations, pick_lists):
     )
     modifier(
         "Outcasts: Starting Skills",
-        targets_model(with_subtypes=[subtypes["leader"], subtypes["champion"]]),
+        targets_model(has_subtypes(subtypes["leader"], subtypes["champion"])),
         offers_choice(Skill, from_section=tiers["primary"]),
         carried_by=gang_type,
     )
@@ -362,10 +369,19 @@ def outcasts(subtypes, skills_collection, archetypes, affiliations, pick_lists):
 
 
 @pytest.fixture
-def profiles(outcasts, subtypes, pick_lists, person_type):
-    made = {}
+def profiles(outcasts, subtypes, person_type):
+    """The gang list: four Leader variants sharing the Leader subtype,
+    and the Champion and Hive Scum entries the archetype rows name."""
+    made = {"leaders": []}
+    for number in (1, 2, 3, 4):
+        leader = create_profile(f"Leader {number}", person_type, outcasts, price=100)
+        leader.built_ins = create_default_set(
+            f"Leader {number} built-ins", members=[subtypes["leader"]]
+        )
+        leader.save()
+        made["leaders"].append(leader)
+    made["leader"] = made["leaders"][0]
     for key, name, price in [
-        ("leader", "Outcast Leader", 100),
         ("champion", "Outcast Champion", 80),
         ("scum", "Outcast Hive Scum", 20),
     ]:
@@ -375,31 +391,39 @@ def profiles(outcasts, subtypes, pick_lists, person_type):
         )
         profile.save()
         made[key] = profile
-    # Leader → Gang → fighters: the *Leader* makes the
-    # archetype choice, but the answer is for the gang — it lands as a
-    # gang row, radiates to the members, and dies with the Leader.
-    modifier(
-        "Outcast Leader: chooses the gang's Archetype",
-        targets_model(),
-        offers_choice(
-            Archetype,
-            from_section=pick_lists["archetypes"],
-            label="archetype",
-            answer_host="gang",
-        ),
-        carried_by=made["leader"],
+    return made
+
+
+@pytest.fixture
+def archetype_question(archetypes, profiles):
+    """The pick list, and the offers that ask it.
+
+    Leader → Gang → fighters: every Leader variant carries the
+    archetype choice, but the answer is for the gang — it lands as a
+    gang row, radiates to the members, and dies with the Leader.
+    Champions may choose a different Archetype to their gang's Leader:
+    the same five archetypes, answered on — and borne by — the fighter.
+    """
+    collection = create_collection(
+        "Archetypes", entries=[(a, {}) for a in archetypes.values()]
     )
-    # Champions may choose a different Archetype to their gang's Leader:
-    # the same five archetypes, answered on — and borne by — the fighter.
+    section = section_of(collection, "Archetypes", 0, is_default=True)
+    for leader in profiles["leaders"]:
+        modifier(
+            f"{leader.name}: chooses the gang's Archetype",
+            targets_model(),
+            offers_choice(
+                Archetype, from_section=section, label="archetype", answer_host="gang"
+            ),
+            carried_by=leader,
+        )
     modifier(
         "Outcast Champion: chooses an Archetype",
         targets_model(),
-        offers_choice(
-            Archetype, from_section=pick_lists["archetypes"], label="archetype"
-        ),
-        carried_by=made["champion"],
+        offers_choice(Archetype, from_section=section, label="archetype"),
+        carried_by=profiles["champion"],
     )
-    return made
+    return section
 
 
 @pytest.fixture
@@ -408,7 +432,7 @@ def gang(outcasts):
 
 
 @pytest.fixture
-def crew(gang, profiles):
+def crew(gang, profiles, archetype_question):
     return {
         "leader": hire_with_option(gang, profiles["leader"], "Sorrow"),
         "champion": hire_with_option(gang, profiles["champion"], "Grix"),
@@ -533,6 +557,57 @@ class TestArchetypes:
         assert tiers_for(crew["leader"], skills_collection, sets) == want["leader"]
         assert tiers_for(crew["scum"], skills_collection, sets) == want["scum"]
         assert tiers_for(crew["champion"], skills_collection, sets) == {}
+
+    def test_every_leader_variant_reads_the_leader_row(
+        self,
+        outcasts,
+        profiles,
+        archetypes,
+        archetype_question,
+        skills_collection,
+        sets,
+    ):
+        """The Leader row hangs off the shared subtype, so a gang led by
+        any of the four Leader entries lands the same table — and every
+        variant carries the archetype question."""
+        other = found_gang(
+            "The Unforgotten", outcasts, owner=User.objects.create_user("meg")
+        )
+        leader = hire_with_option(other, profiles["leaders"][3], "Last Chance")
+        anchor = leader.assignments.get(profile__isnull=False)
+        choose(anchor, archetypes["Brawler"])
+
+        assert tiers_for(leader, skills_collection, sets) == {
+            "combat": "Primary",
+            "savant": "Primary",
+            "brawn": "Secondary",
+            "cunning": "Secondary",
+        }
+
+    def test_a_shared_rank_subtype_does_not_leak_the_scum_row(
+        self,
+        gang,
+        crew,
+        archetypes,
+        subtypes,
+        outcasts,
+        person_type,
+        skills_collection,
+        sets,
+    ):
+        """The Hive Scum row names the profile outright: an outsider who
+        merely carries the Hive Scum subtype reads nothing from the
+        gang's pick, while the named entry lands its table."""
+        outsider_entry = create_profile("Dust Rat", person_type, outcasts, price=15)
+        outsider_entry.built_ins = create_default_set(
+            "Dust Rat built-ins", members=[subtypes["scum"]]
+        )
+        outsider_entry.save()
+        outsider = hire_with_option(gang, outsider_entry, "Skitter")
+
+        pick_archetype(crew, archetypes["Brawler"])
+        assert tiers_for(crew["scum"], skills_collection, sets) != {}
+        assert tiers_for(outsider, skills_collection, sets) == {}
 
     def test_a_champion_chooses_their_own(
         self, gang, crew, archetypes, skills_collection, sets
@@ -669,7 +744,7 @@ class TestLeadTheMasses:
         hire_with_option(gang, profiles["scum"], "Rat")
 
         (note,) = the_gang_computed(gang).notes
-        assert "1 Outcast Champion need 3 Outcast Hive Scum" in note.text
+        assert "1 Champion need 3 Hive Scum" in note.text
         assert "the gang has 1" in note.text
 
         hire_with_option(gang, profiles["scum"], "Skab")
@@ -702,4 +777,4 @@ class TestTheSheet:
         assert "Affiliation: Clan House Outcast" in text
         assert "Clan house: House Goliath" in text
         assert "Archetype: Survivor" in text  # Grix's own, on Grix's card
-        assert "need 3 Outcast Hive Scum" in text
+        assert "need 3 Hive Scum" in text

@@ -642,6 +642,7 @@ def build_modifier_index(assignables, max_depth=3):
     #: per card to learn who it reaches.
     also_prefetch = (
         "targets_miniature__has_subtypes__subtypes",
+        "targets_miniature__is_profile__profiles",
         Prefetch(
             "targets_miniature__counter_at_least",
             queryset=CounterAtLeast.objects.select_related("counter"),

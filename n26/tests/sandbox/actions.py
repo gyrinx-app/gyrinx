@@ -53,6 +53,7 @@ from n26.library.authoring import (  # noqa: F401 — re-exported for the suites
     ef_requires_companions,
     has_subtypes,
     has_traits,
+    is_profile,
     offer_option,
     op_adds_model,
     restrict_use,

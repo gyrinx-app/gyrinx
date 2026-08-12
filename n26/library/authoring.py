@@ -1028,6 +1028,16 @@ def has_subtypes(*subtypes):
     return condition
 
 
+def is_profile(*profiles):
+    """Condition: the model is one of these profiles, named outright —
+    ``targets_model(is_profile(champion))``, or several for any-of."""
+    from n26.library.models import IsProfile
+
+    condition = IsProfile()
+    condition._pending_m2m = {"profiles": profiles}
+    return condition
+
+
 def counter_at_least(counter, at_least):
     """Condition: the model's counter has reached this value —
     ``targets_model(counter_at_least(xp, 75))``."""
