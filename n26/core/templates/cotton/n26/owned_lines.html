@@ -24,15 +24,18 @@ a gun — and Operation.move refuses a firing line, so the structure gives it no
 to draw. An accessory is the case that could be moved, but the way to re-fit one
 is from wherever it is being kept rather than from the gun it is already on.
 
-A weapon carries one extra control: the way to bolt an accessory onto it. Which
-copies have one is the structure's answer — nothing else on a card is somewhere
-to fit one — so this asks whether the act is there and never what kind of thing
-the row is.
+A weapon carries one extra control, and it sits on the name's own line rather
+than among the acts: the way to bolt an accessory onto it. Which copies have one
+is the structure's answer — nothing else on a card is somewhere to fit one — so
+this asks whether the act is there and never what kind of thing the row is.
 
-Every control is a link to a real address: the dialog is a server state, so the
-press that opens it is a navigation and not a script. That also keeps this out
-of the listing's own form, which wraps every row on the page — a form inside a
-form is not a thing HTML has.
+Every control is a link to a real address, because every dialog behind them is a
+server state that a reader can send, reload and reach with no script. The
+accessory panel is drawn on the page ahead of the press as well, so pressing it
+opens what is already there instead of asking for a screen of several hundred
+rows to be built again; the link is what that press falls back to. Being links
+also keeps this out of the listing's own form, which wraps every row on the page
+— a form inside a form is not a thing HTML has.
 
   :copies — a list of n26.core.listing.OwnedCopyRow.
 {% endcomment %}
@@ -41,7 +44,42 @@ form is not a thing HTML has.
 <div class="flex flex-col gap-1 {{ class }}">
     {% for copy in copies %}
         <div class="flex min-h-9 items-center gap-2">
-            <span class="min-w-0 flex-1 text-sm text-ink-900 dark:text-ink-100">{{ copy.name }}</span>
+            <span class="min-w-0 flex-1 text-sm text-ink-900 dark:text-ink-100">
+                {{ copy.name }}
+                {% comment %}
+                Only a weapon carries this, which is the structure's word and
+                not a test made here. On the name's own line, after the words it
+                acts on, the way the sheet's rename pencil sits after a
+                fighter's name: it is about this gun, where everything on the
+                right of the row is about what to do with it — and everything
+                over there takes the thing away, which is no company for the one
+                control that adds to it. Quiet with it: a fighter's guns are
+                read for what they are, not for what could be bolted on.
+
+                A link to the address that draws the panel, and a press that
+                opens the panel already on the page. Both reach the same state;
+                the second does it without rebuilding a listing of several
+                hundred rows. Its own x-data because Alpine only walks into
+                elements a component contains, and a row is drawn in places
+                where nothing above it is one.
+                {% endcomment %}
+                {% if copy.accessorise %}
+                    <c-ui.button variant="ghost"
+                                 size="xs"
+                                 class="ms-0.5 -mt-0.5 px-1! align-middle"
+                                 href="{{ copy.accessorise.target }}"
+                                 aria-label="{{ copy.accessorise.label }} to {{ copy.name }}"
+                                 title="{{ copy.accessorise.label }}"
+                                 x-data
+                                 x-on:click.prevent="$dispatch('n26-dialog-open', { id: 'n26-accessorise-{{ copy.id }}', url: $el.getAttribute('href') })">
+                        <span class="n26-icon-only">
+                            <c-n26.icon name="plus"
+                                        class="size-3.5 text-ink-500 dark:text-ink-400"
+                                        stroke_width="2.5" />
+                        </span>
+                    </c-ui.button>
+                {% endif %}
+            </span>
             {% comment %}
             The same fixed-width price column the rows above use, so what a
             thing contributed lines up with what the listing is asking for it.
@@ -52,25 +90,6 @@ form is not a thing HTML has.
                 {% if copy.rating %}{{ copy.rating }}¢{% endif %}
             </span>
             <span class="flex shrink-0 items-center gap-1">
-                {% comment %}
-                Only a weapon carries this, which is the structure's word and not
-                a test made here. Drawn as an icon beside the acts rather than
-                inside the chevron: everything behind that chevron takes the
-                thing away, and the one control that adds to it should not be
-                filed among them. Quiet all the same — a fighter's row of guns
-                is read for what they are, not for what could be bolted on.
-                {% endcomment %}
-                {% if copy.accessorise %}
-                    <c-ui.button size="sm"
-                                 class="px-1.5!"
-                                 href="{{ copy.accessorise.target }}"
-                                 aria-label="{{ copy.accessorise.label }} to {{ copy.name }}"
-                                 title="{{ copy.accessorise.label }} to {{ copy.name }}">
-                        <span class="n26-icon-only">
-                            <c-n26.icon name="plus" class="size-3" stroke_width="2.5" />
-                        </span>
-                    </c-ui.button>
-                {% endif %}
                 {% include "n26/includes/row_action.html" with action=copy.sell %}
                 <c-ui.dropdown align="end" min_width="10rem">
                     <c-slot name="trigger">

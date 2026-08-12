@@ -963,3 +963,76 @@ def test_a_miniature_that_is_not_this_gangs_is_no_destination(gang, fighter):
     assert _other_models(gang, fighter) == []
     assert list(Miniature.objects.filter(membership__gang=gang)) == [fighter]
     assert Assignment.objects.filter(gang_root=gang, archived=False).exists()
+
+
+class TestThePanelsAPageCarries:
+    """The accessory question is built for every gun on a card rather than
+    for the one an address names, so the press that opens one has nothing
+    to wait for. Which is *open* is still the address's answer alone."""
+
+    @staticmethod
+    def panels(fighter, **query):
+        from django.test import RequestFactory
+
+        from n26.core.card import build_card
+        from n26.core.views.owned import accessorise_dialogs
+
+        request = RequestFactory().get(AT, query)
+        return accessorise_dialogs(request, build_card(fighter), at=AT)
+
+    def test_every_gun_gets_one_and_nothing_else_does(self, fighter, gun, sight, sword):
+        """A sword is a possession, and a gun is somewhere to bolt a sight
+        onto. Only the second is a question worth drawing."""
+        panels = self.panels(fighter)
+
+        assert [panel["id"] for panel in panels] == [str(gun.pk)]
+        assert panels[0]["accessories"] == [
+            {"pk": str(sight.pk), "name": "Telescopic sight", "price": 25}
+        ]
+
+    def test_none_of_them_is_open_until_the_address_says_so(self, fighter, gun, sight):
+        (closed,) = self.panels(fighter)
+        (asked,) = self.panels(fighter, accessorise=str(gun.pk))
+
+        assert closed["open"] is False
+        assert asked["open"] is True
+
+    def test_a_name_that_is_not_on_the_card_opens_nothing(self, fighter, gun, sight):
+        """A stale link, or an address made by hand. The page comes back
+        with its panels closed rather than with an error worth a screen —
+        and the name is compared, never looked up, so nonsense is not a
+        crash either."""
+        for named in ("nonsense", str(sight.pk)):
+            (panel,) = self.panels(fighter, accessorise=named)
+            assert panel["open"] is False
+
+    def test_another_question_wins_the_screen(self, fighter, gun, sight):
+        """Two open panels is not a state a page can mean, and the order
+        in DIALOGS settles which one an address naming both answers."""
+        (panel,) = self.panels(fighter, sell=str(gun.pk), accessorise=str(gun.pk))
+
+        assert panel["open"] is False
+
+    def test_the_gangs_own_guns_are_not_the_fighters_to_kit_out(
+        self, gang, fighter, tester
+    ):
+        """The gang's rows ride every member's card so gang-wide rules
+        reach them. They are still the gang's, and no fighter's screen
+        may offer to bolt something onto one."""
+        from n26.library.authoring import create_weapon
+
+        weapon = create_weapon("Stub gun", price=10, profiles=[("", 0)])
+        with operation(gang, actor=tester) as op:
+            op.assign(weapon, gang=gang, paid=10)
+
+        assert self.panels(fighter) == []
+
+    def test_a_panel_carries_the_list_and_tab_it_was_drawn_on(
+        self, fighter, gun, sight
+    ):
+        """The answer lands where the question was asked: an accessory
+        bought from the third tab of a list comes back to it."""
+        (panel,) = self.panels(fighter, list="7", section="Weapons")
+
+        assert panel["list"] == "7"
+        assert panel["section"] == "Weapons"

@@ -57,14 +57,22 @@ weapon — narrowing is the whole of what fitting does, and the operation behind
 this will bolt anything to anything. With nothing fitting there is no submit at
 all, because a green button over an empty list promises an act it cannot do.
 
-  :dialog — what n26.core.views.owned.owned_dialog built: kind, title, the
-    sentence under it, where to post, where Cancel goes, the roster, the
-    accessories that fit, and the wording of the sale's two answers.
+It is also the one of the five a page draws for every row it could be asked
+about rather than only for the row named — see n26.core.views.owned. Those are
+drawn closed, so the caller passes `open` and an `id` per panel; everything
+else about them is the same panel as the four confirmations.
+
+  :dialog — what n26.core.views.owned built: kind, title, the sentence under
+    it, where to post, where Cancel goes, the roster, the accessories that fit,
+    and the wording of the sale's two answers.
   modal — promote to the top layer. On by default; off draws the panel in the
     page's flow, which is what a reader without scripting sees.
+  open — the server says this one is open. Off draws it closed, waiting for a
+    press that names its id.
+  id — the element's id, for a page holding more than one of these.
   slot — the csrf token. A component has no request and renders none itself.
 {% endcomment %}
-<c-vars :dialog="None" :modal="True" class="" />
+<c-vars :dialog="None" :modal="True" :open="True" id="n26-dialog" class="" />
 
 <c-n26.dialog title="{{ dialog.title }}"
               action="{{ dialog.action }}"
@@ -72,6 +80,8 @@ all, because a green button over an empty list promises an act it cannot do.
               submit_label="{{ dialog.submit_label }}"
               submit_variant="{{ dialog.submit_variant }}"
               :modal="modal"
+              :open="open"
+              id="{{ id }}"
               class="{{ class }}">
     <c-slot name="lead">
         {% if dialog.kind == "accessorise" %}
@@ -119,9 +129,14 @@ all, because a green button over an empty list promises an act it cannot do.
         library, so the figures beside the names are what a reader is choosing
         between and not what they are charged.
         {% endcomment %}
+        {% comment %}
+        The field takes its id from the panel's, because a page draws one of
+        these per weapon and a label pointing at a repeated id points at the
+        first gun on the screen whichever one it sits under.
+        {% endcomment %}
         {% if dialog.accessories %}
-            <c-ui.field label="Accessory" for="accessorise-what">
-                <c-ui.select.native name="accessory" id="accessorise-what" placeholder="">
+            <c-ui.field label="Accessory" for="{{ id }}-what">
+                <c-ui.select.native name="accessory" id="{{ id }}-what" placeholder="">
                     {% for accessory in dialog.accessories %}
                         <c-ui.select.option value="{{ accessory.pk }}">
                             {{ accessory.name }} — {{ accessory.price }}¢

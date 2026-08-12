@@ -1572,28 +1572,93 @@ def owned_gun(client, tester, gang, fighter, gun_list):
         return op.buy(fighter, thing=Weapon.objects.get(name="Autogun"), paid=20)
 
 
-class TestTheAccessoryDialog:
-    """A weapon the fighter owns is somewhere to bolt something onto, and
-    the way there is an address rather than a script."""
+def panel_for(response, assignment):
+    """The accessory panel this page is carrying about one weapon."""
+    return next(
+        panel
+        for panel in response.context["accessorise"]
+        if panel["id"] == str(assignment.pk)
+    )
 
-    def test_an_owned_weapon_draws_the_way_to_one(
+
+def name_cell(body, label):
+    """Whatever is drawn alongside the control carrying ``label``.
+
+    Everything back to the last closed element, which is the run of
+    markup the control shares a line with — so a control that moved into
+    the acts on the right of the row would come back with the acts and
+    not with the words it is about.
+    """
+    return body[: body.index(f'aria-label="{label}"')].rsplit("</span>", 1)[-1]
+
+
+class TestTheAccessoryDialog:
+    """A weapon the fighter owns is somewhere to bolt something onto. The
+    panel is on the page before it is asked for, and the address still
+    says which one is open."""
+
+    def test_an_owned_weapon_draws_the_way_to_one_beside_its_name(
         self, client, tester, fighter, gun_list, owned_gun
     ):
+        """Beside the name rather than among the acts: everything on the
+        right of the row takes the gun away, and this adds to it."""
         client.force_login(tester)
         body = client.get(equip_url(fighter, gun_list)).content.decode()
 
         assert f"?list={gun_list.pk}&amp;accessorise={owned_gun.pk}" in body
+        assert 'aria-label="Add accessory to Autogun"' in body
+        assert "Autogun" in name_cell(body, "Add accessory to Autogun")
+
+    def test_the_press_opens_the_panel_the_page_is_already_holding(
+        self, client, tester, fighter, gun_list, owned_gun, accessories
+    ):
+        """The link and the press reach one state. The press does it
+        without asking for a listing of several hundred rows again."""
+        client.force_login(tester)
+        body = client.get(equip_url(fighter, gun_list)).content.decode()
+
+        assert f'id="n26-accessorise-{owned_gun.pk}"' in body
+        assert (
+            f"$dispatch('n26-dialog-open', {{ id: 'n26-accessorise-{owned_gun.pk}'"
+            in body
+        )
+
+    def test_every_gun_carries_its_own_panel_on_a_plain_visit(
+        self, client, tester, gang, fighter, gun_list, owned_gun, accessories
+    ):
+        """Nothing is asked for, and every gun's question is answered
+        anyway — that is what makes the press instant."""
+        from n26.library.models import Weapon
+
+        with operation(gang, actor=tester) as op:
+            second = op.buy(fighter, thing=Weapon.objects.get(name="Autogun"), paid=20)
+
+        client.force_login(tester)
+        response = client.get(equip_url(fighter, gun_list))
+        body = response.content.decode()
+
+        assert {panel["id"] for panel in response.context["accessorise"]} == {
+            str(owned_gun.pk),
+            str(second.pk),
+        }
+        assert not any(panel["open"] for panel in response.context["accessorise"])
+        # Closed, so no `open` attribute — a browser draws nothing until
+        # the press, and a reader with no script follows the link instead.
+        assert "<dialog open" not in body
+        assert body.count("Telescopic sight — 25¢") == 2
 
     def test_the_address_opens_it(
         self, client, tester, fighter, gun_list, owned_gun, accessories
     ):
+        """A link somebody sent, or a reload of a page opened by a press.
+        The server draws that one open and the rest closed."""
         client.force_login(tester)
         response = client.get(
             f"{equip_url(fighter, gun_list)}&accessorise={owned_gun.pk}"
         )
         body = response.content.decode()
 
-        assert response.context["dialog"]["kind"] == "accessorise"
+        assert panel_for(response, owned_gun)["open"] is True
         assert "<dialog open" in body
         assert reverse("n26-accessorise", args=[owned_gun.pk]) in body
         assert "Add accessory" in body
@@ -1608,10 +1673,65 @@ class TestTheAccessoryDialog:
             f"{equip_url(fighter, gun_list)}&accessorise={owned_gun.pk}"
         )
 
-        offered = response.context["dialog"]["accessories"]
+        offered = panel_for(response, owned_gun)["accessories"]
         assert [row["name"] for row in offered] == ["Telescopic sight"]
         assert offered[0]["price"] == 25
         assert "Telescopic sight — 25¢" in response.content.decode()
+
+    def test_the_guns_cost_one_read_of_the_accessories_between_them(
+        self, client, tester, gang, fighter, gun_list, owned_gun, accessories
+    ):
+        """The panels are precomputed, which is only worth having if the
+        precomputing is flat: a second gun must not be a second read."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from n26.library.models import Weapon
+
+        client.force_login(tester)
+        url = equip_url(fighter, gun_list)
+        # Once first: a session row is written on the first request of a
+        # session and only updated on the rest.
+        client.get(url)
+
+        with CaptureQueriesContext(connection) as one_gun:
+            assert client.get(url).status_code == 200
+        with operation(gang, actor=tester) as op:
+            op.buy(fighter, thing=Weapon.objects.get(name="Autogun"), paid=20)
+        with CaptureQueriesContext(connection) as two_guns:
+            assert client.get(url).status_code == 200
+
+        def accessory_reads(captured):
+            return [
+                query
+                for query in captured.captured_queries
+                if "library_weaponaccessory" in query["sql"]
+            ]
+
+        assert len(accessory_reads(one_gun)) == 1
+        assert len(accessory_reads(two_guns)) == 1
+
+    def test_a_fighter_with_no_gun_asks_nothing_of_the_accessories(
+        self, client, tester, fighter, house_list, accessories
+    ):
+        """Nowhere to fit one is no question to answer, and no read to
+        make answering it."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        client.force_login(tester)
+        url = equip_url(fighter, house_list)
+        client.get(url)
+
+        with CaptureQueriesContext(connection) as captured:
+            response = client.get(url)
+
+        assert response.context["accessorise"] == []
+        assert not [
+            query
+            for query in captured.captured_queries
+            if "library_weaponaccessory" in query["sql"]
+        ]
 
     def test_an_unfitting_accessory_is_still_one_the_till_will_take(
         self, client, tester, gang, fighter, gun_list, owned_gun, accessories
@@ -1658,6 +1778,24 @@ class TestTheAccessoryDialog:
             f"{equip_url(fighter, house_list)}&accessorise={knife.pk}"
         )
         assert response.context["dialog"] is None
+        assert response.context["accessorise"] == []
+        assert "<dialog open" not in response.content.decode()
+
+    def test_a_knife_is_offered_no_way_to_fit_one(
+        self, client, tester, fighter, house_list
+    ):
+        """Nothing else on a card is somewhere to bolt an accessory, so
+        nothing else draws the control."""
+        from n26.library.models import Wargear
+
+        client.force_login(tester)
+        client.post(
+            equip_url(fighter, house_list),
+            {"thing": key_of(Wargear.objects.get(name="Knife"))},
+        )
+
+        body = client.get(equip_url(fighter, house_list)).content.decode()
+        assert "Add accessory to Knife" not in body
 
     def test_the_dialog_carries_the_list_and_tab_through_the_press(
         self, client, tester, fighter, gun_list, owned_gun, accessories

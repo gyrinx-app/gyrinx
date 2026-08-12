@@ -114,7 +114,29 @@ def _other_models(gang, miniature):
     )
 
 
-def fitting_accessories(weapon):
+def accessory_catalogue():
+    """Every accessory a reader may fit, read in one go.
+
+    The whole table, because a screen showing a fighter's guns needs the
+    whole of it: what fits is decided per weapon in Python, so six guns
+    cost this one read rather than six. The table is small — a library's
+    accessories are counted in dozens where its weapons are counted in
+    hundreds.
+
+    ``fits_category`` comes with it. Building an accessory's selector
+    reads that row, so leaving it to be fetched later would turn one
+    query into one per accessory.
+    """
+    from n26.library.models import WeaponAccessory
+
+    return list(
+        WeaponAccessory.objects.selectable()
+        .select_related("fits_category")
+        .order_by("name")
+    )
+
+
+def fitting_accessories(weapon, catalogue=None):
     """What a reader is offered to bolt onto this weapon, priced.
 
     Narrowed to what fits — the bracket in the accessory's name, as
@@ -122,14 +144,101 @@ def fitting_accessories(weapon):
     ``Operation.buy`` will bolt anything to anything, exactly as the
     browse notes read. A shorter list is help, and a refusal would be a
     rule the book does not have.
-    """
-    from n26.library.models import WeaponAccessory
 
+    ``catalogue`` is the rows to sift, for a caller asking this of
+    several weapons; without one it reads them itself.
+    """
+    if catalogue is None:
+        catalogue = accessory_catalogue()
     return [
         {"pk": str(accessory.pk), "name": accessory.name, "price": accessory.price}
-        for accessory in WeaponAccessory.objects.selectable().order_by("name")
+        for accessory in catalogue
         if accessory.fits(weapon)
     ]
+
+
+def _asked(request):
+    """Which dialog this address is asking for, and about which row.
+
+    One at a time, in :data:`n26.core.owned.DIALOGS` order: a URL naming
+    two is answered with whichever comes first there, because two open
+    panels is not a state a page can mean.
+    """
+    for kind in DIALOGS:
+        named = request.GET.get(kind)
+        if named:
+            return kind, named
+    return None, None
+
+
+def _panel(request, assignment, kind, at):
+    """What every one of these dialogs says, whatever it is asking."""
+    return {
+        "kind": kind,
+        "name": str(assignment.assignable),
+        "cancel_url": at,
+        "action": reverse(f"n26-{kind}", args=[assignment.pk]),
+        "list": request.GET.get("list", ""),
+        # Which section tab the reader had open, carried through the
+        # press so the answer lands where the question was asked. The
+        # listing's own form does this with a hidden field the picker
+        # writes; a dialog is a form of its own and has to say it here.
+        "section": request.GET.get("section", ""),
+    }
+
+
+def accessorise_dialogs(request, card, *, at):
+    """The accessory question for every weapon on this card, all of them.
+
+    Not only the one the URL names. A page draws the lot — closed, and
+    each one addressed by the id of the row it is about — so the press
+    that opens one is the browser showing a panel that is already there
+    rather than a rebuild of a screen that can run to hundreds of rows.
+    The address is still what says which is open: with no script the
+    button is a link, and the one it names is the one drawn open here.
+
+    Every weapon costs the same single read of the accessory table.
+    Fitting is then arithmetic on rows the card already holds, so a
+    fighter carrying six guns asks the database exactly what a fighter
+    carrying one does — and a fighter carrying none asks nothing.
+    """
+    from n26.library.models import Weapon
+
+    kind, named = _asked(request)
+    weapons = [
+        node
+        for node in card.roots
+        if not node.broadcast
+        and node.assignment is not None
+        and isinstance(node.assignable, Weapon)
+    ]
+    if not weapons:
+        return []
+
+    catalogue = accessory_catalogue()
+    dialogs = []
+    for node in weapons:
+        pk = str(node.assignment.pk)
+        accessories = fitting_accessories(node.assignable, catalogue)
+        panel = _panel(request, node.assignment, "accessorise", at)
+        dialogs.append(
+            panel
+            | {
+                # The row this is about, which is also what the control
+                # that opens it names.
+                "id": pk,
+                "open": kind == "accessorise" and named == pk,
+                "title": f"Add an accessory to {panel['name']}",
+                "accessories": accessories,
+                # Nothing that fits is nothing to press. The panel says so
+                # and offers the way out, rather than a green button over an
+                # empty list — the commit is the one control that must mean
+                # something.
+                "submit_label": "Add accessory" if accessories else "",
+                "submit_variant": "success",
+            }
+        )
+    return dialogs
 
 
 def owned_dialog(request, card, *, at, miniature, gang):
@@ -139,6 +248,11 @@ def owned_dialog(request, card, *, at, miniature, gang):
     a row of this card. A name that is not on the card draws nothing at
     all: a stale link is a page without a dialog, not an error worth a
     screen.
+
+    ``accessorise`` is not among them: that question is drawn for every
+    weapon on the card by :func:`accessorise_dialogs`, one of which the
+    address opens. Answering it here as well would draw the same panel
+    twice.
     """
     from n26.core.operations import (
         MINIMUM_PROCEEDS,
@@ -146,13 +260,9 @@ def owned_dialog(request, card, *, at, miniature, gang):
         refund_of,
         sale_of,
     )
-    from n26.library.models import Weapon
 
-    for kind in DIALOGS:
-        named = request.GET.get(kind)
-        if named:
-            break
-    else:
+    kind, named = _asked(request)
+    if kind is None or kind == "accessorise":
         return None
 
     # A gang founded without a budget never paid credits, so there is
@@ -170,35 +280,7 @@ def owned_dialog(request, card, *, at, miniature, gang):
     # bolted to it. It is removed rather than deleted, because what is
     # left afterwards is still the fighter's gun.
     is_part = assignment.parent_id is not None
-    dialog = {
-        "kind": kind,
-        "name": name,
-        "cancel_url": at,
-        "action": reverse(f"n26-{kind}", args=[assignment.pk]),
-        "list": request.GET.get("list", ""),
-        # Which section tab the reader had open, carried through the
-        # press so the answer lands where the question was asked. The
-        # listing's own form does this with a hidden field the picker
-        # writes; a dialog is a form of its own and has to say it here.
-        "section": request.GET.get("section", ""),
-    }
-
-    if kind == "accessorise":
-        # Only a weapon is somewhere to fit one. Anything else named
-        # here is a hand-made address, and a page without a dialog is the
-        # honest answer to it.
-        if not isinstance(assignment.assignable, Weapon):
-            return None
-        accessories = fitting_accessories(assignment.assignable)
-        return dialog | {
-            "title": f"Add an accessory to {name}",
-            "accessories": accessories,
-            # Nothing that fits is nothing to press. The panel says so and
-            # offers the way out, rather than a green button over an empty
-            # list — the commit is the one control that must mean something.
-            "submit_label": "Add accessory" if accessories else "",
-            "submit_variant": "success",
-        }
+    dialog = _panel(request, assignment, kind, at)
 
     if kind == "sell":
         # Anything bolted on that the gang could keep instead of selling.

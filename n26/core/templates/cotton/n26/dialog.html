@@ -34,14 +34,37 @@ top-left corner.
 Escape closes a modal by itself, which would leave the page on screen while the
 URL still named the thing being asked about. So dismissing navigates: the close
 event and Cancel both go to cancel_url, and the address bar keeps agreeing with
-the page.
+the page. (A panel the page opened for itself puts the address back without the
+journey — the next section.)
 
-  --- one at a time ---
+  --- a panel that waits on the page ---
 
-The heading's id is fixed rather than minted, because the open state is the
-server's: a page draws at most one of these, so there is nothing for a second
-copy to collide with. Two on one page would be two open dialogs, which is not a
-state the URL can express.
+One question a screen asks is not a confirmation but an offer — which accessory
+to fit — and rebuilding a listing of hundreds of rows to put it on screen is
+seconds a reader spends on a panel the page could already be holding. So a
+caller may draw the panel closed (`open=""`) and open it with a press:
+$dispatch('n26-dialog-open', { id, url }) reaches whichever one carries that id.
+
+The address still says which is open, and it is still the server that decides
+what a request draws: the control is a link to the same address, so with no
+script the page comes back with that panel open and nothing here is needed. What
+the press adds is that the same address is reached without the page being built
+again — history.replaceState writes it, so a reload lands on the open panel and
+the link is still one somebody can send.
+
+A dismissal then answers the way it was opened. A panel the server drew open is
+left by going somewhere: the URL names it, and only a request can take the name
+off. One this page opened is left by putting the address back — no navigation,
+because nothing on the page needs rebuilding to close a panel it never rebuilt
+to open. Cancel is the same act said with a link, so inside such a panel it
+closes rather than travels.
+
+  --- one at a time, unless they are waiting ---
+
+The ids are the caller's: a page drawing one panel needs none and the default
+serves, while a page holding several must name them, because that is how a press
+says which. The heading takes its id from the same word, so two panels on one
+page do not both claim to be the thing a screen reader announces.
 
   title — the question, as the heading.
   lead — a sentence under it: what pressing will do, what it will pay, what it
@@ -55,6 +78,11 @@ state the URL can express.
     submit here is how a dialog offers two acts; see <c-n26.form-actions>.
   modal — promote to the top layer. On by default; off draws the panel in the
     page's flow, which is what a reader without scripting sees.
+  open — the server says this one is open. On by default, which is every
+    confirmation: they are drawn only when the URL asks for them. Off draws the
+    panel closed, waiting for a press to name it.
+  id — the element's id, which is also what a press names and what the heading
+    builds its own id from. Only a page holding several needs to set it.
   slot — the csrf token, the hidden fields, and whatever the question needs
     answering with. A component has no request and renders no token itself.
 {% endcomment %}
@@ -66,6 +94,8 @@ state the URL can express.
     submit_label=""
     submit_variant="success"
     cancel_label="Cancel"
+    id="n26-dialog"
+    :open="True"
     :modal="True"
     class=""
 />
@@ -93,10 +123,19 @@ decided this dialog is open, and the panel in the page's flow is the whole of
 it with no script. So the attribute goes back on, `promoted` stays false, the
 panel keeps its in-flow presentation, and the exception is logged rather than
 swallowed.
+
+A press opens a waiting panel the same way, and a promotion that fails there
+has a better answer than a panel below the fold: the press named an address
+that draws this open, so it goes there. `pressed` is what the closing half
+reads — a panel this page opened is closed by putting the address back, where
+one the server drew open can only be left by asking for a page without it.
 {% endcomment %}
-<dialog open
+<dialog {% if open %}open{% endif %}
+        id="{{ id }}"
         {% if modal %}x-data="{
             promoted: false,
+            pressed: false,
+            cancelUrl: '{{ cancel_url }}',
             promote(dialog) {
                 try {
                     dialog.removeAttribute('open');
@@ -106,17 +145,46 @@ swallowed.
                     console.error(error);
                     dialog.setAttribute('open', '');
                 }
+            },
+            reveal(dialog, url) {
+                if (dialog.open) return;
+                this.pressed = true;
+                this.promote(dialog);
+                if (!this.promoted) {
+                    window.location = url;
+                } else if (url) {
+                    history.replaceState({}, '', url);
+                }
+            },
+            dismiss() {
+                if (!this.pressed) {
+                    window.location = this.cancelUrl;
+                    return;
+                }
+                this.pressed = false;
+                this.promoted = false;
+                history.replaceState({}, '', this.cancelUrl);
+            },
+            leaving(event) {
+                if (!this.pressed) return;
+                const link = event.target.closest('a[href]');
+                if (link && link.getAttribute('href') === this.cancelUrl) {
+                    event.preventDefault();
+                    event.currentTarget.close();
+                }
             }
         }"
-        x-init="promote($el)"
+        {% if open %}x-init="promote($el)"{% endif %}
+        @n26-dialog-open.window="if ($event.detail.id === $el.id) reveal($el, $event.detail.url)"
         :class="{ 'static m-0': !promoted, 'm-auto': promoted }"
-        @close="window.location = '{{ cancel_url }}'"{% endif %}
-        aria-labelledby="n26-dialog-title"
+        @click="leaving($event)"
+        @close="dismiss()"{% endif %}
+        aria-labelledby="{{ id }}-title"
         {{ attrs }}
         class="static m-0 w-full max-w-lg rounded-box border border-box-border bg-surface p-0 text-ink-900 shadow-xl backdrop:bg-black/50 dark:bg-ink-900 dark:text-ink-100 {{ class }}">
     <form method="post" action="{{ action }}" class="space-y-5 p-6">
         <div class="space-y-1.5">
-            <h2 id="n26-dialog-title"
+            <h2 id="{{ id }}-title"
                 class="text-lg font-semibold tracking-tight text-ink-900 dark:text-ink-100">
                 {{ title }}
             </h2>

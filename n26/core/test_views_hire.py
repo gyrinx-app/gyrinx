@@ -257,10 +257,15 @@ def test_the_dialog_promotes_itself_by_calling_a_method(client, tester, gang, ga
 def test_dismissing_the_dialog_navigates(client, tester, gang, ganger):
     """Closing in place would leave the list on screen while the URL still
     named a profile, so both Cancel and a dismissal go to the page with no
-    profile named — and the address bar keeps agreeing with the screen."""
+    profile named — and the address bar keeps agreeing with the screen.
+
+    This one is open because the server was asked for it, which is the
+    half of the panel's dismissal that travels: only a request can take
+    the name back off the address."""
     client.force_login(tester)
     body = client.get(dialog_url(gang, ganger)).content.decode()
-    assert f"window.location = '{hire_url(gang)}'" in body
+    assert f"cancelUrl: '{hire_url(gang)}'" in body
+    assert "window.location = this.cancelUrl" in body
     assert f'href="{hire_url(gang)}"' in body
 
 

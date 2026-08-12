@@ -250,7 +250,7 @@ def equip(request, pk):
     from n26.core.listing import build_listing
     from n26.core.operations import Refusal, operation
     from n26.core.owned import owned_things
-    from n26.core.views.owned import owned_dialog
+    from n26.core.views.owned import accessorise_dialogs, owned_dialog
     from n26.library.models import Collection, Family, get_default_pack
     from n26.library.standard_content import TRADING_POST_COLLECTION
 
@@ -483,6 +483,12 @@ def equip(request, pk):
             "dialog": owned_dialog(
                 request, card, at=at, miniature=miniature, gang=gang
             ),
+            # The accessory question for every gun the fighter is
+            # carrying, drawn closed beside the rows. The one the address
+            # names is drawn open, so the link works with no script; with
+            # a script the press opens the panel that is already on the
+            # page and never rebuilds the listing.
+            "accessorise": accessorise_dialogs(request, card, at=at),
             # Registration names — see the hire view: a row in an unnamed
             # category registers under its section's name, and a list that
             # omits one hides those rows client-side.
