@@ -101,6 +101,23 @@ def test_a_buy_stays_on_the_shop(client, tester, fighter, house_list):
     assert response.url == equip_url(fighter, house_list)
 
 
+def test_a_buy_stays_on_the_section_tab_too(client, tester, fighter, house_list):
+    """The picker's section tab is client state, posted along and echoed
+    back in the redirect — buying from the Wargear tab must not land the
+    reader back on the first tab."""
+    from n26.library.models import Wargear
+
+    knife = Wargear.objects.get(name="Knife")
+    client.force_login(tester)
+    response = client.post(
+        equip_url(fighter, house_list),
+        {"thing": key_of(knife), "section": "Close combat weapons"},
+    )
+    assert response.status_code == 302
+    assert f"list={house_list.pk}" in response.url
+    assert "section=Close+combat+weapons" in response.url
+
+
 def test_a_thing_not_on_the_list_is_refused(client, tester, gang, fighter, house_list):
     """The till only accepts lines the browse produced. An off-list
     thing — here a wargear that exists but sits on no list the fighter

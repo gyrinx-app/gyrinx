@@ -738,3 +738,55 @@ class TestTheScopes:
         response = client.get(f"{hire_url(gang)}?list=nonsense")
         assert response.status_code == 200
         assert response.context["scope"] == "gang"
+
+    def test_the_forms_post_to_the_scoped_address(
+        self, client, tester, gang, ganger, elsewhere
+    ):
+        """The bug a player saw: press Hire on a supplementary profile
+        and land back on the gang list. The row's form posted to the
+        bare route, dropping ?list= at the first hop — so the action is
+        this page's own scoped address."""
+        client.force_login(tester)
+        body = client.get(f"{hire_url(gang)}?list=supplementary").content.decode()
+        assert f'action="{hire_url(gang)}?list=supplementary"' in body
+
+    def test_the_scope_needs_nothing_in_the_body(self, client, tester, gang, elsewhere):
+        """What the form actually sends: the scope rides the posted-to
+        URL, and every hop keeps it."""
+        supplementary, _ = elsewhere
+        client.force_login(tester)
+        pressed = client.post(
+            f"{hire_url(gang)}?list=supplementary", {"hire": str(supplementary.pk)}
+        )
+        assert pressed.status_code == 302
+        assert "list=supplementary" in pressed.url
+
+        hired = client.post(
+            f"{hire_url(gang)}?list=supplementary",
+            {"profile": str(supplementary.pk), "name": ""},
+        )
+        assert hired.status_code == 302
+        assert "list=supplementary" in hired.url
+
+    def test_the_section_tab_rides_the_round_trip(
+        self, client, tester, gang, elsewhere
+    ):
+        """The picker's section tab is client state, posted along and
+        echoed back in the redirect — buying from the third tab lands
+        the reader back on the third tab."""
+        supplementary, _ = elsewhere
+        client.force_login(tester)
+        pressed = client.post(
+            f"{hire_url(gang)}?list=supplementary",
+            {"hire": str(supplementary.pk), "section": "Supplementary Profiles"},
+        )
+        assert pressed.status_code == 302
+        assert "section=Supplementary+Profiles" in pressed.url
+
+        hired = client.post(
+            pressed.url,
+            {"profile": str(supplementary.pk), "name": ""},
+        )
+        assert hired.status_code == 302
+        assert "list=supplementary" in hired.url
+        assert "section=Supplementary+Profiles" in hired.url

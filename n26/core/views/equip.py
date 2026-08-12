@@ -1,6 +1,7 @@
 """Buying equipment for one fighter — the web face of :mod:`n26.core.browse`."""
 
 import re
+from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -298,6 +299,20 @@ def equip(request, pk):
     if chosen is None and collections:
         chosen = collections[0]
 
+    # Which of the picker's section tabs the reader was on — client state
+    # the picker posts along and reads back from the URL. Echoed into
+    # every address this page answers with, so buying from the third tab
+    # lands the reader back on the third tab; an unknown name just leaves
+    # the picker on its first.
+    section = request.POST.get("section", request.GET.get("section", ""))[:100]
+
+    def here(collection):
+        params = [
+            *([("list", collection.pk)] if collection is not None else []),
+            *([("section", section)] if section else []),
+        ]
+        return f"{request.path}?{urlencode(params)}" if params else request.path
+
     view = None
     if chosen is not None:
         view = with_use_notes(browse(chosen), usability_for(computed))
@@ -307,7 +322,7 @@ def equip(request, pk):
         line = next(
             (row for row in view.all_lines() if _thing_key(row.thing) == key), None
         )
-        back = f"{request.path}?list={chosen.pk}"
+        back = here(chosen)
         if line is None:
             # Not on this list — a stale page or a tampered form. The
             # list itself is the answer either way.
@@ -400,7 +415,7 @@ def equip(request, pk):
     # a row asks one dictionary rather than the database. The dialogs open
     # over this page, on the list being read, and Cancel comes back to it,
     # so the page's own address is what the controls are built from.
-    at = f"{request.path}?list={chosen.pk}" if chosen is not None else request.path
+    at = here(chosen)
     owned = owned_things(card, at)
 
     # The whole screen, as one structure: the browsed list joined to what

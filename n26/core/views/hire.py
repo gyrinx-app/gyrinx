@@ -62,6 +62,26 @@ def _scope(request):
     return named if named in HIRE_SCOPES else "gang"
 
 
+def _section(request):
+    """Which of the picker's section tabs the reader was on, if the
+    request says. Client state the picker posts along and reads back
+    from the URL — echoed, never trusted further than that: an unknown
+    name just leaves the picker on its first tab."""
+    named = request.POST.get("section", request.GET.get("section", ""))
+    return named[:100]
+
+
+def _here(request, scope, section):
+    """This page's own address, state included — where every press lands:
+    the redirect after a hire, the dialog's cancel, and the form's action,
+    so no hop of the flow snaps the reader back to the default tabs."""
+    params = [
+        *([("list", scope)] if scope != "gang" else []),
+        *([("section", section)] if section else []),
+    ]
+    return f"{request.path}?{urlencode(params)}" if params else request.path
+
+
 def _scope_tabs(request, scope):
     return [
         {
@@ -137,7 +157,7 @@ def _chosen(picks):
     return [pick.option.default_set for pick in picks if pick.option.default_set]
 
 
-def _dialog(request, profile, picks, scope="gang"):
+def _dialog(request, profile, picks, scope="gang", section=""):
     """What the name dialog draws: who is being hired, at what price, and
     the hidden fields that carry the row's answer to the next request."""
     try:
@@ -148,7 +168,6 @@ def _dialog(request, profile, picks, scope="gang"):
         price = profile.price_with(_chosen(picks))
     except ValueError:
         raise Http404("No such option") from None
-    cancel_url = request.path if scope == "gang" else f"{request.path}?list={scope}"
     return {
         "profile": profile.name,
         "price": price,
@@ -157,9 +176,10 @@ def _dialog(request, profile, picks, scope="gang"):
         "fields": [
             {"name": "profile", "value": str(profile.pk)},
             *([{"name": "list", "value": scope}] if scope != "gang" else []),
+            *([{"name": "section", "value": section}] if section else []),
             *({"name": pick.field, "value": pick.value} for pick in picks),
         ],
-        "cancel_url": cancel_url,
+        "cancel_url": _here(request, scope, section),
     }
 
 
@@ -256,10 +276,11 @@ def hire_fighter(request, pk):
 
     gang = _own_gang_or_404(request, pk)
     scope = _scope(request)
-    # Where every step of the press lands: the list being browsed, so a
-    # hire made from the supplementary scope confirms onto it rather
-    # than snapping back to the gang list.
-    back = request.path if scope == "gang" else f"{request.path}?list={scope}"
+    section = _section(request)
+    # Where every step of the press lands: the list being browsed and the
+    # section tab in it, so a hire made from the supplementary scope
+    # confirms onto it rather than snapping back to the gang list.
+    back = _here(request, scope, section)
     form = HireFighterForm()
     dialog = None
 
@@ -328,7 +349,7 @@ def hire_fighter(request, pk):
             # A name the field will not take. The dialog comes back holding
             # what was typed, with the error under it — the selection is in
             # the hidden fields, so nothing else has to be re-answered.
-            dialog = _dialog(request, profile, picks, scope=scope)
+            dialog = _dialog(request, profile, picks, scope=scope, section=section)
     elif request.method == "POST":
         # A Hire button in the list. Which profile is now a URL, so the
         # dialog has an address of its own and the press survives a reload.
@@ -341,6 +362,7 @@ def hire_fighter(request, pk):
             query = urlencode(
                 [
                     *([("list", scope)] if scope != "gang" else []),
+                    *([("section", section)] if section else []),
                     ("hire", str(profile.pk)),
                     *((pick.field, pick.value) for pick in picks),
                 ],
@@ -355,6 +377,7 @@ def hire_fighter(request, pk):
                 profile,
                 _picks(request.GET, profile, build_hire_entry(profile)),
                 scope=scope,
+                section=section,
             )
 
     # The whole screen, as one structure: every profile this gang could
@@ -387,6 +410,10 @@ def hire_fighter(request, pk):
             "gang": gang,
             "form": form,
             "dialog": dialog,
+            # Both forms post here rather than to the bare route: an
+            # action that dropped the query would lose which tab the
+            # reader was on at the first press.
+            "back": back,
             "hire_list": hire_list,
             "scope_tabs": _scope_tabs(request, scope),
             "scope": scope,

@@ -45,7 +45,7 @@ be read in one.
     document stops mattering.
     {% endcomment %}
     {% if dialog %}
-        <c-n26.hire-dialog action="{% url 'n26-hire-fighter' gang.pk %}"
+        <c-n26.hire-dialog action="{{ back }}"
                            profile="{{ dialog.profile }}"
                            price="{{ dialog.price }}"
                            :choices="dialog.choices"
@@ -55,9 +55,12 @@ be read in one.
             {% csrf_token %}
         </c-n26.hire-dialog>
     {% endif %}
-    <c-n26.view.fighter-hire action="{% url 'n26-hire-fighter' gang.pk %}"
-                             gang="{{ gang.name }}"
-                             :form="form">
+    {% comment %}
+    The form posts to this page's scoped address, never the bare route:
+    an action that dropped ?list= would answer a supplementary hire by
+    snapping the reader back to the gang list tab.
+    {% endcomment %}
+    <c-n26.view.fighter-hire action="{{ back }}" gang="{{ gang.name }}" :form="form">
         <c-slot name="figures">
             <c-n26.gang-figures :gang="gang" :count="roster_count" />
         </c-slot>

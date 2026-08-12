@@ -119,6 +119,25 @@ dispatches, and listens for `filter-reset` to be told.
         // print the rest of the state machine onto the page. It did.
         get tabbed() { return this.wantsTabs && this.sections.length > 0 },
         chosenSection: {{ sections.0|default:""|json_dumps }},
+        {% comment %}
+        The chosen section survives a reload by living in the URL: init
+        reads ?section= back, and chooseSection writes it without a
+        navigation. Pages that answer a press with a redirect echo the
+        parameter (a hidden input below carries it in the POST), so
+        buying from the third tab lands the reader back on the third
+        tab. An unknown name needs no guarding here — visibleSection
+        already falls back to the first section that has anything.
+        {% endcomment %}
+        init() {
+            const fromUrl = new URLSearchParams(location.search).get('section');
+            if (fromUrl) this.chosenSection = fromUrl;
+        },
+        chooseSection(name) {
+            this.chosenSection = name;
+            const url = new URL(location);
+            url.searchParams.set('section', name);
+            history.replaceState(history.state, '', url);
+        },
         minPrice: {{ price_floor }},
         maxPrice: {{ price_ceiling }},
         maxTradePoints: {{ tp_ceiling }},
@@ -263,6 +282,15 @@ dispatches, and listens for `filter-reset` to be told.
      @filter-apply.window="if ($event.detail.name === 'category') categories = $event.detail.values">
 
     {% comment %}
+    The section on screen, riding whatever form this picker sits inside —
+    so a press that answers with a redirect can put the reader back on
+    the tab they were using. Bound to what is shown rather than what was
+    pressed, and empty without tabs or without script, which the views
+    read as "no tab to restore".
+    {% endcomment %}
+    <input type="hidden" name="section" :value="tabbed ? (visibleSection || '') : ''">
+
+    {% comment %}
     Sticky, and the one place a z-index is needed: the dropdown panels a filter
     opens are inside this bar, so it has to sit above the rows it scrolls over
     without trapping its own overlays underneath them.
@@ -371,7 +399,7 @@ dispatches, and listens for `filter-reset` to be told.
                             x-show="countInSection(name) > 0"
                             x-cloak
                             :aria-selected="visibleSection === name ? 'true' : 'false'"
-                            @click="chosenSection = name"
+                            @click="chooseSection(name)"
                             class="flex min-h-11 items-center gap-2 border-b-2 px-3 text-sm focus-ring"
                             :class="visibleSection === name
                                 ? 'border-accent font-semibold text-ink-900 dark:text-ink-100'
@@ -407,7 +435,7 @@ dispatches, and listens for `filter-reset` to be told.
             nothing to choose.
             {% endcomment %}
             <div role="tablist" class="relative flex flex-wrap gap-x-1 sm:hidden"
-                 @quick-switcher-choose="chosenSection = $event.detail.value">
+                 @quick-switcher-choose="chooseSection($event.detail.value)">
                 <span role="tab" aria-selected="true"
                       x-show="visibleSection !== null"
                       x-cloak
