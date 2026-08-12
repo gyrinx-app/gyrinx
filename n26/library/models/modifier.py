@@ -793,7 +793,11 @@ class OffersChoice(models.Model):
         default="",
         help_text=(
             'What the card calls this slot — "skill tree 1". Blank derives '
-            "a label from the kind and any section, which is usually right."
+            "a label from the kind and any section, which is usually right. "
+            'The label also picks the row: "Skills" or "Powers" files the '
+            "question in that row of the card, beside what the fighter "
+            "already has; any other wording is a row of its own. Unlabelled, "
+            "the kind decides the same way."
         ),
     )
 

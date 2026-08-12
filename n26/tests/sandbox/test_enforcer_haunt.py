@@ -180,17 +180,18 @@ class TestTheHaunt:
         }
 
     def test_knowing_the_power(self, morrow, wyrd_types):
-        """The answer draws as its choice's line, never twice — the
-        standing render rule for every chosen thing."""
+        """Drawn once, in the Powers row: a power question folds away
+        when answered and the pick sits with the powers, exactly as an
+        answered skill question becomes a skill."""
         anchor = morrow.assignments.get(profile__isnull=False)
         choose(anchor, wyrd_types["psyrender"])
         type_row = morrow.assignments.get(subtype__name="Psyrender")
         choose(type_row, Power.objects.get(name="Mind Flense"))
 
         card = build_model_card(morrow, computed=computed_for(morrow))
-        known = next(c for c in card.choices if c.kind_label == "Primary power")
-        assert known.chosen == "Mind Flense"
-        assert [p.name for p in card.powers] == []  # not drawn twice
+        assert card.power_choices == []
+        assert not any(c.kind_label == "Primary power" for c in card.choices)
+        assert [p.name for p in card.powers] == ["Mind Flense"]  # and only once
 
     def test_the_type_line_stays_honest(self, morrow, wyrd_types):
         """The answered subtype is drawn as its choice's line AND joins

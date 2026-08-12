@@ -182,6 +182,15 @@ class Assignable(models.Model):
     #: lists it, and nothing extra when built in.
     ATTACHMENT_ASKS = {"entry": ("price_override", "trade_point_override")}
 
+    #: The model card's named row this kind's lines join — the card's own
+    #: vocabulary ("skills", "powers"), declared once here and read by
+    #: everything that files a line, a computed grant, or an open
+    #: question. None is the general run: lines draw as gear, questions
+    #: as rows of their own. Kinds a card draws some other way entirely —
+    #: a weapon block, a counter's cell — also say None and keep their
+    #: bespoke handling.
+    card_row = None
+
     class Meta:
         abstract = True
 
@@ -741,6 +750,7 @@ class Subtype(Content, Assignable):
     """A model subtype: Leader, Ganger, Specialist, Mounted, Wyrd."""
 
     family = Family.MODEL
+    card_row = "subtypes"
 
     class Meta:
         verbose_name = "subtype"
@@ -815,6 +825,7 @@ class Skill(Content, Assignable, UsableBy):
     shares — and its D6 number in the book is its position within it."""
 
     family = Family.MODEL
+    card_row = "skills"
 
     class Meta:
         verbose_name = "skill"
@@ -848,6 +859,7 @@ class Rule(Content, Assignable):
     """
 
     family = Family.BASE
+    card_row = "rules"
 
     class Meta:
         verbose_name = "special rule"
@@ -1045,6 +1057,7 @@ class Power(Content, Assignable, UsableBy):
     """
 
     family = Family.MODEL
+    card_row = "powers"
 
     class Meta:
         verbose_name = "power"

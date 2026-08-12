@@ -402,13 +402,16 @@ class TestKnowingAPower:
             index = build_modifier_index([n.assignable for n in card.all_nodes()])
             return build_model_card(fighter, card=card, computed=compute(card, index))
 
-        (choice,) = card_with_effects().choices
+        (choice,) = card_with_effects().power_choices
         assert choice.kind_label == "Power"
         assert choice.is_resolved is False
 
         choose(anchor, library["powers"]["Terrify"])
-        (choice,) = card_with_effects().choices
-        assert choice.chosen == "Terrify (Double)"
+        card = card_with_effects()
+        # Answered, the question folds away and the pick is a power in
+        # the Powers row — the same fold an answered skill question does.
+        assert card.power_choices == []
+        assert "Terrify (Double)" in [p.name for p in card.powers]
 
     def test_a_known_power_draws_on_its_own_row(self, gang, gang_sister, library):
         from n26.core.render_text import render_model_card
@@ -814,3 +817,66 @@ class TestPickingASkill:
                 f"Filler {index}", category=sets["agility"], position=index + 10
             )
         assert measure() == few
+
+
+class TestWhereAQuestionSits:
+    """The label picks the row a question is drawn in.
+
+    A question labelled "Skills" or "Powers" sits in that row of the
+    card, beside what the fighter already has; any other label is a row
+    of its own, headed by exactly what the author wrote. Unlabelled, the
+    kind stands in the same way — a skill question with the skills, a
+    power question with the powers. One rule, so an author reading a
+    card can tell where a question went by looking at what they typed.
+    """
+
+    @pytest.fixture
+    def yolanda(self, gang, gang_sister, catalogue, library):
+        return hire_with_option(gang, gang_sister, "Yolanda")
+
+    def card_of(self, miniature):
+        card = build_card(miniature)
+        index = build_modifier_index([n.assignable for n in card.all_nodes()])
+        return build_model_card(miniature, card=card, computed=compute(card, index))
+
+    def offer_power(self, miniature, label=""):
+        subtype = create_subtype("Haunted")
+        modifier(
+            "The Haunt knows a power",
+            targets_model(),
+            offers_choice(Power, label=label),
+            carried_by=subtype,
+        )
+        return assign(subtype, miniature=miniature)
+
+    def test_an_unlabelled_power_question_sits_with_the_powers(self, yolanda):
+        self.offer_power(yolanda)
+        card = self.card_of(yolanda)
+        assert [line.kind_label for line in card.power_choices] == ["Power"]
+        assert card.choices == []
+
+    def test_a_question_labelled_powers_sits_there_too(self, yolanda):
+        self.offer_power(yolanda, label="Powers")
+        card = self.card_of(yolanda)
+        assert [line.kind_label for line in card.power_choices] == ["Powers"]
+        assert card.choices == []
+
+    def test_any_other_label_is_a_row_of_its_own(self, yolanda):
+        """ "Bonecrusher Wyrd Powers" is a heading the author wrote for
+        this question, and the card honours it rather than folding the
+        question away under Powers."""
+        self.offer_power(yolanda, label="Bonecrusher Wyrd Powers")
+        card = self.card_of(yolanda)
+        assert card.power_choices == []
+        assert [line.kind_label for line in card.choices] == ["Bonecrusher Wyrd Powers"]
+
+    def test_an_answered_power_question_is_a_power(self, yolanda, library):
+        """The question stops being asked and the pick joins the Powers
+        row — the same fold the Skills row does."""
+        anchor = self.offer_power(yolanda)
+        choose(anchor, library["powers"]["Terrify"])
+
+        card = self.card_of(yolanda)
+        assert card.power_choices == []
+        assert "Terrify (Double)" in [p.name for p in card.powers]
+        assert card.equipment == []

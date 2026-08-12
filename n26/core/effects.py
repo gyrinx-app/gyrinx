@@ -743,22 +743,17 @@ def _fill_choice_slots(computed, offers, by_cause):
 
 
 def _bucket(computed, target, thing):
-    """Where a contribution belongs: subtypes, skills, powers, rules,
-    collections, a granted weapon, or a weapon's traits."""
-    from n26.library.models import Collection, Power, Rule, Skill, Subtype, Weapon
+    """Where a contribution belongs: the row its kind declares
+    (``card_row`` — subtypes, skills, powers, rules, collections, and
+    the ComputedCard's buckets carry the same names), a granted weapon,
+    or a weapon's traits."""
+    from n26.library.models import Weapon
 
     if target.kind == WEAPON_PROFILE:
         return computed.weapons[target.node.key], "traits"
-    if isinstance(thing, Subtype):
-        return computed, "subtypes"
-    if isinstance(thing, Skill):
-        return computed, "skills"
-    if isinstance(thing, Power):
-        return computed, "powers"
-    if isinstance(thing, Rule):
-        return computed, "rules"
-    if isinstance(thing, Collection):
-        return computed, "collections"
+    row = getattr(thing, "card_row", None)
+    if row is not None:
+        return computed, row
     if isinstance(thing, Weapon):
         return computed, "granted_weapons"
     return None, None

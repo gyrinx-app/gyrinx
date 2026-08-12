@@ -239,6 +239,7 @@ class Collection(Content, Assignable):
     """
 
     family = Family.GANG
+    card_row = "collections"
 
     #: What listing an entry here asks an author for, beyond the pick.
     #: A shop's entries state prices; a menu's — a pick list of

@@ -15,12 +15,9 @@ from dataclasses import dataclass, field
 from n26.core.card import build_card
 from n26.core.effects import kind_of
 from n26.library.models import (
-    Collection,
     Counter,
     Hidden,
-    Power,
     Rule,
-    Skill,
     Subtype,
     Weapon,
     WeaponProfile,
@@ -370,14 +367,25 @@ class ModelCard:
     #: Access to buy from, not things owned; drawn apart from equipment.
     collections: list[AssignableLine] = field(default_factory=list)
     choices: list[ChoiceLine] = field(default_factory=list)
-    #: Open questions asking for a skill, kept apart from the rest. They
-    #: are drawn in the Skills row, beside what the model already knows,
-    #: because that is the row a reader looks at to find out what this
-    #: fighter can do — a founding pick left in the general run of slots
-    #: is an obligation filed under the same heading as their archetype.
-    #: Answered ones are not here: the skill they chose is a skill, and
-    #: it is in ``skills`` with the others.
+    #: Open questions filed into the card's own rows, kept apart from
+    #: the general run. They are drawn in the Skills and Powers rows,
+    #: beside what the model already knows, because those are the rows a
+    #: reader looks at to find out what this fighter can do — a founding
+    #: pick left in the general run of slots is an obligation filed
+    #: under the same heading as their archetype. ``question_row`` says
+    #: which questions qualify. Answered ones are not here: the thing
+    #: they chose is a skill or a power, and it sits in its row with the
+    #: others.
     skill_choices: list[ChoiceLine] = field(default_factory=list)
+    power_choices: list[ChoiceLine] = field(default_factory=list)
+
+    #: The rows that draw questions, and the field each row's open ones
+    #: land in. A card row is a kind's declaration (``card_row`` on the
+    #: library model); *hosting questions* is this structure's, because
+    #: a question needs somewhere to grow a Choose control and only the
+    #: rows named here have one. ``question_row`` routes against this,
+    #: and a guard test holds it to rows that really exist.
+    QUESTION_BUCKETS = {"skills": "skill_choices", "powers": "power_choices"}
     #: Where the way into the skills screen leads, or empty when there is
     #: nowhere to send anyone. Filled in by whoever knows the URL space,
     #: like a choice's own href — this module knows what a grid *is* and
@@ -400,13 +408,13 @@ class ModelCard:
         """Every question still open on this card, in one run.
 
         Where a question is drawn is a surface's business: on screen the
-        ones asking for a skill go in the Skills row, beside what the
-        fighter already knows. A renderer with no rows to fold them into
-        — the text card, the printed one — draws the lot, because an
+        ones filed to a row go in the Skills or Powers row, beside what
+        the fighter already knows. A renderer with no rows to fold them
+        into — the text card, the printed one — draws the lot, because an
         unanswered question is worth a line on paper and none of them
         should go missing for want of somewhere to put it.
         """
-        return [*self.choices, *self.skill_choices]
+        return [*self.choices, *self.skill_choices, *self.power_choices]
 
     @property
     def type_line(self):
@@ -582,19 +590,33 @@ def _choice_line(slot, host):
     )
 
 
-def asks_for_skill(slot):
-    """Whether this slot's question is "which skill".
+def question_row(slot):
+    """Which of the card's named rows draws this question — or None for
+    a row of its own.
 
-    Skills are the one kind a card has a row of its own for, so a slot
-    asking for one is drawn there rather than among the general run of
-    questions; an archetype and an affiliation have no such row and stay
-    where they are. The kind is the whole test — a slot narrowed to a
-    tier and one offering any skill at all are the same question to a
-    reader.
+    The label decides, and the rule is what an author would guess:
+    a question labelled "Skills" or "Powers" sits in that row, beside
+    what the fighter already has; a question labelled anything else —
+    "Bonecrusher Wyrd Powers", "Favoured archetype" — is its own row,
+    headed by exactly what was written. Unlabelled, the kind stands in:
+    its declared ``card_row``, so a skill question sits with the skills
+    and a power question with the powers with nothing said here.
+
+    Only the rows in ``ModelCard.QUESTION_BUCKETS`` qualify — a row has
+    to draw questions to take one, and a subtype's row is a type line
+    with nowhere to put a button, so a subtype question stays a row of
+    its own however its kind files its lines.
+
+    Casefolded, because the row headings are prose and a label is typed
+    by hand — "powers" and "Powers" are the same intent.
     """
-    from n26.library.models import Skill
-
-    return slot.offer is not None and slot.offer.of_kind.model_class() is Skill
+    if slot.offer is None:
+        return None
+    if slot.offer.label:
+        name = slot.offer.label.casefold()
+        return name if name in ModelCard.QUESTION_BUCKETS else None
+    row = getattr(slot.offer.of_kind.model_class(), "card_row", None)
+    return row if row in ModelCard.QUESTION_BUCKETS else None
 
 
 def choice_lines(computed, host=""):
@@ -731,19 +753,31 @@ def card_to_model_card(
     holds one shows its value instead, so the cell moves with every tally.
     """
     primary = None
-    subtypes, skills, equipment, weapons, collections = [], [], [], [], []
-    powers, rules = [], []
+    equipment, weapons = [], []
+    # The named line rows, keyed by the vocabulary the kinds declare
+    # (``card_row``). One mapping serves the walk over stored rows and
+    # the merge of computed grants below — the two can not disagree
+    # about where a kind's lines go.
+    line_rows = {
+        "subtypes": [],
+        "skills": [],
+        "powers": [],
+        "rules": [],
+        "collections": [],
+    }
     counted_xp = None
 
     # A node that answers a choice is drawn as that choice's row, not as a
-    # loose piece of equipment as well. A skill is the exception, because
-    # it has a row already: an answered skill question puts the skill in
-    # the Skills row with the rest, and the question stops being asked.
+    # loose piece of equipment as well. Questions filed to a row are the
+    # exception, because their answers have a row already: an answered
+    # skill question puts the skill in the Skills row with the rest, an
+    # answered power question a power in Powers, and the question stops
+    # being asked.
     answers = (
         {
             slot.resolved_with.key
             for slot in computed.choices
-            if slot.resolved_with is not None and not asks_for_skill(slot)
+            if slot.resolved_with is not None and question_row(slot) is None
         }
         if computed
         else set()
@@ -827,7 +861,7 @@ def card_to_model_card(
             # subtype: the type line states facts, and rules match on
             # it (a chosen Psyrender is a Psyrender).
             if isinstance(node.assignable, Subtype):
-                subtypes.append(
+                line_rows["subtypes"].append(
                     AssignableLine(name=node.name, provenance=provenance_of(node))
                 )
             continue
@@ -842,31 +876,18 @@ def card_to_model_card(
             # already landed (a shifted stat cell names it), so skipping
             # the row hides nothing the player needs.
             continue
-        if isinstance(thing, Subtype):
-            subtypes.append(
-                AssignableLine(name=thing.name, provenance=provenance_of(node))
-            )
-        elif isinstance(thing, Skill):
-            skills.append(
-                AssignableLine(name=thing.name, provenance=provenance_of(node))
-            )
-        elif isinstance(thing, Rule):
-            rules.append(
-                AssignableLine(name=str(thing), provenance=provenance_of(node))
-            )
-        elif isinstance(thing, Power):
-            powers.append(
-                AssignableLine(name=str(thing), provenance=provenance_of(node))
+        if getattr(thing, "card_row", None) is not None:
+            # The kind said where its lines go — one declaration, read
+            # here and everywhere else that files a line. Every named
+            # row prints the same way: the name, the annotation after it.
+            line_rows[thing.card_row].append(
+                AssignableLine(name=node.name, provenance=provenance_of(node))
             )
         elif isinstance(thing, Weapon):
             weapons.append(weapon_line(node, node.children))
         elif isinstance(thing, WeaponProfile):
             # A profile assigned straight to the model rather than to a weapon.
             weapons.append(weapon_line(node, [node]))
-        elif isinstance(thing, Collection):
-            collections.append(
-                AssignableLine(name=node.name, provenance=provenance_of(node))
-            )
         elif isinstance(thing, Counter):
             # A counter is a running number, not a possession, so it is
             # never drawn as a piece of kit. XP has a cell of its own on
@@ -890,46 +911,20 @@ def card_to_model_card(
             )
 
     if computed:
-        for contribution in computed.subtypes:
-            if contribution.name not in {line.name for line in subtypes}:
-                subtypes.append(
-                    AssignableLine(
-                        name=contribution.name,
-                        provenance=_computed_provenance(contribution),
+        # Computed grants join the same rows the stored lines chose —
+        # the mapping is the one the kinds declared, so a grant can
+        # never land in a different row than a purchase of the same
+        # thing. Deduplicated by name: two sources granting one skill
+        # leave the fighter knowing it once.
+        for row_name, lines in line_rows.items():
+            for contribution in getattr(computed, row_name):
+                if contribution.name not in {line.name for line in lines}:
+                    lines.append(
+                        AssignableLine(
+                            name=contribution.name,
+                            provenance=_computed_provenance(contribution),
+                        )
                     )
-                )
-        for contribution in computed.skills:
-            if contribution.name not in {line.name for line in skills}:
-                skills.append(
-                    AssignableLine(
-                        name=contribution.name,
-                        provenance=_computed_provenance(contribution),
-                    )
-                )
-        for contribution in computed.powers:
-            if contribution.name not in {line.name for line in powers}:
-                powers.append(
-                    AssignableLine(
-                        name=contribution.name,
-                        provenance=_computed_provenance(contribution),
-                    )
-                )
-        for contribution in computed.rules:
-            if contribution.name not in {line.name for line in rules}:
-                rules.append(
-                    AssignableLine(
-                        name=contribution.name,
-                        provenance=_computed_provenance(contribution),
-                    )
-                )
-        for contribution in computed.collections:
-            if contribution.name not in {line.name for line in collections}:
-                collections.append(
-                    AssignableLine(
-                        name=contribution.name,
-                        provenance=_computed_provenance(contribution),
-                    )
-                )
 
     return ModelCard(
         name=name,
@@ -940,7 +935,7 @@ def card_to_model_card(
         # would anywhere else. Never the qualifier — that is authoring's.
         profile_name=(str(primary) if primary else ""),
         profile_type=(primary.profile_type.name if primary else None),
-        subtypes=sorted(subtypes, key=lambda line: line.name),
+        subtypes=sorted(line_rows["subtypes"], key=lambda line: line.name),
         statline=(
             build_statline(primary, changes_for=computed.changes_for)
             if primary and computed
@@ -949,22 +944,28 @@ def card_to_model_card(
             else Statline()
         ),
         weapons=sorted(weapons, key=lambda w: w.name),
-        skills=sorted(skills, key=lambda line: line.name),
-        rules=sorted(rules, key=lambda line: line.name),
-        powers=sorted(powers, key=lambda line: line.name),
+        skills=sorted(line_rows["skills"], key=lambda line: line.name),
+        rules=sorted(line_rows["rules"], key=lambda line: line.name),
+        powers=sorted(line_rows["powers"], key=lambda line: line.name),
         equipment=sorted(equipment, key=lambda line: line.name),
-        collections=sorted(collections, key=lambda line: line.name),
+        collections=sorted(line_rows["collections"], key=lambda line: line.name),
         choices=[
             _choice_line(slot, id)
             for slot in (computed.choices if computed else [])
-            if not asks_for_skill(slot)
+            if question_row(slot) is None
         ],
-        # Only the open ones: an answered skill question is a skill, and
-        # it is already in the row above.
+        # Only the open ones: an answered skill question is a skill, an
+        # answered power question a power, and both are already in their
+        # rows above.
         skill_choices=[
             _choice_line(slot, id)
             for slot in (computed.choices if computed else [])
-            if asks_for_skill(slot) and not slot.is_resolved
+            if question_row(slot) == "skills" and not slot.is_resolved
+        ],
+        power_choices=[
+            _choice_line(slot, id)
+            for slot in (computed.choices if computed else [])
+            if question_row(slot) == "powers" and not slot.is_resolved
         ],
         placed_in=tuple(
             {
