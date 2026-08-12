@@ -216,10 +216,15 @@ def model_screen_tabs(miniature, active):
 
     ``active`` names the tab being drawn, not the URL: the equip screen
     stays the current tab whichever list ``?list=`` has open.
+
+    Options appears only where the model's profile offers a choice to
+    reopen — a tab whose page could only say "nothing to choose" is
+    chrome on every fighter for a feature most profiles lack. Where the
+    profile cannot be read (a gallery sample), the strip is drawn whole.
     """
     from django.urls import reverse
 
-    return [
+    tabs = [
         {
             "label": "Edit",
             "href": reverse("n26-edit-fighter", args=[miniature.pk]),
@@ -230,12 +235,18 @@ def model_screen_tabs(miniature, active):
             "href": reverse("n26-equip", args=[miniature.pk]),
             "current": active == "equip",
         },
-        {
-            "label": "Options",
-            "href": reverse("n26-fighter-options", args=[miniature.pk]),
-            "current": active == "options",
-        },
     ]
+    membership = getattr(miniature, "membership", None)
+    profile = getattr(membership, "profile", None) if membership else None
+    if profile is None or profile.offers_a_choice:
+        tabs.append(
+            {
+                "label": "Options",
+                "href": reverse("n26-fighter-options", args=[miniature.pk]),
+                "current": active == "options",
+            }
+        )
+    return tabs
 
 
 def fighter_switcher(gang, miniature, route=FIGHTER_FALLBACK):

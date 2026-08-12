@@ -339,8 +339,20 @@ class Optioned(models.Model):
 
     @property
     def offers_a_choice(self):
-        """Whether a hire should present options at all."""
-        return self.options.exists()
+        """Whether the offer holds anything worth putting in front of anyone.
+
+        The same test each drawn group makes of itself: a pick-one set —
+        the default group included — with a single option is not a
+        choice, where an any-of or one-or-none set with one option is,
+        because taking it or not is the choice. A surface deciding
+        whether to offer a way to the options at all asks this rather
+        than whether options merely exist.
+        """
+        for group, options in self.grouped_offers():
+            exclusive = group is None or group.choose == "one"
+            if len(options) > 1 or not exclusive:
+                return True
+        return False
 
     @property
     def default_option(self):

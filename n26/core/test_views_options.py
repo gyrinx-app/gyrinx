@@ -93,14 +93,23 @@ class TestThePage:
         body = client.get(reverse("n26-edit-fighter", args=[vex.pk])).content.decode()
         assert options_url(vex) in body
 
-    def test_a_profile_with_no_options_says_so(
+    def test_a_profile_with_no_options_gets_no_tab(
         self, client, tester, gang, make_profile, make_statline
     ):
+        """A tab whose page could only say "nothing to choose" is chrome
+        on every fighter for a feature most profiles lack — the strip
+        offers Options only where there is a choice to reopen. The page
+        itself still answers a direct address honestly."""
         plain = make_profile("Juve", price=20)
         make_statline(plain)
         with operation(gang, actor=tester) as op:
             fighter = op.hire(plain, "Kid")
         client.force_login(tester)
+        body = client.get(
+            reverse("n26-edit-fighter", args=[fighter.pk])
+        ).content.decode()
+        assert options_url(fighter) not in body
+
         body = client.get(options_url(fighter)).content.decode()
         assert "offers no options" in body
         assert "Save options" not in body
