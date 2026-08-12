@@ -379,7 +379,129 @@ class Operation:
         self._materialise_defaults(founding, list(taken), gang=self.gang)
         return founding
 
-    def _materialise_defaults(self, carrier, taken, kinds=None, gang=None):
+    def rechoose(self, carrier, option=None, note=""):
+        """Change which of its options an assignment's thing is taken with.
+
+        The later edit ``ChosenProfileOption`` is stored for: a hire took
+        a set at the till, and the owner changes their mind. The new
+        selection resolves exactly as the hire's did — one-of groups fall
+        back to their heads, a set the thing does not offer is refused —
+        so what this prices is what materialises. Naming the selection
+        already held is a no-op.
+
+        The sets no longer taken leave the way a refund leaves: their
+        materialised rows archive, anything *paid* inside their subtrees
+        comes back, and anything they caused — a spawned model — goes
+        with them. The sets newly taken materialise exactly as at hire:
+        free rows caused by the carrier, the built-ins untouched.
+
+        The price difference lands on the carrier's own entry as one
+        amendment, on paid and list and rating alike — an option is a way
+        the thing itself is built, so purchase's surcharge rule holds in
+        both directions — and the discount stands: what was agreed at the
+        table never moves. ``settle`` refuses an upgrade the gang cannot
+        afford, unwinding the whole change.
+        """
+        thing = carrier.assignable
+        taken = (
+            thing.resolve_selection(option)
+            if hasattr(thing, "resolve_selection")
+            else []
+        )
+        recorded = list(carrier.chosen_options.select_related("default_set"))
+        before = [row.default_set for row in recorded]
+        after_pks = {chosen.pk for chosen in taken}
+        before_pks = {chosen.pk for chosen in before}
+        if after_pks == before_pks:
+            return carrier
+
+        for row in recorded:
+            if row.default_set.pk in after_pks:
+                continue
+            for granted in self._granted_rows(carrier, row.default_set):
+                self.refund(
+                    granted, note=note or f"No longer takes {row.default_set.name}"
+                )
+            row.delete()
+        arriving = [chosen for chosen in taken if chosen.pk not in before_pks]
+        # The founding is gang-hosted and about no model; a membership is
+        # gang-hosted too but about its model, which is where its grants
+        # belong — the same split the hire makes.
+        gang = (
+            carrier.gang
+            if carrier.miniature_root_id is None and carrier.gang_id is not None
+            else None
+        )
+        self._materialise_defaults(carrier, arriving, gang=gang, built_ins=False)
+
+        delta = sum(chosen.price for chosen in taken) - sum(
+            chosen.price for chosen in before
+        )
+        if delta:
+            entry = getattr(carrier, "ledger_entry", None)
+            if entry is not None:
+                entry.paid += delta
+                entry.list_price += delta
+                entry.rating_contribution += delta
+                entry.save(
+                    update_fields=[
+                        "paid",
+                        "list_price",
+                        "rating_contribution",
+                        "modified",
+                    ]
+                )
+            self.event(
+                carrier,
+                LedgerEvent.Kind.AMENDED,
+                credits_delta=delta,
+                rating_delta=delta,
+                note=note,
+            )
+        self.touched(carrier.miniature_root)
+        return carrier
+
+    def _granted_rows(self, carrier, default_set):
+        """The live rows one chosen set materialised, one per member.
+
+        Most of a set's members landed caused by the carrier itself; an
+        ammo member landed caused by its weapon's own row, wherever that
+        weapon came from. Where the built-ins grant the same assignable
+        as the set, the set's copy is the newer row — the built-ins
+        materialise first — so the newest live match is taken, as many
+        as the set granted.
+        """
+        from n26.core.models import Reason
+        from n26.library.models import WeaponProfile
+
+        wanted = {}
+        for member in default_set.members.all():
+            assignable = member.assignable
+            if assignable is None:
+                continue
+            wanted[assignable] = wanted.get(assignable, 0) + 1
+
+        rows = []
+        for assignable, count in wanted.items():
+            scope = {
+                Assignment.field_for(assignable): assignable,
+                "archived": False,
+                "ledger_entry__reason": Reason.DEFAULT,
+                "gang_root": carrier.gang_root,
+                "miniature_root": carrier.miniature_root,
+            }
+            matches = Assignment.objects.filter(**scope)
+            if isinstance(assignable, WeaponProfile):
+                # Granted ammo is caused by its gun, not by the carrier.
+                matches = matches.exclude(caused_by=None)
+            else:
+                matches = matches.filter(caused_by=carrier)
+            rows.extend(matches.order_by("-pk")[:count])
+        return rows
+
+    def _materialise_defaults(
+        self, carrier, taken, kinds=None, gang=None, built_ins=True
+    ):
         """Grant a carrier's built-ins and the sets taken with it.
 
         ``carrier`` is the assignment that brought the thing in — a
@@ -417,7 +539,8 @@ class Operation:
             # and whatever it *spawns* (``OpAddsMiniature``) is a gang
             # member like any other.
             host = {"stash": carrier.stash_root}
-        sets = [getattr(carrier.assignable, "built_ins", None), *taken]
+        sets = [getattr(carrier.assignable, "built_ins", None) if built_ins else None]
+        sets += taken
         weapon_assignments = {}
         ammo = []
         for default_set in sets:
@@ -449,6 +572,20 @@ class Operation:
                     )
         for weapon_profile in ammo:
             gun = weapon_assignments.get(weapon_profile.weapon_id)
+            if gun is None:
+                # The weapon may already be there — a set chosen after the
+                # hire grants ammo for a gun the built-ins brought — so an
+                # existing live row on the same host takes it.
+                gun = (
+                    Assignment.objects.filter(
+                        weapon=weapon_profile.weapon,
+                        archived=False,
+                        gang_root=carrier.gang_root,
+                        miniature_root=carrier.miniature_root,
+                    )
+                    .order_by("-pk")
+                    .first()
+                )
             if gun is None:
                 # A content bug, not a player mistake: the set names ammo
                 # for a weapon nothing here brings.
