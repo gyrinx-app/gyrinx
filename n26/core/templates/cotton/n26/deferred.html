@@ -48,12 +48,14 @@ detail at all.
      class="{{ class }}">
     {% comment %}
     The placeholder holds a card-ish height so the open does not land as
-    a sliver and then jump when the fragment arrives — a pulse, because
-    a static grey block reads as content that failed to draw.
+    a sliver and then jump when the fragment arrives, with a spinner
+    where the card will be — the mark the library already uses for
+    "being fetched", where a bare grey block reads as content that
+    failed to draw.
     {% endcomment %}
-    <div x-show="!html && !failed"
-         class="h-24 animate-pulse rounded-control bg-ink-500/10"
-         aria-hidden="true"></div>
+    <div x-show="!html && !failed" class="flex h-24 items-center justify-center">
+        <c-ui.spinner size="md" color="ink" />
+    </div>
     <div x-show="failed" x-cloak class="py-2 text-sm text-ink-900 dark:text-ink-100">
         Couldn’t load this.
         <button type="button" @click="fetchIt()"
