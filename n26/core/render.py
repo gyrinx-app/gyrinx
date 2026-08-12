@@ -1065,11 +1065,13 @@ def roster(gang):
     """The gang's models, in the order a printed gang list reads.
 
     By the profile's home category — Leader, then Champions, and so on
-    down the taxonomy's own positions — and by name within a rank. A
-    model somebody's purchase brought in (a pet, a deployed platform)
-    sorts directly after its owner, whatever its own rank: the book
-    prints the beast with its keeper. One query, sorted here, because
-    the owner half of a key lives on another row of the same list.
+    down the taxonomy's own positions — and by name within a rank.
+    Vehicles come after every fighter, whatever their category says: the
+    gang list reads crew first, machines at the end. A model somebody's
+    purchase brought in (a pet, a deployed platform) sorts directly
+    after its owner, whatever its own rank: the book prints the beast
+    with its keeper. One query, sorted here, because the owner half of a
+    key lives on another row of the same list.
     """
     from n26.core.models import Miniature
 
@@ -1080,26 +1082,31 @@ def roster(gang):
             # Ownership is derived by walking membership -> what caused it -> the
             # model that carried the purchase. Joined here so a roster of pets
             # costs no more queries than a roster without. The profile's home
-            # category rides along for the same reason: it is the rank half
-            # of the sort key.
+            # category and Type ride along for the same reason: they are the
+            # rank half of the sort key.
         ).select_related(
             "membership__caused_by__miniature_root",
             "membership__profile__category",
+            "membership__profile__profile_type",
         )
     )
     by_pk = {member.pk: member for member in members}
 
     def rank(member):
-        """Where this model's rank sorts: the category's position alone,
-        one ladder across sections. Ranked by the section first, a
-        supplementary Hanger-on could only ever sort where its whole
-        section sorts — after every rank the gang list holds, Vehicles
-        included. Uncategorised after everything placed."""
+        """Where this model's rank sorts. Vehicles after every fighter —
+        their Type decides that, not their category's position, which
+        numbers them within their own section and would otherwise
+        collide with a fighter rank's. Within a Type, the category's
+        position alone, one ladder across sections: ranked by the
+        section first, a supplementary Hanger-on could only ever sort
+        where its whole section sorts. Uncategorised after everything
+        placed."""
         profile = member.membership.profile if member.membership else None
+        vehicle = profile is not None and profile.profile_type.name == "Vehicle"
         category = profile.category if profile else None
         if category is None:
-            return (1, 0)
-        return (0, category.position)
+            return (vehicle, 1, 0)
+        return (vehicle, 0, category.position)
 
     def key(member):
         owner = member.owned_by

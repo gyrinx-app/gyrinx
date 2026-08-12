@@ -318,7 +318,7 @@ class TestTheRosterOrder:
         ]
 
     def test_the_ladder_runs_across_sections(self, ranked_crew, make_profile):
-        """A Hanger-on is filed under Supplementary Profiles, a Vehicle
+        """A Hanger-on is filed under Supplementary Profiles, a Brute
         under Gang List — and the roster ranks by the category's own
         position whichever section holds it, so a supplementary rank can
         muster before a gang list one. Ranked by section first, every
@@ -326,10 +326,10 @@ class TestTheRosterOrder:
         list."""
         from n26.tests.sandbox.actions import create_category, hire_with_option
 
-        vehicle = create_category("Gang List", "Vehicle", position=7)
+        brute = create_category("Gang List", "Brute", position=7)
         hanger_on = create_category("Supplementary Profiles", "Hanger-on", position=6)
         hire_with_option(
-            ranked_crew, make_profile("Vehicle entry", category=vehicle), "Truck"
+            ranked_crew, make_profile("Brute entry", category=brute), "Grond"
         )
         hire_with_option(
             ranked_crew, make_profile("Hanger-on entry", category=hanger_on), "Dok"
@@ -342,7 +342,34 @@ class TestTheRosterOrder:
             "Bob",
             "Wilma",
             "Dok",
-            "Truck",
+            "Grond",
+        ]
+
+    def test_vehicles_sort_after_every_fighter(
+        self, ranked_crew, make_profile, vehicle_type
+    ):
+        """A vehicle's category numbers it within its own section, and a
+        position that collides with a fighter rank's must not pull the
+        machine up among the crew: the Type puts every vehicle after
+        every fighter, whatever its category says."""
+        from n26.tests.sandbox.actions import create_category, hire_with_option
+
+        motor_pool = create_category("Vehicles", "Vehicle", position=0)
+        hire_with_option(
+            ranked_crew,
+            make_profile(
+                "Ridgehauler entry", category=motor_pool, profile_type=vehicle_type
+            ),
+            "Big Rig",
+        )
+
+        sheet = render_gang(ranked_crew)
+        assert [card.name for card in sheet.models] == [
+            "Zed",
+            "Ann",
+            "Bob",
+            "Wilma",
+            "Big Rig",
         ]
 
 
