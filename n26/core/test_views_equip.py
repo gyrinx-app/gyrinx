@@ -1498,3 +1498,34 @@ def test_the_figures_and_the_roster_line_stand_above_the_listing(
     assert f"{other.rating}\u00a2" in body
     # Vex is where the reader already is: named, marked, not a link.
     assert 'aria-current="page"' in body
+
+
+def test_a_gang_with_no_budget_is_offered_no_refund(
+    client, tester, gang, fighter, house_list
+):
+    """A gang founded without a budget never paid credits, so its owned rows
+    offer Remove alone — and a refund address, followed anyway, asks the
+    remove question rather than promising 0\u00a2 back."""
+    from n26.library.models import Wargear
+
+    sword = Wargear.objects.get(name="Sword")
+    client.force_login(tester)
+    client.post(equip_url(fighter, house_list), {"thing": key_of(sword)})
+
+    body = client.get(equip_url(fighter, house_list)).content.decode()
+    assert ">Refund<" in body  # budgeted: the act is offered
+
+    gang.starting_credits = None
+    gang.save(update_fields=["starting_credits"])
+    body = client.get(equip_url(fighter, house_list)).content.decode()
+    assert ">Refund<" not in body
+    assert ">Delete<" in body
+
+    owned = Assignment.objects.get(
+        miniature=fighter, parent__isnull=True, archived=False
+    )
+    asked = client.get(
+        f"{equip_url(fighter, house_list)}&refund={owned.pk}"
+    ).content.decode()
+    assert "Delete" in asked
+    assert "Refund" not in asked

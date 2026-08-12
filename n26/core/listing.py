@@ -379,11 +379,16 @@ def priced_row(line):
     )
 
 
-def copy_row(copy):
+def copy_row(copy, refunds=True):
     """One copy a fighter holds, with the acts it offers named and toned.
 
     Takes an :class:`n26.core.owned.OwnedThing`, which already knows where
     each of its controls leads; this says what each of them means.
+
+    ``refunds`` is whether Refund is offered at all. A gang founded
+    without a budget never paid credits, so there is nothing a refund
+    could give back — its rows offer Remove alone, exactly as its
+    fighter cards offer Delete without Refund.
     """
     return OwnedCopyRow(
         id=copy.id,
@@ -402,7 +407,11 @@ def copy_row(copy):
                 # the wrong gun. Removed rather than deleted, because what
                 # is left afterwards is still the fighter's gun.
                 more=(
-                    Action("Refund", LINK, part.refund_href, SECONDARY),
+                    *(
+                        (Action("Refund", LINK, part.refund_href, SECONDARY),)
+                        if refunds
+                        else ()
+                    ),
                     Action("Remove", LINK, part.remove_href, SECONDARY),
                 ),
             )
@@ -411,29 +420,36 @@ def copy_row(copy):
         sell=Action("Sell", LINK, copy.sell_href, DANGER),
         more=(
             Action("Reassign", LINK, copy.reassign_href, SECONDARY),
-            Action("Refund", LINK, copy.refund_href, SECONDARY),
+            *(
+                (Action("Refund", LINK, copy.refund_href, SECONDARY),)
+                if refunds
+                else ()
+            ),
             Action("Delete", LINK, copy.remove_href, SECONDARY),
         ),
     )
 
 
-def owned_row(row, copies):
+def owned_row(row, copies, refunds=True):
     """The same row, for a fighter who is carrying some of these."""
     return OwnedRow(
         key=row.key,
         name=row.name,
         count=len(copies),
-        copies=tuple(copy_row(copy) for copy in copies),
+        copies=tuple(copy_row(copy, refunds=refunds) for copy in copies),
         buy=row,
     )
 
 
-def build_listing(view, owned, name=None):
+def build_listing(view, owned, name=None, refunds=True):
     """A browsed collection joined to what one fighter already holds.
 
     ``owned`` is the index :func:`n26.core.owned.owned_things` returns,
     keyed the way rows are keyed — so the join is one dictionary read per
     row, however much the fighter is carrying and however long the list.
+
+    ``refunds`` rides down to every owned copy: a gang with no budget is
+    offered no Refund anywhere on the listing.
 
     Sections keep the order and the shape the browse gave them, with one
     substitution: a section the content left unnamed is called
@@ -448,7 +464,7 @@ def build_listing(view, owned, name=None):
             for line in category.lines:
                 row = priced_row(line)
                 copies = owned.get(row.key)
-                rows.append(owned_row(row, copies) if copies else row)
+                rows.append(owned_row(row, copies, refunds=refunds) if copies else row)
             drawn.categories.append(ListingCategory(name=category.name, rows=rows))
         listing.sections.append(drawn)
     return listing

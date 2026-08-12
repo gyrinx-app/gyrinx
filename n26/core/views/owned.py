@@ -120,6 +120,12 @@ def owned_dialog(request, card, *, at, miniature, gang):
     else:
         return None
 
+    # A gang founded without a budget never paid credits, so there is
+    # nothing a refund could give back: a refund address asks the remove
+    # question instead, exactly as the fighter-level flow answers.
+    if kind == "refund" and gang.credits_unlimited:
+        kind = "remove"
+
     assignment = _held(card, named)
     if assignment is None:
         return None
@@ -356,6 +362,10 @@ def refund_assignment(request, pk):
 
     assignment = _possession_or_404(request, pk)
     gang = assignment.gang_root
+    # No budget, no refund: the money never left a budget, so the act
+    # behind this address is the removal the dialog promised.
+    if gang.credits_unlimited:
+        return remove_assignment(request, pk)
     miniature = assignment.miniature_root
     name = str(assignment.assignable)
     _, paid = refund_of(assignment)

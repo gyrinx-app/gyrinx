@@ -407,7 +407,11 @@ def equip(request, pk):
     # the fighter holds. A row is a row for something on sale or a row for
     # something they are carrying, and which it is is the structure's
     # answer rather than a question the template asks of the card.
-    listing = build_listing(view, owned) if view is not None else None
+    listing = (
+        build_listing(view, owned, refunds=not gang.credits_unlimited)
+        if view is not None
+        else None
+    )
     sections = listing.sections if listing is not None else []
 
     # The sliders' ends are read off the browsed lines rather than the

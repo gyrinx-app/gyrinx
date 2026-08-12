@@ -247,6 +247,29 @@ class TestRefunding:
         assert sword.archived is True
         assert_reconciled(gang)
 
+    def test_a_gang_with_no_budget_is_answered_with_a_removal(
+        self, client, tester, gang, fighter, sword
+    ):
+        """No budget, no refund: the money never left a budget, so the
+        credits stay where they are and the thing simply goes — the same
+        degradation the fighter-level flow makes."""
+        gang.starting_credits = None
+        gang.save(update_fields=["starting_credits"])
+        with operation(gang, actor=tester) as op:
+            op.settle()
+        client.force_login(tester)
+        gang.refresh_from_db()
+        before = gang.credits
+
+        response = client.post(url("n26-refund", sword))
+
+        assert response.status_code == 302
+        gang.refresh_from_db()
+        assert gang.credits == before
+        sword.refresh_from_db()
+        assert sword.archived is True
+        assert_reconciled(gang)
+
     def test_a_gun_and_its_ammo_are_refunded_together(
         self, client, tester, gang, fighter
     ):
