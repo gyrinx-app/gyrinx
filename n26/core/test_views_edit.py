@@ -55,7 +55,7 @@ class TestTheModelsOwnPage:
         client.force_login(tester)
         body = client.get(edit_url(vex)).content.decode()
         assert "Vex" in body
-        assert "Edit model" in body
+        assert ">Edit<" in body
         assert reverse("n26-equip", args=[vex.pk]) in body
         assert "Save notes" in body
         # The gang's figures and the roster tally ride the header's far
@@ -68,7 +68,7 @@ class TestTheModelsOwnPage:
         two screens read as tabs of one page."""
         client.force_login(tester)
         body = client.get(reverse("n26-equip", args=[vex.pk])).content.decode()
-        assert "Edit model" in body
+        assert ">Edit<" in body
         assert edit_url(vex) in body
 
     def test_the_sheet_leads_here_and_offers_no_cards_item(

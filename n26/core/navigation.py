@@ -220,7 +220,7 @@ def model_screen_tabs(miniature, active):
 
     return [
         {
-            "label": "Edit model",
+            "label": "Edit",
             "href": reverse("n26-edit-fighter", args=[miniature.pk]),
             "current": active == "edit",
         },
