@@ -27,6 +27,13 @@ urlpatterns = [
     # The model's own page: the card with its edit affordances and the
     # owner's notes. Equip is the same header's second tab.
     path("fighters/<str:pk>/edit/", views.edit_fighter, name="n26-edit-fighter"),
+    # The options the model was hired with, reopened — the third of the
+    # model's own tabs.
+    path(
+        "fighters/<str:pk>/options/",
+        views.fighter_options,
+        name="n26-fighter-options",
+    ),
     path("fighters/<str:pk>/rename/", views.rename_fighter, name="n26-rename-fighter"),
     path("fighters/<str:pk>/delete/", views.delete_fighter, name="n26-delete-fighter"),
     path("fighters/<str:pk>/refund/", views.refund_fighter, name="n26-refund-fighter"),

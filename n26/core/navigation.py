@@ -197,6 +197,7 @@ def gang_switcher(request, gang, named=True, menu_label="Switch to another gang"
 FIGHTER_SCREENS = {
     "n26-edit-fighter": "Edit another model",
     "n26-equip": "Equip another fighter",
+    "n26-fighter-options": "Options for another fighter",
     "n26-learn": "Pick skills for another fighter",
 }
 
@@ -228,6 +229,11 @@ def model_screen_tabs(miniature, active):
             "label": "Equip",
             "href": reverse("n26-equip", args=[miniature.pk]),
             "current": active == "equip",
+        },
+        {
+            "label": "Options",
+            "href": reverse("n26-fighter-options", args=[miniature.pk]),
+            "current": active == "options",
         },
     ]
 

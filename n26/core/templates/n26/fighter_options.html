@@ -1,0 +1,106 @@
+{% extends "n26/layouts/base.html" %}
+{% load navigation %}
+{% comment %}
+One model's own page, Options face — the choices the hire row offered,
+reopened. The groups draw exactly as the hire row drew them, checked from
+what the model currently takes, and Save hands the picks to op.rechoose:
+the price difference lands on the hire's own line in either direction.
+{% endcomment %}
+{% block head_title %}{{ miniature.name }} options{% endblock head_title %}
+{% block nav_switcher %}
+    {% gang_switcher gang as gang_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="gang_switcher_" hotkey="f" />
+{% endblock nav_switcher %}
+{% block nav_items %}
+    {% include 'n26/_nav.html' with here='gangs' %}
+{% endblock %}
+{% block content %}
+    <c-n26.model-header :miniature="miniature" lead="{{ role }}" active="options">
+        <c-slot name="switcher">
+            {% fighter_switcher gang miniature as fighter_switcher_ %}
+            <c-n26.quick-switcher.of :switcher="fighter_switcher_" hotkey="r" />
+        </c-slot>
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item>
+                    <c-n26.user-link :user="gang.owner" tone="current" href="{% url 'n26-dashboard' %}" />
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'n26-gang' gang.pk %}">{{ gang.name }}</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    {{ miniature.name }}
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        <c-slot name="actions">
+            <c-n26.gang-figures :gang="gang" :count="roster_count" />
+            <c-n26.roster-summary :summary="summary" />
+        </c-slot>
+    </c-n26.model-header>
+    <div class="mt-4 grid auto-rows-min grid-cols-1 gap-4 md:grid-cols-2">
+        <c-ui.card>
+            <c-slot name="header">
+                <span class="font-semibold">Options</span>
+            </c-slot>
+            {% if groups %}
+                <form method="post" action="{{ options_url }}">
+                    {% csrf_token %}
+                    <div class="flex flex-col gap-1">
+                        {% for group in groups %}
+                            {% comment %}
+                            The same words the hire row says over its second and
+                            later sets, over every set here: this page has no
+                            fighter row above it doing the introducing.
+                            {% endcomment %}
+                            <div class="{% if not forloop.first %}mt-2 border-t border-box-border pt-3{% endif %} flex min-h-6 items-center gap-2">
+                                <span class="text-xs font-semibold uppercase tracking-wide text-muted">
+                                    {% if group.choose == "one" %}
+                                        Choose one
+                                    {% elif group.choose == "any" %}
+                                        Choose any
+                                    {% else %}
+                                        Choose one, or none
+                                    {% endif %}
+                                </span>
+                            </div>
+                            {% for option in group.options %}
+                                <label class="flex min-h-9 cursor-pointer items-center gap-2 rounded-control py-0.5 hover:bg-ink-500/5">
+                                    <input type="{% if group.choose == 'any' %}checkbox{% else %}radio{% endif %}"
+                                           name="{{ field_scope }}:{{ group.index }}"
+                                           value="{{ option.value }}"
+                                           {% if option.checked %}checked{% endif %}
+                                           class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
+                                    <span class="min-w-0 text-sm text-ink-900 dark:text-ink-100">{{ option.name }}</span>
+                                    {% if option.price %}
+                                        <span class="shrink-0 text-xs text-muted">+{{ option.price }}¢</span>
+                                    {% endif %}
+                                </label>
+                            {% endfor %}
+                            {% if group.choose == "one-or-none" %}
+                                <label class="flex min-h-9 cursor-pointer items-center gap-2 rounded-control py-0.5 hover:bg-ink-500/5">
+                                    <input type="radio"
+                                           name="{{ field_scope }}:{{ group.index }}"
+                                           value=""
+                                           {% if group.none_checked %}checked{% endif %}
+                                           class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
+                                    <span class="min-w-0 text-sm text-ink-900 dark:text-ink-100">None</span>
+                                </label>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                    {% comment %}
+                    Save is green because it ends the form; what it charges
+                    or returns is the ledger's answer, quoted back in the
+                    confirmation rather than promised here.
+                    {% endcomment %}
+                    <div class="mt-3 flex justify-end">
+                        <c-ui.button type="submit" variant="success" size="sm">
+                            Save options
+                        </c-ui.button>
+                    </div>
+                </form>
+            {% else %}
+                <p class="text-muted">{{ miniature.name }}'s profile offers no options to choose.</p>
+            {% endif %}
+        </c-ui.card>
+    </div>
+{% endblock content %}
