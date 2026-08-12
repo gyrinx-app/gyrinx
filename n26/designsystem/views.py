@@ -142,6 +142,21 @@ def print_sheet(request):
     )
 
 
+def sample_fragment(request):
+    """A fragment for the deferred component's demo to fetch.
+
+    The sample model card, served bare — no doctype, no shell — which is
+    the contract a deferred call site's endpoint has to meet. It exists
+    so the demo demonstrates a real fetch rather than describing one,
+    and it renders from sample data because every gallery page must.
+    """
+    return render(
+        request,
+        "n26/hire_card.html",
+        {"card": sampledata.model_card()},
+    )
+
+
 def view_preview(request, slug):
     """One view, at real width, with none of the gallery around it.
 

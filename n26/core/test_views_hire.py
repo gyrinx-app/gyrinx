@@ -88,6 +88,71 @@ def test_the_list_draws_with_prices(client, tester, gang, ganger):
     assert "55" in body
 
 
+def card_url(gang, profile):
+    return reverse("n26-hire-card", args=[gang.pk, profile.pk])
+
+
+def test_the_list_ships_no_cards_and_says_where_each_lives(
+    client, tester, gang, ganger
+):
+    """A drawn card is most of a row's weight and almost nobody opens
+    most of them, so the page carries each option's card *address* and
+    fetches it on the first open. What must not be on the page is the
+    card itself — its statline is the marker, because nothing else on
+    the list draws one."""
+    client.force_login(tester)
+    body = client.get(hire_url(gang)).content.decode()
+    assert card_url(gang, ganger) in body
+    assert "Weapon Skill" not in body
+
+
+def test_a_cards_fragment_is_the_card_itself(client, tester, gang, ganger):
+    client.force_login(tester)
+    body = client.get(card_url(gang, ganger)).content.decode()
+    assert "Ganger" in body
+    assert "Weapon Skill" in body
+    assert "<!DOCTYPE" not in body
+
+
+def test_the_fragment_draws_the_option_it_is_asked_for(
+    client, tester, gang, ganger, armament
+):
+    """The card behind the chainsword option carries the chainsword,
+    and the default card does not — each fragment is the card that
+    exact pick would produce."""
+    from n26.library.authoring import create_weapon
+    from n26.library.models import DefaultAssignment
+
+    plain, fancy = armament
+    sword = create_weapon("Chainsword", profiles=[("Standard", 0)], price=25)
+    DefaultAssignment.objects.create(default_set=fancy, assignable=sword, position=0)
+
+    client.force_login(tester)
+    fancy_body = client.get(
+        f"{card_url(gang, ganger)}?option={fancy.pk}"
+    ).content.decode()
+    default_body = client.get(card_url(gang, ganger)).content.decode()
+    assert "Chainsword" in fancy_body
+    assert "Chainsword" not in default_body
+
+
+def test_an_option_the_profile_does_not_offer_is_a_broken_link(
+    client, tester, gang, ganger
+):
+    stray = DefaultAssignmentSet.objects.create(name="Someone else's", price=10)
+    client.force_login(tester)
+    response = client.get(f"{card_url(gang, ganger)}?option={stray.pk}")
+    assert response.status_code == 404
+
+
+def test_someone_elses_gang_serves_no_cards(client, gang, ganger):
+    from django.contrib.auth.models import User
+
+    stranger = User.objects.create_user("stranger", is_staff=True)
+    client.force_login(stranger)
+    assert client.get(card_url(gang, ganger)).status_code == 404
+
+
 def test_the_other_scopes_are_offered_to_the_browser_early(
     client, tester, gang, ganger
 ):

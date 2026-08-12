@@ -1,0 +1,20 @@
+{# title: Fetched when first seen #}
+{# note: The card below is not in this page's HTML — open the disclosure and the fragment is fetched, once, and kept. The pulse holds a card's worth of height while it arrives, so the open never lands as a sliver and then jumps. Cut the network in devtools and open it to see the failure state: a plain retry, because a blank would read as the row having no detail at all. #}
+{# layout: col #}
+<div x-data="{ expanded: false }">
+    <button type="button"
+            @click="expanded = !expanded"
+            :aria-expanded="expanded"
+            class="rounded-control px-2 py-1 text-sm text-accent-text hover:underline focus-ring">
+        <span x-text="expanded ? 'Hide the card' : 'Show the card'">Show the card</span>
+    </button>
+    {% comment %}
+    The x-if is the whole trick: the deferred fetches on its own init,
+    and the template holds init back until the reader asks.
+    {% endcomment %}
+    <template x-if="expanded">
+        <div class="mt-2 max-w-md">
+            <c-n26.deferred url="{% url 'designsystem:sample_fragment' %}" />
+        </div>
+    </template>
+</div>

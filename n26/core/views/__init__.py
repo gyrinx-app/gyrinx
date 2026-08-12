@@ -27,7 +27,7 @@ from n26.core.views.gangs import (
     refund_fighter,
     rename_fighter,
 )
-from n26.core.views.hire import hire_fighter
+from n26.core.views.hire import hire_card, hire_fighter
 from n26.core.views.learn import learn
 from n26.core.views.options import fighter_options
 from n26.core.views.owned import (
@@ -50,6 +50,7 @@ __all__ = [
     "fighter_options",
     "gang_sheet",
     "gangs",
+    "hire_card",
     "hire_fighter",
     "learn",
     "preview_view",

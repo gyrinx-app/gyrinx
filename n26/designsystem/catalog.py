@@ -956,6 +956,30 @@ GROUPS: list[Group] = [
                 ),
             ),
             Component(
+                slug="deferred",
+                tag="c-n26.deferred",
+                template="n26/deferred.html",
+                summary=(
+                    "A fragment fetched when first needed, instead of shipped "
+                    "with the page."
+                ),
+                needs=(ALPINE,),
+                notes=(
+                    "For the heavy tail of a page: detail behind a disclosure "
+                    "that most readers never open. A hire list prices hundreds "
+                    "of options, and shipping every option's drawn card makes "
+                    "the document megabytes and the render minutes — where a "
+                    "card fetched on the first open costs one small request, "
+                    "for exactly the rows somebody reads. The fetch happens on "
+                    "this component's own init, so the call site chooses the "
+                    "moment by placement: inside a template x-if it fetches "
+                    "when the template first instantiates. The alternative — "
+                    "an IntersectionObserver watching for visibility — answers "
+                    "a different question (near the viewport, not asked for) "
+                    "and fires for everything as a reader scrolls a long list."
+                ),
+            ),
+            Component(
                 slug="collection-picker",
                 tag="c-n26.collection-picker",
                 template="n26/collection_picker/index.html",

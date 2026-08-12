@@ -44,10 +44,17 @@ class HireOption:
     #: What the hire costs with this option taken and all else default.
     total_price: int
     is_default: bool
-    card: ModelCard
+    #: None when the caller asked for a list without drawn cards — a
+    #: page that fetches each card on demand instead of shipping every
+    #: one. ``preview_model_card`` is the single card such a page serves.
+    card: ModelCard | None
     #: None when the profile offers no alternatives and this is the
     #: synthesised standard one.
     default_set: object = None
+    #: Where a drawn card for exactly this option can be fetched, when
+    #: the surface serves them on demand. A display address, so the view
+    #: that knows its URLs fills it in; empty means the card is inline.
+    card_url: str = ""
 
 
 @dataclass
@@ -140,11 +147,17 @@ class HireSection:
             yield from category.entries
 
 
-def build_hire_entry(profile, index=None):
+def build_hire_entry(profile, index=None, with_cards=True):
     """Every set of this profile's options, each with the card you'd get.
 
     Pass ``index`` to share one modifier index across a whole list; without
     one it is built here, for a single entry.
+
+    ``with_cards=False`` prices the options without drawing their cards —
+    the internal cards are still built, because an option's total is its
+    card's rating, but nothing runs the effects engine or shapes a
+    ``ModelCard`` for a card the caller will not show. A surface that
+    serves cards on demand asks ``preview_model_card`` for each instead.
     """
     grouped = profile.grouped_offers()
     if not grouped or grouped[0][0] is not None:
@@ -158,12 +171,14 @@ def build_hire_entry(profile, index=None):
                 profile, option=option.default_set
             )
 
-    if index is None:
+    if with_cards and index is None:
         index = build_modifier_index(
             [node.assignable for card in cards.values() for node in card.all_nodes()]
         )
 
     def drawn(card):
+        if not with_cards:
+            return None
         return card_to_model_card(
             card, computed=compute(card, index), name=profile.name
         )
@@ -202,33 +217,50 @@ def build_hire_entry(profile, index=None):
     return HireEntry(profile=profile, groups=groups)
 
 
-def build_hire_list(gang_type):
+def build_hire_list(gang_type, with_cards=True):
     """Every profile a gang of this type could hire — the whole screen.
 
     A fixed number of queries however many profiles there are: the content
     is fetched in one pass, one modifier index covers every card, and the
     cards themselves are assembled in memory.
     """
-    return build_entries(list(hireable_profiles(gang_type)))
+    return build_entries(list(hireable_profiles(gang_type)), with_cards=with_cards)
 
 
-def build_entries(profiles):
+def build_entries(profiles, with_cards=True):
     """Hire entries for profiles already fetched — the shared build.
 
     The scopes differ only in which profiles they fetch; everything
     after the fetch is this."""
-    cards = []
-    for profile in profiles:
-        cards.append(build_card_from_profile(profile))
-        for _, sets in profile.grouped_options():
-            cards.extend(
-                build_card_from_profile(profile, option=default_set)
-                for default_set in sets
-            )
-    index = build_modifier_index(
-        [node.assignable for card in cards for node in card.all_nodes()]
-    )
-    return [build_hire_entry(profile, index=index) for profile in profiles]
+    index = None
+    if with_cards:
+        cards = []
+        for profile in profiles:
+            cards.append(build_card_from_profile(profile))
+            for _, sets in profile.grouped_options():
+                cards.extend(
+                    build_card_from_profile(profile, option=default_set)
+                    for default_set in sets
+                )
+        index = build_modifier_index(
+            [node.assignable for card in cards for node in card.all_nodes()]
+        )
+    return [
+        build_hire_entry(profile, index=index, with_cards=with_cards)
+        for profile in profiles
+    ]
+
+
+def preview_model_card(profile, option=None):
+    """The drawn card one option's row shows — built alone.
+
+    The single card a hire page serves on demand, and the same
+    derivation ``build_hire_entry`` draws inline: the card an option
+    would produce, its effects computed, shaped for a renderer.
+    """
+    card = build_card_from_profile(profile, option=option)
+    index = build_modifier_index([node.assignable for node in card.all_nodes()])
+    return card_to_model_card(card, computed=compute(card, index), name=profile.name)
 
 
 def section_hire_list(entries):

@@ -163,6 +163,75 @@ def _dialog(request, profile, picks, scope="gang"):
     }
 
 
+def _link_cards(gang, hire_list):
+    """Point every option at the address its drawn card is served from.
+
+    URLs are the view's business, so the structure is decorated here the
+    way the gang sheet's choice slots are pointed at their pickers — the
+    build stays free of routing, and a surface with no card endpoint (the
+    gallery's sample rows) simply leaves ``card_url`` empty and carries
+    its cards inline.
+    """
+    from django.urls import reverse
+
+    for section in hire_list:
+        for entry in section.all_entries():
+            base = reverse("n26-hire-card", args=[gang.pk, entry.profile.pk])
+            for group in entry.groups:
+                for option in group.options:
+                    if option.default_set is not None:
+                        option.card_url = (
+                            f"{base}?{urlencode({'option': option.default_set.pk})}"
+                        )
+                    else:
+                        option.card_url = base
+
+
+@login_required
+def hire_card(request, pk, profile):
+    """One option's preview card, served alone.
+
+    The hire list prices every option but draws no cards; each is
+    fetched from here the first time a reader opens its row. ``?option=``
+    names the set the card is taken with; without one the card is the
+    default hire. The response is a fragment for the page to place, and
+    it is cacheable — the card is derived from library content alone, the
+    same for every gang, so a reopened disclosure costs no second build.
+    """
+    from django.shortcuts import get_object_or_404
+    from django.utils.cache import patch_cache_control
+
+    from n26.core.hire import preview_model_card
+    from n26.library.models import Profile
+
+    _own_gang_or_404(request, pk)
+    found = get_object_or_404(Profile, pk=profile)
+
+    option = None
+    named = request.GET.get("option")
+    if named:
+        option = next(
+            (
+                offer.default_set
+                for offer in found.options.select_related("default_set")
+                if str(offer.default_set.pk) == named
+            ),
+            None,
+        )
+        if option is None:
+            # Not one of this profile's own offers — a stale or tampered
+            # address, answered like any other broken link.
+            raise Http404("No such option")
+
+    response = render(
+        request,
+        "n26/hire_card.html",
+        {"card": preview_model_card(found, option=option)},
+    )
+    patch_cache_control(response, private=True, max_age=300)
+    return response
+
+
 @login_required
 def hire_fighter(request, pk):
     """The gang list, and the dialog that turns a press into a fighter.
@@ -293,12 +362,21 @@ def hire_fighter(request, pk):
     # draws what the structure says rather than assembling headings of
     # its own, so what a tab is called and what a heading is called are
     # one answer.
+    # Priced, but with no cards drawn: a card is most of a row's weight
+    # and almost nobody opens most of them, so each is fetched from
+    # ``hire_card`` the first time its disclosure opens instead of every
+    # one being built into and shipped with the page.
     if scope == "supplementary":
-        hire_list = section_hire_list(build_entries(list(supplementary_profiles())))
+        hire_list = section_hire_list(
+            build_entries(list(supplementary_profiles()), with_cards=False)
+        )
     elif scope == "all":
-        hire_list = section_by_gang_type(build_entries(list(hireable_profiles())))
+        hire_list = section_by_gang_type(
+            build_entries(list(hireable_profiles()), with_cards=False)
+        )
     else:
-        hire_list = section_hire_list(build_hire_list(gang.gang_type))
+        hire_list = section_hire_list(build_hire_list(gang.gang_type, with_cards=False))
+    _link_cards(gang, hire_list)
     prices = [
         entry.base_price for section in hire_list for entry in section.all_entries()
     ]
