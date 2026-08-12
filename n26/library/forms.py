@@ -66,6 +66,7 @@ EFFECT_MODELS = {
     "ef_adds": "AddsAssignable",
     "ef_removes": "RemovesAssignable",
     "ef_changes_stat": "ChangesStat",
+    "ef_changes_category": "ChangesCategory",
     "ef_offers_choice": "OffersChoice",
     "ef_places": "PlacesCategory",
     "ef_places_choice": "PlacesCategory",
@@ -834,6 +835,95 @@ def _effect_choices():
         for name in specs()
         if name.startswith(("ef_", "op_"))
     ]
+
+
+#: What each effect verb can ever apply to — the kind pickers' own copy
+#: of the models' ``accepts()``, for greying an effect card the moment a
+#: scope is picked. Stated rather than derived, because ``ef_adds`` and
+#: ``ef_removes`` reach a weapon's line only through a trait, which a
+#: bare instance's ``accepts()`` cannot see; a drift test holds the rest
+#: of the table to the models.
+EFFECT_CAN_TARGET = {
+    "ef_adds": ("model", "weapon_profile"),
+    "ef_removes": ("model", "weapon_profile"),
+    "ef_changes_stat": ("model", "weapon_profile"),
+    "ef_changes_category": ("model",),
+    "ef_offers_choice": ("model", "gang"),
+    "ef_places": ("model",),
+    "ef_places_choice": ("model",),
+    "ef_requires_companions": ("gang",),
+    "op_adds_model": ("model", "gang"),
+    "op_changes_counter": ("model", "gang"),
+}
+
+#: The target kinds as an author reads them, for a greyed card's reason.
+_TARGET_WORDS = {
+    "model": "a model",
+    "weapon_profile": "a weapon",
+    "gang": "the gang",
+}
+
+
+def scope_kind_cards(picked="", carrier=None):
+    """The WHO picker as cards: label, blurb and example off each verb's
+    spec, plus what the scope produces (for the client-side effect gate)
+    and — when the composer hangs on a carrier — whether this scope can
+    ever speak for it. "The weapon it's fitted to" is greyed on anything
+    that is never bolted to a weapon, with the reason on the card.
+    """
+    cards = []
+    for name in specs():
+        if not name.startswith("targets_"):
+            continue
+        spec = specs()[name]
+        disabled, reason = False, ""
+        if (
+            name == "targets_attached_weapon"
+            and carrier is not None
+            and not getattr(carrier, "attaches_to_weapons", False)
+        ):
+            disabled = True
+            reason = f"A {carrier._meta.verbose_name} is never fitted to a weapon."
+        cards.append(
+            {
+                "value": name,
+                "label": _verb_label(name, SCOPE_MODELS.get(name)),
+                "blurb": spec.blurb,
+                "example": spec.example,
+                "produces": SCOPE_PRODUCES[name],
+                "checked": name == picked,
+                "disabled": disabled,
+                "reason": reason,
+            }
+        )
+    return cards
+
+
+def effect_kind_cards(picked=""):
+    """The WHAT picker as cards, each carrying the target kinds it can
+    apply to — the client greys it the moment the picked scope produces
+    something outside them, and the compose submit refuses the pair in
+    words either way."""
+    cards = []
+    for name in specs():
+        if not name.startswith(("ef_", "op_")):
+            continue
+        spec = specs()[name]
+        can = EFFECT_CAN_TARGET[name]
+        cards.append(
+            {
+                "value": name,
+                "label": _verb_label(name, EFFECT_MODELS.get(name)),
+                "blurb": spec.blurb,
+                "example": spec.example,
+                "accepts": " ".join(can),
+                "reason": "Applies to "
+                + " or ".join(_TARGET_WORDS[kind] for kind in can)
+                + ".",
+                "checked": name == picked,
+            }
+        )
+    return cards
 
 
 class ModifierComposerForm(forms.Form):

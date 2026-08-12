@@ -345,6 +345,35 @@ class TestTheRosterOrder:
             "Grond",
         ]
 
+    def test_a_rule_may_refile_a_model(self, ranked_crew, ranks, make_profile):
+        """A ganger selected as the gang's Leader sorts with the Leaders,
+        whatever their entry says: the re-filing is computed off the
+        card like any other fact, and goes if its carrier goes."""
+        from n26.core.models import Miniature
+        from n26.tests.sandbox.actions import (
+            assign,
+            create_subtype,
+            ef_changes_category,
+            remove,
+        )
+
+        chosen = create_subtype("Chosen Leader")
+        modifier(
+            "The chosen one leads",
+            targets_model(),
+            ef_changes_category(ranks["Leader"]),
+            carried_by=chosen,
+        )
+        wilma = Miniature.objects.get(name="Wilma")
+        carrier = assign(chosen, miniature=wilma)
+
+        sheet = render_gang(ranked_crew)
+        assert [card.name for card in sheet.models] == ["Wilma", "Zed", "Ann", "Bob"]
+
+        remove(carrier)
+        sheet = render_gang(ranked_crew)
+        assert [card.name for card in sheet.models] == ["Zed", "Ann", "Bob", "Wilma"]
+
     def test_vehicles_sort_after_every_fighter(
         self, ranked_crew, make_profile, vehicle_type
     ):

@@ -1202,6 +1202,14 @@ def ef_offers_choice(model, from_section=None, label="", answer_host="bearer"):
     )
 
 
+def ef_changes_category(category):
+    """The bearer sorts under this category's heading on the gang sheet —
+    ``ef_changes_category(leaders)`` for a fighter selected as Leader."""
+    from n26.library.models import ChangesCategory
+
+    return ChangesCategory.objects.create(category=category)
+
+
 def ef_places(category, section):
     """For the bearer, that set sits under this tier of the section's
     collection — ``ef_places(powers, skills_primary)``."""

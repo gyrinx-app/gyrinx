@@ -191,6 +191,12 @@ class Assignable(models.Model):
     #: bespoke handling.
     card_row = None
 
+    #: Whether rows of this kind hang off a weapon's own row — what makes
+    #: "the weapon it's fitted to" a scope this kind's modifiers can
+    #: speak. The composer greys that scope on everything else, with the
+    #: reason on the card.
+    attaches_to_weapons = False
+
     class Meta:
         abstract = True
 
@@ -529,6 +535,7 @@ class WeaponAccessory(Content, Assignable, UsableBy):
     """
 
     family = Family.GEAR
+    attaches_to_weapons = True
 
     fits_category = models.ForeignKey(
         "library.Category",
@@ -667,6 +674,7 @@ class WeaponProfile(Content, Assignable):
     extra ammo type is an assignment hung off the weapon's assignment."""
 
     family = Family.GEAR
+    attaches_to_weapons = True
 
     #: Overrides the mixin's: most profiles have no name of their own.
     #: The book prints the weapon's first line as the weapon — "Autogun"

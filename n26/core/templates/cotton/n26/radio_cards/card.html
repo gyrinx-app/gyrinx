@@ -28,6 +28,17 @@ them does not look like a question.
     it is whatever came back.
   label — the option's name.
   description — the muted line under it. Optional.
+  wrap — let the description run to several lines instead of truncating.
+    A gang type's one-line detail wants the ellipsis; a sentence
+    explaining a verb wants to be read whole.
+  example — a concrete case, revealed by hovering the small icon after
+    the description. CSS-only, so it works before and without script;
+    also the icon's title, so a touch reader gets the browser's own
+    fallback. Optional.
+  disabled — the option cannot be picked here: the radio is disabled and
+    the card dims. The server decides, exactly as it decides checked.
+  reason — the sentence saying why, drawn on a disabled card in the
+    description's place. A greyed option with no reason reads as broken.
   flair — a badge after the label, sized in em by <c-n26.flair-link>. Optional.
   meta — a slot at the far end of the header: a price, a count. Optional.
 {% endcomment %}
@@ -37,6 +48,10 @@ them does not look like a question.
     :checked="False"
     label=""
     description=""
+    :wrap="False"
+    example=""
+    :disabled="False"
+    reason=""
     flair=""
     meta=""
     class=""
@@ -49,14 +64,16 @@ correct if none ever does. The accent border and tint are the kit's checkbox-car
 presentation, so a form using both reads as one family.
 {% endcomment %}
 <label {{ attrs }}
-       class="flex cursor-pointer items-start gap-3 rounded-box border-2 border-ink-200 p-4
-              transition-[background-color,border-color] hover:bg-ink-500/5
+       class="flex items-start gap-3 rounded-box border-2 border-ink-200 p-4
+              transition-[background-color,border-color]
+              {% if disabled %}cursor-not-allowed opacity-50{% else %}cursor-pointer hover:bg-ink-500/5{% endif %}
               has-[:checked]:border-accent has-[:checked]:bg-accent/5
               dark:border-ink-700 {{ class }}">
     <input type="radio"
            name="{{ name }}"
            value="{{ value }}"
            {% if checked %}checked{% endif %}
+           {% if disabled %}disabled{% endif %}
            class="mt-0.5 size-5 shrink-0 accent-[var(--color-accent)] focus-ring">
     <span class="min-w-0 flex-1">
         {% comment %}
@@ -66,7 +83,24 @@ presentation, so a form using both reads as one family.
         tone="current" because the card's title has already picked its colour.
         {% endcomment %}
         <span class="block truncate text-base font-semibold text-ink-900 dark:text-ink-100"><c-n26.flair-link text="{{ label }}" tone="current">{{ flair }}</c-n26.flair-link></span>
-        {% if description %}<span class="block truncate text-muted">{{ description }}</span>{% endif %}
+        {% if disabled and reason %}
+            <span class="block text-muted">{{ reason }}</span>
+        {% elif description %}
+            <span class="block {% if not wrap %}truncate{% endif %} text-muted">{{ description }}</span>
+        {% endif %}
+        {% if example and not disabled %}
+            {% comment %}
+            The example, behind a small icon rather than on the card:
+            ten cards each carrying three sentences is a wall, and the
+            example is for the moment of doubt, not every read. Shown on
+            hover or keyboard focus with no script — and set as the
+            icon's title too, so a touch gets the browser's own tooltip.
+            {% endcomment %}
+            <span class="group/eg relative mt-1 inline-flex" tabindex="0" title="{{ example }}">
+                <c-n26.icon name="information-circle" class="size-4 text-muted" />
+                <span class="pointer-events-none absolute bottom-full left-0 z-30 mb-1.5 hidden w-72 max-w-[70vw] rounded-control border border-[color:var(--color-box-border)] bg-white p-2.5 text-xs font-normal text-ink-900 shadow-lg group-focus-within/eg:block group-hover/eg:block dark:bg-ink-900 dark:text-ink-100">{{ example }}</span>
+            </span>
+        {% endif %}
     </span>
     {% if meta %}{{ meta }}{% endif %}
 </label>

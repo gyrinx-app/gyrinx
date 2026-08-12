@@ -72,18 +72,64 @@ leaves one out gets a section with no heading.
     that only became pressable once Alpine had run would leave the
     composer with no first step at all.
     {% endcomment %}
+    {% comment %}
+    The two kinds are cards, not selects: each carries its own one-line
+    explanation and a hover example, because the names alone ("Puts the
+    player's choice into a section") assume machinery an author should
+    not have to hold in their head. Native radios under the same field
+    names the selects answered to, so the server reads nothing new.
+
+    Two gates grey cards rather than hiding them — a vanished option
+    reads as a bug, a greyed one with a reason teaches the model:
+    * the carrier gate is the server's ("a skill is never fitted to a
+      weapon"), drawn as a disabled card with the reason on it;
+    * the scope gate is the client's — picking a scope dims every effect
+      that cannot apply to what it produces, and unchecks one already
+      picked. With no script nothing dims, and the compose submit
+      refuses an impossible pair in words either way.
+    {% endcomment %}
     <form method="get"
           {% if composer_action %}action="{{ composer_action }}"{% endif %}
-          class="max-w-xl space-y-4"
-          x-data="{ moved: false, served: '{{ composer_scope|escapejs }}|{{ composer_effect|escapejs }}', kinds() { const scope = document.getElementById('{{ kind_picker.scope_kind.auto_id }}'); const effect = document.getElementById('{{ kind_picker.effect_kind.auto_id }}'); return (scope ? scope.value : '') + '|' + (effect ? effect.value : ''); } }"
-          x-init="moved = kinds() !== served"
-          @change="moved = kinds() !== served">
+          class="space-y-4"
+          x-data="{ moved: false, served: '{{ composer_scope|escapejs }}|{{ composer_effect|escapejs }}', produces: '', pick(name) { const el = this.$root.querySelector('input[name=' + name + ']:checked'); return el ? el.value : ''; }, kinds() { return this.pick('scope_kind') + '|' + this.pick('effect_kind'); }, allowed(accepts) { return !this.produces || accepts.split(' ').includes(this.produces); }, sync() { const scope = this.$root.querySelector('input[name=scope_kind]:checked'); this.produces = scope ? ((scope.closest('[data-produces]') || {dataset:{}}).dataset.produces || '') : ''; const effect = this.$root.querySelector('input[name=effect_kind]:checked'); if (effect && !this.allowed((effect.closest('[data-accepts]') || {dataset:{}}).dataset.accepts || '')) { effect.checked = false; } this.moved = this.kinds() !== this.served; } }"
+          x-init="sync()"
+          @change="sync()">
         {% if composer_carrier_pk %}
             <input type="hidden" name="for_kind" value="{{ composer_carrier_kind }}">
             <input type="hidden" name="for" value="{{ composer_carrier_pk }}">
         {% endif %}
-        {% include "authoring/_field.html" with form=kind_picker field=kind_picker.scope_kind %}
-        {% include "authoring/_field.html" with form=kind_picker field=kind_picker.effect_kind %}
+        <c-n26.radio-cards label="{{ kind_picker.scope_kind.label }}" min="15rem">
+            {% for card in scope_cards %}
+                <div data-produces="{{ card.produces }}">
+                    <c-n26.radio-cards.card name="scope_kind"
+                                            value="{{ card.value }}"
+                                            label="{{ card.label }}"
+                                            description="{{ card.blurb }}"
+                                            example="{{ card.example }}"
+                                            reason="{{ card.reason }}"
+                                            :wrap="True"
+                                            :checked="card.checked"
+                                            :disabled="card.disabled"
+                                            class="h-full" />
+                </div>
+            {% endfor %}
+        </c-n26.radio-cards>
+        <c-n26.radio-cards label="{{ kind_picker.effect_kind.label }}" min="15rem">
+            {% for card in effect_cards %}
+                <div data-accepts="{{ card.accepts }}"
+                     :class="allowed('{{ card.accepts }}') ? '' : 'pointer-events-none opacity-40'"
+                     :aria-disabled="allowed('{{ card.accepts }}') ? 'false' : 'true'">
+                    <c-n26.radio-cards.card name="effect_kind"
+                                            value="{{ card.value }}"
+                                            label="{{ card.label }}"
+                                            description="{{ card.blurb }}"
+                                            example="{{ card.example }}"
+                                            :wrap="True"
+                                            :checked="card.checked"
+                                            class="h-full" />
+                </div>
+            {% endfor %}
+        </c-n26.radio-cards>
         {% comment %}
         Small, and worded by the caller like the submit below it: on a
         carrier's page the reader is starting a modifier from nothing,

@@ -46,6 +46,7 @@ from n26.library.authoring import (  # noqa: F401 — re-exported for the suites
     create_weapon,
     create_weapon_accessory,
     ef_adds,
+    ef_changes_category,
     ef_changes_stat,
     ef_offers_choice,
     ef_places,

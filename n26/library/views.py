@@ -1515,6 +1515,8 @@ def _composer_state(request, attach_to=None, bound_composer=None):
         else:
             composer = ModifierComposerForm.carried(carried, attach_to=attach_to)
 
+    from n26.library.forms import effect_kind_cards, scope_kind_cards
+
     return {
         "kind_picker": ModifierComposerForm(
             initial={"scope_kind": scope_kind, "effect_kind": effect_kind}
@@ -1523,6 +1525,12 @@ def _composer_state(request, attach_to=None, bound_composer=None):
         "composer_scope": scope_kind,
         "composer_effect": effect_kind,
         "composer_chips": chips,
+        # The two kind pickers as cards: each carries its own blurb and
+        # example, what it produces or applies to (the client-side gate),
+        # and — where the composer hangs on a carrier — whether it can
+        # ever speak for it.
+        "scope_cards": scope_kind_cards(picked=scope_kind, carrier=attach_to),
+        "effect_cards": effect_kind_cards(picked=effect_kind),
         "add_condition_href": _one_more_chip(request, chips, scope_kind, effect_kind),
     }
 

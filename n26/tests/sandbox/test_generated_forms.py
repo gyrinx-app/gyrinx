@@ -86,6 +86,30 @@ class TestTheTablesDontDrift:
         effect_verbs = {name for name in specs() if name.startswith(("ef_", "op_"))}
         assert set(EFFECT_MODELS) == effect_verbs
 
+    def test_effect_targets_match_the_models(self):
+        """EFFECT_CAN_TARGET mirrors each effect model's ``accepts()``.
+        ef_adds and ef_removes are stated by hand — a bare instance
+        cannot show the trait path onto a weapon's line — so they are
+        checked as the union of a bare instance and a trait-shaped one
+        (``trait_id`` set raw: accepts reads the id, no row needed)."""
+        from n26.library.forms import EFFECT_CAN_TARGET, EFFECT_MODELS, _model_class
+
+        effect_verbs = {name for name in specs() if name.startswith(("ef_", "op_"))}
+        assert set(EFFECT_CAN_TARGET) == effect_verbs
+
+        for verb, kinds in EFFECT_CAN_TARGET.items():
+            model = _model_class(EFFECT_MODELS[verb])
+            instances = [model()]
+            if verb in ("ef_adds", "ef_removes"):
+                instances.append(model(trait_id=1))
+            for kind in ("model", "weapon_profile", "gang"):
+                allowed = any(instance.accepts(kind) for instance in instances)
+                assert (kind in kinds) == allowed, (
+                    f"{verb} / {kind}: the picker table says "
+                    f"{kind in kinds}, the model says {allowed} — "
+                    f"update EFFECT_CAN_TARGET in n26/library/forms.py."
+                )
+
     def test_no_two_kind_choices_read_alike(self):
         """Labels default to the model's verbose name, and two verbs may
         write one model — so without a stated label the picker shows one

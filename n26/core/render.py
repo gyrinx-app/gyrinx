@@ -1123,6 +1123,19 @@ def roster(gang):
             "membership__profile__profile_type",
         )
     )
+    return _mustered(members)
+
+
+def _mustered(members, recategorised=None):
+    """Those members in the order the gang list reads.
+
+    ``recategorised`` maps a model's pk to the category a rule re-files
+    them under (``ChangesCategory``, folded off their computed card) —
+    their rank sorts by it in place of the profile's own. Separate from
+    :func:`roster` so a caller that has already computed the cards can
+    re-order without re-fetching.
+    """
+    recategorised = recategorised or {}
     by_pk = {member.pk: member for member in members}
 
     def rank(member):
@@ -1136,7 +1149,9 @@ def roster(gang):
         placed."""
         profile = member.membership.profile if member.membership else None
         vehicle = profile is not None and profile.profile_type.name == "Vehicle"
-        category = profile.category if profile else None
+        category = recategorised.get(member.pk) or (
+            profile.category if profile else None
+        )
         if category is None:
             return (vehicle, 1, 0)
         return (vehicle, 0, category.position)
@@ -1267,6 +1282,16 @@ def render_gang(gang, with_effects=True):
         index = build_modifier_index(assignables)
         computed = {model_id: compute(card, index) for model_id, card in cards.items()}
         gang_computed = compute_gang(gang_card, index)
+        # A rule that re-files a model (ChangesCategory) is a computed
+        # fact, so the order is settled here — after the fold, from data
+        # already in hand — rather than by roster's own query.
+        recategorised = {
+            pk: folded.sorted_under
+            for pk, folded in computed.items()
+            if folded.sorted_under is not None
+        }
+        if recategorised:
+            models = _mustered(models, recategorised)
 
     gang_rows, gang_rules = _gang_rows(gang_card, gang_computed)
     return GangSheet(

@@ -217,6 +217,13 @@ class Spec:
     #: verb that shares its model states its own label; a guard test
     #: refuses a picker with two choices reading alike.
     label: str = ""
+    #: The line under the label on a kind-picker card: what the verb
+    #: does, in one plain sentence an author can act on. The label is
+    #: the name; this is the explanation the name cannot carry.
+    blurb: str = ""
+    #: A concrete case from the books, revealed on the card's hover —
+    #: the fastest way to recognise "that is the one I need".
+    example: str = ""
 
     @property
     def name(self):
@@ -272,6 +279,7 @@ def _build_registry():
         Affiliation,
         Archetype,
         Category,
+        ChangesCategory,
         ChangesStat,
         Collection,
         CollectionEntry,
@@ -341,6 +349,13 @@ def _build_registry():
                     source=(TargetsMiniature, "when_directly_assigned")
                 ),
             },
+            label="The model carrying it",
+            blurb="Whoever has the item carrying this modifier on their card.",
+            example=(
+                "Mounted grants two skills: any fighter with the Mounted "
+                "subtype gets them. Conditions can narrow it — only Wyrds, "
+                "only at 75+ XP."
+            ),
         ),
         Spec(
             authoring.has_subtypes,
@@ -376,12 +391,60 @@ def _build_registry():
                     kinds=("has_traits", "in_categories", "is_one_of")
                 )
             },
+            label="The model's weapons",
+            blurb=("Every weapon that model holds — narrowable by trait or category."),
+            example=(
+                "Backstab: the fighter's Melee weapons all gain the Backstab trait."
+            ),
         ),
-        Spec(authoring.targets_attached_weapon, {}),
-        Spec(authoring.targets_gang, {}),
+        Spec(
+            authoring.targets_attached_weapon,
+            {},
+            label="The weapon it's fitted to",
+            blurb=(
+                "For accessories: the one gun this item is bolted onto, nothing else."
+            ),
+            example=(
+                "A telescopic sight improves the gun it's fitted to — not "
+                "every gun the fighter owns."
+            ),
+        ),
+        Spec(
+            authoring.targets_gang,
+            {},
+            label="The gang itself",
+            blurb="The gang's own sheet, not any one model.",
+            example=(
+                "An alliance grants the gang another equipment list. Note: "
+                "anything the gang carries also rides every member's card — "
+                "so a gang-carried item with “The model carrying it” "
+                "reaches every fighter at once."
+            ),
+        ),
         # -- effects, worked out at read time --------------------------
-        Spec(authoring.ef_adds, {"thing": Union(over=dict(GRANTABLE_FIELDS))}),
-        Spec(authoring.ef_removes, {"thing": Union(over=dict(GRANTABLE_FIELDS))}),
+        Spec(
+            authoring.ef_adds,
+            {"thing": Union(over=dict(GRANTABLE_FIELDS))},
+            label="Gives something",
+            blurb=(
+                "The target gains a subtype, skill, power, rule, trait, "
+                "list or weapon — for as long as the item carrying this "
+                "modifier stays."
+            ),
+            example=(
+                "The Cutter grants Mounted; Mounted grants Nerves of "
+                "Steel. Sell the Cutter and all of it goes."
+            ),
+        ),
+        Spec(
+            authoring.ef_removes,
+            {"thing": Union(over=dict(GRANTABLE_FIELDS))},
+            label="Takes something away",
+            blurb=(
+                "Cancels something granted or innate. Never un-buys what was paid for."
+            ),
+            example="Selected as Leader: loses the Loner subtype.",
+        ),
         Spec(
             authoring.ef_changes_stat,
             {
@@ -389,6 +452,9 @@ def _build_registry():
                 "mode": Choice(source=(ChangesStat, "mode")),
                 "amount": Int(source=(ChangesStat, "amount")),
             },
+            label="Changes a stat",
+            blurb="Shifts or sets one cell of the statline, better or worse.",
+            example="Eye Injury: −1 BS. A bionic eye cancels it out.",
         ),
         Spec(
             authoring.ef_offers_choice,
@@ -406,6 +472,27 @@ def _build_registry():
                 "label": Text(source=(OffersChoice, "label")),
                 "answer_host": Choice(source=(OffersChoice, "answer_host")),
             },
+            label="Offers a choice",
+            blurb=(
+                "Puts an open question on the card; the player answers it "
+                "with one thing of a kind."
+            ),
+            example=(
+                "A Leader starts with a Primary skill — the card says "
+                "“Choose” until they pick."
+            ),
+        ),
+        Spec(
+            authoring.ef_changes_category,
+            {
+                "category": One(model=Category, source=(ChangesCategory, "category")),
+            },
+            label="Changes the model's category",
+            blurb=(
+                "Where the model files on the gang sheet — under a heading "
+                "you name instead of their entry's own."
+            ),
+            example=("A fighter selected as Outcast Leader sorts with the Leaders."),
         ),
         Spec(
             authoring.ef_places,
@@ -417,6 +504,15 @@ def _build_registry():
                     filtered_by=("collection",),
                 ),
             },
+            label="Puts a category into a section",
+            blurb=(
+                "For that model, a category you name counts under a "
+                "section of a collection."
+            ),
+            example=(
+                "Wyrd: the Wyrd Powers category of the Skills & Powers "
+                "collection counts as one of their Secondary sets."
+            ),
         ),
         Spec(
             authoring.ef_places_choice,
@@ -427,7 +523,16 @@ def _build_registry():
                     filtered_by=("collection",),
                 ),
             },
-            label="places the chosen category",
+            label="Puts the player's choice into a section",
+            blurb=(
+                "Pair with “Offers a choice” on the same item: whatever "
+                "the player picks, the category it belongs to goes into "
+                "the section."
+            ),
+            example=(
+                "A Venator's “skill tree 1”: pick Ferocity and Ferocity "
+                "becomes a Primary set."
+            ),
         ),
         Spec(
             authoring.ef_requires_companions,
@@ -436,11 +541,26 @@ def _build_registry():
                 "at_least": Int(source=(RequiresCompanions, "at_least")),
                 "of": One(model=Subtype, source=(RequiresCompanions, "of")),
             },
+            label="Notes a composition rule",
+            blurb=(
+                "Says what the gang should field alongside what — written "
+                "on the sheet, never enforced."
+            ),
+            example="For each Champion, at least three Hive Scum.",
         ),
         # -- effects that write rows at purchase time -------------------
         Spec(
             authoring.op_adds_model,
             {"profile": One(model=Profile, source=(OpAddsMiniature, "profile"))},
+            label="Brings a model",
+            blurb=(
+                "Buying the item carrying this modifier adds a whole new "
+                "model to the gang, free. It goes if the item goes."
+            ),
+            example=(
+                "Cyber-mastiff wargear brings the mastiff itself, XP and "
+                "injuries of its own."
+            ),
         ),
         Spec(
             authoring.op_changes_counter,
@@ -449,6 +569,13 @@ def _build_registry():
                 "mode": Choice(source=(OpChangesCounter, "mode")),
                 "amount": Int(source=(OpChangesCounter, "amount")),
             },
+            label="Moves a counter",
+            blurb=(
+                "When the item carrying this modifier arrives, set, add "
+                "to, or subtract from a counter the model keeps — recorded "
+                "on the ledger."
+            ),
+            example="Selected as Outcast Leader: starts with 61 XP.",
         ),
         # -- the leaves: what the authoring views create ----------------
         # Name-only (and nearly-so) kinds, the ground everything else

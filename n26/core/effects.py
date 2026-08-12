@@ -222,6 +222,9 @@ class ComputedCard:
     #: ``CategoryPlacement``.
     placements: list[CategoryPlacement] = field(default_factory=list)
     stat_changes: list[StatChange] = field(default_factory=list)
+    #: The category heading this model sorts under on the gang sheet,
+    #: when a rule re-files them — None sorts by the profile's own.
+    sorted_under: object = None
     weapons: dict = field(default_factory=dict)
     choices: list[ChoiceSlot] = field(default_factory=list)
     stored_effects: list[StoredEffect] = field(default_factory=list)
@@ -301,6 +304,7 @@ def compute(card, index):
     """
     from n26.library.models.modifier import (
         AddsAssignable,
+        ChangesCategory,
         ChangesStat,
         OffersChoice,
         PlacesCategory,
@@ -452,6 +456,10 @@ def compute(card, index):
                                 ),
                             )
                         )
+                    elif isinstance(effect, ChangesCategory):
+                        # Last one standing wins: two rules re-filing one
+                        # model is a content oddity, not an order to keep.
+                        computed.sorted_under = effect.category
                     elif isinstance(effect, ChangesStat):
                         change = StatChange(
                             stat=effect.stat,

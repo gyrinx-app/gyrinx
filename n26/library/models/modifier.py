@@ -43,6 +43,7 @@ COMPUTED_EFFECT_FIELDS = (
     "adds_assignable",
     "removes_assignable",
     "changes_stat",
+    "changes_category",
     "offers_choice",
     "places_category",
     "requires_companions",
@@ -1173,6 +1174,37 @@ class OpChangesCounter(models.Model):
         operation.tally(row, change, note=str(assignment.assignable))
 
 
+class ChangesCategory(models.Model):
+    """Re-files the bearer on the gang sheet: they sort under this
+    category's heading rather than their entry's own.
+
+    Computed, so it can only ever move a model that exists. The hire
+    list and a collection's contents sort by the stored home category
+    before any bearer does, and stay untouched — which is why this
+    speaks of sorting and not of what the profile is.
+    """
+
+    is_stored = False
+
+    category = models.ForeignKey(
+        "library.Category",
+        on_delete=models.PROTECT,
+        related_name="+",
+        help_text="The heading the model sorts under on the gang sheet.",
+    )
+
+    class Meta:
+        verbose_name = "changes category"
+        verbose_name_plural = "changes categories"
+
+    def __str__(self):
+        return f"sorts under {self.category}"
+
+    def accepts(self, target_kind):
+        # Only a model has a place in the gang sheet's order.
+        return target_kind == MODEL
+
+
 class ChangesStat(models.Model):
     """Shifts or sets one characteristic.
 
@@ -1261,6 +1293,13 @@ class Modifier(Content):
     )
     changes_stat = models.OneToOneField(
         ChangesStat,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="modifier",
+    )
+    changes_category = models.OneToOneField(
+        ChangesCategory,
         on_delete=models.CASCADE,
         null=True,
         blank=True,

@@ -3054,6 +3054,83 @@ class TestTheButtonThatChangesTheModifierType:
         assert ':disabled="!moved"' in self.button(body)
 
 
+class TestTheKindCards:
+    """The composer's two kind pickers draw as cards: a name, one plain
+    sentence saying what the verb does, and a concrete example behind an
+    icon — because the names alone assume machinery an author should not
+    have to hold in their head. Options that cannot work here are greyed
+    with the reason on the card, never hidden: a vanished option reads
+    as a bug, a greyed one teaches.
+    """
+
+    @pytest.fixture
+    def carrier(self, author, default_pack):
+        from n26.library.authoring import create_rule
+
+        return create_rule("Berserker")
+
+    def test_each_kind_is_a_card_with_its_words(self, author, client, default_pack):
+        body = client.get("/n26/authoring/modifiers/new/").content.decode()
+
+        assert 'name="scope_kind"' in body
+        assert 'name="effect_kind"' in body
+        assert "The model carrying it" in body
+        # The apostrophe arrives HTML-escaped, so the title is matched
+        # around it.
+        assert "choice into a section" in body
+        assert "the player picks" in body  # the blurb
+        assert "pick Ferocity and Ferocity" in body  # the example
+
+    def test_the_cards_still_answer_to_the_selects_field_names(
+        self, author, client, default_pack
+    ):
+        """Native radios under the names the ChoiceFields validate, so
+        step one submits exactly what it always did."""
+        page = client.get(
+            "/n26/authoring/modifiers/new/"
+            "?scope_kind=targets_model&effect_kind=ef_changes_stat"
+        )
+        assert page.status_code == 200
+        body = page.content.decode()
+        checked = re.findall(r"<input[^>]*checked[^>]*>", body)
+        assert any('value="targets_model"' in tag for tag in checked)
+        assert any('value="ef_changes_stat"' in tag for tag in checked)
+
+    def test_a_carrier_that_is_never_fitted_greys_the_attached_scope(
+        self, carrier, client
+    ):
+        """A rule hangs on a card, not on a gun: on its page “The weapon
+        it's fitted to” is a disabled card carrying the reason, and its
+        radio cannot be picked."""
+        body = client.get(f"/n26/authoring/rule/{carrier.pk}/").content.decode()
+
+        assert "A special rule is never fitted to a weapon." in body
+        gate = re.search(r'<input[^>]*value="targets_attached_weapon"[^>]*>', body)
+        assert gate is not None and "disabled" in gate.group(0)
+
+    def test_an_accessory_is_offered_the_attached_scope(self, author, client):
+        from n26.library.authoring import create_weapon_accessory
+
+        sight = create_weapon_accessory("Telescopic Sight")
+        body = client.get(
+            f"/n26/authoring/weapon-accessory/{sight.pk}/"
+        ).content.decode()
+
+        gate = re.search(r'<input[^>]*value="targets_attached_weapon"[^>]*>', body)
+        assert gate is not None and "disabled" not in gate.group(0)
+
+    def test_every_effect_card_says_what_it_can_apply_to(
+        self, author, client, default_pack
+    ):
+        """The client-side gate reads it off the card's wrapper — every
+        effect states its kinds, so a scope press can grey the rest."""
+        from n26.library.forms import EFFECT_CAN_TARGET
+
+        body = client.get("/n26/authoring/modifiers/new/").content.decode()
+        for kinds in EFFECT_CAN_TARGET.values():
+            assert f'data-accepts="{" ".join(kinds)}"' in body
+
+
 class TestFindingAModifierAmongHundreds:
     """A pack holds hundreds of modifiers, so the listing carries a
     search and a filter per facet.
