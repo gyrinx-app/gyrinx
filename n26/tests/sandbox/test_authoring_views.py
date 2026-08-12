@@ -2954,7 +2954,10 @@ def make_assorted_modifiers(prefix, client=None):
 
 class TestTheButtonThatChangesTheModifierType:
     """Step one of the composer picks the shape of everything below it,
-    and its button is named for that rather than for where it sits.
+    and its button is worded by the surface: a carrier's page is where a
+    reader starts a modifier from nothing, so it invites — Configure new
+    modifier — while the standalone page's header has already said what
+    is being made and the press re-shapes it: Change modifier type.
 
     Pressed with the pair the page is already showing it fetches the
     same page again — and on a carrier's page it scrolls the reader back
@@ -2966,7 +2969,9 @@ class TestTheButtonThatChangesTheModifierType:
     @staticmethod
     def button(body):
         """The submit at the foot of step one, as its whole tag."""
-        found = re.search(r"<button[^>]*>\s*Change modifier type", body)
+        found = re.search(
+            r"<button[^>]*>\s*(?:Change modifier type|Configure new modifier)", body
+        )
         assert found, "no change-the-kinds button on the page"
         return found.group(0)
 
@@ -3036,12 +3041,16 @@ class TestTheButtonThatChangesTheModifierType:
         assert "'+alert(1)+'" not in body
         assert "\\u0027" in body
 
-    def test_a_carriers_page_draws_the_same_button(self, carrier, client):
-        """The composer is one include on two surfaces, and the button
-        is inside it — a carrier's page must not be left with a step one
-        that says something else."""
+    def test_a_carriers_page_invites_rather_than_offers_a_change(self, carrier, client):
+        """The composer is one include on two surfaces, and the button is
+        inside it — but the wording is the caller's: at the foot of a
+        carrier's page nothing has been configured yet, so a button
+        offering to *change* a type reads as acting on one of the
+        modifiers above it."""
         body = client.get(f"/n26/authoring/rule/{carrier.pk}/").content.decode()
 
+        assert "Configure new modifier" in self.button(body)
+        assert "Change modifier type" not in body
         assert ':disabled="!moved"' in self.button(body)
 
 

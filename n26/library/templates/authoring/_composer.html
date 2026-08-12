@@ -4,7 +4,8 @@ create page. Step one is a GET so the chosen kinds live in the URL —
 step two survives a refresh, and "add a condition" is a plain link.
 
 Takes kind_picker, composer, composer_scope, composer_effect,
-composer_chips, and show_reusable_flag.
+composer_chips, and show_reusable_flag. composer_switch_label is step
+one's button — the caller's wording, like the submit's and the heading.
 
   --- where step one leads ---
 
@@ -84,14 +85,17 @@ leaves one out gets a section with no heading.
         {% include "authoring/_field.html" with form=kind_picker field=kind_picker.scope_kind %}
         {% include "authoring/_field.html" with form=kind_picker field=kind_picker.effect_kind %}
         {% comment %}
-        Small, and named for what it does rather than for where it sits:
-        it fetches a differently shaped composer, which is starting
-        something, so it carries the colour that starts things and not
-        the green that ends the form below it.
+        Small, and worded by the caller like the submit below it: on a
+        carrier's page the reader is starting a modifier from nothing,
+        while on the standalone page the header has already said so and
+        the press re-shapes what is drawn. Either way it fetches a
+        differently shaped composer, which is starting something, so it
+        carries the colour that starts things and not the green that
+        ends the form below it.
         {% endcomment %}
         <div class="flex flex-wrap items-center justify-end gap-2">
             <c-ui.button type="submit" variant="primary" size="sm" ::disabled="!moved">
-                Change modifier type
+                {{ composer_switch_label }}
             </c-ui.button>
         </div>
     </form>
