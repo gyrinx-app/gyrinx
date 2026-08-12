@@ -33,24 +33,33 @@ do not fill.
   :tabs — [{label, href, current, title}]. `title` is optional and is the full
     name when `label` has been shortened to fit; it becomes the link's tooltip.
   label — what the strip is choosing between, as its accessible name.
-  prerender — ask the browser to render the other tabs before they are
-    pressed, so a strip whose every choice is a whole page-build answers a
-    press from cache. "moderate" starts on hover or touch-down — a head
-    start of a few hundred milliseconds; "immediate" starts straight
-    away, which makes the press instant at the price of the server
-    building pages nobody may open. Off by default: only a call site
-    knows whether its pages are expensive enough to be worth paying for
-    twice. Browsers without speculation rules ignore the hint — the tabs
-    are ordinary links either way. The prerendered request reaches the
-    server with `Sec-Purpose: prefetch;prerender`, which analytics
-    already ignores; these tabs must stay side-effect-free GETs, which
-    they already had to be to be links.
+  speculate — ask the browser to start on the other tabs before they are
+    pressed, so a strip whose every choice is a whole page-build answers
+    a press with the expensive part already paid. "prefetch" fetches the
+    HTML — the server's work, which is most of the wait — and holds only
+    bytes; the press still parses and boots the page. "prerender" builds
+    the whole hidden page, so the press is instant — but each one is a
+    full document, DOM, scripts and all, held in memory behind the page
+    being read, and a strip of heavy pages can hold several pages'
+    worth. Prefetch is the safe spelling; reach for prerender only where
+    the pages are light. Off by default: only a call site knows whether
+    its pages are worth paying for before anyone asks. Browsers without
+    speculation rules ignore the hint — the tabs are ordinary links
+    either way. The speculative request reaches the server with a
+    `Sec-Purpose: prefetch…` header, which analytics already ignores;
+    these tabs must stay side-effect-free GETs, which they already had
+    to be to be links.
+  eagerness — when to start. "moderate" (the default) waits for intent —
+    hover, or touch-down — so nothing is fetched for a tab nobody moves
+    towards; "immediate" starts as soon as the page settles, which buys
+    the most head start and spends the most server work on pages that
+    may never be opened.
 {% endcomment %}
-<c-vars :tabs="[]" label="" prerender="" class="" />
+<c-vars :tabs="[]" label="" speculate="" eagerness="moderate" class="" />
 
 <nav {{ attrs }}
      aria-label="{{ label }}"
-     {% if prerender %}data-speculate="{{ label|slugify }}"{% endif %}
+     {% if speculate %}data-speculate="{{ label|slugify }}"{% endif %}
      class="flex flex-wrap gap-x-1 {{ class }}">
     {% for tab in tabs %}
         <a href="{{ tab.href }}"
@@ -64,16 +73,16 @@ do not fill.
     {% endfor %}
     <span aria-hidden="true" class="min-w-0 flex-1 border-b-2 border-box-border"></span>
 </nav>
-{% if prerender %}
+{% if speculate %}
     {% comment %}
     A document rule keyed on this strip's own nav, so two strips on one
-    page can ask for different eagerness. The current tab is excluded:
-    it is this page, and prerendering it would build it twice.
+    page can ask for different treatment. The current tab is excluded:
+    it is this page, and speculating on it would build it twice.
     {% endcomment %}
     <script type="speculationrules">
-        {"prerender": [{
+        {"{{ speculate }}": [{
             "where": {"selector_matches": "nav[data-speculate='{{ label|slugify }}'] a:not([aria-current])"},
-            "eagerness": "{{ prerender }}"
+            "eagerness": "{{ eagerness }}"
         }]}
     </script>
 {% endif %}

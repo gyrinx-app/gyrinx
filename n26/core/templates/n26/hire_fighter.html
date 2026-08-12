@@ -84,14 +84,16 @@ be read in one.
         builds a card for every profile there is.
         {% endcomment %}
         {% comment %}
-        Prerendered eagerly: each scope is a whole hire list built and
-        priced, seconds of server work a reader would otherwise sit
-        through per press. The pages are side-effect-free GETs and there
-        are only two others, so the press is answered from cache.
+        Prefetched on intent: each scope is a whole hire list built and
+        priced — seconds of server work a reader would otherwise sit
+        through after pressing — so a hover or a touch starts the fetch
+        early. Prefetch, not prerender: the all-profiles document runs
+        to megabytes, and holding built copies of the other scopes in
+        memory behind this one is heavier than the wait it saves.
         {% endcomment %}
         <c-n26.tab-links label="Who can be hired"
                          :tabs="scope_tabs"
-                         prerender="immediate"
+                         speculate="prefetch"
                          class="mb-4" />
         <c-n26.profile-picker :categories="categories"
                               :sections="sections"
