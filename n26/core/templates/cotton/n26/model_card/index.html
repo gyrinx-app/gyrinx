@@ -43,7 +43,23 @@ they were two more rows between the statline and the weapons on every one of the
 Buying is reached from Equip in the `actions` slot, which is the answer to the
 question "Buys from" was there to answer, and closer to hand.
 
+  --- modes ---
+
+The card renders in one of two modes. ``gang`` is the sheet's: dense and
+read-mostly, the controls kept to the actions slot, the open questions shown
+but their buttons held back — eleven cards abreast should not be eleven rows
+of controls. ``edit`` is the model's own page: the choice buttons come out,
+outlined, and the Gear and Weapons rows carry the way to the Equip tab.
+
+Inside the template a mode-only region is wrapped in
+<c-n26.model-card.mode when="edit">, which reads this ``mode`` from context —
+so adding an edit affordance is a wrap, not a flag threaded through every
+region between here and the call site.
+
   :card — a n26.render.ModelCard.
+  mode — gang (default) or edit. See modes above.
+  equip_href — where the edit mode's Equip buttons go. Empty draws none, which
+    is what a gallery sample wants.
   avatar — a picture of the model, before the name. Any markup; it is framed and
     clipped here. An <img> fills the frame; <c-ui.avatar> gives the circular
     treatment and an initials fallback instead.
@@ -70,6 +86,8 @@ question "Buys from" was there to answer, and closer to hand.
 {% endcomment %}
 <c-vars
     :card="None"
+    mode="gang"
+    equip_href=""
     notes_href=""
     lore_href=""
     actions=""
@@ -176,13 +194,15 @@ question "Buys from" was there to answer, and closer to hand.
             </div>
 
             {% comment %}
-            What can be done to this fighter, and what it is worth — one line, and
-            one group, so the buttons and the price cannot come apart onto two
-            rows when the name beside them wraps.
+            What this fighter is worth, and what can be done to them — a
+            column, rating first. The rating is the fact and it keeps the
+            corner the eye checks; the buttons sit under it, so a run of
+            controls never pushes the number around and the two cannot
+            interleave when the name beside them wraps.
 
-            items-start on the row above rather than items-center, so this group
-            sits against the name rather than floating to the middle of a
-            two-line column.
+            items-start on the row above rather than items-center, so this
+            group sits against the name rather than floating to the middle
+            of a two-line column.
 
             The actions are on the card and not on the gang because they are
             per-model: you equip *this* fighter. A gang-level Buy would have to
@@ -194,11 +214,11 @@ question "Buys from" was there to answer, and closer to hand.
             hardcoded Equip and Delete could not be the read-only preview the hire
             list draws behind every row.
             {% endcomment %}
-            <div class="flex shrink-0 flex-nowrap items-center gap-2">
-                {% if actions %}{{ actions }}{% endif %}
-
+            <div class="flex shrink-0 flex-col items-end gap-1.5">
                 <c-ui.badge size="sm" variant="solid" class="shrink-0"
                             title="Rating, including weapons and wargear">{{ card.rating }}¢</c-ui.badge>
+
+                {% if actions %}<div class="flex flex-nowrap items-center gap-2">{{ actions }}</div>{% endif %}
             </div>
         </div>
     </c-slot>
@@ -268,27 +288,50 @@ question "Buys from" was there to answer, and closer to hand.
             is what stops the row with buttons in it standing taller than every
             other row on the card.
             {% endcomment %}
-            {% if card.skill_choices or card.learn_href %}
-                <span class="ms-1 inline-flex flex-wrap items-center gap-1 align-middle">
-                    {% for choice in card.skill_choices %}
-                        <c-ui.button size="xs" variant="primary" class="py-0!" href="{{ choice.href }}">
-                            Choose {{ choice.kind_label|lower }}
-                        </c-ui.button>
-                    {% endfor %}
-                    {% if card.learn_href %}
-                        <c-ui.button size="xs"
-                                     variant="default"
-                                     class="py-0!"
-                                     href="{{ card.learn_href }}"
-                                     title="Learn a skill"
-                                     aria-label="Learn a skill">
-                            <span class="n26-icon-only">
-                                <c-n26.icon name="pencil" class="size-3" />
-                            </span>
-                        </c-ui.button>
-                    {% endif %}
-                </span>
-            {% endif %}
+            {% comment %}
+            The same open question, said at each mode's volume. On the sheet a
+            gang of eleven is a wall of "Choose" buttons before it is a gang,
+            so gang mode says it as the quiet link the unresolved choice rows
+            use — the question is information the sheet must not swallow — and
+            the model's own page is where it grows a button. Outlined rather
+            than solid there, because on that page the notes form's Save is
+            the committing act and a run of filled buttons above it would bury
+            it. The pencil to the skills screen is edit mode's alone: it is an
+            edit affordance, and the sheet's way in is the card's Edit.
+            {% endcomment %}
+            <c-n26.model-card.mode when="gang">
+                {% if card.skill_choices %}
+                    <span class="ms-1 inline-flex flex-wrap items-center gap-2 align-middle">
+                        {% for choice in card.skill_choices %}
+                            <c-n26.link href="{{ choice.href }}" underline="always">Choose {{ choice.kind_label|lower }}</c-n26.link>
+                        {% endfor %}
+                    </span>
+                {% endif %}
+            </c-n26.model-card.mode>
+            <c-n26.model-card.mode when="edit">
+                {% if card.skill_choices or card.learn_href %}
+                    <span class="ms-1 inline-flex flex-wrap items-center gap-1 align-middle">
+                        {% for choice in card.skill_choices %}
+                            <c-ui.button size="xs" variant="primary" :outlined="True" class="py-0!" href="{{ choice.href }}">
+                                Choose {{ choice.kind_label|lower }}
+                            </c-ui.button>
+                        {% endfor %}
+                        {% if card.learn_href %}
+                            <c-ui.button size="xs"
+                                         variant="default"
+                                         :outlined="True"
+                                         class="py-0!"
+                                         href="{{ card.learn_href }}"
+                                         title="Learn a skill"
+                                         aria-label="Learn a skill">
+                                <span class="n26-icon-only">
+                                    <c-n26.icon name="pencil" class="size-3" />
+                                </span>
+                            </c-ui.button>
+                        {% endif %}
+                    </span>
+                {% endif %}
+            </c-n26.model-card.mode>
         </dd>
 
         {% comment %}
@@ -324,6 +367,21 @@ question "Buys from" was there to answer, and closer to hand.
         <dt class="font-semibold text-ink-900 dark:text-ink-100">Gear</dt>
         <dd class="min-w-0 text-ink-900 dark:text-ink-100">
             <c-n26.assignable-lines :lines="card.equipment" :ratings="False" />
+            {% comment %}
+            The way to the Equip tab, in the row that shows what equipping
+            changes. Edit mode only — the sheet's card already carries Equip
+            in its actions — and only where the caller gave it somewhere to
+            go, which a gallery sample does not.
+            {% endcomment %}
+            <c-n26.model-card.mode when="edit">
+                {% if equip_href %}
+                    <span class="ms-1 inline-flex items-center align-middle">
+                        <c-ui.button size="xs" variant="primary" :outlined="True" class="py-0!" href="{{ equip_href }}">
+                            Equip
+                        </c-ui.button>
+                    </span>
+                {% endif %}
+            </c-n26.model-card.mode>
         </dd>
 
         {% comment %}
@@ -393,7 +451,18 @@ question "Buys from" was there to answer, and closer to hand.
                         {% endcomment %}
                         <c-n26.statline.header :cells="card.weapons.0.profiles.0.statline.cells">
                             <c-slot name="leading">
-                                <th scope="col" class="px-4 py-1.5 text-left text-xs font-semibold text-ink-900 dark:text-ink-100">Weapons</th>
+                                {% comment %}
+                                In edit mode the label steps up to the Gear
+                                row's size and carries the same Equip beside
+                                it: the two rows are the two places a reader
+                                looks for what the model carries, and the way
+                                to change either should read the same in both.
+                                In gang mode it stays a column header among
+                                the stat columns' headers.
+                                {% endcomment %}
+                                <th scope="col" class="px-4 py-1.5 text-left {% if mode == 'edit' %}text-sm{% else %}text-xs{% endif %} font-semibold text-ink-900 dark:text-ink-100">
+                                    Weapons<c-n26.model-card.mode when="edit">{% if equip_href %}<span class="ms-1 inline-flex items-center align-middle font-normal"><c-ui.button size="xs" variant="primary" :outlined="True" class="py-0!" href="{{ equip_href }}">Equip</c-ui.button></span>{% endif %}</c-n26.model-card.mode>
+                                </th>
                             </c-slot>
                         </c-n26.statline.header>
                     </tr>

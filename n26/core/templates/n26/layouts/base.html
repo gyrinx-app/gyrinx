@@ -57,6 +57,13 @@ banner, is_impersonating / impersonator, gtm_container_id, messages, user.
             <link rel="stylesheet" href="{% static 'designsystem/app.css' %}">
         {% endblock stylesheet %}
         {% comment %}
+        For a page's own head additions — a form's media, a page-specific
+        script. After the stylesheet so nothing here can win a cascade
+        it should be losing.
+        {% endcomment %}
+        {% block extra_head %}
+        {% endblock extra_head %}
+        {% comment %}
         1320px from 1400px up matches the platform's container cap, so n26 pages
         read as the same width as the rest of the site.
         {% endcomment %}

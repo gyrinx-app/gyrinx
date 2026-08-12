@@ -1,0 +1,21 @@
+{# title: One model's screens #}
+{# note: The header every per-model screen wears: the model's name and rank, the gang's other fighters behind the chevron, and the screens the model owns as tabs. active picks the tab; the equip screen passes "equip" and everything else is identical, which is the point of it being one component. #}
+{# layout: full #}
+<c-n26.model-header :miniature="sample_miniature" lead="Leader" active="edit">
+    <c-slot name="switcher">
+        <c-n26.quick-switcher.of :switcher="sample_fighter_switcher" />
+    </c-slot>
+    <c-slot name="breadcrumb">
+        <c-ui.breadcrumbs>
+            <c-ui.breadcrumbs.item href="#">
+                {{ gang_owner }}
+            </c-ui.breadcrumbs.item>
+            <c-ui.breadcrumbs.item href="#">
+                The Ashen Choir
+            </c-ui.breadcrumbs.item>
+            <c-ui.breadcrumbs.item :current="True">
+                Vesna Krail
+            </c-ui.breadcrumbs.item>
+        </c-ui.breadcrumbs>
+    </c-slot>
+</c-n26.model-header>

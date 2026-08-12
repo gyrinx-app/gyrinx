@@ -25,6 +25,11 @@ class Miniature(Base, Owned, Rated):
             "Ranks table once ranks are modelled."
         ),
     )
+    #: The owner's own words about this model — kit reminders, table
+    #: agreements, standing injuries. Editor HTML, stored as written and
+    #: sanitised on the way out (n26.core.templatetags.richtext), so a
+    #: tightened allowlist reaches what was already saved.
+    notes = models.TextField(blank=True, default="")
     membership = models.OneToOneField(
         "n26.Assignment",
         on_delete=models.SET_NULL,

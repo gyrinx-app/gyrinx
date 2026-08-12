@@ -160,6 +160,10 @@ def view_preview(request, slug):
             "component": found,
             "demo_template": found.demos[0].template_name,
             "model_card": sampledata.model_card(),
+            # The same test the component page makes: a view whose demo
+            # draws an editor brings TinyMCE with it, and only then.
+            "rich_text_form": RichTextForm(),
+            "needs_rich_text": "c-n26.rich-text" in found.demos[0].source,
             **create_gang_context(),
             **sampledata.context(),
         },

@@ -952,7 +952,10 @@ GROUPS: list[Group] = [
                     "arrow keys and a panel that swaps underneath. It wraps rather "
                     "than scrolling sideways, because names come from content and a "
                     "horizontal scroller hides tabs past the edge of a phone behind a "
-                    "gesture nobody is told about."
+                    "gesture nobody is told about. The pill variant exists for a "
+                    "second strip on a screen whose underline is already taken: two "
+                    "underlined rows read as two rows of page tabs, where pills say "
+                    "a choice within the screen rather than a face of it."
                 ),
             ),
             Component(
@@ -1844,6 +1847,27 @@ GROUPS: list[Group] = [
                 ),
             ),
             Component(
+                slug="model-header",
+                tag="c-n26.model-header",
+                template="n26/model_header.html",
+                summary="One model's name and rank, and the tabs of their screens.",
+                needs=(ALPINE, FOCUS),
+                notes=(
+                    "The one header every per-model screen wears. Edit and Equip "
+                    "are two faces of the same model, so they share a header and "
+                    "read as tabs of one place — a component rather than a "
+                    "convention, because two screens each writing the same header "
+                    "by hand are two screens free to drift about what a model's "
+                    "page looks like. The title is the model's name plain, not "
+                    "the verb: the tab strip already says which face is open, and "
+                    "a title that repeated it would say it twice while making the "
+                    "name harder to scan for. The tab strip is built by the "
+                    "model_screen_tabs tag rather than passed in, so a screen "
+                    "cannot invent a strip of its own; adding a screen to a model "
+                    "is one edit to n26.core.navigation."
+                ),
+            ),
+            Component(
                 slug="model-card",
                 tag="c-n26.model-card",
                 template="n26/model_card/index.html",
@@ -1872,7 +1896,15 @@ GROUPS: list[Group] = [
                     "out: hierarchy is weight and size, and an empty value is an "
                     "em dash. The two exceptions are captions rather than "
                     "content — the profile name under the model's, and the XP "
-                    "target beside the current one."
+                    "target beside the current one. The card renders in one of "
+                    "two modes: gang, the sheet's — dense, read-mostly, the open "
+                    "questions shown but their buttons held back, because eleven "
+                    "cards abreast should not be eleven rows of controls — and "
+                    "edit, the model's own page, where the choice buttons come "
+                    "out outlined and the Gear and Weapons rows carry the way to "
+                    "the Equip tab. Inside the template a mode-only region is a "
+                    "wrap in c-n26.model-card.mode, not a flag threaded through "
+                    "every region between it and the call site."
                 ),
                 needs=(ALPINE, KIT_JS),
                 parts=(
@@ -1882,6 +1914,13 @@ GROUPS: list[Group] = [
                         "A run of assignables — skills, gear, weapon traits — "
                         "marking the ones that were granted rather than bought.",
                         required=True,
+                    ),
+                    Part(
+                        "c-n26.model-card.mode",
+                        "n26/model_card/mode.html",
+                        "A region of the card that one mode draws — reads the "
+                        "enclosing card's mode from context, so the call sites "
+                        "stay one line.",
                     ),
                     Part(
                         "c-n26.model-card.prose",
@@ -2341,6 +2380,31 @@ GROUPS: list[Group] = [
                     "sits after the name and not before it, because the mark "
                     "before a title is inside the h1 and is read out as part of "
                     "the page's name — which a control must not be."
+                ),
+            ),
+            Component(
+                slug="view-model-edit",
+                tag="c-n26.view.model-edit",
+                template="n26/view/model_edit.html",
+                summary="One model, whole: their card, editable, and the notes.",
+                needs=(ALPINE, KIT_JS, FOCUS),
+                notes=(
+                    "The Edit face of a model's own page; Equip is the same "
+                    "header's second tab, so the two screens read as one place. "
+                    "Under the header, a grid that is one column on a phone: the "
+                    "card first, in edit mode — the same card the sheet draws, "
+                    "same structure and renderer, so the two screens cannot "
+                    "disagree about what the model is — and the notes box after "
+                    "it. Notes are a box of the grid rather than a section of "
+                    "the card because they are a form: a card is read in "
+                    "numbers, and a paragraph being written wants elbow room "
+                    "beside it rather than a slot inside it. Save is the page's "
+                    "only filled commit, which is why the card's own controls "
+                    "are outlined: on a page that edits, the thing that ends the "
+                    "form should be findable without reading any button's words. "
+                    "The form arrives as a slot, fields and submit together, "
+                    "because saving is the page's business and the gallery has "
+                    "no database to save to."
                 ),
             ),
             Component(

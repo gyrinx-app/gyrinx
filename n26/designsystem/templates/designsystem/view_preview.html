@@ -20,6 +20,15 @@
         <link rel="preconnect" href="https://use.typekit.net" crossorigin>
         <link rel="stylesheet" href="https://use.typekit.net/rso6ezl.css">
         <link rel="stylesheet" href="{% static 'designsystem/app.css' %}">
+        {% comment %}
+        richtext.js before form.media, as the gallery's own base orders them:
+        it registers the listener that swaps the editor's skin with the mode,
+        and django-tinymce's initialiser reads the config after it has run.
+        {% endcomment %}
+        {% if needs_rich_text %}
+            <script src="{% static 'n26/richtext.js' %}"></script>
+            {{ rich_text_form.media }}
+        {% endif %}
     </head>
     <body class="min-h-screen bg-[var(--color-bg)] text-ink-800 dark:text-ink-200">
         {% comment %}

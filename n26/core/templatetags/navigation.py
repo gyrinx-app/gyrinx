@@ -41,6 +41,19 @@ def places_switcher(context, here=""):
     return build(context.get("request"), here=here)
 
 
+@register.simple_tag
+def model_screen_tabs(miniature, active):
+    """The tabs of one model's own screens — Edit and Equip.
+
+    A tag so the header component can build the strip itself: the two
+    pages share the header, and a strip assembled at each call site is a
+    strip the two can disagree about.
+    """
+    from n26.core.navigation import model_screen_tabs as build
+
+    return build(miniature, active)
+
+
 @register.simple_tag(takes_context=True)
 def gang_switcher(context, gang, named=True, menu_label="Switch to another gang"):
     """The switcher on a screen that belongs to one gang.

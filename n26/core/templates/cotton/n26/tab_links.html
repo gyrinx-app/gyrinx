@@ -30,24 +30,48 @@ on the same pixels as one continuous line — accent under the current tab, box
 border everywhere else. The trailing span carries it across the width the tabs
 do not fill.
 
+The pill variant is for a second strip on a screen whose underline is already
+taken: two underlined rows on one page read as two rows of page tabs, and a
+reader cannot tell which one changes where they are. Pills say "a choice within
+this screen" where the underline says "a face of this screen" — same links,
+same nav semantics, no rule underneath, the current one filled.
+
   :tabs — [{label, href, current, title}]. `title` is optional and is the full
     name when `label` has been shortened to fit; it becomes the link's tooltip.
   label — what the strip is choosing between, as its accessible name.
+  variant — underline (default) or pill.
 {% endcomment %}
-<c-vars :tabs="[]" label="" class="" />
+<c-vars :tabs="[]" label="" variant="" class="" />
 
-<nav {{ attrs }}
-     aria-label="{{ label }}"
-     class="flex flex-wrap gap-x-1 {{ class }}">
-    {% for tab in tabs %}
-        <a href="{{ tab.href }}"
-           {% if tab.title and tab.title != tab.label %}title="{{ tab.title }}"{% endif %}
-           {% if tab.current %}aria-current="page"{% endif %}
-           class="flex min-h-11 max-w-full items-center border-b-2 px-3 text-sm no-underline focus-ring
-                  {% if tab.current %}border-accent font-semibold text-ink-900 dark:text-ink-100
-                  {% else %}border-box-border text-muted hover:text-ink-900 dark:hover:text-ink-100{% endif %}">
-            <span class="truncate">{{ tab.label }}</span>
-        </a>
-    {% endfor %}
-    <span aria-hidden="true" class="min-w-0 flex-1 border-b-2 border-box-border"></span>
-</nav>
+{% if variant == "pill" %}
+    <nav {{ attrs }}
+         aria-label="{{ label }}"
+         class="flex flex-wrap gap-1.5 {{ class }}">
+        {% for tab in tabs %}
+            <a href="{{ tab.href }}"
+               {% if tab.title and tab.title != tab.label %}title="{{ tab.title }}"{% endif %}
+               {% if tab.current %}aria-current="page"{% endif %}
+               class="inline-flex max-w-full items-center rounded-full border px-3 py-1.5 text-sm no-underline focus-ring
+                      {% if tab.current %}border-accent bg-accent font-semibold text-accent-foreground
+                      {% else %}border-box-border text-muted hover:text-ink-900 dark:hover:text-ink-100{% endif %}">
+                <span class="truncate">{{ tab.label }}</span>
+            </a>
+        {% endfor %}
+    </nav>
+{% else %}
+    <nav {{ attrs }}
+         aria-label="{{ label }}"
+         class="flex flex-wrap gap-x-1 {{ class }}">
+        {% for tab in tabs %}
+            <a href="{{ tab.href }}"
+               {% if tab.title and tab.title != tab.label %}title="{{ tab.title }}"{% endif %}
+               {% if tab.current %}aria-current="page"{% endif %}
+               class="flex min-h-11 max-w-full items-center border-b-2 px-3 text-sm no-underline focus-ring
+                      {% if tab.current %}border-accent font-semibold text-ink-900 dark:text-ink-100
+                      {% else %}border-box-border text-muted hover:text-ink-900 dark:hover:text-ink-100{% endif %}">
+                <span class="truncate">{{ tab.label }}</span>
+            </a>
+        {% endfor %}
+        <span aria-hidden="true" class="min-w-0 flex-1 border-b-2 border-box-border"></span>
+    </nav>
+{% endif %}

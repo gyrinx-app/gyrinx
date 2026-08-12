@@ -23,6 +23,9 @@ urlpatterns = [
     # choice and the gang's alike — see n26.core.views.choose.
     path("gangs/<str:pk>/choose/<str:slot>/", views.choose, name="n26-choose"),
     # The acts behind the gang sheet's dialogs; GET just reopens each one.
+    # The model's own page: the card with its edit affordances and the
+    # owner's notes. Equip is the same header's second tab.
+    path("fighters/<str:pk>/edit/", views.edit_fighter, name="n26-edit-fighter"),
     path("fighters/<str:pk>/rename/", views.rename_fighter, name="n26-rename-fighter"),
     path("fighters/<str:pk>/delete/", views.delete_fighter, name="n26-delete-fighter"),
     path("fighters/<str:pk>/refund/", views.refund_fighter, name="n26-refund-fighter"),

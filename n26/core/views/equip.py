@@ -446,6 +446,14 @@ def equip(request, pk):
         {
             "miniature": miniature,
             "gang": gang,
+            # The rank beside the name in the shared model header — the
+            # same line, said the same way, as the edit face draws it.
+            "role": (
+                miniature.membership.profile.category.name
+                if miniature.membership.profile
+                and miniature.membership.profile.category
+                else ""
+            ),
             "roster": roster,
             "roster_count": len(roster),
             "collections": collections,

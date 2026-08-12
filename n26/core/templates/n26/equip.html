@@ -42,7 +42,11 @@ breadcrumb above it has the gang as well, so nothing is lost.
             {% csrf_token %}
         </c-n26.owned-dialog>
     {% endif %}
-    <c-n26.page-header title="Equip {{ miniature.name }}">
+    {% comment %}
+    The model's own header — this screen is the Equip tab of the model's
+    page, and the Edit face wears the same one. See <c-n26.model-header>.
+    {% endcomment %}
+    <c-n26.model-header :miniature="miniature" lead="{{ role }}" active="equip">
         {% comment %}
         The heading is about the fighter, so this offers the gang's others —
         every row landing on this same screen for them. Equipping a gang is
@@ -53,7 +57,7 @@ breadcrumb above it has the gang as well, so nothing is lost.
         controls sit on the same screen and switch different things, which is
         the whole reason the heading has one of its own.
         {% endcomment %}
-        <c-slot name="trailing">
+        <c-slot name="switcher">
             {% fighter_switcher gang miniature as fighter_switcher_ %}
             <c-n26.quick-switcher.of :switcher="fighter_switcher_" hotkey="r" />
         </c-slot>
@@ -64,11 +68,11 @@ breadcrumb above it has the gang as well, so nothing is lost.
                 </c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item href="{% url 'n26-gang' gang.pk %}">{{ gang.name }}</c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item :current="True">
-                    Equip
+                    {{ miniature.name }}
                 </c-ui.breadcrumbs.item>
             </c-ui.breadcrumbs>
         </c-slot>
-    </c-n26.page-header>
+    </c-n26.model-header>
     {% comment %}
     The numbers a purchase is decided against, and the roster it is
     decided across: the same figures strip the hire screen carries, then
@@ -150,8 +154,13 @@ breadcrumb above it has the gang as well, so nothing is lost.
                         scroll away and the reader would have to go back up the
                         page to change lists.
                         {% endcomment %}
+                        {% comment %}
+                        Pills, not the underline: the page's own tabs above
+                        already own the underline, and two underlined strips
+                        on one screen read as two rows of page tabs.
+                        {% endcomment %}
                         {% if collection_tabs|length > 1 %}
-                            <c-n26.tab-links label="Which list" :tabs="collection_tabs" />
+                            <c-n26.tab-links label="Which list" :tabs="collection_tabs" variant="pill" />
                         {% endif %}
                         <c-n26.search-bar :live="True"
                                           :nested="True"

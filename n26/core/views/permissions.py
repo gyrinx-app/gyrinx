@@ -73,6 +73,9 @@ def _own_miniature_or_404(request, pk):
                 "membership__gang__gang_type",
                 "membership__gang__owner",
                 "membership__gang__stash",
+                # The profile's rank rides along: every fighter screen
+                # names the model, and the header says the rank beside it.
+                "membership__profile__category",
             ),
             pk=pk,
             membership__gang__owner=request.user,

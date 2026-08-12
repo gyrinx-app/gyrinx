@@ -1,0 +1,77 @@
+{% comment %}
+<c-n26.view.model-edit> — one model, whole: their card, editable, and the notes.
+
+    <c-n26.view.model-edit :miniature="miniature" :card="card" lead="Leader">
+        <c-slot name="switcher">…quick-switcher…</c-slot>
+        <c-slot name="breadcrumb">…breadcrumbs…</c-slot>
+        <c-slot name="name_action">…rename pencil…</c-slot>
+        <c-slot name="notes">…the notes form…</c-slot>
+    </c-n26.view.model-edit>
+
+The Edit face of a model's own page — the header names the model and offers the
+Equip tab; see <c-n26.model-header>. Under it, a grid that is one column on a
+phone: the card first, everything else a box after it.
+
+The card draws in ``edit`` mode, which is where its controls come out — the
+choice buttons the gang sheet holds back, outlined, and an Equip beside the two
+rows equipping changes. The card is still the sheet's card: same structure,
+same renderer, so what this page says about a model is what the sheet says.
+
+The notes box is a box of the grid rather than the card's own Notes section,
+because it is a form: a card is read in numbers and a paragraph being written
+wants elbow room beside it, not a slot inside it. The form arrives as a slot —
+fields, submit and all — because saving is the page's business; this component
+only decides where the box sits. The box's heading is drawn here so every
+caller's notes box is called the same thing.
+
+  :miniature — the model. The header reads pk and name; the Equip links are
+    built from pk.
+  :card — the model's n26.render.ModelCard.
+  lead — the model's rank, under the name.
+  switcher — a control after the name, for the gang's other models.
+  breadcrumb — the trail above the name.
+  name_action — a control on the name's own line: the rename pencil.
+  notes — the notes form, whole.
+{% endcomment %}
+<c-vars
+    :miniature="None"
+    :card="None"
+    lead=""
+    switcher=""
+    breadcrumb=""
+    name_action=""
+    notes=""
+    class=""
+/>
+
+<div class="flex flex-col gap-4 {{ class }}">
+    <c-n26.model-header :miniature="miniature" lead="{{ lead }}" active="edit">
+        {% if switcher.strip %}
+            <c-slot name="switcher">{{ switcher }}</c-slot>
+        {% endif %}
+        {% if breadcrumb.strip %}
+            <c-slot name="breadcrumb">{{ breadcrumb }}</c-slot>
+        {% endif %}
+    </c-n26.model-header>
+
+    {% comment %}
+    Two columns from md up, one on a phone. auto-rows-min so the notes box
+    keeps its own height rather than inheriting the card's; the card is
+    almost always the taller of the two.
+    {% endcomment %}
+    <div class="grid auto-rows-min grid-cols-1 gap-4 md:grid-cols-2">
+        {% url 'n26-equip' miniature.pk as equip_href_ %}
+        <c-n26.model-card :card="card" mode="edit" equip_href="{{ equip_href_ }}">
+            {% if name_action.strip %}
+                <c-slot name="name_action">{{ name_action }}</c-slot>
+            {% endif %}
+        </c-n26.model-card>
+
+        <c-ui.card>
+            <c-slot name="header">
+                <span class="font-semibold">Notes</span>
+            </c-slot>
+            {{ notes }}
+        </c-ui.card>
+    </div>
+</div>

@@ -1,0 +1,52 @@
+{% comment %}
+<c-n26.model-header> — one model's name and rank, and the tabs of their screens.
+
+    <c-n26.model-header :miniature="miniature" lead="Leader" active="equip">
+        <c-slot name="switcher">…quick-switcher…</c-slot>
+        <c-slot name="breadcrumb">…breadcrumbs…</c-slot>
+    </c-n26.model-header>
+
+The one header every per-model screen draws. Edit and Equip are two faces of the
+same model, so they share a header and read as tabs of one place — a component
+rather than a convention, because two screens each writing "the same" header are
+two screens free to drift apart about what a model's page looks like.
+
+The title is the model's name plain, not "Equip Vesna": the tab strip says which
+face is open, and a title that repeated the verb would say it twice while making
+the name harder to scan for. The lead is the model's rank — what a reader
+checking "which of my models is this" wants said once at the top.
+
+The tab strip is built by the model_screen_tabs tag rather than passed in, so a
+screen cannot invent a strip of its own; adding a screen to a model is one edit
+to n26.core.navigation.
+
+  :miniature — the model. Needs ``pk`` and ``name``; nothing else is read.
+  lead — the model's rank, under the name. Empty draws nothing.
+  active — which tab this screen is: ``edit`` or ``equip``.
+  switcher — a control after the name, for the gang's other models: the pages
+    pass <c-n26.quick-switcher.of> pointed at this same screen for each of them.
+  breadcrumb — the trail above the name. The pages build it, because who owns
+    the gang and where its sheet lives are their business.
+{% endcomment %}
+<c-vars
+    :miniature="None"
+    lead=""
+    active="edit"
+    switcher=""
+    breadcrumb=""
+    class=""
+/>
+{% load navigation %}
+
+<div class="flex flex-col gap-3 {{ class }}">
+    <c-n26.page-header title="{{ miniature.name }}" lead="{{ lead }}">
+        {% if switcher.strip %}
+            <c-slot name="trailing">{{ switcher }}</c-slot>
+        {% endif %}
+        {% if breadcrumb.strip %}
+            <c-slot name="breadcrumb">{{ breadcrumb }}</c-slot>
+        {% endif %}
+    </c-n26.page-header>
+    {% model_screen_tabs miniature active as screen_tabs_ %}
+    <c-n26.tab-links label="This model's screens" :tabs="screen_tabs_" />
+</div>

@@ -1,0 +1,43 @@
+{# title: One model, whole #}
+{# note: The Edit face of a model's own page. The header names the model and offers Equip as the second tab; the grid is the card in edit mode — choice buttons out, outlined, Equip beside Gear and Weapons — and the notes box with the editor. One column on a phone. The Save is the only filled commit on the page, which is why the card's controls are outlined. #}
+{# layout: full #}
+<c-n26.view.model-edit :miniature="sample_miniature" :card="model_card" lead="Leader">
+    <c-slot name="switcher">
+        <c-n26.quick-switcher.of :switcher="sample_fighter_switcher" />
+    </c-slot>
+    <c-slot name="breadcrumb">
+        <c-ui.breadcrumbs>
+            <c-ui.breadcrumbs.item href="#">
+                {{ gang_owner }}
+            </c-ui.breadcrumbs.item>
+            <c-ui.breadcrumbs.item href="#">
+                The Ashen Choir
+            </c-ui.breadcrumbs.item>
+            <c-ui.breadcrumbs.item :current="True">
+                Vesna Krail
+            </c-ui.breadcrumbs.item>
+        </c-ui.breadcrumbs>
+    </c-slot>
+    <c-slot name="name_action">
+        <c-ui.button variant="ghost"
+                     size="xs"
+                     class="ms-1 -mt-0.5 px-1! align-middle"
+                     href="#rename"
+                     aria-label="Rename Vesna Krail"
+                     title="Rename">
+            <span class="n26-icon-only">
+                <c-n26.icon name="pencil" class="size-3.5 text-ink-500 dark:text-ink-400" />
+            </span>
+        </c-ui.button>
+    </c-slot>
+    <c-slot name="notes">
+        <form>
+            <c-n26.rich-text :field="rich_text_form.notes" />
+            <div class="mt-3 flex justify-end">
+                <c-ui.button type="submit" variant="success" size="sm">
+                    Save notes
+                </c-ui.button>
+            </div>
+        </form>
+    </c-slot>
+</c-n26.view.model-edit>

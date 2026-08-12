@@ -1,0 +1,19 @@
+{% comment %}
+<c-n26.model-card.mode> — a region of the card that one mode draws.
+
+    <c-n26.model-card.mode when="edit">…edit controls…</c-n26.model-card.mode>
+
+For use inside the card's own template. The card renders in one of two modes —
+``gang`` on the sheet, dense and read-mostly; ``edit`` on the model's own page,
+where the controls come out — and this wrapper is what keeps the two
+maintainable in one file: an edit affordance is added by wrapping it, not by
+threading another flag through every region it touches.
+
+It reads the enclosing card's ``mode`` from context rather than taking it as a
+prop, which is the whole trick — the call sites inside the card stay one line.
+Outside a model card there is no ``mode`` to read and the slot never draws.
+
+  when — the mode this region belongs to: ``gang`` or ``edit``.
+{% endcomment %}
+<c-vars when="" />
+{% if mode == when %}{{ slot }}{% endif %}

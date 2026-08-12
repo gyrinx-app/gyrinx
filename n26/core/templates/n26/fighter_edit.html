@@ -1,0 +1,103 @@
+{% extends "n26/layouts/base.html" %}
+{% load navigation %}
+{% load static %}
+{% comment %}
+One model's own page, Edit face — the design system's model-edit view over
+real rows. The Equip face is n26/equip.html, wearing the same header; the two
+are tabs of one place.
+{% endcomment %}
+{% block head_title %}{{ miniature.name }}{% endblock head_title %}
+{% comment %}
+richtext.js before form.media: it registers the listener that swaps the
+editor's skin with the colour mode, and django-tinymce's own initialiser
+reads the config after that listener has run. form.media goes in once for
+the page, however many editors it grows.
+{% endcomment %}
+{% block extra_head %}
+    <script src="{% static 'n26/richtext.js' %}"></script>
+    {{ form.media }}
+{% endblock extra_head %}
+{% comment %}
+The bar names the gang, not the fighter: halfway through a fighter's
+screen the way out a reader wants is to their other gang, and the fighter
+is named by the page's own heading directly below.
+{% endcomment %}
+{% block nav_switcher %}
+    {% gang_switcher gang as gang_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="gang_switcher_" hotkey="f" />
+{% endblock nav_switcher %}
+{% block nav_items %}
+    {% include 'n26/_nav.html' with here='gangs' %}
+{% endblock %}
+{% block content %}
+    <c-n26.view.model-edit :miniature="miniature" :card="card" lead="{{ role }}">
+        {% comment %}
+        The heading offers the gang's other models — every row this same
+        screen for them. Not what the bar offers, which is the reader's
+        other gangs: the two controls switch different things.
+        {% endcomment %}
+        <c-slot name="switcher">
+            {% fighter_switcher gang miniature as fighter_switcher_ %}
+            <c-n26.quick-switcher.of :switcher="fighter_switcher_" hotkey="r" />
+        </c-slot>
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item>
+                    <c-n26.user-link :user="gang.owner" tone="current" href="{% url 'n26-dashboard' %}" />
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'n26-gang' gang.pk %}">{{ gang.name }}</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    {{ miniature.name }}
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% comment %}
+        The rename pencil, as the sheet draws it — a link, so the dialog
+        is an address; ?back=edit brings the act back to this page.
+        {% endcomment %}
+        <c-slot name="name_action">
+            <c-ui.button variant="ghost"
+                         size="xs"
+                         class="ms-1 -mt-0.5 px-1! align-middle"
+                         href="?rename={{ miniature.pk }}"
+                         aria-label="Rename {{ miniature.name }}"
+                         title="Rename">
+                <span class="n26-icon-only">
+                    <c-n26.icon name="pencil" class="size-3.5 text-ink-500 dark:text-ink-400" />
+                </span>
+            </c-ui.button>
+        </c-slot>
+        {% comment %}
+        Save is a success button because it ends the form; the outlined
+        controls on the card beside it all start one.
+        {% endcomment %}
+        <c-slot name="notes">
+            <form method="post" action="{{ edit_url }}">
+                {% csrf_token %}
+                <c-n26.rich-text :field="form.notes" />
+                <div class="mt-3 flex justify-end">
+                    <c-ui.button type="submit" variant="success" size="sm">
+                        Save notes
+                    </c-ui.button>
+                </div>
+            </form>
+        </c-slot>
+    </c-n26.view.model-edit>
+    {% if renaming %}
+        <c-n26.dialog title="Rename {{ renaming.name }}"
+                      action="{% url 'n26-rename-fighter' renaming.pk %}?back=edit"
+                      cancel_url="{{ edit_url }}"
+                      submit_label="Rename">
+            {% csrf_token %}
+            <c-ui.field label="Name" for="model-name">
+                <c-ui.input id="model-name"
+                            name="name"
+                            required
+                            maxlength="200"
+                            autocomplete="off"
+                            autofocus="autofocus"
+                            value="{{ renaming.name }}" />
+            </c-ui.field>
+        </c-n26.dialog>
+    {% endif %}
+{% endblock content %}

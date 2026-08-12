@@ -195,12 +195,41 @@ def gang_switcher(request, gang, named=True, menu_label="Switch to another gang"
 #: line here; leaving it out costs a page its own destinations rather
 #: than breaking it.
 FIGHTER_SCREENS = {
+    "n26-edit-fighter": "Edit another model",
     "n26-equip": "Equip another fighter",
     "n26-learn": "Pick skills for another fighter",
 }
 
 #: Where a screen with no per-fighter address sends the switcher.
 FIGHTER_FALLBACK = "n26-equip"
+
+
+def model_screen_tabs(miniature, active):
+    """The screens one model owns, as a strip of link-tabs.
+
+    Edit and Equip are two faces of the same model, so they are tabs of
+    one header rather than pages that happen to link to each other —
+    which is also why the list is built here once: two screens each
+    writing their own strip is two screens free to disagree about what
+    the model's screens are.
+
+    ``active`` names the tab being drawn, not the URL: the equip screen
+    stays the current tab whichever list ``?list=`` has open.
+    """
+    from django.urls import reverse
+
+    return [
+        {
+            "label": "Edit model",
+            "href": reverse("n26-edit-fighter", args=[miniature.pk]),
+            "current": active == "edit",
+        },
+        {
+            "label": "Equip",
+            "href": reverse("n26-equip", args=[miniature.pk]),
+            "current": active == "equip",
+        },
+    ]
 
 
 def fighter_switcher(gang, miniature, route=FIGHTER_FALLBACK):

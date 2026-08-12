@@ -585,13 +585,41 @@ def nav_context():
             empty="No gangs match",
             items=gangs,
         ),
+        # The chevron a model's own header carries: the gang's other
+        # fighters, each row this same screen for them.
+        "sample_fighter_switcher": Switcher(
+            heading="Fighters",
+            menu_label="Switch to another model",
+            placeholder="Search fighters",
+            empty="No fighters match",
+            items=(
+                SwitcherItem(label="Vesna Krail", href="#vesna-krail", current=True),
+                SwitcherItem(label="Sister Yara", href="#sister-yara"),
+                SwitcherItem(label="Ilse Vandt", href="#ilse-vandt"),
+                SwitcherItem(label="Vex", href="#vex"),
+                SwitcherItem(label="Sull", href="#sull"),
+            ),
+        ),
     }
+
+
+def sample_miniature():
+    """A stand-in for the model a header or an edit page is about.
+
+    The components read ``pk`` and ``name`` and nothing else, so a
+    namespace is the honest shape: the gallery renders on an empty
+    database, and ``pk`` only has to be reversible into a URL.
+    """
+    from types import SimpleNamespace
+
+    return SimpleNamespace(pk="sample", name="Vesna Krail")
 
 
 def context():
     return {
         "houses": HOUSES,
         "gang_owner": OWNER,
+        "sample_miniature": sample_miniature(),
         # Every demo that draws a gang type's badge needs the artwork as a
         # string, because that is what the library stores and what the component
         # sanitises. One name for it, so the demos cannot show two drawings.

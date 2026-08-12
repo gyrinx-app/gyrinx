@@ -334,23 +334,30 @@ def rename_fighter(request, pk):
     from n26.core.views.permissions import _own_miniature_or_404
 
     miniature = _own_miniature_or_404(request, pk)
-    sheet_url = reverse("n26-gang", args=[miniature.membership.gang_id])
+    # Two screens carry the rename pencil — the sheet and the model's
+    # own edit page — and the act should land back on whichever asked.
+    # ``?back=edit`` is a named place, never a URL, so there is nothing
+    # here for an open redirect to ride.
+    if request.GET.get("back") == "edit":
+        back_url = reverse("n26-edit-fighter", args=[miniature.pk])
+    else:
+        back_url = reverse("n26-gang", args=[miniature.membership.gang_id])
     if request.method != "POST":
-        return redirect(f"{sheet_url}?rename={miniature.pk}")
+        return redirect(f"{back_url}?rename={miniature.pk}")
 
     form = RenameFighterForm(request.POST)
     if not form.is_valid():
         messages.error(request, "A model needs a name.")
-        return redirect(f"{sheet_url}?rename={miniature.pk}")
+        return redirect(f"{back_url}?rename={miniature.pk}")
 
     was = miniature.name
     miniature.name = form.cleaned_data["name"]
     if miniature.name == was:
-        return redirect(sheet_url)
+        return redirect(back_url)
     miniature.save(update_fields=["name"])
     record(request, N26Noun.MODEL, EventVerb.UPDATE, miniature, renamed_from=was)
     messages.success(request, f"Renamed {was} to {miniature.name}.")
-    return redirect(sheet_url)
+    return redirect(back_url)
 
 
 @login_required

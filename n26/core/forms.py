@@ -8,6 +8,7 @@ gang types are the library's rows.
 
 from django import forms
 
+from n26.core.widgets import RichText
 from n26.library.models import GangType
 
 
@@ -108,6 +109,17 @@ class HireFighterForm(forms.Form):
         label="Name",
         help_text="Optional — you can name them later.",
     )
+
+
+class FighterNotesForm(forms.Form):
+    """The edit page's notes box.
+
+    Optional, because an emptied box is a real answer — it clears the
+    notes. What the editor produces is stored as written; sanitising
+    happens at render time, which is why nothing here strips tags.
+    """
+
+    notes = forms.CharField(required=False, widget=RichText())
 
 
 class RenameFighterForm(forms.Form):

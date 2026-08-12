@@ -23,4 +23,4 @@ and L each appear twice and only the title says which is range and which accurac
   leading / trailing — extra <th> either side.
 {% endcomment %}
 <c-vars :cells="None" leading="" trailing="" />
-{% if leading %}{{ leading }}{% endif %}{% for cell in cells %}<th scope="col" title="{{ cell.full_name }}" class="whitespace-nowrap px-2 py-1.5 text-center text-xs font-semibold text-ink-900 dark:text-ink-100 {% if cell.first_of_group and not forloop.first %}border-l border-box-border{% endif %} {% if cell.highlighted %}bg-ink-500/10{% endif %}">{{ cell.short_name }}</th>{% endfor %}{% if trailing %}{{ trailing }}{% endif %}
+{% if leading %}{{ leading }}{% endif %}{% for cell in cells %}<th scope="col" title="{{ cell.full_name }}" class="whitespace-nowrap px-2 py-0 text-center text-xs font-semibold text-ink-900 dark:text-ink-100 {% if cell.first_of_group and not forloop.first %}border-l border-box-border{% endif %} {% if cell.highlighted %}bg-ink-500/10{% endif %}">{{ cell.short_name }}</th>{% endfor %}{% if trailing %}{{ trailing }}{% endif %}

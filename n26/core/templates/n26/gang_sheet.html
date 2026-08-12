@@ -9,11 +9,6 @@ What was judged there is what ships here, so the two should be edited together.
 
   --- what is not wired yet ---
 
-The per-card Cards and Delete items have no routes. They are drawn anyway, at
-"#", so the screen keeps the shape the library settled on and the gaps are
-visible rather than quietly designed around. Each becomes a url tag as its
-feature lands — Hire, Equip, Print and the gang's own Delete already have.
-
 The counters are shown as settled facts: there is no route that tallies one yet,
 and a control that saves nothing is worse than a value with no affordance at all.
 The choices do have one — each slot leads to its own picker.
@@ -166,44 +161,52 @@ that said it twice would be spending the width the name needs.
                     <c-slot name="actions">
                         {% comment %}
                         Equip is the one you came for and the only per-model act
-                        that is not destructive, so it is the primary and it is on
-                        its own. Cards and Delete share the dropdown because
-                        neither is frequent and one is irreversible.
+                        that is not destructive, so it is the primary and it is
+                        on its own. Edit — the model's own page, where the rest
+                        of the card's controls live — is grouped with the
+                        overflow: the pair reads as one place to look for
+                        "things you can do to this model that are not
+                        equipping". Delete stays in the dropdown because it is
+                        irreversible and should cost a second deliberate press.
                         {% endcomment %}
                         <c-ui.button size="xs" variant="primary" href="{% url 'n26-equip' member.id %}">
                             Equip
                         </c-ui.button>
-                        <c-ui.dropdown>
-                            <c-slot name="trigger">
-                                <c-ui.button size="xs" variant="default" aria-label="More actions">
-                                    <span class="n26-icon-only gap-0.5">
-                                        <c-n26.icon name="ellipsis-vertical" class="size-3.5" />
-                                        <c-n26.icon name="chevron-down" class="size-3" stroke_width="2.5" />
-                                    </span>
-                                </c-ui.button>
-                            </c-slot>
-                            <c-ui.dropdown.item href="#">
-                                Cards
-                            </c-ui.dropdown.item>
-                            {% comment %}
-                            Both open a question rather than acting: the URL
-                            names the fighter and the sheet answers with the
-                            dialog below, so a press works with no script and
-                            an open question is an address someone can send.
+                        <c-n26.button-group>
+                            <c-ui.button size="xs"
+                                         variant="default"
+                                         href="{% url 'n26-edit-fighter' member.id %}">
+                                Edit
+                            </c-ui.button>
+                            <c-ui.dropdown>
+                                <c-slot name="trigger">
+                                    <c-ui.button size="xs" variant="default" aria-label="More actions">
+                                        <span class="n26-icon-only gap-0.5">
+                                            <c-n26.icon name="ellipsis-vertical" class="size-3.5" />
+                                            <c-n26.icon name="chevron-down" class="size-3" stroke_width="2.5" />
+                                        </span>
+                                    </c-ui.button>
+                                </c-slot>
+                                {% comment %}
+                                Both open a question rather than acting: the URL
+                                names the fighter and the sheet answers with the
+                                dialog below, so a press works with no script and
+                                an open question is an address someone can send.
 
-                            Refund only where there is a budget being spent —
-                            a gang founded without one never paid credits, so
-                            there is nothing a refund could give back.
-                            {% endcomment %}
-                            {% if budgeted %}
-                                <c-ui.dropdown.item href="?refund={{ member.id }}">
-                                    Refund
+                                Refund only where there is a budget being spent —
+                                a gang founded without one never paid credits, so
+                                there is nothing a refund could give back.
+                                {% endcomment %}
+                                {% if budgeted %}
+                                    <c-ui.dropdown.item href="?refund={{ member.id }}">
+                                        Refund
+                                    </c-ui.dropdown.item>
+                                {% endif %}
+                                <c-ui.dropdown.item variant="danger" href="?delete={{ member.id }}">
+                                    Delete
                                 </c-ui.dropdown.item>
-                            {% endif %}
-                            <c-ui.dropdown.item variant="danger" href="?delete={{ member.id }}">
-                                Delete
-                            </c-ui.dropdown.item>
-                        </c-ui.dropdown>
+                            </c-ui.dropdown>
+                        </c-n26.button-group>
                     </c-slot>
                 </c-n26.model-card>
             {% endfor %}
