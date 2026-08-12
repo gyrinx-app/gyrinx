@@ -88,6 +88,19 @@ def test_the_list_draws_with_prices(client, tester, gang, ganger):
     assert "55" in body
 
 
+def test_the_other_scopes_are_offered_to_the_browser_early(
+    client, tester, gang, ganger
+):
+    """Each scope tab is a whole hire list built and priced, so the page
+    asks the browser to render the others before they are pressed. The
+    rule names this strip's own nav and leaves out the current tab,
+    which is this page and already built."""
+    client.force_login(tester)
+    body = client.get(hire_url(gang)).content.decode()
+    assert '<script type="speculationrules">' in body
+    assert "nav[data-speculate='who-can-be-hired'] a:not([aria-current])" in body
+
+
 def test_the_list_asks_for_no_name(client, tester, gang, ganger):
     """Naming is the dialog's question, and asking it twice would mean two
     places a name could be typed and only one of them read."""

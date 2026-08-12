@@ -83,7 +83,16 @@ be read in one.
         and only the chosen one is priced — the all-profiles scope
         builds a card for every profile there is.
         {% endcomment %}
-        <c-n26.tab-links label="Who can be hired" :tabs="scope_tabs" class="mb-4" />
+        {% comment %}
+        Prerendered eagerly: each scope is a whole hire list built and
+        priced, seconds of server work a reader would otherwise sit
+        through per press. The pages are side-effect-free GETs and there
+        are only two others, so the press is answered from cache.
+        {% endcomment %}
+        <c-n26.tab-links label="Who can be hired"
+                         :tabs="scope_tabs"
+                         prerender="immediate"
+                         class="mb-4" />
         <c-n26.profile-picker :categories="categories"
                               :sections="sections"
                               price_floor="{{ price_floor }}"

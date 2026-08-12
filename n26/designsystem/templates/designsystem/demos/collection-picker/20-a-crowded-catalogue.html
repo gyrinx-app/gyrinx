@@ -1,0 +1,50 @@
+{# title: A crowded catalogue #}
+{# note: The volume specimen: nineteen uneven suppliers, a couple of hundred rows — the shape the biggest live listings reach. This is the page to open when a change might make the picker slower. Press along the strip and watch the accent: a tab answers in the hand, because every count on the page is read from one table that a single effect rebuilds when the items or a filter change — pressing a tab changes neither, so it recomputes nothing. Then type in the search and drag the sliders; the counts fall as you go at this volume too. #}
+{# layout: full #}
+<c-n26.collection-picker :categories="crowded_categories"
+                         :sections="crowded_sections"
+                         price_floor="{{ crowded_price_floor }}"
+                         price_ceiling="{{ crowded_price_ceiling }}"
+                         tp_ceiling="{{ crowded_tp_ceiling }}"
+                         noun="items">
+    <c-slot name="filters">
+        <c-n26.search-bar :live="True" model="query" placeholder="Search the whole catalogue" />
+        <div class="flex flex-wrap items-center gap-2">
+            <c-n26.range-menu label="Price"
+                              model_min="minPrice"
+                              model_max="maxPrice"
+                              min="{{ crowded_price_floor }}"
+                              max="{{ crowded_price_ceiling }}"
+                              step="5"
+                              suffix="¢"
+                              at_max_label="Any" />
+            <c-n26.range-menu label="Trade points"
+                              model="maxTradePoints"
+                              min="0"
+                              max="{{ crowded_tp_ceiling }}"
+                              step="1"
+                              prefix="≤ "
+                              at_min_label="Freely available"
+                              at_max_label="Any" />
+        </div>
+    </c-slot>
+    {% for section_row in crowded_section_rows %}
+        <c-n26.collection-picker.section name="{{ section_row.section.name }}" :open="section_row.first">
+            {% for category in section_row.section.categories %}
+                <c-n26.collection-picker.category name="{{ category.name }}">
+                    {% for line in category.lines %}
+                        <c-n26.collection-picker.item name="{{ line.name }}"
+                                                      :price="line.credits"
+                                                      :trade_points="line.trade_points">
+                            <c-slot name="actions">
+                                <c-ui.button size="sm" variant="primary">
+                                    Add
+                                </c-ui.button>
+                            </c-slot>
+                        </c-n26.collection-picker.item>
+                    {% endfor %}
+                </c-n26.collection-picker.category>
+            {% endfor %}
+        </c-n26.collection-picker.section>
+    {% endfor %}
+</c-n26.collection-picker>
