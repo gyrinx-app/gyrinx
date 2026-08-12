@@ -21,9 +21,14 @@ from gyrinx.site import icons as banner_icons
 
 logger = logging.getLogger(__name__)
 
-# Cache key/timeout for the live banner. Defined beside the model rather than in
-# the context processor that reads it, so the platform owns its own constant.
-BANNER_CACHE_KEY = "site_banner_live"
+# Cache keys/timeout for the live banner, one per edition — each side of the
+# site shows its own banner, so each caches its own answer. Defined beside the
+# model rather than in the context processor that reads it, so the platform
+# owns its own constants.
+BANNER_CACHE_KEYS = {
+    "n23": "site_banner_live:n23",
+    "n26": "site_banner_live:n26",
+}
 BANNER_CACHE_TIMEOUT = 300  # 5 minutes
 
 
@@ -61,9 +66,21 @@ class Banner(AppBase):
         default="info",
         help_text="Bootstrap colour/priority for the banner",
     )
-    is_live = models.BooleanField(
+    live_n23 = models.BooleanField(
+        "live on n23",
         default=False,
-        help_text="Whether this banner is currently live. Only one banner can be live at a time.",
+        help_text=(
+            "Whether this banner is currently live on the classic site. "
+            "At most one banner can be live there at a time."
+        ),
+    )
+    live_n26 = models.BooleanField(
+        "live on n26",
+        default=False,
+        help_text=(
+            "Whether this banner is currently live on the n26 edition. "
+            "At most one banner can be live there at a time."
+        ),
     )
 
     # History tracking
@@ -75,8 +92,12 @@ class Banner(AppBase):
         verbose_name = "Banner"
         verbose_name_plural = "Banners"
 
+    #: The per-edition live flags, keyed by the edition names the cache keys use.
+    LIVE_FLAGS = {"n23": "live_n23", "n26": "live_n26"}
+
     def __str__(self):
-        status = "LIVE" if self.is_live else "Draft"
+        live = [name for name, flag in self.LIVE_FLAGS.items() if getattr(self, flag)]
+        status = "LIVE " + "+".join(live) if live else "Draft"
         return f"[{status}] {self.text[:50]}..."
 
     @property
@@ -92,19 +113,23 @@ class Banner(AppBase):
         return banner_icons.bootstrap_class(self.icon)
 
     def save(self, *args, **kwargs):
-        # If this banner is being set to live, turn off all other live banners
-        if self.is_live:
-            Banner.objects.filter(is_live=True).exclude(pk=self.pk).update(
-                is_live=False
-            )
+        # Each side shows at most one banner: going live on a side takes
+        # that side's slot from whichever banner held it.
+        for flag in self.LIVE_FLAGS.values():
+            if getattr(self, flag):
+                Banner.objects.filter(**{flag: True}).exclude(pk=self.pk).update(
+                    **{flag: False}
+                )
         super().save(*args, **kwargs)
-        # Clear the banner cache when any banner is saved
-        cache.delete(BANNER_CACHE_KEY)
+        # Clear the banner caches when any banner is saved
+        for key in BANNER_CACHE_KEYS.values():
+            cache.delete(key)
 
     def delete(self, *args, **kwargs):
         super().delete(*args, **kwargs)
-        # Clear the banner cache when any banner is deleted
-        cache.delete(BANNER_CACHE_KEY)
+        # Clear the banner caches when any banner is deleted
+        for key in BANNER_CACHE_KEYS.values():
+            cache.delete(key)
 
     def clean(self):
         super().clean()

@@ -12,12 +12,13 @@ class BannerAdmin(admin.ModelAdmin):
     list_display = [
         "get_banner_preview",
         "colour",
-        "is_live",
+        "live_n23",
+        "live_n26",
         "get_click_count",
         "created",
         "modified",
     ]
-    list_filter = ["is_live", "colour", "created"]
+    list_filter = ["live_n23", "live_n26", "colour", "created"]
     search_fields = ["text", "cta_text"]
     readonly_fields = ["created", "modified", "get_click_count"]
 
@@ -33,8 +34,11 @@ class BannerAdmin(admin.ModelAdmin):
         (
             "Status",
             {
-                "fields": ("is_live", "get_click_count"),
-                "description": "Only one banner can be live at a time",
+                "fields": ("live_n23", "live_n26", "get_click_count"),
+                "description": (
+                    "Each side of the site shows at most one live banner; "
+                    "tick both to show this one everywhere"
+                ),
             },
         ),
         (
@@ -45,7 +49,8 @@ class BannerAdmin(admin.ModelAdmin):
 
     def get_banner_preview(self, obj):
         """Show a preview of the banner text (truncated)."""
-        status = "🟢 LIVE" if obj.is_live else "⚪ Draft"
+        live = [name for name, flag in obj.LIVE_FLAGS.items() if getattr(obj, flag)]
+        status = f"🟢 LIVE {'+'.join(live)}" if live else "⚪ Draft"
         text_preview = obj.text[:80] + "..." if len(obj.text) > 80 else obj.text
         return format_html(
             "<strong>{}</strong><br><small>{}</small>", status, text_preview

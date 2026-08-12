@@ -18,7 +18,7 @@ def test_track_banner_click_with_cta_url():
         text="Test banner",
         cta_text="Learn More",
         cta_url="https://example.com",
-        is_live=True,
+        live_n23=True,
     )
 
     client = Client()
@@ -53,7 +53,7 @@ def test_track_banner_click_without_cta_url():
     # Create a live banner without CTA URL
     banner = Banner.objects.create(
         text="Test banner without CTA",
-        is_live=True,
+        live_n23=True,
     )
 
     client = Client()
@@ -77,6 +77,25 @@ def test_track_banner_click_without_cta_url():
 
 
 @pytest.mark.django_db
+def test_track_banner_click_n26_only_banner():
+    """A banner live only on n26 still tracks its clicks through here."""
+    banner = Banner.objects.create(
+        text="New side banner",
+        cta_text="Learn More",
+        cta_url="https://example.com",
+        live_n26=True,
+    )
+
+    client = Client()
+    url = reverse("core:track-banner-click", kwargs={"id": banner.id})
+
+    response = client.get(url)
+
+    assert response.status_code == 302
+    assert response.url == "https://example.com"
+
+
+@pytest.mark.django_db
 def test_track_banner_click_non_live_banner():
     """Test that clicking a non-live banner returns 404."""
     # Create a non-live banner
@@ -84,7 +103,8 @@ def test_track_banner_click_non_live_banner():
         text="Non-live banner",
         cta_text="Learn More",
         cta_url="https://example.com",
-        is_live=False,
+        live_n23=False,
+        live_n26=False,
     )
 
     client = Client()
@@ -116,7 +136,7 @@ def test_track_banner_click_authenticated_user():
         text="Test banner for auth user",
         cta_text="Click Me",
         cta_url="https://example.com",
-        is_live=True,
+        live_n23=True,
     )
 
     client = Client()

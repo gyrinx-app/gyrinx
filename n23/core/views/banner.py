@@ -3,6 +3,7 @@
 import json
 import logging
 
+from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.views.decorators.http import require_POST
@@ -90,7 +91,11 @@ def track_banner_click(request, id):
 
     Redirects to the banner's CTA URL or to the home page if the banner is not found.
     """
-    banner = get_object_or_404(Banner, id=id, is_live=True)
+    # Live on either side qualifies: the click may have come from either
+    # edition's shell, and both track through here.
+    banner = get_object_or_404(
+        Banner.objects.filter(Q(live_n23=True) | Q(live_n26=True)), id=id
+    )
 
     # Log the banner click event
     log_event(

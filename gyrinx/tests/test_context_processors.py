@@ -6,7 +6,7 @@ from django.db import DatabaseError, InterfaceError, OperationalError
 from django.test import RequestFactory
 
 from gyrinx.context_processors import site_banner
-from gyrinx.site.models import BANNER_CACHE_KEY, Banner
+from gyrinx.site.models import BANNER_CACHE_KEYS, Banner
 
 
 @pytest.fixture
@@ -14,14 +14,19 @@ def request_factory():
     return RequestFactory()
 
 
+def clear_banner_cache():
+    for key in BANNER_CACHE_KEYS.values():
+        cache.delete(key)
+
+
 @pytest.mark.django_db
 def test_site_banner_with_live_banner(request_factory):
     """Test that a live banner is returned in context."""
     # Create a live banner
-    banner = Banner.objects.create(text="Test Banner", is_live=True)
+    banner = Banner.objects.create(text="Test Banner", live_n23=True)
 
     # Clear cache to ensure fresh fetch
-    cache.delete(BANNER_CACHE_KEY)
+    clear_banner_cache()
 
     request = request_factory.get("/")
     request.session = {}
@@ -32,13 +37,64 @@ def test_site_banner_with_live_banner(request_factory):
 
 
 @pytest.mark.django_db
+def test_site_banner_is_chosen_per_edition(request_factory):
+    """Each side of the site sees only the banner live on that side."""
+    classic = Banner.objects.create(text="Classic side", live_n23=True)
+    modern = Banner.objects.create(text="New side", live_n26=True)
+
+    clear_banner_cache()
+    request = request_factory.get("/")
+    request.session = {}
+    assert site_banner(request)["banner"] == classic
+
+    clear_banner_cache()
+    request = request_factory.get("/n26/gangs/")
+    request.session = {}
+    assert site_banner(request)["banner"] == modern
+
+
+@pytest.mark.django_db
+def test_site_banner_live_on_one_side_is_absent_from_the_other(request_factory):
+    """A banner live only on n23 never shows under /n26/, and vice versa."""
+    Banner.objects.create(text="Classic only", live_n23=True)
+
+    clear_banner_cache()
+    request = request_factory.get("/n26/gangs/")
+    request.session = {}
+    assert site_banner(request)["banner"] is None
+
+
+@pytest.mark.django_db
+def test_site_banner_live_on_both_shows_on_both(request_factory):
+    """A banner live on both sides shows everywhere."""
+    banner = Banner.objects.create(text="Everywhere", live_n23=True, live_n26=True)
+
+    clear_banner_cache()
+    for path in ("/", "/n26/gangs/"):
+        request = request_factory.get(path)
+        request.session = {}
+        assert site_banner(request)["banner"] == banner
+
+
+@pytest.mark.django_db
+def test_going_live_takes_only_that_sides_slot():
+    """Setting a banner live on one side demotes the previous holder of that
+    side's slot — and leaves the other side's untouched."""
+    both = Banner.objects.create(text="First", live_n23=True, live_n26=True)
+    Banner.objects.create(text="Second", live_n23=True)
+
+    both.refresh_from_db()
+    assert not both.live_n23
+    assert both.live_n26
+
+
+@pytest.mark.django_db
 def test_site_banner_no_live_banner(request_factory):
     """Test that None is returned when no live banner exists."""
     # Ensure no banners exist
     Banner.objects.all().delete()
 
-    # Clear cache
-    cache.delete(BANNER_CACHE_KEY)
+    clear_banner_cache()
 
     request = request_factory.get("/")
     request.session = {}
@@ -51,10 +107,9 @@ def test_site_banner_no_live_banner(request_factory):
 @pytest.mark.django_db
 def test_site_banner_dismissed(request_factory):
     """Test that dismissed banners are not shown."""
-    banner = Banner.objects.create(text="Test Banner", is_live=True)
+    banner = Banner.objects.create(text="Test Banner", live_n23=True)
 
-    # Clear cache
-    cache.delete(BANNER_CACHE_KEY)
+    clear_banner_cache()
 
     request = request_factory.get("/")
     request.session = {"dismissed_banners": [str(banner.id)]}
@@ -67,10 +122,9 @@ def test_site_banner_dismissed(request_factory):
 @pytest.mark.django_db
 def test_site_banner_caching(request_factory):
     """Test that banner data is cached."""
-    banner = Banner.objects.create(text="Test Banner", is_live=True)
+    banner = Banner.objects.create(text="Test Banner", live_n23=True)
 
-    # Clear cache
-    cache.delete(BANNER_CACHE_KEY)
+    clear_banner_cache()
 
     request = request_factory.get("/")
     request.session = {}
@@ -95,8 +149,7 @@ def test_site_banner_caching(request_factory):
 @pytest.mark.django_db
 def test_site_banner_handles_database_error(request_factory):
     """Test that DatabaseError is handled gracefully."""
-    # Clear cache
-    cache.delete(BANNER_CACHE_KEY)
+    clear_banner_cache()
 
     request = request_factory.get("/")
     request.session = {}
@@ -112,8 +165,7 @@ def test_site_banner_handles_database_error(request_factory):
 @pytest.mark.django_db
 def test_site_banner_handles_operational_error(request_factory):
     """Test that OperationalError is handled gracefully."""
-    # Clear cache
-    cache.delete(BANNER_CACHE_KEY)
+    clear_banner_cache()
 
     request = request_factory.get("/")
     request.session = {}
@@ -129,8 +181,7 @@ def test_site_banner_handles_operational_error(request_factory):
 @pytest.mark.django_db
 def test_site_banner_handles_interface_error(request_factory):
     """Test that InterfaceError is handled gracefully."""
-    # Clear cache
-    cache.delete(BANNER_CACHE_KEY)
+    clear_banner_cache()
 
     request = request_factory.get("/")
     request.session = {}
@@ -146,8 +197,7 @@ def test_site_banner_handles_interface_error(request_factory):
 @pytest.mark.django_db
 def test_site_banner_handles_does_not_exist(request_factory):
     """Test that Banner.DoesNotExist is handled gracefully."""
-    # Clear cache
-    cache.delete(BANNER_CACHE_KEY)
+    clear_banner_cache()
 
     request = request_factory.get("/")
     request.session = {}
@@ -165,8 +215,7 @@ def test_site_banner_handles_does_not_exist(request_factory):
 @pytest.mark.django_db
 def test_site_banner_handles_unexpected_exception(request_factory):
     """Test that unexpected exceptions are handled gracefully."""
-    # Clear cache
-    cache.delete(BANNER_CACHE_KEY)
+    clear_banner_cache()
 
     request = request_factory.get("/")
     request.session = {}
@@ -181,28 +230,32 @@ def test_site_banner_handles_unexpected_exception(request_factory):
 
 @pytest.mark.django_db
 def test_banner_save_clears_cache():
-    """Test that saving a banner clears the cache."""
-    # Set something in cache
-    cache.set(BANNER_CACHE_KEY, "test_value", 300)
+    """Test that saving a banner clears the caches for both editions."""
+    # Set something in both caches
+    for key in BANNER_CACHE_KEYS.values():
+        cache.set(key, "test_value", 300)
 
     # Create and save a banner
-    Banner.objects.create(text="Test Banner", is_live=True)
+    Banner.objects.create(text="Test Banner", live_n23=True)
 
-    # Cache should be cleared
-    assert cache.get(BANNER_CACHE_KEY) is None
+    # Caches should be cleared
+    for key in BANNER_CACHE_KEYS.values():
+        assert cache.get(key) is None
 
 
 @pytest.mark.django_db
 def test_banner_delete_clears_cache():
-    """Test that deleting a banner clears the cache."""
+    """Test that deleting a banner clears the caches for both editions."""
     # Create a banner
-    banner = Banner.objects.create(text="Test Banner", is_live=True)
+    banner = Banner.objects.create(text="Test Banner", live_n23=True)
 
-    # Set something in cache
-    cache.set(BANNER_CACHE_KEY, "test_value", 300)
+    # Set something in both caches
+    for key in BANNER_CACHE_KEYS.values():
+        cache.set(key, "test_value", 300)
 
     # Delete the banner
     banner.delete()
 
-    # Cache should be cleared
-    assert cache.get(BANNER_CACHE_KEY) is None
+    # Caches should be cleared
+    for key in BANNER_CACHE_KEYS.values():
+        assert cache.get(key) is None

@@ -7,7 +7,7 @@ from django.core.cache import cache
 from django.db import DatabaseError, InterfaceError, OperationalError
 
 from gyrinx.site.models import (
-    BANNER_CACHE_KEY,
+    BANNER_CACHE_KEYS,
     BANNER_CACHE_TIMEOUT,
     Banner,
     Notification,
@@ -62,23 +62,33 @@ def site_banner(request):
     """
     Add the current live banner to the context, if any exists and hasn't been dismissed.
 
-    Note that this is disabled in tests by directly setting BANNER_CACHE_KEY to False
+    Each edition shows its own banner: a banner is live on n23, on n26, or both,
+    and the request's path says which side is asking — everything under /n26/ is
+    the new edition, everything else the classic site.
+
+    Note that this is disabled in tests by directly setting the BANNER_CACHE_KEYS
+    entries to False.
     """
     context = {"banner": None}
 
+    edition = "n26" if request.path.startswith("/n26/") else "n23"
+    cache_key = BANNER_CACHE_KEYS[edition]
+
     # Try to get banner from cache first
-    live_banner = cache.get(BANNER_CACHE_KEY)
+    live_banner = cache.get(cache_key)
 
     if live_banner is None:
         # Banner not in cache, fetch from database
         try:
-            live_banner = Banner.objects.filter(is_live=True).first()
+            live_banner = Banner.objects.filter(
+                **{Banner.LIVE_FLAGS[edition]: True}
+            ).first()
             # Cache the result (even if None) to avoid repeated DB queries
-            cache.set(BANNER_CACHE_KEY, live_banner or False, BANNER_CACHE_TIMEOUT)
+            cache.set(cache_key, live_banner or False, BANNER_CACHE_TIMEOUT)
         except Banner.DoesNotExist:
             # This is expected when no banner exists
             live_banner = None
-            cache.set(BANNER_CACHE_KEY, False, BANNER_CACHE_TIMEOUT)
+            cache.set(cache_key, False, BANNER_CACHE_TIMEOUT)
         except (DatabaseError, OperationalError, InterfaceError) as e:
             # Database-related errors should be logged but not break the page
             # Use warning level instead of exception to reduce noise in logs

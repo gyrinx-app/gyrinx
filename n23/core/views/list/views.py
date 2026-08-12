@@ -19,7 +19,7 @@ from gyrinx.analytics.models import EventVerb, log_event
 from gyrinx.http import build_safe_url, get_return_url, safe_redirect
 from gyrinx.models import is_valid_uuid
 from gyrinx.querysets import search_queryset, toggle_membership
-from gyrinx.site.models import BANNER_CACHE_KEY
+from gyrinx.site.models import BANNER_CACHE_KEYS
 from gyrinx.tracing import traced
 from gyrinx.tracker import track
 from n23.content.models import ContentEquipment, ContentFighter, ContentHouse
@@ -439,7 +439,8 @@ class ListPerformanceView(generic.DetailView):
         context = super().get_context_data(**kwargs)
 
         # This prevents the banner query being fired in tests
-        cache.set(BANNER_CACHE_KEY, False, None)
+        for key in BANNER_CACHE_KEYS.values():
+            cache.set(key, False, None)
 
         return context
 

@@ -745,7 +745,7 @@ class TestTheSiteBanner:
 
         def make(**kwargs):
             return Banner.objects.create(
-                text="N26 support is coming.", is_live=True, **kwargs
+                text="N26 support is coming.", live_n26=True, **kwargs
             )
 
         return make

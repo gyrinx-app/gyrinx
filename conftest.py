@@ -8,7 +8,7 @@ from django.contrib.sites.models import Site
 from django.core.cache import cache, caches
 from django.db.models.signals import post_migrate
 
-from gyrinx.site.models import BANNER_CACHE_KEY
+from gyrinx.site.models import BANNER_CACHE_KEYS
 
 # Re-export the local task-queue driver fixture so tests can request `task_queue`
 # to drive the durable queue in manual mode (inject duplicates/failures/drops).
@@ -42,7 +42,8 @@ def django_test_settings():
     )
 
     # This prevents the banner query being fired in tests
-    cache.set(BANNER_CACHE_KEY, False, None)
+    for key in BANNER_CACHE_KEYS.values():
+        cache.set(key, False, None)
 
     # Optimize test performance
     # Disable DEBUG to avoid query tracking overhead
@@ -82,9 +83,10 @@ def clear_content_page_ref_cache():
     already happened, which is what made the relative query-count tests in
     test_crew.py flaky on CI but not locally (#2114).
 
-    Only this cache is cleared. The ``default`` cache deliberately holds
-    ``BANNER_CACHE_KEY`` from ``django_test_settings`` so the banner query stays
-    out of every test's count; clearing that here would put the query back.
+    Only this cache is cleared. The ``default`` cache deliberately holds the
+    ``BANNER_CACHE_KEYS`` entries from ``django_test_settings`` so the banner
+    query stays out of every test's count; clearing that here would put the
+    query back.
     """
     caches["content_page_ref_cache"].clear()
     yield
