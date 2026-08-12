@@ -92,12 +92,16 @@ def test_the_other_scopes_are_offered_to_the_browser_early(
     client, tester, gang, ganger
 ):
     """Each scope tab is a whole hire list built and priced, so the page
-    asks the browser to render the others before they are pressed. The
-    rule names this strip's own nav and leaves out the current tab,
+    asks the browser to fetch the others on intent. Fetch, never render:
+    these documents run to megabytes, and a hidden built copy per tab
+    behind the visible page is a memory bill the reader never agreed to.
+    The rule names this strip's own nav and leaves out the current tab,
     which is this page and already built."""
     client.force_login(tester)
     body = client.get(hire_url(gang)).content.decode()
     assert '<script type="speculationrules">' in body
+    assert '"prefetch"' in body
+    assert '"prerender"' not in body
     assert "nav[data-speculate='who-can-be-hired'] a:not([aria-current])" in body
 
 
