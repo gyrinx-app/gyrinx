@@ -382,8 +382,8 @@ class TestTheNavigation:
             ">Home</a>",
             ">Gangs</a>",
             "Campaigns",
-            'href="/help/n26/"',
             "Content Packs",
+            'href="/help/n26/"',
         )
         assert positions == sorted(positions)
         # Founding is an action with a button on both pages, not a place.
@@ -397,6 +397,18 @@ class TestTheNavigation:
         drawer = nav_drawer(client.get("/n26/").content.decode())
         assert 'href="/help/n26/"' in drawer
         assert "Help" in drawer
+
+    def test_the_bar_carries_help_as_an_icon(self, tester, client, default_pack):
+        """An icon beside the edition pill, named for a screen reader —
+        and absent from narrow screens, where the drawer's worded entry
+        is the way in."""
+        import re
+
+        body = client.get("/n26/").content.decode()
+        icon = re.search(r'<a\s[^>]*aria-label="Help"[^>]*>', body)
+        assert icon is not None
+        assert 'href="/help/n26/"' in icon.group()
+        assert "hidden" in icon.group() and "sm:inline-flex" in icon.group()
 
     def test_a_place_with_no_page_yet_is_not_a_link(self, tester, client, default_pack):
         """Campaigns and Content Packs are coming and are worth naming,

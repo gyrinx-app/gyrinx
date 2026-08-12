@@ -49,10 +49,10 @@ a page that belongs nowhere.
 <c-ui.navbar.item href="{% url 'n26-gangs' %}"
                   current="{% if here == 'gangs' %}1{% endif %}">Gangs</c-ui.navbar.item>
 <span>Campaigns <span class="text-xs tracking-wide uppercase">Soon</span></span>
+<span>Content Packs <span class="text-xs tracking-wide uppercase">Soon</span></span>
 <c-ui.navbar.item href="/help/n26/">
     Help
 </c-ui.navbar.item>
-<span>Content Packs <span class="text-xs tracking-wide uppercase">Soon</span></span>
 {% if user.is_staff %}
     {% comment %}
     The rule and the heading are drawn inside the same list as the links, not
