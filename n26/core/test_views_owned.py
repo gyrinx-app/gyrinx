@@ -519,11 +519,301 @@ class TestWhoMayPress:
         assert_reconciled(gang)
 
     @pytest.mark.parametrize(
-        "route", ["n26-sell", "n26-reassign", "n26-refund", "n26-remove"]
+        "route",
+        ["n26-sell", "n26-reassign", "n26-refund", "n26-remove", "n26-accessorise"],
     )
     def test_a_pk_that_is_not_a_ulid_is_not_found(self, client, tester, route):
         client.force_login(tester)
         assert client.post(reverse(route, args=["nonsense"])).status_code == 404
+
+
+@pytest.fixture
+def sight(db):
+    """Twenty-five credits of telescopic sight, fitting anything."""
+    from n26.library.authoring import create_weapon_accessory
+
+    return create_weapon_accessory("Telescopic sight", price=25)
+
+
+@pytest.fixture
+def gun(gang, fighter, tester):
+    """A lasgun on the fighter, bought at its list price of fifteen."""
+    from n26.library.authoring import create_weapon
+
+    weapon = create_weapon("Lasgun", price=15, profiles=[("", 0)])
+    with operation(gang, actor=tester) as op:
+        return op.buy(fighter, thing=weapon, paid=15)
+
+
+class TestFittingAnAccessory:
+    """Bought onto the weapon's own row, at the price the library says."""
+
+    def test_a_press_bolts_it_onto_the_weapon(
+        self, client, tester, gang, fighter, gun, sight
+    ):
+        client.force_login(tester)
+        gang.refresh_from_db()
+        before = gang.credits
+
+        response = client.post(
+            url("n26-accessorise", gun), {"accessory": str(sight.pk)}
+        )
+
+        assert response.status_code == 302
+        bolted = Assignment.objects.get(weapon_accessory=sight)
+        assert bolted.parent_id == gun.pk
+        assert bolted.miniature_root_id == fighter.pk
+        gang.refresh_from_db()
+        assert gang.credits == before - 25
+        assert_reconciled(gang)
+
+    def test_the_form_never_says_what_it_costs(self, client, tester, gang, gun, sight):
+        """A figure in the press buys nothing at a figure nobody offered:
+        the server reads the price off the library."""
+        client.force_login(tester)
+        gang.refresh_from_db()
+        before = gang.credits
+
+        client.post(
+            url("n26-accessorise", gun), {"accessory": str(sight.pk), "paid": "0"}
+        )
+
+        gang.refresh_from_db()
+        assert gang.credits == before - 25
+        assert_reconciled(gang)
+
+    def test_the_press_lands_back_on_the_list_and_tab_it_came_from(
+        self, client, tester, fighter, gun, sight, house_list
+    ):
+        client.force_login(tester)
+        response = client.post(
+            url("n26-accessorise", gun),
+            {
+                "accessory": str(sight.pk),
+                "list": str(house_list.pk),
+                "section": "Weapons",
+            },
+        )
+        assert response.url == (
+            reverse("n26-equip", args=[fighter.pk])
+            + f"?list={house_list.pk}&section=Weapons"
+        )
+
+    def test_something_that_is_not_a_weapon_is_nowhere_to_fit_one(
+        self, client, tester, sword, sight
+    ):
+        """No control draws this address for anything but a gun, so a press
+        that arrives is a hand-made URL."""
+        client.force_login(tester)
+        response = client.post(
+            url("n26-accessorise", sword), {"accessory": str(sight.pk)}
+        )
+        assert response.status_code == 404
+
+    def test_an_accessory_nobody_offered_fits_nothing(self, client, tester, gang, gun):
+        client.force_login(tester)
+        response = client.post(url("n26-accessorise", gun), {"accessory": "nonsense"})
+
+        assert response.status_code == 302
+        assert not Assignment.objects.filter(parent=gun, weapon_accessory__isnull=False)
+        assert_reconciled(gang)
+
+    def test_a_get_fits_nothing(self, client, tester, gun, sight):
+        client.force_login(tester)
+        response = client.get(url("n26-accessorise", gun), {"accessory": str(sight.pk)})
+        assert response.status_code == 405
+        assert not Assignment.objects.filter(weapon_accessory=sight).exists()
+
+    def test_somebody_elses_gun_is_not_found(self, client, gun, sight):
+        stranger = User.objects.create_user("stranger")
+        client.force_login(stranger)
+        response = client.post(
+            url("n26-accessorise", gun), {"accessory": str(sight.pk)}
+        )
+        assert response.status_code == 404
+
+
+class TestSellingAGunWithSomethingBoltedToIt:
+    """Two answers, and the form carries which was meant. Keeping is the
+    default because a stashed sight can still be sold and a sold one is
+    gone."""
+
+    @pytest.fixture
+    def bolted(self, gang, tester, gun, sight, stash):
+        """A sight on the gun, and somewhere for it to go — a gang with no
+        stash is offered no choice at all."""
+        with operation(gang, actor=tester) as op:
+            return op.buy(gun, thing=sight)
+
+    def test_by_default_the_accessory_is_stashed_and_survives(
+        self, client, tester, gang, gun, bolted, stash
+    ):
+        client.force_login(tester)
+
+        response = client.post(url("n26-sell", gun))
+
+        assert response.status_code == 302
+        gun.refresh_from_db()
+        bolted.refresh_from_db()
+        assert gun.archived is True
+        assert bolted.archived is False
+        assert bolted.stash_id == stash.pk
+        stash.refresh_from_db()
+        assert stash.rating == 25
+        gang.refresh_from_db()
+        assert_reconciled(gang)
+
+    def test_the_gang_is_paid_for_the_gun_alone(
+        self, client, tester, gang, gun, bolted
+    ):
+        client.force_login(tester)
+        gang.refresh_from_db()
+        before = gang.credits
+
+        client.post(url("n26-sell", gun))
+
+        gang.refresh_from_db()
+        # Half of fifteen, rounded up — the sight was kept, so nothing is
+        # paid for it.
+        assert gang.credits == before + 8
+        assert_reconciled(gang)
+
+    def test_saying_so_sells_the_accessory_too(
+        self, client, tester, gang, gun, bolted, stash
+    ):
+        client.force_login(tester)
+        gang.refresh_from_db()
+        before = gang.credits
+
+        client.post(url("n26-sell", gun), {"accessories": "sell"})
+
+        bolted.refresh_from_db()
+        assert bolted.archived is True
+        stash.refresh_from_db()
+        assert stash.rating == 0
+        gang.refresh_from_db()
+        # Forty credits of gun and sight, halved.
+        assert gang.credits == before + 20
+        assert_reconciled(gang)
+
+    def test_a_gun_with_nothing_on_it_sells_as_it_always_did(
+        self, client, tester, gang, gun, stash
+    ):
+        """No accessories, no question — and the same eight credits."""
+        client.force_login(tester)
+        gang.refresh_from_db()
+        before = gang.credits
+
+        client.post(url("n26-sell", gun))
+
+        gang.refresh_from_db()
+        stash.refresh_from_db()
+        assert gang.credits == before + 8
+        assert stash.rating == 0
+        assert_reconciled(gang)
+
+    def test_the_firing_line_is_sold_with_the_gun_either_way(
+        self, client, tester, gang, gun, bolted
+    ):
+        """A weapon's own profile is not gear that could be kept: it names
+        this gun and is nothing away from it."""
+        client.force_login(tester)
+        line = gun.children.exclude(weapon_profile=None).get()
+
+        client.post(url("n26-sell", gun))
+
+        line.refresh_from_db()
+        assert line.archived is True
+        assert line.parent_id == gun.pk
+        gang.refresh_from_db()
+        assert_reconciled(gang)
+
+
+class TestFittingOneBackOntoAGun:
+    """A stashed accessory goes back onto a weapon through the same move
+    that put it in the stash, one level down the chain."""
+
+    @pytest.fixture
+    def stashed(self, gang, tester, gun, sight, stash):
+        with operation(gang, actor=tester) as op:
+            bolted = op.buy(gun, thing=sight)
+            op.move(bolted, stash)
+        return bolted
+
+    def test_a_press_fits_it_to_the_named_weapon(
+        self, client, tester, gang, fighter, gun, stashed, stash
+    ):
+        client.force_login(tester)
+        gang.refresh_from_db()
+        before = gang.credits
+
+        response = client.post(
+            url("n26-reassign", stashed), {"to": "weapon", "weapon": str(gun.pk)}
+        )
+
+        assert response.status_code == 302
+        stashed.refresh_from_db()
+        assert stashed.parent_id == gun.pk
+        assert stashed.stash_root_id is None
+        assert stashed.miniature_root_id == fighter.pk
+        stash.refresh_from_db()
+        gang.refresh_from_db()
+        # A move never re-prices, and nothing is charged for one.
+        assert stash.rating == 0
+        assert gang.credits == before
+        assert_reconciled(gang)
+
+    def test_the_press_lands_on_the_sheet_it_was_made_from(
+        self, client, tester, gang, gun, stashed
+    ):
+        client.force_login(tester)
+        response = client.post(
+            url("n26-reassign", stashed), {"to": "weapon", "weapon": str(gun.pk)}
+        )
+        assert response.url == reverse("n26-gang", args=[gang.pk])
+
+    def test_a_weapon_in_another_gang_is_nowhere_to_fit_it(
+        self, client, tester, gang, stashed, gang_type, make_profile, make_statline
+    ):
+        """The select offers this gang's guns alone, so this can only be a
+        hand-made press — and it fits nothing."""
+        from n26.library.authoring import create_weapon
+
+        stranger = User.objects.create_user("stranger")
+        theirs = Gang.objects.create(
+            name="Their Gang", owner=stranger, gang_type=gang_type
+        )
+        entry = make_profile("Their Ganger", price=0)
+        make_statline(entry, movement=5)
+        with operation(theirs, actor=stranger) as op:
+            mine = op.hire(entry, "Theirs")
+            their_gun = op.buy(
+                mine, thing=create_weapon("Their Lasgun", price=15, profiles=[("", 0)])
+            )
+
+        client.force_login(tester)
+        response = client.post(
+            url("n26-reassign", stashed),
+            {"to": "weapon", "weapon": str(their_gun.pk)},
+        )
+
+        assert response.status_code == 302
+        stashed.refresh_from_db()
+        assert stashed.parent_id is None
+        assert_reconciled(gang)
+
+    def test_a_firing_line_is_refused_in_words(self, client, tester, gang, gun, stash):
+        """The listing offers no control for this, so a press that reaches
+        it is hand-made — and it is answered with a sentence rather than a
+        traceback."""
+        client.force_login(tester)
+        line = gun.children.exclude(weapon_profile=None).get()
+
+        response = client.post(url("n26-reassign", line), {"to": "stash"}, follow=True)
+
+        line.refresh_from_db()
+        assert line.parent_id == gun.pk
+        assert "is part of" in response.content.decode()
 
 
 @pytest.fixture

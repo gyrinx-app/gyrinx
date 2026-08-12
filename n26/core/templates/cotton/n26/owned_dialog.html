@@ -3,16 +3,17 @@
 
     <c-n26.owned-dialog :dialog="dialog">{% csrf_token %}</c-n26.owned-dialog>
 
-Four acts, one panel: sell it on for half of what it is worth, hand it to
-somebody else, undo the purchase, or take it off the card. Which one is being
-confirmed arrives in `dialog` from n26.core.views.owned, along with everything
-only the server can say — the figure a sale or a refund will pay, and who else
-is on the roster.
+Five questions, one panel: sell it on for half of what it is worth, hand it to
+somebody else, undo the purchase, take it off the card, or bolt an accessory to
+it. Which one is being asked arrives in `dialog` from n26.core.views.owned,
+along with everything only the server can say — the figure a sale or a refund
+will pay, who else is on the roster, and what fits this weapon.
 
-One component rather than three because the difference between them is a
-sentence and, for a move, a select: three files would be three copies of the
-same panel drifting apart a fix at a time. The panel itself is <c-n26.dialog>,
-which is where the open-state-lives-in-the-URL reasoning is written down.
+One component rather than five because the difference between them is a
+sentence and, for three of them, one control: five files would be five copies
+of the same panel drifting apart a fix at a time. The panel itself is
+<c-n26.dialog>, which is where the open-state-lives-in-the-URL reasoning is
+written down.
 
   --- what each one says ---
 
@@ -29,6 +30,15 @@ returns half of what the thing is *worth*, and this returns what was *paid*.
 Three sentences that would each be right about the wrong act, so each names its
 own number.
 
+  --- selling a gun with something bolted to it ---
+
+Two sales, so two figures. Keeping the accessories sells the gun alone and pays
+for the gun alone; selling them too pays for the lot. The cards carry a figure
+each rather than the lead carrying one, because a single number above a choice
+describes whichever answer it was written for and misleads about the other.
+Keeping is checked from the start: it is the answer that can still be changed
+tomorrow, since a stashed sight can be sold and a sold one cannot be recovered.
+
   --- two ways to answer a move ---
 
 The stash is a button and the roster is a select, because they are not the same
@@ -38,8 +48,18 @@ arriving is the whole of how the view tells them apart. With nobody else on the
 roster there is no select and no second act — the stash becomes the act itself,
 and a hidden field says so.
 
+  --- and one question that is not a confirmation ---
+
+`accessorise` asks which accessory to fit rather than confirming anything, and
+it sits here because it is the same sort of state: one row of a card, open
+because the address says so. The list is already narrowed to what fits the
+weapon — narrowing is the whole of what fitting does, and the operation behind
+this will bolt anything to anything. With nothing fitting there is no submit at
+all, because a green button over an empty list promises an act it cannot do.
+
   :dialog — what n26.core.views.owned.owned_dialog built: kind, title, the
-    sentence under it, where to post, where Cancel goes, and the roster.
+    sentence under it, where to post, where Cancel goes, the roster, the
+    accessories that fit, and the wording of the sale's two answers.
   modal — promote to the top layer. On by default; off draws the panel in the
     page's flow, which is what a reader without scripting sees.
   slot — the csrf token. A component has no request and renders none itself.
@@ -54,9 +74,21 @@ and a hidden field says so.
               :modal="modal"
               class="{{ class }}">
     <c-slot name="lead">
-        {% if dialog.kind == "sell" %}
-            {{ dialog.sum }} It leaves the card with anything attached to it, and
-            stops counting towards the gang's rating.
+        {% if dialog.kind == "accessorise" %}
+            {% if dialog.accessories %}
+                What fits this weapon. Its effects land on this gun and no other
+                the fighter is carrying.
+            {% else %}
+                Nothing in the library fits this weapon.
+            {% endif %}
+        {% elif dialog.kind == "sell" %}
+            {% if dialog.keepable %}
+                {{ dialog.sum }} The gun leaves the card and stops counting
+                towards the gang's rating.
+            {% else %}
+                {{ dialog.sum }} It leaves the card with anything attached to it,
+                and stops counting towards the gang's rating.
+            {% endif %}
         {% elif dialog.kind == "reassign" %}
             Where it lives changes; what it is worth does not — a move never
             re-prices.
@@ -75,6 +107,54 @@ and a hidden field says so.
     back to it rather than to the first tab of the strip.
     {% endcomment %}
     {% if dialog.list %}<input type="hidden" name="list" value="{{ dialog.list }}">{% endif %}
+    {% comment %}
+    And which section tab was open under it, for the same reason: an answer
+    should land where the question was asked, not at the top of the first tab.
+    {% endcomment %}
+    {% if dialog.section %}<input type="hidden" name="section" value="{{ dialog.section }}">{% endif %}
+
+    {% if dialog.kind == "accessorise" %}
+        {% comment %}
+        The identity, never the price: the server reads the price off the
+        library, so the figures beside the names are what a reader is choosing
+        between and not what they are charged.
+        {% endcomment %}
+        {% if dialog.accessories %}
+            <c-ui.field label="Accessory" for="accessorise-what">
+                <c-ui.select.native name="accessory" id="accessorise-what" placeholder="">
+                    {% for accessory in dialog.accessories %}
+                        <c-ui.select.option value="{{ accessory.pk }}">
+                            {{ accessory.name }} — {{ accessory.price }}¢
+                        </c-ui.select.option>
+                    {% endfor %}
+                </c-ui.select.native>
+            </c-ui.field>
+        {% endif %}
+    {% endif %}
+
+    {% if dialog.kind == "sell" and dialog.keepable %}
+        {% comment %}
+        Two answers, and the default is the recoverable one: a stashed sight can
+        still be sold tomorrow, where a sold one is gone. Each card carries its
+        own figure because the two sales pay differently, and a number that
+        described only one of the answers would be wrong half the time it was
+        read. Both the wording and the arithmetic come from the view — the
+        template picks nothing.
+        {% endcomment %}
+        <c-n26.radio-cards label="What is bolted to it"
+                           description="{{ dialog.keepable }}"
+                           min="16rem">
+            <c-n26.radio-cards.card name="accessories"
+                                    value="stash"
+                                    :checked="True"
+                                    label="{{ dialog.keep_label }}"
+                                    description="{{ dialog.keep_detail }}" />
+            <c-n26.radio-cards.card name="accessories"
+                                    value="sell"
+                                    label="{{ dialog.sell_all_label }}"
+                                    description="{{ dialog.sell_all_detail }}" />
+        </c-n26.radio-cards>
+    {% endif %}
 
     {% if dialog.kind == "reassign" %}
         {% if dialog.models %}

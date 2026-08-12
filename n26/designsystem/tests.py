@@ -70,6 +70,28 @@ class TestTheRadioCardsPage:
         assert 'name="demo-purpose"' in page
 
 
+class TestTheOwnedDialogsPage:
+    """The two questions the panel grew reach the gallery drawn, not as a
+    polite fallback."""
+
+    def test_the_accessory_picker_draws_its_list(self, reader):
+        page = reader.get("/n26/design/c/owned-dialog/").content.decode()
+        assert "Fitting an accessory" in page
+        # From the markup the demo rendered: a select of real options, each
+        # naming its price, is what tells this apart from "No examples yet".
+        assert "Telescopic sight — 25¢" in page
+        assert "Gun stabiliser — 30¢" in page
+
+    def test_selling_a_kitted_gun_draws_a_figure_against_each_answer(self, reader):
+        page = reader.get("/n26/design/c/owned-dialog/").content.decode()
+        assert "Selling a gun with something bolted to it" in page
+        assert 'value="stash"' in page
+        assert 'value="sell"' in page
+        # The two sales, priced apart — the whole reason there are two cards.
+        assert "78¢ for the gun alone" in page
+        assert "Everything goes together. 91¢." in page
+
+
 class TestTheFilterSelectsPage:
     """Its props and its demos reach the gallery, and the select survives."""
 

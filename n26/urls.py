@@ -49,7 +49,7 @@ urlpatterns = [
     # grid rather than a question anybody asked — see n26.core.views.learn.
     path("fighters/<str:pk>/skills/", views.learn, name="n26-learn"),
     # What a gang already owns, addressed by the assignment rather than by
-    # whoever is carrying it: the same four acts serve a fighter's card, a
+    # whoever is carrying it: the same acts serve a fighter's card, a
     # weapon's ammo and the stash, and every screen that grows them later
     # reuses these — see n26.core.views.owned.
     path(
@@ -71,6 +71,11 @@ urlpatterns = [
         "assignments/<str:pk>/remove/",
         views.remove_assignment,
         name="n26-remove",
+    ),
+    path(
+        "assignments/<str:pk>/accessorise/",
+        views.accessorise_assignment,
+        name="n26-accessorise",
     ),
     path("gangs/<str:pk>/print/setup/", views.print_setup, name="n26-print-setup"),
     path("gangs/<str:pk>/print/", views.print_gang, name="n26-print"),

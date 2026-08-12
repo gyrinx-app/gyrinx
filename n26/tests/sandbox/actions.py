@@ -211,13 +211,20 @@ def give_weapon(miniature, weapon, paid=0, actor=None, **kwargs):
         return op.give_weapon(miniature, weapon, paid=paid, **kwargs)
 
 
-def attach(weapon_assignment, accessory, paid=0, actor=None, **kwargs):
-    """Hang an accessory off a weapon — a sight, suspensors."""
+def attach(weapon_assignment, accessory, paid=None, actor=None, **kwargs):
+    """Bolt an accessory onto a weapon — a sight, suspensors.
+
+    A purchase hosted on the weapon's own row, which is what the
+    equipment screen's dialog writes. Left unpriced it charges the
+    library's figure; naming ``paid`` is the owner's own price.
+    """
     from n26.core.operations import operation
 
     gang = weapon_assignment.gang_root
+    if paid is not None:
+        kwargs["paid"] = paid
     with operation(gang, actor=actor or gang.owner) as op:
-        return op.assign(accessory, parent=weapon_assignment, paid=paid, **kwargs)
+        return op.buy(weapon_assignment, thing=accessory, **kwargs)
 
 
 def buy_weapon_profile(weapon_assignment, weapon_profile, actor=None, **kwargs):
@@ -285,7 +292,7 @@ def tally(assignment, change, actor=None, note=""):
 
 
 def move(assignment, to, actor=None, note=""):
-    """Re-home between a model and the stash, either direction."""
+    """Re-home between a model, the stash, and a weapon to bolt it onto."""
     from n26.core.operations import operation
 
     gang = assignment.gang_root

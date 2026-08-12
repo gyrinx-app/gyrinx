@@ -48,16 +48,50 @@ def proceeds_for(rating):
     return max(MINIMUM_PROCEEDS, -(-rating // 2))
 
 
-def sale_of(assignment):
+def sale_of(assignment, keeping=()):
     """What selling this would move: the rows that go, and what comes back.
 
     Asked before the act as well as during it, so the confirmation quotes
     the figure the sale will actually pay rather than a second arithmetic
     that could disagree with it.
+
+    ``keeping`` names children being unbolted into the stash rather than
+    sold — each with whatever hangs off it. A sale that leaves the sight
+    behind is a sale of the gun alone, and pays for the gun alone, so a
+    confirmation offering that choice has to be able to price it.
     """
-    rows = [row for row in [assignment, *subtree(assignment)] if not row.archived]
+    kept = {row.pk for child in keeping for row in [child, *subtree(child)]}
+    rows = [
+        row
+        for row in [assignment, *subtree(assignment)]
+        if not row.archived and row.pk not in kept
+    ]
     rating = sum(row.rating for row in rows)
     return rows, rating, proceeds_for(rating)
+
+
+def detachable_children(assignment):
+    """What hangs off this that could be kept instead of going with it.
+
+    Selling a gun sells everything on it. An accessory need not be part
+    of that bargain: it is gear in its own right, so it can be unbolted
+    into the stash first and fitted to another gun later, and the seller
+    is asked which they meant.
+
+    Two sorts of child are never on offer. A firing line is the weapon's
+    own (:func:`n26.core.owned.is_detachable`). And anything the weapon
+    *brought* — a sight that came with it as standard — belongs to the
+    package rather than to the gang: what caused it goes, so it goes.
+    """
+    from n26.core.owned import is_detachable
+
+    return [
+        child
+        for child in assignment.children.all()
+        if not child.archived
+        and child.caused_by_id is None
+        and is_detachable(child.assignable)
+    ]
 
 
 def refund_of(assignment):
@@ -874,27 +908,50 @@ class Operation:
         return held.value
 
     def move(self, assignment, to, note=""):
-        """Re-home a root assignment — model to stash, stash to model.
+        """Re-home an assignment — model to stash, stash to model, onto a gun.
 
         The rulebook's equipment redistribution: stash gear "can be moved
         to any number of Model Cards". The subtree rides along (roots are
         rewritten down the chain), the pinned rating rides untouched — a
         move never re-prices — and a MOVED event records who did it.
-        """
-        from n26.core.models import LedgerEvent, Miniature, Stash
 
-        if assignment.parent_id is not None:
+        ``to`` is a model, the gang's stash, or **another assignment**,
+        which is how an accessory is bolted onto a weapon: it hangs off
+        that weapon's row, so re-homing it is giving it a new parent
+        rather than a new host. The same act either way — nothing is
+        bought, nothing is charged, and what the thing is worth does not
+        move with it.
+
+        What cannot be re-homed is a part that *is* what it hangs off
+        (:func:`n26.core.owned.is_detachable`) — a weapon's firing line
+        names one gun and is nothing away from it.
+        """
+        from n26.core.models import Assignment, LedgerEvent, Miniature, Stash
+        from n26.core.owned import is_detachable
+
+        if assignment.parent_id is not None and not is_detachable(
+            assignment.assignable
+        ):
             raise Refusal(
-                f"{assignment.assignable} is attached to "
+                f"{assignment.assignable} is part of "
                 f"{assignment.parent.assignable} — move that instead."
             )
         self.touched(assignment.miniature_root)
         assignment.gang = None
-        assignment.miniature = assignment.stash = None
+        assignment.miniature = assignment.stash = assignment.parent = None
         if isinstance(to, Stash):
             assignment.stash = to
         elif isinstance(to, Miniature):
             assignment.miniature = to
+        elif isinstance(to, Assignment):
+            # Hanging a thing off itself, or off something already hanging
+            # off it, would make a loop with no root — the denormalised
+            # roots would have nowhere to come from. No control offers it.
+            if to.pk == assignment.pk or any(
+                row.pk == to.pk for row in subtree(assignment)
+            ):
+                raise ValueError("Cannot attach something to itself.")
+            assignment.parent = to
         else:
             raise ValueError(f"Cannot move something onto {to!r}.")
         assignment.save()

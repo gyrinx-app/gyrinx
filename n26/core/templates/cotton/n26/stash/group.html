@@ -17,15 +17,40 @@ Drawn by <c-n26.assignable-lines>, which means the commas are the container's
 business and something that arrived by way of a modifier carries the same mark it
 would on a fighter's card.
 
+  --- except where a line has somewhere to go ---
+
+An accessory in the stash is gear waiting for a gun, and the way back onto one is
+a control per item — which a comma-separated run has nowhere to put. Such a group
+is stacked instead, one line each with its own link. It costs the width the run
+was saving, and it is worth it exactly where a reader is looking at spare kit and
+wondering what to do with it.
+
+Read off the first line, because a group is one kind and a kind either has
+somewhere to go or does not. A group whose lines carry no address is drawn the
+compact way, which is every group on a print-out — nothing there is pressable.
+
   label — the kind. Capitalised here, not by the caller: kinds come from a model's
     verbose_name and so arrive lower case, written to appear mid-sentence.
   :lines — n26.render.StashLine objects of this one kind.
 {% endcomment %}
-<c-vars label="" :lines="None" />
+<c-vars label="" :lines="None" class="" />
 
-<div class="flex items-baseline gap-1.5">
+<div class="flex items-baseline gap-1.5 {{ class }}">
     <dt class="whitespace-nowrap text-xs text-muted">{{ label|capfirst }}</dt>
-    <dd class="text-xs text-ink-900 dark:text-ink-100">
-        <c-n26.assignable-lines :lines="lines" />
+    <dd class="min-w-0 flex-1 text-xs text-ink-900 dark:text-ink-100">
+        {% if lines.0.refit_href %}
+            <ul class="flex flex-col gap-1">
+                {% for line in lines %}
+                    <li class="flex items-baseline gap-2">
+                        <span class="min-w-0 flex-1">
+                            {{ line.name }}{% if line.rating %} <span class="tabular-nums">{{ line.rating }}¢</span>{% endif %}
+                        </span>
+                        <c-n26.link href="{{ line.refit_href }}" class="shrink-0">Fit to a weapon</c-n26.link>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <c-n26.assignable-lines :lines="lines" />
+        {% endif %}
     </dd>
 </div>

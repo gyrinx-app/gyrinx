@@ -222,3 +222,96 @@ def test_a_weapon_with_no_stats_of_its_own_gives_its_name_the_whole_row(
     start = body.index("Combi-weapon (laspistol/meltagun)")
     cell = body.rindex("<td", 0, start)
     assert "colspan" in body[cell:start]
+
+
+class TestRefittingAStashedAccessory:
+    """A sight kept back from a sale is gear waiting for a gun, and the
+    sheet is where the gang's spare kit is read — so the way back onto a
+    gun is here."""
+
+    @pytest.fixture
+    def kit(self, gang, tester, make_profile, make_statline):
+        """A fighter with an autogun, and a telescopic sight in the stash."""
+        from n26.core.models import Stash
+        from n26.library.authoring import create_weapon, create_weapon_accessory
+
+        profile = make_profile("Ganger", price=55)
+        make_statline(profile)
+        stash, _ = Stash.objects.get_or_create(gang=gang)
+        sight = create_weapon_accessory("Telescopic sight", price=25)
+        with operation(gang, actor=tester) as op:
+            fighter = op.hire(profile, "Vex", paid=55)
+            gun = op.give_weapon(
+                fighter, create_weapon("Autogun", price=20, profiles=[("", 0)]), paid=20
+            )
+            bolted = op.buy(gun, thing=sight)
+            op.move(bolted, stash)
+        return gun, bolted
+
+    def test_the_stash_line_offers_a_way_back_onto_a_gun(
+        self, client, tester, gang, kit
+    ):
+        _, bolted = kit
+        client.force_login(tester)
+        body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
+
+        assert "Telescopic sight" in body
+        assert f"?refit={bolted.pk}" in body
+        assert "Fit to a weapon" in body
+
+    def test_the_address_opens_a_picker_over_the_gangs_guns(
+        self, client, tester, gang, kit
+    ):
+        gun, bolted = kit
+        client.force_login(tester)
+        response = client.get(
+            reverse("n26-gang", args=[gang.pk]) + f"?refit={bolted.pk}"
+        )
+        body = response.content.decode()
+
+        assert response.context["refitting"]["weapons"] == [
+            {"pk": str(gun.pk), "label": "Autogun (Vex)"}
+        ]
+        assert "<dialog open" in body
+        # The picker posts the same move a fighter's row does, one level
+        # down the chain.
+        assert reverse("n26-reassign", args=[bolted.pk]) in body
+        assert 'name="to" value="weapon"' in body
+
+    def test_something_that_is_not_a_stashed_accessory_opens_nothing(
+        self, client, tester, gang, kit
+    ):
+        gun, _ = kit
+        client.force_login(tester)
+        response = client.get(reverse("n26-gang", args=[gang.pk]) + f"?refit={gun.pk}")
+        assert response.context["refitting"] is None
+
+    def test_a_pk_that_is_not_a_ulid_opens_nothing(self, client, tester, gang, kit):
+        client.force_login(tester)
+        response = client.get(reverse("n26-gang", args=[gang.pk]) + "?refit=nonsense")
+        assert response.context["refitting"] is None
+
+    def test_another_gangs_stash_is_not_reachable(
+        self, client, tester, gang, kit, gang_type
+    ):
+        """Scoped to this gang's own stash: the address names a row, and a
+        row belonging to somebody else is not on this sheet."""
+        from n26.core.models import Stash
+        from n26.library.authoring import create_weapon_accessory
+
+        _, _ = kit
+        stranger = User.objects.create_user("stranger")
+        theirs = Gang.objects.create(
+            name="Their Gang", owner=stranger, gang_type=gang_type
+        )
+        their_stash, _ = Stash.objects.get_or_create(gang=theirs)
+        with operation(theirs, actor=stranger) as op:
+            hidden = op.buy(
+                their_stash, thing=create_weapon_accessory("Suspensors", price=30)
+            )
+
+        client.force_login(tester)
+        response = client.get(
+            reverse("n26-gang", args=[gang.pk]) + f"?refit={hidden.pk}"
+        )
+        assert response.context["refitting"] is None

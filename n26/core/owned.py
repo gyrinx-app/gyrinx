@@ -16,10 +16,9 @@ drawn, which is a known gap and not one to be closed from here.
 
 A **thing** is a root assignment: the fighter owns it and may re-home it.
 A **part** is one of its children — a paid ammo type, a sight bolted to a
-gun. A part is sold and removed like anything else, but it cannot be
-re-homed on its own: it belongs to the thing it hangs off, and
-``Operation.move`` refuses an assignment with a parent for exactly that
-reason.
+gun. A part is sold and removed like anything else. Whether it can be
+re-homed on its own depends on what sort of part it is, and
+:func:`is_detachable` is where that is said.
 
 Neither is *anything* the gang holds. Selling, handing on and dropping
 are acts on **possessions**, and :func:`is_possession` is the one place
@@ -40,11 +39,18 @@ from urllib.parse import urlencode
 
 from n26.library.models.assignable import Family
 
-#: The confirmations a screen can have open, each a query parameter
-#: naming one row of the card. Both sides read this tuple: the rows that
-#: draw the controls and the view that answers the URL behind them, so
-#: neither can invent a question the other does not know.
-CONFIRMATIONS = ("sell", "reassign", "refund", "remove")
+#: The dialogs a screen can have open, each a query parameter naming one
+#: row of the card. Both sides read this tuple: the rows that draw the
+#: controls and the view that answers the URL behind them, so neither can
+#: invent a question the other does not know.
+#:
+#: Three of them confirm something about the row named. The fourth asks a
+#: question instead — which accessory to bolt onto the weapon named — and
+#: it sits here because it is the same sort of state: one row of this
+#: card, open because the address says so, closed by going back to the
+#: address without it. A screen draws one at a time, so a URL naming two
+#: draws whichever comes first here.
+DIALOGS = ("sell", "reassign", "refund", "remove", "accessorise")
 
 
 def with_query(url, **params):
@@ -70,6 +76,25 @@ def is_possession(thing):
     which is chosen the same way.
     """
     return getattr(type(thing), "family", None) == Family.GEAR
+
+
+def is_detachable(thing):
+    """Can this be taken off whatever it hangs from and fitted elsewhere?
+
+    A weapon's firing line cannot. It names one particular weapon and
+    *is* that weapon's line — unbolt it and there is nothing left to put
+    anywhere, which is why a gun's ammo offers no move. A sight is the
+    other case: it is gear in its own right that happens to be bolted
+    on, so it can go into the stash when the gun is sold and come back
+    out onto a different gun later.
+
+    Asked by both sides, like :func:`is_possession` — the rows that draw
+    the controls and ``Operation.move`` behind them — so a screen never
+    offers a move the operation would refuse.
+    """
+    from n26.library.models import WeaponProfile
+
+    return is_possession(thing) and not isinstance(thing, WeaponProfile)
 
 
 def thing_key(thing):
@@ -117,6 +142,10 @@ class OwnedThing:
     reassign_href: str
     refund_href: str
     remove_href: str
+    #: Where to go to bolt something onto this. Only a weapon has one:
+    #: an accessory hangs off the gun it changes, so nothing else on a
+    #: card is somewhere to fit one.
+    accessorise_href: str = ""
 
 
 def _part_name(node):
@@ -199,6 +228,8 @@ def owned_things(card, at):
     and being unable to buy a pair of your own would be the worse
     surprise.
     """
+    from n26.library.models import Weapon
+
     index = {}
     for node in card.roots:
         if node.broadcast or node.assignment is None:
@@ -218,6 +249,11 @@ def owned_things(card, at):
                 reassign_href=with_query(at, reassign=pk),
                 refund_href=with_query(at, refund=pk),
                 remove_href=with_query(at, remove=pk),
+                accessorise_href=(
+                    with_query(at, accessorise=pk)
+                    if isinstance(node.assignable, Weapon)
+                    else ""
+                ),
             )
         )
     return index

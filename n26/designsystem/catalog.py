@@ -1140,13 +1140,15 @@ GROUPS: list[Group] = [
                 template="n26/owned_dialog.html",
                 summary=(
                     "Confirm a sale, a move, a refund or a removal of "
-                    "something the gang owns."
+                    "something the gang owns — or ask which accessory to "
+                    "fit to a weapon."
                 ),
                 needs=(ALPINE,),
                 notes=(
-                    "One panel for four acts, because the difference between "
-                    "them is a sentence and, for a move, a select — four files "
-                    "would be four copies of the same dialog drifting apart a "
+                    "One panel for five questions, because the difference "
+                    "between them is a sentence and, for three of them, one "
+                    "control — five files "
+                    "would be five copies of the same dialog drifting apart a "
                     "fix at a time. Each says the thing a reader cannot work "
                     "out from the page: a sale states its arithmetic, because "
                     "the figure comes from rows nobody can see and it is money; "
@@ -1160,7 +1162,13 @@ GROUPS: list[Group] = [
                     "because they are not the same kind of choice — one place "
                     "that is always there, against a list that may be long — "
                     "and only the pressed submit is sent, which is the whole of "
-                    "how the view tells the two apart."
+                    "how the view tells the two apart. Selling a gun with "
+                    "something bolted to it is two sales at two prices, so the "
+                    "answers carry a figure each rather than the lead carrying "
+                    "one; and fitting an accessory is the question here that "
+                    "confirms nothing, sharing the panel because it is the same "
+                    "sort of state — one row of a card, open because the "
+                    "address says so."
                 ),
             ),
             Component(

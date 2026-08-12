@@ -31,6 +31,7 @@ from n26.core.views.hire import hire_card, hire_fighter
 from n26.core.views.learn import learn
 from n26.core.views.options import fighter_options
 from n26.core.views.owned import (
+    accessorise_assignment,
     reassign_assignment,
     refund_assignment,
     remove_assignment,
@@ -39,6 +40,7 @@ from n26.core.views.owned import (
 from n26.core.views.printing import print_gang, print_setup
 
 __all__ = [
+    "accessorise_assignment",
     "choose",
     "create_gang",
     "dashboard",

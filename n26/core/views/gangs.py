@@ -127,22 +127,31 @@ def gang_sheet(request, pk):
     from n26.core.render import render_gang
     from n26.core.views.choose import link_slots
     from n26.core.views.learn import link_skills
+    from n26.core.views.owned import link_refits, refit_dialog
 
     gang = _own_gang_or_404(request, pk)
+    at = reverse("n26-gang", args=[gang.pk])
     sheet = render_gang(gang)
     link_slots(gang, sheet, *sheet.models)
     link_skills(*sheet.models)
+    # A stashed accessory is somewhere to press: it is gear waiting for a
+    # gun, and the sheet is the screen where the gang's spare kit is read.
+    link_refits(sheet, at)
     # One question at a time: a URL naming two dialogs draws the leaving
     # one, because two open modals is not a state the page can mean.
     leaving = _leaving(request, gang)
+    renaming = None if leaving else _renaming(request, gang)
     return render(
         request,
         "n26/gang_sheet.html",
         {
             "gang": gang,
             "sheet": sheet,
-            "renaming": None if leaving else _renaming(request, gang),
+            "renaming": renaming,
             "leaving": leaving,
+            "refitting": (
+                None if leaving or renaming else refit_dialog(request, gang, at)
+            ),
             # A gang founded without a budget never spent credits, so
             # there is nothing a refund could give back: its cards offer
             # Delete alone.

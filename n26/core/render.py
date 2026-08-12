@@ -176,8 +176,16 @@ class WeaponLine:
 
     @property
     def extras_rating(self):
-        """What the paid profiles add on top of the weapon itself."""
-        return sum(profile.rating for profile in self.profiles)
+        """What rides on the weapon: its paid profiles and its accessories.
+
+        Both go where the weapon goes — selling it sells them — so both
+        belong in what the weapon is worth. A screen that counted only
+        the profiles would leave a sight's price attributed to the
+        fighter with no line of theirs to account for it.
+        """
+        return sum(profile.rating for profile in self.profiles) + sum(
+            accessory.rating for accessory in self.accessories
+        )
 
     @property
     def total_rating(self):
@@ -448,6 +456,18 @@ class StashLine:
     #: mid-sentence: a renderer using it as a heading capitalises it.
     kind: str = ""
     provenance: Provenance = field(default_factory=Provenance)
+    #: The assignment's pk, as a string — what a control acting on this
+    #: line names. Every stash line has one; the stash holds stored rows
+    #: and nothing computed.
+    id: str = ""
+    #: Whether this is something that goes on a weapon rather than on a
+    #: model, which is to say an accessory. That there is a control to
+    #: draw follows from what the thing is; where it leads does not.
+    can_refit: bool = False
+    #: Where that control goes, filled in by the screen drawing it (see
+    #: ``n26.core.views.owned.link_refits``). Empty is a line with
+    #: nothing to press, which is right for a print-out.
+    refit_href: str = ""
 
 
 @dataclass
@@ -844,7 +864,11 @@ def card_to_model_card(
             base_rating=node.rating,
             profiles=profiles,
             accessories=[
-                AssignableLine(name=child.name, provenance=provenance_of(child))
+                AssignableLine(
+                    name=child.name,
+                    provenance=provenance_of(child),
+                    rating=child.rating_with_extras,
+                )
                 for child in node.children
                 if not child.is_weapon_profile
             ],
@@ -1203,6 +1227,8 @@ def stash_lines(gang_card):
     Derived from the card rather than fetched, so a page that has one —
     the sheet, a print — pays nothing further for its stash block.
     """
+    from n26.library.models import WeaponAccessory
+
     stash_provenance = _provenance_within(gang_card)
     return [
         StashLine(
@@ -1210,6 +1236,8 @@ def stash_lines(gang_card):
             rating=node.rating_with_extras,
             kind=kind_of(node.assignable),
             provenance=stash_provenance(node),
+            id=str(node.assignment.pk) if node.assignment is not None else "",
+            can_refit=isinstance(node.assignable, WeaponAccessory),
         )
         for node in gang_card.stash_roots
         # No row of its own is the kind's whole contract — a chosen

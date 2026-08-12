@@ -1549,3 +1549,165 @@ def test_a_gang_with_no_budget_is_offered_no_refund(
     ).content.decode()
     assert "Delete" in asked
     assert "Refund" not in asked
+
+
+@pytest.fixture
+def accessories(db):
+    """Two accessories: one that fits anything, one for las weapons only."""
+    from n26.library.authoring import create_weapon_accessory
+
+    las = create_category("Ranged Weapons", "Las Weapons", 0)
+    return (
+        create_weapon_accessory("Telescopic sight", price=25),
+        create_weapon_accessory("Focusing crystal", price=30, fits_category=las),
+    )
+
+
+@pytest.fixture
+def owned_gun(client, tester, gang, fighter, gun_list):
+    """An autogun on the fighter, bought through the listing."""
+    from n26.library.models import Weapon
+
+    with operation(gang, actor=tester) as op:
+        return op.buy(fighter, thing=Weapon.objects.get(name="Autogun"), paid=20)
+
+
+class TestTheAccessoryDialog:
+    """A weapon the fighter owns is somewhere to bolt something onto, and
+    the way there is an address rather than a script."""
+
+    def test_an_owned_weapon_draws_the_way_to_one(
+        self, client, tester, fighter, gun_list, owned_gun
+    ):
+        client.force_login(tester)
+        body = client.get(equip_url(fighter, gun_list)).content.decode()
+
+        assert f"?list={gun_list.pk}&amp;accessorise={owned_gun.pk}" in body
+
+    def test_the_address_opens_it(
+        self, client, tester, fighter, gun_list, owned_gun, accessories
+    ):
+        client.force_login(tester)
+        response = client.get(
+            f"{equip_url(fighter, gun_list)}&accessorise={owned_gun.pk}"
+        )
+        body = response.content.decode()
+
+        assert response.context["dialog"]["kind"] == "accessorise"
+        assert "<dialog open" in body
+        assert reverse("n26-accessorise", args=[owned_gun.pk]) in body
+        assert "Add accessory" in body
+
+    def test_it_offers_what_fits_the_weapon_and_names_the_price(
+        self, client, tester, fighter, gun_list, owned_gun, accessories
+    ):
+        """An autogun is homed nowhere near Las Weapons, so the crystal is
+        not on the list — narrowing is what fitting does."""
+        client.force_login(tester)
+        response = client.get(
+            f"{equip_url(fighter, gun_list)}&accessorise={owned_gun.pk}"
+        )
+
+        offered = response.context["dialog"]["accessories"]
+        assert [row["name"] for row in offered] == ["Telescopic sight"]
+        assert offered[0]["price"] == 25
+        assert "Telescopic sight — 25¢" in response.content.decode()
+
+    def test_an_unfitting_accessory_is_still_one_the_till_will_take(
+        self, client, tester, gang, fighter, gun_list, owned_gun, accessories
+    ):
+        """Inform, never police: the shorter list is help, and the route
+        behind it enforces nothing."""
+        _, crystal = accessories
+        client.force_login(tester)
+
+        client.post(
+            reverse("n26-accessorise", args=[owned_gun.pk]),
+            {"accessory": str(crystal.pk), "list": str(gun_list.pk)},
+        )
+
+        bolted = Assignment.objects.get(weapon_accessory=crystal)
+        assert bolted.parent_id == owned_gun.pk
+
+    def test_a_weapon_with_nothing_to_fit_it_is_told_so_and_offered_no_press(
+        self, client, tester, fighter, gun_list, owned_gun
+    ):
+        """No accessories authored at all. A green button over an empty
+        list would promise an act it could not do."""
+        client.force_login(tester)
+        body = client.get(
+            f"{equip_url(fighter, gun_list)}&accessorise={owned_gun.pk}"
+        ).content.decode()
+
+        assert "Nothing in the library fits this weapon." in body
+        assert ">Add accessory<" not in body
+
+    def test_a_row_that_is_not_a_weapon_draws_no_dialog(
+        self, client, tester, gang, fighter, house_list
+    ):
+        from n26.library.models import Wargear
+
+        client.force_login(tester)
+        client.post(
+            equip_url(fighter, house_list),
+            {"thing": key_of(Wargear.objects.get(name="Knife"))},
+        )
+        knife = Assignment.objects.get(wargear__name="Knife")
+
+        response = client.get(
+            f"{equip_url(fighter, house_list)}&accessorise={knife.pk}"
+        )
+        assert response.context["dialog"] is None
+
+    def test_the_dialog_carries_the_list_and_tab_through_the_press(
+        self, client, tester, fighter, gun_list, owned_gun, accessories
+    ):
+        """Cancel comes back to the page as it was, and so does the answer."""
+        client.force_login(tester)
+        body = client.get(
+            f"{equip_url(fighter, gun_list)}&section=Weapons&accessorise={owned_gun.pk}"
+        ).content.decode()
+
+        assert f'name="list" value="{gun_list.pk}"' in body
+        assert 'name="section" value="Weapons"' in body
+
+
+class TestTheSellDialogWhenSomethingIsBoltedOn:
+    """The sale of a gun with a sight on it is two sales at two prices,
+    so the confirmation asks which one is meant."""
+
+    def test_a_bare_weapon_is_asked_no_question(
+        self, client, tester, fighter, gun_list, owned_gun
+    ):
+        client.force_login(tester)
+        response = client.get(f"{equip_url(fighter, gun_list)}&sell={owned_gun.pk}")
+
+        assert "keepable" not in response.context["dialog"]
+        assert "Stash the accessor" not in response.content.decode()
+
+    def test_a_kitted_weapon_is_asked_which_sale_it_is(
+        self, client, tester, gang, fighter, gun_list, owned_gun, accessories
+    ):
+        from n26.core.models import Stash
+
+        # Somewhere for the sight to go. With no stash there is no choice
+        # to offer, and the dialog does not offer one.
+        Stash.objects.get_or_create(gang=gang)
+        sight, _ = accessories
+        with operation(gang, actor=tester) as op:
+            op.buy(owned_gun, thing=sight)
+
+        client.force_login(tester)
+        response = client.get(f"{equip_url(fighter, gun_list)}&sell={owned_gun.pk}")
+        dialog = response.context["dialog"]
+        body = response.content.decode()
+
+        assert dialog["keepable"] == "Telescopic sight"
+        # Twenty credits of gun halves to ten; the gun and its sight
+        # together are forty-five, which halves to twenty-three.
+        assert dialog["proceeds"] == 10
+        assert "Stash the accessory" in body
+        assert "Sell the accessory too" in body
+        assert "23¢" in body
+        assert 'value="stash"' in body
+        assert 'value="sell"' in body

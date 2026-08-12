@@ -1831,6 +1831,35 @@ def owned_context():
             "submit_label": "Refund",
             "submit_variant": "danger",
         },
+        # The same sale, of a gun with something bolted to it. Two prices,
+        # because keeping the sight sells the gun alone: 78¢ against the
+        # 91¢ the pair would fetch.
+        "owned_sell_kitted_dialog": {
+            **named,
+            "kind": "sell",
+            "title": "Sell Meltagun?",
+            "rating": 155,
+            "proceeds": 78,
+            "sum": "Half of 155¢, rounded up — 78¢.",
+            "keepable": "Telescopic sight",
+            "keep_label": "Stash the accessory",
+            "keep_detail": "Keep to refit later. 78¢ for the gun alone.",
+            "sell_all_label": "Sell the accessory too",
+            "sell_all_detail": "Everything goes together. 91¢.",
+            "submit_label": "Sell",
+            "submit_variant": "danger",
+        },
+        "owned_accessorise_dialog": {
+            **named,
+            "kind": "accessorise",
+            "title": "Add an accessory to Meltagun",
+            "accessories": [
+                {"pk": "1", "name": "Telescopic sight", "price": 25},
+                {"pk": "2", "name": "Gun stabiliser", "price": 30},
+            ],
+            "submit_label": "Add accessory",
+            "submit_variant": "success",
+        },
         "owned_remove_dialog": {
             **named,
             "kind": "remove",

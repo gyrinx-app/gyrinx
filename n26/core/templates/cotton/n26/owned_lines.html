@@ -20,8 +20,14 @@ not this template's — see n26/includes/row_action.html — so an act added to 
 structure appears here in the right colour with nothing edited.
 
 A part offers no move. It belongs to the thing it hangs off — ammo is ammo *for*
-a gun — and Operation.move refuses an assignment with a parent, so the structure
-gives it none to draw.
+a gun — and Operation.move refuses a firing line, so the structure gives it none
+to draw. An accessory is the case that could be moved, but the way to re-fit one
+is from wherever it is being kept rather than from the gun it is already on.
+
+A weapon carries one extra control: the way to bolt an accessory onto it. Which
+copies have one is the structure's answer — nothing else on a card is somewhere
+to fit one — so this asks whether the act is there and never what kind of thing
+the row is.
 
 Every control is a link to a real address: the dialog is a server state, so the
 press that opens it is a navigation and not a script. That also keeps this out
@@ -46,6 +52,25 @@ form is not a thing HTML has.
                 {% if copy.rating %}{{ copy.rating }}¢{% endif %}
             </span>
             <span class="flex shrink-0 items-center gap-1">
+                {% comment %}
+                Only a weapon carries this, which is the structure's word and not
+                a test made here. Drawn as an icon beside the acts rather than
+                inside the chevron: everything behind that chevron takes the
+                thing away, and the one control that adds to it should not be
+                filed among them. Quiet all the same — a fighter's row of guns
+                is read for what they are, not for what could be bolted on.
+                {% endcomment %}
+                {% if copy.accessorise %}
+                    <c-ui.button size="sm"
+                                 class="px-1.5!"
+                                 href="{{ copy.accessorise.target }}"
+                                 aria-label="{{ copy.accessorise.label }} to {{ copy.name }}"
+                                 title="{{ copy.accessorise.label }} to {{ copy.name }}">
+                        <span class="n26-icon-only">
+                            <c-n26.icon name="plus" class="size-3" stroke_width="2.5" />
+                        </span>
+                    </c-ui.button>
+                {% endif %}
                 {% include "n26/includes/row_action.html" with action=copy.sell %}
                 <c-ui.dropdown align="end" min_width="10rem">
                     <c-slot name="trigger">
