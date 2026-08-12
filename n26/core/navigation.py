@@ -84,7 +84,12 @@ def places_switcher(request, here=""):
     works everywhere, and on the pages that are not one of anything — the
     dashboard, the listings — the list it offers is the app itself: the
     same places the drawer holds, authoring included for the accounts
-    that write content. Costs no query; every row is a named route.
+    that write content. Costs no query.
+
+    Help is the one row that is a written-out path rather than a reversed
+    route: the guides are flatpages, addressed by the URL they are stored
+    under. It is also a place no screen with this switcher can be, so
+    nothing ever names itself there.
 
     ``here`` is the drawer slug of the place the page is, and is what
     turns the label on: a page that is one of the places names itself as
@@ -96,6 +101,7 @@ def places_switcher(request, here=""):
     places = [
         ("home", "Home", reverse("n26-dashboard")),
         ("gangs", "Gangs", reverse("n26-gangs")),
+        ("help", "Help", "/help/n26/"),
     ]
     user = getattr(request, "user", None)
     if user is not None and user.is_staff:

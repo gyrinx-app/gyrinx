@@ -138,10 +138,21 @@ class TestThePlaces:
         assert [item.label for item in switcher.items] == [
             "Home",
             "Gangs",
+            "Help",
             "Content library",
             "Modifiers",
             "Foundations",
             "Ingest",
+        ]
+
+    def test_the_guides_are_one_of_the_places(self, tester):
+        """A written-out path rather than a reversed route: the guides are
+        flatpages, addressed by the URL they are stored under."""
+        switcher = places_switcher(request_for(tester))
+        labels = [item.label for item in switcher.items]
+        assert labels.index("Help") == labels.index("Gangs") + 1
+        assert [item.href for item in switcher.items if item.label == "Help"] == [
+            "/help/n26/"
         ]
 
     def test_authoring_is_not_offered_to_a_reader_who_does_not_write(self, stranger):
@@ -149,7 +160,7 @@ class TestThePlaces:
         switcher that named those pages for everyone would be the drawer
         disagreeing with itself."""
         switcher = places_switcher(request_for(stranger))
-        assert [item.label for item in switcher.items] == ["Home", "Gangs"]
+        assert [item.label for item in switcher.items] == ["Home", "Gangs", "Help"]
 
     def test_naming_the_place_turns_the_leading_link_on(self, tester):
         """The linked shape: a page that is one of the places names itself

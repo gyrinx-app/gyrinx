@@ -378,11 +378,25 @@ class TestTheNavigation:
     ):
         drawer = nav_drawer(client.get("/n26/").content.decode())
         positions = in_order(
-            drawer, ">Home</a>", ">Gangs</a>", "Campaigns", "Content Packs"
+            drawer,
+            ">Home</a>",
+            ">Gangs</a>",
+            "Campaigns",
+            'href="/help/n26/"',
+            "Content Packs",
         )
         assert positions == sorted(positions)
         # Founding is an action with a button on both pages, not a place.
         assert ">Create a gang</a>" not in drawer
+
+    def test_help_leads_to_the_guides_for_this_edition(
+        self, tester, client, default_pack
+    ):
+        """Each edition has its own guides, and the drawer is where the app
+        says where this one's are."""
+        drawer = nav_drawer(client.get("/n26/").content.decode())
+        assert 'href="/help/n26/"' in drawer
+        assert "Help" in drawer
 
     def test_a_place_with_no_page_yet_is_not_a_link(self, tester, client, default_pack):
         """Campaigns and Content Packs are coming and are worth naming,

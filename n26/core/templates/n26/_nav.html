@@ -15,6 +15,11 @@ yet, and the dashboard's tabs for them say the same thing. A link that lands
 nowhere teaches a reader to distrust the rest of the list, where a plain word
 costs nothing and is true.
 
+Help leads out of the edition, to the guides written for it. Those are
+flatpages, addressed by the URL they are stored under rather than by a route
+this template could reverse — and no screen that draws this drawer is ever one
+of them, so the row has no current state to mark.
+
 Making a gang is an action rather than a place, and it has a button on both
 pages that would list it.
 
@@ -44,6 +49,9 @@ a page that belongs nowhere.
 <c-ui.navbar.item href="{% url 'n26-gangs' %}"
                   current="{% if here == 'gangs' %}1{% endif %}">Gangs</c-ui.navbar.item>
 <span>Campaigns <span class="text-xs tracking-wide uppercase">Soon</span></span>
+<c-ui.navbar.item href="/help/n26/">
+    Help
+</c-ui.navbar.item>
 <span>Content Packs <span class="text-xs tracking-wide uppercase">Soon</span></span>
 {% if user.is_staff %}
     {% comment %}
