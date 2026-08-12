@@ -62,7 +62,13 @@ def record(request, noun, verb, obj=None, **context):
     whole roster, an ingest of a whole spreadsheet — is still one event
     carrying counts, because a row-by-row loop turns a page into as many
     writes as it has rows.
+
+    A speculative fetch is not a press. Browsers prefetch and prerender
+    pages nobody has opened yet — tab strips ask for it — and an event
+    recorded then would count readers who never arrived.
     """
+    if request.headers.get("Sec-Purpose", "").startswith("prefetch"):
+        return None
     return log_event(
         user=request.user,
         noun=noun,

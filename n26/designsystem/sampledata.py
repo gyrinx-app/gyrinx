@@ -541,6 +541,121 @@ def trading_post_context():
     }
 
 
+#: The crowded catalogue's shape: a section per supplier, sized the way the
+#: biggest live listings are — most holding a handful of rows, a couple
+#: holding dozens. The point of the numbers is their spread, not their sum:
+#: a strip of twenty uneven tabs is what the component has to stay fast on.
+_CROWDED_SUPPLIERS = (
+    ("Ashfall Reclamators", 7),
+    ("Bay Nineteen Auctions", 10),
+    ("Cinder Row Outfitters", 5),
+    ("Dredgeworks Combine", 4),
+    ("Emberline Provisioners", 7),
+    ("Flue Gate Traders", 7),
+    ("Gantry Syndicate", 4),
+    ("Hollowmarket", 7),
+    ("Ironglass Exchange", 7),
+    ("Junction Nine-Nine", 8),
+    ("Kiln District Salvage", 3),
+    ("Lift Shaft Consortium", 4),
+    ("Meridian Vaults", 6),
+    ("Null Zone Surplus", 6),
+    ("Ossuary Lane Traders", 9),
+    ("Pressline Wholesale", 5),
+    ("Quench House", 14),
+    ("Rustwater Cartel", 7),
+    ("Sump Bottom Bazaar", 24),
+)
+
+_CROWDED_WARES = (
+    "Autopistol",
+    "Stub Gun",
+    "Lasgun",
+    "Shotgun",
+    "Fighting Knife",
+    "Flak Vest",
+    "Respirator",
+    "Grapnel Launcher",
+    "Filter Plugs",
+    "Photo-visor",
+    "Cable Spool",
+    "Servo Clamp",
+)
+
+
+def crowded_catalogue() -> CollectionView:
+    """A catalogue at the volume the biggest live listings reach.
+
+    Generated rather than written out — a couple of hundred rows typed
+    by hand would be a page nobody maintains — and deterministic, so the
+    strip and the counts read the same on every load. This is the
+    specimen to open when a change might make the picker slower: the
+    small demo above it stays fast whatever happens.
+    """
+    sections: list[SectionGroup] = []
+    for supplier_index, (supplier, stocked) in enumerate(_CROWDED_SUPPLIERS):
+        section = SectionGroup(name=supplier)
+        for category_name, offset in (("Weapons", 0), ("Gear", 1)):
+            category = _Category(
+                name=f"{category_name} — {supplier}",
+                section=supplier,
+                position=supplier_index * 2 + offset,
+            )
+            lines = []
+            for item_index in range(offset, stocked, 2):
+                ware = _CROWDED_WARES[
+                    (supplier_index + item_index) % len(_CROWDED_WARES)
+                ]
+                seed = supplier_index * 7 + item_index * 3
+                lines.append(
+                    PricedLine(
+                        thing=_Stock(
+                            name=f"{ware} (pattern {supplier_index + 1}-{item_index + 1})",
+                            category=category,
+                        ),
+                        credits=5 * (seed % 38 + 1),
+                        trade_points=seed % 13,
+                        is_exclusive=False,
+                        charges_trade_points=True,
+                        shows_trade_points=True,
+                    )
+                )
+            if lines:
+                section.categories.append(
+                    CategoryGroup(name=category.name, lines=lines)
+                )
+        sections.append(section)
+    return CollectionView(name="Crowded Catalogue", sections=sections)
+
+
+def crowded_catalogue_context():
+    view = crowded_catalogue()
+    lines = [
+        line
+        for section in view.sections
+        for category in section.categories
+        for line in category.lines
+    ]
+    categories = [
+        category.name for section in view.sections for category in section.categories
+    ]
+    return {
+        "crowded_section_rows": [
+            {"section": section, "first": index == 0}
+            for index, section in enumerate(view.sections)
+        ],
+        "crowded_categories": categories,
+        "crowded_sections": [section.name for section in view.sections],
+        "crowded_category_options": [
+            {"value": name, "label": name} for name in categories
+        ],
+        "crowded_line_count": len(lines),
+        "crowded_price_floor": min(line.credits for line in lines),
+        "crowded_price_ceiling": max(line.credits for line in lines),
+        "crowded_tp_ceiling": max(line.trade_points for line in lines),
+    }
+
+
 #: Whose gangs these are. One constant because it appears in the dashboard's
 #: greeting, in the gang sheet's breadcrumb and now in both forms' breadcrumbs —
 #: three screens saying "tom" separately is three places for a rename to miss.
@@ -681,6 +796,7 @@ def context():
         "lists": LISTS,
         **nav_context(),
         **trading_post_context(),
+        **crowded_catalogue_context(),
         **hire_context(),
         **owned_context(),
         **gang_sheet_context(),

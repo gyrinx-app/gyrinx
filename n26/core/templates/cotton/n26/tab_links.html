@@ -33,11 +33,24 @@ do not fill.
   :tabs — [{label, href, current, title}]. `title` is optional and is the full
     name when `label` has been shortened to fit; it becomes the link's tooltip.
   label — what the strip is choosing between, as its accessible name.
+  prerender — ask the browser to render the other tabs before they are
+    pressed, so a strip whose every choice is a whole page-build answers a
+    press from cache. "moderate" starts on hover or touch-down — a head
+    start of a few hundred milliseconds; "immediate" starts straight
+    away, which makes the press instant at the price of the server
+    building pages nobody may open. Off by default: only a call site
+    knows whether its pages are expensive enough to be worth paying for
+    twice. Browsers without speculation rules ignore the hint — the tabs
+    are ordinary links either way. The prerendered request reaches the
+    server with `Sec-Purpose: prefetch;prerender`, which analytics
+    already ignores; these tabs must stay side-effect-free GETs, which
+    they already had to be to be links.
 {% endcomment %}
-<c-vars :tabs="[]" label="" class="" />
+<c-vars :tabs="[]" label="" prerender="" class="" />
 
 <nav {{ attrs }}
      aria-label="{{ label }}"
+     {% if prerender %}data-speculate="{{ label|slugify }}"{% endif %}
      class="flex flex-wrap gap-x-1 {{ class }}">
     {% for tab in tabs %}
         <a href="{{ tab.href }}"
@@ -51,3 +64,16 @@ do not fill.
     {% endfor %}
     <span aria-hidden="true" class="min-w-0 flex-1 border-b-2 border-box-border"></span>
 </nav>
+{% if prerender %}
+    {% comment %}
+    A document rule keyed on this strip's own nav, so two strips on one
+    page can ask for different eagerness. The current tab is excluded:
+    it is this page, and prerendering it would build it twice.
+    {% endcomment %}
+    <script type="speculationrules">
+        {"prerender": [{
+            "where": {"selector_matches": "nav[data-speculate='{{ label|slugify }}'] a:not([aria-current])"},
+            "eagerness": "{{ prerender }}"
+        }]}
+    </script>
+{% endif %}

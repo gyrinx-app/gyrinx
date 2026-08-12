@@ -32,13 +32,18 @@ is filter, look, adjust, rather than filter, wait, discover, go back.
 
 One list of facets on this component, not per group. Items register themselves
 on init — name, category, price, trade points, exclusivity, searchable text — so the counts, the
-"showing" readout and each group's own visibility are all the same array read
-three ways, and no total is stored anywhere to fall out of date.
+"showing" readout and each group's own visibility all come from that one
+array and cannot disagree with the rows.
 
-matches() is the only predicate. A group asks it how many of its items pass and
-hides itself at zero; an item asks it about itself. That means an empty category
-disappears rather than sitting there as a header with nothing under it, which on
-a phone is most of a screen wasted.
+matches() is the only predicate, and one effect runs it: recount() walks the
+items once when they or a filter change and writes every count into a table
+the rest of the page reads. A group hides itself when its number there is
+zero — an empty category disappears rather than sitting there as a header
+with nothing under it, which on a phone is most of a screen wasted. The table
+is what keeps a big list quick in the hand: counting per read instead would
+walk every item through the reactive proxy once per tab, per group and per
+readout, and a press on a tab — which changes no item and no filter — would
+spend a second recomputing numbers that cannot have changed.
 
 The readout counts what is on screen rather than what was registered, which
 under tabs is one section's worth: a total spanning the sections a tab is
@@ -121,6 +126,43 @@ dispatches, and listens for `filter-reset` to be told.
 
         register(facets) { this.items.push(facets) },
 
+        {% comment %}
+        Every count on the page reads this table, and one effect rebuilds
+        it when the items or a filter change. It must stay the only place
+        the items are walked: Alpine re-runs a getter per *read* and
+        caches nothing, so a count that walked the items itself would
+        walk them once per tab, per group and per readout — hundreds of
+        passes through the reactive proxy, a second of dependency
+        bookkeeping per press on a strip this size — to show numbers a
+        tab press cannot have changed.
+
+        countIn (a category's number) deliberately ignores the category
+        filter — the filter menu shows what each choice would yield —
+        while a section's number respects it, so a section whose every
+        category is unticked hides itself.
+        {% endcomment %}
+        counts: { section: {}, category: {}, sectionTotal: {}, shown: 0, total: 0 },
+        recount() {
+            const bySection = {}, byCategory = {}, sectionTotal = {};
+            let shown = 0;
+            for (const facets of this.items) {
+                sectionTotal[facets.section] = (sectionTotal[facets.section] || 0) + 1;
+                if (!this.matches(facets)) continue;
+                byCategory[facets.category] = (byCategory[facets.category] || 0) + 1;
+                if (this.categoryOn(facets.category)) {
+                    bySection[facets.section] = (bySection[facets.section] || 0) + 1;
+                    shown += 1;
+                }
+            }
+            this.counts = {
+                section: bySection,
+                category: byCategory,
+                sectionTotal: sectionTotal,
+                shown: shown,
+                total: this.items.length,
+            };
+        },
+
         matches(facets) {
             if (this.query && !facets.search.includes(this.query.trim().toLowerCase())) return false;
             if (facets.price < this.minPrice || facets.price > this.maxPrice) return false;
@@ -143,7 +185,7 @@ dispatches, and listens for `filter-reset` to be told.
         },
 
         categoryOn(name) { return this.categories.includes(name) },
-        countIn(name) { return this.items.filter(i => i.category === name && this.matches(i)).length },
+        countIn(name) { return this.counts.category[name] || 0 },
         {% comment %}
         A section counts what is visible under it, category filter included —
         otherwise a section whose every category has been filtered away would sit
@@ -170,24 +212,22 @@ dispatches, and listens for `filter-reset` to be told.
         },
         sectionIsActive(name) { return !this.tabbed || this.visibleSection === name },
 
-        countInSection(name) {
-            return this.items.filter(i =>
-                i.section === name && this.categoryOn(i.category) && this.matches(i)
-            ).length;
-        },
+        countInSection(name) { return this.counts.section[name] || 0 },
         {% comment %}
-        Every row the list could be drawing right now — which under tabs is
-        one section's worth, because a tab hides everything it is not. Both
-        halves of the readout are counted off this one array, so the number
-        above the list and the rows in it cannot say different things.
+        The readout counts what the list could be drawing right now — which
+        under tabs is one section's worth, because a tab hides everything it
+        is not. Both halves read the same table the rows are filtered from,
+        so the number above the list and the rows in it cannot say
+        different things.
         {% endcomment %}
-        get onScreen() {
-            return this.tabbed
-                ? this.items.filter(i => i.section === this.visibleSection)
-                : this.items;
+        get shown() {
+            return this.tabbed ? this.countInSection(this.visibleSection) : this.counts.shown;
         },
-        get shown() { return this.onScreen.filter(i => this.categoryOn(i.category) && this.matches(i)).length },
-        get total() { return this.onScreen.length },
+        get total() {
+            return this.tabbed
+                ? (this.counts.sectionTotal[this.visibleSection] || 0)
+                : this.counts.total;
+        },
         get filtering() {
             return this.query !== ''
                 || this.categories.length !== this.allCategories.length
@@ -214,6 +254,12 @@ dispatches, and listens for `filter-reset` to be told.
 
         toggleAll(open) { this.$dispatch('collection-picker-toggle', { open: open }) },
      }"
+     {% comment %}
+     The one effect that walks the items. Registration and every filter
+     land here — batched to one rebuild per flush — and everything that
+     shows a number reads the table it writes.
+     {% endcomment %}
+     x-effect="recount()"
      @filter-apply.window="if ($event.detail.name === 'category') categories = $event.detail.values">
 
     {% comment %}

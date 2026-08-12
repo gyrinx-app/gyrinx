@@ -1162,10 +1162,10 @@ def test_the_count_above_the_list_counts_the_section_on_screen(
     body = client.get(equip_url(fighter, house_list)).content.decode()
 
     assert 'x-text="shown"' in body
-    assert "i.section === this.visibleSection" in body
+    assert "this.countInSection(this.visibleSection)" in body
     # The "N of M" form: how many are left, out of how many the section has.
     assert 'x-show="shown !== total"' in body
-    assert "get total() { return this.onScreen.length }" in body
+    assert "this.counts.sectionTotal[this.visibleSection]" in body
 
 
 def buy_one(gang, fighter, tester, thing, **kwargs):

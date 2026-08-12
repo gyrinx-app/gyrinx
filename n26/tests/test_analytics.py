@@ -31,7 +31,7 @@ def gang_type(db):
     return GangType.objects.create(name="Goliath", starting_credits=1000)
 
 
-def found_one(client, gang_type, name="Rust in Peace"):
+def found_one(client, gang_type, name="Rust in Peace", headers=None):
     return client.post(
         reverse("n26-create-gang"),
         {
@@ -40,7 +40,27 @@ def found_one(client, gang_type, name="Rust in Peace"):
             "starting_credits": "",
             "colour": "",
         },
+        headers=headers,
     )
+
+
+class TestASpeculativeFetchIsNotAPress:
+    """Browsers prefetch and prerender pages nobody has opened — the tab
+    strips ask them to — and an event recorded then would count readers
+    who never arrived."""
+
+    def test_a_prerender_request_records_nothing(self, client, tester, gang_type):
+        client.force_login(tester)
+        found_one(client, gang_type)
+        Event.objects.all().delete()
+
+        found_one(
+            client,
+            gang_type,
+            name="Never Opened",
+            headers={"Sec-Purpose": "prefetch;prerender"},
+        )
+        assert not Event.objects.exists()
 
 
 class TestFoundingAGangIsRecorded:
