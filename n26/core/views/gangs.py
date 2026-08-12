@@ -416,6 +416,75 @@ def create_gang(request):
 
 
 @login_required
+def edit_gang(request, pk):
+    """Edit a standing gang: name, colour, and the credits budget.
+
+    The create form's shape without the one answer that cannot change —
+    the type fixed who could be hired and what the founding brought, so
+    it is shown as the fact it is.
+
+    The budget edit is the interesting part. Its floor is the gang's
+    wealth (see ``EditGangForm``), and the write happens inside an
+    operation so ``settle`` recomputes the credits from the ledger —
+    the budget less everything actually spent — and refuses a budget
+    the spending history cannot fit, unwinding the whole change.
+    """
+    from n26.analytics import EventVerb, N26Noun, record
+    from n26.core.forms import EditGangForm
+    from n26.core.operations import NotEnoughCredits, operation
+
+    gang = _own_gang_or_404(request, pk)
+    if request.method == "POST":
+        form = EditGangForm(gang, request.POST)
+        if form.is_valid():
+            try:
+                with operation(gang, actor=request.user) as op:
+                    gang.name = form.cleaned_data["name"]
+                    gang.colour = form.cleaned_data["colour"]
+                    gang.starting_credits = form.cleaned_data["starting_credits"]
+                    gang.save(
+                        update_fields=[
+                            "name",
+                            "colour",
+                            "starting_credits",
+                            "modified",
+                        ]
+                    )
+                    op.settle()
+            except NotEnoughCredits as refusal:
+                # The ledger's own floor: a budget the spending history
+                # cannot fit. The wealth floor usually refuses first, but
+                # the two figures part company where money was spent on
+                # things worth less than was paid.
+                form.add_error("starting_credits", str(refusal))
+            else:
+                record(
+                    request,
+                    N26Noun.GANG,
+                    EventVerb.UPDATE,
+                    gang,
+                    starting_credits=gang.starting_credits,
+                )
+                messages.success(request, f"Saved {gang.name}.")
+                return redirect("n26-gang", pk=gang.pk)
+    else:
+        form = EditGangForm(
+            gang,
+            initial={
+                "name": gang.name,
+                "starting_credits": gang.starting_credits,
+                "colour": gang.colour,
+            },
+        )
+
+    return render(
+        request,
+        "n26/edit_gang.html",
+        {"gang": gang, "form": form, "wealth": gang.wealth},
+    )
+
+
+@login_required
 def delete_gang(request, pk):
     """Deleting a gang: the question at its own address, then the act.
 

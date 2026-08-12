@@ -93,6 +93,58 @@ def _founding_budget(credits):
     return f"Founding budget {credits:,}¢"
 
 
+class EditGangForm(forms.Form):
+    """Editing a standing gang: its name, its colour, and the budget.
+
+    The type is not here. It fixed who could be hired and what the
+    founding brought, and those rows exist — a changed type would claim
+    a history the ledger never wrote.
+
+    The budget's floor is the gang's wealth: everything it owns plus the
+    cash it holds. A budget below that would say the gang owes money it
+    has already spent, and the one hard rule of the money model is that
+    the founding budget may not be exceeded. Blank clears the budget —
+    the gang spends freely again and its number is its rating. What a
+    raised budget leaves over lands in credits, because credits are
+    always the budget less everything spent; setting the budget to
+    exactly the gang's wealth leaves exactly 0¢ in hand.
+    """
+
+    def __init__(self, gang, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.gang = gang
+
+    name = forms.CharField(
+        max_length=100,
+        label="Gang name",
+    )
+    starting_credits = forms.IntegerField(
+        required=False,
+        min_value=0,
+        label="Credits budget",
+        help_text="Leave blank to spend as much as you like.",
+    )
+    colour = forms.CharField(
+        required=False,
+        label="Colour",
+        help_text="Shown against the gang wherever it is listed.",
+    )
+
+    def clean_starting_credits(self):
+        budget = self.cleaned_data["starting_credits"]
+        # The floor binds the change, not the standing state: granted
+        # content can push a gang's worth past its budget, and a rename
+        # should not be refused over a budget nobody touched.
+        if budget == self.gang.starting_credits:
+            return budget
+        if budget is not None and budget < self.gang.wealth:
+            raise forms.ValidationError(
+                f"{self.gang.name} is already worth {self.gang.wealth}¢ — "
+                f"the budget must cover what the gang has."
+            )
+        return budget
+
+
 class HireFighterForm(forms.Form):
     """The one real field on the hire screen.
 

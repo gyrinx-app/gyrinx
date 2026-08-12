@@ -17,6 +17,7 @@ urlpatterns = [
     # After gangs/new/, which would otherwise resolve "new" as an id.
     path("gangs/<str:pk>/", views.gang_sheet, name="n26-gang"),
     path("gangs/<str:pk>/hire/", views.hire_fighter, name="n26-hire-fighter"),
+    path("gangs/<str:pk>/edit/", views.edit_gang, name="n26-edit-gang"),
     path("gangs/<str:pk>/delete/", views.delete_gang, name="n26-delete-gang"),
     # The slot's own address. It names the card, the assignment carrying
     # the offer and the offer itself, so one route answers a fighter's

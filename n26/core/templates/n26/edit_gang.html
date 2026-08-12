@@ -1,0 +1,85 @@
+{% extends "n26/layouts/base.html" %}
+{% load navigation %}
+{% comment %}
+Editing a standing gang — the create form's shape over a gang that exists.
+Same frame (c-n26.form-page), same field order, one difference of substance:
+the type is a fact rather than a question, because it fixed who could be
+hired and what the founding brought, and those rows exist.
+{% endcomment %}
+{% block head_title %}Edit {{ gang.name }}{% endblock head_title %}
+{% block nav_switcher %}
+    {% gang_switcher gang as gang_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="gang_switcher_" hotkey="f" />
+{% endblock nav_switcher %}
+{% block nav_items %}
+    {% include 'n26/_nav.html' with here='gangs' %}
+{% endblock %}
+{% block content %}
+    <c-n26.form-page action="{% url 'n26-edit-gang' gang.pk %}"
+                     :form="form"
+                     title="Edit {{ gang.name }}"
+                     lead="Required fields are marked with an asterisk (*)."
+                     submit_label="Save changes"
+                     cancel_url="{% url 'n26-gang' gang.pk %}">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item>
+                    <c-n26.user-link :user="gang.owner" tone="current" href="{% url 'n26-dashboard' %}" />
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'n26-gang' gang.pk %}">{{ gang.name }}</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Edit
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% csrf_token %}
+        <c-n26.form-section title="General">
+            <c-ui.field label="Gang name *"
+                        error="x"
+                        :form="form"
+                        name="name"
+                        for="gang-name">
+                <c-ui.input id="gang-name"
+                            name="name"
+                            autocomplete="off"
+                            value="{{ form.name.value|default:'' }}" />
+            </c-ui.field>
+            {% comment %}
+            The one answer the create form asks that this one cannot: the
+            type fixed who could be hired and what the founding brought,
+            so it is stated rather than offered.
+            {% endcomment %}
+            <div class="flex flex-col gap-1">
+                <span class="text-sm font-medium text-ink-900 dark:text-ink-100">Gang type</span>
+                <p class="text-ink-900 dark:text-ink-100">{{ gang.gang_type }}</p>
+                <p class="text-sm text-muted">Fixed at founding.</p>
+            </div>
+        </c-n26.form-section>
+        <c-n26.form-section title="Setup">
+            {% comment %}
+            The floor is stated in the field's own help rather than left
+            to the error: the reader deciding a budget needs the number
+            they are deciding against, not a refusal after they guess.
+            {% endcomment %}
+            <c-ui.field label="Credits budget"
+                        description="Leave blank to spend as much as you like. A budget must cover what the gang is already worth — {{ wealth }}¢ — and what is left over becomes credits in hand."
+                        error="x"
+                        :form="form"
+                        name="starting_credits"
+                        for="starting-credits">
+                <c-ui.input id="starting-credits"
+                            name="starting_credits"
+                            type="number"
+                            min="{{ wealth }}"
+                            inputmode="numeric"
+                            placeholder="No limit"
+                            right_addon="¢"
+                            value="{{ form.starting_credits.value|default:'' }}" />
+            </c-ui.field>
+            <c-n26.colour-picker name="colour"
+                                 value="{{ form.colour.value|default:'' }}"
+                                 label="Colour"
+                                 description="Shown against the gang wherever it is listed." />
+        </c-n26.form-section>
+    </c-n26.form-page>
+{% endblock content %}

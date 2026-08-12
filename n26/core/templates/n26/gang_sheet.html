@@ -109,6 +109,14 @@ that said it twice would be spending the width the name needs.
         </c-slot>
         <c-slot name="secondary_actions">
             <c-n26.button-group>
+                {% comment %}
+                The gang's own facts — name, colour, budget — have a page
+                of their own, reached from the same group as the other
+                whole-gang detours.
+                {% endcomment %}
+                <c-ui.button size="sm" variant="default" href="{% url 'n26-edit-gang' gang.pk %}">
+                    Edit
+                </c-ui.button>
                 <c-ui.button size="sm"
                              variant="default"
                              href="{% url 'n26-print-setup' gang.pk %}">
