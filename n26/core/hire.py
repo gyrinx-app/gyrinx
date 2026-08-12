@@ -209,7 +209,14 @@ def build_hire_list(gang_type):
     is fetched in one pass, one modifier index covers every card, and the
     cards themselves are assembled in memory.
     """
-    profiles = list(hireable_profiles(gang_type))
+    return build_entries(list(hireable_profiles(gang_type)))
+
+
+def build_entries(profiles):
+    """Hire entries for profiles already fetched — the shared build.
+
+    The scopes differ only in which profiles they fetch; everything
+    after the fetch is this."""
     cards = []
     for profile in profiles:
         cards.append(build_card_from_profile(profile))
@@ -254,8 +261,12 @@ def section_hire_list(entries):
     )
 
 
-def hireable_profiles(gang_type):
-    """The profiles of a gang type, with everything a preview card needs."""
+def hireable_profiles(gang_type=None):
+    """Hireable profiles with everything a preview card needs.
+
+    ``gang_type`` narrows to one gang list; without it, every hireable
+    profile in the library — the all-profiles scope.
+    """
     from n26.library.models import Profile
     from n26.library.models.defaults import DEFAULT_ASSIGNABLE_FIELDS
 
@@ -266,14 +277,19 @@ def hireable_profiles(gang_type):
         "members__weapon_profile__traits",
         "members__weapon_profile__statline__stats__statline_type_stat__stat",
     )
+    # A profile that is not hireable is not a secret — its card still
+    # previews wherever it is granted — it just is not for sale here:
+    # a pet arrives behind its collar, not off the hire screen.
+    found = Profile.objects.filter(hireable=True)
+    if gang_type is not None:
+        found = found.filter(gang_type=gang_type)
     return (
-        # A profile that is not hireable is not a secret — its card still
-        # previews wherever it is granted — it just is not for sale here:
-        # a pet arrives behind its collar, not off the hire screen.
-        Profile.objects.filter(gang_type=gang_type, hireable=True)
         # category__section rides along for the section headings — without
-        # it, grouping a listing costs two queries per profile.
-        .select_related("profile_type", "built_ins", "category__section")
+        # it, grouping a listing costs two queries per profile. gang_type
+        # for the all-profiles scope, whose sections are the gang types.
+        found.select_related(
+            "profile_type", "built_ins", "category__section", "gang_type"
+        )
         .prefetch_related(
             "statline__stats__statline_type_stat__stat",
             *(f"built_ins__{path}" for path in members),
@@ -285,3 +301,55 @@ def hireable_profiles(gang_type):
         )
         .order_by("price", "name")
     )
+
+
+def supplementary_profiles():
+    """The profiles every gang may hire, whichever gang type authored them.
+
+    Being supplementary is a fact of the taxonomy: a profile whose home
+    category sits under the supplementary section is on offer to every
+    gang, and moving a profile in or out of the scope is an authoring
+    act, never a code change.
+    """
+    from n26.library.standard_content import SUPPLEMENTARY_SECTION
+
+    return hireable_profiles().filter(category__section__name=SUPPLEMENTARY_SECTION)
+
+
+def section_by_gang_type(entries):
+    """The hire list in sections of gang types — the all-profiles scope.
+
+    Every gang list at once is found by whose list it is, so the
+    sections are the gang types and the categories inside keep the
+    taxonomy's own homes. Cheapest first within a category, as
+    everywhere on this screen.
+    """
+
+    def entry_order(entry):
+        return (entry.base_price, entry.name)
+
+    by_type = {}
+    for entry in entries:
+        by_type.setdefault(entry.profile.gang_type, []).append(entry)
+
+    sections = []
+    for gang_type in sorted(by_type, key=lambda found: found.name.casefold()):
+        homes = {}
+        for entry in by_type[gang_type]:
+            home = entry.profile.category
+            key = (
+                (0, home.section.position, home.position, home.name)
+                if home is not None
+                else (1, 0, 0, "")
+            )
+            homes.setdefault(key, []).append(entry)
+        sections.append(
+            HireSection(
+                name=gang_type.name,
+                categories=[
+                    HireCategory(name=key[3], entries=sorted(rows, key=entry_order))
+                    for key, rows in sorted(homes.items())
+                ],
+            )
+        )
+    return sections

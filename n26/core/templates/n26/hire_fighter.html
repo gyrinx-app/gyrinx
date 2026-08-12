@@ -76,6 +76,14 @@ be read in one.
             </c-ui.breadcrumbs>
         </c-slot>
         {% csrf_token %}
+        {% comment %}
+        Whose profiles are on offer, as tabs the server answers: the
+        gang's own list, the supplementary profiles every gang may hire,
+        or everyone in the library. URL state, so a scope is linkable
+        and only the chosen one is priced — the all-profiles scope
+        builds a card for every profile there is.
+        {% endcomment %}
+        <c-n26.tab-links label="Who can be hired" :tabs="scope_tabs" class="mb-4" />
         <c-n26.profile-picker :categories="categories"
                               :sections="sections"
                               price_floor="{{ price_floor }}"
@@ -84,7 +92,7 @@ be read in one.
                 <c-n26.search-bar :live="True"
                                   :nested="True"
                                   model="query"
-                                  placeholder="Search the gang list" />
+                                  placeholder="Search {{ scope_label|lower }}" />
                 {% if category_options or price_ceiling > price_floor %}
                     <div class="flex flex-wrap items-center gap-2">
                         {% if category_options %}

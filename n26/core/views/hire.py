@@ -44,22 +44,51 @@ class _Pick:
     option: object
 
 
+#: The hire screen's scopes: whose profiles are on offer. URL state
+#: (``?list=``), so each is linkable and only the chosen one is built —
+#: the all-profiles scope prices every card in the library, and paying
+#: that on every visit to the gang list would be paying it for nothing.
+HIRE_SCOPES = {
+    "gang": "Gang list",
+    "supplementary": "Supplementary",
+    "all": "All profiles",
+}
+
+
+def _scope(request):
+    """Which scope the request names — from the POST when a press carries
+    it through, the URL otherwise. Anything unknown is the gang list."""
+    named = request.POST.get("list", request.GET.get("list", ""))
+    return named if named in HIRE_SCOPES else "gang"
+
+
+def _scope_tabs(request, scope):
+    return [
+        {
+            "label": label,
+            "href": request.path if key == "gang" else f"{request.path}?list={key}",
+            "current": key == scope,
+        }
+        for key, label in HIRE_SCOPES.items()
+    ]
+
+
 def _hireable(gang, pk):
-    """The profile that ``pk`` names, if this gang could hire it.
+    """The profile that ``pk`` names, if it can be hired at all.
+
+    Any gang may hire any hireable profile — every one of them is
+    legitimately on the all-profiles scope — so the check is
+    hireability, not whose list it is: a pet still arrives behind its
+    collar, never off this screen.
 
     A pk that is not a ULID at all raises out of the field's ``to_python``.
     The genuine buttons never send one, so it names nothing and the list is
-    redisplayed — the same answer as a profile from somebody else's list.
+    redisplayed — the same answer as a profile that does not exist.
     """
     from n26.library.models import Profile
 
     try:
-        # hireable, because the list only offers such profiles: a POST
-        # naming one that is not is a crafted request, and the answer to
-        # it is the same as to a profile from somebody else's list.
-        return Profile.objects.filter(
-            pk=pk, gang_type=gang.gang_type, hireable=True
-        ).first()
+        return Profile.objects.filter(pk=pk, hireable=True).first()
     except ValidationError:
         return None
 
@@ -108,7 +137,7 @@ def _chosen(picks):
     return [pick.option.default_set for pick in picks if pick.option.default_set]
 
 
-def _dialog(request, profile, picks):
+def _dialog(request, profile, picks, scope="gang"):
     """What the name dialog draws: who is being hired, at what price, and
     the hidden fields that carry the row's answer to the next request."""
     try:
@@ -119,15 +148,18 @@ def _dialog(request, profile, picks):
         price = profile.price_with(_chosen(picks))
     except ValueError:
         raise Http404("No such option") from None
+    cancel_url = request.path if scope == "gang" else f"{request.path}?list={scope}"
     return {
         "profile": profile.name,
         "price": price,
+        "scope": scope,
         "choices": [pick.option.name for pick in picks if pick.option.default_set],
         "fields": [
             {"name": "profile", "value": str(profile.pk)},
+            *([{"name": "list", "value": scope}] if scope != "gang" else []),
             *({"name": pick.field, "value": pick.value} for pick in picks),
         ],
-        "cancel_url": request.path,
+        "cancel_url": cancel_url,
     }
 
 
@@ -141,11 +173,24 @@ def hire_fighter(request, pk):
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.forms import HireFighterForm
-    from n26.core.hire import build_hire_entry, build_hire_list, section_hire_list
+    from n26.core.hire import (
+        build_entries,
+        build_hire_entry,
+        build_hire_list,
+        hireable_profiles,
+        section_by_gang_type,
+        section_hire_list,
+        supplementary_profiles,
+    )
     from n26.core.models import Miniature
     from n26.core.operations import NotEnoughCredits, operation
 
     gang = _own_gang_or_404(request, pk)
+    scope = _scope(request)
+    # Where every step of the press lands: the list being browsed, so a
+    # hire made from the supplementary scope confirms onto it rather
+    # than snapping back to the gang list.
+    back = request.path if scope == "gang" else f"{request.path}?list={scope}"
     form = HireFighterForm()
     dialog = None
 
@@ -164,7 +209,7 @@ def hire_fighter(request, pk):
                         )
                 except NotEnoughCredits as refusal:
                     messages.error(request, str(refusal))
-                    return redirect("n26-hire-fighter", pk=gang.pk)
+                    return redirect(back)
                 except ValueError:
                     # Two picks in a choose-one group, or a set the profile
                     # does not offer — resolve_selection refuses tampering
@@ -210,11 +255,11 @@ def hire_fighter(request, pk):
                         if miniature.name == profile.name
                         else f"Hired {miniature.name} — {profile.name}, {entry.paid}¢.",
                     )
-                return redirect("n26-hire-fighter", pk=gang.pk)
+                return redirect(back)
             # A name the field will not take. The dialog comes back holding
             # what was typed, with the error under it — the selection is in
             # the hidden fields, so nothing else has to be re-answered.
-            dialog = _dialog(request, profile, picks)
+            dialog = _dialog(request, profile, picks, scope=scope)
     elif request.method == "POST":
         # A Hire button in the list. Which profile is now a URL, so the
         # dialog has an address of its own and the press survives a reload.
@@ -226,6 +271,7 @@ def hire_fighter(request, pk):
             # written there.
             query = urlencode(
                 [
+                    *([("list", scope)] if scope != "gang" else []),
                     ("hire", str(profile.pk)),
                     *((pick.field, pick.value) for pick in picks),
                 ],
@@ -239,6 +285,7 @@ def hire_fighter(request, pk):
                 request,
                 profile,
                 _picks(request.GET, profile, build_hire_entry(profile)),
+                scope=scope,
             )
 
     # The whole screen, as one structure: every profile this gang could
@@ -246,7 +293,12 @@ def hire_fighter(request, pk):
     # draws what the structure says rather than assembling headings of
     # its own, so what a tab is called and what a heading is called are
     # one answer.
-    hire_list = section_hire_list(build_hire_list(gang.gang_type))
+    if scope == "supplementary":
+        hire_list = section_hire_list(build_entries(list(supplementary_profiles())))
+    elif scope == "all":
+        hire_list = section_by_gang_type(build_entries(list(hireable_profiles())))
+    else:
+        hire_list = section_hire_list(build_hire_list(gang.gang_type))
     prices = [
         entry.base_price for section in hire_list for entry in section.all_entries()
     ]
@@ -258,6 +310,9 @@ def hire_fighter(request, pk):
             "form": form,
             "dialog": dialog,
             "hire_list": hire_list,
+            "scope_tabs": _scope_tabs(request, scope),
+            "scope": scope,
+            "scope_label": HIRE_SCOPES[scope],
             # How many models the gang already fields, for the figures
             # strip beside the wealth: hiring is decided against what is
             # already on the roster as much as against the credits.

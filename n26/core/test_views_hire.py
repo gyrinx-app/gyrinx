@@ -476,25 +476,33 @@ def test_an_overspend_refuses_and_writes_nothing(client, tester, gang, make_prof
     assert "credits" in client.get(response.url).content.decode()
 
 
-def test_a_profile_of_another_gang_type_is_refused(
-    client, tester, gang, make_profile, person_type
+def test_another_gang_types_profile_hires_but_an_unhireable_one_never_does(
+    client, tester, gang, make_profile, make_statline, person_type
 ):
-    """The list is the gang type's; a tampered POST naming someone
-    else's profile must not hire it — at either step."""
+    """Any gang may hire any hireable profile — every one of them is
+    legitimately on the all-profiles scope — so the line the view holds
+    is hireability itself: a pet still arrives behind its collar, never
+    off this screen."""
     from n26.library.models import GangType
 
     other = GangType.objects.create(name="Goliath")
     outsider = make_profile("Forge Tyrant", gang_type=other, price=10)
+    make_statline(outsider)
+    collared = make_profile("Gyrinx Cat", gang_type=other, price=10, hireable=False)
 
     client.force_login(tester)
     response = client.post(
-        hire_url(gang), {"profile": str(outsider.pk), "name": "Wrong"}
+        hire_url(gang), {"profile": str(outsider.pk), "name": "Poached"}
     )
-    assert response.status_code == 200  # redisplays the list
-    assert Miniature.objects.filter(membership__gang=gang).count() == 0
+    assert response.status_code == 302
+    assert Miniature.objects.filter(membership__gang=gang).count() == 1
 
-    assert press(client, gang, outsider).status_code == 200
-    assert client.get(dialog_url(gang, outsider)).context["dialog"] is None
+    refused = client.post(
+        hire_url(gang), {"profile": str(collared.pk), "name": "Wrong"}
+    )
+    assert refused.status_code == 200  # redisplays the list
+    assert Miniature.objects.filter(membership__gang=gang).count() == 1
+    assert client.get(dialog_url(gang, collared)).context["dialog"] is None
 
 
 def test_a_profile_that_is_not_a_ulid_draws_no_dialog(client, tester, gang, ganger):
@@ -561,3 +569,90 @@ def test_a_profile_not_offered_for_hire_is_not_on_the_screen(
     response = client.post(hire_url(gang), {"profile": str(ganger.pk), "name": "Vex"})
     assert response.status_code == 200
     assert not Miniature.objects.filter(membership__gang=gang).exists()
+
+
+class TestTheScopes:
+    """Whose profiles are on offer: the gang list, the supplementary
+    profiles every gang may hire, or everyone in the library. Being
+    supplementary is a fact of the taxonomy — a home category under the
+    supplementary section — so the scope follows the content."""
+
+    @pytest.fixture
+    def elsewhere(self, ganger, make_profile, make_statline):
+        """A supplementary profile and an ordinary one, both authored on
+        another gang type entirely."""
+        from n26.library.models import Category, GangType, Section
+        from n26.library.standard_content import SUPPLEMENTARY_SECTION
+
+        other = GangType.objects.create(name="Brutes, Hangers-on & Pets")
+        section = Section.objects.create(name=SUPPLEMENTARY_SECTION, position=7)
+        hanger_on = Category.objects.create(
+            name="Hanger-on", section=section, position=0
+        )
+        supplementary = make_profile("Claim Jumper", price=90)
+        supplementary.gang_type = other
+        supplementary.category = hanger_on
+        supplementary.save()
+        make_statline(supplementary)
+        ordinary = make_profile("Their Ganger", price=40)
+        ordinary.gang_type = other
+        ordinary.save()
+        make_statline(ordinary)
+        return supplementary, ordinary
+
+    def test_the_gang_list_is_the_default_and_offers_no_strangers(
+        self, client, tester, gang, ganger, elsewhere
+    ):
+        client.force_login(tester)
+        body = client.get(hire_url(gang)).content.decode()
+        assert "Ganger" in body
+        assert "Claim Jumper" not in body
+
+    def test_the_supplementary_scope_offers_the_sections_profiles_alone(
+        self, client, tester, gang, ganger, elsewhere
+    ):
+        client.force_login(tester)
+        body = client.get(f"{hire_url(gang)}?list=supplementary").content.decode()
+        assert "Claim Jumper" in body
+        assert "Their Ganger" not in body
+        assert ">Ganger<" not in body
+
+    def test_the_all_scope_offers_everyone_by_gang_type(
+        self, client, tester, gang, ganger, elsewhere
+    ):
+        client.force_login(tester)
+        response = client.get(f"{hire_url(gang)}?list=all")
+        body = response.content.decode()
+        assert "Claim Jumper" in body
+        assert "Their Ganger" in body
+        assert "Ganger" in body
+        # Sectioned by whose list each is, so 160 profiles stay findable.
+        sections = [section.name for section in response.context["hire_list"]]
+        assert "Brutes, Hangers-on & Pets" in sections
+
+    def test_a_hire_from_another_scope_lands_back_on_it(
+        self, client, tester, gang, elsewhere
+    ):
+        supplementary, _ = elsewhere
+        client.force_login(tester)
+        pressed = client.post(
+            f"{hire_url(gang)}?list=supplementary",
+            {"hire": str(supplementary.pk), "list": "supplementary"},
+        )
+        assert pressed.status_code == 302
+        assert "list=supplementary" in pressed.url
+
+        hired = client.post(
+            hire_url(gang),
+            {"profile": str(supplementary.pk), "list": "supplementary", "name": ""},
+        )
+        assert hired.status_code == 302
+        assert "list=supplementary" in hired.url
+        fighter = Miniature.objects.get(name="Claim Jumper")
+        assert fighter.membership.profile == supplementary
+
+    def test_an_unknown_scope_is_the_gang_list(self, client, tester, gang, ganger):
+        client.force_login(tester)
+        response = client.get(f"{hire_url(gang)}?list=nonsense")
+        assert response.status_code == 200
+        assert response.context["scope"] == "gang"

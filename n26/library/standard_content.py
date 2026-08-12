@@ -198,6 +198,13 @@ SKILL_TIERS = [("Primary", False), ("Secondary", False), ("Other", True)]
 #: is simply there.
 TRADING_POST_COLLECTION = "Trading Post"
 
+#: The taxonomy section whose profiles every gang may hire, whichever
+#: gang type authored them — hangers-on, brutes, hired guns. Being
+#: supplementary is a fact of the taxonomy, not of a gang type: an
+#: author files a profile's home category under this section and it
+#: appears on every gang's hire screen.
+SUPPLEMENTARY_SECTION = "Supplementary Profiles"
+
 #: Every gang the published lists cover. Names only — a gang type's
 #: profiles, equipment list and rules are authored content, hung on
 #: these rows later.
