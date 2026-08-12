@@ -229,29 +229,36 @@ The composed name is a sketch — a real app has an id here.
     {% comment %}
     One card per option of the main pick, the selected one showing — pick
     the arc welder and the card in front of you carries the arc welder.
-    Every card is served in the HTML (each was already built; the data
-    layer makes one per option against an otherwise-default selection)
-    and the radios only decide which is visible, so nothing here asks the
-    server anything. Without scripting, the default option's card shows —
-    the one a fighter starts as.
-
     The further sets stay off the card: following *every* control would
     mean a card per combination, which is the explosion n26.hire groups
     options to avoid. The main pick is what decides what a fighter
     fundamentally is; the rest add to it and print their price beside
     their tick box.
+
+    Where the option names a card_url, the card is fetched when first
+    looked at rather than served in the HTML: a list prices hundreds of
+    options and a reader opens a handful, and shipping every drawn card
+    makes the document megabytes. The latch (`seen`) keeps a card once
+    fetched, so flicking between options never refetches. An option
+    without a card_url carries its drawn card inline — the gallery's
+    sample rows have no endpoint to fetch from.
     {% endcomment %}
     <c-slot name="details">
         {% for option in entry.options %}
-            {% if forloop.first %}
-                <div x-show="mainpick === {{ forloop.counter0 }}">
+            <div x-show="mainpick === {{ forloop.counter0 }}"{% if not forloop.first %} x-cloak{% endif %}>
+                {% if option.card_url %}
+                    <div x-data="{ seen: {{ forloop.first|yesno:'true,false' }} }"
+                         x-effect="seen = seen || mainpick === {{ forloop.counter0 }}">
+                        <template x-if="seen">
+                            <div>
+                                <c-n26.deferred url="{{ option.card_url }}" />
+                            </div>
+                        </template>
+                    </div>
+                {% else %}
                     <c-n26.model-card :card="option.card" />
-                </div>
-            {% else %}
-                <div x-show="mainpick === {{ forloop.counter0 }}" x-cloak>
-                    <c-n26.model-card :card="option.card" />
-                </div>
-            {% endif %}
+                {% endif %}
+            </div>
         {% endfor %}
     </c-slot>
 </c-n26.collection-picker.item>

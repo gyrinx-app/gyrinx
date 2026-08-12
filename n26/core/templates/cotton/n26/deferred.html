@@ -1,0 +1,63 @@
+{% comment %}
+<c-n26.deferred> — a fragment fetched when first needed, not shipped with the page.
+
+    <template x-if="expanded">
+        <div><c-n26.deferred url="/n26/gangs/1/hire/card/2/" /></div>
+    </template>
+
+For the heavy tail of a page: reference material behind a disclosure
+that most readers never open. A list that ships every row's detail
+inline pays for all of it on every load — megabytes of document and the
+server work of drawing cards nobody asked to see — where a fragment
+fetched on the first open costs one small request, for exactly the rows
+somebody reads.
+
+The fetch happens once, on this component's own init. So *when* the
+fetch happens is the call site's placement: dropped straight into the
+page it fetches on load, which defers nothing; put inside a
+`<template x-if>` it fetches when the template first instantiates,
+which is the point. Alpine initialises whatever lands in the document,
+so a fetched fragment's own behaviours work as if it had been inline.
+
+The URL must be a side-effect-free GET returning an HTML fragment — no
+doctype, no shell. Fragments that set cache headers make a reopened
+disclosure free; this component adds no caching of its own. A failed
+fetch becomes a plain retry control rather than a blank: the reader
+asked to see something, and silence would read as the row having no
+detail at all.
+
+  url — where the fragment lives.
+{% endcomment %}
+<c-vars url="" class="" />
+
+<div x-data="{
+        html: '',
+        failed: false,
+        async fetchIt() {
+            this.failed = false;
+            try {
+                const response = await fetch({{ url|json_dumps }});
+                if (!response.ok) throw new Error(response.status);
+                this.html = await response.text();
+            } catch {
+                this.failed = true;
+            }
+        },
+     }"
+     x-init="fetchIt()"
+     class="{{ class }}">
+    {% comment %}
+    The placeholder holds a card-ish height so the open does not land as
+    a sliver and then jump when the fragment arrives — a pulse, because
+    a static grey block reads as content that failed to draw.
+    {% endcomment %}
+    <div x-show="!html && !failed"
+         class="h-24 animate-pulse rounded-control bg-ink-500/10"
+         aria-hidden="true"></div>
+    <div x-show="failed" x-cloak class="py-2 text-sm text-ink-900 dark:text-ink-100">
+        Couldn’t load this.
+        <button type="button" @click="fetchIt()"
+                class="rounded text-accent-text hover:underline focus-ring">Try again</button>
+    </div>
+    <div x-html="html"></div>
+</div>
