@@ -84,6 +84,10 @@ GRANTABLE_FIELDS = {
     # A named special rule the bearer gains — "all Escher fighters may…",
     # carried by the gang type and reaching each member.
     "rule": "library.Rule",
+    # A power the bearer knows without having learned it — a psyker entry
+    # whose sheet says it manifests something from the start. Skill-like:
+    # a fact on the card, gone when the granter goes.
+    "power": "library.Power",
     # Free kit: a beast's claws, a vehicle's fixed gun. The weapon and its
     # firing lines are worked out at read time, so they add nothing to the
     # gang's rating, cost nothing, cannot be sold, and go when the thing
@@ -651,6 +655,13 @@ class AssignableChoice(models.Model):
     )
     rule = models.ForeignKey(
         "library.Rule",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    power = models.ForeignKey(
+        "library.Power",
         on_delete=models.PROTECT,
         null=True,
         blank=True,

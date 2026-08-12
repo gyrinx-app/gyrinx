@@ -906,6 +906,14 @@ def card_to_model_card(
                         provenance=_computed_provenance(contribution),
                     )
                 )
+        for contribution in computed.powers:
+            if contribution.name not in {line.name for line in powers}:
+                powers.append(
+                    AssignableLine(
+                        name=contribution.name,
+                        provenance=_computed_provenance(contribution),
+                    )
+                )
         for contribution in computed.rules:
             if contribution.name not in {line.name for line in rules}:
                 rules.append(

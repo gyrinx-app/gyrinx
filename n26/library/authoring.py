@@ -1236,7 +1236,15 @@ def op_adds_model(profile):
 
 
 def _assignable_kwarg(thing):
-    from n26.library.models import Collection, Rule, Skill, Subtype, Trait, Weapon
+    from n26.library.models import (
+        Collection,
+        Power,
+        Rule,
+        Skill,
+        Subtype,
+        Trait,
+        Weapon,
+    )
 
     kinds = (
         (Subtype, "subtype"),
@@ -1244,6 +1252,7 @@ def _assignable_kwarg(thing):
         (Trait, "trait"),
         (Collection, "collection"),
         (Rule, "rule"),
+        (Power, "power"),
         (Weapon, "weapon"),
     )
     for model, name in kinds:

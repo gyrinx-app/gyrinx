@@ -188,6 +188,43 @@ class TestMounted:
         assert card.skills == []
 
 
+class TestGrantedPower:
+    """A power a modifier grants — the psyker entry whose sheet says it
+    starts knowing one. A fact on the card while the granter stands,
+    filed in the Powers row where a learned power would sit."""
+
+    @pytest.fixture
+    def haunted_mask(self, db):
+        from n26.tests.sandbox.actions import create_category, create_power
+
+        family = create_category("Powers", "Whispers")
+        crush = create_power("Crush", category=family)
+        mask = create_wargear("Haunted Mask")
+        modifier(
+            "The mask knows Crush",
+            targets_model(),
+            adds(crush),
+            carried_by=mask,
+        )
+        return mask
+
+    def test_the_power_lands_in_the_powers_row(self, yolanda, haunted_mask):
+        assign(haunted_mask, miniature=yolanda, paid=0)
+        card = card_for(yolanda)
+        assert [p.name for p in card.powers] == ["Crush"]
+
+    def test_the_line_says_where_it_came_from(self, yolanda, haunted_mask):
+        assign(haunted_mask, miniature=yolanda, paid=0)
+        (line,) = card_for(yolanda).powers
+        assert line.provenance.source == "Haunted Mask"
+        assert line.provenance.computed is True
+
+    def test_removing_the_granter_takes_the_power(self, yolanda, haunted_mask):
+        carried = assign(haunted_mask, miniature=yolanda, paid=0)
+        remove(carried)
+        assert card_for(yolanda).powers == []
+
+
 class TestEyeInjury:
     """A stat change, direction-aware, and a bionic that undoes it."""
 

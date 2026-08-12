@@ -209,6 +209,9 @@ class ComputedCard:
     plan: list[PlannedStep] = field(default_factory=list)
     subtypes: list[Contribution] = field(default_factory=list)
     skills: list[Contribution] = field(default_factory=list)
+    #: Powers granted computedly — a psyker entry that starts knowing one.
+    #: Known while the granter stands, like a granted skill.
+    powers: list[Contribution] = field(default_factory=list)
     #: Collections granted computedly — Tech Bazaar's standing Trading Post
     #: access. Access to browse, gone when the granter goes.
     collections: list[Contribution] = field(default_factory=list)
@@ -740,9 +743,9 @@ def _fill_choice_slots(computed, offers, by_cause):
 
 
 def _bucket(computed, target, thing):
-    """Where a contribution belongs: subtypes, skills, rules, collections,
-    a granted weapon, or a weapon's traits."""
-    from n26.library.models import Collection, Rule, Skill, Subtype, Weapon
+    """Where a contribution belongs: subtypes, skills, powers, rules,
+    collections, a granted weapon, or a weapon's traits."""
+    from n26.library.models import Collection, Power, Rule, Skill, Subtype, Weapon
 
     if target.kind == WEAPON_PROFILE:
         return computed.weapons[target.node.key], "traits"
@@ -750,6 +753,8 @@ def _bucket(computed, target, thing):
         return computed, "subtypes"
     if isinstance(thing, Skill):
         return computed, "skills"
+    if isinstance(thing, Power):
+        return computed, "powers"
     if isinstance(thing, Rule):
         return computed, "rules"
     if isinstance(thing, Collection):
