@@ -290,6 +290,7 @@ def _build_registry():
         LastingEffect,
         OffersChoice,
         OpAddsMiniature,
+        OpChangesCounter,
         Option,
         OptionGroup,
         PlacesCategory,
@@ -440,6 +441,14 @@ def _build_registry():
         Spec(
             authoring.op_adds_model,
             {"profile": One(model=Profile, source=(OpAddsMiniature, "profile"))},
+        ),
+        Spec(
+            authoring.op_changes_counter,
+            {
+                "counter": One(model=Counter, source=(OpChangesCounter, "counter")),
+                "mode": Choice(source=(OpChangesCounter, "mode")),
+                "amount": Int(source=(OpChangesCounter, "amount")),
+            },
         ),
         # -- the leaves: what the authoring views create ----------------
         # Name-only (and nearly-so) kinds, the ground everything else

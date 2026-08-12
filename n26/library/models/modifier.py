@@ -50,7 +50,7 @@ COMPUTED_EFFECT_FIELDS = (
 
 #: Effects that write rows, run by ``n26.operations`` when the carrier is
 #: assigned. Prefixed ``Op`` so the distinction is visible at the call site.
-STORED_EFFECT_FIELDS = ("op_adds_miniature",)
+STORED_EFFECT_FIELDS = ("op_adds_miniature", "op_changes_counter")
 
 #: Kinds an OffersChoice may name. Growing this is one line plus deliberate
 #: thought — clean() refuses anything else, and the boot check screams if a
@@ -1079,6 +1079,100 @@ class OpAddsMiniature(models.Model):
         )
 
 
+class OpChangesCounter(models.Model):
+    """Moves a counter the bearer keeps — "starts with 61 XP" on a
+    selection made after hire, a Kill Count bump a title confers.
+
+    A **stored** effect: a counter's value is player-side state written
+    only by ``op.tally``, one ledger event per change — so a rule that
+    moves one writes once, when its carrier is assigned, and the change
+    is on the ledger like any other. Taking the carrier away does not
+    move the value back: the ledger is append-only, and what a rule
+    tallied is something that happened.
+
+    A hire's printed Starting XP does not need this — a built-in counter
+    member carries its opening value. This is for the value a *later*
+    assignment sets or shifts: the carrier arrives, the counter moves.
+    """
+
+    is_stored = True
+
+    class Mode(models.TextChoices):
+        ADD = "add", "add"
+        SUBTRACT = "subtract", "subtract"
+        SET = "set", "set"
+
+    counter = models.ForeignKey(
+        "library.Counter",
+        on_delete=models.PROTECT,
+        related_name="+",
+        help_text="The counter to move.",
+    )
+    mode = models.CharField(
+        max_length=10,
+        choices=Mode,
+        default=Mode.SET,
+        help_text=(
+            "How the amount is applied: added to the value, subtracted "
+            "from it (never below zero), or becomes it outright."
+        ),
+    )
+    amount = models.PositiveIntegerField(
+        default=0,
+        help_text='The figure — the 61 in "starts with 61 XP".',
+    )
+
+    class Meta:
+        verbose_name = "changes counter"
+        verbose_name_plural = "changes counters"
+
+    def __str__(self):
+        if self.mode == self.Mode.ADD:
+            return f"adds {self.amount} to {self.counter}"
+        if self.mode == self.Mode.SUBTRACT:
+            return f"takes {self.amount} from {self.counter}"
+        return f"sets {self.counter} to {self.amount}"
+
+    def accepts(self, target_kind):
+        # A model's counter, or the gang's own — both keep tallies.
+        return target_kind in (MODEL, GANG)
+
+    def perform(self, operation, assignment):
+        """Tally the bearer's counter, creating its row if they keep none.
+
+        The bearer is whoever the carrier landed on. A created row is
+        caused by the carrier's, so a counter that only exists because of
+        this rule leaves when the rule's carrier does — but its tallies,
+        like all tallies, are history and stay written.
+        """
+        from n26.core.models import Assignment, Reason
+
+        miniature = assignment.miniature or assignment.miniature_root
+        if miniature is not None:
+            host = {"miniature": miniature}
+        else:
+            host = {"gang": assignment.gang or assignment.gang_root}
+        row = Assignment.objects.filter(
+            counter=self.counter, archived=False, **host
+        ).first()
+        if row is None:
+            row = operation.assign(
+                self.counter,
+                paid=0,
+                reason=Reason.GRANTED,
+                caused_by=assignment,
+                **host,
+            )
+        if self.mode == self.Mode.ADD:
+            change = self.amount
+        elif self.mode == self.Mode.SUBTRACT:
+            change = -self.amount
+        else:
+            held = getattr(row, "counter_value", None)
+            change = self.amount - (held.value if held else 0)
+        operation.tally(row, change, note=str(assignment.assignable))
+
+
 class ChangesStat(models.Model):
     """Shifts or sets one characteristic.
 
@@ -1200,6 +1294,14 @@ class Modifier(Content):
         blank=True,
         related_name="modifier",
         verbose_name="adds model",
+    )
+    op_changes_counter = models.OneToOneField(
+        OpChangesCounter,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="modifier",
+        verbose_name="changes counter",
     )
 
     class Meta:

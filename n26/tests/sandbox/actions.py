@@ -57,6 +57,7 @@ from n26.library.authoring import (  # noqa: F401 — re-exported for the suites
     is_profile,
     offer_option,
     op_adds_model,
+    op_changes_counter,
     restrict_use,
     section_of,
     set_statline,

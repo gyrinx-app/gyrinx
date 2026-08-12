@@ -171,3 +171,121 @@ class TestEffectsHangOffValues:
         assert step.ran_in == 1  # conditioned scopes wait for settled facts
         assert step.outcome == "skipped"
         assert "at XP 75+" in step.scope
+
+
+class TestARuleThatMovesACounter:
+    """The stored effect: assigning its carrier tallies the bearer's
+    counter, through the ledger. "If selected as the Outcast Leader …
+    starts with 61 XP" — the selection arrives after the hire, so no
+    built-in member can carry the value; the carrier moves it instead.
+    Taking the carrier back never moves it back: a tally is history.
+    """
+
+    @pytest.fixture
+    def leader_mark(self, xp):
+        from n26.tests.sandbox.actions import create_subtype, op_changes_counter
+
+        subtype = create_subtype("Chosen Leader")
+        modifier(
+            "The chosen Leader starts with 61 XP",
+            targets_model(),
+            op_changes_counter(xp, "set", 61),
+            carried_by=subtype,
+        )
+        return subtype
+
+    def test_assigning_the_carrier_sets_the_counter(self, gang, queen, leader_mark):
+        from n26.core.reconcile import assert_reconciled
+        from n26.tests.sandbox.actions import assign
+
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        tally(xp_row(yolanda), -51)  # spent down to 10 before the selection
+        assign(leader_mark, miniature=yolanda)
+
+        assert xp_row(yolanda).counter_value.value == 61
+        assert_reconciled(gang)
+
+    def test_the_move_is_a_ledger_event_naming_its_source(
+        self, gang, queen, leader_mark
+    ):
+        from n26.tests.sandbox.actions import assign
+
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        assign(leader_mark, miniature=yolanda)
+
+        event = xp_row(yolanda).ledger_events.filter(kind="tallied").latest("created")
+        assert event.note == "Chosen Leader"
+
+    def test_add_and_subtract_move_it_relative(self, gang, xp, make_profile):
+        from n26.tests.sandbox.actions import (
+            assign,
+            create_default_set,
+            create_subtype,
+            op_changes_counter,
+        )
+
+        profile = make_profile("Plain Ganger", price=10)
+        profile.built_ins = create_default_set("Kit", members=[(xp, {"amount": 10})])
+        profile.save()
+        fighter = hire_with_option(gang, profile, "Vex")
+
+        bloodied = create_subtype("Bloodied")
+        modifier(
+            "Bloodied grants 3 XP",
+            targets_model(),
+            op_changes_counter(xp, "add", 3),
+            carried_by=bloodied,
+        )
+        humbled = create_subtype("Humbled")
+        modifier(
+            "Humbled takes 100 XP",
+            targets_model(),
+            op_changes_counter(xp, "subtract", 100),
+            carried_by=humbled,
+        )
+
+        assign(bloodied, miniature=fighter)
+        assert xp_row(fighter).counter_value.value == 13
+        assign(humbled, miniature=fighter)
+        # The floor is tally's own: a counter never goes below zero.
+        assert xp_row(fighter).counter_value.value == 0
+
+    def test_a_bearer_without_the_counter_gains_it(self, gang, xp, make_profile):
+        """A model whose entry never carried the counter still ends up
+        keeping one — created by the rule, caused by its carrier, so it
+        leaves if the carrier does."""
+        from n26.tests.sandbox.actions import (
+            assign,
+            create_subtype,
+            op_changes_counter,
+        )
+
+        profile = make_profile("Counterless", price=10)
+        fighter = hire_with_option(gang, profile, "Nix")
+
+        marked = create_subtype("Marked")
+        modifier(
+            "Marked starts the count at 5",
+            targets_model(),
+            op_changes_counter(xp, "set", 5),
+            carried_by=marked,
+        )
+        carrier = assign(marked, miniature=fighter)
+
+        row = xp_row(fighter)
+        assert row.counter_value.value == 5
+        assert row.caused_by == carrier
+
+    def test_taking_the_carrier_back_does_not_move_it_back(
+        self, gang, queen, leader_mark
+    ):
+        from n26.tests.sandbox.actions import assign, remove
+
+        yolanda = hire_with_option(gang, queen, "Yolanda")
+        carrier = assign(leader_mark, miniature=yolanda)
+        remove(carrier)
+
+        # The counter row predates the rule, so it stays — and so does
+        # the value the rule set: a tally is history, not state the
+        # carrier holds open.
+        assert xp_row(yolanda).counter_value.value == 61

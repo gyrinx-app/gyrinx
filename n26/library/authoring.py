@@ -1235,6 +1235,15 @@ def op_adds_model(profile):
     return OpAddsMiniature.objects.create(profile=profile)
 
 
+def op_changes_counter(counter, mode="set", amount=0):
+    """A stored effect: assigning the carrier moves the bearer's counter,
+    through the ledger — ``op_changes_counter(xp, "set", 61)`` for a
+    selection whose sheet says it starts with 61 XP."""
+    from n26.library.models import OpChangesCounter
+
+    return OpChangesCounter.objects.create(counter=counter, mode=mode, amount=amount)
+
+
 def _assignable_kwarg(thing):
     from n26.library.models import (
         Collection,

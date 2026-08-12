@@ -71,6 +71,7 @@ EFFECT_MODELS = {
     "ef_places_choice": "PlacesCategory",
     "ef_requires_companions": "RequiresCompanions",
     "op_adds_model": "OpAddsMiniature",
+    "op_changes_counter": "OpChangesCounter",
 }
 
 #: Kinds the union picker may create inline: name-only leaves. The help
