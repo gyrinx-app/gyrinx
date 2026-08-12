@@ -2210,3 +2210,337 @@ def _found_a_gang_holding_a_weapon():
     )
     model = hire(gang, Profile.objects.get(name="Gang Queen"), "Yolanda")
     give_weapon(model, Weapon.objects.get(name="Autogun"))
+
+
+# --- The archetypes sheet -----------------------------------------------------
+#
+# Its own miniature upload: the Outcast shape, where the Leader variants
+# are reached by their shared subtype and the Champion and Hive Scum by
+# name. The Profile cells print the entry with its gang in front, the
+# way the team's sheet does.
+
+OUTCAST_PROFILES_CSV = """
+Gang,Name,M,WS,BS,S,T,W,I,A,Sv,Ld,Cl,Wil,Int,Type,Section,Category,Subtype(s),Starting XP,Rating
+Outcast,Leader 1,7",4+,3+,3,3,3,4,2,5+,9,9,8,9,Fighter,Gang List,Leader,Leader,61,135
+Outcast,Leader 2,6",3+,3+,3,3,3,4,3,5+,8,7,7,7,Fighter,Gang List,Leader,Leader,61,135
+Outcast,Champion,5",3+,3+,3,3,2,3,2,5+,7,6,7,7,Fighter,Gang List,Champion,Champion,37,95
+Outcast,Hive Scum,5",4+,4+,3,3,1,3,1,6+,6,6,6,6,Fighter,Gang List,Ganger,"Ganger, Specialist",13,30
+"""
+
+ARCHETYPES_CSV = """
+Archetype,Gang Type,Profile,Subtype,Own pick,Agility,Brawn,Combat,Cunning,Savant,Shooting
+Brawler,Outcast,,Leader,,-,Secondary,Primary,Secondary,Primary,-
+Brawler,Outcast,Outcast Champion,,Y,-,Primary,Primary,-,Secondary,-
+Brawler,Outcast,Outcast Hive Scum,,,-,Secondary,Primary,Secondary,-,-
+Wyrd,Outcast,,Leader,,Secondary,-,-,Secondary,Primary,-
+Wyrd,Outcast,Outcast Champion,,Y,-,-,-,Primary,Secondary,-
+Wyrd,Outcast,Outcast Hive Scum,,,Secondary,-,-,Secondary,-,-
+"""
+
+
+def _archetype_sheets(archetypes_csv=ARCHETYPES_CSV):
+    return {
+        "profiles": read_csv(OUTCAST_PROFILES_CSV),
+        "archetypes": read_csv(archetypes_csv),
+    }
+
+
+def _scope_of(modifier):
+    """The modifier's model scope, described as (kind, names, bearer only)."""
+    scope = modifier.targets_miniature
+    subtype_names = sorted(
+        str(subtype)
+        for row in scope.has_subtypes.all()
+        for subtype in row.subtypes.all()
+    )
+    profile_names = sorted(
+        str(profile) for row in scope.is_profile.all() for profile in row.profiles.all()
+    )
+    if subtype_names:
+        return ("subtype", subtype_names, scope.when_directly_assigned)
+    return ("profile", profile_names, scope.when_directly_assigned)
+
+
+class TestTheArchetypeSheet:
+    """One carrier per named archetype; each row reaches one rank — by
+    subtype where every variant reads the gang's pick, by name where the
+    rank's subtype is shared vocabulary, and bearer-only where ``Own
+    pick`` says the entry chooses for itself."""
+
+    def test_the_sheet_becomes_carriers_with_targeted_tables(self, foundation):
+        from n26.library.models import Archetype
+
+        plan = plan_ingest(pack=None, **_archetype_sheets())
+        assert plan.ok, [p.message for p in plan.problems]
+        perform(plan)
+
+        brawler = Archetype.objects.get(name="Brawler")
+        by_scope = {}
+        for modifier in brawler.modifiers.filter(places_category__isnull=False):
+            kind, names, bearer_only = _scope_of(modifier)
+            by_scope.setdefault((kind, tuple(names), bearer_only), []).append(
+                (
+                    modifier.places_category.category.name,
+                    modifier.places_category.section.name,
+                )
+            )
+        assert {key: sorted(value) for key, value in by_scope.items()} == {
+            ("subtype", ("Leader",), False): [
+                ("Brawn", "Secondary"),
+                ("Combat", "Primary"),
+                ("Cunning", "Secondary"),
+                ("Savant", "Primary"),
+            ],
+            ("profile", ("Champion",), True): [
+                ("Brawn", "Primary"),
+                ("Combat", "Primary"),
+                ("Savant", "Secondary"),
+            ],
+            ("profile", ("Hive Scum",), False): [
+                ("Brawn", "Secondary"),
+                ("Combat", "Primary"),
+                ("Cunning", "Secondary"),
+            ],
+        }
+
+    def test_the_pick_list_narrows_and_the_right_entries_ask(self, foundation):
+        from n26.library.models.collection import Collection
+
+        perform(plan_ingest(pack=None, **_archetype_sheets()))
+
+        pick_list = Collection.objects.get(name="Outcast Archetypes")
+        assert pick_list.default_section() is not None
+        assert sorted(str(entry.assignable) for entry in pick_list.entries.all()) == [
+            "Brawler",
+            "Wyrd",
+        ]
+
+        def offers(profile_name):
+            profile = Profile.objects.get(name=profile_name)
+            return [
+                (modifier.name, modifier.offers_choice.answer_host)
+                for modifier in profile.modifiers.filter(offers_choice__isnull=False)
+            ]
+
+        assert offers("Leader 1") == [
+            ("Leader 1: chooses the gang's Archetype", "gang")
+        ]
+        assert offers("Leader 2") == [
+            ("Leader 2: chooses the gang's Archetype", "gang")
+        ]
+        assert offers("Champion") == [("Champion: chooses an Archetype", "bearer")]
+        assert offers("Hive Scum") == []
+
+    def test_the_ingested_content_actually_plays(self, foundation):
+        """The whole point, end to end: hire any Leader variant, answer
+        the question it carries, and the gang's pick lands the scum's
+        table while the Champion — who wears a subtype the sheet never
+        targets — reads nothing until they choose their own."""
+        from django.contrib.auth.models import User
+
+        from n26.core.browse import placements_for
+        from n26.core.card import build_card, build_modifier_index
+        from n26.core.effects import compute
+        from n26.library.models import Archetype, GangType
+        from n26.library.models.collection import Collection
+
+        from .actions import choose, found_gang, hire
+
+        perform(plan_ingest(pack=None, **_archetype_sheets()))
+
+        gang = found_gang(
+            "The Forgotten",
+            GangType.objects.get(name="Outcast"),
+            owner=User.objects.create_user("outcast-tester"),
+            budget=1000,
+        )
+        leader = hire(gang, Profile.objects.get(name="Leader 2"), "Sorrow")
+        champion = hire(gang, Profile.objects.get(name="Champion"), "Grix")
+        scum = hire(gang, Profile.objects.get(name="Hive Scum"), "Rat")
+
+        def computed(model):
+            card = build_card(model, with_statlines=True)
+            index = build_modifier_index([node.assignable for node in card.all_nodes()])
+            return compute(card, index)
+
+        def tiers(model):
+            skills = Collection.objects.get(name="Skills & Powers")
+            placed = placements_for(computed(model), skills)
+            return {
+                category.name: placement.section.name
+                for category, placement in placed.items()
+            }
+
+        slot = next(s for s in computed(leader).choices if s.kind_label == "Archetype")
+        assert not slot.is_resolved
+        anchor = leader.assignments.get(profile__isnull=False)
+        choose(anchor, Archetype.objects.get(name="Brawler"))
+
+        assert tiers(leader) == {
+            "Brawn": "Secondary",
+            "Combat": "Primary",
+            "Cunning": "Secondary",
+            "Savant": "Primary",
+        }
+        assert tiers(scum) == {
+            "Brawn": "Secondary",
+            "Combat": "Primary",
+            "Cunning": "Secondary",
+        }
+        assert tiers(champion) == {}
+
+        champion_anchor = champion.assignments.get(profile__isnull=False)
+        choose(champion_anchor, Archetype.objects.get(name="Wyrd"))
+        assert tiers(champion) == {"Cunning": "Primary", "Savant": "Secondary"}
+
+    def test_a_second_upload_changes_nothing(self, foundation):
+        from n26.library.models import Archetype, Modifier
+
+        perform(plan_ingest(pack=None, **_archetype_sheets()))
+        archetypes, modifiers = Archetype.objects.count(), Modifier.objects.count()
+
+        again = plan_ingest(pack=None, **_archetype_sheets())
+        assert again.ok
+        assert {p.action for p in again.planned} <= {"unchanged", "resolved"}
+        result = perform(again)
+        assert result.created == {} and result.updated == {}
+        assert Archetype.objects.count() == archetypes
+        assert Modifier.objects.count() == modifiers
+
+    def test_a_set_moving_tiers_is_one_leaving_and_one_arriving(self, foundation):
+        from n26.library.models import Archetype
+
+        perform(plan_ingest(pack=None, **_archetype_sheets()))
+
+        moved = edited(
+            ARCHETYPES_CSV,
+            "Brawler,Outcast,,Leader,,-,Secondary,Primary,Secondary,Primary,-",
+            "Brawler,Outcast,,Leader,,-,Secondary,Secondary,Secondary,Primary,-",
+        )
+        plan = plan_ingest(profiles=read_csv(OUTCAST_PROFILES_CSV), archetypes=moved)
+        assert plan.ok
+        change = plan.get("Archetype:brawler")
+        assert change.action == "update"
+        assert change.changes["skill_grid"] == {
+            "added": ["Brawler: Leader models — Combat is Secondary"],
+            "removed": ["Brawler: Leader models — Combat is Primary"],
+        }
+
+        perform(plan)
+        brawler = Archetype.objects.get(name="Brawler")
+        combat = [
+            modifier
+            for modifier in brawler.modifiers.filter(places_category__isnull=False)
+            if modifier.places_category.category.name == "Combat"
+            and _scope_of(modifier)[0] == "subtype"
+        ]
+        assert [m.places_category.section.name for m in combat] == ["Secondary"]
+
+    def test_hand_authored_rows_on_the_carrier_survive_a_reupload(
+        self, foundation, default_pack
+    ):
+        """The sheet's statement is its skill columns. An archetype also
+        carries content no sheet knows — the Wyrd's powers placement —
+        and a re-upload must leave that exactly where it was."""
+        from n26.library import authoring
+        from n26.library.models import Archetype, Section
+        from n26.library.models.collection import CollectionSection
+
+        perform(plan_ingest(pack=None, **_archetype_sheets()))
+
+        wyrd = Archetype.objects.get(name="Wyrd")
+        heading, _ = Section.objects.get_or_create(
+            pack=default_pack, name="Powers", defaults={"position": 9}
+        )
+        powers = authoring.create_category(heading, "Wyrd Powers", pack=default_pack)
+        primary = CollectionSection.objects.get(
+            collection__name="Skills & Powers", name="Primary"
+        )
+        authoring.modifier(
+            "Wyrd: powers are Primary",
+            scope=authoring.targets_model(),
+            effect=authoring.ef_places(powers, primary),
+            attach_to=wyrd,
+            pack=default_pack,
+        )
+
+        again = plan_ingest(pack=None, **_archetype_sheets())
+        assert again.ok
+        assert again.get("Archetype:wyrd").action == "unchanged"
+        perform(again)
+        assert wyrd.modifiers.filter(name="Wyrd: powers are Primary").exists()
+
+    def test_rows_that_cannot_be_read_are_errors(self, foundation):
+        broken = read_csv(
+            """
+Archetype,Gang Type,Profile,Subtype,Own pick,Combat
+Brawler,Outcast,Outcast Champion,Leader,,Primary
+Gunfighter,Outcast,,,,Primary
+Mastermind,Outcast,,Leader,,Sometimes
+Survivor,Outcast,,Leader,Y,Primary
+"""
+        )
+        plan = plan_ingest(profiles=read_csv(OUTCAST_PROFILES_CSV), archetypes=broken)
+        messages = [p.message for p in plan.problems if p.severity == "error"]
+        assert len(messages) == 4
+        assert any("both a Profile and a Subtype" in m for m in messages)
+        assert any("neither a Profile nor a Subtype" in m for m in messages)
+        assert any("'Sometimes'" in m for m in messages)
+        assert any("reads the gang's pick" in m for m in messages)
+
+    def test_two_rows_claiming_one_cell_differently_is_an_error(self, foundation):
+        twice = read_csv(
+            """
+Archetype,Gang Type,Profile,Subtype,Own pick,Combat
+Brawler,Outcast,,Leader,,Primary
+Brawler,Outcast,,Leader,,Secondary
+"""
+        )
+        plan = plan_ingest(profiles=read_csv(OUTCAST_PROFILES_CSV), archetypes=twice)
+        assert [p.severity for p in plan.problems] == ["error"]
+        assert "one table cannot say both" in plan.problems[0].message
+
+    def test_what_does_not_resolve_is_said_and_skipped(self, foundation):
+        strangers = read_csv(
+            """
+Archetype,Gang Type,Profile,Subtype,Own pick,Combat
+Brawler,Outcast,Ghost of the Hive,,,Primary
+Brawler,Outcast,,Wanderer,,Primary
+"""
+        )
+        plan = plan_ingest(
+            profiles=read_csv(OUTCAST_PROFILES_CSV), archetypes=strangers
+        )
+        assert plan.ok  # notes, never errors: the upload writes less
+        notes = [p.message for p in plan.problems]
+        assert any("'Ghost of the Hive'" in note for note in notes)
+        assert any("'Wanderer'" in note for note in notes)
+        # The carrier still arrives; only the unreadable rows are skipped.
+        assert plan.get("Archetype:brawler").action == "create"
+        assert not [p for p in plan.planned if p.kind == "Modifier"]
+
+    def test_a_subtype_nobody_wears_is_said_once(self, foundation):
+        lonely = read_csv(
+            """
+Archetype,Gang Type,Profile,Subtype,Own pick,Combat
+Brawler,Outcast,,Beast,,Primary
+Wyrd,Outcast,,Beast,,Primary
+"""
+        )
+        plan = plan_ingest(profiles=read_csv(OUTCAST_PROFILES_CSV), archetypes=lonely)
+        assert plan.ok
+        unworn = [p for p in plan.problems if "offered by nobody" in p.message]
+        assert len(unworn) == 1
+
+    def test_the_archetype_sheet_resolves_against_the_pack_alone(self, foundation):
+        """The profiles may have landed in an earlier upload: the
+        archetype sheet alone still finds them, wires the same offers,
+        and says the same things."""
+        perform(plan_ingest(profiles=read_csv(OUTCAST_PROFILES_CSV)))
+
+        plan = plan_ingest(archetypes=read_csv(ARCHETYPES_CSV))
+        assert plan.ok, [p.message for p in plan.problems]
+        perform(plan)
+
+        leader = Profile.objects.get(name="Leader 1")
+        assert leader.modifiers.filter(offers_choice__isnull=False).count() == 1

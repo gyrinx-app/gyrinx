@@ -2314,11 +2314,17 @@ INGEST_SHEETS = [
         "The fighters, each with the heading and category it is hired "
         "under and the title of the equipment list it buys from.",
     ),
+    (
+        "archetypes",
+        "Archetypes",
+        "The chosen carriers: each row reaches one rank of one gang — by "
+        "subtype, or by naming the fighter — and places its skill sets.",
+    ),
 ]
 
 
 class IngestForm(forms.Form):
-    """Four optional CSVs. Optional because a partial upload is a real
+    """Five optional CSVs. Optional because a partial upload is a real
     thing to want — the statlines alone, to fix a column — and because
     what a missing sheet costs is said in the preview rather than
     refused here."""

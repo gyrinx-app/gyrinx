@@ -64,9 +64,15 @@ class TestPreviewing:
         """A field the dispatch does not recognise falls through to a
         text box, which looks like a form and cannot take a file."""
         body = client.get(URL).content.decode()
-        for field in ("equipment", "weapon_profiles", "equipment_lists", "profiles"):
+        for field in (
+            "equipment",
+            "weapon_profiles",
+            "equipment_lists",
+            "profiles",
+            "archetypes",
+        ):
             assert f'name="{field}"' in body
-        assert body.count('type="file"') == 4
+        assert body.count('type="file"') == 5
         assert 'enctype="multipart/form-data"' in body
 
     def test_a_preview_writes_nothing(self, author, client, foundation):
