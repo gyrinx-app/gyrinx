@@ -45,6 +45,11 @@ class TestTheMarksBesideTheAction:
     def test_discord_leads_to_the_same_room_the_footer_does(self, header):
         assert 'href="https://discord.gg/6yZQ8Y7C4W"' in header
 
+    def test_the_marks_open_in_a_new_tab(self, header):
+        # Both marks leave the app; rel=noopener rides every target=_blank.
+        assert header.count('target="_blank"') >= 2
+        assert header.count('rel="noopener"') >= 2
+
     def test_each_one_says_what_it_is(self, header):
         """A link whose whole content is a drawing has no text to read
         out, so the name is on the link itself."""
