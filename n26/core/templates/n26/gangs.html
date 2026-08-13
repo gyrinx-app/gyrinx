@@ -61,7 +61,7 @@ places — the same pattern a gang's screens use for their siblings.
                 {% if gangs or query %}
                     No gangs match that. Try a shorter search.
                 {% else %}
-                    No gangs yet — founding one takes a minute.
+                    No gangs yet — <c-n26.link href="{% url 'n26-create-gang' %}">Create one</c-n26.link>.
                 {% endif %}
             </c-slot>
             {% for gang in gangs %}
