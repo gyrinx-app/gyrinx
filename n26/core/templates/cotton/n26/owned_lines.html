@@ -63,20 +63,21 @@ also keeps this out of the listing's own form, which wraps every row on the page
                 elements a component contains, and a row is drawn in places
                 where nothing above it is one.
                 {% endcomment %}
+                {% comment %}
+                Worded, not an icon: a bare plus beside a gun's name says
+                nothing about what pressing it adds. Ghost and small is
+                what keeps it quiet; the words are what make it a button
+                someone can understand without pressing it.
+                {% endcomment %}
                 {% if copy.accessorise %}
                     <c-ui.button variant="ghost"
                                  size="xs"
-                                 class="ms-0.5 -mt-0.5 px-1! align-middle"
+                                 class="ms-0.5 -mt-0.5 align-middle text-ink-500 dark:text-ink-400"
                                  href="{{ copy.accessorise.target }}"
                                  aria-label="{{ copy.accessorise.label }} to {{ copy.name }}"
-                                 title="{{ copy.accessorise.label }}"
                                  x-data
                                  x-on:click.prevent="$dispatch('n26-dialog-open', { id: 'n26-accessorise-{{ copy.id }}', url: $el.getAttribute('href') })">
-                        <span class="n26-icon-only">
-                            <c-n26.icon name="plus"
-                                        class="size-3.5 text-ink-500 dark:text-ink-400"
-                                        stroke_width="2.5" />
-                        </span>
+                        {{ copy.accessorise.label }}
                     </c-ui.button>
                 {% endif %}
             </span>
