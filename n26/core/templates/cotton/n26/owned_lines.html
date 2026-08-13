@@ -77,10 +77,17 @@ also keeps this out of the listing's own form, which wraps every row on the page
                                  aria-label="{{ copy.accessorise.label }} to {{ copy.name }}"
                                  x-data
                                  x-on:click.prevent="$dispatch('n26-dialog-open', { id: 'n26-accessorise-{{ copy.id }}', url: $el.getAttribute('href') })">
-                        <c-n26.icon name="plus"
-                                    class="size-3.5"
-                                    stroke_width="2.5" />
-                        {{ copy.accessorise.label }}
+                        {% comment %}
+                        One flex line: the kit button is inline-block and
+                        the reset makes an svg a block, so bare icon-then-
+                        words stack. The span is what holds them together.
+                        {% endcomment %}
+                        <span class="inline-flex items-center gap-1 whitespace-nowrap">
+                            <c-n26.icon name="plus"
+                                        class="size-3.5"
+                                        stroke_width="2.5" />
+                            {{ copy.accessorise.label }}
+                        </span>
                     </c-ui.button>
                 {% endif %}
             </span>
