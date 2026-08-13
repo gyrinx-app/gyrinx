@@ -17,8 +17,8 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def tester(db):
-    """Staff, because /n26/ is fenced to staff and testers."""
-    return User.objects.create_user("player", is_staff=True)
+    """The signed-in person these tests look at the app as."""
+    return User.objects.create_user("player")
 
 
 @pytest.fixture
@@ -82,7 +82,7 @@ class TestTheModelsOwnPage:
         assert ">Cards<" not in body
 
     def test_a_stranger_gets_a_404(self, client, gang, vex):
-        client.force_login(User.objects.create_user("someone-else", is_staff=True))
+        client.force_login(User.objects.create_user("someone-else"))
         assert client.get(edit_url(vex)).status_code == 404
 
 
@@ -123,7 +123,7 @@ class TestSavingNotes:
         assert "fine" in body
 
     def test_a_stranger_saves_nothing(self, client, gang, vex):
-        client.force_login(User.objects.create_user("someone-else", is_staff=True))
+        client.force_login(User.objects.create_user("someone-else"))
         response = client.post(edit_url(vex), {"notes": "<p>mine now</p>"})
         assert response.status_code == 404
         vex.refresh_from_db()

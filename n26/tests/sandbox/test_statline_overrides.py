@@ -54,7 +54,7 @@ PRINTED = {
 
 @pytest.fixture
 def player(db):
-    return User.objects.create_user("player", is_staff=True)
+    return User.objects.create_user("player")
 
 
 @pytest.fixture
@@ -327,7 +327,7 @@ class TestTheEditPage:
         assert values(card_for(yolanda))["T"] == "4"
 
     def test_a_stranger_cannot_set_anything(self, client, yolanda, ganger):
-        client.force_login(User.objects.create_user("someone-else", is_staff=True))
+        client.force_login(User.objects.create_user("someone-else"))
         assert post_statline(client, yolanda, ganger, toughness="9").status_code == 404
         assert StatOverride.objects.filter(miniature=yolanda).count() == 0
 

@@ -1021,6 +1021,7 @@ def _prose_addresses(prose):
     )
 
 
+@staff_member_required
 def detail(request, kind, pk):
     """One thing, and the parts added to it over time.
 

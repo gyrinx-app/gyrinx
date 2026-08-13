@@ -53,9 +53,7 @@ REFERENCE = 200
 
 @pytest.fixture
 def owner(db):
-    # Staff, because the edition is fenced behind a group these tests do
-    # not create — the data migration that makes it never runs here.
-    return User.objects.create_user("player", is_staff=True)
+    return User.objects.create_user("player")
 
 
 @pytest.fixture

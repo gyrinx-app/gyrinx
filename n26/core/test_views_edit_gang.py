@@ -19,8 +19,8 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def tester(db):
-    """Staff, because /n26/ is fenced to staff and testers."""
-    return User.objects.create_user("player", is_staff=True)
+    """The signed-in person these tests look at the app as."""
+    return User.objects.create_user("player")
 
 
 @pytest.fixture
@@ -72,7 +72,7 @@ class TestThePage:
         assert 'name="gang_type"' not in body
 
     def test_a_stranger_gets_a_404(self, client, gang):
-        client.force_login(User.objects.create_user("someone-else", is_staff=True))
+        client.force_login(User.objects.create_user("someone-else"))
         assert client.get(edit_url(gang)).status_code == 404
         assert client.post(edit_url(gang), {"name": "Mine Now"}).status_code == 404
 

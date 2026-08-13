@@ -21,7 +21,8 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def tester(db):
-    return User.objects.create_user("player", is_staff=True)
+    """The signed-in person these tests look at the app as."""
+    return User.objects.create_user("player")
 
 
 @pytest.fixture
@@ -1480,7 +1481,7 @@ def test_a_dialog_naming_a_row_off_this_card_draws_nothing(
 
 
 def test_someone_elses_fighter_is_not_found(client, fighter):
-    stranger = User.objects.create_user("stranger", is_staff=True)
+    stranger = User.objects.create_user("stranger")
     client.force_login(stranger)
     assert client.get(equip_url(fighter)).status_code == 404
 

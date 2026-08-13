@@ -1,7 +1,7 @@
-# The rollout gate for the n26 edition: membership of this group (or staff)
-# is what opens every /n26/ page — see gyrinx.middleware.N26TestersGateMiddleware.
-# A data migration rather than a fixture so every environment gets the group
-# the moment it deploys, with nothing to remember to click.
+# A group planted by data migration rather than by a fixture, so every
+# environment has it the moment it deploys, with nothing to remember to click.
+# Nothing in the app reads it: who may see the n26 edition is decided by each
+# view's own guard.
 
 from django.db import migrations
 

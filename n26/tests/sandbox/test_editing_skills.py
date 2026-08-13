@@ -126,9 +126,7 @@ def gridless(make_profile):
 
 @pytest.fixture
 def player(db):
-    # Staff, because the edition is fenced behind the testers gate and a
-    # view test that never reaches the view proves nothing.
-    return User.objects.create_user("tom", is_staff=True)
+    return User.objects.create_user("tom")
 
 
 @pytest.fixture
@@ -326,7 +324,7 @@ class TestWhatTheSquareShows:
         assert "only" in catfall.detail
 
     def test_somebody_elses_model_has_no_page(self, client, yolanda, catalogue):
-        client.force_login(User.objects.create_user("stranger", is_staff=True))
+        client.force_login(User.objects.create_user("stranger"))
         assert client.get(edit_url(yolanda)).status_code == 404
 
 
@@ -481,7 +479,7 @@ class TestSavingTheSquare:
         assert_reconciled(gang)
 
     def test_a_stranger_cannot_tick_anything(self, client, gang, yolanda, library):
-        client.force_login(User.objects.create_user("someone-else", is_staff=True))
+        client.force_login(User.objects.create_user("someone-else"))
         response = post_skills(client, yolanda, library["skills"]["Catfall"])
 
         assert response.status_code == 404

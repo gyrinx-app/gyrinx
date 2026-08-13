@@ -20,8 +20,8 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def tester(db):
-    """Staff, because /n26/ is fenced to staff and testers."""
-    return User.objects.create_user("player", is_staff=True)
+    """The signed-in person these tests look at the app as."""
+    return User.objects.create_user("player")
 
 
 @pytest.fixture
@@ -212,7 +212,7 @@ class TestWhoMayDoIt:
 
     @pytest.fixture
     def stranger(self, db, client):
-        person = User.objects.create_user("stranger", is_staff=True)
+        person = User.objects.create_user("stranger")
         client.force_login(person)
         return person
 

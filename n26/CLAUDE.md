@@ -1,9 +1,12 @@
 # CLAUDE.md — the n26 edition
 
 n26 is a new edition of Gyrinx, built alongside the existing app rather than
-on top of it. It is mounted at `/n26/` and fenced behind the "N26 Testers"
-group: staff and members pass, anonymous visitors are sent to log in, and
-other signed-in users get a 404 — the beta is invisible, not locked.
+on top of it. It is mounted at `/n26/`, and every surface carries its own
+guard: a page holding player data wants a signed-in reader
+(`login_required`, and the row scoped to its owner), while the authoring
+pages and the component gallery want staff (`staff_member_required`). There
+is no fence over the prefix, so a new view ships open unless it says who may
+see it.
 
 ## The map
 

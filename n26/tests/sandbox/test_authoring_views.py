@@ -633,12 +633,13 @@ class TestTheDoorIsStaffed:
         assert "login" in response["Location"]
 
     def test_a_plain_user_is_not_staff(self, client, default_pack):
-        """The platform's testers gate answers before the staff check
-        does: a signed-in stranger gets the invisible-beta 404. The
-        tester-but-not-staff case lives in test_platform_integration."""
+        """A signed-in account is enough for the app and not for this:
+        someone who is not staff is sent to the same sign-in page a
+        stranger is, whatever they are already signed in as."""
         client.force_login(User.objects.create_user("player"))
         response = client.get("/n26/authoring/subtype/")
-        assert response.status_code == 404
+        assert response.status_code == 302
+        assert "login" in response["Location"]
 
 
 class TestSectionsAndLastingEffects:
@@ -2500,11 +2501,9 @@ class TestTheCollectionPage:
         assert aboard.status_code == 302
 
         # The player's side of the seam: found a gang, press the choice.
-        # Staff, because the edition is fenced behind a group the test
-        # database has no data migration to create.
         from django.contrib.auth.models import User
 
-        owner = User.objects.create_user("outcast-founder", is_staff=True)
+        owner = User.objects.create_user("outcast-founder")
         # The page changed the row; this test's instance predates it.
         gang_type.refresh_from_db()
         gang = found_gang("The Unmade", gang_type, owner=owner)
@@ -3784,9 +3783,9 @@ class TestAModifiersOwnPage:
 
 
 class TestTheModifierPagesAreStaffed:
-    """The new routes are behind the same door as the rest of authoring:
-    a stranger is sent to log in, and a signed-in non-tester gets the
-    invisible-beta 404."""
+    """These routes are behind the same door as the rest of authoring:
+    stranger and signed-in reader alike are sent to log in, and neither
+    can post."""
 
     @pytest.fixture
     def made(self, author, default_pack, client):
@@ -3820,14 +3819,16 @@ class TestTheModifierPagesAreStaffed:
     def test_a_plain_user_is_refused(self, addresses, client):
         client.force_login(User.objects.create_user("player"))
         for address in addresses:
-            assert client.get(address).status_code == 404, address
+            response = client.get(address)
+            assert response.status_code == 302, address
+            assert "login" in response["Location"], address
 
     def test_a_plain_user_cannot_post_either(self, addresses, made, client):
         from n26.library.models import Modifier
 
         client.force_login(User.objects.create_user("player"))
         for address in addresses:
-            assert client.post(address, {}).status_code == 404, address
+            assert client.post(address, {}).status_code == 302, address
         assert Modifier.objects.count() == 1
 
 
@@ -4197,8 +4198,8 @@ class TestRemovingABuiltIn:
         member = ganger.built_in_members.get(collection__isnull=False)
         client.force_login(User.objects.create_user("player"))
 
-        assert client.get(self.address(member)).status_code == 404
-        assert client.post(self.address(member), {}).status_code == 404
+        assert client.get(self.address(member)).status_code == 302
+        assert client.post(self.address(member), {}).status_code == 302
         assert ganger.built_in_members.count() == 3
 
 
@@ -5225,7 +5226,9 @@ class TestTheRecipes:
 
     def test_a_plain_user_is_turned_away(self, client, default_pack):
         client.force_login(User.objects.create_user("cook"))
-        assert client.get("/n26/authoring/recipes/").status_code == 404
+        response = client.get("/n26/authoring/recipes/")
+        assert response.status_code == 302
+        assert "login" in response["Location"]
 
 
 class TestTheAboutColumn:

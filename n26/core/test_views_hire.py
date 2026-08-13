@@ -23,7 +23,8 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def tester(db):
-    return User.objects.create_user("player", is_staff=True)
+    """The signed-in person these tests look at the app as."""
+    return User.objects.create_user("player")
 
 
 @pytest.fixture
@@ -149,7 +150,7 @@ def test_an_option_the_profile_does_not_offer_is_a_broken_link(
 def test_someone_elses_gang_serves_no_cards(client, gang, ganger):
     from django.contrib.auth.models import User
 
-    stranger = User.objects.create_user("stranger", is_staff=True)
+    stranger = User.objects.create_user("stranger")
     client.force_login(stranger)
     assert client.get(card_url(gang, ganger)).status_code == 404
 
@@ -604,7 +605,7 @@ def test_a_profile_that_is_not_a_ulid_draws_no_dialog(client, tester, gang, gang
 
 
 def test_someone_elses_gang_is_not_found(client, gang, ganger):
-    stranger = User.objects.create_user("stranger", is_staff=True)
+    stranger = User.objects.create_user("stranger")
     client.force_login(stranger)
     assert client.get(hire_url(gang)).status_code == 404
     assert client.get(dialog_url(gang, ganger)).status_code == 404

@@ -30,13 +30,19 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def tester(db):
-    """Staff, because /n26/ is fenced to staff and testers."""
-    return User.objects.create_user("player", is_staff=True)
+    """The signed-in person these tests look at the app as."""
+    return User.objects.create_user("player")
 
 
 @pytest.fixture
 def stranger(db):
     return User.objects.create_user("someone-else")
+
+
+@pytest.fixture
+def author(db):
+    """Staff, and so the one reader the authoring places are offered to."""
+    return User.objects.create_user("author", is_staff=True)
 
 
 @pytest.fixture
@@ -133,8 +139,8 @@ class TestThePlaces:
     """The default bar switcher on a page that is not one of anything lists
     the app itself, so the keyboard way into the bar lands everywhere."""
 
-    def test_it_lists_the_apps_places(self, tester):
-        switcher = places_switcher(request_for(tester))
+    def test_it_lists_the_apps_places(self, author):
+        switcher = places_switcher(request_for(author))
         assert [item.label for item in switcher.items] == [
             "Home",
             "Gangs",

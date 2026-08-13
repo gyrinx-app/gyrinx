@@ -134,7 +134,7 @@ banner, is_impersonating / impersonator, gtm_container_id, messages, user.
         {% endcomment %}
         {% comment %}
         The brand goes to the edition's own home, not the site root: every page
-        under this layout is an n26 page, and a logo that dumps a tester back on
+        under this layout is an n26 page, and a logo that dumps a reader back on
         the n23 site reads as leaving the app rather than going home.
         {% endcomment %}
         <c-n26.site.nav title="Gyrinx"
@@ -341,9 +341,9 @@ banner, is_impersonating / impersonator, gtm_container_id, messages, user.
                 {# djlint:on #}
                 {% comment %}
                 The way to the other edition, left of the account menu.
-                Everyone on this page passed the testers' gate, so there is
-                no membership to check here — the classic app's bar does
-                that for its own copy.
+                Both editions are open to the same accounts, so there is
+                nothing to check here — the classic app's bar draws its
+                own copy on the same terms.
                 {% endcomment %}
                 <c-n26.site.edition-toggle />
                 {% comment %}

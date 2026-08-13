@@ -47,9 +47,7 @@ SET_LABEL = "Hull fittings (author's shorthand)"
 
 @pytest.fixture
 def owner(db):
-    # Staff, because the edition is fenced behind a group the test
-    # database has no data migration to create.
-    return User.objects.create_user("player", is_staff=True)
+    return User.objects.create_user("player")
 
 
 @pytest.fixture

@@ -14,7 +14,8 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def reader(client):
-    """Staff, because the edition is fenced and the gallery sits behind it."""
+    """Staff, because the gallery is a workshop rather than a page of
+    the app."""
     user = get_user_model().objects.create_user(
         "gallery-reader", "gallery-reader@example.com", "password", is_staff=True
     )

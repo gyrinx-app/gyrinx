@@ -1,13 +1,12 @@
-"""The n26 edition inside the platform: the gate, the dashboard, the
+"""The n26 edition inside the platform: who gets in, the dashboard, the
 founding form, the changelog, and the foundations backfill.
 
 The load-bearing ideas:
 
-* the whole /n26/ prefix is testers-only while the edition is in
-  preview — one middleware fence, so a new page cannot ship open by
-  forgetting a decorator (staff pass; members of "N26 Testers" pass;
-  anonymous visitors sign in; everyone else gets a 404, because the
-  beta is invisible rather than locked);
+* the edition is open to anyone with an account, and each page says so
+  for itself — a page of player data wants a signed-in reader and shows
+  them only their own rows, while the authoring pages and the component
+  gallery want staff;
 * the dashboard and the create form are the design system's views bound
   to real data — the user's own gangs, the platform's changelog;
 * a valid create submit founds a real gang: the row, its founding
@@ -15,17 +14,11 @@ The load-bearing ideas:
 * the shell's drawer holds whatever links the area gave it and the
   reader's own gangs, while the account menu behind their name holds
   the doors — and the staff-only ones only for staff.
-
-Tests run --nomigrations, so the "N26 Testers" group the accounts data
-migration creates does not exist here — each test that needs it makes
-it, which also proves the gate reads the group by name rather than
-assuming the migration ran.
 """
 
 import pytest
-from django.contrib.auth.models import Group, User
+from django.contrib.auth.models import User
 
-from gyrinx.middleware import N26_TESTERS_GROUP
 from n26.core.views.gangs import CHANGELOG_TAG
 
 pytestmark = pytest.mark.django_db
@@ -33,43 +26,47 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def tester(client):
+    """The signed-in person these tests look at the app as: an ordinary
+    account, with no staff flag and nothing granted to it."""
     user = User.objects.create_user("tester")
-    group, _ = Group.objects.get_or_create(name=N26_TESTERS_GROUP)
-    user.groups.add(group)
     client.force_login(user)
     return user
 
 
-class TestTheGate:
+class TestWhoGetsIn:
     def test_anonymous_is_sent_to_sign_in_and_back(self, client, default_pack):
         response = client.get("/n26/")
         assert response.status_code == 302
         assert "login" in response["Location"]
         assert "next=/n26/" in response["Location"]
 
-    def test_a_signed_in_stranger_sees_nothing(self, client, default_pack):
-        """Not a 403: the beta is invisible, so there is nothing to ask
-        for access to by URL-guessing."""
-        client.force_login(User.objects.create_user("stranger"))
-        assert client.get("/n26/").status_code == 404
-        assert client.get("/n26/design/").status_code == 404
-
-    def test_a_tester_is_let_in(self, tester, client, default_pack):
+    def test_a_signed_in_reader_is_let_in(self, tester, client, default_pack):
         assert client.get("/n26/").status_code == 200
-        assert client.get("/n26/design/").status_code == 200
 
-    def test_staff_pass_without_the_group(self, client, default_pack):
+    def test_staff_are_let_in_too(self, client, default_pack):
         client.force_login(User.objects.create_user("boss", is_staff=True))
         assert client.get("/n26/").status_code == 200
 
-    def test_authoring_still_wants_staff_inside_the_gate(
-        self, tester, client, default_pack
-    ):
-        """The fence is the outer check, not the only one: a tester who
-        is not staff browses the app but never the authoring surface."""
-        response = client.get("/n26/authoring/")
-        assert response.status_code == 302
-        assert "login" in response["Location"]
+    def test_a_visitor_reaches_no_player_page(self, client, default_pack):
+        """Every page that would show somebody's gang asks for an account
+        first, whether it draws one or acts on one."""
+        for address in (
+            "/n26/",
+            "/n26/gangs/",
+            "/n26/gangs/new/",
+        ):
+            response = client.get(address)
+            assert response.status_code == 302, address
+            assert "login" in response["Location"], address
+
+    def test_the_workshop_pages_want_staff(self, tester, client, default_pack):
+        """Authoring and the component gallery are the staff's own
+        surfaces: a reader with an ordinary account browses the app and
+        neither of those."""
+        for address in ("/n26/authoring/", "/n26/design/"):
+            response = client.get(address)
+            assert response.status_code == 302, address
+            assert "login" in response["Location"], address
 
 
 class TestTheDashboard:
@@ -530,9 +527,9 @@ class TestTheNavigation:
 
     def test_a_visitor_has_no_gangs_to_list(self, rf, default_pack):
         """Signed out there is nothing to put in the section, so the
-        drawer draws neither the heading nor the rule above it. The
-        gate turns an anonymous visitor away before any n26 page
-        renders, so the claim is made where it is decided."""
+        drawer draws neither the heading nor the rule above it. A player
+        page turns an anonymous visitor away before it renders, so the
+        claim is made where it is decided."""
         from django.contrib.auth.models import AnonymousUser
 
         from n26.core.templatetags.navigation import drawer_gangs
@@ -607,7 +604,7 @@ class TestTheNavigation:
     def test_nobody_else_is_shown_a_door_they_cannot_open(
         self, tester, client, default_pack
     ):
-        """A tester who is not staff is refused by both pages anyway, so
+        """A reader who is not staff is refused by both pages anyway, so
         an item they can only bounce off is noise — and the heading over
         those two goes with them, rather than labelling nothing."""
         menu = account_menu(client.get("/n26/").content.decode())
@@ -655,7 +652,7 @@ class TestTheNavigation:
     def test_nobody_else_sees_the_authoring_section_or_its_rule(
         self, tester, client, default_pack
     ):
-        """A tester who is not staff is turned away by those pages anyway.
+        """A reader who is not staff is turned away by those pages anyway.
         The heading goes with them, and so does the rule above it — a
         section draws its own break, so an absent one leaves no line."""
         drawer = nav_drawer(client.get("/n26/").content.decode())
@@ -747,9 +744,10 @@ class TestTheNavigation:
 
 class TestTheEditionToggle:
     """One pill in each edition's bar: the segment you are in filled, the
-    other a plain link to the other edition's front page. Only readers
-    the n26 gate lets through see it at all — for anyone else the N26
-    half would be a door that 404s."""
+    other a plain link to the other edition's front page. Drawn for
+    anyone signed in — both editions are theirs — and for nobody else,
+    since a visitor pressing the far half would only meet a sign-in
+    page."""
 
     def test_the_n26_bar_offers_the_way_back(self, tester, client, default_pack):
         bar = nav_bar(client.get("/n26/").content.decode())
@@ -767,10 +765,9 @@ class TestTheEditionToggle:
         )
         assert positions == sorted(positions)
 
-    def test_the_classic_bar_offers_the_preview_to_a_tester(self, tester, client):
-        """The same account the gate passes sees the pill on the classic
-        side; ``tester`` is a group member, not staff, so this is the
-        gate's weaker half doing the deciding."""
+    def test_the_classic_bar_offers_the_other_edition(self, tester, client):
+        """An ordinary account, with nothing granted to it, sees the way
+        across from the classic side."""
         body = client.get("/").content.decode()
         assert 'aria-label="Edition"' in body
         assert 'title="Go to the N26 preview"' in body
@@ -779,12 +776,6 @@ class TestTheEditionToggle:
         client.force_login(User.objects.create_user("boss", is_staff=True))
         body = client.get("/").content.decode()
         assert 'aria-label="Edition"' in body
-
-    def test_everyone_else_sees_no_pill(self, client):
-        """The beta is invisible, not locked: an account the gate would
-        404 gets no pill saying the other edition exists."""
-        client.force_login(User.objects.create_user("regular"))
-        assert 'aria-label="Edition"' not in client.get("/").content.decode()
 
     def test_a_visitor_sees_no_pill(self, client):
         assert 'aria-label="Edition"' not in client.get("/").content.decode()
@@ -1058,9 +1049,3 @@ class TestTheFoundationsBackfill:
         call_command("n26_backfill_foundations")  # a second run changes nothing
         assert GangType.objects.count() == 17
         assert Skill.objects.filter(name="Catfall").count() == 1
-
-    def test_the_testers_group_migration_is_reversible_data(self):
-        """The group arrives by data migration; under --nomigrations it
-        is absent, which is exactly what this asserts — anyone relying
-        on it in tests must create it, as the gate tests do."""
-        assert not Group.objects.filter(name=N26_TESTERS_GROUP).exists()

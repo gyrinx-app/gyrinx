@@ -2430,10 +2430,9 @@ GROUPS: list[Group] = [
                     "script. Quiet on purpose: the filled half is a fact rather "
                     "than a control competing with the page, and the hollow half "
                     "only says it can be pressed when the pointer is on it. It "
-                    "is drawn only where a reader can follow both links — every "
-                    "/n26/ page already sits behind the testers' gate, and the "
-                    "classic bar's copy checks the same gate itself, or the pill "
-                    "would be a door that 404s."
+                    "is drawn only where a reader can follow both links — both "
+                    "editions want a signed-in account, so the classic bar's "
+                    "copy asks for one before drawing the pill."
                 ),
             ),
             Component(

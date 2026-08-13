@@ -1,6 +1,14 @@
+"""The gallery's pages.
+
+Every one is staff-only. The gallery is a workshop: it draws components
+that are still being argued over, beside sample data invented to stress
+them, and none of it is a page a player has any use for.
+"""
+
 import json
 
 from django.contrib import messages
+from django.contrib.admin.views.decorators import staff_member_required
 from django.core.paginator import Paginator
 from django.http import Http404
 from django.shortcuts import redirect, render
@@ -29,6 +37,7 @@ def _base_context():
     }
 
 
+@staff_member_required
 def index(request):
     return render(
         request,
@@ -53,6 +62,7 @@ def index(request):
     )
 
 
+@staff_member_required
 def component(request, slug):
     found = catalog.get(slug)
     if found is None:
@@ -94,6 +104,7 @@ def component(request, slug):
     )
 
 
+@staff_member_required
 def theming(request):
     return render(
         request,
@@ -107,6 +118,7 @@ def theming(request):
     )
 
 
+@staff_member_required
 def print_lab(request):
     """Controls, a readout of the geometry, and a live preview of the sheet."""
     options = printlab.Options.from_request(request)
@@ -126,6 +138,7 @@ def print_lab(request):
     )
 
 
+@staff_member_required
 @xframe_options_sameorigin
 def print_sheet(request):
     """The sheet on its own — the actual print target.
@@ -142,6 +155,7 @@ def print_sheet(request):
     )
 
 
+@staff_member_required
 def sample_fragment(request):
     """A fragment for the deferred component's demo to fetch.
 
@@ -157,6 +171,7 @@ def sample_fragment(request):
     )
 
 
+@staff_member_required
 def view_preview(request, slug):
     """One view, at real width, with none of the gallery around it.
 
@@ -196,6 +211,7 @@ _SHELL_BANNER = {
 }
 
 
+@staff_member_required
 def shell_home(request):
     """The dashboard, in the shell it will actually live in.
 
@@ -213,6 +229,7 @@ def shell_home(request):
     )
 
 
+@staff_member_required
 def shell_new_gang(request):
     """The create form, in the shell, and the only page here that posts.
 
@@ -232,6 +249,7 @@ def shell_new_gang(request):
     )
 
 
+@staff_member_required
 def shell_hire(request):
     """The hire screen, in the shell, and the long form to the create form's short one.
 
@@ -267,6 +285,7 @@ def shell_hire(request):
     )
 
 
+@staff_member_required
 def shell_gang(request):
     """One gang's sheet, in the shell.
 
@@ -286,6 +305,7 @@ def shell_gang(request):
     )
 
 
+@staff_member_required
 def shell_print(request):
     """Printing a gang, from inside the application.
 
@@ -310,6 +330,7 @@ def shell_print(request):
     )
 
 
+@staff_member_required
 def shell_shop(request):
     """Buying equipment, in the shell.
 
@@ -328,6 +349,7 @@ def shell_shop(request):
     )
 
 
+@staff_member_required
 def token_reference(request):
     return render(
         request,

@@ -29,7 +29,8 @@ AT = "/n26/fighters/vex/equip/?list=1"
 
 @pytest.fixture
 def tester(db):
-    return User.objects.create_user("player", is_staff=True)
+    """The signed-in person these tests look at the app as."""
+    return User.objects.create_user("player")
 
 
 @pytest.fixture

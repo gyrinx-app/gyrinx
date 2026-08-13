@@ -32,8 +32,9 @@ GUN_PRICE = 30
 
 @pytest.fixture
 def owner(db):
-    """Staff, because /n26/ is fenced to staff and testers."""
-    return User.objects.create_user("player", is_staff=True)
+    """The gang's owner, and the account these pages are asked for
+    as."""
+    return User.objects.create_user("player")
 
 
 @pytest.fixture
@@ -138,7 +139,7 @@ class TestDeleting:
         assert_reconciled(gang)
 
     def test_a_stranger_gets_a_404(self, client, gang, armed):
-        client.force_login(User.objects.create_user("someone-else", is_staff=True))
+        client.force_login(User.objects.create_user("someone-else"))
         assert client.post(delete_url(armed)).status_code == 404
         assert len(roster(gang)) == 1
 

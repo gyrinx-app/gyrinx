@@ -18,7 +18,8 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def tester(db):
-    return User.objects.create_user("player", is_staff=True)
+    """The signed-in person these tests look at the app as."""
+    return User.objects.create_user("player")
 
 
 @pytest.fixture
@@ -308,7 +309,7 @@ class TestThePrintPage:
         assert "Sull" in body
 
     def test_someone_elses_gang_is_not_found(self, client, gang, roster):
-        stranger = User.objects.create_user("stranger", is_staff=True)
+        stranger = User.objects.create_user("stranger")
         client.force_login(stranger)
         assert client.get(print_url(gang)).status_code == 404
         assert client.get(setup_url(gang)).status_code == 404

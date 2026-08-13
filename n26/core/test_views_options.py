@@ -21,8 +21,8 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def tester(db):
-    """Staff, because /n26/ is fenced to staff and testers."""
-    return User.objects.create_user("player", is_staff=True)
+    """The signed-in person these tests look at the app as."""
+    return User.objects.create_user("player")
 
 
 @pytest.fixture
@@ -115,7 +115,7 @@ class TestThePage:
         assert "Save options" not in body
 
     def test_a_stranger_gets_a_404(self, client, gang, vex):
-        client.force_login(User.objects.create_user("someone-else", is_staff=True))
+        client.force_login(User.objects.create_user("someone-else"))
         assert client.get(options_url(vex)).status_code == 404
 
 
@@ -177,7 +177,7 @@ class TestSaving:
         )
 
     def test_a_stranger_saves_nothing(self, client, gang, ganger, vex):
-        client.force_login(User.objects.create_user("someone-else", is_staff=True))
+        client.force_login(User.objects.create_user("someone-else"))
         assert client.post(options_url(vex), {field(ganger, 1): "1"}).status_code == 404
         taken = [row.default_set.name for row in vex.membership.chosen_options.all()]
         assert taken == ["Knife"]

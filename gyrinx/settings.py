@@ -211,9 +211,6 @@ MIDDLEWARE = [
     # Django allauth
     "allauth.account.middleware.AccountMiddleware",
     "allauth.usersessions.middleware.UserSessionsMiddleware",
-    # The n26 edition is testers-only while in preview: one fence for the
-    # whole /n26/ prefix, after auth so it can read request.user.
-    "gyrinx.middleware.N26TestersGateMiddleware",
     # Admin impersonation overlay — after auth/allauth (so request.user is the real
     # admin when we authorize), before simple-history (so the swap is attributed).
     "gyrinx.middleware.ImpersonationMiddleware",

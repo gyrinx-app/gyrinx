@@ -122,9 +122,7 @@ def gridless(make_profile):
 
 @pytest.fixture
 def player(db):
-    # Staff, because the edition is fenced behind the testers gate and a
-    # view test that never reaches the view proves nothing.
-    return User.objects.create_user("tom", is_staff=True)
+    return User.objects.create_user("tom")
 
 
 @pytest.fixture
@@ -284,7 +282,7 @@ class TestWhatTheScreenShows:
         assert 'type="submit"' not in body
 
     def test_somebody_else_s_fighter_is_not_there(self, client, yolanda, catalogue):
-        stranger = User.objects.create_user("stranger", is_staff=True)
+        stranger = User.objects.create_user("stranger")
         client.force_login(stranger)
         assert client.get(skills_url(yolanda)).status_code == 404
 
@@ -387,7 +385,7 @@ class TestGettingToTheNextFighter:
     ):
         """A switcher that could name a stranger's fighter would be a way
         of finding out that they exist."""
-        stranger = User.objects.create_user("stranger", is_staff=True)
+        stranger = User.objects.create_user("stranger")
         theirs = found_gang("Other Bad Girls", gang_type, owner=stranger, budget=1000)
         elsewhere = hire_with_option(theirs, gang_sister, "Nobody Of Ours")
 

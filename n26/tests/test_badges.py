@@ -18,11 +18,10 @@ import re
 from pathlib import Path
 
 import pytest
-from django.contrib.auth.models import Group, User
+from django.contrib.auth.models import User
 
 from gyrinx.accounts.models import PatreonStatus, UserProfile
 from gyrinx.badges import STAFF_BADGE, badge_by_slug
-from gyrinx.middleware import N26_TESTERS_GROUP
 from gyrinx.site.templatetags.badge_tags import badge_svg
 
 pytestmark = pytest.mark.django_db
@@ -37,10 +36,11 @@ FLAIR_WRAPPER = 'class="ml-[0.25em] inline-block'
 
 @pytest.fixture
 def tester(client):
+    """Make the signed-in person a page is looked at as, and sign them
+    in — an ordinary account unless the caller asks for more."""
+
     def _make(username, **kwargs):
         user = User.objects.create_user(username, **kwargs)
-        group, _ = Group.objects.get_or_create(name=N26_TESTERS_GROUP)
-        user.groups.add(group)
         client.force_login(user)
         return user
 

@@ -8,8 +8,8 @@ module changed:
   defaults, constraints, pure functions. If it would still be true with
   no gang, no fighter, and no rulebook, it belongs here.
 - **`n26/tests/`** — the seam with the host platform. The only tests
-  allowed to import from outside `n26.*` (the testers gate, the
-  dashboard, the shell).
+  allowed to import from outside `n26.*` (the dashboard, the shell, the
+  badges an account carries into either edition).
 - **`n26/tests/sandbox/`** — the bulk of the suite. Each file builds a
   slice of real rulebook content from scratch with the authoring verbs,
   founds a gang, plays with it, and asserts on the player-facing
@@ -87,8 +87,8 @@ or the admin really does.
   discovery to make a failure go away.
 - Discovery used in `parametrize` runs at collection time — keep it
   import-safe, no database access.
-- Tests run with `--nomigrations`, so data migrations never ran: the
-  "N26 Testers" group does not exist unless a test creates it.
+- Tests run with `--nomigrations`, so data migrations never ran: any row
+  one plants exists only if a test makes it.
 - Rule names only, never the book's wording.
 
 ## Exemplars

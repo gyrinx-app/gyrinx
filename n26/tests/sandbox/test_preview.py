@@ -201,9 +201,8 @@ class TestRefusals:
 class TestTheEndpoint:
     """Form state in, card state out — the scratch-card contract.
 
-    The client signs in as staff: the platform fences the whole /n26/
-    prefix (gyrinx.middleware.N26TestersGateMiddleware), and preview is
-    an authoring tool anyway.
+    The client signs in as staff: preview answers for the authoring
+    pages and wants the same account they do.
     """
 
     @pytest.fixture(autouse=True)
