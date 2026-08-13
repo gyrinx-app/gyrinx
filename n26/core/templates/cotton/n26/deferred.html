@@ -26,25 +26,40 @@ fetch becomes a plain retry control rather than a blank: the reader
 asked to see something, and silence would read as the row having no
 detail at all.
 
-  url — where the fragment lives.
+Given `follows`, the address is a question the surrounding page keeps
+answering: whenever the expression's value changes the fragment is
+fetched again, and the one already drawn stays on screen until the new
+one arrives. Nothing is cleared in between, because a reader watching a
+card change their selection should see a card the whole time. The
+address decides which reply may draw, so a slow early request cannot
+overwrite the card asked for since.
+
+  url — where the fragment lives. The address fetched on init, and the
+    one a call site states when the fragment never changes.
+  follows — an Alpine expression naming the address, evaluated in the
+    call site's own scope. Refetches whenever its value changes.
 {% endcomment %}
-<c-vars url="" class="" />
+<c-vars url="" follows="" class="" />
 
 <div x-data="{
         html: '',
         failed: false,
-        async fetchIt() {
+        at: {{ url|json_dumps }},
+        async fetchIt(target) {
+            const at = target ?? this.at;
+            this.at = at;
             this.failed = false;
             try {
-                const response = await fetch({{ url|json_dumps }});
+                const response = await fetch(at);
                 if (!response.ok) throw new Error(response.status);
-                this.html = await response.text();
+                const drawn = await response.text();
+                if (this.at === at) { this.html = drawn; }
             } catch {
-                this.failed = true;
+                if (this.at === at) { this.failed = true; }
             }
         },
      }"
-     x-init="fetchIt()"
+     {% if follows %}x-effect="fetchIt({{ follows }})"{% else %}x-init="fetchIt()"{% endif %}
      class="{{ class }}">
     {% comment %}
     The placeholder holds a card-ish height so the open does not land as

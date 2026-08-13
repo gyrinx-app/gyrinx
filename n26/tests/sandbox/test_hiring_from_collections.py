@@ -616,6 +616,67 @@ class TestOptionsOnACollectionsRow:
         corrupted_gang.refresh_from_db()
         assert_reconciled(corrupted_gang)
 
+    @pytest.fixture
+    def mutated(self, armed, default_pack):
+        """A second set of options on the same row, so a selection can be
+        more than one answer — which is what the card behind the row has
+        to price."""
+        from n26.tests.sandbox.actions import (
+            create_default_set,
+            create_option_group,
+            create_wargear,
+            offer_option,
+        )
+
+        group = create_option_group(armed, "Mutations", choose="any")
+        horns = create_default_set(
+            "Iron horns", members=[create_wargear("Iron horns")], price=15
+        )
+        offer_option(armed, "Iron horns", default_set=horns, group=group)
+        return armed, horns
+
+    def test_the_card_for_a_selection_is_priced_the_collections_way(
+        self, client, owner, corrupted_gang, mutated
+    ):
+        """The collection's price stands in for the fighter's own and for
+        nothing else, so every option ticked still adds on top — and the
+        card the row is showing has to say the number the dialog will."""
+        aberrant, horns = mutated
+        drill = aberrant.grouped_options()[0][1][1]
+
+        client.force_login(owner)
+        response = client.get(hire_url(corrupted_gang))
+        row = rows_of(response, "Genestealer Cult Corrupted")["Genestealer Aberrant"]
+
+        address = (
+            f"{row.card_url}&option={drill.pk}&option={horns.pk}"
+            if "?" in row.card_url
+            else f"{row.card_url}?option={drill.pk}&option={horns.pk}"
+        )
+        card = client.get(address).context["card"]
+
+        quoted = aberrant.price_with([drill, horns], base=120)
+        assert quoted == 160
+        assert card.rating == quoted
+        assert [line.name for line in card.equipment] == [
+            "Heavy rock drill",
+            "Iron horns",
+        ]
+
+    def test_the_rows_address_names_the_offer_and_nothing_else(
+        self, client, owner, corrupted_gang, mutated
+    ):
+        """What the row's own address carries is the offer — which list is
+        pricing this fighter. The selection is added to it by the controls,
+        so the two answers stay separate: one is where the price comes
+        from, the other is what was ticked."""
+        client.force_login(owner)
+        response = client.get(hire_url(corrupted_gang))
+        row = rows_of(response, "Genestealer Cult Corrupted")["Genestealer Aberrant"]
+
+        assert f"entry={row.entry.pk}" in row.card_url
+        assert "option=" not in row.card_url
+
 
 class TestTheQueryBudget:
     """The invariance the whole screen is built on: a gang carrying six

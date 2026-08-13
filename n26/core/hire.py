@@ -107,6 +107,11 @@ class HireEntry:
     #: Its price is the one the row quotes and the one the hire charges, so
     #: a press has to say which entry offered it — hence ``key``.
     entry: object = None
+    #: Where a card for this row is fetched from before any option is
+    #: named — what the offer is priced by, and nothing about the
+    #: selection. A surface following every control adds the ticked
+    #: options to it; empty means the row carries its cards inline.
+    card_url: str = ""
 
     @property
     def name(self):
@@ -439,11 +444,17 @@ def collection_sections(offers, with_cards=True):
 
 
 def preview_model_card(profile, option=None, base=None):
-    """The drawn card one option's row shows — built alone.
+    """The drawn card a row shows for what it is currently set to.
 
     The single card a hire page serves on demand, and the same
-    derivation ``build_hire_entry`` draws inline: the card an option
+    derivation ``build_hire_entry`` draws inline: the card a selection
     would produce, its effects computed, shaped for a renderer.
+
+    ``option`` is one set or a list of them, as everywhere a selection is
+    named. A list is the whole configuration — one answer per group,
+    composed — which is what a row following all of its controls asks
+    for; the per-option cards a list builds are that with one group
+    answered and the rest left at their defaults.
 
     ``base`` prices it as an offering collection does, so the card behind
     a collection's row carries the same number the row quotes.

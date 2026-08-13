@@ -236,7 +236,7 @@ def _dialog(request, profile, picks, scope="gang", section="", entry=None, key=N
 
 
 def _link_cards(gang, hire_list):
-    """Point every option at the address its drawn card is served from.
+    """Point every row and every option at the address a card is served from.
 
     URLs are the view's business, so the structure is decorated here the
     way the gang sheet's choice slots are pointed at their pickers — the
@@ -244,10 +244,16 @@ def _link_cards(gang, hire_list):
     gallery's sample rows) simply leaves ``card_url`` empty and carries
     its cards inline.
 
-    A row a collection offered names its entry in the address, so the card
-    behind it is drawn at the price the row quotes. A card saying one
-    number under a row saying another is the thing the row's own live
-    total exists to avoid, one disclosure down.
+    Two addresses, because a row is read two ways. The entry's own is the
+    offer with nothing named, which a surface that follows every control
+    adds the ticked options to. Each option's is that option alone — the
+    card the option would produce against an otherwise-default selection,
+    which is the card a row without scripting is left holding.
+
+    A row a collection offered names its entry in both, so the card behind
+    it is drawn at the price the row quotes. A card saying one number
+    under a row saying another is the thing the row's own live total
+    exists to avoid, one disclosure down.
     """
     from django.urls import reverse
 
@@ -255,6 +261,7 @@ def _link_cards(gang, hire_list):
         for entry in section.all_entries():
             address = reverse("n26-hire-card", args=[gang.pk, entry.profile.pk])
             offered = [("entry", entry.entry.pk)] if entry.entry is not None else []
+            entry.card_url = f"{address}?{urlencode(offered)}" if offered else address
             for group in entry.groups:
                 for option in group.options:
                     params = [
@@ -272,16 +279,20 @@ def _link_cards(gang, hire_list):
 
 @login_required
 def hire_card(request, pk, profile):
-    """One option's preview card, served alone.
+    """The preview card for a whole selection, served alone.
 
-    The hire list prices every option but draws no cards; each is
-    fetched from here the first time a reader opens its row. ``?option=``
-    names the set the card is taken with; without one the card is the
-    default hire. ``?entry=`` names the collection row that offered this
-    fighter, whose price the card is drawn at — the row's own quote, so
-    the two agree. The response is a fragment for the page to place, and
-    it is cacheable — the card is derived from library content alone, the
-    same for every gang, so a reopened disclosure costs no second build.
+    The hire list prices every option but draws no cards; a card is
+    fetched from here the first time a reader opens a row, and again
+    whenever they change what the row is set to. ``?option=`` names a set
+    the card is taken with and may be repeated — every ticked option
+    composes, so the card shows the fighter as configured rather than one
+    group's answer. Without any, the card is the default hire.
+    ``?entry=`` names the collection row that offered this fighter, whose
+    price the card is drawn at — the row's own quote, so the two agree.
+
+    The response is a fragment for the page to place, and it is cacheable
+    — the card is derived from library content alone, the same for every
+    gang, so returning to a selection costs no second build.
     """
     from django.shortcuts import get_object_or_404
     from django.utils.cache import patch_cache_control
@@ -293,20 +304,18 @@ def hire_card(request, pk, profile):
     found = get_object_or_404(Profile, pk=profile)
 
     option = None
-    named = request.GET.get("option")
+    named = request.GET.getlist("option")
     if named:
-        option = next(
-            (
-                offer.default_set
-                for offer in found.options.select_related("default_set")
-                if str(offer.default_set.pk) == named
-            ),
-            None,
-        )
-        if option is None:
+        offered_sets = {
+            str(offer.default_set.pk): offer.default_set
+            for offer in found.options.select_related("default_set")
+        }
+        try:
+            option = [offered_sets[each] for each in named]
+        except KeyError:
             # Not one of this profile's own offers — a stale or tampered
             # address, answered like any other broken link.
-            raise Http404("No such option")
+            raise Http404("No such option") from None
 
     entry = None
     offered = request.GET.get("entry")
@@ -322,11 +331,15 @@ def hire_card(request, pk, profile):
             # checks that the offer was really made (``_offered``).
             raise Http404("No such offer")
 
-    response = render(
-        request,
-        "n26/hire_card.html",
-        {"card": preview_model_card(found, option=option, base=_base(entry))},
-    )
+    try:
+        card = preview_model_card(found, option=option, base=_base(entry))
+    except ValueError:
+        # Two sets named out of a group that offers one, or a set this
+        # fighter does not offer at all — a selection no row can produce,
+        # refused here exactly as the hire itself refuses it.
+        raise Http404("No such option") from None
+
+    response = render(request, "n26/hire_card.html", {"card": card})
     patch_cache_control(response, private=True, max_age=300)
     return response
 

@@ -976,7 +976,14 @@ GROUPS: list[Group] = [
                     "when the template first instantiates. The alternative — "
                     "an IntersectionObserver watching for visibility — answers "
                     "a different question (near the viewport, not asked for) "
-                    "and fires for everything as a reader scrolls a long list."
+                    "and fires for everything as a reader scrolls a long list. "
+                    "Given follows, the address becomes a question the page "
+                    "keeps answering: a hire row rebuilds it from the options "
+                    "ticked on it and the fragment is fetched again, with the "
+                    "card already drawn staying up until the new one lands. "
+                    "That is how a surface follows a choice with too many "
+                    "combinations to ship — the address says which one, and "
+                    "the server draws the one that was asked for."
                 ),
             ),
             Component(

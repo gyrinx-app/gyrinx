@@ -6,8 +6,11 @@ equivalence test below is the point of the whole design: it is what stops
 the "what you'd get" screen and the gang sheet from drifting apart.
 """
 
+from urllib.parse import urlencode
+
 import pytest
 from django.contrib.auth.models import User
+from django.urls import reverse
 
 from n26.core.card import build_card_from_profile, build_modifier_index
 from n26.core.effects import compute
@@ -20,20 +23,27 @@ from n26.library.models import (
     OpAddsMiniature,
     Profile,
     Specialisation,
+    Stat,
     TargetsMiniature,
 )
 from n26.tests.sandbox.actions import (
     create_default_set,
+    create_hidden,
+    create_option_group,
+    create_profile,
+    create_rule,
     create_skill,
     create_specialisation,
     create_subtype,
     create_wargear,
     create_weapon,
+    ef_changes_stat,
     found_gang,
     hire_with_option,
     modifier,
     offer_option,
     offers_choice,
+    targets_model,
 )
 
 pytestmark = pytest.mark.django_db
@@ -679,3 +689,245 @@ class TestSectioningTheList:
         assert sorted(
             entry.name for section in drawn for entry in section.all_entries()
         ) == sorted(entry.name for entry in entries)
+
+
+# =========================================================================
+# The card behind a row, for the whole of what the row is set to
+# =========================================================================
+
+
+@pytest.fixture
+def hirer(db):
+    # Staff, because the edition is fenced behind a group these tests do
+    # not create — the data migration that makes it never runs here.
+    return User.objects.create_user("keeper", is_staff=True)
+
+
+@pytest.fixture
+def spawn_gang(gang_type, hirer):
+    return found_gang("Spawn Keepers", gang_type, owner=hirer, budget=1000)
+
+
+@pytest.fixture
+def spawn(person_type, gang_type, default_pack, make_statline):
+    """A Chaos Spawn: the printed band, and the dice as option groups.
+
+    The book rolls each characteristic at a table and the roster takes
+    the option matching the die, so the sets do not add kit — they *set*
+    a characteristic outright. Two such groups is what makes this the
+    content to test a preview with: answering both is a fighter neither
+    group's own card depicts.
+
+    A third set of options grants a mutation instead, which is the other
+    thing a set can carry: kit and a rule, priced.
+    """
+    profile = create_profile("Chaos Spawn", person_type, gang_type, price=90)
+    make_statline(profile, movement=4, weapon_skill=4, toughness=5)
+
+    rolled = {}
+    for position, (short, band) in enumerate([("WS", 3), ("T", 6)]):
+        stat = Stat.objects.get(short_name=short)
+        group = create_option_group(
+            profile, f"Warped Monstrosity: {short}", position=position
+        )
+        offer_option(
+            profile,
+            "rolled 2-5",
+            default_set=create_default_set(f"{short} rolled 2-5"),
+            position=0,
+            group=group,
+        )
+        rolled[short] = create_default_set(
+            f"{short} rolled 6 set",
+            members=[
+                create_hidden(
+                    f"{short} rolled 6",
+                    effects=[
+                        (
+                            targets_model(),
+                            ef_changes_stat(stat, mode="set", amount=band),
+                        )
+                    ],
+                )
+            ],
+        )
+        offer_option(
+            profile, "rolled 6", default_set=rolled[short], position=1, group=group
+        )
+
+    mutations = create_option_group(profile, "Mutations", choose="any", position=2)
+    rolled["horns"] = create_default_set(
+        "Iron horns",
+        members=[create_wargear("Iron horns"), create_rule("Berserk Charge")],
+        price=15,
+    )
+    offer_option(
+        profile, "Iron horns", default_set=rolled["horns"], position=0, group=mutations
+    )
+    return profile, rolled
+
+
+def hire_screen(gang):
+    return reverse("n26-hire-fighter", args=[gang.pk])
+
+
+def card_address(gang, profile, *sets, entry=None):
+    """Where the card for this selection is served — the address the row
+    builds, written out here the way a reader's browser would."""
+    address = reverse("n26-hire-card", args=[gang.pk, profile.pk])
+    params = [
+        *(("option", str(chosen.pk)) for chosen in sets),
+        *([("entry", str(entry.pk))] if entry is not None else []),
+    ]
+    return f"{address}?{urlencode(params)}" if params else address
+
+
+class TestThePreviewFollowsEveryOption:
+    """A hire row's card shows the fighter as configured — every option
+    ticked on it, not the one group the main pick answers.
+
+    The card is fetched, because the alternative is a card per
+    combination and enumerating those is exactly the explosion the option
+    groups exist to avoid. So the selection is in the address: repeat
+    ``option`` and the fragment composes them.
+    """
+
+    def test_two_answered_groups_both_show_on_one_card(
+        self, client, hirer, spawn_gang, spawn
+    ):
+        """Roll a 6 for Weapon Skill and a 6 for Toughness and the card
+        says both. Each group's own card knows only its own answer, so a
+        card following one of them shows a fighter nobody is buying."""
+        profile, rolled = spawn
+        client.force_login(hirer)
+        response = client.get(
+            card_address(spawn_gang, profile, rolled["WS"], rolled["T"])
+        )
+
+        card = response.context["card"]
+        assert card.statline.get("WS").value == "3+"
+        assert card.statline.get("T").value == "6"
+
+        # And on the fragment itself: a changed cell says what changed it,
+        # which is the only place either roll's name can appear.
+        body = response.content.decode()
+        assert "WS changed by WS rolled 6" in body
+        assert "T changed by T rolled 6" in body
+
+    def test_answering_one_group_leaves_the_others_printed(
+        self, client, hirer, spawn_gang, spawn
+    ):
+        """One option is what a row asked for before, and it still means
+        what it meant: this set taken, everything else as standard."""
+        profile, rolled = spawn
+        client.force_login(hirer)
+        response = client.get(card_address(spawn_gang, profile, rolled["WS"]))
+
+        card = response.context["card"]
+        assert card.statline.get("WS").value == "3+"
+        assert card.statline.get("T").value == "5"
+
+    def test_a_card_asked_for_nothing_is_the_default_hire(
+        self, client, hirer, spawn_gang, spawn
+    ):
+        profile, _ = spawn
+        client.force_login(hirer)
+        response = client.get(card_address(spawn_gang, profile))
+
+        card = response.context["card"]
+        assert card.statline.get("WS").value == "4+"
+        assert card.statline.get("T").value == "5"
+        assert card.rating == 90
+
+    def test_a_set_that_grants_kit_and_a_rule_shows_both(
+        self, client, hirer, spawn_gang, spawn
+    ):
+        """What an option set brings is what the hire would write, so it
+        is on the card that stands for the hire: the whole payload, not
+        the surcharge alone."""
+        profile, rolled = spawn
+        client.force_login(hirer)
+        response = client.get(
+            card_address(spawn_gang, profile, rolled["T"], rolled["horns"])
+        )
+
+        card = response.context["card"]
+        assert [line.name for line in card.equipment] == ["Iron horns"]
+        assert [line.name for line in card.rules] == ["Berserk Charge"]
+        assert card.statline.get("T").value == "6"
+
+        body = response.content.decode()
+        assert "Iron horns" in body
+        assert "Berserk Charge" in body
+
+    def test_the_price_is_every_option_on_top_of_the_base(
+        self, client, hirer, spawn_gang, spawn
+    ):
+        """The card quotes what the hire would charge for exactly this
+        selection — the same arithmetic the dialog quotes, so a reader
+        never meets two numbers for one fighter."""
+        profile, rolled = spawn
+        client.force_login(hirer)
+        response = client.get(
+            card_address(spawn_gang, profile, rolled["WS"], rolled["horns"])
+        )
+
+        quoted = profile.price_with([rolled["WS"], rolled["horns"]])
+        assert quoted == 105
+        assert response.context["card"].rating == quoted
+        assert f"{quoted}¢" in response.content.decode()
+
+    def test_a_set_this_fighter_does_not_offer_is_a_broken_link(
+        self, client, hirer, spawn_gang, spawn
+    ):
+        """One forged option in a selection spoils the address, however
+        genuine the rest of it is."""
+        from n26.library.models import DefaultAssignmentSet
+
+        profile, rolled = spawn
+        stray = DefaultAssignmentSet.objects.create(name="Someone else's", price=10)
+        client.force_login(hirer)
+
+        response = client.get(card_address(spawn_gang, profile, rolled["WS"], stray))
+        assert response.status_code == 404
+
+    def test_two_answers_to_one_group_are_refused(
+        self, client, hirer, spawn_gang, spawn
+    ):
+        """A group offering one answer cannot be given two — no row can
+        produce it, and the hire itself refuses the same selection."""
+        profile, rolled = spawn
+        client.force_login(hirer)
+        both = card_address(
+            spawn_gang, profile, rolled["WS"], profile.options.first().default_set
+        )
+
+        assert client.get(both).status_code == 404
+
+    def test_the_row_says_which_set_each_control_stands_for(
+        self, client, hirer, spawn_gang, spawn
+    ):
+        """The address is composed from the controls, so each input has to
+        name the set it would take. Without that the row can build one
+        option's address and no combination's."""
+        profile, rolled = spawn
+        client.force_login(hirer)
+        body = client.get(hire_screen(spawn_gang)).content.decode()
+
+        assert f'data-set="{rolled["WS"].pk}"' in body
+        assert f'data-set="{rolled["horns"].pk}"' in body
+
+    def test_the_card_follows_the_rows_own_address(
+        self, client, hirer, spawn_gang, spawn
+    ):
+        """One fetched card per row, refetched as the address changes —
+        rather than one per main-pick option, switched between."""
+        profile, _ = spawn
+        client.force_login(hirer)
+        body = client.get(hire_screen(spawn_gang)).content.decode()
+
+        assert 'x-effect="fetchIt(card)"' in body
+        assert card_address(spawn_gang, profile) in body
+        # Still no drawn cards in the document: the statline is the
+        # marker, because nothing else on this list draws one.
+        assert "Weapon Skill" not in body
