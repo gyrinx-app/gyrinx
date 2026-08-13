@@ -835,14 +835,19 @@ def sample_about():
         referenced_by=(
             _Said(
                 text="Built into the Escher gang type.",
-                hint="Every Escher gang holds it from founding.",
+                hint=(
+                    "Arrives free when the Escher gang type is assigned — "
+                    "hired, founded, or bought. If that goes, this goes with it."
+                ),
                 href="#",
             ),
             _Said(
                 text="Taken away from the gang by the Chaos Corrupted affiliation.",
                 hint=(
-                    "Cancelling it retracts everything it gives, for the gang "
-                    "and every fighter; drop the corruption and it returns."
+                    "Removed while the Chaos Corrupted affiliation is assigned. "
+                    "Nothing is deleted — remove the Chaos Corrupted "
+                    "affiliation and this comes back. Paid-for items are never "
+                    "removed."
                 ),
                 href="#",
             ),
@@ -851,13 +856,14 @@ def sample_about():
             _Said(
                 text="Every fighter's weapons gain Backstab, while the gang holds this.",
                 hint=(
-                    "Targets the model's weapons; held by the gang, so "
-                    '"the model" is each fighter in turn.'
+                    "Applies while the item carrying this modifier is "
+                    "assigned, and goes with it. Free — adds nothing to any "
+                    "rating."
                 ),
                 href="#",
             ),
             _Said(
-                text="It asks the gang to choose one affiliation — the sheet says Choose until they pick.",
+                text="It asks the gang to choose one affiliation — the card says Choose until they pick.",
             ),
         ),
         assigned_to=_AssignedSample(gangs=14, rows=23),

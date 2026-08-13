@@ -141,6 +141,33 @@ class TestWhoTheSentenceIsAbout:
         ]
 
 
+class TestTheArticleFollowsTheName:
+    """The article bends to the name after it — "an Ambot", "a Mounted".
+    The names are the book's, and plenty of them open with a vowel."""
+
+    def test_a_subtype_opening_with_a_vowel_reads_an(self, buffs_weapons, default_pack):
+        ambot = create_subtype("Ambot")
+        attach_modifiers_to(ambot, [buffs_weapons])
+
+        assert texts(prose_for(ambot).does) == [
+            "An Ambot fighter's weapons gain Backstab, while the subtype stands."
+        ]
+
+    def test_a_model_opening_with_a_vowel_joins_as_an(self, escher, person_type):
+        aberrant = create_profile(
+            "Aberrant", profile_type=person_type, gang_type=escher, hireable=False
+        )
+        rune = create_wargear("Ambull rune", price=45)
+        attach_modifiers_to(
+            rune, [modifier("The aberrant", targets_model(), op_adds_model(aberrant))]
+        )
+
+        assert texts(prose_for(rune).does) == [
+            "When this arrives, an Aberrant joins the gang, free — and leaves "
+            "again if this goes."
+        ]
+
+
 class TestTheMasterOfWhispers:
     """One power from a family, as a Primary pick — a rule doing three
     things, said as a paragraph.
@@ -185,7 +212,7 @@ class TestTheMasterOfWhispers:
     def test_the_paragraph_reads_as_one_setup(self, master):
         assert texts(prose_for(master).does) == [
             "They gain the Wyrd subtype, while they have it.",
-            "Their Psychoteric Whispers set counts as Primary.",
+            "Their Psychoteric Whispers set appears as Primary.",
             "It asks them to choose one Primary power — the card says Choose "
             "until they pick.",
         ]
@@ -193,8 +220,8 @@ class TestTheMasterOfWhispers:
     def test_the_offer_says_what_narrows_it(self, master):
         offer = prose_for(master).does[2]
 
-        assert "Only what counts as Primary for that model is listed" in offer.hint
-        assert "a question with nothing on it" in offer.hint
+        assert "Only what appears as Primary for that model is listed" in offer.hint
+        assert "has nothing on it" in offer.hint
 
     def test_every_sentence_points_at_the_modifier_behind_it(self, master):
         keys = {sentence.key for sentence in prose_for(master).does}
@@ -212,12 +239,24 @@ class TestTheMasterOfWhispers:
             f"/{said.key[1]}/"
         )
 
-    def test_a_power_says_it_may_answer_the_question(self, master, whispers):
+    def test_a_power_says_it_may_answer_the_offered_choice(self, master, whispers):
         whisper = create_power("Crawling Doom", category=whispers)
 
         assert texts(prose_for(whisper).referenced_by) == [
-            "May answer the Primary power question offered by the Master of "
+            "May answer the Primary power choice offered by the Master of "
             "Whispers special rule."
+        ]
+
+    def test_a_choice_nothing_offers_yet_is_still_a_way_in(self, whispers):
+        """Written in the composer, before anything carries it: the kind is
+        already enough to say a power could answer it."""
+        from n26.library.models import Power
+
+        modifier("A loose offer", targets_model(), ef_offers_choice(Power))
+        whisper = create_power("Crawling Doom", category=whispers)
+
+        assert texts(prose_for(whisper).referenced_by) == [
+            "May answer an offered choice of Power."
         ]
 
 
@@ -261,15 +300,15 @@ class TestACorruptedGang:
             "The gang gains access to Corruption Armoury, and every member "
             "may shop it.",
             "The gang loses Escher gang rules, and everything it gave goes with it.",
-            "The gang should hold at most 2 Aberrants — the sheet says when "
-            "it holds more, and refuses nothing.",
+            "The gang should hold at most 2 Aberrant — the gang page warns "
+            "when it holds more; nothing is blocked.",
         ]
 
     def test_the_grant_says_the_gang_reaches_its_fighters(self, corruption):
-        assert "reaches its fighters" in prose_for(corruption).does[0].hint
+        assert "affects every fighter in it" in prose_for(corruption).does[0].hint
 
-    def test_the_limit_says_that_nought_is_a_ban(self, corruption):
-        assert "Nought is how a ban is written" in prose_for(corruption).does[2].hint
+    def test_the_limit_says_that_zero_is_a_ban(self, corruption):
+        assert "A limit of 0 is a ban" in prose_for(corruption).does[2].hint
 
     def test_a_ban_is_written_as_a_limit_of_nought(self, default_pack):
         brute = create_subtype("Brute")
@@ -280,11 +319,11 @@ class TestACorruptedGang:
         )
 
         assert texts(prose_for(rules).does) == [
-            "The gang should hold no Brutes at all — the sheet says when it "
-            "holds more, and refuses nothing."
+            "The gang should hold no Brute at all — the gang page warns when "
+            "it holds more; nothing is blocked."
         ]
 
-    def test_the_hidden_bundle_says_where_it_comes_from_and_what_cancels_it(
+    def test_the_hidden_bundle_says_where_it_comes_from_and_what_removes_it(
         self, corruption
     ):
         from n26.library.models import Hidden
@@ -303,7 +342,7 @@ class TestACorruptedGang:
 
         bundle = Hidden.objects.get(name="Escher gang rules")
 
-        assert "and it all comes back" in prose_for(bundle).referenced_by[1].hint
+        assert "and this comes back" in prose_for(bundle).referenced_by[1].hint
 
 
 class TestChainsAndBundles:
@@ -371,7 +410,7 @@ class TestConditions:
         )
 
         assert texts(prose_for(rule).does) == [
-            "Champions and Leaders gain the Nerves of Steel skill, while they have it."
+            "Champion and Leader gain the Nerves of Steel skill, while they have it."
         ]
 
     def test_a_threshold_opens_the_sentence_and_says_while_only_once(
@@ -493,6 +532,30 @@ class TestWhereAThingIsSold:
             "Offered by Goliath Equipment List at 35 credits, to Forge-born only."
         ]
 
+    def test_the_hint_behind_a_line_says_both_halves_of_the_price(self, saw):
+        """What a listing's own words leave out: whether the Trading Post
+        sells it, and for how many trade points."""
+        goliath = create_collection("Goliath Equipment List")
+        add_entry(goliath, saw, price_override=35, trade_point_override=2)
+
+        assert prose_for(saw).referenced_by[0].hint == (
+            "35 credits; 2 trade points at the Trading Post."
+        )
+
+    def test_a_narrowed_line_says_the_others_still_see_it(
+        self, saw, escher, person_type
+    ):
+        goliath = create_collection("Goliath Equipment List")
+        forge_born = create_profile(
+            "Forge-born", profile_type=person_type, gang_type=escher
+        )
+        add_entry(goliath, saw, price_override=35, usable_by_profiles=[forge_born])
+
+        assert (
+            "Other fighters still see it on the list, with a note — nothing "
+            "is blocked." in prose_for(saw).referenced_by[0].hint
+        )
+
     def test_a_sweep_says_what_caught_it(self, saw):
         from n26.library.models import CollectionSelector, Weapon
 
@@ -542,7 +605,7 @@ class TestBuiltInAndOptional:
         add_default_member(orphan, knife)
 
         assert texts(prose_for(knife).referenced_by) == [
-            "Built into Nobody's kit, which nothing holds yet."
+            "Part of the “Nobody's kit” kit, which nothing uses yet."
         ]
 
 
@@ -628,7 +691,7 @@ class TestTheRemainingEffects:
         )
 
         assert texts(prose_for(rule).does) == [
-            "They file under Leaders on the gang sheet, while they have it."
+            "They file under Leaders on the gang page, while they have it."
         ]
 
     def test_a_composition_ask_says_what_the_sheet_will_say(self, default_pack):
@@ -647,8 +710,8 @@ class TestTheRemainingEffects:
         )
 
         assert texts(prose_for(rules).does) == [
-            "The gang should field at least 3 Hive Scums for each Champion — "
-            "the sheet says when it falls short, and refuses nothing."
+            "The gang should field at least 3 Hive Scum for each Champion — "
+            "the gang page warns when it has fewer; nothing is blocked."
         ]
 
     def test_a_per_model_limit_counts_one_model_at_a_time(self, default_pack):
@@ -666,8 +729,8 @@ class TestTheRemainingEffects:
         )
 
         assert texts(prose_for(rule).does) == [
-            "No model should hold more than 1 Psychic Familiars — the sheet "
-            "says when one does, and refuses nothing."
+            "No model should hold more than 1 Psychic Familiar — their card "
+            "warns when one does; nothing is blocked."
         ]
 
 
@@ -701,6 +764,11 @@ class TestTheQueryCountStaysFlat:
         attach_modifiers_to(
             giver, [modifier("Chem-stash: the rule", targets_model(), ef_adds(rule))]
         )
+        # The content-type rows a sweep and an offer look up are cached for
+        # the life of the process, so the first prose read anywhere pays for
+        # them. Read once here, or the budget below would be one query
+        # larger whenever this test happened to run first.
+        prose_for(rule)
         return rule
 
     def _more_references(self, rule, how_many):

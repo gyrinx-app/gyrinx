@@ -14,7 +14,7 @@ the view to fill, the way the hire list's cards are pointed at their
 addresses after they are built.
 
 The register is the option cards' (``specs.py``): short, concrete,
-player-plain, the game's own words. Three rules hold the voice together:
+player-plain, the game's own words. Four rules hold the voice together:
 
 * **Who a modifier speaks of follows from who carries it.** The same
   "the bearer's weapons gain Backstab" reads three ways — carried by a
@@ -23,13 +23,22 @@ player-plain, the game's own words. Three rules hold the voice together:
   every fighter in it. So the subject is computed from the carriage, not
   written into the modifier.
 * **A sentence about a person's own sheet says "they"; one about their
-  kit names the bearer.** "Their Psychoteric Whispers set counts as
+  kit names the bearer.** "Their Psychoteric Whispers set appears as
   Primary" and "its bearer's weapons gain Backstab" are the two
   registers, and the second exists because a bare "their weapons" would
   be taken for the gang's.
 * **Structural facts say "is"; potential routes say "may".** Being built
   into a gang type is a fact about the world; answering an offered
-  question is something that might happen.
+  choice is something that might happen.
+* **A content name is said exactly as it was authored.** "3 Hive Scum",
+  never "3 Hive Scums": the name is the book's, and inflecting it
+  invents a word no author wrote. Ordinary words around it still count
+  properly — two gangs, three times.
+
+A hint says what happens for the row in front of the reader, in their
+own timeline — when it arrives, what takes it away, what a page will
+warn about. It never explains how the app is built and never argues the
+design.
 """
 
 from dataclasses import dataclass, replace
@@ -131,6 +140,14 @@ class _Who:
     asked: str = "them"
 
 
+def _a(name):
+    """A name with its article. Naive on purpose — the leading letter and
+    nothing more: the names are the books', and getting "a Unification
+    Elder" right needs a pronunciation dictionary nobody maintains."""
+    article = "an" if str(name)[:1].lower() in "aeiou" else "a"
+    return f"{article} {name}"
+
+
 def _who(carriage, thing=None):
     if carriage is GANG:
         return _Who(
@@ -142,9 +159,9 @@ def _who(carriage, thing=None):
         )
     if carriage is SUBTYPE:
         return _Who(
-            subject=f"a {thing} fighter",
-            possessive=f"a {thing} fighter's",
-            weapons=f"a {thing} fighter's weapons",
+            subject=f"{_a(thing)} fighter",
+            possessive=f"{_a(thing)} fighter's",
+            weapons=f"{_a(thing)} fighter's weapons",
             plural=False,
             persistence="while the subtype stands",
         )
@@ -232,16 +249,6 @@ class _Parts:
     chain: dict
 
 
-def _plural(word):
-    """A content name, said of more than one. Naive on purpose: the names
-    are the books' and the alternative is a dictionary nobody maintains."""
-    if word.endswith(("s", "x", "z", "ch", "sh")):
-        return f"{word}es"
-    if len(word) > 1 and word.endswith("y") and word[-2] not in "aeiou":
-        return f"{word[:-1]}ies"
-    return f"{word}s"
-
-
 def _agrees(who, singular, plural):
     return plural if who.plural else singular
 
@@ -281,15 +288,14 @@ def _gained(thing):
 #: there — a named rule, a list, and a hidden carrier — and each means
 #: something different by arriving.
 _ON_THE_GANG = {
-    "rule": "printed on its sheet",
+    "rule": "printed on the gang page",
     "collection": "and every member may shop it",
     "hidden": "which draws no line of its own",
 }
 
 _GANG_REACH = (
-    "What the gang holds reaches its fighters: a rule given to the gang "
-    "does everything it does to every one of them, and draws no line on "
-    "their cards."
+    "Anything assigned to the gang affects every fighter in it. It is not "
+    "listed on each fighter's card."
 )
 
 
@@ -302,9 +308,8 @@ def _says_adds(effect, parts):
     chain = parts.chain.get(_identity(thing), ())
     tail = f" — which itself gives {_and_then(chain)}" if chain else ""
     hint = (
-        "Worked out on every read, so it arrives and departs with "
-        "whatever gives it. Nothing is bought and nothing is worth "
-        "anything."
+        "Applies while the item carrying this modifier is assigned, and "
+        "goes with it. Free — adds nothing to any rating."
     )
     if parts.target == WEAPON_PROFILE:
         return f"{who.weapons} gain {thing}{_while(who)}{tail}.", hint
@@ -325,9 +330,9 @@ def _says_removes(effect, parts):
 
     who, thing = parts.who, effect.thing
     hint = (
-        "It reaches what another rule granted and what the card holds "
-        "innately, and never what was paid for. Nothing is deleted: drop "
-        "whatever cancelled it and the row is back on the next read."
+        "Removes things that were granted or built in — never things that "
+        "were paid for. Nothing is deleted: remove the item carrying this "
+        "modifier and they come back."
     )
     if parts.target == WEAPON_PROFILE:
         return f"{who.weapons} lose {thing}{_while(who)}.", hint
@@ -349,9 +354,9 @@ def _says_changes_stat(effect, parts):
         better = "better" if effect.mode == effect.Mode.IMPROVE else "worse"
         change = f"{effect.amount} {better}"
     hint = (
-        "Better and worse follow the characteristic: worsening a roll "
-        "target sends it up, worsening a plain number sends it down. The "
-        "cell on the card names what shifted it."
+        "“Better” and “worse” adapt to the characteristic: a 4+ target "
+        "worsens to 5+, a plain number worsens downwards. The card shows "
+        "what changed each cell."
     )
     if parts.target == WEAPON_PROFILE:
         return (
@@ -370,9 +375,9 @@ def _says_changes_category(effect, parts):
     verb = _agrees(who, "files", "file")
     return (
         f"{who.subject} {verb} under {effect.category.name} on the gang "
-        f"sheet{_while(who)}.",
+        f"page{_while(who)}.",
         (
-            "Where they sort on the sheet, and nothing else: the hire "
+            "Where they sort on the gang page, and nothing else: the hire "
             "list and every collection go on filing them where their "
             "entry says."
         ),
@@ -387,16 +392,15 @@ def _says_offers_choice(effect, parts):
         "card says Choose until they pick."
     )
     hint = (
-        "The question is a slot on the card, present while this is: "
-        "nothing pending is stored, so leaving it unanswered costs "
-        "nothing and answering it late is free."
+        "The offered choice stays on the card until it is answered. "
+        "Answering late costs nothing."
     )
     if effect.from_section_id is not None:
         hint += (
-            f" Only what counts as {effect.from_section.name} for that "
+            f" Only what appears as {effect.from_section.name} for that "
             "model is listed — a placement is what puts a set there, and "
-            "an offer with no placement behind it is a question with "
-            "nothing on it."
+            "an offered choice with no placement behind it has nothing "
+            "on it."
         )
     if effect.answer_host == effect.AnswerHost.GANG:
         said += " The answer belongs to the gang, not to whoever was asked."
@@ -408,31 +412,33 @@ def _says_places_category(effect, parts):
     who = parts.who
     section = effect.section.name
     hint = (
-        "Where that set sits for this model alone. Two carriers placing "
-        "the same set settle it by the collection's own order, lowest "
-        "section winning."
+        "Sets where that category appears, for this model only. If two "
+        "items place the same category, the one nearer the top of the "
+        "collection wins."
     )
     if effect.the_chosen:
+        picks = _agrees(who, "picks", "pick")
         return (
-            f"whatever set {who.asked} pick counts as {section}.",
+            f"whatever set {who.subject} {picks} appears as {section}.",
             (
                 f"{hint} Unanswered, the placement simply does not "
                 "happen, and the plan says why."
             ),
         )
-    return f"{who.possessive} {effect.category.name} set counts as {section}.", hint
+    return f"{who.possessive} {effect.category.name} set appears as {section}.", hint
 
 
 @_renders("requires_companions")
 def _says_requires_companions(effect, parts):
     return (
-        f"the gang should field at least {effect.at_least} "
-        f"{_plural(str(effect.of))} for each {effect.for_each} — the "
-        "sheet says when it falls short, and refuses nothing.",
+        f"the gang should field at least {effect.at_least} {effect.of} for "
+        f"each {effect.for_each} — the gang page warns when it has fewer; "
+        "nothing is blocked.",
         (
-            "Counted from the models' printed ranks. The book takes "
-            "fighters off the roster; we say the roster is short and "
-            "leave the gang to its owner."
+            "Adds a warning to the gang page when there are too few — "
+            f"fewer than {effect.at_least} {effect.of} for each "
+            f"{effect.for_each}, counted by the rank printed on each "
+            "fighter's card. Nothing is blocked."
         ),
     )
 
@@ -441,34 +447,43 @@ def _says_requires_companions(effect, parts):
 def _says_allows_at_most(effect, parts):
     from n26.library.models.modifier import GANG as GANG_TARGET
 
-    named = _plural(str(effect.thing))
-    hint = (
-        "Nought is how a ban is written, so a limit and a ban are one "
-        "thing. Written on the sheet, never enforced."
-    )
+    # The name is the author's, whatever the number in front of it: "2
+    # Aberrant" rather than a plural nobody wrote.
+    named = str(effect.thing)
+    ban = " A limit of 0 is a ban."
     if parts.target == GANG_TARGET:
         if not effect.at_most:
             said = f"the gang should hold no {named} at all"
         else:
             said = f"the gang should hold at most {effect.at_most} {named}"
-        return f"{said} — the sheet says when it holds more, and refuses nothing.", hint
+        return (
+            f"{said} — the gang page warns when it holds more; nothing is blocked.",
+            (
+                "Adds a warning to the gang page when the gang holds more "
+                f"than {effect.at_most} {named}. Nothing is blocked.{ban}"
+            ),
+        )
     if not effect.at_most:
         said = f"no model should hold {named} at all"
     else:
         said = f"no model should hold more than {effect.at_most} {named}"
-    return f"{said} — the sheet says when one does, and refuses nothing.", hint
+    return (
+        f"{said} — their card warns when one does; nothing is blocked.",
+        (
+            "Adds a warning to a model's card when it holds more than "
+            f"{effect.at_most} {named}. Nothing is blocked.{ban}"
+        ),
+    )
 
 
 @_renders("op_adds_miniature")
 def _says_op_adds_miniature(effect, parts):
     return (
-        f"when this arrives, a {effect.profile} joins the gang, free — "
+        f"when this arrives, {_a(effect.profile)} joins the gang, free — "
         "and leaves again if this goes.",
         (
-            "Written once, when this is assigned, because the new model "
-            "has XP, injuries and gear of its own and cannot be worked "
-            "out on every read. It is ledgered at list price with a full "
-            "discount: worth something, paid nothing."
+            "The model is created when this is bought — free, with XP and "
+            "injuries of its own. Selling this removes it too."
         ),
     )
 
@@ -487,9 +502,8 @@ def _says_op_changes_counter(effect, parts):
         f"when this arrives, {moved} — written on the ledger once; "
         "taking this away does not take it back.",
         (
-            "A tally is player-side state, changed only through the "
-            "ledger. The ledger is append-only, so what a rule tallied "
-            "is something that happened."
+            "Happens once, when this is assigned. Removing it later does "
+            "not undo the change."
         ),
     )
 
@@ -555,8 +569,9 @@ def _narrowed(who, scope):
     """The subject once the scope's conditions have had their say.
 
     Three shapes, because the three narrowings mean different things. A
-    condition on the ranks replaces the subject outright — "Leaders and
-    Champions" says who is reached better than any pronoun could. A
+    condition on the ranks replaces the subject outright — "Champion and
+    Leader" says who is reached better than any pronoun could, in the
+    names as authored, because a content name is never inflected. A
     threshold becomes a clause in front, being a condition on the moment
     rather than on the person, and the sentence then drops its own
     "while" so as not to say the same thing twice. A narrowing of the
@@ -570,9 +585,9 @@ def _narrowed(who, scope):
     for related in scope.CONDITIONS:
         for row in getattr(scope, related).all():
             if related == "has_subtypes":
-                named.extend(_plural(str(one)) for one in row.subtypes.all())
+                named.extend(str(one) for one in row.subtypes.all())
             elif related == "is_profile":
-                named.extend(_plural(str(one)) for one in row.profiles.all())
+                named.extend(str(one) for one in row.profiles.all())
             elif related == "counter_at_least":
                 clauses.append(f"while their {row.counter} is {row.at_least} or more")
             else:
@@ -719,7 +734,7 @@ class _Edges:
     holders: tuple
     #: The carriers of every modifier naming the thing, keyed by modifier.
     carriers: dict
-    #: The questions its kind could answer.
+    #: The offered choices its kind could answer.
     offers: tuple
 
 
@@ -763,7 +778,7 @@ def _sets_holding(references):
 
 
 def _offers_of_kind(thing):
-    """Every question this thing's kind could be the answer to."""
+    """Every offered choice this thing's kind could be the answer to."""
     from django.contrib.contenttypes.models import ContentType
 
     from n26.library.models import OffersChoice
@@ -807,6 +822,26 @@ def _asking(credits):
     return f"at {credits} credit{'' if credits == 1 else 's'}"
 
 
+def _price_facts(price):
+    """A price said as facts, for the hint behind an offer.
+
+    Both halves of what a buyer pays with, because the Trading Post half
+    is the one a listing's own words leave out: an exclusive item is on
+    an equipment list and nowhere else, and a thing with no trade-point
+    price cannot be had for trade points at all.
+    """
+    if not price.credits:
+        asked = "Free"
+    else:
+        asked = f"{price.credits} credit{'' if price.credits == 1 else 's'}"
+    if price.is_exclusive:
+        return f"{asked}; equipment list only, not at the Trading Post."
+    if price.trade_points is None:
+        return f"{asked}; no Trading Post price."
+    points = f"{price.trade_points} trade point{'' if price.trade_points == 1 else 's'}"
+    return f"{asked}; {points} at the Trading Post."
+
+
 def _reaches_the_gang(edges):
     """Whether any edge puts the thing in the gang's own hands.
 
@@ -833,7 +868,7 @@ def _referenced_by(edges):
     Ordered as the reader needs it: what is structurally true first —
     built into something, given by something, taken away by something —
     and the routes that merely *may* happen after, because a shop that
-    stocks it and a question it could answer are possibilities rather
+    stocks it and a choice it could answer are possibilities rather
     than facts.
     """
     said = [
@@ -846,20 +881,31 @@ def _referenced_by(edges):
     return tuple(_once(said))
 
 
-_BUILT_IN_HINT = (
-    "A built-in arrives free with whatever holds it, at the moment that "
-    "thing does — no choice is offered, and it goes when its holder goes."
-)
+#: What a sentence calls whatever carries a modifier when nothing does
+#: yet, so the hint can still say when the thing arrives and when it goes.
+_UNCARRIED = "the thing that carries it"
 
 _GIVEN_HINT = (
-    "Worked out on every read: it is there while that thing is, and gone "
-    "the moment it is not. Nothing is bought and nothing is stored."
+    "Applies while {x} is assigned, and goes if {x} goes. Never bought or paid for."
 )
 
 _TAKEN_HINT = (
-    "Cancelled while that thing stands — hidden rather than deleted, and "
-    "never where money was paid. Drop the thing and it all comes back."
+    "Removed while {x} is assigned. Nothing is deleted — remove {x} and "
+    "this comes back. Paid-for items are never removed."
 )
+
+
+def _built_in_hint(holder=None):
+    """When a built-in arrives and when it goes, said of what holds it.
+
+    The holder is named where there is one, because the moment it arrives
+    is a fact about that thing rather than about built-ins in general.
+    """
+    named = _named(holder) if holder is not None else "the thing it is built into"
+    return (
+        f"Arrives free when {named} is assigned — hired, founded, or "
+        "bought. If that goes, this goes with it."
+    )
 
 
 def _built_into(edges):
@@ -872,7 +918,7 @@ def _built_into(edges):
             said.append(
                 Sentence(
                     text=f"Built into {_named(reference.row)}.",
-                    hint=_BUILT_IN_HINT,
+                    hint=_built_in_hint(reference.row),
                     key=_identity(reference.row),
                 )
             )
@@ -884,20 +930,16 @@ def _built_into(edges):
                         f"Taken with the “{option.name}” option of "
                         f"{_named(option.carrier)}."
                     ),
-                    hint=(
-                        "One of the alternatives offered when that thing is "
-                        "acquired. The option not taken never comes into "
-                        "being at all."
-                    ),
+                    hint="Only fighters who took this option get it.",
                     key=_identity(option),
                 )
             )
     if not said:
-        named = ", ".join(sorted(one.name for one in sets))
+        named = _and_then([f"“{name}”" for name in sorted(one.name for one in sets)])
         said.append(
             Sentence(
-                text=f"Built into {named}, which nothing holds yet.",
-                hint=_BUILT_IN_HINT,
+                text=f"Part of the {named} kit, which nothing uses yet.",
+                hint=_built_in_hint(),
             )
         )
     return said
@@ -924,18 +966,19 @@ def _granted(edges):
                 said.append(
                     Sentence(
                         text=f"{verb}{whose} by a modifier nothing carries yet.",
-                        hint=hint,
+                        hint=hint.format(x=_UNCARRIED),
                         key=_identity(modifier),
                     )
                 )
-            said.extend(
-                Sentence(
-                    text=f"{verb}{whose} by {_named(holder)}.",
-                    hint=hint,
-                    key=_identity(holder),
+            for holder in holders:
+                named = _named(holder)
+                said.append(
+                    Sentence(
+                        text=f"{verb}{whose} by {named}.",
+                        hint=hint.format(x=named),
+                        key=_identity(holder),
+                    )
                 )
-                for holder in holders
-            )
     return said
 
 
@@ -946,18 +989,18 @@ def _brought(edges):
         modifier = _modifier_of(reference.row)
         if modifier is None:
             continue
-        said.extend(
-            Sentence(
-                text=f"Brought by {_named(holder)}.",
-                hint=(
-                    "Written when that thing is bought, in the same "
-                    "transaction, and stamped as caused by the purchase — "
-                    "so parting with it takes this model too."
-                ),
-                key=_identity(holder),
+        for holder in edges.carriers.get(modifier.pk, ()):
+            named = _named(holder)
+            said.append(
+                Sentence(
+                    text=f"Brought by {named}.",
+                    hint=(
+                        f"Created when {named} is bought — free, with XP and "
+                        f"injuries of its own. Selling {named} removes it too."
+                    ),
+                    key=_identity(holder),
+                )
             )
-            for holder in edges.carriers.get(modifier.pk, ())
-        )
     return said
 
 
@@ -978,17 +1021,19 @@ def _offered(edges):
         price = price_of(thing, entry=entry)
         narrowing = entry.usable_by_words()
         only = f", to {narrowing} only" if narrowing else ""
+        hint = _price_facts(price)
+        if narrowing:
+            hint += (
+                " Other fighters still see it on the list, with a note — "
+                "nothing is blocked."
+            )
         said.append(
             Sentence(
                 text=(
                     f"Offered by {entry.collection.name} "
                     f"{_asking(price.credits)}{only}."
                 ),
-                hint=(
-                    f"{price}. A list informs and never refuses: an offer "
-                    "somebody may not take shows on the listing, marked, and "
-                    "an owner may buy it for them anyway."
-                ),
+                hint=hint,
                 key=_identity(entry.collection),
             )
         )
@@ -1020,9 +1065,9 @@ def _swept(thing):
                 f"{_asking(price_of(thing).credits)}, swept in as {sweep}."
             ),
             hint=(
-                "Swept in by a rule rather than listed by hand, so it joined "
-                "that surface the day it was authored. A curated entry for "
-                "the same item would win."
+                "On this list because a rule includes it (“every weapon”), "
+                "not because someone listed it. A hand-written entry for the "
+                "same item overrides this."
             ),
             key=_identity(sweep.collection),
         )
@@ -1032,20 +1077,20 @@ def _swept(thing):
 
 
 def _answerable(edges):
-    """Questions this could be the answer to — the "may" half.
+    """Offered choices this could be the answer to — the "may" half.
 
-    Offers name a kind, not a row, so nothing points at the thing: every
-    choice of its kind is a way somebody could come to have it.
+    An offer names a kind, not a row, so nothing points at the thing:
+    every choice of its kind is a way somebody could come to have it.
     """
     said = []
     for offer in edges.offers:
         hint = (
-            "The question is a slot on the card while its carrier is there; "
-            "only the answer is ever stored."
+            "The offered choice is on the card while the thing offering it "
+            "is, and this is one of the answers it takes."
         )
         if offer.from_section_id is not None:
             hint += (
-                f" Narrowed to what counts as {offer.from_section.name} for "
+                f" Narrowed to what appears as {offer.from_section.name} for "
                 "that model, so a model the set is not placed for is never "
                 "offered it."
             )
@@ -1053,12 +1098,15 @@ def _answerable(edges):
         holders = edges.carriers.get(modifier.pk, ()) if modifier else ()
         if not holders:
             said.append(
-                Sentence(text=f"May answer a {offer.kind_label} question.", hint=hint)
+                Sentence(
+                    text=f"May answer an offered choice of {offer.kind_label}.",
+                    hint=hint,
+                )
             )
         said.extend(
             Sentence(
                 text=(
-                    f"May answer the {offer.kind_label} question offered by "
+                    f"May answer the {offer.kind_label} choice offered by "
                     f"{_named(holder)}."
                 ),
                 hint=hint,
