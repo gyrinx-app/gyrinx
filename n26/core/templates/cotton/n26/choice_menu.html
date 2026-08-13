@@ -63,7 +63,12 @@ choice as it was when the panel opened and dispatches nothing.
                 under a full-size field reads as two bars of chrome before the
                 list gets a pixel.
                 {% endcomment %}
-                <c-ui.button size="sm" variant="primary">
+                {% comment %}
+                default, not primary: a bar of filled accent buttons above
+                a list reads as the page's main acts rather than its
+                filters.
+                {% endcomment %}
+                <c-ui.button size="sm" variant="default">
                     <span class="flex items-center justify-center gap-1.5">
                         {{ label }}
                         {% comment %}
@@ -72,7 +77,7 @@ choice as it was when the panel opened and dispatches nothing.
                         {% endcomment %}
                         <span x-show="value" x-cloak
                               x-text="options.find(o => o.value === value)?.label"
-                              class="rounded-full bg-accent-foreground/20 px-1.5 text-xs"></span>
+                              class="rounded-full bg-ink-500/15 px-1.5 text-xs"></span>
                         <span x-show="!value" x-cloak
                               class="text-xs opacity-80">{{ placeholder }}</span>
                         <c-n26.icon name="chevron-down" class="size-4" stroke_width="2" />

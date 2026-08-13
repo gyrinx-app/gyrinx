@@ -73,7 +73,11 @@ you have already seen happen. Nothing to snapshot, either.
             the list gets a pixel. A screen that is mostly list takes it a
             notch further with size="xs".
             {% endcomment %}
-            <c-ui.button size="{{ size }}" variant="primary">
+            {% comment %}
+            default, not primary: a bar of filled accent buttons above a
+            list reads as the page's main acts rather than its filters.
+            {% endcomment %}
+            <c-ui.button size="{{ size }}" variant="default">
                 <span class="flex items-center justify-center gap-1.5">
                     {{ label }}
                     {% comment %}
