@@ -64,10 +64,10 @@ also keeps this out of the listing's own form, which wraps every row on the page
                 where nothing above it is one.
                 {% endcomment %}
                 {% comment %}
-                Worded, not an icon: a bare plus beside a gun's name says
-                nothing about what pressing it adds. Ghost and small is
-                what keeps it quiet; the words are what make it a button
-                someone can understand without pressing it.
+                An icon and the words, together: a bare plus beside a
+                gun's name says nothing about what pressing it adds, and
+                words without the plus don't read as a control that adds
+                one. Ghost and small is what keeps it quiet.
                 {% endcomment %}
                 {% if copy.accessorise %}
                     <c-ui.button variant="ghost"
@@ -77,6 +77,9 @@ also keeps this out of the listing's own form, which wraps every row on the page
                                  aria-label="{{ copy.accessorise.label }} to {{ copy.name }}"
                                  x-data
                                  x-on:click.prevent="$dispatch('n26-dialog-open', { id: 'n26-accessorise-{{ copy.id }}', url: $el.getAttribute('href') })">
+                        <c-n26.icon name="plus"
+                                    class="size-3.5"
+                                    stroke_width="2.5" />
                         {{ copy.accessorise.label }}
                     </c-ui.button>
                 {% endif %}
