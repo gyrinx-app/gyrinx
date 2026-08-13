@@ -8,7 +8,10 @@ listed it, and a sixth chevron would have been pasted rather than reused.
 
 The drawings are Heroicons v2 outline (MIT), on a 24x24 canvas with round caps
 and joins, so one set of <svg> attributes suits all of them and only the path
-data differs. That uniformity is why the registry can be path data alone.
+data differs. That uniformity is why the registry is path data alone, and the
+brand marks are the only entries that need anything said about them: they are
+filled rather than stroked (SOLID), and one of them is published on a canvas of
+its own (VIEWBOXES).
 
 Four entries are *local* redrawings rather than the upstream Heroicons path.
 They were drawn by hand before this file existed, and they are kept exactly as
@@ -156,8 +159,11 @@ ICONS: dict[str, list[str]] = {
     #
     # SOLID, not stroked. A brand mark is a shape, not a line drawing, and the
     # only faithful way to draw one is the artwork its owner publishes — so
-    # these are the marks as they ship (simple-icons, CC0) and the only two
-    # entries in the file that are not a 1.7-weight stroke on a 24 grid.
+    # these are the marks as they ship (github and discord from simple-icons,
+    # CC0) and the only entries in the file that are not a 1.7-weight stroke on
+    # a 24 grid. Patreon's is published on a 1080 canvas rather than a 24 one,
+    # which is what VIEWBOXES is for: rescaling a logo's numbers by hand is
+    # redrawing it.
     "github": [
         "M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113"
         ".82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042"
@@ -193,6 +199,15 @@ ICONS: dict[str, list[str]] = {
         "-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332"
         "-.946 2.4189-2.1568 2.4189Z"
     ],
+    "patreon": [
+        "M1033.05,324.45c-0.19-137.9-107.59-250.92-233.6-291.7"
+        "c-156.48-50.64-362.86-43.3-512.28,27.2"
+        "C106.07,145.41,49.18,332.61,47.06,519.31"
+        "c-1.74,153.5,13.58,557.79,241.62,560.67"
+        "c169.44,2.15,194.67-216.18,273.07-321.33"
+        "c55.78-74.81,127.6-95.94,216.01-117.82"
+        "C929.71,603.22,1033.27,483.3,1033.05,324.45z"
+    ],
 }
 
 # The names that are ours rather than upstream's, so the gallery can say so and a
@@ -204,9 +219,19 @@ LOCAL = frozenset({"pencil", "arrow-up-tray", "printer", "star"})
 # Everything else here is one line drawing on a 24 grid, which is what lets a
 # single set of <svg> attributes serve the whole set. A logo is not a line
 # drawing and cannot be redrawn as one without becoming a different logo, so
-# these two are filled and <c-n26.icon> switches its attributes for them.
+# these are filled and <c-n26.icon> switches its attributes for them.
 # stroke_width means nothing on a solid icon and is ignored.
-SOLID = frozenset({"github", "discord"})
+SOLID = frozenset({"github", "discord", "patreon"})
+
+# The canvas a drawing is stated on, where that is not the 24 grid the rest of
+# the set shares. A logo arrives on whatever canvas its owner published it on,
+# and the alternative to carrying that here is multiplying every number in the
+# path by 24/1080 — which is redrawing the mark rather than placing it.
+DEFAULT_VIEWBOX = "0 0 24 24"
+
+VIEWBOXES: dict[str, str] = {
+    "patreon": "0 0 1080 1080",
+}
 
 
 def paths(name: str) -> list[str]:
@@ -227,6 +252,15 @@ def paths(name: str) -> list[str]:
 def is_solid(name: str) -> bool:
     """Whether this drawing is filled rather than stroked."""
     return name in SOLID
+
+
+def viewbox(name: str) -> str:
+    """The canvas `name` is drawn on — the 24 grid unless it says otherwise.
+
+    Total for the same reason `paths` is loud: a name with no entry is the
+    ordinary case, not a mistake.
+    """
+    return VIEWBOXES.get(name, DEFAULT_VIEWBOX)
 
 
 def names() -> list[str]:

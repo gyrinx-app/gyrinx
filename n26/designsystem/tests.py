@@ -214,6 +214,20 @@ class TestProseInsideCVarsIsNotAPropList:
         assert re.search(r"\{%\s*comment\s*%\}", _CVARS.search(raw).group(1))
 
 
+class TestTheIconPage:
+    """The set draws itself from the registry, so a new drawing lands
+    here without the demo being touched — including the ones that do not
+    share the 24 grid the rest of the set is stated on."""
+
+    def test_the_patreon_mark_is_drawn_on_the_canvas_it_ships_with(self, reader):
+        from n26.core import icons
+
+        page = reader.get("/n26/design/c/icon/").content.decode()
+        assert "patreon" in page
+        assert icons.ICONS["patreon"][0] in page
+        assert 'viewBox="0 0 1080 1080"' in page
+
+
 class TestTheShellStillDraws:
     """The shell pages are the gallery's claim that the library composes.
 

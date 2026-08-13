@@ -58,6 +58,13 @@ have made the reader choose between them, which is a decision they do not have.
 Gang first, so that when they wrap on a phone the main action is the one at the
 top rather than the one you reach after reading past another.
 
+Patreon and Discord ride in the same row, which is the one thing here that is
+not about this reader's own gangs. They are quiet marks at the height of the
+buttons' text rather than labelled links: someone who wants either knows the
+logo, and spelling them out would put two more phrases beside the only action
+the page is really offering. On a wide row they sit ahead of the buttons; on a
+phone, where the row wraps under the greeting, they fall behind them.
+
 The name in it takes either shape: `username="tom"` for a plain string, or a
 `username` slot for markup — which is how the reader's badge gets in, as a
 <c-n26.user-link>. Whose badge someone shows is not this page's answer to give,
@@ -104,16 +111,52 @@ are exactly what a view calls the rows it hands this page: a context holding
     {% endcomment %}
     <c-n26.page-header>
         <c-slot name="title">Hello, {{ username }}</c-slot>
-        {% if new_gang_href or new_campaign_href %}
-            <c-slot name="actions">
-                {% if new_gang_href %}
-                    <c-ui.button variant="primary" href="{{ new_gang_href }}">{{ new_gang_label }}</c-ui.button>
-                {% endif %}
-                {% if new_campaign_href %}
-                    <c-ui.button href="{{ new_campaign_href }}">{{ new_campaign_label }}</c-ui.button>
-                {% endif %}
-            </c-slot>
-        {% endif %}
+        <c-slot name="actions">
+            {% comment %}
+            The two places the project lives outside the app, up beside the
+            page's actions rather than only in the footer — the footer is a
+            scroll away, and this is the screen a reader is on when they want
+            either of them. They belong to the page rather than to the buttons,
+            so they draw whether or not this dashboard was given anywhere to
+            create something.
+
+            Position is `order`, not source order, and the two ends differ: on a
+            wide screen the marks sit before the buttons, so the action a reader
+            came for is the last thing on the row; wrapped onto a phone the
+            buttons come first, because the primary should be what sits under
+            the greeting rather than something to read past. Source order is the
+            phone's, and sm: puts the marks back in front.
+
+            Sized in em against the buttons' own text — the row is text-sm, so a
+            1.25em mark stands the height of the label beside it and keeps doing
+            so if that scale moves. Neither mark carries a colour: the drawings
+            are currentColor and the links take the page's ink, so both follow
+            the theme, and hovering lifts them to the strongest ink the way the
+            bar's other quiet controls do.
+            {% endcomment %}
+            <div class="order-last flex items-center gap-3 text-sm sm:order-first">
+                <c-n26.link href="https://www.patreon.com/c/Gyrinx"
+                            tone="current"
+                            underline="none"
+                            aria-label="Gyrinx on Patreon"
+                            class="focus-ring inline-flex rounded-control hover:text-ink-900 dark:hover:text-white">
+                    <c-n26.icon name="patreon" class="size-[1.25em]" />
+                </c-n26.link>
+                <c-n26.link href="https://discord.gg/6yZQ8Y7C4W"
+                            tone="current"
+                            underline="none"
+                            aria-label="Gyrinx on Discord"
+                            class="focus-ring inline-flex rounded-control hover:text-ink-900 dark:hover:text-white">
+                    <c-n26.icon name="discord" class="size-[1.25em]" />
+                </c-n26.link>
+            </div>
+            {% if new_gang_href %}
+                <c-ui.button variant="primary" href="{{ new_gang_href }}">{{ new_gang_label }}</c-ui.button>
+            {% endif %}
+            {% if new_campaign_href %}
+                <c-ui.button href="{{ new_campaign_href }}">{{ new_campaign_label }}</c-ui.button>
+            {% endif %}
+        </c-slot>
     </c-n26.page-header>
 
     {% comment %}

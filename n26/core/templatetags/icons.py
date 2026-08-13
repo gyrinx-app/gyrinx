@@ -23,3 +23,9 @@ def is_local_icon(name):
 def is_solid_icon(name):
     """Whether this drawing is filled rather than stroked — the brand marks."""
     return icons.is_solid(name)
+
+
+@register.filter
+def icon_viewbox(name):
+    """The canvas this drawing is stated on, for the <svg> that holds it."""
+    return icons.viewbox(name)

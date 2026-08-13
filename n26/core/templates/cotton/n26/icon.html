@@ -26,9 +26,11 @@ the default because that is overwhelmingly the case that comes up.
 
 The brand marks are the exception, and the one reason this template has an `if`
 in it. A logo is a filled shape, not a line drawing, and cannot be restated as a
-stroke without becoming a different logo — so github and discord are drawn as
-they ship and this swaps fill for stroke to suit. stroke_width means nothing on
-one and is ignored; core/icons.py's SOLID set is what decides.
+stroke without becoming a different logo — so github, discord and patreon are
+drawn as they ship and this swaps fill for stroke to suit. stroke_width means
+nothing on one and is ignored; core/icons.py's SOLID set is what decides. A mark
+published on a canvas other than the 24 grid keeps it too, which is why the
+viewBox is looked up rather than written here.
 
   name — a key in core/icons.py. An unknown name raises rather than rendering
     an empty <svg>, which would be an invisible hole in a toolbar.
@@ -40,6 +42,6 @@ one and is ignored; core/icons.py's SOLID set is what decides.
     stroke_width="1.7"
     label=""
     class=""
-/><svg {{ attrs }} class="{{ class }}" viewBox="0 0 24 24"
+/><svg {{ attrs }} class="{{ class }}" viewBox="{{ name|icon_viewbox }}"
      {% if name|is_solid_icon %}fill="currentColor" stroke="none"{% else %}fill="none" stroke="currentColor" stroke-width="{{ stroke_width }}" stroke-linecap="round" stroke-linejoin="round"{% endif %}
      {% if label %}role="img" aria-label="{{ label }}"{% else %}aria-hidden="true"{% endif %}>{% for d in name|icon_paths %}<path d="{{ d }}"/>{% endfor %}</svg>
