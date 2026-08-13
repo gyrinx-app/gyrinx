@@ -14,8 +14,9 @@
         <div class="container h-100 d-flex align-items-end py-4 z-1">
             <h2 class="h1 fw-light text-light">
                 {% if user.is_authenticated %}
-                    <strong>Welcome</strong> to Gyrinx’s Necromunda tools, <a class="link-light link-underline-opacity-50 link-underline-opacity-100-hover"
-    href="{% url 'core:user' user.id %}">{{ user.username }}</a>.
+                    <strong>Welcome</strong> to Gyrinx’s Necromunda N17/23 tools, <a class="link-light link-underline-opacity-50 link-underline-opacity-100-hover"
+    href="{% url 'core:user' user.id %}">{{ user.username }}</a>. <a class="link-light link-underline-opacity-50 link-underline-opacity-100-hover"
+    href="{% url 'n26-dashboard' %}">Looking for N26</a>?
                 {% else %}
                     <strong>Gyrinx</strong> is a free set of tools for the Necromunda community.
                 {% endif %}
