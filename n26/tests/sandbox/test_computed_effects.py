@@ -534,3 +534,29 @@ class TestOnTheCard:
         assert "Fighter (Mounted)" in text
         assert "Skills: Nerves of Steel" in text
         assert card.statline.get("BS").value == "5+"
+
+
+class TestAHiddenCarrierStaysHidden:
+    """A hidden item's name is authored to be read; its kind is the
+    library's plumbing and never reaches a player's tooltip."""
+
+    def test_a_stat_shifted_by_a_hidden_names_it_without_its_kind(self, yolanda):
+        from n26.library.models import Stat
+        from n26.tests.sandbox.actions import create_hidden, ef_changes_stat
+
+        strength = Stat.objects.get(short_name="S")
+        setter = create_hidden(
+            "Strength rolled 6",
+            effects=[
+                (targets_model(), ef_changes_stat(strength, mode="set", amount=5))
+            ],
+        )
+        assign(setter, miniature=yolanda, paid=0)
+
+        card = build_card(yolanda, with_statlines=True)
+        computed = compute(
+            card, build_modifier_index([n.assignable for n in card.all_nodes()])
+        )
+        (change,) = computed.stat_changes
+        assert change.source == "Strength rolled 6"
+        assert change.source_kind == ""

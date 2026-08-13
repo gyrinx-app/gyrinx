@@ -71,7 +71,17 @@ MAX_CHAIN_DEPTH = 5
 
 
 def kind_of(thing):
-    """The plain name of what kind of thing this is: "skill", "wargear"…"""
+    """The plain name of what kind of thing this is: "skill", "wargear"…
+
+    Empty for a hidden carrier: its name is authored to be read ("Strength
+    rolled 6"), but its kind is the library's own plumbing, and a player's
+    tooltip must never say so. Every surface drawing a kind already draws
+    nothing when there is none.
+    """
+    from n26.library.models import Hidden
+
+    if isinstance(thing, Hidden):
+        return ""
     return str(thing._meta.verbose_name)
 
 
