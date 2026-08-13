@@ -430,6 +430,26 @@ class ModelCard:
         return [*self.choices, *self.skill_choices, *self.power_choices]
 
     @property
+    def weapon_columns(self):
+        """The stat columns a weapon table draws, as cells to read names off.
+
+        One shape for the whole table: every weapon on a card is drawn to
+        the same columns, so a renderer needs a single row of headings and
+        a single count to span a nameless row across.
+
+        The first profile that has any characteristics, rather than the
+        first profile there is. A combi-weapon's own line carries the
+        weapon's identity and no numbers, and asking that one for the
+        columns gives a table of headings that is empty while every row
+        beneath it still prints its stats.
+        """
+        for weapon in self.weapons:
+            for profile in weapon.profiles:
+                if profile.statline.cells:
+                    return profile.statline.cells
+        return []
+
+    @property
     def type_line(self):
         """``Fighter (Ganger, Mounted, Specialist)``.
 
@@ -568,17 +588,26 @@ def build_statline(owner, changes_for=None):
     distance, 3 becomes 3+ for a roll target — and anything that isn't a
     plain number passes through, which is what lets a weapon's range read
     ``E`` or ``T`` and its Strength read ``S+3``.
+
+    The shape comes from the statline *type*, not from the values stored
+    against it: a statline holding four of its five stats is a full row
+    with one dash in it, and never four cells that slide the numbers
+    under the wrong headings. Nothing stops content arriving that way —
+    the completeness check lives in ``clean()``, which importers and the
+    authoring verbs do not call.
     """
     statline = getattr(owner, "statline", None) if owner is not None else None
     if statline is None:
         return Statline()
 
+    stored = {
+        value.statline_type_stat_id: value.value for value in statline.stats.all()
+    }
     cells = []
-    for stat_value in statline.ordered_stats():
-        type_stat = stat_value.statline_type_stat
+    for type_stat in _shape_of(owner, statline):
         stat = type_stat.stat
         changes = changes_for(stat.field_name) if changes_for else []
-        raw, sources = apply_changes(stat, stat_value.value, changes)
+        raw, sources = apply_changes(stat, stored.get(type_stat.pk, ""), changes)
         cells.append(
             StatCell(
                 short_name=type_stat.short_name,
@@ -590,6 +619,18 @@ def build_statline(owner, changes_for=None):
             )
         )
     return Statline(cells=cells)
+
+
+def _shape_of(owner, statline):
+    """The stats a statline is supposed to carry, in display order.
+
+    A weapon may have no statline type at all, in which case there is no
+    shape to hold the values to and the stored ones are all there is.
+    """
+    statline_type = owner.statline_type
+    if statline_type is None:
+        return [value.statline_type_stat for value in statline.ordered_stats()]
+    return list(statline_type.stats.all())
 
 
 def _computed_provenance(contribution):

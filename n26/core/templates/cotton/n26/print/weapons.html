@@ -29,9 +29,12 @@ as one block of statistics rather than two tables near each other.
     <c-slot name="head">
         <tr>
             {% comment %}
-            Columns come from the first profile on the card rather than a
-            hardcoded list, so a pack that changes a weapon's statline type
-            changes this header with it.
+            Columns come from the card rather than a hardcoded list, so a pack
+            that changes a weapon's statline type changes this header with it.
+            ModelCard.weapon_columns picks them, and picking them is worth a
+            property: the profile a card happens to sort first may be a
+            combi-weapon's own line, which has no characteristics and would
+            leave this header empty over rows full of numbers.
             {% endcomment %}
             {% comment %}
             40%, not the third it looks like it wants. The stat columns hold two
@@ -42,7 +45,7 @@ as one block of statistics rather than two tables near each other.
             {% endcomment %}
             {# djlint:off H021 — print column widths live on the cells; print engines read them there #}
             <th style="width: 40%">Weapon</th>
-            {% for cell in card.weapons.0.profiles.0.statline.cells %}
+            {% for cell in card.weapon_columns %}
                 <th class="is-centered{% if cell.first_of_group %} is-group{% endif %}"
                     title="{{ cell.full_name }}">{{ cell.short_name }}</th>
             {% endfor %}
@@ -90,7 +93,7 @@ as one block of statistics rather than two tables near each other.
                 identity and no characteristics of its own, and the row is as
                 empty as one with no unnamed profile at all.
                     {% endcomment %}
-                    <td {% if not stats %}colspan="{{ card.weapons.0.profiles.0.statline.cells|length|add:1 }}"{% endif %}>{{ weapon.name }} <span class="n26-print-cost">({{ weapon.base_rating }}¢)</span>{% if weapon.accessories %} <span class="n26-print-subname">{% for accessory in weapon.accessories %}+ {{ accessory.name }}{% if not forloop.last %} {% endif %}{% endfor %}</span>{% endif %}</td>
+                    <td {% if not stats %}colspan="{{ card.weapon_columns|length|add:1 }}"{% endif %}>{{ weapon.name }} <span class="n26-print-cost">({{ weapon.base_rating }}¢)</span>{% if weapon.accessories %} <span class="n26-print-subname">{% for accessory in weapon.accessories %}+ {{ accessory.name }}{% if not forloop.last %} {% endif %}{% endfor %}</span>{% endif %}</td>
                     {% if stats %}
                         {% for cell in stats %}
                             <td class="is-centered{% if cell.first_of_group %} is-group{% endif %}">{{ cell.value|default:"-" }}</td>
@@ -104,7 +107,7 @@ as one block of statistics rather than two tables near each other.
                     with the leftmost stat rather than with the weapon's name.
                         {% endcomment %}
                         {% if stats %}<td></td>{% endif %}
-                        <td colspan="{% if stats %}{{ stats|length }}{% else %}{{ card.weapons.0.profiles.0.statline.cells|length|add:1 }}{% endif %}" class="n26-print-traits">
+                        <td colspan="{% if stats %}{{ stats|length }}{% else %}{{ card.weapon_columns|length|add:1 }}{% endif %}" class="n26-print-traits">
                             {% for trait in own.traits %}{{ trait.name }}{% if not forloop.last %}, {% endif %}{% endfor %}
                         </td>
                     </tr>

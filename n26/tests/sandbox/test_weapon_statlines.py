@@ -242,6 +242,100 @@ class TestOnTheCard:
         assert few == many, f"{few} queries with one weapon, {many} with six"
 
 
+class TestAStatlineShortOfStats:
+    """A card draws a weapon to the columns its statline type calls for,
+    whatever the statline happens to hold.
+
+    Content can arrive missing a stat — the completeness check lives in
+    ``clean()``, which importers and the authoring verbs never call. Drawn
+    from the stored values alone, such a line is short a cell, and every
+    number after the gap slides one column left: a player reading a Phase
+    sword found its Lethality under Armour Piercing and its last column
+    blank.
+    """
+
+    @pytest.fixture
+    def player(self, db):
+        return User.objects.create_user("shorthanded")
+
+    @pytest.fixture
+    def armed(self, gang_type, make_profile, player, weapon_statline_type):
+        gang = found_gang("The Shorthanded", gang_type, owner=player, budget=1000)
+        return hire(gang, make_profile("Ganger"), "Yolanda", paid=55)
+
+    def test_a_gap_in_the_middle_reads_as_a_dash_in_its_own_column(
+        self, armed, weapon_statline_type
+    ):
+        sword = create_weapon("Phase sword", profiles=[("", 0)])
+        sword.statline_type = weapon_statline_type
+        sword.save()
+        # No Long Range: a melee weapon's authoring simply leaves it out.
+        set_statline(
+            sword.profiles.get(),
+            short_range="E",
+            strength="S+1",
+            armour_piercing=-4,
+            lethality=2,
+        )
+        give_weapon(armed, sword, paid=25)
+
+        weapon = build_model_card(armed).weapons[0]
+        assert [(c.short_name, c.value) for c in weapon.own_stats] == [
+            ("SR", "E"),
+            ("LR", "-"),
+            ("Str", "S+1"),
+            ("AP", "-4"),
+            ("L", "2"),
+        ]
+
+    def test_a_line_with_nothing_stored_still_draws_its_columns(
+        self, armed, weapon_statline_type
+    ):
+        projectors = create_weapon("Medusian projectors", profiles=[("", 0)])
+        projectors.statline_type = weapon_statline_type
+        projectors.save()
+        set_statline(projectors.profiles.get(), short_range=4, long_range=12)
+        give_weapon(armed, projectors, paid=30)
+
+        weapon = build_model_card(armed).weapons[0]
+        assert [c.value for c in weapon.own_stats] == ['4"', '12"', "-", "-", "-"]
+
+    def test_the_columns_come_from_a_line_that_has_some(
+        self, armed, weapon_statline_type
+    ):
+        """A combi-weapon's own line carries the name and no numbers.
+
+        Sorted first on a card, it used to decide the header for every
+        weapon below it — so the table lost its headings entirely while
+        each row went on printing five stats.
+        """
+        spear = create_weapon(
+            "Combi-spear", profiles=[("", 0), ("melee", 0), ("ranged", 0)]
+        )
+        spear.statline_type = weapon_statline_type
+        spear.save()
+        for profile in spear.profiles.exclude(name=""):
+            set_statline(profile, short_range=4, long_range=8, strength=4)
+        give_weapon(armed, spear, paid=40)
+
+        card = build_model_card(armed)
+        assert card.weapons[0].name == "Combi-spear"
+        assert not card.weapons[0].own_stats
+        assert [c.short_name for c in card.weapon_columns] == [
+            "SR",
+            "LR",
+            "Str",
+            "AP",
+            "L",
+        ]
+
+    def test_a_card_with_no_weapon_stats_anywhere_asks_for_no_columns(self, armed):
+        bare = create_weapon("Sharpened stick", profiles=[("", 0)])
+        give_weapon(armed, bare, paid=5)
+
+        assert build_model_card(armed).weapon_columns == []
+
+
 class TestTheFourPrintedShapes:
     """One rule decides how a weapon's lines are drawn: an unnamed
     profile *is* the weapon, so its stats ride the weapon's own row,
@@ -336,10 +430,14 @@ class TestTheFourPrintedShapes:
         lines = self.lines_for(fighter)
         heading = next(line for line in lines if line.startswith("Combat shotgun"))
         assert "SR" not in heading
+        # Only Short Range is set on these, and the rest of the shape still
+        # prints: a line is drawn to the columns its statline type calls
+        # for, so a stat nobody filled in reads as a dash rather than
+        # sliding the next number under the wrong heading.
         assert [line for line in lines if line.startswith("- ")] == [
-            '- Salvo ammo   SR 8"',
-            '- Shredder ammo   SR 8"',
-            '- Inferno ammo (+30cr)   SR 8"',
+            '- Salvo ammo   SR 8"  LR -  Str -  AP -  L -',
+            '- Shredder ammo   SR 8"  LR -  Str -  AP -  L -',
+            '- Inferno ammo (+30cr)   SR 8"  LR -  Str -  AP -  L -',
         ]
 
     def test_a_weapon_may_have_only_one_unnamed_line(self, weapon_statline_type):

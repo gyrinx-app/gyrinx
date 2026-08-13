@@ -397,6 +397,11 @@ def hydrate_rows(rows, with_statlines=False):
             "profile__statline__stats__statline_type_stat__stat",
             "weapon_profile__statline__stats__statline_type_stat__stat",
             "weapon_profile__traits",
+            # The shape a statline is drawn to, which is the type's and not
+            # the stored values'. Without these, padding a statline short of
+            # a stat asks its type for the full set — a query per profile.
+            "profile__profile_type__statline_type__stats__stat",
+            "weapon_profile__weapon__statline_type__stats__stat",
         ]
     prefetch_related_objects(rows, *paths)
     return rows
@@ -733,6 +738,7 @@ def build_modifier_index(assignables, max_depth=3):
         # they are printed with therefore have to be here.
         "adds_assignable__weapon__profiles__traits",
         "adds_assignable__weapon__profiles__statline__stats__statline_type_stat__stat",
+        "adds_assignable__weapon__statline_type__stats__stat",
     )
 
     index = ModifierIndex()

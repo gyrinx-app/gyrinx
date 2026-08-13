@@ -466,7 +466,7 @@ region between here and the call site.
     </dl>
 
     {% comment %}
-    One weapon table, its stat columns taken from the first profile's statline. That
+    One weapon table, its stat columns taken from ModelCard.weapon_columns. That
     holds because a weapon's shape is fixed by its StatlineType, and a card's
     weapons share one — melee and ranged both print range and accuracy, blank where
     they do not apply. A card mixing shapes would need a table each, and would look
@@ -478,11 +478,14 @@ region between here and the call site.
                 <thead class="border-b border-box-border">
                     <tr>
                         {% comment %}
-                        Columns come from the first profile on the card, not from a
-                        hardcoded list, so a pack that changes a weapon's statline
-                        type changes this header with it.
+                        Columns come from the card, not from a hardcoded list, so a
+                        pack that changes a weapon's statline type changes this
+                        header with it. The card picks the first profile that has
+                        any characteristics: a combi-weapon's own line has none,
+                        and sorting first would otherwise leave this header empty
+                        over rows full of numbers.
                         {% endcomment %}
-                        <c-n26.statline.header :cells="card.weapons.0.profiles.0.statline.cells">
+                        <c-n26.statline.header :cells="card.weapon_columns">
                             <c-slot name="leading">
                                 {% comment %}
                                 In edit mode the label steps up to the Gear

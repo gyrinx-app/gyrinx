@@ -202,6 +202,47 @@ class TestThePrintPage:
         assert "Vex" in body
         assert "Rating" not in body  # the header's figure strip
 
+    def test_the_weapon_table_keeps_its_headings(
+        self, client, tester, gang, roster, make_stat
+    ):
+        """A weapon with no stats of its own must not cost the table its
+        headings.
+
+        The columns are the statline type's, and one weapon having nothing
+        to put in them says nothing about the others: a combi-weapon
+        sorting to the top of a card once left the whole table headless
+        while every row beneath it printed five numbers.
+        """
+        from n26.library.authoring import create_weapon
+        from n26.library.models import StatlineType, StatlineTypeStat
+
+        vex, _ = roster
+        shape = StatlineType.objects.create(name="Weapon")
+        for position, (short, full) in enumerate(
+            [("SR", "Short Range"), ("Str", "Strength")]
+        ):
+            StatlineTypeStat.objects.create(
+                statline_type=shape,
+                stat=make_stat(short, full),
+                position=position,
+            )
+        # Sorts before Lasgun, and its own line carries no characteristics.
+        combi = create_weapon(
+            "Combi-weapon", price=30, profiles=[("", 0), ("meltagun", 0)]
+        )
+        combi.statline_type = shape
+        combi.save()
+        from n26.library.authoring import set_statline
+
+        set_statline(combi.profiles.get(name="meltagun"), short_range=6, strength=8)
+        with operation(gang, actor=tester) as op:
+            op.give_weapon(vex, combi, paid=30)
+
+        client.force_login(tester)
+        body = client.get(print_url(gang)).content.decode()
+        assert 'title="Short Range"' in body
+        assert 'title="Strength"' in body
+
     def test_a_bigger_roster_costs_no_more_queries_to_print(
         self, client, tester, gang, roster, make_profile
     ):
