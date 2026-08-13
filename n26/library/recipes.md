@@ -1,0 +1,76 @@
+# Recipes
+
+How to build specific rulebook setups out of the library's pieces. Each
+recipe is a set of steps to follow in the authoring pages — the things to
+create, and how to join them. A recipe is written here the day we settle
+how its setup is authored, so this page grows with the library.
+
+Where a step is not yet possible, it says so plainly.
+
+## Corrupted gangs
+
+Genestealer Cult, Chaos and Malstrain corruption are one build with
+different contents: a corruption is a choice the gang makes once, and
+everything it does rides the chosen item as ordinary modifiers.
+
+### The choice
+
+1. Create an **affiliation** for each corruption — "Genestealer Cult
+   Corrupted", "Chaos Corrupted", "Malstrain Corrupted".
+2. Create a **collection** named "Corruptions" and switch off *Prices its
+   entries* — it is a menu, not a shop. List the three affiliations in it.
+3. Create a **modifier**: targets the gang, *offers a choice* of
+   affiliation from that menu, labelled "Corruption". Attach it to every
+   gang type that can be corrupted.
+
+Every gang of those types now shows an open "Corruption" question on its
+sheet. Most players never answer it. The ones who do pick one affiliation,
+and everything below hangs off that pick.
+
+### What a corruption grants
+
+Each of these is a modifier carried by the corruption's affiliation.
+
+**New fighters to hire.** Create the profiles — Aberrant, Abominant,
+Helot Cult Witch, Chaos Spawn, Brood Scum. Create a collection listing
+them at their prices. On the affiliation: targets the gang, *gives* the
+collection.
+*Not yet: the hire page does not offer profiles from a granted
+collection. The gang sheet shows the list; hiring from it is coming.*
+
+**The Wyrd upgrade.** Create a "Wyrd" **subtype** carrying two modifiers:
+*offers a choice* of power from the right Wyrd Powers list, and *puts the
+Wyrd Powers category into* the Primary section. List the subtype in the
+corruption's collection at 35 credits. A player buys it for their Leader
+whenever suits — at hire or later; the book's timing is theirs to honour.
+
+**Familiars.** Create the familiar as **wargear**, usable by Leaders and
+Champions, and put it in a collection. On the affiliation: targets models
+that are Leaders or Champions, *gives* that collection.
+
+**Extra Arm on Prospects.** Create a **wargear** named "Extra Arm" at 20
+credits, usable by Prospects, carrying *gives* the Extra Arm rule. List
+it in the corruption's collection.
+
+**A god to dedicate to (Chaos).** Create an affiliation per god, and a
+menu collection listing the four. On the Chaos affiliation: targets the
+gang, *offers a choice* from that menu, labelled "Dedicated to". Anything
+one god means rides that god's affiliation the same way.
+
+**Post-cycle actions (Chaos).** Create each action as a **rule**. On the
+affiliation: targets the gang, *gives* the rule. They print on the gang's
+card.
+
+### Not yet possible
+
+**Losing the gang's own special rules.** A corruption takes away
+everything the gang type grants except Starting Skills and Skill Access
+(which live on the fighter entries and are never touched). *Takes
+something away* currently removes only the named item itself, not what
+that item granted in turn — so removing a gang type's rules in one
+stroke does not work yet.
+
+**Counts and bans.** "0–2 Aberrants", "one familiar each", "no Brutes,
+Hangers-on or Pets from your own list" — notes on the sheet saying what
+the roster should hold. The composition note today only says "at least";
+"at most" is coming.

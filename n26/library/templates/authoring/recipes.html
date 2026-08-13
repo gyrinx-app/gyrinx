@@ -1,0 +1,17 @@
+{% extends "authoring/base.html" %}
+{% block head_title %}
+    Recipes
+{% endblock head_title %}
+{% block nav_heading %}Authoring{% endblock nav_heading %}
+{% block content %}
+    <c-n26.page-header title="Recipes"
+                       lead="How to build specific rulebook setups out of the library's pieces." />
+    {% comment %}
+    The whole page is one rendered document (n26/library/recipes.md) —
+    the view marks it safe, the prose component gives it the same
+    typography as every other run of authored copy.
+    {% endcomment %}
+    <c-n26.prose class="mt-6">
+        {{ recipes }}
+    </c-n26.prose>
+{% endblock content %}

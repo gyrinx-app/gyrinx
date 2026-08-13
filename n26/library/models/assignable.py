@@ -142,7 +142,7 @@ class Assignable(models.Model):
     is_exclusive = models.BooleanField(
         default=False,
         help_text=(
-            'TP "E": never sold at the Trading Post — equipment list only. '
+            'TP "E": never offered at the Trading Post — equipment list only. '
             "Wins over any trade point price."
         ),
     )

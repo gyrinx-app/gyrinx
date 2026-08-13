@@ -102,7 +102,26 @@ exception). Note: `ATTACHMENT_ASKS` replaces rather than merges — a
 kind that declares its own must restate the inherited asks it still
 wants.
 
-## Ingest
+## Recipes — the living cookbook
+
+`recipes.md` (beside this file) is rendered, staff-only, at
+`/n26/authoring/recipes/`. It holds **author-facing walkthroughs** for
+building whole rulebook setups (a corrupted gang, a hired mercenary
+crew) out of the library's pieces.
+
+**When a rulebook setup's authoring flow gets settled — designed here,
+argued out with the maintainer, or proven in a sandbox test — write the
+steps into that file.** The rules for what goes in it:
+
+- Author-facing language only: the things to create and how to join
+  them. No technical internals, no code, no model or field names —
+  the words are the authoring pages' own (affiliation, collection,
+  modifier, *gives*, *offers a choice*).
+- Clear and simple. Match the register of the modifier option cards in
+  `specs.py` — short, concrete, one game example beats a paragraph.
+- A step that is not yet possible says so plainly, in one sentence.
+- The maintainer reviews and edits this file directly — keep it prose
+  they would happily rewrite, never generated output.
 
 Three stages: read (CSV → dicts), plan (→ an `IngestPlan` of frozen
 rows plus problems; reads the database, never writes), perform (executes

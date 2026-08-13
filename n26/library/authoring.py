@@ -946,7 +946,7 @@ def add_entry(
     """One more item a collection lists — the curated row.
 
     The overrides are what an entry may state; left blank, the item
-    sells at its own reference price. New entries go to the end.
+    is priced at its own reference. New entries go to the end.
     """
     from n26.library.models import CollectionEntry
 

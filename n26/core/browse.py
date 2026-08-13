@@ -174,7 +174,7 @@ def browse(collection, terms=EQUIPMENT_LIST):
 
     Entries win over selectors for the same item — that is where per-item
     customisation lives (the Nomad post pricing Imperial equipment above
-    the usual). Swept-in items sell at reference. The ``terms``
+    the usual). Swept-in items are priced at reference. The ``terms``
     are the caller's — how this browse charges is the shopping flow's
     business, not the collection's — and they ride every line so the till
     never needs to know where a line came from.
@@ -370,7 +370,7 @@ def _entry_parts(entries, terms, shows_trade_points):
     Priced through the entry like every other line the list carries, so
     an author who reprices a round reprices the one the reader presses.
     Whether the profile costs anything of its own is beside the point —
-    a list naming a free profile at 15 credits is the list selling it at
+    a list naming a free profile at 15 credits is the list pricing it at
     15 credits.
     """
     parts = []

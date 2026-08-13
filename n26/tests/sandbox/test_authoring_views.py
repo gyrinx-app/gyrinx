@@ -5096,3 +5096,23 @@ class TestThePickersStillPostWhatTheySay:
         assert picker, "the traits picker is not a <select>"
         assert "multiple" in picker.group(0)
         assert f'value="{rending.pk}"' in picker.group(0)
+
+
+class TestTheRecipes:
+    """The cookbook page: recipes.md rendered for authors, staff-only."""
+
+    def test_an_author_reads_the_rendered_cookbook(self, author, client, default_pack):
+        body = client.get("/n26/authoring/recipes/").content.decode()
+        assert "Corrupted gangs" in body
+        # Rendered, not served raw: the markdown heading became a tag.
+        assert "<h2>" in body
+        assert "## Corrupted gangs" not in body
+
+    def test_the_index_points_at_it(self, author, client, default_pack):
+        assert (
+            "/n26/authoring/recipes/" in client.get("/n26/authoring/").content.decode()
+        )
+
+    def test_a_plain_user_is_turned_away(self, client, default_pack):
+        client.force_login(User.objects.create_user("cook"))
+        assert client.get("/n26/authoring/recipes/").status_code == 404

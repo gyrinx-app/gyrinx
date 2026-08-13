@@ -502,7 +502,7 @@ def _check_specialisations():
 
 
 def trading_post_sweeps():
-    """Every kind the post sells: whatever a fighter can buy with Trade
+    """Every kind the post offers: whatever a fighter can buy with Trade
     Points. An accessory is bought there as readily as the gun it bolts
     onto, so a kind missing from here is one nobody can buy."""
     from n26.library.models import Wargear, Weapon, WeaponAccessory
@@ -511,7 +511,7 @@ def trading_post_sweeps():
 
 
 def _create_trading_post():
-    """The post, and one sweep per kind it sells.
+    """The post, and one sweep per kind it offers.
 
     Tops up rather than skipping: a post built before a kind existed is
     the ordinary state of a library that has been running a while, and

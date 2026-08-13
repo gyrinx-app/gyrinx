@@ -51,7 +51,7 @@ Three standing rules are load-bearing here:
 
 **The sheets, and how they join.** Four of them, each with one job:
 
-* **Equipment** — the catalogue. One row per thing the game sells,
+* **Equipment** — the catalogue. One row per thing a gang can buy,
   typed by an ``Assignable`` column (a weapon, wargear, or one of a
   weapon's priced firing lines), carrying its category and its price.
   The only place a reference price lives.
@@ -595,7 +595,7 @@ def _prices(row):
     exclusive = trade == "E"
     return {
         "price": int(cost) if cost.isdigit() else 0,
-        # No printed price of its own: whatever list sells it says so.
+        # No printed price of its own: whatever list offers it says so.
         "unpriced": not cost.isdigit(),
         "trade_point_price": None if exclusive or not trade.isdigit() else int(trade),
         "is_exclusive": exclusive,
@@ -605,7 +605,7 @@ def _prices(row):
 def _plan_equipment(plan, rows, statlined=frozenset()):
     """The equipment sheet: the catalogue, and the only place a price lives.
 
-    One row per thing the game sells, typed by its ``Assignable``
+    One row per thing a gang can buy, typed by its ``Assignable``
     column — a weapon, a piece of wargear, or one of a weapon's priced
     firing lines. Statlines arrive on the weapon profiles sheet; this
     pass fixes identity, home and price.

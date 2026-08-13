@@ -93,7 +93,7 @@ def price_of(assignable, entry=None):
     Exclusivity is always the item's own fact — a list cannot override it.
 
     **A blank override is an answer, not a gap.** It says "this list
-    sells it at the usual price", which is the ordinary thing for an
+    offers it at the usual price", which is the ordinary thing for an
     author to mean and by far the commonest thing they write. Read as
     missing data it looks like most of the library is unpriced; read as
     what it is, an override is the exception a list goes to the trouble
@@ -128,7 +128,7 @@ def paid_profiles(with_trade_point_price=False):
 
     Named, because a blank profile is the weapon's own firing line rather
     than an alternative to it. Paid, because a free profile already rides
-    along with the weapon wherever it goes: selling one would put the
+    along with the weapon wherever it goes: listing one would put the
     same ammo on the gun twice.
 
     ``with_trade_point_price`` narrows to what a trading trip deals in —
@@ -251,7 +251,7 @@ class Collection(Content, Assignable):
         default=True,
         verbose_name="Prices its entries",
         help_text=(
-            "On for anything sold from — prices and Trade Points may be "
+            "On for anything bought from — prices and Trade Points may be "
             "stated per entry. Off for a menu, like a pick list behind "
             "a choice: nothing is for sale, so listing an item asks "
             "for nothing but the item."
@@ -355,7 +355,7 @@ class CollectionSelector(Content):
     """One sweep of a collection's contents: a kind, optionally narrowed.
 
     "Every weapon", "every wargear", "every weapon homed in Auto/Stub
-    Weapons". Swept-in items sell at reference price — a curated
+    Weapons". Swept-in items are priced at reference — a curated
     entry for the same item wins, which is where per-item customisation
     lives. ``of_kind`` is the ``OffersChoice`` pattern: a plain foreign
     key to the ContentType row, a typed reference to a model class.

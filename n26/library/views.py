@@ -741,6 +741,26 @@ def index(request):
 
 
 @staff_member_required
+def recipes(request):
+    """The cookbook: walkthroughs for building whole rulebook setups out
+    of the library's pieces.
+
+    The steps live in ``recipes.md`` beside this module and this page is
+    that file, rendered — so a recipe is edited as prose, reviewed as
+    prose, and never drifts from what the page shows. Written for
+    authors: the things to create and how to join them, no internals.
+    A recipe is added the day a setup's authoring flow is settled.
+    """
+    from pathlib import Path
+
+    from markdown_it import MarkdownIt
+
+    source = (Path(__file__).parent / "recipes.md").read_text(encoding="utf-8")
+    rendered = MarkdownIt("commonmark").enable("table").render(source)
+    return render(request, "authoring/recipes.html", {"recipes": mark_safe(rendered)})
+
+
+@staff_member_required
 def leaf(request, kind):
     """One leaf kind: what it is, and every one of them.
 
@@ -2308,7 +2328,7 @@ INGEST_SHEETS = [
     (
         "equipment",
         "Equipment",
-        "The catalogue: one row per thing the game sells, with its price.",
+        "The catalogue: one row per thing a gang can buy, with its price.",
     ),
     ("weapon_profiles", "Weapon profiles", "The statlines, and nothing else."),
     (

@@ -81,6 +81,12 @@ urlpatterns = [
     path("gangs/<str:pk>/print/", views.print_gang, name="n26-print"),
     path("design/", include("n26.designsystem.urls")),
     path("authoring/", authoring_views.index, name="authoring-index"),
+    # Before the kind routes: "recipes" would read as a kind slug.
+    path(
+        "authoring/recipes/",
+        authoring_views.recipes,
+        name="authoring-recipes",
+    ),
     path(
         "authoring/modifiers/",
         authoring_views.modifiers,
