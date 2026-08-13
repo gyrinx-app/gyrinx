@@ -150,6 +150,13 @@ class Card:
     #: asking what a model's card *shows* reads both.
     granted: list[Node] = field(default_factory=list)
 
+    #: The gang's own card, when this card belongs to one of its models.
+    #: The gang's rows already ride here as broadcast nodes; what the gang
+    #: holds by *grant* has no row to ride, so its card comes along and
+    #: ``n26.core.effects`` reads those acquisitions off it. Built from rows
+    #: this build already fetched, so it costs no query of its own.
+    gang_card: object = None
+
     #: What kind of thing this card belongs to. Scopes read it — an
     #: unfiltered ``TargetsMiniature`` must not swallow a gang, nor
     #: ``TargetsGang`` a model — so each card type says what it hosts.
@@ -260,6 +267,11 @@ class GangCard:
     member_rows: dict = field(default_factory=dict, repr=False)
     #: The gang-hosted rows that ride every member's card as broadcast.
     shared_rows: list = field(default_factory=list, repr=False)
+    #: What the gang holds by grant rather than by row, worked out on the
+    #: first compute of this card and kept: every member's card asks the
+    #: same question of the same rows, so the answer is the same for all
+    #: of them. None until something asks.
+    acquired: tuple | None = field(default=None, repr=False)
 
     host_kind = GANG
 
@@ -278,7 +290,11 @@ class GangCard:
             return self.members
         return {
             miniature_id: assemble(
-                None, rows, assignment_set=assignment_set, broadcast=self.shared_rows
+                None,
+                rows,
+                assignment_set=assignment_set,
+                broadcast=self.shared_rows,
+                gang_card=self,
             )
             for miniature_id, rows in self.member_rows.items()
         }
@@ -413,7 +429,7 @@ def gang_rows(gang):
     )
 
 
-def assemble(miniature, rows, assignment_set=None, broadcast=()):
+def assemble(miniature, rows, assignment_set=None, broadcast=(), gang_card=None):
     """Reassemble a flat list of assignments into a tree. No queries beyond
     the set's selection, when one is given.
 
@@ -458,7 +474,7 @@ def assemble(miniature, rows, assignment_set=None, broadcast=()):
             roots.append(node)
         else:
             parent.children.append(node)
-    card = Card(miniature=miniature, roots=roots)
+    card = Card(miniature=miniature, roots=roots, gang_card=gang_card)
     # Only what the model owns. The gang's own rows ride the card so their
     # modifiers reach it; they are not part of what it is worth.
     card.full_rating = sum(
@@ -477,12 +493,28 @@ def build_card(miniature, with_statlines=False, assignment_set=None):
     hydrated together in one pass. A whole gang's worth still costs a
     fixed number — see ``build_cards_for_gang``, where both come back
     in the same fetch.
+
+    The gang's rows are also assembled into the gang's own card and
+    carried on this one, so that what the gang holds by grant reaches
+    this model too. No further fetch: the rows are the ones already in
+    hand.
     """
     membership = miniature.membership if miniature is not None else None
+    gang = membership.gang if membership else None
     own = _flat_rows(miniature_root=miniature)
-    shared = gang_rows(membership.gang if membership else None)
+    shared = gang_rows(gang)
     hydrate_rows([*own, *shared], with_statlines=with_statlines)
-    return assemble(miniature, own, assignment_set=assignment_set, broadcast=shared)
+    return assemble(
+        miniature,
+        own,
+        assignment_set=assignment_set,
+        broadcast=shared,
+        gang_card=(
+            None
+            if gang is None
+            else GangCard(gang=gang, roots=_forest(shared), shared_rows=shared)
+        ),
+    )
 
 
 def build_cards_for_gang(gang, with_statlines=True):
@@ -534,19 +566,26 @@ def build_gang_card(gang, with_statlines=True, assignment_set=None):
             shared.append(row)
         else:
             grouped.setdefault(row.miniature_root_id, []).append(row)
-    return GangCard(
+    card = GangCard(
         gang=gang,
         roots=_forest(shared),
         stash_roots=_forest(stash_rows),
-        members={
-            miniature_id: assemble(
-                None, rows, assignment_set=assignment_set, broadcast=shared
-            )
-            for miniature_id, rows in grouped.items()
-        },
         member_rows=grouped,
         shared_rows=shared,
     )
+    # Every member's card carries the gang's, so what the gang holds by
+    # grant is dealt onto all of them from one computation of it.
+    card.members = {
+        miniature_id: assemble(
+            None,
+            rows,
+            assignment_set=assignment_set,
+            broadcast=shared,
+            gang_card=card,
+        )
+        for miniature_id, rows in grouped.items()
+    }
+    return card
 
 
 def build_card_from_profile(profile, option=None, base=None):

@@ -85,15 +85,18 @@ buys what they like, and the sheet says where they have gone past the book.
 gang types themselves, once, and then it is one step per corruption. On
 each gang type, create a **hidden** item named for it — "Escher gang
 rules" — and put it in the gang type's built-in items. Move the house's
-special rules onto it: one *gives* modifier per rule, aimed at the gang
-where the rule prints on its sheet and at the model where every fighter
-has it. The rules are then granted rather than built in, so there is a
-single thing standing behind the lot. On each corruption's affiliation,
-add *takes something away* naming that hidden item — aimed at the gang
-and at its models, the same two aims the *gives* modifiers use. Everything
-the hidden item was handing out goes with it, and drop the corruption and
-it all comes back. Starting Skills and Skill Access live on the fighter
-entries, so they are untouched either way.
+special rules onto it: one *gives* modifier per rule, aimed at the gang.
+That is the whole of it — what the gang holds reaches its fighters, so a
+rule that improves their weapons or shifts a characteristic does so from
+there, and only a rule you want printed on each fighter's card as well
+needs a second *gives* aimed at the model. The rules are then granted
+rather than built in, so there is a single thing standing behind the lot.
+On each corruption's affiliation, add *takes something away* naming that
+hidden item: aimed at the gang, which is where the item sits, and aimed at
+the model too if the fighters' own cards were given rules of their own.
+Everything the hidden item was handing out goes with it, and drop the
+corruption and it all comes back. Starting Skills and Skill Access live on
+the fighter entries, so they are untouched either way.
 
 ## An item one list restricts
 

@@ -11,6 +11,16 @@ per-card evaluation affordable: a card without the mount simply is not
 handed the mount's assignment, so nothing of the mount's is computed for
 it, and no amount of kit on a model changes the query count.
 
+A member's card is computed against the gang's holdings as well as its
+own. The gang's rows ride it as broadcast lines; what the gang holds **by
+grant** — a rule an alliance gave it, the hidden carrier a house's rules
+hang off — is dealt on beside them as the gang's *guests*. There is no
+difference between the two once effects are being applied, so a guest's
+modifiers reach the model exactly as a row's would; what a guest never
+does is draw a line, add a rating, or make its stored effects the
+fighter's news. The gang's card settles first, so a bundle something took
+away from the gang is a guest on nobody's card.
+
 Order of evaluation, fixed:
 
 1. **Additions run to a fixed point.** A granted thing can itself carry
@@ -205,6 +215,11 @@ class PlannedStep:
     refused: tuple = ()
     #: True when the carrier arrived via a grant rather than the card.
     discovered: bool = False
+    #: True when the carrier is the gang's, dealt onto this card the way
+    #: the gang's rows are: the behaviour reaches this model, but the
+    #: thing itself is held by the gang, so nothing here draws it and its
+    #: stored effects are the gang's news, said once on the gang's card.
+    echoed: bool = False
     #: The card node carrying this modifier — None for discovered
     #: carriers. What "the weapon I am attached to" anchors on.
     node: object = None
@@ -366,6 +381,16 @@ class ComputedCard:
     #: it, so a key stays unique even where a grant was taken back and
     #: another dealt after it.
     granted_serial: int = 0
+    #: What a modifier put on this card and nothing took back — what the
+    #: card holds by grant rather than by row, whether or not the grant
+    #: drew anything. A gang's are dealt onto every member's card, where
+    #: they arrive as ``echoed``.
+    acquired: list[Contribution] = field(default_factory=list)
+    #: What the *gang* holds by grant, riding this card the way the gang's
+    #: own rows do: its behaviour reaches this model, it draws no line
+    #: here, and it is worth nothing. Empty on a gang's own card, where
+    #: the same things are ``acquired``.
+    echoed: list[Contribution] = field(default_factory=list)
 
     def weapon(self, node):
         return self.weapons[node.key]
@@ -490,7 +515,7 @@ def compute(card, index):
         AllowsAtMost: 6,
     }
 
-    def steps_for(source, discovered, found_in_round, node=None):
+    def steps_for(source, discovered, found_in_round, node=None, echoed=False):
         for modifier, spec in index.for_thing(source):
             if modifier.scope is None or modifier.effect is None:
                 continue
@@ -501,6 +526,7 @@ def compute(card, index):
                 ran_in=max(spec, found_in_round),
                 discovered=discovered,
                 node=node,
+                echoed=echoed,
             )
 
     # One run of a carrier's modifiers per NODE, not per distinct thing:
@@ -511,6 +537,23 @@ def compute(card, index):
     for node in card.all_nodes():
         seen.add(ModifierIndex.key(node.assignable))
         pending.extend(steps_for(node.assignable, False, 0, node=node))
+
+    # What the gang holds by grant is dealt on here too. The gang's own
+    # rows already ride the card; a thing the gang was *given* has no row
+    # to ride, and there is no difference between the two from the point
+    # of view of applying effects — so it arrives as the gang's guest,
+    # drawing nothing and worth nothing, and does everything it does.
+    # Something the card already carries is passed over: the row it
+    # stands on is the more direct telling, and one thing's modifiers run
+    # once however many ways it reaches the card.
+    echoed = [
+        contribution
+        for contribution in _from_the_gang(card, index)
+        if ModifierIndex.key(contribution.thing) not in seen
+    ]
+    for contribution in echoed:
+        seen.add(ModifierIndex.key(contribution.thing))
+        pending.extend(steps_for(contribution.thing, True, 0, echoed=True))
 
     round_no = 0
     while pending and round_no <= MAX_CHAIN_DEPTH:
@@ -538,10 +581,12 @@ def compute(card, index):
                     # run — and noted **where the scope points**: a pet
                     # collar's targets_model notes on its bearer's card, a
                     # Justicar alliance's targets_gang notes once on the
-                    # gang. A gang-held carrier's echo on a member card is
-                    # never its news (the broadcast guard).
-                    echoed = step.node is not None and step.node.broadcast
-                    if echoed or not scope.targets(card, facts, carrier=step.node):
+                    # gang. What the gang holds is never a member card's
+                    # news, whether it rides as a row or as a guest.
+                    gang_held = step.echoed or (
+                        step.node is not None and step.node.broadcast
+                    )
+                    if gang_held or not scope.targets(card, facts, carrier=step.node):
                         step.outcome = "skipped"
                         computed.plan.append(step)
                         continue
@@ -686,9 +731,54 @@ def compute(card, index):
             )
         round_no += 1
 
-    _retract(computed, log)
+    computed.echoed = echoed
+    dead = _retract(computed, log)
+    computed.acquired = _acquisitions(log, dead)
+    # A guest this card's own removals cancelled is not held here either.
+    computed.echoed = [
+        contribution
+        for contribution in echoed
+        if ModifierIndex.key(contribution.thing) not in dead
+    ]
     _fill_choice_slots(computed, offers.items, by_cause)
     return computed
+
+
+def _from_the_gang(card, index):
+    """What the card's gang holds by grant — this card's guests.
+
+    Worked out from the gang's own card, and only once: every member asks
+    the same question of the same rows, so the answer is kept there
+    (``GangCard.acquired``). It is the **settled** answer, after the
+    gang's own removals have run, so a bundle a corruption cancelled
+    reaches nobody.
+
+    Query-free, like everything here: the gang's rows came back with this
+    card's own, and its card was assembled from them. A gang's own card
+    has no gang above it and so no guests.
+    """
+    gang_card = getattr(card, "gang_card", None)
+    if gang_card is None:
+        return ()
+    if gang_card.acquired is None:
+        gang_card.acquired = tuple(compute(gang_card, index).acquired)
+    return gang_card.acquired
+
+
+def _acquisitions(log, dead):
+    """Every distinct thing a grant put on this card and nothing took back.
+
+    Read off the granting edges rather than the computed rows, because a
+    grant need not draw one: a hidden carrier shows nothing and does
+    everything, which is how a whole bundle of gang rules hangs off a
+    single thing. Keyed by the thing, so what two carriers give is held
+    once and named by the first giver still standing.
+    """
+    held = {}
+    for placed in log.placed:
+        if _stands(placed, dead):
+            held.setdefault(placed.thing_key, placed.contribution)
+    return list(held.values())
 
 
 def _placed_category(effect, node, by_cause):
@@ -745,6 +835,10 @@ class ComputedGang:
     #: reading placements (``n26.core.browse.offered_by`` shaping a gang-level
     #: pick list) treats both computed kinds alike.
     placements: list = field(default_factory=list)
+    #: Always empty, and present for the same reason: a gang deals its
+    #: acquisitions onto its members, and nothing is dealt onto the gang.
+    #: Whatever reads one computed kind's guests may read the other's.
+    echoed: list = field(default_factory=list)
     #: Stored-effect notes whose scope is the gang — a Justicar
     #: alliance's "adds a Magistrate", said once, here.
     effects: list = field(default_factory=list)
@@ -778,6 +872,10 @@ def counter_readings(card):
 def compute_gang(gang_card, index):
     """Work out the gang's own card. Query-free, like ``compute``."""
     computed = compute(gang_card, index)
+    # Kept on the card for the members: what the gang holds by grant is
+    # dealt onto every one of their cards, and it is one answer for all of
+    # them however many ask.
+    gang_card.acquired = tuple(computed.acquired)
     return ComputedGang(
         card=gang_card,
         plan=computed.plan,
@@ -1139,9 +1237,12 @@ def _retract(computed, log):
     Nothing here queries, and nothing here is written down: the card
     keeps every row it had, and a card computed again from the same rows
     comes out the same.
+
+    Answers with the things that turned out not to be on the card at all,
+    which is what a reader of what the card acquired must leave out.
     """
     if not log.removals:
-        return
+        return set()
 
     card = computed.card
     #: Stored rows by the thing they name. Granted lines are the grants'
@@ -1154,6 +1255,11 @@ def _retract(computed, log):
     edges = {}
     for placed in log.placed:
         edges.setdefault(placed.thing_key, []).append(placed)
+
+    #: The gang's guests. Nothing gives them *here* and no row of theirs
+    #: stands here, so a removal that names one takes it away all the same
+    #: — everything it was doing on this card stops.
+    guests = {ModifierIndex.key(c.thing) for c in computed.echoed}
 
     #: Things no longer on the card at all.
     dead = set()
@@ -1196,13 +1302,13 @@ def _retract(computed, log):
                 step.outcome = "refused"
             continue
         thing_key = ModifierIndex.key(record.thing)
-        if record.dropped or record.hidden or thing_key in edges:
+        if record.dropped or record.hidden or thing_key in edges or thing_key in guests:
             step.took_away = (*step.took_away, str(record.thing))
         dead.add(thing_key)
         cascade()
 
     if not dead:
-        return
+        return dead
 
     # What a departed thing was doing stops with it.
     for applied in log.applied:
@@ -1240,6 +1346,8 @@ def _retract(computed, log):
     for step in computed.plan:
         if step.outcome == "reached" and ModifierIndex.key(step.source) in dead:
             step.outcome = "retracted"
+
+    return dead
 
 
 def _stands(placed, dead):

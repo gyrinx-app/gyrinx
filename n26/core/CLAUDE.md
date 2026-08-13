@@ -59,6 +59,13 @@ underlying spec.
   draw no line, and gang rows carry no rating of their own. Any new code
   walking a card's nodes needs `if node.broadcast: continue` or it will
   double-count the gang's kit onto every fighter.
+- **What the gang holds by *grant* rides too.** A thing a modifier gave
+  the gang has no row to broadcast, so the gang's card is computed first
+  and its acquisitions are dealt onto each member as that card's guests
+  (`ComputedCard.echoed`): their modifiers run, and they draw no line,
+  add no rating, and say their stored effects only on the gang. Anything
+  asking "what does this fighter get from the gang" must read both the
+  broadcast rows and the guests, as `access.py` does.
 - **Inform, never police.** Restrictions become `Note`s attached to
   lines (`notes.py` — `about` is a real object, never a string). Nothing
   blocks; `buy` deliberately never consults access.

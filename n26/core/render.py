@@ -1322,8 +1322,11 @@ def render_gang(gang, with_effects=True):
             node.assignable for card in cards.values() for node in card.all_nodes()
         ] + [node.assignable for node in gang_card.all_nodes()]
         index = build_modifier_index(assignables)
-        computed = {model_id: compute(card, index) for model_id, card in cards.items()}
+        # The gang first: what it holds by grant is dealt onto every
+        # member's card, and it is settled — after the gang's own
+        # removals — before any member reads it.
         gang_computed = compute_gang(gang_card, index)
+        computed = {model_id: compute(card, index) for model_id, card in cards.items()}
         # A rule that re-files a model (ChangesCategory) is a computed
         # fact, so the order is settled here — after the fold, from data
         # already in hand — rather than by roster's own query.

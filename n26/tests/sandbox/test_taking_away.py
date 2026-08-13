@@ -69,8 +69,11 @@ def house(default_pack, fighter_type):
     rules = {name: create_rule(name) for name in HOUSE_RULES}
     charter = create_hidden("Escher gang rules")
     for name, rule in rules.items():
-        # The gang's own card lists them, and so does every fighter's —
-        # two aims, and a modifier reaches one card kind each.
+        # Aimed at the gang, the rule is the gang's: it prints on the
+        # gang's sheet, and whatever it does reaches every fighter from
+        # there. Aimed at the model as well, it is each fighter's own and
+        # prints on their card too — which is what this suite reads, so
+        # both aims are written.
         modifier(
             f"Escher: the gang has {name}",
             targets_gang(),
@@ -108,8 +111,11 @@ def gang(house, ganger):
 def corruption(house):
     """The affiliation that cancels the house's rules.
 
-    Two modifiers because there are two cards to reach: the gang's own,
-    and — through the rows the gang's holdings broadcast — each fighter's.
+    Two modifiers because the charter stands on two cards: the gang's, and
+    the copy of that row every fighter's card carries. Cancelled on the
+    gang, the gang stops holding what the charter gave — so nothing of it
+    reaches anyone. Cancelled on the model as well, the fighter's own copy
+    goes too, and with it the rules the charter handed them directly.
     """
     _, charter, _ = house
     corrupted = create_affiliation("Chaos Corrupted")

@@ -17,7 +17,9 @@ has authored has no skills screen at all.
 * collection assignments hosted on their gang — the shared house list,
   assigned once;
 * computed grants — a territory or alliance whose modifier adds a
-  collection, present exactly while the granter is.
+  collection, present exactly while the granter is. A list granted to the
+  *gang* is one of these too: it rides every member's card the way the
+  gang's own rows do.
 
 Access informs, never polices: this is what a buying UI *offers*, and
 ``Operation.buy`` deliberately never consults it.
@@ -101,6 +103,8 @@ def _collections_on(card, computed, gang, gang_hosted=False):
     gang's — true of a gang card, where a model's card marks the same rows
     ``broadcast``.
     """
+    from n26.library.models import Collection
+
     found = {}
 
     def add(collection, source, is_computed=False):
@@ -125,6 +129,14 @@ def _collections_on(card, computed, gang, gang_hosted=False):
 
     for contribution in computed.collections:
         add(contribution.thing, contribution.source, is_computed=True)
+
+    # A list the gang was granted is somewhere its fighters shop, exactly
+    # as the house list assigned to the gang is. It rides a member's card
+    # as the gang's guest, drawing no line, so it is read from the guests
+    # — of which the gang's own card has none, the grant being its own.
+    for contribution in computed.echoed:
+        if isinstance(contribution.thing, Collection):
+            add(contribution.thing, contribution.source, is_computed=True)
 
     return list(found.values())
 

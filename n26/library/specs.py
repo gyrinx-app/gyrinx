@@ -451,16 +451,19 @@ def _build_registry():
             {},
             label="The gang itself",
             blurb=(
-                "The gang's own sheet, not any one model. To reach every "
-                "model from a gang-carried item, use “The model carrying "
-                "it” — the gang's items ride every member's card."
+                "Where the effect lands: on the gang, not on any one "
+                "model. What the gang then holds still reaches the "
+                "fighters — a rule given to the gang does everything it "
+                "does to every one of them. Use “The model carrying it” "
+                "for an effect that is each fighter's own."
             ),
             example=(
                 "An alliance grants the gang another equipment list, or a "
-                "named rule on the gang's sheet. The broadcast is the other "
-                "way round: “all Escher fighters may…” is a gang-carried "
-                "item whose modifier targets the model carrying it, and it "
-                "reaches every fighter at once."
+                "named rule that prints on the gang's sheet — and if that "
+                "rule sharpens Melee weapons, every fighter's blades are "
+                "sharper. “All Escher fighters may…” is the same item "
+                "targeting the model carrying it, which prints the rule on "
+                "each fighter's card as theirs."
             ),
         ),
         # -- effects, worked out at read time --------------------------
