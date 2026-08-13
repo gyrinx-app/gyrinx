@@ -35,8 +35,12 @@ Each of these is a modifier carried by the corruption's affiliation.
 Helot Cult Witch, Chaos Spawn, Brood Scum. Create a collection listing
 them at their prices. On the affiliation: targets the gang, *gives* the
 collection.
-*Not yet: the hire page does not offer profiles from a granted
-collection. The gang sheet shows the list; hiring from it is coming.*
+
+Once a gang carries that collection, its hire page grows a section named
+after the collection, holding exactly those fighters at exactly the
+prices the collection states — a price written on an entry is what the
+row asks and what the gang is charged. A gang without the corruption
+sees no such section.
 
 **The Wyrd upgrade.** Create a "Wyrd" **subtype** carrying two modifiers:
 *offers a choice* of power from the right Wyrd Powers list, and *puts the

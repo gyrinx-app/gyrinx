@@ -1,4 +1,4 @@
-"""Which collections a fighter can browse.
+"""Which collections a fighter — or the gang itself — can browse.
 
 There is no access table. Having a list is an assignment (a collection is
 an assignable — see ``n26.library.models.collection``), so a fighter's
@@ -58,6 +58,49 @@ def collections_for(miniature, card=None, computed=None):
         index = build_modifier_index([node.assignable for node in card.all_nodes()])
         computed = compute(card, index)
 
+    # The gang's own lists ride the card now (as broadcast nodes), so one
+    # walk finds a fighter's lists and their gang's alike — no second
+    # query, no second code path.
+    return _collections_on(card, computed, miniature.gang)
+
+
+def gang_collections(gang, card=None, computed=None):
+    """Every collection the gang itself carries: assigned to it, or granted.
+
+    The gang-side twin of :func:`collections_for`, and the same reading of
+    the same two sources — the collection assignments the card holds, then
+    the computed grants an affiliation or a territory makes. A hire screen
+    asks this to find the collections that offer fighters.
+
+    A caller holding the gang's card and its computed form passes both;
+    otherwise both are built here, at the usual fixed cost.
+    """
+    from n26.core.card import build_gang_card
+    from n26.core.effects import compute_gang
+
+    if card is None:
+        card = build_gang_card(gang, with_statlines=False)
+    if computed is None:
+        index = build_modifier_index([node.assignable for node in card.all_nodes()])
+        computed = compute_gang(card, index)
+    return _collections_on(card, computed, gang, gang_hosted=True)
+
+
+def _collections_on(card, computed, gang, gang_hosted=False):
+    """The collections a computed card reaches — the shared walk.
+
+    Stored rows first, in the order the card holds them, then the computed
+    grants; first mention of a collection wins, so a list reached twice
+    collapses towards the more direct source. A list something has taken
+    away is not somewhere to shop: the card no longer shows it, so it
+    opens nothing either.
+
+    A held list names whatever brought it, which after founding is the
+    gang *type*; assigned by hand it has no cause, so the gang itself
+    answers for it. ``gang_hosted`` says the card's own rows are the
+    gang's — true of a gang card, where a model's card marks the same rows
+    ``broadcast``.
+    """
     found = {}
 
     def add(collection, source, is_computed=False):
@@ -66,24 +109,18 @@ def collections_for(miniature, card=None, computed=None):
                 collection=collection, source=source, computed=is_computed
             )
 
-    # The gang's own lists ride the card now (as broadcast nodes), so this
-    # one walk finds a fighter's lists and their gang's alike — no second
-    # query, no second code path. A gang-held list names whatever brought
-    # it, which after founding is the gang *type*; assigned by hand it has
-    # no cause, so the gang itself answers for it.
-    gang = miniature.gang
     nodes_by_key = {node.key: node for node in card.all_nodes()}
     for node in card.all_nodes():
         if node.suppressed:
-            # A list something has taken away is not somewhere to shop:
-            # the card no longer shows it, so it opens nothing either.
             continue
         if node.assignment is not None and node.assignment.collection_id is not None:
             cause = nodes_by_key.get(node.caused_by_key)
             if cause is not None:
                 source = cause.name
+            elif (gang_hosted or node.broadcast) and gang is not None:
+                source = str(gang)
             else:
-                source = str(gang) if node.broadcast and gang is not None else None
+                source = None
             add(node.assignable, source)
 
     for contribution in computed.collections:

@@ -139,6 +139,12 @@ be read in one.
             picker keys its filter and its counts on the string the view put
             in `categories` — the two would not match, and the whole category
             would count zero and hide itself.
+
+            A row submits its whole identity, which is the profile and — in a
+            section a carried collection offers — the entry that priced it. The
+            same fighter can be on this screen twice at two prices, so the
+            profile alone would not say which row was pressed. Never a price:
+            the server reads that off the entry.
             {% endcomment %}
             {% for section in hire_list %}
                 <c-n26.collection-picker.section :name="section.name" :open="forloop.first">
@@ -146,12 +152,12 @@ be read in one.
                         {% if category.name %}
                             <c-n26.collection-picker.category :name="category.name">
                                 {% for entry in category.entries %}
-                                    <c-n26.profile-picker.row :entry="entry" value="{{ entry.profile.pk }}" />
+                                    <c-n26.profile-picker.row :entry="entry" value="{{ entry.key }}" />
                                 {% endfor %}
                             </c-n26.collection-picker.category>
                         {% else %}
                             {% for entry in category.entries %}
-                                <c-n26.profile-picker.row :entry="entry" value="{{ entry.profile.pk }}" />
+                                <c-n26.profile-picker.row :entry="entry" value="{{ entry.key }}" />
                             {% endfor %}
                         {% endif %}
                     {% endfor %}

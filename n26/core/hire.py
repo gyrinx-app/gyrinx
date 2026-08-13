@@ -17,8 +17,16 @@ otherwise-default selection, and a specific combination's card is a
 ``build_card_from_profile(profile, option=[...])`` away. Enumerating the
 combinations is exactly the explosion the groups exist to avoid.
 
+Not every fighter on offer is on a gang list. A collection the gang
+carries can list profiles too — a corruption's Aberrants and Chaos
+Spawn arrive that way — and it offers them at its own prices. Such a
+collection becomes a section of its own, built from the same entries by
+the same functions, with the collection's price standing in for the
+fighter's own (``Offer``, ``collection_offers``).
+
 Query budget, as everywhere: previewing a whole gang list is a fixed
-number of queries whatever its length.
+number of queries whatever its length, and so is a gang's carried
+collections however many it carries.
 """
 
 from dataclasses import dataclass, field
@@ -95,10 +103,30 @@ class HireEntry:
     #: when the profile offers no plain alternatives — then each named
     #: group in position order.
     groups: list[HireGroup] = field(default_factory=list)
+    #: The collection entry that offered this row, where a collection did.
+    #: Its price is the one the row quotes and the one the hire charges, so
+    #: a press has to say which entry offered it — hence ``key``.
+    entry: object = None
 
     @property
     def name(self):
         return self.profile.name
+
+    @property
+    def key(self):
+        """What a press submits to name this row — the profile, and the
+        offer it was made under when a collection made it.
+
+        A profile can be on this screen twice: once on the gang's own list
+        at reference price and once in a carried collection at the
+        collection's. The two rows are different offers of the same
+        fighter, so the identity a press carries is both halves. Neither
+        half is a price: the server looks the entry up and reads the
+        price off it, the same way a shop row submits a line's identity.
+        """
+        if self.entry is None:
+            return str(self.profile.pk)
+        return f"{self.profile.pk}-{self.entry.pk}"
 
     @property
     def profile_type(self):
@@ -147,7 +175,37 @@ class HireSection:
             yield from category.entries
 
 
-def build_hire_entry(profile, index=None, with_cards=True):
+@dataclass(frozen=True)
+class Offer:
+    """One profile on the hire screen, and what put it there.
+
+    A plain row of a gang's own list is an offer with no collection behind
+    it. A collection the gang carries offers its own rows: the entry
+    naming a profile prices it this collection's way, while a sweep
+    ("every profile homed in Corrupted Beasts") offers it at reference
+    like any listing.
+    """
+
+    profile: object
+    #: The curated row that offered this, when one did. A swept profile
+    #: has none, exactly as a swept line in a browse has none.
+    entry: object = None
+    #: Which collection is offering. None for the gang's own list, whose
+    #: rows answer to no collection.
+    collection: object = None
+
+    @property
+    def base(self):
+        """The price this offer puts in place of the profile's own, if any.
+
+        A blank override is an answer rather than a gap — it says "at the
+        usual price" — so it falls through to the profile's own price, the
+        same reading ``price_of`` gives every other listing.
+        """
+        return self.entry.price_override if self.entry is not None else None
+
+
+def build_hire_entry(profile, index=None, with_cards=True, base=None, entry=None):
     """Every set of this profile's options, each with the card you'd get.
 
     Pass ``index`` to share one modifier index across a whole list; without
@@ -158,17 +216,21 @@ def build_hire_entry(profile, index=None, with_cards=True):
     card's rating, but nothing runs the effects engine or shapes a
     ``ModelCard`` for a card the caller will not show. A surface that
     serves cards on demand asks ``preview_model_card`` for each instead.
+
+    ``base`` prices the fighter as an offering collection does, and
+    ``entry`` is the row that made the offer — carried on the entry so a
+    press can say which offer it answered.
     """
     grouped = profile.grouped_offers()
     if not grouped or grouped[0][0] is not None:
         # Every entry has the default group, options or not.
         grouped = [(None, [])] + grouped
 
-    cards = {None: build_card_from_profile(profile)}
+    cards = {None: build_card_from_profile(profile, base=base)}
     for _, options in grouped:
         for option in options:
             cards[option.default_set.pk] = build_card_from_profile(
-                profile, option=option.default_set
+                profile, option=option.default_set, base=base
             )
 
     if with_cards and index is None:
@@ -214,7 +276,7 @@ def build_hire_entry(profile, index=None, with_cards=True):
                 options=options,
             )
         )
-    return HireEntry(profile=profile, groups=groups)
+    return HireEntry(profile=profile, groups=groups, entry=entry)
 
 
 def build_hire_list(gang_type, with_cards=True):
@@ -232,33 +294,161 @@ def build_entries(profiles, with_cards=True):
 
     The scopes differ only in which profiles they fetch; everything
     after the fetch is this."""
+    return build_offer_entries(
+        [Offer(profile=profile) for profile in profiles], with_cards=with_cards
+    )
+
+
+def build_offer_entries(offers, with_cards=True):
+    """Hire entries for offers already fetched — the one build on this screen.
+
+    A row priced by a collection and a row priced by the catalogue differ
+    only in what replaces the fighter's own price, so both come through
+    here: one modifier index covers every card, and the cards are
+    assembled in memory.
+    """
     index = None
     if with_cards:
         cards = []
-        for profile in profiles:
-            cards.append(build_card_from_profile(profile))
+        for offer in offers:
+            profile = offer.profile
+            cards.append(build_card_from_profile(profile, base=offer.base))
             for _, sets in profile.grouped_options():
                 cards.extend(
-                    build_card_from_profile(profile, option=default_set)
+                    build_card_from_profile(
+                        profile, option=default_set, base=offer.base
+                    )
                     for default_set in sets
                 )
         index = build_modifier_index(
             [node.assignable for card in cards for node in card.all_nodes()]
         )
     return [
-        build_hire_entry(profile, index=index, with_cards=with_cards)
-        for profile in profiles
+        build_hire_entry(
+            offer.profile,
+            index=index,
+            with_cards=with_cards,
+            base=offer.base,
+            entry=offer.entry,
+        )
+        for offer in offers
     ]
 
 
-def preview_model_card(profile, option=None):
+def collection_offers(collections):
+    """Every fighter these collections offer, as they offer it.
+
+    Both ways a collection contains something, answered together: curated
+    entries naming a profile, at this collection's own price, and
+    selectors sweeping profiles in at reference. An entry wins over a
+    sweep for the same profile, as wherever else a collection is read
+    (``n26.core.browse``) — that is where per-item pricing lives.
+
+    Emptiness is the answer to whether a collection belongs on the hire
+    screen: one holding no profiles offers nothing here and gets no
+    section. A profile nobody may hire directly is left out too — a pet
+    arrives behind its collar, and drawing a row whose button cannot work
+    is the harm.
+
+    A fixed number of queries however many collections, entries or
+    profiles: the entries and the sweeps come back one query each, the
+    profiles in a single fetch carrying everything a preview row needs,
+    and each sweep is then decided in memory.
+    """
+    from django.contrib.contenttypes.models import ContentType
+    from django.db.models import Q
+
+    from n26.core import select
+    from n26.library.models import CollectionEntry, CollectionSelector, Profile
+
+    ids = [collection.pk for collection in collections]
+    if not ids:
+        return []
+
+    entries = list(
+        CollectionEntry.objects.filter(
+            collection_id__in=ids, profile__isnull=False
+        ).order_by("position")
+    )
+    sweeps = list(
+        CollectionSelector.objects.filter(
+            collection_id__in=ids,
+            of_kind=ContentType.objects.get_for_model(Profile),
+        )
+        .select_related("category")
+        .order_by("position")
+    )
+    if not entries and not sweeps:
+        return []
+
+    wanted = Q(pk__in=[entry.profile_id for entry in entries])
+    for sweep in sweeps:
+        wanted |= sweep.as_selector().as_q(Profile)
+    found = {profile.pk: profile for profile in hireable_profiles().filter(wanted)}
+
+    offers = []
+    for collection in collections:
+        taken = set()
+        for entry in entries:
+            profile = found.get(entry.profile_id)
+            if entry.collection_id != collection.pk or profile is None:
+                continue
+            if profile.pk in taken:
+                continue
+            taken.add(profile.pk)
+            offers.append(Offer(profile=profile, entry=entry, collection=collection))
+        for sweep in sweeps:
+            if sweep.collection_id != collection.pk:
+                continue
+            # The sweep is decided against the rows already fetched rather
+            # than by a query of its own, so a gang carrying six swept
+            # lists costs what one costs. A selector row can only ask
+            # about a profile's kind, its home and its Trade Point price
+            # — facts printed on the row — so no possession is needed to
+            # answer it.
+            selector = sweep.as_selector()
+            for profile in found.values():
+                if profile.pk in taken:
+                    continue
+                if selector.matches(select.Matchable(thing=profile)):
+                    taken.add(profile.pk)
+                    offers.append(Offer(profile=profile, collection=collection))
+    return offers
+
+
+def collection_sections(offers, with_cards=True):
+    """One section per collection that offers fighters, named after it.
+
+    The collection is the heading because the collection is the offer: a
+    reader knows these fighters by what brought them ("Genestealer Cult
+    Corrupted"), not by which gang type authored them. Inside, the
+    categories are the profiles' own homes, in taxonomy order, cheapest
+    first — the same shape every other section on this screen takes.
+    """
+    grouped = {}
+    for offer in offers:
+        grouped.setdefault(offer.collection.pk, (offer.collection, []))[1].append(offer)
+    sections = []
+    for collection, rows in grouped.values():
+        sections.append(
+            _section_of(
+                str(collection), build_offer_entries(rows, with_cards=with_cards)
+            )
+        )
+    return sections
+
+
+def preview_model_card(profile, option=None, base=None):
     """The drawn card one option's row shows — built alone.
 
     The single card a hire page serves on demand, and the same
     derivation ``build_hire_entry`` draws inline: the card an option
     would produce, its effects computed, shaped for a renderer.
+
+    ``base`` prices it as an offering collection does, so the card behind
+    a collection's row carries the same number the row quotes.
     """
-    card = build_card_from_profile(profile, option=option)
+    card = build_card_from_profile(profile, option=option, base=base)
     index = build_modifier_index([node.assignable for node in card.all_nodes()])
     return card_to_model_card(card, computed=compute(card, index), name=profile.name)
 
@@ -278,18 +468,13 @@ def section_hire_list(entries):
     sit straight inside the section.
     """
 
-    def entry_order(entry):
-        # Cheapest first within a category: a gang list is read to find
-        # what this many credits will buy.
-        return (entry.base_price, entry.name)
-
     return group_by_home(
         ((entry.profile.category, entry) for entry in entries),
         section=lambda heading, categories: HireSection(
             name=heading or UNCATEGORISED, categories=categories
         ),
         category=lambda heading, entries: HireCategory(name=heading, entries=entries),
-        order=entry_order,
+        order=_entry_order,
     )
 
 
@@ -348,6 +533,39 @@ def supplementary_profiles():
     return hireable_profiles().filter(category__section__name=SUPPLEMENTARY_SECTION)
 
 
+def _entry_order(entry):
+    # Cheapest first within a category: a gang list is read to find what
+    # this many credits will buy.
+    return (entry.base_price, entry.name)
+
+
+def _section_of(name, entries):
+    """One section under a heading the taxonomy did not provide.
+
+    A gang type on the all-profiles scope, a collection a gang carries:
+    the heading is the thing that gathered these fighters, and the
+    categories inside keep the taxonomy's own homes and order. Rows the
+    content gave no home gather last, under no heading — the picker draws
+    those straight inside the section.
+    """
+    homes = {}
+    for entry in entries:
+        home = entry.profile.category
+        key = (
+            (0, home.section.position, home.position, home.name)
+            if home is not None
+            else (1, 0, 0, "")
+        )
+        homes.setdefault(key, []).append(entry)
+    return HireSection(
+        name=name,
+        categories=[
+            HireCategory(name=key[3], entries=sorted(rows, key=_entry_order))
+            for key, rows in sorted(homes.items())
+        ],
+    )
+
+
 def section_by_gang_type(entries):
     """The hire list in sections of gang types — the all-profiles scope.
 
@@ -356,32 +574,11 @@ def section_by_gang_type(entries):
     taxonomy's own homes. Cheapest first within a category, as
     everywhere on this screen.
     """
-
-    def entry_order(entry):
-        return (entry.base_price, entry.name)
-
     by_type = {}
     for entry in entries:
         by_type.setdefault(entry.profile.gang_type, []).append(entry)
 
-    sections = []
-    for gang_type in sorted(by_type, key=lambda found: found.name.casefold()):
-        homes = {}
-        for entry in by_type[gang_type]:
-            home = entry.profile.category
-            key = (
-                (0, home.section.position, home.position, home.name)
-                if home is not None
-                else (1, 0, 0, "")
-            )
-            homes.setdefault(key, []).append(entry)
-        sections.append(
-            HireSection(
-                name=gang_type.name,
-                categories=[
-                    HireCategory(name=key[3], entries=sorted(rows, key=entry_order))
-                    for key, rows in sorted(homes.items())
-                ],
-            )
-        )
-    return sections
+    return [
+        _section_of(gang_type.name, by_type[gang_type])
+        for gang_type in sorted(by_type, key=lambda found: found.name.casefold())
+    ]

@@ -549,7 +549,7 @@ def build_gang_card(gang, with_statlines=True, assignment_set=None):
     )
 
 
-def build_card_from_profile(profile, option=None):
+def build_card_from_profile(profile, option=None, base=None):
     """The card a hire *would* produce, built from library alone.
 
     No gang, no model, no assignments: this is what a player sees while
@@ -558,6 +558,12 @@ def build_card_from_profile(profile, option=None):
     each member caused by the profile, weapons carrying their free
     profiles and bundled ammo hanging off its weapon — so a preview and
     the thing you get are the same card.
+
+    ``base`` replaces the profile's *own* price, which is what a
+    collection's override means: a list offering a Chaos Spawn at 90 has
+    not made its weapon swaps free. Everything the hire comes with still
+    costs what it costs, so the card's rating composes exactly as it does
+    at reference.
     """
     from n26.library.models import Weapon, WeaponProfile
 
@@ -567,7 +573,7 @@ def build_card_from_profile(profile, option=None):
     root = Node(
         assignable=profile,
         key=next(counter),
-        rating=profile.price_with(taken),
+        rating=profile.price_with(taken, base=base),
         is_profile=True,
         is_primary_profile=True,
         reason=Reason.BOUGHT,

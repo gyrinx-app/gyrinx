@@ -114,7 +114,43 @@ def _hireable(gang, pk):
         return None
 
 
-def _picks(data, profile, entry):
+def _offered(gang, raw, offers):
+    """What a press names: the profile, and the offer it was made under.
+
+    A row's identity is ``<profile>`` on the gang's own list and
+    ``<profile>-<entry>`` where a collection the gang carries offered it
+    (``HireEntry.key``). The entry is the price, so it is *checked* rather
+    than trusted: it must exist, name this profile, and belong to a
+    collection this gang really carries. Anything else is a 404.
+
+    That is not policing the hire. Any gang may hire anything hireable at
+    its reference price — the all-profiles scope says so — but a price tag
+    from a list the gang was never offered is forged, exactly like an
+    option index the profile does not have.
+
+    ``offers`` answers what the gang's collections offer, asked only when
+    a press names an entry: the answer costs a gang card.
+    """
+    profile_pk, _, entry_pk = (raw or "").partition("-")
+    profile = _hireable(gang, profile_pk)
+    if profile is None or not entry_pk:
+        return profile, None
+    entry = next(
+        (
+            offer.entry
+            for offer in offers()
+            if offer.entry is not None
+            and str(offer.entry.pk) == entry_pk
+            and offer.profile.pk == profile.pk
+        ),
+        None,
+    )
+    if entry is None:
+        raise Http404("No such offer")
+    return profile, entry
+
+
+def _picks(data, profile, entry, key=None):
     """The options a submission names, resolved against the drawn rows.
 
     Each option group's inputs are scoped ``{profile_pk}:{group_index}``
@@ -128,8 +164,13 @@ def _picks(data, profile, entry):
     the row template renders (``value|slugify``). Read the raw pk back and
     every option ticked in a real browser is silently ignored and the
     fighter buys as default — while a test posting the raw pk passes.
+
+    ``key`` is the row's whole identity where that is more than the
+    profile — a collection's offer of it — because the row scopes its
+    inputs by whatever it submits as, and the same fighter can be on this
+    screen twice at two prices.
     """
-    scope = slugify(str(profile.pk))
+    scope = slugify(key or str(profile.pk))
     picks = []
     for group_index, group in enumerate(entry.groups):
         field = f"{scope}:{group_index}"
@@ -158,7 +199,17 @@ def _chosen(picks):
     return [pick.option.default_set for pick in picks if pick.option.default_set]
 
 
-def _dialog(request, profile, picks, scope="gang", section=""):
+def _base(entry):
+    """The price an offering entry puts in place of the fighter's own.
+
+    Blank on the entry means "at the usual price", which is the same
+    answer as no entry at all — so both come back as ``None`` and the
+    profile prices itself.
+    """
+    return entry.price_override if entry is not None else None
+
+
+def _dialog(request, profile, picks, scope="gang", section="", entry=None, key=None):
     """What the name dialog draws: who is being hired, at what price, and
     the hidden fields that carry the row's answer to the next request."""
     try:
@@ -166,7 +217,7 @@ def _dialog(request, profile, picks, scope="gang", section=""):
         # quotes the number the hire will charge rather than a second
         # arithmetic that could disagree with it. It also refuses a
         # tampered selection here rather than one screen later.
-        price = profile.price_with(_chosen(picks))
+        price = profile.price_with(_chosen(picks), base=_base(entry))
     except ValueError:
         raise Http404("No such option") from None
     return {
@@ -175,7 +226,7 @@ def _dialog(request, profile, picks, scope="gang", section=""):
         "scope": scope,
         "choices": [pick.option.name for pick in picks if pick.option.default_set],
         "fields": [
-            {"name": "profile", "value": str(profile.pk)},
+            {"name": "profile", "value": key or str(profile.pk)},
             *([{"name": "list", "value": scope}] if scope != "gang" else []),
             *([{"name": "section", "value": section}] if section else []),
             *({"name": pick.field, "value": pick.value} for pick in picks),
@@ -192,20 +243,31 @@ def _link_cards(gang, hire_list):
     build stays free of routing, and a surface with no card endpoint (the
     gallery's sample rows) simply leaves ``card_url`` empty and carries
     its cards inline.
+
+    A row a collection offered names its entry in the address, so the card
+    behind it is drawn at the price the row quotes. A card saying one
+    number under a row saying another is the thing the row's own live
+    total exists to avoid, one disclosure down.
     """
     from django.urls import reverse
 
     for section in hire_list:
         for entry in section.all_entries():
-            base = reverse("n26-hire-card", args=[gang.pk, entry.profile.pk])
+            address = reverse("n26-hire-card", args=[gang.pk, entry.profile.pk])
+            offered = [("entry", entry.entry.pk)] if entry.entry is not None else []
             for group in entry.groups:
                 for option in group.options:
-                    if option.default_set is not None:
-                        option.card_url = (
-                            f"{base}?{urlencode({'option': option.default_set.pk})}"
-                        )
-                    else:
-                        option.card_url = base
+                    params = [
+                        *(
+                            [("option", option.default_set.pk)]
+                            if option.default_set is not None
+                            else []
+                        ),
+                        *offered,
+                    ]
+                    option.card_url = (
+                        f"{address}?{urlencode(params)}" if params else address
+                    )
 
 
 @login_required
@@ -215,7 +277,9 @@ def hire_card(request, pk, profile):
     The hire list prices every option but draws no cards; each is
     fetched from here the first time a reader opens its row. ``?option=``
     names the set the card is taken with; without one the card is the
-    default hire. The response is a fragment for the page to place, and
+    default hire. ``?entry=`` names the collection row that offered this
+    fighter, whose price the card is drawn at — the row's own quote, so
+    the two agree. The response is a fragment for the page to place, and
     it is cacheable — the card is derived from library content alone, the
     same for every gang, so a reopened disclosure costs no second build.
     """
@@ -223,7 +287,7 @@ def hire_card(request, pk, profile):
     from django.utils.cache import patch_cache_control
 
     from n26.core.hire import preview_model_card
-    from n26.library.models import Profile
+    from n26.library.models import CollectionEntry, Profile
 
     _own_gang_or_404(request, pk)
     found = get_object_or_404(Profile, pk=profile)
@@ -244,10 +308,24 @@ def hire_card(request, pk, profile):
             # address, answered like any other broken link.
             raise Http404("No such option")
 
+    entry = None
+    offered = request.GET.get("entry")
+    if offered:
+        try:
+            entry = CollectionEntry.objects.filter(pk=offered, profile=found).first()
+        except ValidationError:
+            entry = None
+        if entry is None:
+            # No list offers this fighter through that row, so there is no
+            # such card. Which gang carries the list is not asked here:
+            # this draws a price and charges nothing, and the hire itself
+            # checks that the offer was really made (``_offered``).
+            raise Http404("No such offer")
+
     response = render(
         request,
         "n26/hire_card.html",
-        {"card": preview_model_card(found, option=option)},
+        {"card": preview_model_card(found, option=option, base=_base(entry))},
     )
     patch_cache_control(response, private=True, max_age=300)
     return response
@@ -257,16 +335,27 @@ def hire_card(request, pk, profile):
 def hire_fighter(request, pk):
     """The gang list, and the dialog that turns a press into a fighter.
 
+    A gang can be offered fighters its own list never had: a collection it
+    carries — a corruption's, an alliance's — lists profiles at its own
+    prices, and each such collection is a section of its own after the
+    house's. Those rows hire through this same flow, at the collection's
+    price, and a press carries which entry offered it.
+
     A refusal comes from the operation itself — an overspend unwinds the
     transaction — and lands back here as a message: nothing half-written,
     nothing lost but a click.
     """
+    from functools import cache
+
     from n26.analytics import EventVerb, N26Noun, record
+    from n26.core.access import gang_collections
     from n26.core.forms import HireFighterForm
     from n26.core.hire import (
         build_entries,
         build_hire_entry,
         build_hire_list,
+        collection_offers,
+        collection_sections,
         hireable_profiles,
         section_by_gang_type,
         section_hire_list,
@@ -285,11 +374,25 @@ def hire_fighter(request, pk):
     form = HireFighterForm()
     dialog = None
 
+    @cache
+    def offers():
+        """What the collections this gang carries offer, worked out once.
+
+        Both the sections and the check on a pressed offer read this, and
+        it costs a gang card, so the two never build it twice — and a
+        scope that draws no collection sections and a press naming no
+        entry never build it at all.
+        """
+        return collection_offers(
+            [access.collection for access in gang_collections(gang)]
+        )
+
     if request.method == "POST" and "profile" in request.POST:
         form = HireFighterForm(request.POST)
-        profile = _hireable(gang, request.POST["profile"])
+        key = request.POST["profile"]
+        profile, offer = _offered(gang, key, offers)
         if profile is not None:
-            picks = _picks(request.POST, profile, build_hire_entry(profile))
+            picks = _picks(request.POST, profile, build_hire_entry(profile), key=key)
             if form.is_valid():
                 # The same typed-over price a shop row takes, read the
                 # same way: the box's figure is what leaves the bank,
@@ -300,7 +403,13 @@ def hire_fighter(request, pk):
                 from n26.core.views.equip import BadPrice, price_typed
 
                 try:
-                    quoted = profile.price_with(_chosen(picks))
+                    # An offering collection's price stands in for the
+                    # fighter's own and for nothing else, so options still
+                    # add on top — and that quote is the list price and the
+                    # rating alike: a list's price is not a discount, it IS
+                    # the price. A discount is only ever what the box below
+                    # types against it.
+                    quoted = profile.price_with(_chosen(picks), base=_base(offer))
                 except ValueError:
                     raise Http404("No such option") from None
                 try:
@@ -317,6 +426,11 @@ def hire_fighter(request, pk):
                             paid=paid,
                             list_price=quoted,
                             discount=quoted - paid,
+                            # Where the money came from, as a shop
+                            # purchase records it: the row that priced
+                            # this hire, or nothing where the catalogue
+                            # did.
+                            bought_from=offer,
                         )
                 except Refusal as refusal:
                     messages.error(request, str(refusal))
@@ -370,13 +484,25 @@ def hire_fighter(request, pk):
             # A name the field will not take. The dialog comes back holding
             # what was typed, with the error under it — the selection is in
             # the hidden fields, so nothing else has to be re-answered.
-            dialog = _dialog(request, profile, picks, scope=scope, section=section)
+            dialog = _dialog(
+                request,
+                profile,
+                picks,
+                scope=scope,
+                section=section,
+                entry=offer,
+                key=key,
+            )
     elif request.method == "POST":
         # A Hire button in the list. Which profile is now a URL, so the
         # dialog has an address of its own and the press survives a reload.
-        profile = _hireable(gang, request.POST.get("hire"))
+        # The row's whole identity travels, the offer included: a
+        # collection's row and the gang list's row for the same fighter are
+        # two different presses.
+        key = request.POST.get("hire", "")
+        profile, offer = _offered(gang, key, offers)
         if profile is not None:
-            picks = _picks(request.POST, profile, build_hire_entry(profile))
+            picks = _picks(request.POST, profile, build_hire_entry(profile), key=key)
             # The colon stays a colon: a query key is allowed one, and the
             # URL is worth reading — the row's own input names are what is
             # written there.
@@ -384,21 +510,24 @@ def hire_fighter(request, pk):
                 [
                     *([("list", scope)] if scope != "gang" else []),
                     *([("section", section)] if section else []),
-                    ("hire", str(profile.pk)),
+                    ("hire", key),
                     *((pick.field, pick.value) for pick in picks),
                 ],
                 safe=":",
             )
             return redirect(f"{request.path}?{query}")
     elif request.GET.get("hire"):
-        profile = _hireable(gang, request.GET["hire"])
+        key = request.GET["hire"]
+        profile, offer = _offered(gang, key, offers)
         if profile is not None:
             dialog = _dialog(
                 request,
                 profile,
-                _picks(request.GET, profile, build_hire_entry(profile)),
+                _picks(request.GET, profile, build_hire_entry(profile), key=key),
                 scope=scope,
                 section=section,
+                entry=offer,
+                key=key,
             )
 
     # The whole screen, as one structure: every profile this gang could
@@ -419,7 +548,15 @@ def hire_fighter(request, pk):
             build_entries(list(hireable_profiles()), with_cards=False)
         )
     else:
-        hire_list = section_hire_list(build_hire_list(gang.gang_type, with_cards=False))
+        # The gang's own list, then a section for each collection it
+        # carries that offers fighters. After the house's own sections
+        # because that is the order they were come by: the list a gang
+        # founds with is what it is, and a corruption's roster is
+        # something it took on.
+        hire_list = [
+            *section_hire_list(build_hire_list(gang.gang_type, with_cards=False)),
+            *collection_sections(offers(), with_cards=False),
+        ]
     _link_cards(gang, hire_list)
     prices = [
         entry.base_price for section in hire_list for entry in section.all_entries()
