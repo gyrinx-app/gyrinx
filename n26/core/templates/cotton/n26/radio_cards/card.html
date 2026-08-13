@@ -28,9 +28,10 @@ them does not look like a question.
     it is whatever came back.
   label — the option's name.
   description — the muted line under it. Optional.
-  wrap — let the description run to several lines instead of truncating.
-    A gang type's one-line detail wants the ellipsis; a sentence
-    explaining a verb wants to be read whole.
+  wrap — let the label and description run to several lines instead of
+    truncating. A gang type's name and one-line detail want the
+    ellipsis; a verb's name and the sentence explaining it want to be
+    read whole.
   example — a concrete case, revealed by hovering the small icon after
     the description. CSS-only, so it works before and without script;
     also the icon's title, so a touch reader gets the browser's own
@@ -82,7 +83,7 @@ presentation, so a form using both reads as one family.
         cell, so a gang type looks the same here as it does on the gang's sheet.
         tone="current" because the card's title has already picked its colour.
         {% endcomment %}
-        <span class="block truncate text-base font-semibold text-ink-900 dark:text-ink-100"><c-n26.flair-link text="{{ label }}" tone="current">{{ flair }}</c-n26.flair-link></span>
+        <span class="block {% if not wrap %}truncate{% endif %} text-base font-semibold text-ink-900 dark:text-ink-100"><c-n26.flair-link text="{{ label }}" tone="current">{{ flair }}</c-n26.flair-link></span>
         {% if disabled and reason %}
             <span class="block text-muted">{{ reason }}</span>
         {% elif description %}

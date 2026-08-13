@@ -3081,6 +3081,18 @@ class TestTheKindCards:
         assert "the player picks" in body  # the blurb
         assert "pick Ferocity and Ferocity" in body  # the example
 
+    def test_a_kinds_name_and_sentence_wrap_rather_than_ellipse(
+        self, author, client, default_pack
+    ):
+        """“Puts a category into a…” is a name cut off exactly where it
+        was about to say something. The kind cards wrap both lines: the
+        ellipsis is for a picker of short names, not for sentences."""
+        body = client.get("/n26/authoring/modifiers/new/").content.decode()
+        for chunk in body.split("<fieldset")[1:]:
+            fieldset = chunk.split("</fieldset>")[0]
+            if 'name="scope_kind"' in fieldset or 'name="effect_kind"' in fieldset:
+                assert "truncate" not in fieldset
+
     def test_the_cards_still_answer_to_the_selects_field_names(
         self, author, client, default_pack
     ):
