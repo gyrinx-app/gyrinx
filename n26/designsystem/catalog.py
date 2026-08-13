@@ -1128,17 +1128,28 @@ GROUPS: list[Group] = [
                 slug="hire-dialog",
                 tag="c-n26.hire-dialog",
                 template="n26/hire_dialog.html",
-                summary="The one question a press leaves: what is this fighter called?",
+                summary=(
+                    "What a press leaves to answer: what this fighter is "
+                    "called, and what the gang pays for them."
+                ),
                 needs=(ALPINE,),
                 notes=(
-                    "c-n26.dialog with hiring's question in it. What is left "
-                    "here is the question and the fields under it: the profile "
-                    "and its options are hidden fields rather than controls, "
-                    "because they were answered by the row that was pressed and "
-                    "the way to change them is to go back to it. The price in "
-                    "the lead is the whole answer the row was configured to and "
-                    "not the advertised one — an option ticked upstairs is "
-                    "charged here, so it is named here."
+                    "c-n26.dialog with hiring's questions in it. What is left "
+                    "here is the questions and the fields under them: the "
+                    "profile and its options are hidden fields rather than "
+                    "controls, because they were answered by the row that was "
+                    "pressed and the way to change them is to go back to it. "
+                    "The price in the lead is the whole answer the row was "
+                    "configured to and not the advertised one — an option "
+                    "ticked upstairs is charged here, so it is named here. "
+                    "The box under the price is the edition's one place a "
+                    "rating can be argued with: gear haggled down still counts "
+                    "at the quote, while a fighter taken on cheap may be a "
+                    "bargain or may be worth less than the book asks, and only "
+                    "the table knows which. It is drawn whether or not the "
+                    "price has been typed over, because a control that appears "
+                    "under the reader's hands is one they did not know was "
+                    "coming."
                 ),
             ),
             Component(

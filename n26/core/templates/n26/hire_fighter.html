@@ -51,6 +51,7 @@ be read in one.
                            :choices="dialog.choices"
                            :fields="dialog.fields"
                            cancel_url="{{ dialog.cancel_url }}"
+                           :rate_at_paid="dialog.rate_at_paid"
                            :form="form">
             {% csrf_token %}
         </c-n26.hire-dialog>

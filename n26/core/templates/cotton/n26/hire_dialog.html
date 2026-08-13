@@ -27,6 +27,8 @@ works is documented there.
     profile named.
   form — the Django form carrying the name field. c-ui.field reads its label,
     help text and errors.
+  rate_at_paid — whether the rating box starts ticked. What a redrawn dialog
+    hands back, so an answer survives a name the field would not take.
   modal — promote to the top layer. On by default; off draws the panel in the
     page's flow, which is what a reader without scripting sees.
   slot — the csrf token. A component has no request and renders none itself.
@@ -39,6 +41,7 @@ works is documented there.
     :fields="None"
     cancel_url=""
     :form="None"
+    :rate_at_paid="False"
     :modal="True"
     class=""
 />
@@ -81,11 +84,44 @@ works is documented there.
     fighter. The scope holds the pair the include compares.
     {% endcomment %}
     <c-ui.field label="Price"
-                description="What the gang pays. The quote stays the rating."
+                description="What the gang pays. The quote stays the rating unless the box below says otherwise."
                 for="hire-paid">
         <span x-data="{ quoted: {{ price|default:0 }}, price: {{ price|default:0 }} }"
               class="inline-flex">
             {% include "n26/includes/equip_price.html" with field="paid" quoted=price label=profile %}
         </span>
     </c-ui.field>
+
+    {% comment %}
+    The one place the edition lets a rating be argued with, and it is here
+    because hiring is the one purchase where the two readings of a lower
+    price are both true: a fighter taken on cheap may be a bargain — worth
+    every credit of the quote — or may genuinely be worth less than the
+    book asks. Gear is not ambiguous that way, so the equipment listing
+    settles it without asking (n26/core/views/equip.py, _charge).
+
+    Drawn whatever the box above says, rather than revealed when the two
+    figures differ: what a form offers is the server's to decide, and a
+    control that appears under the reader's hands is one they did not know
+    was coming. Left alone with no discount typed it changes nothing —
+    the price and the quote are the same number.
+
+    A plain input, as the print setup's toggles are: the kit's checkbox is
+    wired for its own group scope, and a dialog that must answer with
+    scripting off cannot have its answer depend on Alpine.
+    {% endcomment %}
+    <label class="flex cursor-pointer items-start gap-2.5">
+        <input type="checkbox"
+               name="rate"
+               value="paid"
+               {% if rate_at_paid %}checked{% endif %}
+               class="mt-0.5 size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
+        <span class="text-sm text-ink-900 dark:text-ink-100">
+            Use the price paid as their rating
+            <span class="block text-muted">
+                Left off, a discount is only a discount: they still count {{ price }}¢
+                towards the gang's rating, and are worth that if you sell them on.
+            </span>
+        </span>
+    </label>
 </c-n26.dialog>

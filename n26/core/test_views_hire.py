@@ -14,6 +14,7 @@ from django.urls import reverse
 from django.utils.text import slugify
 
 from n26.core.models import ChosenProfileOption, Gang, Miniature
+from n26.core.reconcile import assert_reconciled
 from n26.core.taxonomy import UNCATEGORISED
 from n26.library.models import DefaultAssignmentSet, OptionGroup
 
@@ -723,6 +724,108 @@ class TestTheTypedPrice:
         entry = Miniature.objects.get(name="Plain").membership.ledger_entry
         assert entry.paid == 55
         assert entry.discount == 0
+
+
+class TestRatingTheHire:
+    """The box under the price decides which figure the fighter is worth.
+
+    Left alone the quote stands and the gap is a discount, which is what
+    every other purchase does. Ticked, the gang takes them on at what it
+    paid: the rating follows the money, and so does what they fetch if
+    they are sold on.
+    """
+
+    def test_the_dialog_offers_the_box(self, client, tester, gang, ganger):
+        client.force_login(tester)
+        body = client.get(dialog_url(gang, ganger)).content.decode()
+        assert 'name="rate"' in body
+        assert 'value="paid"' in body
+
+    def test_ticked_the_price_paid_becomes_the_rating(
+        self, client, tester, gang, ganger
+    ):
+        client.force_login(tester)
+        client.post(
+            hire_url(gang),
+            {
+                "profile": str(ganger.pk),
+                "name": "Cheap",
+                "paid": "30",
+                "rate": "paid",
+            },
+        )
+
+        entry = Miniature.objects.get(name="Cheap").membership.ledger_entry
+        assert entry.paid == 30
+        assert entry.list_price == 30
+        assert entry.discount == 0
+        assert entry.rating_contribution == 30
+        gang.refresh_from_db()
+        # The money leaving the bank is the same either way; only what the
+        # gang is reckoned to be worth moves.
+        assert gang.credits == 170
+
+    def test_the_ledger_still_reconciles_either_way(self, client, tester, gang, ganger):
+        """``paid = list_price - discount`` is the invariant reconcile
+        checks, and both answers have to keep it."""
+        client.force_login(tester)
+        client.post(
+            hire_url(gang),
+            {"profile": str(ganger.pk), "name": "Paid", "paid": "30", "rate": "paid"},
+        )
+        client.post(
+            hire_url(gang),
+            {"profile": str(ganger.pk), "name": "Quoted", "paid": "40"},
+        )
+
+        gang.refresh_from_db()
+        assert_reconciled(gang)
+        rated = {
+            m.name: m.membership.ledger_entry.rating_contribution
+            for m in Miniature.objects.filter(membership__gang=gang)
+        }
+        assert rated == {"Paid": 30, "Quoted": 55}
+
+    def test_overpaying_can_be_taken_at_the_higher_figure(
+        self, client, tester, gang, ganger
+    ):
+        client.force_login(tester)
+        client.post(
+            hire_url(gang),
+            {"profile": str(ganger.pk), "name": "Dear", "paid": "80", "rate": "paid"},
+        )
+        entry = Miniature.objects.get(name="Dear").membership.ledger_entry
+        assert entry.rating_contribution == 80
+        assert entry.discount == 0
+
+    def test_left_alone_it_changes_nothing(self, client, tester, gang, ganger):
+        """The default is every other purchase's rule, so a hire nobody
+        haggles over is unaffected by the box existing."""
+        client.force_login(tester)
+        client.post(
+            hire_url(gang),
+            {"profile": str(ganger.pk), "name": "Plain", "paid": "30"},
+        )
+        entry = Miniature.objects.get(name="Plain").membership.ledger_entry
+        assert entry.rating_contribution == 55
+
+    def test_a_redrawn_dialog_keeps_the_answer(self, client, tester, gang, ganger):
+        """A name the field refuses brings the dialog back. The tick has
+        to come back with it, or fixing the name quietly re-rates them."""
+        client.force_login(tester)
+        body = client.post(
+            hire_url(gang),
+            {
+                "profile": str(ganger.pk),
+                "name": "x" * 500,
+                "paid": "30",
+                "rate": "paid",
+            },
+        ).content.decode()
+
+        assert "<dialog open" in body
+        checkbox = body[body.index('name="rate"') : body.index('name="rate"') + 200]
+        assert "checked" in checkbox
 
 
 class TestTheScopes:

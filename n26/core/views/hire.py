@@ -209,9 +209,24 @@ def _base(entry):
     return entry.price_override if entry is not None else None
 
 
-def _dialog(request, profile, picks, scope="gang", section="", entry=None, key=None):
+def _dialog(
+    request,
+    profile,
+    picks,
+    scope="gang",
+    section="",
+    entry=None,
+    key=None,
+    rate_at_paid=False,
+):
     """What the name dialog draws: who is being hired, at what price, and
-    the hidden fields that carry the row's answer to the next request."""
+    the hidden fields that carry the row's answer to the next request.
+
+    ``rate_at_paid`` comes back only on a redraw. The price box keeps what
+    was typed because the browser reposts it; a checkbox the dialog drew
+    unticked would come back unticked, quietly undoing an answer while the
+    reader was fixing something else.
+    """
     try:
         # The operation's own pricing, asked in advance, so the dialog
         # quotes the number the hire will charge rather than a second
@@ -232,6 +247,7 @@ def _dialog(request, profile, picks, scope="gang", section="", entry=None, key=N
             *({"name": pick.field, "value": pick.value} for pick in picks),
         ],
         "cancel_url": _here(request, scope, section),
+        "rate_at_paid": rate_at_paid,
     }
 
 
@@ -430,6 +446,13 @@ def hire_fighter(request, pk):
                 except BadPrice as refusal:
                     messages.error(request, str(refusal))
                     return redirect(back)
+                # Which of the two figures the hire is worth. Ticked, the
+                # gang takes them on at what it paid and the quote is
+                # forgotten; left alone, the quote stands and the gap is a
+                # discount. Only hiring asks: a fighter is the one purchase
+                # where a lower price may mean a bargain or may mean a
+                # lesser fighter, and nobody but the table knows which.
+                rate_at_paid = request.POST.get("rate") == "paid"
                 try:
                     with operation(gang, actor=request.user) as op:
                         miniature = op.hire(
@@ -437,8 +460,8 @@ def hire_fighter(request, pk):
                             form.cleaned_data["name"] or profile.name,
                             option=_chosen(picks),
                             paid=paid,
-                            list_price=quoted,
-                            discount=quoted - paid,
+                            list_price=paid if rate_at_paid else quoted,
+                            discount=0 if rate_at_paid else quoted - paid,
                             # Where the money came from, as a shop
                             # purchase records it: the row that priced
                             # this hire, or nothing where the catalogue
@@ -505,6 +528,7 @@ def hire_fighter(request, pk):
                 section=section,
                 entry=offer,
                 key=key,
+                rate_at_paid=request.POST.get("rate") == "paid",
             )
     elif request.method == "POST":
         # A Hire button in the list. Which profile is now a URL, so the
