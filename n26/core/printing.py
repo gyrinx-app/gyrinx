@@ -58,6 +58,13 @@ def detail_groups(card) -> list[DetailGroup]:
     still occupies its row and prints as a blank to be filled in —
     information, not an error, and on paper an empty slot is a useful thing
     to see.
+
+    The lists a model buys from (``card.collections``) are deliberately
+    absent. Which listings the app will offer them is an affordance of the
+    app, not a fact about the model: nobody shops from a card in their
+    hand, and the row spends space a reader needs for what the model can
+    do. The screen card leaves it out for the same reason and sends a
+    reader to Equip instead — this is the last surface that printed it.
     """
     groups = []
     if card.skills:
@@ -70,10 +77,6 @@ def detail_groups(card) -> list[DetailGroup]:
         groups.append(DetailGroup("Gear", ", ".join(e.name for e in card.equipment)))
     for choice in card.questions:
         groups.append(DetailGroup(choice.kind_label, choice.chosen or "—"))
-    if card.collections:
-        groups.append(
-            DetailGroup("Buys from", ", ".join(c.name for c in card.collections))
-        )
     for effect in card.effects:
         # "(when taken)" on paper as on screen. A printed card is read away
         # from the application, so an effect that has not happened yet has to

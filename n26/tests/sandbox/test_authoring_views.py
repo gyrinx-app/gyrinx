@@ -311,6 +311,84 @@ class TestEditingOne:
         rule.refresh_from_db()
         assert rule.annotation == ""
 
+    def test_a_stored_nought_is_drawn_as_nought(self, author, client, default_pack):
+        """What a player saw: on a weapon the list prices rather than the
+        catalogue — 198 of the 265 in the pack — the price box came up
+        empty, the browser posted nothing for it, and Save was refused
+        with "A weapon named “Arc hammer” already exists in this pack".
+        The database had turned away a null price; the message was the
+        view's guess at what a refusal meant.
+
+        Nought is a value, and a falsy one, so a box drawn only when its
+        value is truthy is a box that swallows it.
+        """
+        from n26.library.authoring import create_weapon
+
+        saw = create_weapon("Heavy rock saw", price=0, slots=2, is_exclusive=True)
+
+        body = client.get(f"/n26/authoring/weapon/{saw.pk}/").content.decode()
+
+        assert re.search(r'name="edit-price"[^>]*value="0"', body)
+
+    def test_a_row_priced_at_nought_saves(self, author, client, default_pack):
+        """The whole journey the report came from: open such a weapon,
+        change one thing, press Save."""
+        from n26.library.authoring import create_weapon
+
+        saw = create_weapon("Heavy rock saw", price=0, slots=2, is_exclusive=True)
+
+        response = client.post(
+            f"/n26/authoring/weapon/{saw.pk}/",
+            {
+                "act": "edit",
+                "edit-name": "Heavy rock saw",
+                "edit-slots": "2",
+                # What the page now offers for a stored nought.
+                "edit-price": "0",
+                "edit-trade_point_price": "",
+                "edit-is_exclusive": "on",
+            },
+        )
+
+        assert response.status_code == 302
+        saw.refresh_from_db()
+        assert saw.price == 0
+
+    def test_an_empty_number_box_leaves_the_number_alone(
+        self, author, client, default_pack
+    ):
+        """A column that cannot hold nothing is not cleared by an empty
+        box: there is no value to write, so the stored one stands. Written
+        anyway, the database refuses the whole save and the author is told
+        something else is wrong."""
+        from n26.library.authoring import create_weapon
+
+        lasgun = create_weapon("Lasgun", price=15, slots=1)
+
+        response = client.post(
+            f"/n26/authoring/weapon/{lasgun.pk}/",
+            {"act": "edit", "edit-name": "Lasgun", "edit-price": "", "edit-slots": ""},
+        )
+
+        assert response.status_code == 302
+        lasgun.refresh_from_db()
+        assert (lasgun.price, lasgun.slots) == (15, 1)
+
+    def test_the_author_help_box_carries_its_name(self, author, client, default_pack):
+        """A control with no name is not submitted, so the field reads as
+        blank and the next save of anything else on the form wipes what
+        was written there."""
+        from n26.library.authoring import create_weapon
+
+        lasgun = create_weapon(
+            "Lasgun", price=15, library_author_help="Standard issue everywhere."
+        )
+
+        body = client.get(f"/n26/authoring/weapon/{lasgun.pk}/").content.decode()
+
+        assert 'name="edit-library_author_help"' in body
+        assert "Standard issue everywhere." in body
+
     def test_a_duplicate_name_refuses_in_words(self, author, client, default_pack):
         from n26.library.authoring import create_subtype
 

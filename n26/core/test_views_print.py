@@ -276,3 +276,50 @@ class TestThePrintPage:
         client.force_login(tester)
         body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
         assert setup_url(gang) in body
+
+
+class TestWhatPaperLeavesOut:
+    """A printed card says what the model can do, not what the app can do
+    with it.
+
+    What a player saw: "BUYS FROM — Delaque Equipment List" printed under
+    Gear on every card of the roster. Nobody shops from a card in their
+    hand, and the row spends space the rules need.
+    """
+
+    @pytest.fixture
+    def shopper(self, gang, make_profile, make_statline, tester):
+        """A fighter who arrives holding their house list, as a hire does."""
+        from n26.library.authoring import (
+            create_collection,
+            create_default_set,
+            create_weapon,
+        )
+
+        profile = make_profile("Delaque Ganger", price=50)
+        make_statline(profile, movement=5, weapon_skill=4, toughness=3)
+        house_list = create_collection(
+            "Delaque Equipment List", entries=[create_weapon("Web pistol", price=30)]
+        )
+        profile.built_ins = create_default_set("Delaque kit", members=[house_list])
+        profile.save()
+        with operation(gang, actor=tester) as op:
+            return op.hire(profile, "Nyla")
+
+    def test_the_card_still_holds_the_lists_it_buys_from(self, shopper):
+        """The fact stays on the structure — it is what the app reads to
+        offer Equip. Only paper leaves it out."""
+        from n26.core.render import build_model_card
+
+        drawn = build_model_card(shopper)
+
+        assert [line.name for line in drawn.collections] == ["Delaque Equipment List"]
+
+    def test_the_paper_carries_no_buys_from_row(self, client, tester, gang, shopper):
+        client.force_login(tester)
+
+        body = client.get(print_url(gang)).content.decode()
+
+        assert "Nyla" in body  # the card is on the paper
+        assert "Buys from" not in body
+        assert "Delaque Equipment List" not in body

@@ -40,19 +40,21 @@ Takes `field` (a BoundField) and `form`.
                     name="{{ field.name }}"
                     for="{{ field.auto_id }}">
             {% comment %}
-            label/description/error shadowed empty: the kit declares them
-            without defaults, so an unshadowed lookup falls through to
-            this include's context and draws the field chrome twice.
+            The bare control, as the select branch reaches for the native
+            select: the chrome is drawn above, and the wrapper would draw
+            it a second time. It is also the only way the control gets a
+            name — the wrapper declares `name` and never writes it out, so
+            a textarea drawn through it has no name and the browser
+            submits nothing for it. The field is then read as blank and an
+            author's help text is wiped by the next save of anything else
+            on the form.
+
+            default_if_none, never default: a stored 0 is falsy, and
+            `default` would draw an empty box for it.
             {% endcomment %}
-            <c-ui.textarea label=""
-                           description=""
-                           error=""
-                           badge=""
-                           name="{{ field.html_name }}"
-                           id="{{ field.auto_id }}"
-                           height="xs">
-                {{ field.value|default:'' }}
-            </c-ui.textarea>
+            <c-ui.textarea.impl name="{{ field.html_name }}" id="{{ field.auto_id }}" height="xs">
+                {{ field.value|default_if_none:'' }}
+            </c-ui.textarea.impl>
         </c-ui.field>
     {% elif kind == "file" %}
         {% comment %}
@@ -147,11 +149,18 @@ Takes `field` (a BoundField) and `form`.
                     :form="form"
                     name="{{ field.name }}"
                     for="{{ field.auto_id }}">
+            {% comment %}
+            default_if_none, never default: nought is a real value and a
+            falsy one, so `default` draws an empty box for a price of 0 —
+            and an empty number box comes back as no value at all, which
+            the column cannot hold. Only a value that is genuinely absent
+            draws blank.
+            {% endcomment %}
             {% if field|widget_attr:"data-union-of" %}
                 <c-ui.input type="{% if kind == 'number' %}number{% else %}text{% endif %}"
                             name="{{ field.html_name }}"
                             id="{{ field.auto_id }}"
-                            value="{{ field.value|default:'' }}"
+                            value="{{ field.value|default_if_none:'' }}"
                             placeholder="{{ field|widget_attr:'placeholder' }}"
                             data-union-of="{{ field|widget_attr:'data-union-of' }}"
                             data-union-member="{{ field|widget_attr:'data-union-member' }}" />
@@ -159,7 +168,7 @@ Takes `field` (a BoundField) and `form`.
                 <c-ui.input type="{% if kind == 'number' %}number{% else %}text{% endif %}"
                             name="{{ field.html_name }}"
                             id="{{ field.auto_id }}"
-                            value="{{ field.value|default:'' }}"
+                            value="{{ field.value|default_if_none:'' }}"
                             placeholder="{{ field|widget_attr:'placeholder' }}" />
             {% endif %}
         </c-ui.field>

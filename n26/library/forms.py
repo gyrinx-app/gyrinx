@@ -508,6 +508,12 @@ class GeneratedForm(forms.Form):
         through the same verb an importer does. Sets sharing a verb are
         handed over together, because facts stated together are stated
         together: the four use lists are one answer about one row.
+
+        An empty box over a column that cannot hold nothing says nothing,
+        so the stored value stands. A number field left blank cleans to no
+        value at all, and writing that would have the database refuse the
+        whole save — with a message about whatever the caller guessed a
+        refusal means. Nought is said by typing nought.
         """
         from n26.library.authoring import revise
 
@@ -516,8 +522,11 @@ class GeneratedForm(forms.Form):
             if name not in self.fields:
                 continue
             value = self.cleaned_data.get(name)
-            if thing._meta.get_field(name).many_to_many:
+            column = thing._meta.get_field(name)
+            if column.many_to_many:
                 sets[name] = value
+            elif value is None and not column.null:
+                continue
             else:
                 columns[name] = value
         revise(thing, **columns)
