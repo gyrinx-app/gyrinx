@@ -17,6 +17,11 @@ The weapon/profile naming rule is <c-n26.model-card>'s rule, carried by
 WeaponLine (own_line / named_profiles) so the screen card, the text card and
 this one cannot drift.
 
+No prices, unlike the screen card. A printed card is what sits on the table
+during a game, where nobody is buying anything and the width a price takes is
+width the traits and the stat columns want. What a weapon added to the rating
+is a question for the screen, which is where the answer can be acted on.
+
   :card — a n26.render.ModelCard whose weapons to draw.
 {% endcomment %}
 <c-vars :card="None" class="" />
@@ -93,7 +98,7 @@ as one block of statistics rather than two tables near each other.
                 identity and no characteristics of its own, and the row is as
                 empty as one with no unnamed profile at all.
                     {% endcomment %}
-                    <td {% if not stats %}colspan="{{ card.weapon_columns|length|add:1 }}"{% endif %}>{{ weapon.name }} <span class="n26-print-cost">({{ weapon.base_rating }}¢)</span>{% if weapon.accessories %} <span class="n26-print-subname">{% for accessory in weapon.accessories %}+ {{ accessory.name }}{% if not forloop.last %} {% endif %}{% endfor %}</span>{% endif %}</td>
+                    <td {% if not stats %}colspan="{{ card.weapon_columns|length|add:1 }}"{% endif %}>{{ weapon.name }}{% if weapon.accessories %} <span class="n26-print-subname">{% for accessory in weapon.accessories %}+ {{ accessory.name }}{% if not forloop.last %} {% endif %}{% endfor %}</span>{% endif %}</td>
                     {% if stats %}
                         {% for cell in stats %}
                             <td class="is-centered{% if cell.first_of_group %} is-group{% endif %}">{{ cell.value|default:"-" }}</td>
@@ -119,7 +124,7 @@ as one block of statistics rather than two tables near each other.
             so the pair reads as one weapon rather than as two entries.
                 {% endcomment %}
                 <tr {% if profile.traits %}class="is-continued"{% endif %}>
-                    <td><span class="n26-print-subname">{{ profile.name }}</span>{% if profile.rating %} <span class="n26-print-cost">(+{{ profile.rating }}¢)</span>{% endif %}</td>
+                    <td><span class="n26-print-subname">{{ profile.name }}</span></td>
                     {% for cell in profile.statline.cells %}
                         <td class="is-centered{% if cell.first_of_group %} is-group{% endif %}">{{ cell.value|default:"-" }}</td>
                     {% endfor %}

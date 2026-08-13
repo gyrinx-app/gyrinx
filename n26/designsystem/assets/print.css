@@ -816,12 +816,6 @@
     color: var(--print-rule);
 }
 
-/* A price beside a name. Never broken across a line — "(30" on one line and
- * "¢)" on the next is a misprint, not a wrap. */
-.n26-print-cost {
-    white-space: nowrap;
-}
-
 /* Two spacing helpers, in the sheet's own units.
  *
  * Tailwind's scale is in rem, which is a screen measure — an `mt-1` between two
