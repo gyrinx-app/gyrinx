@@ -57,11 +57,15 @@ does not print). Type something else and it narrows from there as usual.
     an expression: through an attribute it is escaped twice and a quote in the
     query comes back as `&amp;quot;`.
   empty — what to show when a search matches nothing.
+  total — how many the whole answer holds, where the rows are one page of
+    it. Drawn as "8 of 143 gangs"; omitted, the count stands alone.
+  shown — how many rows were handed over, for a reader with no script. The
+    live count replaces it the moment Alpine runs.
   filters — controls that ask the server for different rows, drawn beside the
     type menu. A link or a form: pressing one reloads the page.
 {% endcomment %}
 <c-vars :type_options="[]" noun="gangs" singular="gang" action="" query="" empty=""
-        filters="" class="" />
+        filters="" :total="None" :shown="None" class="" />
 
 <div x-data="{
         rows: [],
@@ -118,13 +122,22 @@ does not print). Type something else and it narrows from there as usual.
     {% endif %}
 
     <p class="text-sm text-muted">
-        <span class="font-semibold text-ink-900 tabular-nums dark:text-ink-100" x-text="shown">{{ rows|length }}</span>
+        <span class="font-semibold text-ink-900 tabular-nums dark:text-ink-100" x-text="shown">{{ shown }}</span>
         {% comment %}
         The word follows the number — "1 gang", "3 gangs" — and the
         plural is the scriptless answer, since a list worth filtering
         rarely holds one thing.
         {% endcomment %}
-        <span x-text="shown === 1 ? {{ singular|json_dumps }} : {{ noun|json_dumps }}">{{ noun }}</span>
+        {% comment %}
+        Where the list is one page of a longer answer, the count says so:
+        the number beside it is what this page holds, and a reader
+        filtering in place should not be told that is all there is.
+        {% endcomment %}
+        {% if total %}
+            of {{ total }} {{ noun }}
+        {% else %}
+            <span x-text="shown === 1 ? {{ singular|json_dumps }} : {{ noun|json_dumps }}">{{ noun }}</span>
+        {% endif %}
     </p>
 
     {% comment %}

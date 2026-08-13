@@ -2,10 +2,17 @@
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
 from django.shortcuts import redirect, render
 from django.urls import reverse
 
 from n26.core.views.permissions import _any_gang_or_404, _own_gang_or_404
+
+#: How many gangs a page of the list holds. A row carries a name, a
+#: type, a strip of money and its controls, so this is about a screen
+#: and a half of scrolling — enough to read down, few enough that the
+#: page is not the whole table.
+GANGS_PER_PAGE = 25
 
 # The changelog belongs to the site and both editions read the same
 # table, so an entry reaches this dashboard only if someone tagged it for
@@ -67,11 +74,15 @@ def gangs(request):
     return render(
         request,
         "n26/gangs.html",
-        _gang_table_context(request, everyone=bool(request.GET.get("everyone"))),
+        _gang_table_context(
+            request,
+            everyone=bool(request.GET.get("everyone")),
+            per_page=GANGS_PER_PAGE,
+        ),
     )
 
 
-def _gang_table_context(request, everyone=False):
+def _gang_table_context(request, everyone=False, per_page=None):
     """The rows and facets <c-n26.gang-table> needs: gangs — the
     viewer's own, or everybody's — narrowed by ``?q=`` when there is
     one, and the types present among what survives.
@@ -84,6 +95,11 @@ def _gang_table_context(request, everyone=False):
     substring fallback on every field, so "scav" finds "Scavvies". It
     knows nothing about either edition, and writing a second one here is
     how the two come to disagree about what a search means.
+
+    ``per_page`` cuts the answer into pages. Without it the caller gets
+    the whole list, which is what a reader's own gangs on the dashboard
+    are; the gangs page passes one, because every gang on the site is
+    not a page anybody should be sent.
     """
     from gyrinx.querysets import search_queryset
     from n26.core.models import Gang
@@ -94,9 +110,25 @@ def _gang_table_context(request, everyone=False):
         listed = listed.filter(owner=request.user)
     listed = listed.select_related("gang_type", "stash", "owner").order_by("name")
     found = search_queryset(listed, query, ["name", "gang_type__name"])
+    total = None
+    pages = None
+    if per_page is not None:
+        page = Paginator(found, per_page).get_page(request.GET.get("page"))
+        total = page.paginator.count
+        pages = _pages(request, page) if page.paginator.num_pages > 1 else None
+        found = page.object_list
     return {
         "gangs": found,
         "query": query,
+        # How many rows this page carries, for a reader with no script:
+        # the live count is Alpine's, and without it the number beside
+        # the noun would be blank.
+        "listed": len(found),
+        # What the whole answer holds, where this is one page of it, so
+        # the count can say "8 of 143" rather than leaving a reader to
+        # wonder what the pager is for.
+        "total": total,
+        "pages": pages,
         # A row says whose it is only where that can differ; a page of
         # your own would print your name down the side of it.
         "show_owners": everyone,
@@ -107,6 +139,46 @@ def _gang_table_context(request, everyone=False):
             {"value": name, "label": name}
             for name in dict.fromkeys(str(gang.gang_type) for gang in found)
         ],
+    }
+
+
+def _pages(request, page):
+    """The numbered links under a paged list, addresses and all.
+
+    Built here rather than by the kit's own automatic mode, which writes
+    ``?page=2`` and nothing else: a reader who has searched, or asked
+    for everybody's gangs, would lose the question they asked by turning
+    the page. Every other parameter rides along.
+
+    Django picks which numbers to draw and elides the middle of a long
+    run, handing back a string where the gap goes; a gap is marked
+    rather than linked, because there is no one page it leads to.
+    """
+
+    def address(number):
+        asked = request.GET.copy()
+        asked["page"] = number
+        return f"?{asked.urlencode()}"
+
+    numbers = []
+    for number in page.paginator.get_elided_page_range(page.number):
+        if number == page.paginator.ELLIPSIS:
+            numbers.append({"elided": True})
+        else:
+            numbers.append(
+                {
+                    "elided": False,
+                    "label": number,
+                    "href": address(number),
+                    "current": number == page.number,
+                }
+            )
+    return {
+        "numbers": numbers,
+        "previous": address(page.previous_page_number()) if page.has_previous() else "",
+        "next": address(page.next_page_number()) if page.has_next() else "",
+        "number": page.number,
+        "of": page.paginator.num_pages,
     }
 
 

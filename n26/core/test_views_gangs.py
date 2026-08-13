@@ -297,3 +297,86 @@ class TestSearchingForAGang:
         client.force_login(tester)
         body = client.get(reverse("n26-dashboard")).content.decode()
         assert f'action="{reverse("n26-gangs")}"' in body
+
+
+def test_a_long_list_comes_a_page_at_a_time(client, tester, make_gang):
+    from n26.core.views.gangs import GANGS_PER_PAGE
+
+    for number in range(GANGS_PER_PAGE + 5):
+        make_gang(f"Gang {number:02d}")
+
+    client.force_login(tester)
+    body = client.get(reverse("n26-gangs")).content.decode()
+
+    assert body.count("n26-row-link") == GANGS_PER_PAGE
+    assert f"of {GANGS_PER_PAGE + 5} gangs" in body
+    assert "Page 1 of 2" in body
+
+
+def test_the_second_page_holds_the_rest(client, tester, make_gang):
+    from n26.core.views.gangs import GANGS_PER_PAGE
+
+    for number in range(GANGS_PER_PAGE + 5):
+        make_gang(f"Gang {number:02d}")
+
+    client.force_login(tester)
+    body = client.get(reverse("n26-gangs"), {"page": "2"}).content.decode()
+
+    assert body.count("n26-row-link") == 5
+    assert "Page 2 of 2" in body
+
+
+def test_a_short_list_is_not_paged_at_all(client, tester, make_gang):
+    make_gang("The Ashen Choir")
+
+    client.force_login(tester)
+    body = client.get(reverse("n26-gangs")).content.decode()
+
+    assert "Pagination" not in body
+
+
+def test_turning_the_page_keeps_the_question_that_was_asked(client, tester, make_gang):
+    """A reader who has searched, or asked for everybody's gangs, must
+    not lose that by turning the page."""
+    from n26.core.views.gangs import GANGS_PER_PAGE
+
+    for number in range(GANGS_PER_PAGE + 5):
+        make_gang(f"Gang {number:02d}")
+
+    client.force_login(tester)
+    body = client.get(
+        reverse("n26-gangs"), {"q": "gang", "everyone": "1"}
+    ).content.decode()
+
+    assert "q=gang" in body
+    assert "everyone=1" in body
+    assert "page=2" in body
+
+
+def test_a_page_number_past_the_end_lands_on_the_last_one(client, tester, make_gang):
+    """A silly page in the address is somebody's stale link, not an
+    error worth a page of its own."""
+    from n26.core.views.gangs import GANGS_PER_PAGE
+
+    for number in range(GANGS_PER_PAGE + 5):
+        make_gang(f"Gang {number:02d}")
+
+    client.force_login(tester)
+    response = client.get(reverse("n26-gangs"), {"page": "999"})
+
+    assert response.status_code == 200
+    assert "Page 2 of 2" in response.content.decode()
+
+
+def test_the_count_says_how_many_are_on_the_page_without_script(
+    client, tester, make_gang
+):
+    """The live count is Alpine's; the number it replaces has to be
+    right on its own."""
+    make_gang("The Ashen Choir")
+    make_gang("The Bad Girls")
+
+    client.force_login(tester)
+    body = client.get(reverse("n26-gangs")).content.decode()
+
+    assert 'x-text="shown">2</span>' in body

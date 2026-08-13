@@ -38,7 +38,9 @@ places — the same pattern a gang's screens use for their siblings.
         <c-n26.gang-table :type_options="gang_type_options"
                           noun="gangs"
                           action="{% url 'n26-gangs' %}"
-                          :query="query">
+                          :query="query"
+                          :total="total"
+                          :shown="listed">
             {% comment %}
             Whose gangs are listed is the server's answer, not the page's,
             so the control is a link and pressing it reloads: the address
@@ -74,5 +76,30 @@ places — the same pattern a gang's screens use for their siblings.
                                       href="{% url 'n26-gang' gang.pk %}" />
             {% endfor %}
         </c-n26.gang-table>
+        {% comment %}
+        The pager's addresses are the view's, not the kit's automatic
+        ones: those write ?page=2 alone, and a reader who has searched or
+        asked for everybody's gangs would lose that by turning the page.
+        A gap in a long run is marked and not linked — there is no one
+        page it leads to.
+        {% endcomment %}
+        {% if pages %}
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <c-ui.pagination>
+                    <c-ui.pagination.prev href="{{ pages.previous }}" :disabled="not pages.previous" />
+                    {% for number in pages.numbers %}
+                        {% if number.elided %}
+                            <c-ui.pagination.ellipsis />
+                        {% else %}
+                            <c-ui.pagination.item href="{{ number.href }}" :current="number.current">
+                                {{ number.label }}
+                            </c-ui.pagination.item>
+                        {% endif %}
+                    {% endfor %}
+                    <c-ui.pagination.next href="{{ pages.next }}" :disabled="not pages.next" />
+                </c-ui.pagination>
+                <p class="text-sm text-muted">Page {{ pages.number }} of {{ pages.of }}</p>
+            </div>
+        {% endif %}
     </div>
 {% endblock content %}
