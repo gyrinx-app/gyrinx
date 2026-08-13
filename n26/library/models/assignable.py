@@ -261,10 +261,15 @@ class UsableBy(models.Model):
     what one list narrows belongs on that list's entry.
     """
 
+    # Two of the four say what they call themselves, because their
+    # column names read as something else in front of an author: a
+    # profile type is a type, and "profiles" on a weapon's page would be
+    # taken for its firing lines. The other two are named what they are.
     usable_by_profile_types = models.ManyToManyField(
         "library.ProfileType",
         blank=True,
         related_name="+",
+        verbose_name="Usable by types",
         help_text='The "Fighter" in "(Fighter Or Walker Only)".',
     )
     usable_by_subtypes = models.ManyToManyField(
@@ -277,6 +282,7 @@ class UsableBy(models.Model):
         "library.Profile",
         blank=True,
         related_name="+",
+        verbose_name="Usable by fighter entries",
         help_text=(
             'The "Wyld Runner" in "Wyld bow (Wyld Runner only)" — a whole '
             "fighter entry, which is neither a type nor a subtype. This "

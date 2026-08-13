@@ -105,9 +105,18 @@ class One(_Sourced):
 
 @dataclass(frozen=True)
 class Many(_Sourced):
-    """Several rows of a model — an M2M pick."""
+    """Several rows of a model — an M2M pick.
+
+    ``replaced_by`` is the verb that owns replacing the set, for a form
+    opened on a row that already exists. ``revise`` refuses a set,
+    because what happens to a member the new value does not name is a
+    decision; the verb is where that decision is stated, and naming it
+    here is how an edit form finds it. A field without one may be filled
+    in when the row is made and not changed afterwards.
+    """
 
     model: type = None
+    replaced_by: object = None
 
 
 @dataclass(frozen=True)
@@ -271,6 +280,29 @@ def _offerable_kind_to_model(kind_name):
     from django.apps import apps
 
     return apps.get_model("library", kind_name)
+
+
+def use_lists(model):
+    """The four use lists of a kind carrying ``UsableBy``, as spec fields.
+
+    Derived from the mixin's own fields rather than written out per kind,
+    so a weapon's page and a skill's draw the same pickers, each picking
+    what its own column points at — and a fifth list on the mixin
+    reaches every form the day it exists. The same shape serves the
+    collection entry, whose columns are the same four asking about one
+    list's offer.
+    """
+    from n26.library import authoring
+    from n26.library.models.assignable import USABLE_BY_LISTS
+
+    return {
+        name: Many(
+            model=model._meta.get_field(name).related_model,
+            source=(model, name),
+            replaced_by=authoring.set_usable_by,
+        )
+        for name in USABLE_BY_LISTS
+    }
 
 
 def _build_registry():
@@ -654,6 +686,7 @@ def _build_registry():
                 "category": One(
                     model=Category, optional=True, source=(Skill, "category")
                 ),
+                **use_lists(Skill),
                 "qualifier": Text(source=(Skill, "qualifier")),
                 "library_author_help": Text(
                     source=(Skill, "library_author_help"), long=True
@@ -668,6 +701,7 @@ def _build_registry():
                 "category": One(
                     model=Category, optional=True, source=(Power, "category")
                 ),
+                **use_lists(Power),
                 "qualifier": Text(source=(Power, "qualifier")),
                 "library_author_help": Text(
                     source=(Power, "library_author_help"), long=True
@@ -703,6 +737,7 @@ def _build_registry():
                 "category": One(
                     model=Category, optional=True, source=(Wargear, "category")
                 ),
+                **use_lists(Wargear),
                 "qualifier": Text(source=(Wargear, "qualifier")),
                 "library_author_help": Text(
                     source=(Wargear, "library_author_help"), long=True
@@ -757,6 +792,7 @@ def _build_registry():
                     source=(WeaponAccessory, "fits_category"),
                 ),
                 "fits_asterisked": Bool(source=(WeaponAccessory, "fits_asterisked")),
+                **use_lists(WeaponAccessory),
                 "qualifier": Text(source=(WeaponAccessory, "qualifier")),
                 "library_author_help": Text(
                     source=(WeaponAccessory, "library_author_help"), long=True
@@ -777,6 +813,7 @@ def _build_registry():
                 "category": One(
                     model=Category, optional=True, source=(Weapon, "category")
                 ),
+                **use_lists(Weapon),
                 "qualifier": Text(source=(Weapon, "qualifier")),
                 "library_author_help": Text(
                     source=(Weapon, "library_author_help"), long=True
@@ -790,7 +827,11 @@ def _build_registry():
                 "price": Int(source=(WeaponProfile, "price")),
                 "trade_point_price": Int(source=(WeaponProfile, "trade_point_price")),
                 "is_exclusive": Bool(source=(WeaponProfile, "is_exclusive")),
-                "traits": Many(model=Trait, source=(WeaponProfile, "traits")),
+                "traits": Many(
+                    model=Trait,
+                    source=(WeaponProfile, "traits"),
+                    replaced_by=authoring.set_traits,
+                ),
                 "qualifier": Text(source=(WeaponProfile, "qualifier")),
                 "library_author_help": Text(
                     source=(WeaponProfile, "library_author_help"), long=True
@@ -914,8 +955,8 @@ def _build_registry():
         ),
         # One curated row. What listing each kind asks for — the price
         # and trade-point overrides — comes from the kind's own
-        # ATTACHMENT_ASKS, resolved through the union. The narrowing
-        # below is named here instead, because it is not the kind's
+        # ATTACHMENT_ASKS, resolved through the union. The use lists are
+        # named here instead, because narrowing is not the kind's
         # knowledge but the row's: any offer may be narrowed, whatever
         # sort of thing it offers. Which collections ask for either is
         # ``Collection.entry_asks``, applied by the page.
@@ -923,20 +964,7 @@ def _build_registry():
             authoring.add_entry,
             {
                 "thing": Union(over=entry_kinds, through=CollectionEntry),
-                "usable_by_profile_types": Many(
-                    model=ProfileType,
-                    source=(CollectionEntry, "usable_by_profile_types"),
-                ),
-                "usable_by_subtypes": Many(
-                    model=Subtype, source=(CollectionEntry, "usable_by_subtypes")
-                ),
-                "usable_by_profiles": Many(
-                    model=Profile, source=(CollectionEntry, "usable_by_profiles")
-                ),
-                "usable_by_specialisations": Many(
-                    model=Specialisation,
-                    source=(CollectionEntry, "usable_by_specialisations"),
-                ),
+                **use_lists(CollectionEntry),
             },
             model=CollectionEntry,
         ),

@@ -114,8 +114,9 @@ Three places a restriction can go, and which one to reach for:
 
 - **On the entry**, as above: one list narrows one of its lines.
 - **On the item**, for what is true of it wherever it is listed — a
-  saddle no model without a mount can use. This one is not yet
-  authorable on these pages: it arrives with a spreadsheet import.
+  saddle no model without a mount can use, however many lists offer it.
+  The item's own page asks the same question as *usable by*, and every
+  list that offers the item honours the answer.
 - **A whole list of its own**, for when the book gives a rank its own
   list rather than restricting lines one at a time. Create the
   collection, and give it to those models with a modifier; every line in

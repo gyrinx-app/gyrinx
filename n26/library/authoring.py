@@ -212,9 +212,9 @@ def revise(row, **fields):
 
     A many-to-many field is refused rather than assigned. A set is
     replaced by the verb that owns it (``set_traits``,
-    ``set_statline``), because replacing a set is a decision — what
-    happens to a member the new value does not name — and ``setattr``
-    has no way to express one.
+    ``set_usable_by``, ``set_statline``), because replacing a set is a
+    decision — what happens to a member the new value does not name —
+    and ``setattr`` has no way to express one.
     """
     for name, value in fields.items():
         if row._meta.get_field(name).many_to_many:
@@ -248,23 +248,39 @@ def create_wargear(
     trade_point_price=None,
     is_exclusive=False,
     category=None,
+    usable_by_profile_types=(),
+    usable_by_subtypes=(),
+    usable_by_profiles=(),
+    usable_by_specialisations=(),
     qualifier="",
     library_author_help="",
     **kwargs,
 ):
     """Equipment a model carries. A thing that bolts onto a weapon is a
-    weapon accessory, not this."""
+    weapon accessory, not this.
+
+    The ``usable_by_*`` lists are the bracket the book prints after the
+    name, true of this wherever it is listed. Empty means everyone; a
+    restriction only one list prints belongs on that list's entry
+    instead (``add_entry``).
+    """
     from n26.library.models import Wargear
 
-    return Wargear.objects.create(
-        name=name,
-        price=price,
-        trade_point_price=trade_point_price,
-        is_exclusive=is_exclusive,
-        category=category,
-        qualifier=qualifier,
-        library_author_help=library_author_help,
-        **kwargs,
+    return set_usable_by(
+        Wargear.objects.create(
+            name=name,
+            price=price,
+            trade_point_price=trade_point_price,
+            is_exclusive=is_exclusive,
+            category=category,
+            qualifier=qualifier,
+            library_author_help=library_author_help,
+            **kwargs,
+        ),
+        usable_by_profile_types=usable_by_profile_types,
+        usable_by_subtypes=usable_by_subtypes,
+        usable_by_profiles=usable_by_profiles,
+        usable_by_specialisations=usable_by_specialisations,
     )
 
 
@@ -276,26 +292,41 @@ def create_weapon_accessory(
     category=None,
     fits_category=None,
     fits_asterisked=False,
+    usable_by_profile_types=(),
+    usable_by_subtypes=(),
+    usable_by_profiles=(),
+    usable_by_specialisations=(),
     qualifier="",
     library_author_help="",
     **kwargs,
 ):
     """Something bolted onto a weapon, with the bracket saying what it
     fits — ``fits_category`` for "(Las Weapons Only)",
-    ``fits_asterisked`` for "(Weapons Marked With * Only)"."""
+    ``fits_asterisked`` for "(Weapons Marked With * Only)".
+
+    The two brackets answer different questions and both are stored: the
+    ``fits_*`` pair is which weapons this goes on, the ``usable_by_*``
+    lists which models may use it. Empty means everyone.
+    """
     from n26.library.models import WeaponAccessory
 
-    return WeaponAccessory.objects.create(
-        name=name,
-        price=price,
-        trade_point_price=trade_point_price,
-        is_exclusive=is_exclusive,
-        category=category,
-        fits_category=fits_category,
-        fits_asterisked=fits_asterisked,
-        qualifier=qualifier,
-        library_author_help=library_author_help,
-        **kwargs,
+    return set_usable_by(
+        WeaponAccessory.objects.create(
+            name=name,
+            price=price,
+            trade_point_price=trade_point_price,
+            is_exclusive=is_exclusive,
+            category=category,
+            fits_category=fits_category,
+            fits_asterisked=fits_asterisked,
+            qualifier=qualifier,
+            library_author_help=library_author_help,
+            **kwargs,
+        ),
+        usable_by_profile_types=usable_by_profile_types,
+        usable_by_subtypes=usable_by_subtypes,
+        usable_by_profiles=usable_by_profiles,
+        usable_by_specialisations=usable_by_specialisations,
     )
 
 
@@ -310,16 +341,38 @@ def create_subtype(name, qualifier="", library_author_help="", **kwargs):
     )
 
 
-def create_skill(name, category=None, qualifier="", library_author_help="", **kwargs):
-    """A skill, homed in its set — ``create_skill("Catfall", agility)``."""
+def create_skill(
+    name,
+    category=None,
+    usable_by_profile_types=(),
+    usable_by_subtypes=(),
+    usable_by_profiles=(),
+    usable_by_specialisations=(),
+    qualifier="",
+    library_author_help="",
+    **kwargs,
+):
+    """A skill, homed in its set — ``create_skill("Catfall", agility)``.
+
+    The ``usable_by_*`` lists are the bracket the book prints in a
+    skill's heading — "(Fighter Or Walker Only)". Empty means everyone,
+    and it gates the advancement table's free pick as well as the
+    listing.
+    """
     from n26.library.models import Skill
 
-    return Skill.objects.create(
-        name=name,
-        category=category,
-        qualifier=qualifier,
-        library_author_help=library_author_help,
-        **kwargs,
+    return set_usable_by(
+        Skill.objects.create(
+            name=name,
+            category=category,
+            qualifier=qualifier,
+            library_author_help=library_author_help,
+            **kwargs,
+        ),
+        usable_by_profile_types=usable_by_profile_types,
+        usable_by_subtypes=usable_by_subtypes,
+        usable_by_profiles=usable_by_profiles,
+        usable_by_specialisations=usable_by_specialisations,
     )
 
 
@@ -337,18 +390,37 @@ def create_lasting_effect(name, qualifier="", library_author_help="", **kwargs):
 
 
 def create_power(
-    name, annotation="", category=None, qualifier="", library_author_help="", **kwargs
+    name,
+    annotation="",
+    category=None,
+    usable_by_profile_types=(),
+    usable_by_subtypes=(),
+    usable_by_profiles=(),
+    usable_by_specialisations=(),
+    qualifier="",
+    library_author_help="",
+    **kwargs,
 ):
-    """A Wyrd power — ``create_power("Force Blast", "(Free), Continuous")``."""
+    """A Wyrd power — ``create_power("Force Blast", "(Free), Continuous")``.
+
+    The ``usable_by_*`` lists are the bracket a power's heading prints,
+    read the same way a skill's is. Empty means everyone.
+    """
     from n26.library.models import Power
 
-    return Power.objects.create(
-        name=name,
-        annotation=annotation,
-        category=category,
-        qualifier=qualifier,
-        library_author_help=library_author_help,
-        **kwargs,
+    return set_usable_by(
+        Power.objects.create(
+            name=name,
+            annotation=annotation,
+            category=category,
+            qualifier=qualifier,
+            library_author_help=library_author_help,
+            **kwargs,
+        ),
+        usable_by_profile_types=usable_by_profile_types,
+        usable_by_subtypes=usable_by_subtypes,
+        usable_by_profiles=usable_by_profiles,
+        usable_by_specialisations=usable_by_specialisations,
     )
 
 
@@ -472,6 +544,10 @@ def create_weapon(
     trade_point_price=None,
     is_exclusive=False,
     category=None,
+    usable_by_profile_types=(),
+    usable_by_subtypes=(),
+    usable_by_profiles=(),
+    usable_by_specialisations=(),
     qualifier="",
     library_author_help="",
     **kwargs,
@@ -484,6 +560,11 @@ def create_weapon(
     starts bare and profiles are added with ``add_weapon_profile``:
     a weapon mid-authoring is a legitimate state, and the surfaces
     that read one say so rather than refusing to exist.
+
+    The ``usable_by_*`` lists are the bracket the book prints after the
+    name — "Wyld bow (Wyld Runner only)" — true of the gun wherever it
+    is listed. Empty means everyone; a restriction only one list prints
+    belongs on that list's entry instead (``add_entry``).
     """
     from n26.library.models import Weapon
 
@@ -515,7 +596,13 @@ def create_weapon(
             position=position,
             **shared,
         )
-    return weapon
+    return set_usable_by(
+        weapon,
+        usable_by_profile_types=usable_by_profile_types,
+        usable_by_subtypes=usable_by_subtypes,
+        usable_by_profiles=usable_by_profiles,
+        usable_by_specialisations=usable_by_specialisations,
+    )
 
 
 def add_weapon_profile(
@@ -618,6 +705,39 @@ def restrict_use(thing, *allowed):
             thing.usable_by_specialisations.add(item)
         else:
             raise ValueError(f"{type(item).__name__} cannot restrict use")
+    return thing
+
+
+def set_usable_by(
+    thing,
+    usable_by_profile_types=None,
+    usable_by_subtypes=None,
+    usable_by_profiles=None,
+    usable_by_specialisations=None,
+):
+    """Who may use this, replaced — the write ``revise`` refuses.
+
+    Each list handed over is the whole statement about its own arm: what
+    it does not name may no longer use this. That is what a form's
+    multi-select carries, and what a re-imported sheet means, so the
+    decision is stated here once rather than at each writer. ``None``
+    says nothing about an arm and leaves it as it was — different from an
+    empty list, which opens that arm to everyone.
+
+    ``restrict_use`` is the other half of the pair: it adds one allowed
+    thing at a time, which is what building content up line by line
+    wants. Both write the same four lists, on an item or on the
+    collection entry offering it.
+    """
+    lists = {
+        "usable_by_profile_types": usable_by_profile_types,
+        "usable_by_subtypes": usable_by_subtypes,
+        "usable_by_profiles": usable_by_profiles,
+        "usable_by_specialisations": usable_by_specialisations,
+    }
+    for name, allowed in lists.items():
+        if allowed is not None:
+            getattr(thing, name).set(allowed)
     return thing
 
 

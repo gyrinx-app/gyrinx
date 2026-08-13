@@ -503,7 +503,11 @@ class GeneratedForm(forms.Form):
         A many-to-many field is the exception the shared verb refuses,
         and rightly: replacing a set is a decision. Here the decision is
         already made — a multi-select carries the whole set, so what it
-        does not name has been taken off.
+        does not name has been taken off — and the spec field names the
+        verb that owns saying so (``Many.replaced_by``), so this writes
+        through the same verb an importer does. Sets sharing a verb are
+        handed over together, because facts stated together are stated
+        together: the four use lists are one answer about one row.
         """
         from n26.library.authoring import revise
 
@@ -517,8 +521,18 @@ class GeneratedForm(forms.Form):
             else:
                 columns[name] = value
         revise(thing, **columns)
+        owned = {}
         for name, value in sets.items():
-            getattr(thing, name).set(value or ())
+            replace = self.spec.fields[name].replaced_by
+            if replace is None:
+                raise ValueError(
+                    f"{name} is a set this form can edit with no verb that "
+                    f"owns replacing it — give its spec field a replaced_by "
+                    f"saying what leaving the set means"
+                )
+            owned.setdefault(replace, {})[name] = value or ()
+        for replace, values in owned.items():
+            replace(thing, **values)
         return thing
 
 

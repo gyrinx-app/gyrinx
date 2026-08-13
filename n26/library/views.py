@@ -2266,7 +2266,7 @@ def collection_page(request, pk):
             "priced": collection.prices_its_entries,
             "entry_description": (
                 "One more item this collection lists. Leave the overrides "
-                "blank to sell it at its own reference price, and the "
+                "blank to offer it at its own reference price, and the "
                 "narrowing blank to offer it to everyone."
                 if collection.prices_its_entries
                 else "One more answer this menu offers. Nothing is for "
