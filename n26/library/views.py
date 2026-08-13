@@ -30,6 +30,10 @@ from django.utils.text import capfirst
 
 from n26.library.forms import generate_form, statline_form_for, suggestion_form_for
 from n26.library.models.assignable import Family
+from n26.library.references import carrying_models as _assignable_models
+from n26.library.references import forward_relations as _forward_relations
+from n26.library.references import reading_sentences as _reading_sentences
+from n26.library.references import references_to
 from n26.library.specs import specs
 
 #: The leaf kinds the authoring surface offers, in menu order:
@@ -410,17 +414,6 @@ def _has_detail(kind):
 MAX_CHIPS = 20
 
 
-def _assignable_models():
-    """Every concrete kind that can carry modifiers."""
-    from django.apps import apps
-
-    return [
-        model
-        for model in apps.get_app_config("library").get_models()
-        if hasattr(model, "modifiers")
-    ]
-
-
 def _carrier_counts(modifiers):
     """How many things carry each of these modifiers, keyed by pk.
 
@@ -444,16 +437,6 @@ def _carrier_counts(modifiers):
 def _carrier_count(modifier):
     """How many things carry this one modifier."""
     return _carrier_counts([modifier])[modifier.pk]
-
-
-def _forward_relations(model):
-    """The foreign keys a row reads through — what a page loads with the
-    row so that saying it costs no further queries."""
-    return [
-        field.name
-        for field in model._meta.get_fields()
-        if field.concrete and (field.many_to_one or field.one_to_one)
-    ]
 
 
 def _kind_slugs():
@@ -518,48 +501,6 @@ def _holders_of(default_set):
             }
         )
     return sorted(found, key=lambda holder: (holder["kind_name"], holder["label"]))
-
-
-def _reading_sentences(modifiers):
-    """A modifier queryset with everything its sentences read loaded.
-
-    A modifier says itself by walking its scope and its effect, and
-    each of those walks further — the stat a change names, the subtypes
-    a condition lists. Unhinted that is several queries per row. The
-    paths are derived from the fields rather than listed, so a new
-    scope, effect or condition kind is covered the day it is added.
-
-    Everything loads as prefetch paths, not joins: joined together the
-    paths make a select wide enough that Postgres spends longer
-    planning it than running it, while each path alone is a small
-    query — and a path no row uses never reaches the database.
-    """
-    from n26.library.models import Modifier
-    from n26.library.models.modifier import EFFECT_FIELDS, SCOPE_FIELDS
-
-    # Two hops where a sentence reads through an intermediate row: a
-    # placement or a choice names a section, and a section says itself
-    # as "name (collection)". Derivation below stops at one hop, so
-    # these are listed the way card.py lists its deep paths — without
-    # them a page of placements fetches one collection per row.
-    paths = [
-        "places_category__section__collection",
-        "offers_choice__from_section__collection",
-    ]
-    for half in (*SCOPE_FIELDS, *EFFECT_FIELDS):
-        paths.append(half)
-        related = Modifier._meta.get_field(half).related_model
-        paths.extend(f"{half}__{name}" for name in _forward_relations(related))
-        for condition in getattr(related, "CONDITIONS", ()):
-            model = related._meta.get_field(condition).related_model
-            paths.append(f"{half}__{condition}")
-            paths.extend(
-                f"{half}__{condition}__{field.name}"
-                for field in model._meta.get_fields()
-                if field.concrete and (field.many_to_one or field.many_to_many)
-            )
-
-    return modifiers.prefetch_related(*paths)
 
 
 def _label_for(row):
@@ -1333,6 +1274,13 @@ def thing_delete(request, kind, pk):
     a gang's assignment, a list's entry, an option's kit — so a row
     anybody relies on is refused, in words, and nothing half-happens.
     A page rather than a prompt, as every destructive act here is.
+
+    What is standing in the way is read through the one reference
+    reader (``n26.library.references``), the same one the reach column
+    reads, so the page cannot come to name a different set of things
+    from the one that explains where the row is used. The database is
+    still the authority: it refuses first, and its own list of
+    protectors is what the words fall back on.
     """
     from django.db.models import ProtectedError
 
@@ -1349,7 +1297,11 @@ def thing_delete(request, kind, pk):
             with transaction.atomic():
                 authoring.delete_content(thing)
         except ProtectedError as refusal:
-            held_by = list(refusal.protected_objects)
+            held_by = [
+                reference.row
+                for reference in references_to(thing)
+                if reference.protects
+            ] or list(refusal.protected_objects)
             named = ", ".join(str(row) for row in held_by[:3])
             more = f" and {len(held_by) - 3} more" if len(held_by) > 3 else ""
             messages.error(

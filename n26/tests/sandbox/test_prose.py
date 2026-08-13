@@ -1,0 +1,852 @@
+"""The reach prose: what a piece of content does, and how anyone gets it.
+
+Every sentence here is pinned to its exact wording, so a change to the
+voice is a change somebody made on purpose. The setups are the rulebook's
+own — the Master of Whispers, a corrupted gang, a line one house's
+equipment list restricts — because a voice is only right if it is right
+about those.
+"""
+
+import pytest
+
+from n26.library import prose
+from n26.library.authoring import (
+    add_built_in,
+    add_default_member,
+    add_entry,
+    attach_modifiers_to,
+    counter_at_least,
+    create_affiliation,
+    create_category,
+    create_collection,
+    create_counter,
+    create_default_set,
+    create_gang_type,
+    create_hidden,
+    create_power,
+    create_profile,
+    create_rule,
+    create_section,
+    create_skill,
+    create_subtype,
+    create_trait,
+    create_wargear,
+    create_weapon,
+    ef_adds,
+    ef_allows_at_most,
+    ef_changes_category,
+    ef_changes_stat,
+    ef_offers_choice,
+    ef_places,
+    ef_removes,
+    ef_requires_companions,
+    has_subtypes,
+    has_traits,
+    modifier,
+    offer_option,
+    op_adds_model,
+    op_changes_counter,
+    section_of,
+    targets_gang,
+    targets_model,
+    targets_weapons,
+)
+from n26.library.prose import prose_for, sentence_for
+from n26.library.references import references_to
+from n26.tests.sandbox.actions import assign, buy, found_gang, hire
+
+pytestmark = pytest.mark.django_db
+
+
+def texts(said):
+    return [sentence.text for sentence in said]
+
+
+@pytest.fixture
+def backstab(default_pack):
+    return create_trait("Backstab")
+
+
+@pytest.fixture
+def mounted(default_pack):
+    return create_subtype("Mounted")
+
+
+@pytest.fixture
+def escher(default_pack):
+    return create_gang_type("Escher")
+
+
+@pytest.fixture
+def buffs_weapons(backstab):
+    """One modifier — the same row, whoever ends up carrying it."""
+    return modifier("Backstab", targets_weapons(), ef_adds(backstab))
+
+
+class TestWhoTheSentenceIsAbout:
+    """The same modifier reads three ways, and the carrier decides which.
+
+    Nothing about the modifier changes: what changes is who holds it, so
+    the subject is worked out from the carriage rather than written down
+    anywhere on the row.
+    """
+
+    def test_a_subtype_speaks_of_anyone_with_that_subtype(self, buffs_weapons, mounted):
+        attach_modifiers_to(mounted, [buffs_weapons])
+
+        assert texts(prose_for(mounted).does) == [
+            "A Mounted fighter's weapons gain Backstab, while the subtype stands."
+        ]
+
+    def test_wargear_speaks_of_whoever_carries_it(self, buffs_weapons, default_pack):
+        cutter = create_wargear("Cutter")
+        attach_modifiers_to(cutter, [buffs_weapons])
+
+        assert texts(prose_for(cutter).does) == [
+            "Its bearer's weapons gain Backstab, while they carry it."
+        ]
+
+    def test_a_rule_the_gang_holds_speaks_of_every_fighter(self, buffs_weapons, escher):
+        house_rule = create_rule("Blade Honed")
+        attach_modifiers_to(house_rule, [buffs_weapons])
+        add_built_in(escher, house_rule)
+
+        assert texts(prose_for(house_rule).does) == [
+            "Every fighter's weapons gain Backstab, while the gang holds this."
+        ]
+
+    def test_a_modifier_nothing_carries_names_no_one(self, buffs_weapons):
+        assert sentence_for(buffs_weapons).text == (
+            "The weapons of whoever ends up carrying this gain Backstab, "
+            "while they carry it."
+        )
+
+    def test_the_composer_reads_an_unattached_modifier_the_same_way(
+        self, buffs_weapons
+    ):
+        said = prose_for(buffs_weapons)
+
+        assert texts(said.does) == [
+            "The weapons of whoever ends up carrying this gain Backstab, "
+            "while they carry it."
+        ]
+        assert said.referenced_by == ()
+        assert said.assigned_to is None
+
+    def test_a_carried_modifier_says_who_carries_it(self, buffs_weapons, mounted):
+        attach_modifiers_to(mounted, [buffs_weapons])
+
+        assert texts(prose_for(buffs_weapons).referenced_by) == [
+            "Carried by the Mounted subtype."
+        ]
+
+
+class TestTheMasterOfWhispers:
+    """One power from a family, as a Primary pick — a rule doing three
+    things, said as a paragraph.
+
+    The three modifiers are one setup, and the order they are said in is
+    the order the rules run them: what is given settles before anything
+    that could depend on it.
+    """
+
+    @pytest.fixture
+    def whispers(self, default_pack):
+        return create_category(create_section("Wyrd Powers"), "Psychoteric Whispers")
+
+    @pytest.fixture
+    def primary(self, default_pack):
+        return section_of(create_collection("Skills & Powers"), "Primary", 0)
+
+    @pytest.fixture
+    def master(self, whispers, primary):
+        from n26.library.models import Power
+
+        wyrd = create_subtype("Wyrd")
+        rule = create_rule("Master of Whispers")
+        attach_modifiers_to(
+            rule,
+            [
+                modifier("Whispers 1: gives Wyrd", targets_model(), ef_adds(wyrd)),
+                modifier(
+                    "Whispers 2: places the family",
+                    targets_model(),
+                    ef_places(whispers, primary),
+                ),
+                modifier(
+                    "Whispers 3: the founding power",
+                    targets_model(),
+                    ef_offers_choice(Power, from_section=primary),
+                ),
+            ],
+        )
+        return rule
+
+    def test_the_paragraph_reads_as_one_setup(self, master):
+        assert texts(prose_for(master).does) == [
+            "They gain the Wyrd subtype, while they have it.",
+            "Their Psychoteric Whispers set counts as Primary.",
+            "It asks them to choose one Primary power — the card says Choose "
+            "until they pick.",
+        ]
+
+    def test_the_offer_says_what_narrows_it(self, master):
+        offer = prose_for(master).does[2]
+
+        assert "Only what counts as Primary for that model is listed" in offer.hint
+        assert "a question with nothing on it" in offer.hint
+
+    def test_every_sentence_points_at_the_modifier_behind_it(self, master):
+        keys = {sentence.key for sentence in prose_for(master).does}
+
+        assert len(keys) == 3
+        assert all(label == "library.modifier" for label, _ in keys)
+
+    def test_a_view_decorates_by_key_and_never_by_reading_the_words(self, master):
+        """The compiler leaves the address blank; a view fills it in from
+        the identity, which is why the identity is there."""
+        said = prose_for(master).does[0]
+
+        assert said.href == ""
+        assert said.at(f"/n26/authoring/modifier/{said.key[1]}/").href.endswith(
+            f"/{said.key[1]}/"
+        )
+
+    def test_a_power_says_it_may_answer_the_question(self, master, whispers):
+        whisper = create_power("Crawling Doom", category=whispers)
+
+        assert texts(prose_for(whisper).referenced_by) == [
+            "May answer the Primary power question offered by the Master of "
+            "Whispers special rule."
+        ]
+
+
+class TestACorruptedGang:
+    """What an affiliation hands a gang, said in the gang's own terms.
+
+    Everything a corruption does rides the chosen affiliation as
+    ordinary modifiers, all of them aimed at the gang — so every
+    sentence is about the gang, whoever made the pick.
+    """
+
+    @pytest.fixture
+    def corruption(self, escher, person_type):
+        armoury = create_collection("Corruption Armoury")
+        house_rules = create_hidden("Escher gang rules")
+        add_built_in(escher, house_rules)
+        aberrant = create_profile(
+            "Aberrant", profile_type=person_type, gang_type=escher, price=60
+        )
+        chaos = create_affiliation("Chaos Corrupted")
+        attach_modifiers_to(
+            chaos,
+            [
+                modifier("Chaos 1: the armoury", targets_gang(), ef_adds(armoury)),
+                modifier(
+                    "Chaos 2: loses the house rules",
+                    targets_gang(),
+                    ef_removes(house_rules),
+                ),
+                modifier(
+                    "Chaos 3: no more than two Aberrants",
+                    targets_gang(),
+                    ef_allows_at_most(2, aberrant),
+                ),
+            ],
+        )
+        return chaos
+
+    def test_the_payload_is_three_things_the_gang_gets(self, corruption):
+        assert texts(prose_for(corruption).does) == [
+            "The gang gains access to Corruption Armoury, and every member "
+            "may shop it.",
+            "The gang loses Escher gang rules, and everything it gave goes with it.",
+            "The gang should hold at most 2 Aberrants — the sheet says when "
+            "it holds more, and refuses nothing.",
+        ]
+
+    def test_the_grant_says_the_gang_reaches_its_fighters(self, corruption):
+        assert "reaches its fighters" in prose_for(corruption).does[0].hint
+
+    def test_the_limit_says_that_nought_is_a_ban(self, corruption):
+        assert "Nought is how a ban is written" in prose_for(corruption).does[2].hint
+
+    def test_a_ban_is_written_as_a_limit_of_nought(self, default_pack):
+        brute = create_subtype("Brute")
+        rules = create_affiliation("Malstrain Corrupted")
+        attach_modifiers_to(
+            rules,
+            [modifier("No brutes", targets_gang(), ef_allows_at_most(0, brute))],
+        )
+
+        assert texts(prose_for(rules).does) == [
+            "The gang should hold no Brutes at all — the sheet says when it "
+            "holds more, and refuses nothing."
+        ]
+
+    def test_the_hidden_bundle_says_where_it_comes_from_and_what_cancels_it(
+        self, corruption
+    ):
+        from n26.library.models import Hidden
+
+        bundle = Hidden.objects.get(name="Escher gang rules")
+
+        assert texts(prose_for(bundle).referenced_by) == [
+            "Built into the Escher gang type.",
+            "Taken away from the gang by the Chaos Corrupted affiliation.",
+        ]
+
+    def test_the_bundle_says_that_dropping_the_corruption_brings_it_back(
+        self, corruption
+    ):
+        from n26.library.models import Hidden
+
+        bundle = Hidden.objects.get(name="Escher gang rules")
+
+        assert "and it all comes back" in prose_for(bundle).referenced_by[1].hint
+
+
+class TestChainsAndBundles:
+    """A grant that hands over something which itself hands over
+    something — the reader should not have to open two pages."""
+
+    def test_a_granted_thing_that_itself_grants_says_so(self, mounted, default_pack):
+        nerves = create_skill("Nerves of Steel")
+        attach_modifiers_to(
+            mounted, [modifier("Mounted: nerves", targets_model(), ef_adds(nerves))]
+        )
+        cutter = create_wargear("Cutter")
+        attach_modifiers_to(
+            cutter, [modifier("Cutter: mounted", targets_model(), ef_adds(mounted))]
+        )
+
+        assert texts(prose_for(cutter).does) == [
+            "Its bearer gains the Mounted subtype, while they carry it — "
+            "which itself gives Nerves of Steel."
+        ]
+
+    def test_a_bundle_names_everything_it_hands_over(self, escher):
+        chems = create_rule("Combat Chems Stash")
+        fighters = create_rule("Gang Fighters")
+        bundle = create_hidden("Escher gang rules")
+        attach_modifiers_to(
+            bundle,
+            [
+                modifier("Escher 1: chems", targets_gang(), ef_adds(chems)),
+                modifier("Escher 2: fighters", targets_gang(), ef_adds(fighters)),
+            ],
+        )
+        modifier(
+            "Escher 3: the bundle", targets_gang(), ef_adds(bundle), attach_to=escher
+        )
+
+        assert texts(prose_for(escher).does) == [
+            "The gang gains Escher gang rules, which draws no line of its "
+            "own — which itself gives Combat Chems Stash and Gang Fighters."
+        ]
+
+
+class TestConditions:
+    """How a scope's narrowing reads: ranks replace the subject, a
+    threshold opens the sentence, a weapon filter joins the noun."""
+
+    def test_a_rank_condition_names_the_ranks(self, default_pack):
+        """The ranks come in the library's own order — by name, as every
+        other sentence naming a set of subtypes says them — so a
+        modifier's name and its reach sentence cannot list them
+        differently."""
+        leader = create_subtype("Leader")
+        champion = create_subtype("Champion")
+        nerves = create_skill("Nerves of Steel")
+        rule = create_rule("Veterans")
+        attach_modifiers_to(
+            rule,
+            [
+                modifier(
+                    "Veterans: nerves",
+                    targets_model(has_subtypes(leader, champion)),
+                    ef_adds(nerves),
+                )
+            ],
+        )
+
+        assert texts(prose_for(rule).does) == [
+            "Champions and Leaders gain the Nerves of Steel skill, while they have it."
+        ]
+
+    def test_a_threshold_opens_the_sentence_and_says_while_only_once(
+        self, default_pack
+    ):
+        xp = create_counter("XP")
+        veteran = create_subtype("Veteran")
+        rule = create_rule("Hardened")
+        attach_modifiers_to(
+            rule,
+            [
+                modifier(
+                    "Hardened: veteran at 75",
+                    targets_model(counter_at_least(xp, 75)),
+                    ef_adds(veteran),
+                )
+            ],
+        )
+
+        assert texts(prose_for(rule).does) == [
+            "While their XP is 75 or more, they gain the Veteran subtype."
+        ]
+
+    def test_a_weapon_narrowing_joins_the_noun_phrase(self, backstab, default_pack):
+        melee = create_trait("Melee")
+        cutter = create_wargear("Cutter")
+        attach_modifiers_to(
+            cutter,
+            [
+                modifier(
+                    "Backstab on blades",
+                    targets_weapons(has_traits(melee)),
+                    ef_adds(backstab),
+                )
+            ],
+        )
+
+        assert texts(prose_for(cutter).does) == [
+            "Its bearer's weapons with Melee gain Backstab, while they carry it."
+        ]
+
+
+class TestWhatIsWrittenOnce:
+    """The stored effects run at purchase rather than on every read, and
+    the sentence has to say which of them comes back."""
+
+    def test_moving_a_counter_says_the_ledger_keeps_it(self, default_pack):
+        xp = create_counter("XP")
+        rule = create_rule("Selected as Outcast Leader")
+        attach_modifiers_to(
+            rule,
+            [
+                modifier(
+                    "Outcast Leader: starting XP",
+                    targets_model(),
+                    op_changes_counter(xp, mode="set", amount=61),
+                )
+            ],
+        )
+
+        assert texts(prose_for(rule).does) == [
+            "When this arrives, their XP is set to 61 — written on the ledger "
+            "once; taking this away does not take it back."
+        ]
+
+    def test_bringing_a_model_says_it_leaves_again(self, escher, person_type):
+        mastiff = create_profile(
+            "Cyber-mastiff", profile_type=person_type, gang_type=escher, hireable=False
+        )
+        collar = create_wargear("Cyber-mastiff collar", price=45)
+        attach_modifiers_to(
+            collar, [modifier("The mastiff", targets_model(), op_adds_model(mastiff))]
+        )
+
+        assert texts(prose_for(collar).does) == [
+            "When this arrives, a Cyber-mastiff joins the gang, free — and "
+            "leaves again if this goes."
+        ]
+
+    def test_the_model_it_brings_says_who_brought_it(self, escher, person_type):
+        mastiff = create_profile(
+            "Cyber-mastiff", profile_type=person_type, gang_type=escher, hireable=False
+        )
+        collar = create_wargear("Cyber-mastiff collar", price=45)
+        attach_modifiers_to(
+            collar, [modifier("The mastiff", targets_model(), op_adds_model(mastiff))]
+        )
+
+        assert texts(prose_for(mastiff).referenced_by) == [
+            "Brought by the Cyber-mastiff collar wargear."
+        ]
+
+
+class TestWhereAThingIsSold:
+    """The shops: a list that names it, and a sweep that catches it."""
+
+    @pytest.fixture
+    def saw(self, default_pack):
+        return create_weapon("Heavy rock saw", price=40)
+
+    def test_a_listing_says_the_list_and_the_price(self, saw):
+        goliath = create_collection("Goliath Equipment List")
+        add_entry(goliath, saw, price_override=35)
+
+        assert texts(prose_for(saw).referenced_by) == [
+            "Offered by Goliath Equipment List at 35 credits."
+        ]
+
+    def test_a_narrowed_line_says_who_the_list_offers_it_to(
+        self, saw, escher, person_type
+    ):
+        goliath = create_collection("Goliath Equipment List")
+        forge_born = create_profile(
+            "Forge-born", profile_type=person_type, gang_type=escher
+        )
+        add_entry(goliath, saw, price_override=35, usable_by_profiles=[forge_born])
+
+        assert texts(prose_for(saw).referenced_by) == [
+            "Offered by Goliath Equipment List at 35 credits, to Forge-born only."
+        ]
+
+    def test_a_sweep_says_what_caught_it(self, saw):
+        from n26.library.models import CollectionSelector, Weapon
+
+        post = create_collection("Trading Post")
+        CollectionSelector.of(post, Weapon)
+
+        assert texts(prose_for(saw).referenced_by) == [
+            "Offered by Trading Post at 40 credits, swept in as every weapon."
+        ]
+
+    def test_a_free_line_says_free_rather_than_nought(self, default_pack):
+        knife = create_weapon("Stub knife")
+        post = create_collection("Trading Post")
+        add_entry(post, knife)
+
+        assert texts(prose_for(knife).referenced_by) == [
+            "Offered by Trading Post free."
+        ]
+
+
+class TestBuiltInAndOptional:
+    """The two ways a set of defaults hands something over."""
+
+    def test_a_built_in_names_what_comes_with_it(self, escher, person_type):
+        knife = create_weapon("Stub knife")
+        ganger = create_profile("Ganger", profile_type=person_type, gang_type=escher)
+        add_built_in(ganger, knife)
+
+        assert texts(prose_for(knife).referenced_by) == [
+            "Built into the Ganger profile."
+        ]
+
+    def test_an_option_says_which_option_brings_it(self, escher, person_type):
+        spawn = create_profile(
+            "Chaos Spawn", profile_type=person_type, gang_type=escher
+        )
+        rolled = create_hidden("Strength rolled 6")
+        offer_option(spawn, "rolled 6", thing=rolled)
+
+        assert texts(prose_for(rolled).referenced_by) == [
+            "Taken with the “rolled 6” option of the Chaos Spawn profile."
+        ]
+
+    def test_a_set_nothing_holds_says_so(self, default_pack):
+        orphan = create_default_set("Nobody's kit")
+        knife = create_weapon("Stub knife")
+        add_default_member(orphan, knife)
+
+        assert texts(prose_for(knife).referenced_by) == [
+            "Built into Nobody's kit, which nothing holds yet."
+        ]
+
+
+class TestWhatIsAssignedToIt:
+    """The player side: what would be disturbed if this went."""
+
+    @pytest.fixture
+    def knife(self, escher, person_type, django_user_model):
+        owner = django_user_model.objects.create_user("kal")
+        knife = create_weapon("Stub knife", price=10)
+        ganger = create_profile(
+            "Ganger", profile_type=person_type, gang_type=escher, price=45
+        )
+        for name in ("Wild Cats", "Bad Cats"):
+            gang = found_gang(name, escher, owner=owner)
+            fighter = hire(gang, ganger, "Someone")
+            buy(fighter, thing=knife, paid=10)
+        return knife
+
+    def test_it_counts_the_rows_and_the_gangs_behind_them(self, knife):
+        count = prose_for(knife).assigned_to
+
+        assert (count.rows, count.gangs) == (2, 2)
+
+    def test_a_thing_nobody_holds_counts_nought(self, default_pack):
+        spare = create_weapon("Spare knife")
+        count = prose_for(spare).assigned_to
+
+        assert (count.rows, count.gangs) == (0, 0)
+
+    def test_a_kind_nobody_can_be_assigned_has_no_count(self, buffs_weapons):
+        assert prose_for(buffs_weapons).assigned_to is None
+
+
+class TestAssignmentsAreNotReferences:
+    """A gang holding the thing is a tally, never a sentence: the
+    references say how anyone comes to have it, not who does."""
+
+    def test_holding_it_adds_no_sentence(self, escher, django_user_model):
+        owner = django_user_model.objects.create_user("rin")
+        rule = create_rule("Combat Chems Stash")
+        gang = found_gang("Wild Cats", escher, owner=owner)
+        assign(rule, gang=gang)
+
+        said = prose_for(rule)
+
+        assert said.referenced_by == ()
+        assert (said.assigned_to.rows, said.assigned_to.gangs) == (1, 1)
+
+
+class TestTheRemainingEffects:
+    """The renderers the setups above do not reach, each said once."""
+
+    def test_a_stat_change_names_the_characteristic(self, fighter_stats):
+        rule = create_rule("Eye Injury")
+        attach_modifiers_to(
+            rule,
+            [
+                modifier(
+                    "Eye Injury: BS",
+                    targets_model(),
+                    ef_changes_stat(fighter_stats["BS"], mode="worsen", amount=1),
+                )
+            ],
+        )
+
+        assert texts(prose_for(rule).does) == [
+            "Their Ballistic Skill is 1 worse, while they have it."
+        ]
+
+    def test_a_category_change_says_where_they_file(self, default_pack):
+        leaders = create_category(create_section("Gang"), "Leaders")
+        rule = create_rule("Selected as Outcast Leader")
+        attach_modifiers_to(
+            rule,
+            [
+                modifier(
+                    "Outcast Leader: files with the leaders",
+                    targets_model(),
+                    ef_changes_category(leaders),
+                )
+            ],
+        )
+
+        assert texts(prose_for(rule).does) == [
+            "They file under Leaders on the gang sheet, while they have it."
+        ]
+
+    def test_a_composition_ask_says_what_the_sheet_will_say(self, default_pack):
+        champion = create_subtype("Champion")
+        scum = create_subtype("Hive Scum")
+        rules = create_affiliation("Outcast")
+        attach_modifiers_to(
+            rules,
+            [
+                modifier(
+                    "Lead the Masses",
+                    targets_gang(),
+                    ef_requires_companions(champion, 3, scum),
+                )
+            ],
+        )
+
+        assert texts(prose_for(rules).does) == [
+            "The gang should field at least 3 Hive Scums for each Champion — "
+            "the sheet says when it falls short, and refuses nothing."
+        ]
+
+    def test_a_per_model_limit_counts_one_model_at_a_time(self, default_pack):
+        familiar = create_wargear("Psychic Familiar")
+        rule = create_rule("Familiars")
+        attach_modifiers_to(
+            rule,
+            [
+                modifier(
+                    "One familiar each",
+                    targets_model(),
+                    ef_allows_at_most(1, familiar),
+                )
+            ],
+        )
+
+        assert texts(prose_for(rule).does) == [
+            "No model should hold more than 1 Psychic Familiars — the sheet "
+            "says when one does, and refuses nothing."
+        ]
+
+
+class TestTheQueryCountStaysFlat:
+    """Building one thing's prose is a fixed number of queries.
+
+    The point of the budget is not the number but its flatness: a rule
+    ten things reference must be read at the price of a rule one thing
+    references, or the page about a much-used row would be the slow one.
+
+    What the budget *is* made of is the kinds involved, not the rows: a
+    scope or an effect nothing uses is never fetched at all, so the first
+    modifier of some shape costs a little more than the tenth. The rule
+    below carries one of each shape the tests then add more of.
+    """
+
+    @pytest.fixture
+    def much_used(self, escher, backstab):
+        """One rule, referenced from every direction there is."""
+        skill = create_skill("Nerves of Steel")
+        rule = create_rule("Combat Chems Stash")
+        attach_modifiers_to(
+            rule,
+            [
+                modifier("Chems: nerves", targets_model(), ef_adds(skill)),
+                modifier("Chems: backstab", targets_weapons(), ef_adds(backstab)),
+            ],
+        )
+        add_built_in(escher, rule)
+        giver = create_wargear("Chem-stash")
+        attach_modifiers_to(
+            giver, [modifier("Chem-stash: the rule", targets_model(), ef_adds(rule))]
+        )
+        return rule
+
+    def _more_references(self, rule, how_many):
+        for number in range(how_many):
+            carrier = create_wargear(f"Chem-stash {number}")
+            attach_modifiers_to(
+                carrier,
+                [
+                    modifier(
+                        f"Chem-stash {number}: the rule",
+                        targets_model(),
+                        ef_adds(rule),
+                    )
+                ],
+            )
+            add_built_in(create_wargear(f"Holder {number}"), rule)
+
+    def _budget(self, thing):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        with CaptureQueriesContext(connection) as captured:
+            prose_for(thing)
+        return len(captured.captured_queries)
+
+    def test_the_count_holds_when_more_things_reference_it(
+        self, much_used, django_assert_num_queries
+    ):
+        budget = self._budget(much_used)
+
+        self._more_references(much_used, 6)
+
+        with django_assert_num_queries(budget):
+            prose_for(much_used)
+
+    def test_the_count_holds_when_it_carries_more_modifiers(
+        self, much_used, django_assert_num_queries
+    ):
+        budget = self._budget(much_used)
+
+        for number in range(6):
+            trait = create_trait(f"Trait {number}")
+            attach_modifiers_to(
+                much_used,
+                [modifier(f"Chems: trait {number}", targets_weapons(), ef_adds(trait))],
+            )
+
+        with django_assert_num_queries(budget):
+            prose_for(much_used)
+
+    def test_the_budget_is_what_it_is(self, much_used, django_assert_num_queries):
+        """Pinned so that a new sweep is a decision somebody made.
+
+        Most of the number is the price of assignables having no shared
+        table: "what carries this modifier" and "what holds this set" are
+        each one query per kind, and there are twenty-odd kinds.
+        """
+        with django_assert_num_queries(63):
+            prose_for(much_used)
+
+
+class TestEveryEffectCanBeSaid:
+    """A discovering guard: an effect with no renderer is one the reach
+    column would drop without a word."""
+
+    def test_there_is_something_to_check(self):
+        from n26.library.models.modifier import EFFECT_FIELDS
+
+        assert len(EFFECT_FIELDS) > 5
+
+    def test_every_effect_kind_has_a_sentence(self):
+        from n26.library.models.modifier import EFFECT_FIELDS
+
+        missing = [name for name in EFFECT_FIELDS if name not in prose.DOWNSTREAM]
+
+        assert not missing, (
+            f"No reach sentence for {', '.join(missing)}. Add a renderer in "
+            "n26/library/prose.py decorated @_renders(<the effect's column on "
+            "Modifier>), returning the sentence and its hint — an effect "
+            "nothing can say is one the reach column drops in silence."
+        )
+
+    def test_every_scope_kind_has_words_for_who_it_reaches(self):
+        from n26.library.models.modifier import SCOPE_FIELDS
+
+        assert set(SCOPE_FIELDS) == {
+            "targets_miniature",
+            "targets_weapons",
+            "targets_attached_weapon",
+            "targets_gang",
+        }, (
+            "A new scope means a new subject in n26/library/prose.py: give "
+            "_who the words for whoever it reaches, and pin the sentence here."
+        )
+
+
+class TestTheDeletePageAndTheProseAgree:
+    """Both read the same edges through one reader, so neither can name
+    a set of things the other does not."""
+
+    def test_what_protects_a_row_is_what_the_prose_explains(self, escher, person_type):
+        knife = create_weapon("Stub knife")
+        ganger = create_profile("Ganger", profile_type=person_type, gang_type=escher)
+        add_built_in(ganger, knife)
+
+        protectors = [
+            reference for reference in references_to(knife) if reference.protects
+        ]
+
+        assert [reference.label for reference in protectors] == [
+            "library.defaultassignment"
+        ]
+        assert texts(prose_for(knife).referenced_by) == [
+            "Built into the Ganger profile."
+        ]
+
+    def test_a_row_a_gang_holds_is_protected_by_that_assignment(
+        self, escher, person_type, django_user_model
+    ):
+        owner = django_user_model.objects.create_user("nel")
+        knife = create_weapon("Stub knife", price=10)
+        ganger = create_profile(
+            "Ganger", profile_type=person_type, gang_type=escher, price=45
+        )
+        gang = found_gang("Wild Cats", escher, owner=owner)
+        fighter = hire(gang, ganger, "Someone")
+        buy(fighter, thing=knife, paid=10)
+
+        protectors = {
+            reference.label for reference in references_to(knife) if reference.protects
+        }
+
+        assert "n26.assignment" in protectors
+
+    def test_a_weapons_own_firing_lines_do_not_protect_it(self, default_pack):
+        """A part of the thing is not a reference to it: deleting a
+        weapon takes its lines with it."""
+        from n26.library.authoring import add_weapon_profile
+
+        knife = create_weapon("Stub knife")
+        add_weapon_profile(knife, annotation="Stub knife")
+
+        lines = [
+            reference
+            for reference in references_to(knife)
+            if reference.label == "library.weaponprofile"
+        ]
+
+        assert lines and not any(reference.protects for reference in lines)
