@@ -74,6 +74,10 @@ def collections_for(miniature, card=None, computed=None):
     gang = miniature.gang
     nodes_by_key = {node.key: node for node in card.all_nodes()}
     for node in card.all_nodes():
+        if node.suppressed:
+            # A list something has taken away is not somewhere to shop:
+            # the card no longer shows it, so it opens nothing either.
+            continue
         if node.assignment is not None and node.assignment.collection_id is not None:
             cause = nodes_by_key.get(node.caused_by_key)
             if cause is not None:

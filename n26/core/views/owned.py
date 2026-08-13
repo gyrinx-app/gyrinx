@@ -209,6 +209,7 @@ def accessorise_dialogs(request, card, *, at):
         node
         for node in card.roots
         if not node.broadcast
+        and not node.suppressed
         and node.assignment is not None
         and isinstance(node.assignable, Weapon)
     ]

@@ -65,6 +65,12 @@ class Node:
     #: nowhere — a weapon a modifier grants. Nothing paid for it, so it
     #: is worth nothing and there is nothing to sell.
     computed: bool = False
+    #: True when a modifier has taken this line away
+    #: (``n26.core.effects``). The row stays exactly where it is and
+    #: stops being drawn, so removing whatever cancelled it brings the
+    #: line back on the next read. Only ever set on a row nobody paid
+    #: for, which is why a card's rating is the same either way.
+    suppressed: bool = False
     #: What a counter member opens at, on a card built from library alone
     #: — a preview's Starting XP. A stored card ignores it: the value
     #: lives on the assignment, and this is what the hire will write
@@ -81,6 +87,24 @@ class Node:
     def rating_with_extras(self):
         """This line plus everything hung off it — a gun with its paid ammo."""
         return self.rating + sum(child.rating_with_extras for child in self.children)
+
+    @property
+    def carries_money(self):
+        """Whether anything was paid for this line, or it is worth anything.
+
+        The question a removal asks before it hides a row: free kit and
+        rows something else brought carry nothing, and a purchase carries
+        either the credits it cost or the worth it added — a gift with a
+        rating counts as bought, because the gang is worth more for
+        holding it. A card built from the library alone keeps no ledger,
+        so what the line is worth is all it can say.
+        """
+        entry = (
+            getattr(self.assignment, "ledger_entry", None) if self.assignment else None
+        )
+        if entry is not None:
+            return bool(entry.paid or entry.trade_points or entry.rating_contribution)
+        return bool(self.rating)
 
     def walk(self):
         yield self
@@ -177,6 +201,11 @@ class Card:
             if node.broadcast:
                 # The gang's rows ride the card for their effects; they
                 # are not facts about this model.
+                continue
+            if node.suppressed:
+                # Taken away, so no longer a fact about anyone: a rule
+                # reaching Leaders must not reach a fighter whose Leader
+                # row something cancelled.
                 continue
             if node.is_primary_profile:
                 profile = node.assignable
@@ -288,6 +317,8 @@ class GangCard:
         possessions = []
         counts = []
         for node in self.all_nodes():
+            if node.suppressed:
+                continue
             possessions.append(node.assignable)
             if isinstance(node.assignable, Counter):
                 held = (

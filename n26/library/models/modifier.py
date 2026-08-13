@@ -96,6 +96,11 @@ GRANTABLE_FIELDS = {
     # with children of its own — see ``n26.core.effects``, which builds
     # the card nodes a granted weapon needs.
     "weapon": "library.Weapon",
+    # A carrier that draws no row, so naming one is naming a *bundle*:
+    # everything the hidden thing does arrives or departs together. What
+    # a gang's own rules hang off, so that one "takes away" can cancel
+    # the lot — see recipes.md, the corrupted gang.
+    "hidden": "library.Hidden",
 }
 
 
@@ -675,6 +680,13 @@ class AssignableChoice(models.Model):
         blank=True,
         related_name="+",
     )
+    hidden = models.ForeignKey(
+        "library.Hidden",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
 
     class Meta:
         abstract = True
@@ -691,19 +703,25 @@ class AssignableChoice(models.Model):
 
     def accepts(self, target_kind):
         """A trait goes on a firing line; most things go on a model; a
-        rule or a collection may also land on the gang itself.
+        rule, a collection or a hidden carrier may also land on the gang
+        itself.
 
         A weapon goes on a model only: it is the model that carries a
         gun, and the gun's own firing lines are what a weapon-scoped
         modifier reaches once the grant has put them on the card. The
-        gang's card carries named rules and standing lists — an
-        alliance's "the gang gains…" — but has no type line, no skills
-        row, and holds no weapons, so nothing else can land there.
+        gang's card carries named rules, standing lists, and the hidden
+        carriers its own rules hang off — an alliance's "the gang
+        gains…" — but has no type line, no skills row, and holds no
+        weapons, so nothing else can land there.
         """
         if self.trait_id is not None:
             return target_kind == WEAPON_PROFILE
         if target_kind == GANG:
-            return self.rule_id is not None or self.collection_id is not None
+            return (
+                self.rule_id is not None
+                or self.collection_id is not None
+                or self.hidden_id is not None
+            )
         return target_kind == MODEL
 
 
@@ -715,6 +733,9 @@ class AddsAssignable(AssignableChoice):
     granted weapon is free kit: it and its lines are worked out at read
     time, so nothing is bought, nothing is worth anything, and it lasts
     exactly as long as whatever granted it.
+
+    Naming a hidden carrier gives a *bundle*: it draws no row, so what
+    arrives is everything it in turn does.
     """
 
     class Meta:
@@ -734,10 +755,22 @@ class AddsAssignable(AssignableChoice):
 class RemovesAssignable(AssignableChoice):
     """Takes one away, computed — Death of a Leader.
 
-    It reaches what other modifiers granted, never what was bought: a
-    stored row is a purchase, and unbuying one is an operation rather
-    than a read. So removing a weapon here cancels a grant of that
-    weapon and leaves a weapon the gang paid for alone.
+    It reaches what another modifier **granted** and what the card holds
+    **innately**: a built-in gun, a rule that arrived with the gang type.
+    A granted thing simply stops being given; an innate row is hidden —
+    nothing is deleted, and dropping whatever cancelled it brings the row
+    straight back on the next read.
+
+    Never what was paid for. A purchase is parted with by an operation,
+    not by reading a card, so a row carrying credits or a rating of its
+    own stays exactly where it is — and so does a free row with a
+    purchase hanging beneath it, because an accessory somebody bought for
+    a built-in gun must not be stranded.
+
+    What the cancelled thing was itself doing goes with it, down the
+    chain: name a hidden carrier and every rule it hands out departs
+    together, which is how one of these takes away a whole bundle. A
+    thing two carriers give survives losing one of them.
     """
 
     class Meta:

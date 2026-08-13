@@ -33,6 +33,23 @@ round its grant ran in, so an unconditional weapon scope on the same
 carrier — asked during that round — does not see it. Naming the weapon
 makes the rule conditional and therefore later, which is what an author
 writing "these claws gain…" says anyway.
+
+**Taking something away** is the mirror of all that, and it reaches two
+kinds of presence. A *granted* thing is on the card only while something
+live gives it, so cancelling it means dropping every granting edge — and
+then everything the thing itself was doing goes with it, down the chain,
+because what it granted has lost its giver too. A thing two carriers give
+survives losing one of them and changes hands to the survivor, which is
+why every edge is logged and not just the entry it wrote. A *stored* row
+is on the card because somebody wrote it down; a removal **suppresses**
+it — hides it from every reader, leaving the row exactly where it is — but
+only where nothing was paid for it and nothing paid hangs beneath it. A
+purchase is never taken away by a read, and nothing paid for is ever
+stranded. Removals settle as their round does, so a later round sees a
+world without what an earlier one cancelled; the chain and the
+suppressions are then carried through in one pass at the end
+(``_retract``), which is also where a removal whose own carrier turned out
+to be gone is put back.
 """
 
 from dataclasses import dataclass, field
@@ -174,8 +191,18 @@ class PlannedStep:
     #: The round it actually executed in (later than ``round`` for a
     #: carrier granted mid-computation).
     ran_in: int
-    outcome: str = "pending"  # reached / skipped / noted
+    #: What became of it. ``reached`` the target, ``skipped`` it,
+    #: ``noted`` (a stored effect, read but never run here — and never
+    #: retracted, because the rows it wrote are still there),
+    #: ``retracted`` — it ran, and then whatever carried it was itself
+    #: taken away, so its work was undone — or ``refused``, a removal
+    #: that found only rows somebody had paid for.
+    outcome: str = "pending"
     granted: tuple = ()
+    #: What a removal actually cancelled: a grant, a stored row, or both.
+    took_away: tuple = ()
+    #: What a removal left alone because money stands behind it.
+    refused: tuple = ()
     #: True when the carrier arrived via a grant rather than the card.
     discovered: bool = False
     #: The card node carrying this modifier — None for discovered
@@ -193,11 +220,109 @@ class PlannedStep:
         return str(self.modifier.effect)
 
     def __str__(self):
-        did = f" -> granted {', '.join(self.granted)}" if self.granted else ""
+        did = ""
+        if self.granted:
+            did += f" -> granted {', '.join(self.granted)}"
+        if self.took_away:
+            did += f" -> took away {', '.join(self.took_away)}"
+        if self.refused:
+            did += f" -> left {', '.join(self.refused)} (paid for)"
         return (
             f"round {self.ran_in}: [{self.scope}] {self.effect} "
             f"(from {self.source}) — {self.outcome}{did}"
         )
+
+
+@dataclass
+class _Placed:
+    """One granting edge, as the retraction pass remembers it.
+
+    Every edge is logged, including one whose thing another carrier had
+    already put on the card (``payload`` is then None): a thing two
+    things give must survive losing one of them, and that cannot be told
+    from the single entry standing in the row.
+    """
+
+    source_key: object
+    thing_key: object
+    contribution: Contribution
+    #: Where the entry went: the ComputedCard, one ComputedWeapon, or the
+    #: card itself for a granted weapon's line. None for a kind that draws
+    #: no line at all — a hidden carrier is a grant with nothing to show.
+    holder: object
+    field: str
+    #: The entry appended, or None where a same-named one already stood.
+    payload: object = None
+
+
+@dataclass
+class _Applied:
+    """One thing a modifier did that is not a grant, and whose doing it was.
+
+    Retraction drops the entry by identity from the list it was appended
+    to, so nothing else in that list is disturbed.
+    """
+
+    source_key: object
+    holder: object
+    field: str
+    payload: object
+
+
+@dataclass
+class _TakenAway:
+    """One removal that reached its target, and everything it did there.
+
+    A removal settles with its round, before anything knows whether the
+    thing carrying it survives — so what it did is written down and
+    carried through at the end: onwards, if the removal stands, to
+    whatever the cancelled thing was itself doing; backwards, if the
+    carrier turns out to have been taken away too.
+    """
+
+    source_key: object
+    thing: object
+    step: PlannedStep
+    #: What the scope selected. Only a model's or a gang's cancellation
+    #: retracts a chain; on a weapon's line a removal is one trait.
+    kind: str
+    holder: object = None
+    field: str = ""
+    #: Entries taken out of a computed list, kept so they can go back.
+    dropped: tuple = ()
+    #: An entry put in — a weapon's removed trait — to be taken out again.
+    added: object = None
+    #: Stored rows this hid, and stored rows it left alone because money
+    #: stands behind them.
+    hidden: tuple = ()
+    refused: tuple = ()
+
+
+@dataclass
+class _Offers:
+    """The choice offers a run collected, before the slots are filled.
+
+    A box rather than a bare list so a retracted offer is dropped by the
+    same code that drops a retracted placement.
+    """
+
+    items: list = field(default_factory=list)
+
+
+@dataclass
+class _Log:
+    """What one run of ``compute`` did, in the order it did it.
+
+    The trace ``computed.plan`` gives a person, in the form retraction
+    needs: every effect keyed by the thing that carried it, so cancelling
+    that thing can find its work again.
+    """
+
+    placed: list = field(default_factory=list)
+    applied: list = field(default_factory=list)
+    removals: list = field(default_factory=list)
+    #: Category re-filings in order — the last one still standing wins.
+    recategorisations: list = field(default_factory=list)
 
 
 @dataclass
@@ -232,6 +357,10 @@ class ComputedCard:
     #: here and resolved against the roster by ``compute_gang`` — only a
     #: gang card ever gathers any.
     requirements: list = field(default_factory=list)
+    #: How many granted lines have been dealt. A line's key is built from
+    #: it, so a key stays unique even where a grant was taken back and
+    #: another dealt after it.
+    granted_serial: int = 0
 
     def weapon(self, node):
         return self.weapons[node.key]
@@ -301,6 +430,10 @@ def compute(card, index):
     round r runs its own modifiers no earlier than r, against the same
     snapshot its round sees. The whole run is recorded on
     ``computed.plan``.
+
+    Removals settle with their round, and what they cancel is then
+    followed through the chain in one pass at the end — see ``_retract``
+    and the module docstring.
     """
     from n26.library.models.modifier import (
         AddsAssignable,
@@ -328,7 +461,8 @@ def compute(card, index):
         for node in card.all_nodes()
     }
     anchors = {ModifierIndex.key(node.assignable): node for node in card.all_nodes()}
-    offers = []
+    offers = _Offers()
+    log = _Log()
 
     # Answers by what caused them. Choice answers are stored rows — printed
     # facts — so this is built once, before the rounds: a chosen-mode
@@ -390,6 +524,7 @@ def compute(card, index):
             )
             for step in batch:
                 scope, effect = step.modifier.scope, step.modifier.effect
+                source_key = ModifierIndex.key(step.source)
                 if getattr(effect, "is_stored", False):
                     # Stored effects write rows at assign time — running one
                     # here would breed pets on every render. Noted, never
@@ -403,16 +538,18 @@ def compute(card, index):
                         step.outcome = "skipped"
                         computed.plan.append(step)
                         continue
-                    computed.stored_effects.append(
-                        StoredEffect(
-                            description=str(effect),
-                            source=str(step.source),
-                            source_kind=kind_of(step.source),
-                            happened=is_assigned.get(
-                                ModifierIndex.key(step.source), False
-                            ),
-                        )
+                    note = StoredEffect(
+                        description=str(effect),
+                        source=str(step.source),
+                        source_kind=kind_of(step.source),
+                        happened=is_assigned.get(source_key, False),
                     )
+                    # Not in the retraction log, deliberately: this note is
+                    # about rows that were written when the thing was
+                    # assigned, and a removal is a read. The pet it brought
+                    # is still on the roster, so the card goes on saying
+                    # where it came from.
+                    computed.stored_effects.append(note)
                     step.outcome = "noted"
                     computed.plan.append(step)
                     continue
@@ -438,6 +575,7 @@ def compute(card, index):
                                     thing=thing, source=label, source_kind=label_kind
                                 ),
                                 step.node,
+                                source_key,
                             )
                         )
                         step.granted = (*step.granted, str(thing))
@@ -454,12 +592,15 @@ def compute(card, index):
                                     source=label,
                                     source_kind=label_kind,
                                 ),
+                                source_key,
+                                step,
                             )
                         )
                     elif isinstance(effect, ChangesCategory):
                         # Last one standing wins: two rules re-filing one
                         # model is a content oddity, not an order to keep.
                         computed.sorted_under = effect.category
+                        log.recategorisations.append((source_key, effect.category))
                     elif isinstance(effect, ChangesStat):
                         change = StatChange(
                             stat=effect.stat,
@@ -468,23 +609,30 @@ def compute(card, index):
                             source=label,
                             source_kind=label_kind,
                         )
-                        if target.kind == MODEL:
-                            computed.stat_changes.append(change)
-                        else:
-                            computed.weapons[target.node.key].stat_changes.append(
-                                change
-                            )
-                    elif isinstance(effect, OffersChoice):
-                        offers.append(
-                            (
-                                effect,
-                                label,
-                                label_kind,
-                                anchors.get(ModifierIndex.key(step.source)),
-                            )
+                        holder = (
+                            computed
+                            if target.kind == MODEL
+                            else computed.weapons[target.node.key]
                         )
+                        holder.stat_changes.append(change)
+                        log.applied.append(
+                            _Applied(source_key, holder, "stat_changes", change)
+                        )
+                    elif isinstance(effect, OffersChoice):
+                        offer = (
+                            effect,
+                            label,
+                            label_kind,
+                            anchors.get(source_key),
+                        )
+                        offers.items.append(offer)
+                        log.applied.append(_Applied(source_key, offers, "items", offer))
                     elif isinstance(effect, RequiresCompanions):
-                        computed.requirements.append((effect, label, label_kind))
+                        asked = (effect, label, label_kind)
+                        computed.requirements.append(asked)
+                        log.applied.append(
+                            _Applied(source_key, computed, "requirements", asked)
+                        )
                     elif isinstance(effect, PlacesCategory):
                         category = _placed_category(effect, step.node, by_cause)
                         if category is None:
@@ -492,24 +640,41 @@ def compute(card, index):
                             # yet: nothing to place, and the plan says so.
                             step.outcome = "skipped"
                             continue
-                        computed.placements.append(
-                            CategoryPlacement(
-                                category=category,
-                                section=effect.section,
-                                source=label,
-                                source_kind=label_kind,
-                            )
+                        placement = CategoryPlacement(
+                            category=category,
+                            section=effect.section,
+                            source=label,
+                            source_kind=label_kind,
+                        )
+                        computed.placements.append(placement)
+                        log.applied.append(
+                            _Applied(source_key, computed, "placements", placement)
                         )
                 computed.plan.append(step)
 
         # Settle the round: additions first, then removals (agreed order).
-        for target, contribution, carrier in adds:
-            _place(computed, target, contribution, carrier)
-        for target, contribution in removes:
-            _unplace(computed, target, contribution)
+        for target, contribution, carrier, source_key in adds:
+            holder, where, payload = _place(computed, target, contribution, carrier)
+            # Logged whatever came of it — a grant that drew no line still
+            # put the thing on the card, and the thing may be doing plenty.
+            log.placed.append(
+                _Placed(
+                    source_key=source_key,
+                    thing_key=ModifierIndex.key(contribution.thing),
+                    contribution=contribution,
+                    holder=holder,
+                    field=where,
+                    payload=payload,
+                )
+            )
+        for target, contribution, source_key, step in removes:
+            log.removals.append(
+                _take_away(computed, target, contribution, source_key, step)
+            )
         round_no += 1
 
-    _fill_choice_slots(computed, offers, by_cause)
+    _retract(computed, log)
+    _fill_choice_slots(computed, offers.items, by_cause)
     return computed
 
 
@@ -768,32 +933,248 @@ def _bucket(computed, target, thing):
 
 
 def _place(computed, target, contribution, carrier=None):
+    """Put a grant where its kind says it goes.
+
+    Answers with the list it landed in — the holder and the attribute
+    name — and the entry appended, which is None where a same-named entry
+    already stood or where the kind draws nothing at all. Retraction
+    needs all three: the entry to take back out, and the destination to
+    hand the thing to another giver in.
+    """
     holder, kind = _bucket(computed, target, contribution.thing)
     if holder is None:
-        return
+        return None, "", None
     if kind == "traits":
         holder.added_traits.append(contribution)
-    elif kind == "granted_weapons":
-        _grant_weapon(computed, contribution, carrier)
-    else:
-        existing = getattr(holder, kind)
-        if contribution.name not in {c.name for c in existing}:
-            existing.append(contribution)
+        return holder, "added_traits", contribution
+    if kind == "granted_weapons":
+        return computed.card, "granted", _grant_weapon(computed, contribution, carrier)
+    existing = getattr(holder, kind)
+    if contribution.name in {c.name for c in existing}:
+        # One skill from two givers is one skill. The edge is logged all
+        # the same, so losing one giver does not lose the skill.
+        return holder, kind, None
+    existing.append(contribution)
+    return holder, kind, contribution
 
 
-def _unplace(computed, target, contribution):
-    holder, kind = _bucket(computed, target, contribution.thing)
-    if holder is None:
+def _take_away(computed, target, contribution, source_key, step):
+    """Cancel one thing on one target, and say what that came to.
+
+    Three things can be standing in the way of a thing being gone, and
+    this reaches all of them: a computed entry in a row, a granted weapon
+    and its lines, and a **stored row** — the fighter's built-in kit, a
+    rule that arrived with the gang type — which is hidden rather than
+    written to. What it did is returned as a record: the chain from here
+    is followed once, at the end, by ``_retract``.
+    """
+    thing = contribution.thing
+    record = _TakenAway(source_key=source_key, thing=thing, step=step, kind=target.kind)
+    holder, kind = _bucket(computed, target, thing)
+    if holder is not None:
+        if kind == "traits":
+            holder.removed_traits.append(contribution)
+            record.holder, record.field = holder, "removed_traits"
+            record.added = contribution
+        elif kind == "granted_weapons":
+            record.holder, record.field = computed.card, "granted"
+            record.dropped = _ungrant_weapon(computed, contribution)
+        else:
+            standing = getattr(holder, kind)
+            record.holder, record.field = holder, kind
+            record.dropped = tuple(
+                entry for entry in standing if entry.name == contribution.name
+            )
+            setattr(
+                holder,
+                kind,
+                [entry for entry in standing if entry.name != contribution.name],
+            )
+    if target.kind != WEAPON_PROFILE:
+        # On a weapon's line a removal is one trait on one gun, never a
+        # statement about what the model holds.
+        record.hidden, record.refused = _suppress(computed.card, thing)
+    return record
+
+
+def _suppress(card, thing):
+    """Hide the stored rows of a thing a removal cancelled.
+
+    Innate kit is a row nobody paid for — a fighter's built-in gun, a
+    rule the gang type brought — and a removal reaches it: the row stays
+    in the database and stops being drawn, so taking the remover away
+    brings it back on the next read.
+
+    Never a purchase, and never a row with a purchase hanging beneath it:
+    an accessory somebody bought for a built-in gun would be stranded, so
+    the gun stays. Answers with what it hid and what it left alone.
+    """
+    hidden, refused = [], []
+    wanted = ModifierIndex.key(thing)
+    for node in card.all_nodes():
+        if node.computed or ModifierIndex.key(node.assignable) != wanted:
+            continue
+        if any(line.carries_money for line in node.walk()):
+            refused.append(node)
+        else:
+            node.suppressed = True
+            hidden.append(node)
+    return tuple(hidden), tuple(refused)
+
+
+def _retract(computed, log):
+    """Follow every removal through to what it really cost the card.
+
+    A removal cancels a thing; this pass works out the rest. What the
+    thing was doing stops — every grant it made, stat it shifted,
+    category it placed, question it asked — and a thing it granted is
+    itself gone unless something else still gives it, which carries on
+    down the chain. A thing two carriers gave survives losing one, and
+    changes hands: the row keeps its place and names the survivor.
+
+    Removals are taken in the order they settled, so an earlier round's
+    removal is never undone by a later one, and two things cancelling
+    each other both go rather than the answer depending on which was
+    read first. A removal whose own carrier turns out to have been
+    cancelled never happened, and what it took is put back.
+
+    Nothing here queries, and nothing here is written down: the card
+    keeps every row it had, and a card computed again from the same rows
+    comes out the same.
+    """
+    if not log.removals:
         return
-    if kind == "traits":
-        holder.removed_traits.append(contribution)
-    elif kind == "granted_weapons":
-        _ungrant_weapon(computed, contribution)
-    else:
+
+    card = computed.card
+    #: Stored rows by the thing they name. Granted lines are the grants'
+    #: own output and are retracted through the log instead.
+    stored = {}
+    for node in card.all_nodes():
+        if not node.computed:
+            stored.setdefault(ModifierIndex.key(node.assignable), []).append(node)
+
+    edges = {}
+    for placed in log.placed:
+        edges.setdefault(placed.thing_key, []).append(placed)
+
+    #: Things no longer on the card at all.
+    dead = set()
+
+    def gone(thing_key):
+        """Nothing gives this any more, and no row of it still stands."""
+        if any(not node.suppressed for node in stored.get(thing_key, ())):
+            return False
+        return all(placed.source_key in dead for placed in edges.get(thing_key, ()))
+
+    def cascade():
+        """Whatever the last cancellation starved, and so on down."""
+        for _ in range(MAX_CHAIN_DEPTH):
+            starved = {
+                thing_key
+                for thing_key in edges
+                if thing_key not in dead and gone(thing_key)
+            }
+            if not starved:
+                return
+            dead.update(starved)
+
+    for record in log.removals:
+        step = record.step
+        if record.source_key in dead:
+            _put_back(record)
+            step.outcome = "retracted"
+            continue
+        if record.kind == WEAPON_PROFILE:
+            step.took_away = (*step.took_away, str(record.thing))
+            continue
+        if record.refused:
+            step.refused = (*step.refused, str(record.thing))
+            if record.hidden:
+                # Held twice, once paid for: the free row goes, the
+                # purchase stays — and so the thing is still on the card,
+                # doing everything it does.
+                step.took_away = (*step.took_away, str(record.thing))
+            elif step.outcome == "reached":
+                step.outcome = "refused"
+            continue
+        thing_key = ModifierIndex.key(record.thing)
+        if record.dropped or record.hidden or thing_key in edges:
+            step.took_away = (*step.took_away, str(record.thing))
+        dead.add(thing_key)
+        cascade()
+
+    if not dead:
+        return
+
+    # What a departed thing was doing stops with it.
+    for applied in log.applied:
+        if applied.source_key in dead:
+            _drop(applied.holder, applied.field, applied.payload)
+
+    # A grant whose giver has gone, or whose thing has, is not there any
+    # more. Where a live giver of the same thing remains, the row keeps
+    # its place and names that one instead.
+    live = {id(placed) for placed in log.placed if _stands(placed, dead)}
+    givers = {placed.thing_key: placed for placed in log.placed if id(placed) in live}
+    for placed in log.placed:
+        if id(placed) in live or placed.payload is None:
+            continue
+        survivor = givers.get(placed.thing_key)
+        _drop(
+            placed.holder,
+            placed.field,
+            placed.payload,
+            instead=(
+                survivor.contribution
+                if survivor is not None and survivor.payload is None
+                else None
+            ),
+        )
+
+    if log.recategorisations:
+        standing = [
+            category
+            for source_key, category in log.recategorisations
+            if source_key not in dead
+        ]
+        computed.sorted_under = standing[-1] if standing else None
+
+    for step in computed.plan:
+        if step.outcome == "reached" and ModifierIndex.key(step.source) in dead:
+            step.outcome = "retracted"
+
+
+def _stands(placed, dead):
+    """Whether a granting edge is still there: giver and thing both."""
+    return placed.source_key not in dead and placed.thing_key not in dead
+
+
+def _drop(holder, field, payload, instead=None):
+    """Take one entry out of a computed list by identity, optionally
+    putting another in its place — so the row keeps its position when a
+    thing simply changes hands."""
+    standing = getattr(holder, field)
+    kept = [entry for entry in standing if entry is not payload]
+    if instead is not None and len(kept) < len(standing):
+        kept.insert(
+            next(i for i, entry in enumerate(standing) if entry is payload), instead
+        )
+    setattr(holder, field, kept)
+
+
+def _put_back(record):
+    """Undo a removal whose own carrier turned out to have been cancelled."""
+    for node in record.hidden:
+        node.suppressed = False
+    if record.holder is None:
+        return
+    if record.added is not None:
+        _drop(record.holder, record.field, record.added)
+    if record.dropped:
         setattr(
-            holder,
-            kind,
-            [c for c in getattr(holder, kind) if c.name != contribution.name],
+            record.holder,
+            record.field,
+            [*getattr(record.holder, record.field), *record.dropped],
         )
 
 
@@ -810,13 +1191,15 @@ def _grant_weapon(computed, contribution, carrier):
 
     Every grant is its own weapon, where every grant of one skill is the
     same skill: two things each handing the bearer a stub gun leave them
-    holding two stub guns.
+    holding two stub guns. Answers with the line it dealt, which is what
+    a retraction takes back.
     """
     from n26.core.card import Node
 
     card = computed.card
     weapon = contribution.thing
-    serial = len(card.granted)
+    serial = computed.granted_serial
+    computed.granted_serial += 1
     node = Node(
         assignable=weapon,
         key=("granted", serial, weapon.pk),
@@ -840,15 +1223,19 @@ def _grant_weapon(computed, contribution, carrier):
         # the trait needs somewhere to land.
         computed.weapons[line.key] = ComputedWeapon(node=line)
     card.granted.append(node)
+    return node
 
 
 def _ungrant_weapon(computed, contribution):
     """Take back a granted weapon — every copy of it, whoever gave it.
 
-    It reaches grants only. A weapon the gang bought is a stored row and
-    stays exactly where it is: unbuying is an operation, not a read.
+    A weapon the gang **bought** is a stored row, and one nobody paid for
+    is hidden rather than unbought (``_suppress``); either way this
+    touches only the lines a grant put there. Answers with the lines it
+    took, so a retracted removal can put them back.
     """
     card = computed.card
-    card.granted[:] = [
-        node for node in card.granted if node.assignable != contribution.thing
-    ]
+    taken = [node for node in card.granted if node.assignable == contribution.thing]
+    gone = {id(node) for node in taken}
+    card.granted[:] = [node for node in card.granted if id(node) not in gone]
+    return tuple(taken)

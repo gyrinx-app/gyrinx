@@ -433,8 +433,9 @@ def _build_registry():
             label="Gives something",
             blurb=(
                 "The target gains a subtype, skill, power, rule, trait, "
-                "list or weapon — for as long as the item carrying this "
-                "modifier stays."
+                "list or weapon — or a hidden item, which brings whatever "
+                "it gives. For as long as the item carrying this modifier "
+                "stays."
             ),
             example=(
                 "The Cutter grants Mounted; Mounted grants Nerves of "
@@ -446,9 +447,14 @@ def _build_registry():
             {"thing": Union(over=dict(GRANTABLE_FIELDS))},
             label="Takes something away",
             blurb=(
-                "Cancels something granted or innate. Never un-buys what was paid for."
+                "Cancels something granted or innate, and whatever that "
+                "was itself giving. Hides built-in kit rather than "
+                "deleting it; never un-buys what was paid for."
             ),
-            example="Selected as Leader: loses the Loner subtype.",
+            example=(
+                "Selected as Leader: loses the Loner subtype. Name a "
+                "hidden item and everything it gives goes at once."
+            ),
         ),
         Spec(
             authoring.ef_changes_stat,

@@ -234,6 +234,12 @@ def owned_things(card, at):
     for node in card.roots:
         if node.broadcast or node.assignment is None:
             continue
+        if node.suppressed:
+            # A modifier has taken this away, so the card says the fighter
+            # does not have it — and a screen must not offer to sell
+            # something the card denies. The row is untouched underneath:
+            # drop whatever cancelled it and the controls come back.
+            continue
         if not is_possession(node.assignable):
             continue
         key = thing_key(node.assignable)

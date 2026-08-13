@@ -894,6 +894,11 @@ def card_to_model_card(
             # reached this card and name it as their source; the row
             # itself belongs on the gang's sheet, not the fighter's.
             continue
+        if node.suppressed:
+            # Something has taken this away. The row is still in the
+            # database and draws nothing: the card is what the fighter
+            # has, and this is no longer part of it.
+            continue
         thing = node.assignable
         if isinstance(thing, Hidden):
             # No row of its own — that is its whole kind. Its effects have
@@ -1083,6 +1088,9 @@ def _gang_rows(gang_card, gang_computed):
     rules = []
     for node in gang_card.roots:
         if node.key in answers:
+            continue
+        if node.suppressed:
+            # Taken away by a modifier — the row stays, the line goes.
             continue
         if isinstance(node.assignable, (Hidden, Counter)):
             continue

@@ -1255,6 +1255,7 @@ def op_changes_counter(counter, mode="set", amount=0):
 def _assignable_kwarg(thing):
     from n26.library.models import (
         Collection,
+        Hidden,
         Power,
         Rule,
         Skill,
@@ -1271,6 +1272,7 @@ def _assignable_kwarg(thing):
         (Rule, "rule"),
         (Power, "power"),
         (Weapon, "weapon"),
+        (Hidden, "hidden"),
     )
     for model, name in kinds:
         if isinstance(thing, model):
