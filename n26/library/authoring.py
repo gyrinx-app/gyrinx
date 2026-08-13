@@ -597,9 +597,13 @@ def restrict_use(thing, *allowed):
     """Who may use this — ProfileType, Subtype, Profile or Specialisation.
 
     ``restrict_use(wyld_bow, wyld_runner)`` is "Wyld bow (Wyld Runner
-    only)": a whole fighter entry, which is how a shared house list
-    narrows a few of its lines. ``restrict_use(rad_beamer, gunner)`` is
-    "(Gunner specialist only)" — the field a Specialist chose.
+    only)": a whole fighter entry, and a fact about the bow wherever it
+    is listed. ``restrict_use(rad_beamer, gunner)`` is "(Gunner
+    specialist only)" — the field a Specialist chose.
+
+    ``thing`` may equally be a collection entry, which narrows that one
+    list's offer and leaves every other list that names the item alone.
+    The four lists are the same shape on both, so this writes either.
     """
     from n26.library.models import Profile, ProfileType, Specialisation, Subtype
 
@@ -940,6 +944,10 @@ def add_entry(
     thing,
     price_override=None,
     trade_point_override=None,
+    usable_by_profile_types=(),
+    usable_by_subtypes=(),
+    usable_by_profiles=(),
+    usable_by_specialisations=(),
     position=None,
     **kwargs,
 ):
@@ -947,12 +955,18 @@ def add_entry(
 
     The overrides are what an entry may state; left blank, the item
     is priced at its own reference. New entries go to the end.
+
+    The ``usable_by_*`` lists narrow who this list offers the item to —
+    a Goliath list's "Heavy rock saw (Forge-born only)", where two other
+    gangs list the same saw plainly. Empty offers it to everyone, and
+    whatever the item itself restricts still holds. ``restrict_use``
+    writes the same lists an item at a time, on an entry as on an item.
     """
     from n26.library.models import CollectionEntry
 
     if position is None:
         position = collection.entries.count()
-    return CollectionEntry.objects.create(
+    entry = CollectionEntry.objects.create(
         collection=collection,
         assignable=thing,
         price_override=price_override,
@@ -960,6 +974,16 @@ def add_entry(
         position=position,
         **kwargs,
     )
+    narrowing = {
+        "usable_by_profile_types": usable_by_profile_types,
+        "usable_by_subtypes": usable_by_subtypes,
+        "usable_by_profiles": usable_by_profiles,
+        "usable_by_specialisations": usable_by_specialisations,
+    }
+    for name, allowed in narrowing.items():
+        if allowed:
+            getattr(entry, name).set(allowed)
+    return entry
 
 
 def remove_entry(entry):

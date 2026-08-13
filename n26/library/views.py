@@ -2094,14 +2094,15 @@ def collection_page(request, pk):
     criteria keeps itself: author a weapon with a TP price and it is
     simply here on the next load, ammo rows riding under their gun.
 
-    Curation happens on this page: an entry form (the union picker,
-    with each kind's own override asks) and a section form for the
-    schema. Two acts, as the parts pages have them, so a post says
-    which form was pressed.
+    Curation happens on this page: an entry form (the union picker, each
+    kind's own override asks, and who this list offers the row to) and a
+    section form for the schema. Two acts, as the parts pages have them,
+    so a post says which form was pressed.
     """
     from n26.core.browse import browse
     from n26.library.models import Collection
-    from n26.library.models.collection import ENTRY_ASSIGNABLE_FIELDS
+    from n26.library.models.assignable import USABLE_BY_LISTS
+    from n26.library.models.collection import ENTRY_ASKS, ENTRY_ASSIGNABLE_FIELDS
 
     collection = get_object_or_404(Collection, pk=pk)
 
@@ -2118,7 +2119,7 @@ def collection_page(request, pk):
         """The entry form asks what *this* collection's entries take —
         a menu's ask for a price would be a question with no meaning."""
         asks = collection.entry_asks()
-        for ask in ("price_override", "trade_point_override"):
+        for ask in ENTRY_ASKS:
             if ask not in asks:
                 form.fields.pop(ask, None)
         return form
@@ -2223,12 +2224,20 @@ def collection_page(request, pk):
         )
 
     entries = []
-    for entry in collection.entries.prefetch_related(*ENTRY_ASSIGNABLE_FIELDS):
+    for entry in collection.entries.prefetch_related(
+        *ENTRY_ASSIGNABLE_FIELDS, *USABLE_BY_LISTS
+    ):
         notes = []
         if entry.price_override is not None:
             notes.append(f"{entry.price_override}cr here")
         if entry.trade_point_override is not None:
             notes.append(f"TP {entry.trade_point_override} here")
+        # Who this list offers the row to, where it says. The item's own
+        # restriction is not repeated here: it belongs to the item, and
+        # this table is the list's own word about its own lines.
+        offered_to = entry.usable_by_words()
+        if offered_to:
+            notes.append(f"offered to {offered_to} only")
         entries.append(
             {
                 "label": _label_for(entry.assignable),
@@ -2257,7 +2266,8 @@ def collection_page(request, pk):
             "priced": collection.prices_its_entries,
             "entry_description": (
                 "One more item this collection lists. Leave the overrides "
-                "blank to sell it at its own reference price."
+                "blank to sell it at its own reference price, and the "
+                "narrowing blank to offer it to everyone."
                 if collection.prices_its_entries
                 else "One more answer this menu offers. Nothing is for "
                 "sale here, so listing an item asks for nothing but the "

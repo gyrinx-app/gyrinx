@@ -914,10 +914,30 @@ def _build_registry():
         ),
         # One curated row. What listing each kind asks for — the price
         # and trade-point overrides — comes from the kind's own
-        # ATTACHMENT_ASKS, resolved through the union.
+        # ATTACHMENT_ASKS, resolved through the union. The narrowing
+        # below is named here instead, because it is not the kind's
+        # knowledge but the row's: any offer may be narrowed, whatever
+        # sort of thing it offers. Which collections ask for either is
+        # ``Collection.entry_asks``, applied by the page.
         Spec(
             authoring.add_entry,
-            {"thing": Union(over=entry_kinds, through=CollectionEntry)},
+            {
+                "thing": Union(over=entry_kinds, through=CollectionEntry),
+                "usable_by_profile_types": Many(
+                    model=ProfileType,
+                    source=(CollectionEntry, "usable_by_profile_types"),
+                ),
+                "usable_by_subtypes": Many(
+                    model=Subtype, source=(CollectionEntry, "usable_by_subtypes")
+                ),
+                "usable_by_profiles": Many(
+                    model=Profile, source=(CollectionEntry, "usable_by_profiles")
+                ),
+                "usable_by_specialisations": Many(
+                    model=Specialisation,
+                    source=(CollectionEntry, "usable_by_specialisations"),
+                ),
+            },
             model=CollectionEntry,
         ),
         # One tier of a collection's schema — where placements point and

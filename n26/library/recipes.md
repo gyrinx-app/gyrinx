@@ -91,6 +91,36 @@ the hidden item was handing out goes with it, and drop the corruption and
 it all comes back. Starting Skills and Skill Access live on the fighter
 entries, so they are untouched either way.
 
+## An item one list restricts
+
+Some lists print a restriction beside a line that other lists print
+plainly: the Goliath equipment list's "Heavy rock saw (Forge-born only)",
+where the Genestealer Cult and Corpse Grinder lists offer the same saw to
+anyone. The restriction belongs to that one list's offer.
+
+1. List the item on the collection as usual — one entry, at whatever
+   price the list charges.
+2. On that entry, name what the book names in the bracket: *offered to
+   fighter entries* for "(Forge-born only)", *offered to subtypes* for a
+   line the list offers only to Leaders and Champions, *offered to
+   specialisations* for "(Gunner specialist only)". Leave it blank on
+   every other list that offers the item.
+
+The saw still shows on the list for everyone, marked for the fighters the
+list does not offer it to, and an owner may buy it for them anyway.
+Nothing is refused — the list says.
+
+Three places a restriction can go, and which one to reach for:
+
+- **On the entry**, as above: one list narrows one of its lines.
+- **On the item**, for what is true of it wherever it is listed — a
+  saddle no model without a mount can use. This one is not yet
+  authorable on these pages: it arrives with a spreadsheet import.
+- **A whole list of its own**, for when the book gives a rank its own
+  list rather than restricting lines one at a time. Create the
+  collection, and give it to those models with a modifier; every line in
+  it is then theirs alone, with nothing to narrow.
+
 ## A model with a rolled statline
 
 The Chaos Spawn's Warped Monstrosity: the book rolls a D6 for each of

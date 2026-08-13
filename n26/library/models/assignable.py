@@ -254,6 +254,11 @@ class UsableBy(models.Model):
     without it is simply usable by all. And it informs, never polices:
     an unusable skill still shows in the listing, marked, and nothing
     stops the owner assigning it anyway.
+
+    A collection entry carries the same four lists for its own line
+    (``n26.library.models.collection``), which divides the two facts:
+    what is true of the item wherever it appears belongs on the item,
+    what one list narrows belongs on that list's entry.
     """
 
     usable_by_profile_types = models.ManyToManyField(
@@ -274,9 +279,9 @@ class UsableBy(models.Model):
         related_name="+",
         help_text=(
             'The "Wyld Runner" in "Wyld bow (Wyld Runner only)" — a whole '
-            "fighter entry, which is neither a type nor a subtype. A shared "
-            "house list with a few lines narrowed this way is how the "
-            "rulebook prints per-entry restrictions."
+            "fighter entry, which is neither a type nor a subtype. This "
+            "holds wherever the item is listed; a restriction only one "
+            "list prints goes on that list's entry instead."
         ),
     )
     usable_by_specialisations = models.ManyToManyField(
@@ -286,8 +291,9 @@ class UsableBy(models.Model):
         help_text=(
             'The "Gunner" in "(Gunner specialist only)" — the field a '
             "Specialist chose, which is a possession like a subtype rather "
-            "than a kind of fighter. Van Saar narrow several list lines "
-            "this way."
+            "than a kind of fighter. This holds wherever the item is "
+            "listed; a restriction only one list prints goes on that "
+            "list's entry instead."
         ),
     )
 
@@ -325,6 +331,22 @@ class UsableBy(models.Model):
         """Whether this fighter may use this. ``fighter`` is a matchable —
         ``n26.core.browse.usability_for`` builds it from a computed card."""
         return self.usable_by_selector().matches(fighter)
+
+    def usable_by_words(self):
+        """Who is allowed, as a phrase — empty where anyone is.
+
+        The one place the four lists are read out for a reader, so a note
+        on a shop line, a mark on a card and a row on an authoring page
+        name them the same way and in the same order. Prefetch-aware,
+        like the selector.
+        """
+        allowed = [
+            *self.usable_by_profiles.all(),
+            *self.usable_by_profile_types.all(),
+            *self.usable_by_subtypes.all(),
+            *self.usable_by_specialisations.all(),
+        ]
+        return " or ".join(str(item) for item in allowed)
 
 
 #: The lists ``usable_by_selector`` reads, derived from the mixin's own

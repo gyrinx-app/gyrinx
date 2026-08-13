@@ -5,7 +5,7 @@ browsing surface, never a permission system. Operations do not consult
 collections; an entry merely *pre-fills* a purchase's price. The design is
 in design/collections.md.
 
-Two things matter structurally:
+Three things matter structurally:
 
 * **A collection is itself an assignable.** Having a list is an
   assignment: the profile's own list arrives via its built-ins at hire,
@@ -19,6 +19,13 @@ Two things matter structurally:
   reprice credits without touching Trade Points, or vice versa. The
   agreed consequence stands: a reference-price fix does not flow through
   an override; each override is its own fact.
+
+* **An entry may narrow who the list offers the item to.** The books
+  print restrictions per list — a Goliath list's "Heavy rock saw
+  (Forge-born only)", where two other gangs list the same saw plainly —
+  so that fact belongs to the offer. The item's own ``UsableBy`` stays
+  for what is true of it wherever it appears; a fighter must satisfy
+  both, and failing either is noted, never refused.
 
 ``price_of`` is the one effective-price function, used by curated
 collections (entry override → reference) and derived ones (reference
@@ -34,8 +41,10 @@ from django.db.models.functions import Lower
 
 from n26.core.constraints import NamesAnAssignable, exactly_one_of
 from n26.library.models.assignable import (
+    USABLE_BY_LISTS,
     Assignable,
     Family,
+    UsableBy,
     exclusive_has_no_trade_points,
 )
 from n26.library.models.base import Content, ContentQuerySet
@@ -213,6 +222,14 @@ class CollectionQuerySet(ContentQuerySet):
 CollectionManager = models.Manager.from_queryset(CollectionQuerySet)
 
 
+#: Every extra an entry may state, whatever collection holds it — the
+#: superset ``Collection.entry_asks`` answers from, and the list a
+#: surface generated from the entry spec drops the unasked-for fields
+#: from. Stated once, so a form and a preview cannot come to disagree
+#: about what an entry of some collection can say.
+ENTRY_ASKS = ("price_override", "trade_point_override", *USABLE_BY_LISTS)
+
+
 class Collection(Content, Assignable):
     """A named, directly addressable view onto the assignables.
 
@@ -242,11 +259,12 @@ class Collection(Content, Assignable):
     card_row = "collections"
 
     #: What listing an entry here asks an author for, beyond the pick.
-    #: A shop's entries state prices; a menu's — a pick list of
-    #: affiliations behind a choice — have nothing to state, so its
-    #: entry form asks for nothing and its preview prints no money.
-    #: The seam every surface reads is ``entry_asks()`` below, so a
-    #: further flag with further asks changes one function.
+    #: A shop's entries state prices and who the shop offers each item
+    #: to; a menu's — a pick list of affiliations behind a choice — have
+    #: nothing to state, so its entry form asks for nothing and its
+    #: preview prints no money. The seam every surface reads is
+    #: ``entry_asks()`` below, so a further flag with further asks
+    #: changes one function.
     prices_its_entries = models.BooleanField(
         default=True,
         verbose_name="Prices its entries",
@@ -264,12 +282,16 @@ class Collection(Content, Assignable):
         The entry form shows exactly these, and the page's tables print
         columns for no more — one answer, read by both, so the form and
         the preview cannot disagree about whether money is involved.
+
+        A collection that prices its entries is bought from, and both
+        extras belong to an offer: what this list charges, and who this
+        list offers the item to. A menu asks for neither. Its entries
+        are the answers to a question rather than things anybody
+        acquires, so there is no price to state — and nothing to narrow
+        either: which models are asked the question at all is the
+        modifier's business, decided by the scope that offers it.
         """
-        return (
-            ("price_override", "trade_point_override")
-            if self.prices_its_entries
-            else ()
-        )
+        return ENTRY_ASKS if self.prices_its_entries else ()
 
     objects = CollectionManager()
 
@@ -491,9 +513,19 @@ class CollectionSelector(Content):
             )
 
 
-class CollectionEntry(NamesAnAssignable, Content):
+class CollectionEntry(NamesAnAssignable, Content, UsableBy):
     """One item a collection lists, at this list's own price where an
     override says so and at the item's own otherwise.
+
+    An entry may also narrow who this list offers the item to. That is
+    how the books print "(Forge-born only)" beside one line of one
+    gang's list while other gangs list the same item plainly. Leave the
+    narrowing blank and the list offers the item to everyone.
+
+    Whatever the item itself restricts holds wherever it is listed, and
+    is set on the item rather than here. A fighter has to satisfy both,
+    and either way nothing is refused: an offer they may not take shows
+    on the listing, marked.
     """
 
     # Same mixin as a player's Assignment and a profile's
@@ -597,6 +629,57 @@ class CollectionEntry(NamesAnAssignable, Content):
         null=True,
         blank=True,
         help_text="This list's TP price. Blank means at reference price.",
+    )
+
+    # The four use lists come from ``UsableBy`` and are read by its own
+    # reader; the words are restated here because these columns say
+    # something the mixin's do not. On an item they are the bracket the
+    # book prints after its name, true of it everywhere. On an entry
+    # they are one list's own narrowing of one line, and the labels say
+    # "offered to" so that an author reading a listing's row cannot
+    # mistake the two.
+    usable_by_profile_types = models.ManyToManyField(
+        "library.ProfileType",
+        blank=True,
+        related_name="+",
+        verbose_name="Offered to types",
+        help_text=(
+            'This list offers it to these types only — the "Fighter" in '
+            '"(Fighter Or Walker Only)". Blank offers it to everyone.'
+        ),
+    )
+    usable_by_subtypes = models.ManyToManyField(
+        "library.Subtype",
+        blank=True,
+        related_name="+",
+        verbose_name="Offered to subtypes",
+        help_text=(
+            "This list offers it to these subtypes only — Leaders and "
+            "Champions, say. Blank offers it to everyone."
+        ),
+    )
+    usable_by_profiles = models.ManyToManyField(
+        "library.Profile",
+        blank=True,
+        related_name="+",
+        verbose_name="Offered to fighter entries",
+        help_text=(
+            "This list offers it to these fighter entries only — the "
+            '"Forge-born" in a Goliath list\'s "Heavy rock saw '
+            '(Forge-born only)", where other gangs list the same saw '
+            "plainly. Blank offers it to everyone."
+        ),
+    )
+    usable_by_specialisations = models.ManyToManyField(
+        "library.Specialisation",
+        blank=True,
+        related_name="+",
+        verbose_name="Offered to specialisations",
+        help_text=(
+            "This list offers it to these specialisations only — the "
+            '"Gunner" in "(Gunner specialist only)", the field a '
+            "Specialist chose. Blank offers it to everyone."
+        ),
     )
     position = models.PositiveIntegerField(default=0)
 

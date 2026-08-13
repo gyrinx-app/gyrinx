@@ -267,6 +267,11 @@ def browse(collection, terms=EQUIPMENT_LIST):
                 )
                 for path in OPTION_OFFER_PATHS
             ),
+            # The entries' own use lists — who *this* collection offers
+            # each line to, which is a different fact from what the item
+            # allows everywhere. Loaded with the listing for the same
+            # reason: noting a narrowed list costs no query per line.
+            *USABLE_BY_LISTS,
         )
     )
     ammo = _ammo_by_weapon(entries)
@@ -457,15 +462,41 @@ def usability_for(computed):
     return computed.card.model_matchable().also(*granted)
 
 
+def _use_note(restricted, fighter, about, said):
+    """One use-restriction as a note, or None where this fighter passes it.
+
+    ``restricted`` is whatever carries the four use lists — an item, or
+    the entry offering it. Both are read through the same reader, because
+    both are the same fact about a different thing, and ``said`` is how
+    the sentence opens so a reader can tell which they are looking at.
+    The note points at the item either way: that is the row a surface
+    hangs it on.
+    """
+    check = getattr(restricted, "is_usable_by", None)
+    if check is None or check(fighter):
+        return None
+    return Note(
+        text=f"{said} {restricted.usable_by_words()} only",
+        about=about,
+        level=WARNING,
+    )
+
+
 def with_use_notes(view, fighter):
     """The same view, with a note on every line this fighter can't use.
 
-    "(Fighter Or Walker Only)" is the item's own data (``UsableBy``);
-    this asks the question for one fighter and writes the answer as a
-    :class:`n26.notes.Note` pointing at the item itself — identity, so
-    nothing downstream ever matches on text. Nothing is removed — an
-    unusable skill stays in the listing, noted, because we inform, never
-    police. Unrestricted things get no note.
+    Two restrictions can stand over one line, and a fighter must satisfy
+    both. "(Fighter Or Walker Only)" is the item's own data
+    (``UsableBy``), true of it wherever it is listed. "(Forge-born
+    only)" beside one line of one gang's list is the *entry's*, true of
+    this offer alone — so a line priced by an entry is asked both
+    questions and can draw a note for each. A swept line has no entry
+    and is only ever asked the item's.
+
+    Each answer is written as a :class:`n26.notes.Note` pointing at the
+    item — identity, so nothing downstream ever matches on text. Nothing
+    is removed: an unusable skill stays in the listing, noted, because we
+    inform, never police. Unrestricted things get no note.
 
     View in, view out: composes with ``regrouped_by_placement`` and
     ``narrow`` — the roll-12 pick ("any set, if your Type/Subtype may
@@ -479,22 +510,24 @@ def with_use_notes(view, fighter):
         for category in section.categories:
             lines = []
             for line in category.lines:
-                check = getattr(line.thing, "is_usable_by", None)
-                if check is None or check(fighter):
-                    lines.append(line)
-                    continue
-                allowed = [
-                    *line.thing.usable_by_profiles.all(),
-                    *line.thing.usable_by_profile_types.all(),
-                    *line.thing.usable_by_subtypes.all(),
-                    *line.thing.usable_by_specialisations.all(),
+                found = [
+                    note
+                    for note in (
+                        _use_note(line.thing, fighter, line.thing, "usable by"),
+                        _use_note(
+                            line.entry,
+                            fighter,
+                            line.thing,
+                            "this list offers it to",
+                        ),
+                    )
+                    if note is not None
                 ]
-                note = Note(
-                    text="usable by " + " or ".join(str(a) for a in allowed) + " only",
-                    about=line.thing,
-                    level=WARNING,
+                lines.append(
+                    dataclasses.replace(line, notes=(*line.notes, *found))
+                    if found
+                    else line
                 )
-                lines.append(dataclasses.replace(line, notes=(*line.notes, note)))
             regrouped.categories.append(CategoryGroup(name=category.name, lines=lines))
         noted.sections.append(regrouped)
     return noted
