@@ -89,9 +89,10 @@ def _choices_picked(data, key, line):
     return picked
 
 
-def _price_typed(data, field, line):
-    """What this line is charged: the price typed for it, or the price it
-    quoted where the form carried none.
+def price_typed(data, field, quoted, name):
+    """What a purchase is charged: the price typed for it, or the price
+    it quoted where the form carried none. The same reading for a shop
+    row and a hire — the box is the same control on both.
 
     The number arrives from the browser, so it is read as a whole number
     of credits and nothing else. A negative one would hand the gang
@@ -99,19 +100,22 @@ def _price_typed(data, field, line):
     refused rather than trimmed, because with money, charging a figure
     nobody typed is worse than charging nothing and saying so.
 
-    An empty box is not an override — the row's own price stands, which
-    is the number it was quoting before anyone touched it.
+    An empty box is not an override — the quote stands, which is the
+    number the reader saw before anyone touched it.
     """
     raw = data.get(field)
     if raw is None or not raw.strip():
-        return line.credits
+        return quoted
     raw = raw.strip()
     if not _WHOLE_CREDITS.fullmatch(raw) or int(raw) > PRICE_CEILING:
         raise BadPrice(
-            f"{line.name}: a price is a whole number of credits, "
-            f"from 0 to {PRICE_CEILING}."
+            f"{name}: a price is a whole number of credits, from 0 to {PRICE_CEILING}."
         )
     return int(raw)
+
+
+def _price_typed(data, field, line):
+    return price_typed(data, field, line.credits, line.name)
 
 
 def _charge(line, paid, surcharge=0):

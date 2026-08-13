@@ -658,6 +658,73 @@ def test_a_profile_not_offered_for_hire_is_not_on_the_screen(
     assert not Miniature.objects.filter(membership__gang=gang).exists()
 
 
+class TestTheTypedPrice:
+    """The dialog's price box is the shop's control: what is typed is
+    what leaves the bank, while the quote stays the list price and the
+    rating — a haggled fighter is not a lesser fighter. Read like every
+    typed price: whole credits in range, or the hire is refused and
+    nothing is written."""
+
+    def test_the_dialog_offers_the_quote_in_a_box(self, client, tester, gang, ganger):
+        client.force_login(tester)
+        body = client.get(dialog_url(gang, ganger)).content.decode()
+        assert 'name="paid"' in body
+        assert 'value="55"' in body
+
+    def test_a_typed_price_is_charged_and_the_quote_is_the_rating(
+        self, client, tester, gang, ganger
+    ):
+        client.force_login(tester)
+        response = client.post(
+            hire_url(gang),
+            {"profile": str(ganger.pk), "name": "Vex", "paid": "30"},
+        )
+        assert response.status_code == 302
+
+        entry = Miniature.objects.get(name="Vex").membership.ledger_entry
+        assert entry.paid == 30
+        assert entry.list_price == 55
+        assert entry.discount == 25
+        assert entry.rating_contribution == 55
+        gang.refresh_from_db()
+        assert gang.credits == 170
+
+    def test_overpaying_is_the_same_arithmetic(self, client, tester, gang, ganger):
+        client.force_login(tester)
+        client.post(
+            hire_url(gang),
+            {"profile": str(ganger.pk), "name": "Dear", "paid": "80"},
+        )
+        entry = Miniature.objects.get(name="Dear").membership.ledger_entry
+        assert entry.paid == 80
+        assert entry.discount == -25
+        assert entry.rating_contribution == 55
+
+    def test_a_price_that_is_not_whole_credits_hires_nobody(
+        self, client, tester, gang, ganger
+    ):
+        client.force_login(tester)
+        for bad in ("-5", "5.5", "9999999"):
+            response = client.post(
+                hire_url(gang),
+                {"profile": str(ganger.pk), "name": "Nix", "paid": bad},
+            )
+            assert response.status_code == 302
+        assert not Miniature.objects.filter(name="Nix").exists()
+        gang.refresh_from_db()
+        assert gang.credits == 200
+
+    def test_an_empty_box_charges_the_quote(self, client, tester, gang, ganger):
+        client.force_login(tester)
+        client.post(
+            hire_url(gang),
+            {"profile": str(ganger.pk), "name": "Plain", "paid": ""},
+        )
+        entry = Miniature.objects.get(name="Plain").membership.ledger_entry
+        assert entry.paid == 55
+        assert entry.discount == 0
+
+
 class TestTheScopes:
     """Whose profiles are on offer: the gang list, the supplementary
     profiles every gang may hire, or everyone in the library. Being

@@ -73,4 +73,19 @@ works is documented there.
         <c-ui.input id="fighter-name" name="name" autocomplete="off" autofocus="autofocus"
                     value="{{ form.name.value|default:'' }}" />
     </c-ui.field>
+
+    {% comment %}
+    The same typed-over price a shop row offers, in the same control: what
+    is agreed at the table is what leaves the bank, while the quote stays
+    the list price and the rating — a haggled fighter is not a lesser
+    fighter. The scope holds the pair the include compares.
+    {% endcomment %}
+    <c-ui.field label="Price"
+                description="What the gang pays. The quote stays the rating."
+                for="hire-paid">
+        <span x-data="{ quoted: {{ price|default:0 }}, price: {{ price|default:0 }} }"
+              class="inline-flex">
+            {% include "n26/includes/equip_price.html" with field="paid" quoted=price label=profile %}
+        </span>
+    </c-ui.field>
 </c-n26.dialog>

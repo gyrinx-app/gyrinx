@@ -32,6 +32,7 @@ from django.http import Http404
 from django.shortcuts import redirect, render
 from django.utils.text import slugify
 
+from n26.core.views.equip import PRICE_CEILING
 from n26.core.views.permissions import _own_gang_or_404
 
 
@@ -290,12 +291,32 @@ def hire_fighter(request, pk):
         if profile is not None:
             picks = _picks(request.POST, profile, build_hire_entry(profile))
             if form.is_valid():
+                # The same typed-over price a shop row takes, read the
+                # same way: the box's figure is what leaves the bank,
+                # while the quote stays the list price and the rating —
+                # a haggled fighter is not a lesser fighter. Priced
+                # before anything is written, so one bad box hires
+                # nobody at a figure nobody offered.
+                from n26.core.views.equip import BadPrice, price_typed
+
+                try:
+                    quoted = profile.price_with(_chosen(picks))
+                except ValueError:
+                    raise Http404("No such option") from None
+                try:
+                    paid = price_typed(request.POST, "paid", quoted, profile.name)
+                except BadPrice as refusal:
+                    messages.error(request, str(refusal))
+                    return redirect(back)
                 try:
                     with operation(gang, actor=request.user) as op:
                         miniature = op.hire(
                             profile,
                             form.cleaned_data["name"] or profile.name,
                             option=_chosen(picks),
+                            paid=paid,
+                            list_price=quoted,
+                            discount=quoted - paid,
                         )
                 except Refusal as refusal:
                     messages.error(request, str(refusal))
@@ -410,6 +431,9 @@ def hire_fighter(request, pk):
             "gang": gang,
             "form": form,
             "dialog": dialog,
+            # The dialog's price box is the shop's control, and the cap
+            # is the same ceiling every typed price is read against.
+            "price_cap": PRICE_CEILING,
             # Both forms post here rather than to the bare route: an
             # action that dropped the query would lose which tab the
             # reader was on at the first press.
