@@ -515,6 +515,18 @@ class GangSheet:
     notes: list = field(default_factory=list)
     models: list[ModelCard] = field(default_factory=list)
 
+    @property
+    def questions(self):
+        """Every question this sheet draws — the gang's own, one strip of
+        them.
+
+        Named to match a card's, so anything that has business with a
+        holder's open questions — pointing them at their pickers, counting
+        them — asks the two shapes the same way and cannot be told about
+        one list and not another.
+        """
+        return self.choices
+
 
 def apply_changes(stat, raw, changes):
     """Fold stat changes onto a printed value, using the stat's own rules.

@@ -1,16 +1,18 @@
 """The card-row declarations, held together.
 
 A kind declares where its lines go — ``card_row`` on the library model —
-and three other places must agree: the ModelCard carries a list field per
+and four other places must agree: the ModelCard carries a list field per
 declared row, the ComputedCard files grants into a bucket of the same
-name, and the card template draws a Choose control for every row that
-takes questions. Nothing structural connects them, so this does: the
+name, the card template draws a Choose control for every row that takes
+questions, and whatever points questions at their pickers reaches every
+bucket that holds them. Nothing structural connects them, so this does: the
 kinds are discovered, never listed, and a new declaration that misses a
 step fails here with the step named.
 """
 
 import dataclasses
 from pathlib import Path
+from types import SimpleNamespace
 
 from django.apps import apps
 
@@ -70,4 +72,29 @@ class TestTheCardRows:
                 f"The card template never draws card.{bucket} — a question "
                 f"routed to the {row!r} row would silently vanish from the "
                 f"card. Give the row the Choose treatment the Skills row has."
+            )
+
+    def test_every_question_row_is_pointed_at_its_picker(self):
+        """Drawn is not enough. A question carries its address and a view
+        turns it into a URL, so a bucket nothing links draws a control with
+        nowhere to go — which is worse than not drawing it, because the
+        reader presses it."""
+        from n26.core.render import ChoiceLine, Statline
+        from n26.core.views.choose import link_slots
+
+        for row, bucket in ModelCard.QUESTION_BUCKETS.items():
+            card = ModelCard(
+                name="Nobody",
+                rating=0,
+                statline=Statline(),
+                **{bucket: [ChoiceLine(kind_label=row, chosen=None, key="a:b:1")]},
+            )
+            link_slots(SimpleNamespace(pk="a-gang"), card)
+            (line,) = getattr(card, bucket)
+            assert line.href, (
+                f"Nothing points ModelCard.{bucket} at its picker, so a "
+                f"question in the {row!r} row draws a control that goes "
+                f"nowhere. link_slots (n26/core/views/choose.py) should ask "
+                f"the holder for every question it has — ModelCard.questions "
+                f"— rather than name one list at a time."
             )

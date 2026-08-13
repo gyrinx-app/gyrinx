@@ -30,7 +30,7 @@ from n26.core.browse import (
 )
 from n26.core.card import build_card, build_modifier_index
 from n26.core.effects import compute
-from n26.core.render import build_model_card
+from n26.core.render import build_model_card, render_gang
 from n26.library.models import Power, Skill
 from n26.tests.sandbox.actions import (
     adds,
@@ -412,6 +412,30 @@ class TestKnowingAPower:
         # the Powers row — the same fold an answered skill question does.
         assert card.power_choices == []
         assert "Terrify (Double)" in [p.name for p in card.powers]
+
+    def test_a_power_question_is_pressable(self, gang, gang_sister, library, wyrd):
+        """The question in the Powers row leads to its picker.
+
+        A question drawn where a reader can press it and left without an
+        address is the one failure the card cannot show: the row looks
+        exactly like the one beside it and nothing happens."""
+        from n26.core.views.choose import link_slots
+        from n26.library.models import OffersChoice
+
+        modifier(
+            "Wyrd knows a power",
+            targets_model(),
+            OffersChoice.of(Power),
+            carried_by=wyrd,
+        )
+        fighter = hire_with_option(gang, gang_sister, "Yolanda")
+        assign(wyrd, miniature=fighter)
+
+        sheet = render_gang(gang)
+        link_slots(gang, sheet, *sheet.models)
+        (card,) = [member for member in sheet.models if member.id == str(fighter.pk)]
+        (question,) = card.power_choices
+        assert question.href.endswith(f"/choose/{question.key}/")
 
     def test_a_known_power_draws_on_its_own_row(self, gang, gang_sister, library):
         from n26.core.render_text import render_model_card

@@ -141,3 +141,39 @@ happen at the table; the roster takes the result as hire options.
 At hire the player picks what they rolled, group by group, and each
 shifted cell on the card names what set it. Nothing is enforced: a group
 left on 2–5 keeps the printed number, and the card just says.
+
+## One power from a family, as a Primary pick
+
+The Master of Shadow's Master of Whispers, the Psyrender, a bought Wyrd —
+one build: a model knows one power of the player's choice from a named
+family, and may learn more of that family as if they were Primary skills.
+
+1. Create a **category** for the family — "Psychoteric Whispers" — under
+   the Wyrd Powers section, and file every power in the family there. A
+   power left with no category falls into the collection's default
+   section, where no Primary offer can reach it.
+2. Have one **collection** — "Skills & Powers" — whose selectors sweep
+   *every skill* and *every power*, with the sections every grade is
+   written in terms of: Primary, Secondary, and one marked default for
+   everything unplaced. Sweeping rather than listing means a power
+   authored later joins the surface with no entry to write.
+3. On the carrier, create two **modifiers**, both targeting the model:
+   *puts the category into a section*, the family into **Primary (Skills
+   & Powers)**; and *offers a choice* of **power** from **Primary (Skills
+   & Powers)**. The carrier is a **rule** for something a fighter entry
+   always has — put the rule in the entry's built-in items — a
+   **subtype** for something bought or granted, or the **fighter entry**
+   itself.
+4. Leave the offer's label blank. Blank derives "Primary power" and files
+   the question in the card's **Powers** row, beside the powers the model
+   already knows. Any other wording gives the question a row of its own,
+   headed by exactly what was written.
+
+The two modifiers are one thing, and the order to think of them in is
+placement first: the offer narrows to whatever is Primary *for this
+model*, and the placement is what puts the family there. **An offer with
+no placement behind it is a question with nothing on it** — the player
+presses Choose and lands on an empty page. The reverse is a real setup
+rather than a mistake: place the family and offer nothing, and the model
+may learn powers from it whenever they like, but was never handed the
+founding one.

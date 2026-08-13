@@ -302,13 +302,25 @@ region between here and the call site.
                     </span>
                 {% endif %}
             </c-n26.model-card.mode>
+            {% comment %}
+            A question with no address gets the words and no button. The kit's
+            button draws an inert <button> when handed an empty href, which is a
+            control that lies — where c-n26.link falls back to a span and reads
+            as the fact it is. Every surface that draws a question needs the
+            guard: a card depicting nobody has no rows to answer against, so its
+            questions are real and their addresses are not.
+            {% endcomment %}
             <c-n26.model-card.mode when="edit">
                 {% if card.skill_choices or card.learn_href %}
                     <span class="ms-1 inline-flex flex-wrap items-center gap-1 align-middle">
                         {% for choice in card.skill_choices %}
-                            <c-ui.button size="xs" variant="primary" :outlined="True" class="py-0!" href="{{ choice.href }}">
-                                Choose {{ choice.kind_label|lower }}
-                            </c-ui.button>
+                            {% if choice.href %}
+                                <c-ui.button size="xs" variant="primary" :outlined="True" class="py-0!" href="{{ choice.href }}">
+                                    Choose {{ choice.kind_label|lower }}
+                                </c-ui.button>
+                            {% else %}
+                                <c-n26.link>Choose {{ choice.kind_label|lower }}</c-n26.link>
+                            {% endif %}
                         {% endfor %}
                         {% if card.learn_href %}
                             <c-ui.button size="xs"
@@ -370,9 +382,13 @@ region between here and the call site.
                     {% if card.power_choices %}
                         <span class="ms-1 inline-flex flex-wrap items-center gap-1 align-middle">
                             {% for choice in card.power_choices %}
-                                <c-ui.button size="xs" variant="primary" :outlined="True" class="py-0!" href="{{ choice.href }}">
-                                    Choose {{ choice.kind_label|lower }}
-                                </c-ui.button>
+                                {% if choice.href %}
+                                    <c-ui.button size="xs" variant="primary" :outlined="True" class="py-0!" href="{{ choice.href }}">
+                                        Choose {{ choice.kind_label|lower }}
+                                    </c-ui.button>
+                                {% else %}
+                                    <c-n26.link>Choose {{ choice.kind_label|lower }}</c-n26.link>
+                                {% endif %}
                             {% endfor %}
                         </span>
                     {% endif %}

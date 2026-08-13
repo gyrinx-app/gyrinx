@@ -53,14 +53,15 @@ def link_slots(gang, *holders):
     and draws as a fact with nothing to press — which is right for a card
     depicting nobody.
 
-    A model card keeps its open skill questions in a list of their own,
-    because they are drawn in the Skills row rather than among the other
-    slots. Where they are drawn is the card's business; they are answered
-    at the same address as any other question, so they are linked here
-    with the rest.
+    A card files some of its questions into rows of their own — the ones
+    drawn beside the skills and the powers the model already has — so what
+    is asked for here is the holder's whole run of questions rather than
+    each list by name. Where a question is drawn is the holder's business;
+    every one of them is answered at the same address, and a holder that
+    grows another row is linked by the same line.
     """
     for holder in holders:
-        for line in [*holder.choices, *getattr(holder, "skill_choices", ())]:
+        for line in holder.questions:
             if line.key:
                 line.href = reverse("n26-choose", args=[gang.pk, line.key])
 
