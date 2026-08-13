@@ -690,14 +690,20 @@ class AssignableChoice(models.Model):
         return None
 
     def accepts(self, target_kind):
-        """A trait goes on a firing line; everything else goes on a model.
+        """A trait goes on a firing line; most things go on a model; a
+        rule or a collection may also land on the gang itself.
 
-        A weapon included: it is the model that carries a gun, and the
-        gun's own firing lines are what a weapon-scoped modifier reaches
-        once the grant has put them on the card.
+        A weapon goes on a model only: it is the model that carries a
+        gun, and the gun's own firing lines are what a weapon-scoped
+        modifier reaches once the grant has put them on the card. The
+        gang's card carries named rules and standing lists — an
+        alliance's "the gang gains…" — but has no type line, no skills
+        row, and holds no weapons, so nothing else can land there.
         """
         if self.trait_id is not None:
             return target_kind == WEAPON_PROFILE
+        if target_kind == GANG:
+            return self.rule_id is not None or self.collection_id is not None
         return target_kind == MODEL
 
 

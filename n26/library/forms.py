@@ -844,8 +844,8 @@ def _effect_choices():
 #: bare instance's ``accepts()`` cannot see; a drift test holds the rest
 #: of the table to the models.
 EFFECT_CAN_TARGET = {
-    "ef_adds": ("model", "weapon_profile"),
-    "ef_removes": ("model", "weapon_profile"),
+    "ef_adds": ("model", "weapon_profile", "gang"),
+    "ef_removes": ("model", "weapon_profile", "gang"),
     "ef_changes_stat": ("model", "weapon_profile"),
     "ef_changes_category": ("model",),
     "ef_offers_choice": ("model", "gang"),
@@ -1106,8 +1106,9 @@ class ModifierComposerForm(forms.Form):
         if not effect.accepts(target_kind):
             raise ValidationError(
                 f"{effect_kind} cannot apply to {scope_kind} — a trait goes "
-                f"on a weapon, a subtype or skill goes on a model, and only "
-                f"the gang can be asked for companions."
+                f"on a weapon, a subtype or skill goes on a model, a rule or "
+                f"a list may also go to the gang, and only the gang can be "
+                f"asked for companions."
             )
 
     def _transient_effect(self, effect_kind):
@@ -1117,9 +1118,11 @@ class ModifierComposerForm(forms.Form):
         if effect_kind in ("ef_adds", "ef_removes"):
             thing = self.what_form.cleaned_data.get("thing")
             if isinstance(thing, PendingCreate):
-                # A new-named Rule or Subtype: both live on models, which
-                # an empty instance (no trait set) already says.
-                return model()
+                # A new-named Rule or Subtype, not yet a row — its kind
+                # names the column, and the raw id is enough for
+                # accepts(), which reads nothing else: a rule may land
+                # on the gang where a subtype may not.
+                return model(**{f"{thing.kind}_id": 1})
             field = next(
                 name
                 for name, label in GRANTABLE_FIELDS.items()

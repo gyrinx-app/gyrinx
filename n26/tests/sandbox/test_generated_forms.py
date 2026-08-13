@@ -101,7 +101,10 @@ class TestTheTablesDontDrift:
             model = _model_class(EFFECT_MODELS[verb])
             instances = [model()]
             if verb in ("ef_adds", "ef_removes"):
-                instances.append(model(trait_id=1))
+                # The thing decides where these may land — a trait onto
+                # a weapon's line, a rule onto the gang — so the union
+                # is taken over one instance per shape.
+                instances.extend([model(trait_id=1), model(rule_id=1)])
             for kind in ("model", "weapon_profile", "gang"):
                 allowed = any(instance.accepts(kind) for instance in instances)
                 assert (kind in kinds) == allowed, (

@@ -428,10 +428,23 @@ class TestValidation:
         with pytest.raises(ValidationError, match="cannot apply"):
             bad.clean()
 
+    def test_a_subtype_cannot_be_given_to_the_gang(self, db):
+        """The gang's card has no type line: a rule or a standing list
+        may land on the gang, and nothing else may."""
+        from n26.library.models import Modifier
+
+        bad = Modifier(
+            name="Nonsense",
+            targets_gang=targets_gang(),
+            adds_assignable=adds(create_subtype("Chosen")),
+        )
+        with pytest.raises(ValidationError, match="cannot apply"):
+            bad.clean()
+
     def test_a_weapon_cannot_be_given_to_the_gang(self, db):
         """A gang holds no weapons: a gun is carried by whoever carries
-        it. So the gang's own card is never handed anything, and the
-        sheet drawing that card need not ask what it was granted."""
+        it. A rule or a standing list may land on the gang's card; a
+        thing that has to be held may not."""
         from n26.library.models import Modifier
 
         bad = Modifier(

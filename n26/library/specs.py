@@ -413,11 +413,16 @@ def _build_registry():
             authoring.targets_gang,
             {},
             label="The gang itself",
-            blurb="The gang's own sheet, not any one model.",
+            blurb=(
+                "The gang's own sheet, not any one model. To reach every "
+                "model from a gang-carried item, use “The model carrying "
+                "it” — the gang's items ride every member's card."
+            ),
             example=(
-                "An alliance grants the gang another equipment list. Note: "
-                "anything the gang carries also rides every member's card — "
-                "so a gang-carried item with “The model carrying it” "
+                "An alliance grants the gang another equipment list, or a "
+                "named rule on the gang's sheet. The broadcast is the other "
+                "way round: “all Escher fighters may…” is a gang-carried "
+                "item whose modifier targets the model carrying it, and it "
                 "reaches every fighter at once."
             ),
         ),

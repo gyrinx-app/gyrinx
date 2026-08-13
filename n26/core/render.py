@@ -1060,13 +1060,12 @@ def _gang_rows(gang_card, gang_computed):
     counters have their own readings. Rules come back as their own list,
     dispatched the way a model card keeps rules apart from kit.
 
-    ``roots`` alone, where a model card also draws what it was granted: a
-    gang is handed nothing. A grant is refused a gang (``accepts`` in
-    the modifier models says grants land on models), so a gang holding
-    a gun — or a computedly granted rule — is not a thing this edition
-    can express. Should either become one, this is where its line would
-    go, folded in from ``ComputedGang`` the way a model card folds in
-    its contributions.
+    What a rule grants the gang folds in from ``ComputedGang`` the way a
+    model card folds in its contributions — a named rule with the rules,
+    a standing list with the rows — told apart by provenance and gone
+    when the granter goes. Only those two kinds can land here (the
+    modifier models' ``accepts``): the gang's card has no type line, no
+    skills row, and holds no weapons.
     """
     from n26.library.models import Counter
 
@@ -1091,6 +1090,23 @@ def _gang_rows(gang_card, gang_computed):
             rules.append(AssignableLine(name=node.name, provenance=provenance_of(node)))
             continue
         rows.append(AssignableLine(name=node.name, provenance=provenance_of(node)))
+    if gang_computed:
+        for contribution in gang_computed.rules:
+            if contribution.name not in {line.name for line in rules}:
+                rules.append(
+                    AssignableLine(
+                        name=contribution.name,
+                        provenance=_computed_provenance(contribution),
+                    )
+                )
+        for contribution in gang_computed.collections:
+            if contribution.name not in {line.name for line in rows}:
+                rows.append(
+                    AssignableLine(
+                        name=contribution.name,
+                        provenance=_computed_provenance(contribution),
+                    )
+                )
     return rows, sorted(rules, key=lambda line: line.name)
 
 

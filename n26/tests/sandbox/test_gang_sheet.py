@@ -425,9 +425,9 @@ class TestTheSheetDerives:
     def test_the_gangs_rules_are_their_own_list(self, gang):
         """A rule on the gang is dispatched apart from the other rows —
         the sheet prints rules under their own term, as a model card
-        does. Stored rows only: a ``targets_gang`` grant is refused
-        (grants land on models), and the plan says so rather than the
-        rule quietly not appearing."""
+        does. A ``targets_gang`` grant of one folds in beside the stored
+        rows, told apart by provenance: the gang's card carries named
+        rules and standing lists, and those two kinds alone."""
         assign(create_rule("Chem Dealers"), gang=gang)
         modifier(
             "The house trades in toxins",
@@ -437,12 +437,36 @@ class TestTheSheetDerives:
         )
 
         sheet = render_gang(gang)
-        assert [line.name for line in sheet.rules] == ["Chem Dealers"]
+        assert [line.name for line in sheet.rules] == ["Chem Dealers", "Toxin Trade"]
+        granted = next(line for line in sheet.rules if line.name == "Toxin Trade")
+        assert granted.provenance.computed is True
         assert "Chem Dealers" not in [line.name for line in sheet.rows]
 
         computed = gang_computed(gang)
         step = next(s for s in computed.plan if "toxins" in str(s.modifier))
-        assert step.outcome == "skipped"
+        assert step.outcome == "reached"
+
+    def test_the_gang_may_be_granted_a_standing_list(self, gang):
+        """A collection granted to the gang draws among its rows — an
+        alliance's standing access, gone when the alliance goes."""
+        from n26.tests.sandbox.actions import create_collection, remove
+
+        bazaar = create_collection("Bazaar Access")
+        charter = create_rule("Trade Charter")
+        modifier(
+            "The charter opens the bazaar",
+            targets_gang(),
+            _adds(bazaar),
+            carried_by=charter,
+        )
+        carrier = assign(charter, gang=gang)
+
+        sheet = render_gang(gang)
+        assert "Bazaar Access" in [line.name for line in sheet.rows]
+
+        remove(carrier)
+        sheet = render_gang(gang)
+        assert "Bazaar Access" not in [line.name for line in sheet.rows]
 
     def test_the_gangs_colour_rides_the_sheet(self, gang):
         """The mark drawn beside a gang's name comes off the sheet like
