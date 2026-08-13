@@ -792,6 +792,9 @@ def context():
         # cannot have.
         "blank_editable_statline": editable_statline(filled=False),
         "refused_editable_statline": refused_statline(),
+        # The same boxes as a player meets them, where an empty one keeps
+        # the model's own value rather than meaning no value.
+        "owner_statline_editor": owner_statline_editor(),
         "statuses": STATUSES,
         "lists": LISTS,
         **nav_context(),
@@ -1014,6 +1017,21 @@ def editable_statline(filled=True, errors=None):
             error=errors.get(cell.short_name, "") if errors else "",
         )
         for cell in _fighter_statline().cells
+    ]
+
+
+def owner_statline_editor():
+    """The characteristics as their owner sets them on a model's page.
+
+    The author's boxes, with the one difference that matters: an empty
+    box here means "keep what the model's entry prints", so the value it
+    prints is what the box suggests rather than an example.
+    """
+    return [
+        replace(cell, value="", placeholder=printed.value)
+        for cell, printed in zip(
+            editable_statline(filled=False), _fighter_statline().cells, strict=True
+        )
     ]
 
 

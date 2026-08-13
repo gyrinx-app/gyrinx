@@ -50,6 +50,7 @@ def test_every_n26_model_is_registered():
         "Miniature",
         "PrintConfig",
         "Stash",
+        "StatOverride",
     }
 
 

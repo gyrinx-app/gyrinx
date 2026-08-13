@@ -8,10 +8,10 @@ are registered read-only: the admin is for finding and inspecting, not
 for writing what only an operation may write. The pinned caches on Gang
 and Miniature are read-only fields for the same reason.
 
-Display-only state (AssignmentSet, PrintConfig) is editable — it costs
-nothing, changes no rating and touches no ledger — though their
-selection M2Ms are managed in the app, where the choices are drawn with
-the context a bare multi-select cannot give.
+Display-only state (AssignmentSet, PrintConfig, StatOverride) is
+editable — it costs nothing, changes no rating and touches no ledger —
+though their selection M2Ms are managed in the app, where the choices
+are drawn with the context a bare multi-select cannot give.
 """
 
 from django.contrib import admin
@@ -25,6 +25,7 @@ from n26.core.models import (
     Miniature,
     PrintConfig,
     Stash,
+    StatOverride,
 )
 from n26.core.models.assignment import ASSIGNABLE_FIELDS
 
@@ -170,6 +171,20 @@ class AssignmentSetAdmin(admin.ModelAdmin):
     # The selection is edited in the app, against the model's own card;
     # a multi-select over the whole assignment table says nothing.
     exclude = ["assignments"]
+
+
+@admin.register(StatOverride)
+class StatOverrideAdmin(admin.ModelAdmin):
+    list_display = ["miniature", "statline_type_stat", "value"]
+    search_fields = ["miniature__name", "statline_type_stat__stat__full_name"]
+    autocomplete_fields = ["miniature"]
+    # The cell names itself as "<shape> — <stat>", so both sides of that
+    # ride the changelist rather than costing a query per row.
+    list_select_related = [
+        "miniature",
+        "statline_type_stat__stat",
+        "statline_type_stat__statline_type",
+    ]
 
 
 @admin.register(PrintConfig)

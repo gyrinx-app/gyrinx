@@ -150,6 +150,13 @@ class Card:
     #: asking what a model's card *shows* reads both.
     granted: list[Node] = field(default_factory=list)
 
+    #: The characteristics this model's owner set by hand, keyed by the
+    #: statline cell each stands in. Loaded with the rest of the build,
+    #: because a render may not query. Empty on a card built without
+    #: statlines, and on one built from the library alone: a preview
+    #: depicts nobody, so there is nobody's settings to honour.
+    stat_overrides: dict = field(default_factory=dict)
+
     #: The gang's own card, when this card belongs to one of its models.
     #: The gang's rows already ride here as broadcast nodes; what the gang
     #: holds by *grant* has no row to ride, so its card comes along and
@@ -267,6 +274,10 @@ class GangCard:
     member_rows: dict = field(default_factory=dict, repr=False)
     #: The gang-hosted rows that ride every member's card as broadcast.
     shared_rows: list = field(default_factory=list, repr=False)
+    #: What each member's owner set by hand, keyed by model id, so a
+    #: re-deal under a selection carries the settings without a second
+    #: fetch.
+    stat_overrides: dict = field(default_factory=dict, repr=False)
     #: What the gang holds by grant rather than by row, worked out on the
     #: first compute of this card and kept: every member's card asks the
     #: same question of the same rows, so the answer is the same for all
@@ -295,6 +306,7 @@ class GangCard:
                 assignment_set=assignment_set,
                 broadcast=self.shared_rows,
                 gang_card=self,
+                stat_overrides=self.stat_overrides.get(miniature_id, {}),
             )
             for miniature_id, rows in self.member_rows.items()
         }
@@ -407,6 +419,25 @@ def hydrate_rows(rows, with_statlines=False):
     return rows
 
 
+def set_by_hand(**filters):
+    """The characteristics owners have set themselves, by model and cell.
+
+    ``{model id: {statline cell id: value}}`` — one query for however
+    many models the filter reaches, so a whole gang's settings cost what
+    one model's does. A blank is not a setting: the cell falls back to
+    what the model's entry prints.
+    """
+    from n26.core.models import StatOverride
+
+    grouped = {}
+    for row in StatOverride.objects.filter(**filters):
+        if row.value:
+            grouped.setdefault(row.miniature_id, {})[row.statline_type_stat_id] = (
+                row.value
+            )
+    return grouped
+
+
 def card_rows(with_statlines=False, **filters):
     """The flat fetch every card build starts from: one row query,
     hydrated. Builds fetching more than one row set hydrate them
@@ -434,7 +465,14 @@ def gang_rows(gang):
     )
 
 
-def assemble(miniature, rows, assignment_set=None, broadcast=(), gang_card=None):
+def assemble(
+    miniature,
+    rows,
+    assignment_set=None,
+    broadcast=(),
+    gang_card=None,
+    stat_overrides=None,
+):
     """Reassemble a flat list of assignments into a tree. No queries beyond
     the set's selection, when one is given.
 
@@ -479,7 +517,12 @@ def assemble(miniature, rows, assignment_set=None, broadcast=(), gang_card=None)
             roots.append(node)
         else:
             parent.children.append(node)
-    card = Card(miniature=miniature, roots=roots, gang_card=gang_card)
+    card = Card(
+        miniature=miniature,
+        roots=roots,
+        gang_card=gang_card,
+        stat_overrides=stat_overrides or {},
+    )
     # Only what the model owns. The gang's own rows ride the card so their
     # modifiers reach it; they are not part of what it is worth.
     card.full_rating = sum(
@@ -518,6 +561,11 @@ def build_card(miniature, with_statlines=False, assignment_set=None):
             None
             if gang is None
             else GangCard(gang=gang, roots=_forest(shared), shared_rows=shared)
+        ),
+        stat_overrides=(
+            set_by_hand(miniature=miniature).get(miniature.pk, {})
+            if with_statlines and miniature is not None
+            else {}
         ),
     )
 
@@ -577,6 +625,12 @@ def build_gang_card(gang, with_statlines=True, assignment_set=None):
         stash_roots=_forest(stash_rows),
         member_rows=grouped,
         shared_rows=shared,
+        # One query for the whole roster's settings, dealt out below —
+        # asking model by model is how a gang's budget starts growing
+        # with the number of models in it.
+        stat_overrides=(
+            set_by_hand(miniature__membership__gang=gang) if with_statlines else {}
+        ),
     )
     # Every member's card carries the gang's, so what the gang holds by
     # grant is dealt onto all of them from one computation of it.
@@ -587,6 +641,7 @@ def build_gang_card(gang, with_statlines=True, assignment_set=None):
             assignment_set=assignment_set,
             broadcast=shared,
             gang_card=card,
+            stat_overrides=card.stat_overrides.get(miniature_id, {}),
         )
         for miniature_id, rows in grouped.items()
     }

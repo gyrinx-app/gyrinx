@@ -6,6 +6,7 @@
         <c-slot name="breadcrumb">…breadcrumbs…</c-slot>
         <c-slot name="name_action">…rename pencil…</c-slot>
         <c-slot name="notes">…the notes form…</c-slot>
+        <c-slot name="statline">…the characteristics form…</c-slot>
     </c-n26.view.model-edit>
 
 The Edit face of a model's own page — the header names the model and offers the
@@ -24,6 +25,12 @@ fields, submit and all — because saving is the page's business; this component
 only decides where the box sits. The box's heading is drawn here so every
 caller's notes box is called the same thing.
 
+The characteristics form sits under the grid rather than in it, and full width:
+it is a row of boxes drawn to the same columns as the card's own strip, and a
+strip squeezed into half the page would wrap where the card's does not. Below
+the card, too, because it is read against it — a value set by hand shows on the
+card above, marked as changed.
+
   :miniature — the model. The header reads pk and name; the Equip links are
     built from pk.
   :card — the model's n26.render.ModelCard.
@@ -33,6 +40,7 @@ caller's notes box is called the same thing.
   actions — the header's far end: the gang's figures and the roster tally.
   name_action — a control on the name's own line: the rename pencil.
   notes — the notes form, whole.
+  statline — the characteristics form, whole. Nothing is drawn without it.
 {% endcomment %}
 <c-vars
     :miniature="None"
@@ -43,6 +51,7 @@ caller's notes box is called the same thing.
     actions=""
     name_action=""
     notes=""
+    statline=""
     class=""
 />
 
@@ -79,4 +88,13 @@ caller's notes box is called the same thing.
             {{ notes }}
         </c-ui.card>
     </div>
+
+    {% if statline.strip %}
+        <c-ui.card>
+            <c-slot name="header">
+                <span class="font-semibold">Characteristics</span>
+            </c-slot>
+            {{ statline }}
+        </c-ui.card>
+    {% endif %}
 </div>

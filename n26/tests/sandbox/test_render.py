@@ -258,10 +258,11 @@ class TestTheGangSheet:
         assert few == many, f"{few} queries for 2 models, {many} for 12"
         # Roughly: the models, the two flat assignment fetches, a narrow
         # hydration pass per relation the cards hold, the statline
-        # prefetch chain and the shapes it is drawn to, one per
-        # assignable kind for the modifier index, and the stash read that
-        # wealth includes (design/gang-sheet.md).
-        assert many <= 32, f"{many} queries is more than this should ever need"
+        # prefetch chain and the shapes it is drawn to, whatever their
+        # owners set by hand, one per assignable kind for the modifier
+        # index, and the stash read that wealth includes
+        # (design/gang-sheet.md).
+        assert many <= 33, f"{many} queries is more than this should ever need"
 
 
 class TestTheTextRenderer:

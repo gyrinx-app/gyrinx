@@ -855,7 +855,12 @@ GROUPS: list[Group] = [
                     "listed what the project already had. The drawings are Heroicons "
                     "v2 outline, on a 24x24 canvas with round caps and no fill, which "
                     "is uniform enough that the registry in core/icons.py can be path "
-                    "data alone and this component supplies everything else. Four are "
+                    "data alone and this component supplies everything else. The brand "
+                    "marks are what that uniformity costs: a logo is a filled shape "
+                    "rather than a line drawing, and one of them is published on a "
+                    "1080 canvas, so the registry names which are solid and which keep "
+                    "a canvas of their own — rescaling a mark's numbers by hand would "
+                    "be redrawing it. Four are "
                     "our own redrawings, kept as they are because naming a set should "
                     "not silently redraw it; the gallery marks them. Colour is never a "
                     "prop — currentColor means an icon is the colour of its text — and "
@@ -2505,7 +2510,12 @@ GROUPS: list[Group] = [
                     "form should be findable without reading any button's words. "
                     "The form arrives as a slot, fields and submit together, "
                     "because saving is the page's business and the gallery has "
-                    "no database to save to."
+                    "no database to save to. The characteristics an owner sets "
+                    "by hand sit under the grid, full width and in the same "
+                    "columns the card's own strip draws: a strip squeezed into "
+                    "half the page would wrap where the card's does not, and it "
+                    "belongs below the card because it is read against it — "
+                    "what is set shows there, marked as changed."
                 ),
             ),
             Component(
@@ -2526,7 +2536,13 @@ GROUPS: list[Group] = [
                     "a way to reach something that already exists. The gangs get no "
                     "heading of their own — they are what the page is — where the "
                     "changelog needs one, since a reader has to be told the list "
-                    "has stopped being about them."
+                    "has stopped being about them. The Patreon and Discord marks "
+                    "sit in the same row as the buttons, quiet and at the height "
+                    "of their text: the footer holds both already, but the footer "
+                    "is a scroll away from the screen someone is actually on when "
+                    "they go looking. They lead the row at width and follow the "
+                    "buttons once it wraps, so the primary is never the second "
+                    "thing on a phone."
                 ),
             ),
             Component(

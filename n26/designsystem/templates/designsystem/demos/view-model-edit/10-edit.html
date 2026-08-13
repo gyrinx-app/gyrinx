@@ -44,4 +44,18 @@
             </div>
         </form>
     </c-slot>
+    <c-slot name="statline">
+        <form>
+            <p class="mb-3 text-sm text-ink-500 dark:text-ink-400">
+                Set Vesna Krail's characteristics by hand. An empty box keeps their own
+                value, and what you set is what the rules then work on.
+            </p>
+            <c-n26.statline.edit :cells="owner_statline_editor" />
+            <div class="mt-3 flex justify-end">
+                <c-ui.button type="submit" variant="success" size="sm">
+                    Save characteristics
+                </c-ui.button>
+            </div>
+        </form>
+    </c-slot>
 </c-n26.view.model-edit>

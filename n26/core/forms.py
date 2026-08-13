@@ -174,6 +174,77 @@ class FighterNotesForm(forms.Form):
     notes = forms.CharField(required=False, widget=RichText())
 
 
+def statline_override_form_for(profile):
+    """The boxes an owner sets their own model's characteristics in.
+
+    The authoring editor's form over the same statline type, with the
+    same refusals — a value has to fit the column, and one box holds one
+    characteristic. The two editors write the same kind of short string,
+    and disagreeing about what can be stored would trip whoever met both.
+
+    What differs is what an empty box means. Here it is not "no value"
+    but "whatever the model's own entry prints", so the printed value is
+    what a box suggests and clearing one gives the entry back. Values
+    are as free as an author's: ``7++`` is the owner's business, and this
+    informs rather than polices.
+    """
+    from n26.library.forms import statline_form_for
+
+    printed_statline = getattr(profile, "statline", None)
+    printed = (
+        {stat.field_name: stat.value for stat in printed_statline.ordered_stats()}
+        if printed_statline is not None
+        else {}
+    )
+
+    class StatlineOverrideForm(statline_form_for(profile.statline_type)):
+        @classmethod
+        def opened_on(cls, miniature, data=None, prefix="statline"):
+            """The same form, filled in from what this owner has already set.
+
+            Only the cells they took over are filled: the rest are empty,
+            which is how the form says the entry's own value stands.
+            """
+            initial = {
+                override.statline_type_stat.field_name: override.value
+                for override in miniature.stat_overrides.select_related(
+                    "statline_type_stat__stat"
+                )
+            }
+            return cls(data, initial=initial, prefix=prefix)
+
+        def cells(self, placeholders=None):
+            return super().cells(placeholders=placeholders or printed)
+
+        def save(self, miniature):
+            """Record the boxes that were typed and clear the ones that
+            were not.
+
+            A cleared box is an answer — the override goes and the entry
+            prints again — so this writes every cell the form drew rather
+            than only the filled ones. Nothing here moves money or
+            rating, which is why it is a plain write and not an
+            operation.
+            """
+            from n26.core.models import StatOverride
+
+            for type_stat in self.type_stats:
+                value = (self.cleaned_data.get(type_stat.field_name) or "").strip()
+                held = StatOverride.objects.filter(
+                    miniature=miniature, statline_type_stat=type_stat
+                )
+                if not value:
+                    held.delete()
+                    continue
+                override = held.first() or StatOverride(
+                    miniature=miniature, statline_type_stat=type_stat
+                )
+                override.value = value
+                override.save()
+
+    return StatlineOverrideForm
+
+
 class RenameFighterForm(forms.Form):
     """The one fact a rename changes.
 

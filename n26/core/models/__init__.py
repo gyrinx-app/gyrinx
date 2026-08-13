@@ -12,6 +12,7 @@ from n26.core.models.settings import (
     ProfileRole,
 )
 from n26.core.models.stash import Stash
+from n26.core.models.stat_override import StatOverride
 
 __all__ = [
     "SETTING_GROUPS",
@@ -30,4 +31,5 @@ __all__ = [
     "ProfileRole",
     "Reason",
     "Stash",
+    "StatOverride",
 ]

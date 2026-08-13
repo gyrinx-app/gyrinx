@@ -250,7 +250,9 @@ class TestTheArachniRig:
         assert attacks.value == "3"
         (source,) = attacks.modified_by
         assert source.source == "Hardpoint conversion"
-        assert source.source_kind == "hidden assignable"
+        # A hidden carrier's name is written to be read; its kind is the
+        # library's plumbing, and a player's tooltip never says it.
+        assert source.source_kind == ""
 
     def test_both_guns_stack_to_minus_two(self, gang, arachni_rig):
         selection = _sets_of(arachni_rig, "Rad gun", "Plasma gun")

@@ -603,7 +603,13 @@ def _none_of_it(stat, raw):
     return None
 
 
-def build_statline(owner, changes_for=None):
+#: What a hand-set cell names as having changed it. The card's tooltip
+#: reads "M changed by …", so this is the phrase that finishes that
+#: sentence.
+SET_BY_THE_OWNER = Provenance(source="the owner")
+
+
+def build_statline(owner, changes_for=None, stat_overrides=None):
     """The characteristics of a fighter profile or a weapon profile.
 
     Values are formatted by each stat's own rules — 4 becomes 4" for a
@@ -617,19 +623,33 @@ def build_statline(owner, changes_for=None):
     under the wrong headings. Nothing stops content arriving that way —
     the completeness check lives in ``clean()``, which importers and the
     authoring verbs do not call.
+
+    ``stat_overrides`` are the values one model's owner set by hand,
+    keyed by the cell each stands in. Each replaces the printed value as
+    the base a cell is drawn from, so a rule that improves the
+    characteristic improves what was set rather than what the entry
+    prints, and the cell says the owner is among the reasons it differs.
     """
     statline = getattr(owner, "statline", None) if owner is not None else None
-    if statline is None:
+    stat_overrides = stat_overrides or {}
+    if statline is None and not stat_overrides:
         return Statline()
 
-    stored = {
-        value.statline_type_stat_id: value.value for value in statline.stats.all()
-    }
+    stored = (
+        {value.statline_type_stat_id: value.value for value in statline.stats.all()}
+        if statline is not None
+        else {}
+    )
     cells = []
     for type_stat in _shape_of(owner, statline):
         stat = type_stat.stat
         changes = changes_for(stat.field_name) if changes_for else []
-        raw, sources = apply_changes(stat, stored.get(type_stat.pk, ""), changes)
+        hand_set = stat_overrides.get(type_stat.pk, "")
+        raw, sources = apply_changes(
+            stat, hand_set or stored.get(type_stat.pk, ""), changes
+        )
+        if hand_set:
+            sources = [SET_BY_THE_OWNER, *sources]
         cells.append(
             StatCell(
                 short_name=type_stat.short_name,
@@ -647,10 +667,13 @@ def _shape_of(owner, statline):
     """The stats a statline is supposed to carry, in display order.
 
     A weapon may have no statline type at all, in which case there is no
-    shape to hold the values to and the stored ones are all there is.
+    shape to hold the values to and the stored ones are all there is —
+    and where there are none of those either, there is no row to draw.
     """
     statline_type = owner.statline_type
     if statline_type is None:
+        if statline is None:
+            return []
         return [value.statline_type_stat for value in statline.ordered_stats()]
     return list(statline_type.stats.all())
 
@@ -837,11 +860,23 @@ def build_model_card(miniature, card=None, computed=None, assignment_set=None):
         owned_by=(miniature.owned_by.name if miniature.owned_by else None),
         xp=miniature.xp,
         xp_target=miniature.xp_target,
+        # Off the card, never off the model: what an owner set is loaded
+        # by the build (``n26.core.card.set_by_hand``), because drawing
+        # a card may not query.
+        stat_overrides=card.stat_overrides,
     )
 
 
 def card_to_model_card(
-    card, computed=None, *, name, id="", owned_by=None, xp=0, xp_target=None
+    card,
+    computed=None,
+    *,
+    name,
+    id="",
+    owned_by=None,
+    xp=0,
+    xp_target=None,
+    stat_overrides=None,
 ):
     """Turn a card into the structure a renderer draws.
 
@@ -851,6 +886,10 @@ def card_to_model_card(
 
     ``xp`` is what to show when the card holds no XP counter; a card that
     holds one shows its value instead, so the cell moves with every tally.
+
+    ``stat_overrides`` are the characteristics this model's owner set by
+    hand — none on a preview, which depicts nobody and so has nobody's
+    settings to honour.
     """
     primary = None
     equipment, weapons = [], []
@@ -1046,9 +1085,11 @@ def card_to_model_card(
         profile_type=(primary.profile_type.name if primary else None),
         subtypes=sorted(line_rows["subtypes"], key=lambda line: line.name),
         statline=(
-            build_statline(primary, changes_for=computed.changes_for)
-            if primary and computed
-            else build_statline(primary)
+            build_statline(
+                primary,
+                changes_for=computed.changes_for if computed else None,
+                stat_overrides=stat_overrides,
+            )
             if primary
             else Statline()
         ),

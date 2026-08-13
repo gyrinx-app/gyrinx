@@ -83,6 +83,7 @@ is named by the page's own heading directly below.
         <c-slot name="notes">
             <form method="post" action="{{ edit_url }}">
                 {% csrf_token %}
+                <input type="hidden" name="act" value="notes">
                 <c-n26.rich-text :field="form.notes" />
                 <div class="mt-3 flex justify-end">
                     <c-ui.button type="submit" variant="success" size="sm">
@@ -90,6 +91,30 @@ is named by the page's own heading directly below.
                     </c-ui.button>
                 </div>
             </form>
+        </c-slot>
+        {% comment %}
+        The same boxes an author types a statline into, filled with what
+        this owner has set and suggesting the model's own value where
+        they have set nothing. Two forms post to this page, so each says
+        which it is; Save is green here for the reason it is green above.
+        {% endcomment %}
+        <c-slot name="statline">
+            {% if statline_cells %}
+                <form method="post" action="{{ edit_url }}">
+                    {% csrf_token %}
+                    <input type="hidden" name="act" value="statline">
+                    <p class="mb-3 text-sm text-ink-500 dark:text-ink-400">
+                        Set {{ miniature.name }}'s characteristics by hand. An empty box keeps their
+                        own value, and what you set is what the rules then work on.
+                    </p>
+                    <c-n26.statline.edit :cells="statline_cells" />
+                    <div class="mt-3 flex justify-end">
+                        <c-ui.button type="submit" variant="success" size="sm">
+                            Save characteristics
+                        </c-ui.button>
+                    </div>
+                </form>
+            {% endif %}
         </c-slot>
     </c-n26.view.model-edit>
     {% if renaming %}
