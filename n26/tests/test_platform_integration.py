@@ -281,6 +281,41 @@ def in_order(text, *fragments):
     return [text.index(fragment) for fragment in fragments]
 
 
+class TestTheFooterHelpColumn:
+    """The footer's Help & Documentation column lists the site's own
+    top-level pages — the same list the classic app's footer draws,
+    because docs belong to the site rather than to an edition."""
+
+    @pytest.fixture
+    def help_page(self, db):
+        from django.contrib.flatpages.models import FlatPage
+        from django.contrib.sites.models import Site
+
+        page = FlatPage.objects.create(url="/help/", title="Help")
+        page.sites.add(Site.objects.get_current())
+        return page
+
+    def test_the_columns_pages_are_the_sites_flatpages(
+        self, tester, client, default_pack, help_page
+    ):
+        body = client.get("/n26/").content.decode()
+        assert 'href="/help/"' in body
+        assert ">Help" in body
+
+    def test_a_page_gated_to_another_group_is_not_offered(
+        self, tester, client, default_pack, help_page
+    ):
+        from django.contrib.auth.models import Group
+
+        from gyrinx.pages.models import FlatPageVisibility
+
+        gate = FlatPageVisibility.objects.create(page=help_page)
+        gate.groups.add(Group.objects.create(name="Somebody Else"))
+
+        body = client.get("/n26/").content.decode()
+        assert 'href="/help/"' not in body
+
+
 class TestTheNavigation:
     """A bar that names the page, a drawer that holds the places, an
     account menu that holds the doors.

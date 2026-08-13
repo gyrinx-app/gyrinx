@@ -74,13 +74,18 @@ selection as it was when the panel opened and dispatches nothing.
                 chrome before the list gets a pixel. A screen that is mostly
                 list takes it a notch further with size="xs".
                 {% endcomment %}
-                <c-ui.button size="{{ size }}" variant="primary">
+                {% comment %}
+                default, not primary: this refines a list that is already
+                on screen, and a bar of filled accent buttons above it
+                reads as the page's main acts rather than its filters.
+                {% endcomment %}
+                <c-ui.button size="{{ size }}" variant="default">
                     <span class="flex items-center justify-center gap-1.5">
                         {{ label }}
                         <span x-show="values.length !== allValues.length"
                               x-text="values.length"
                               x-cloak
-                              class="rounded-full bg-accent-foreground/20 px-1.5 text-xs"></span>
+                              class="rounded-full bg-ink-500/15 px-1.5 text-xs tabular-nums"></span>
                         <c-n26.icon name="chevron-down" class="size-4" stroke_width="2" />
                     </span>
                 </c-ui.button>

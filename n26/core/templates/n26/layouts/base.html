@@ -1,6 +1,7 @@
 {% load static %}
 {% load banner %}
 {% load navigation %}
+{% load pages %}
 {% comment %}
 The n26 page shell. Block names and order match the platform base template
 (head_title, stylesheet, body, content, extra_body, extra_script) so templates
@@ -454,28 +455,23 @@ banner, is_impersonating / impersonator, gtm_container_id, messages, user.
                 {% comment %}
                 A literal &, not &amp; — cotton reads the attribute as text and
                 Django escapes it on output, so an entity gets double-escaped.
+
+                The pages are the site's flatpages, the same top-level list the
+                classic app's footer draws — docs belong to the site, not to an
+                edition, which is what lets this template load the platform's
+                pages tags (the badge_tags rule in n26/CLAUDE.md). Visibility is
+                the reader's: a page gated to a group they are not in is not
+                offered.
                 {% endcomment %}
                 <c-n26.site.footer.column heading="Help & Documentation">
-                    <li>
-                        <c-n26.link href="/content/" tone="muted">
-                            Getting started
-                        </c-n26.link>
-                    </li>
-                    <li>
-                        <c-n26.link href="/content/" tone="muted">
-                            Building a gang
-                        </c-n26.link>
-                    </li>
-                    <li>
-                        <c-n26.link href="/content/" tone="muted">
-                            Running a campaign
-                        </c-n26.link>
-                    </li>
-                    <li>
-                        <c-n26.link href="/content/" tone="muted">
-                            Printing cards
-                        </c-n26.link>
-                    </li>
+                    {% get_root_pages for user as help_pages_ %}
+                    {% for page in help_pages_ %}
+                        <li>
+                            <c-n26.link href="{{ page.url }}" tone="muted">
+                                {{ page.title }}
+                            </c-n26.link>
+                        </li>
+                    {% endfor %}
                 </c-n26.site.footer.column>
                 <c-n26.site.footer.column heading="Support Gyrinx on Patreon">
                     <c-slot name="content">

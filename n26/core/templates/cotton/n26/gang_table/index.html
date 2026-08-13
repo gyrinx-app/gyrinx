@@ -26,10 +26,11 @@ takes its own line and the menus wrap under it. Whatever a reader learns about
 filtering the trading post is true here, which is the entire argument for not
 inventing a second arrangement for the second list on the site.
 
-Type is a <c-n26.choice-menu> rather than its multi-select sibling because it is
-one question with one answer. Rows register their facets on init and show
-themselves only while those pass, so the count and the list are computed from one
-object and cannot disagree.
+Type is a <c-n26.filter-menu>, the same multi-select the equipment screens
+refine their lists with — tick the types worth seeing, exactly as Category
+works there. Rows register their facets on init and show themselves only
+while those pass, so the count and the list are computed from one object
+and cannot disagree.
 
   --- two searches, one box ---
 
@@ -47,7 +48,9 @@ does not print). Type something else and it narrows from there as usual.
 
   :type_options — [{value, label}] of every gang type present. Drawn only when
     there are two or more: a filter with one option filters nothing.
-  noun — what the count counts. "gangs" by default.
+  noun — what the count counts, and its singular for a count of one.
+    "gangs"/"gang" by default.
+  singular — see noun.
   action — where Search submits, as a GET. Without one there is nowhere to go
     and the submit does nothing; the box still narrows in place.
   :query — the query the server answered, echoed back into the box. Pass it as
@@ -55,16 +58,21 @@ does not print). Type something else and it narrows from there as usual.
     query comes back as `&amp;quot;`.
   empty — what to show when a search matches nothing.
 {% endcomment %}
-<c-vars :type_options="[]" noun="gangs" action="" query="" empty="" class="" />
+<c-vars :type_options="[]" noun="gangs" singular="gang" action="" query="" empty="" class="" />
 
 <div x-data="{
         rows: [],
         query: {{ query|json_dumps }},
         answered: {{ query|lower|json_dumps }},
-        type: '',
+        {% comment %}
+        null until the menu first applies: no selection yet means no
+        narrowing, where an empty list is a real answer — every type
+        unticked — and shows nothing, as the picker's category filter does.
+        {% endcomment %}
+        types: null,
         register(facets) { this.rows.push(facets) },
         matches(facets) {
-            if (this.type && facets.type !== this.type) return false;
+            if (this.types !== null && !this.types.includes(facets.type)) return false;
             const q = this.query.trim().toLowerCase();
             {% comment %}
             The server already answered this exact question, so these rows are
@@ -79,7 +87,7 @@ does not print). Type something else and it narrows from there as usual.
      The menu publishes its choice on the window, the way filter-menu does, so the
      control and the list never hold a reference to each other.
      {% endcomment %}
-     @choice-apply.window="if ($event.detail.name === 'type') type = $event.detail.value"
+     @filter-apply.window="if ($event.detail.name === 'type') types = $event.detail.values"
      class="flex flex-col gap-3 {{ class }}">
 
     {% comment %}
@@ -92,13 +100,18 @@ does not print). Type something else and it narrows from there as usual.
 
     {% if type_options|length > 1 %}
         <div class="flex flex-wrap items-center gap-2">
-            <c-n26.choice-menu label="Type" name="type" :options="type_options" :selected="''" />
+            <c-n26.filter-menu label="Type" name="type" :options="type_options" />
         </div>
     {% endif %}
 
     <p class="text-sm text-muted">
         <span class="font-semibold text-ink-900 tabular-nums dark:text-ink-100" x-text="shown">{{ rows|length }}</span>
-        {{ noun }}
+        {% comment %}
+        The word follows the number — "1 gang", "3 gangs" — and the
+        plural is the scriptless answer, since a list worth filtering
+        rarely holds one thing.
+        {% endcomment %}
+        <span x-text="shown === 1 ? {{ singular|json_dumps }} : {{ noun|json_dumps }}">{{ noun }}</span>
     </p>
 
     {% comment %}
