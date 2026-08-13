@@ -1365,6 +1365,33 @@ GROUPS: list[Group] = [
                 ),
             ),
             Component(
+                slug="about",
+                tag="c-n26.about",
+                template="n26/about/index.html",
+                summary="What a piece of content does, and how anyone comes to have it, in sentences.",
+                notes=(
+                    "The authoring pages' explanation column. It draws the "
+                    "structure n26.library.prose compiles — how a thing is "
+                    "referenced (built into, given by, offered by…), what it "
+                    "does in the order the rules apply it, and how much of the "
+                    "player side is assigned to it. Each sentence's hint sits "
+                    "behind a hover or keyboard focus, CSS-only, with the "
+                    "browser's title as the touch fallback; a sentence whose "
+                    "subject has a page is a link, and one without is plain "
+                    "words, which is an answer rather than a gap. Views fill "
+                    "the addresses in — the compiler knows no URLs."
+                ),
+                parts=(
+                    Part(
+                        "c-n26.about.sentence",
+                        "n26/about/sentence.html",
+                        "One sentence: linked where its subject has a page, "
+                        "its hint behind hover or focus.",
+                        required=True,
+                    ),
+                ),
+            ),
+            Component(
                 slug="prose",
                 tag="c-n26.prose",
                 template="n26/prose.html",

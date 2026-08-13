@@ -987,6 +987,40 @@ def _hire_options_context(request, kind, thing, drawn):
     }
 
 
+def _prose_addresses(prose):
+    """The prose, with every sentence pointed at its subject's page.
+
+    The compiler knows no URLs, so each sentence carries its subject's
+    identity instead — ``(model label, pk)`` — and this turns identities
+    into addresses: a modifier's page, or the kind's own detail page for
+    anything the authoring surface draws one for. A subject with no page
+    of its own leaves the sentence as plain words, which is an answer
+    rather than a gap.
+    """
+    from n26.library.prose import Prose
+
+    slugs = {
+        _model_for(specs()[verb])._meta.label_lower: slug
+        for slug, verb in LEAF_KINDS.items()
+    }
+
+    def address(sentence):
+        if not sentence.key:
+            return sentence
+        label, pk = sentence.key
+        if label == "library.modifier":
+            return sentence.at(reverse("authoring-modifier", args=[pk]))
+        if label in slugs:
+            return sentence.at(reverse("authoring-detail", args=[slugs[label], pk]))
+        return sentence
+
+    return Prose(
+        referenced_by=tuple(address(s) for s in prose.referenced_by),
+        does=tuple(address(s) for s in prose.does),
+        assigned_to=prose.assigned_to,
+    )
+
+
 def detail(request, kind, pk):
     """One thing, and the parts added to it over time.
 
@@ -1126,12 +1160,21 @@ def detail(request, kind, pk):
         hire_options = _hire_options_context(request, kind, thing, drawn)
         drawn = [s for s in drawn if s["act"] not in ("option", "option-set")]
 
+    from n26.library.models.assignable import Assignable
+    from n26.library.prose import prose_for
+
+    # The foundation kinds — a stat, a statline shape — are not
+    # assignables: nothing carries them, nothing is assigned them, and
+    # the compiler reads both. Their pages simply have no column.
+    said = _prose_addresses(prose_for(thing)) if isinstance(thing, Assignable) else None
+
     return render(
         request,
         "authoring/detail.html",
         {
             "kind": kind,
             "thing": thing,
+            "prose": said,
             "verbose_name": model._meta.verbose_name,
             "verbose_name_plural": model._meta.verbose_name_plural,
             "edit_form": edit_form,

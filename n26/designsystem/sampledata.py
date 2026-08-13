@@ -801,7 +801,67 @@ def context():
         **owned_context(),
         **gang_sheet_context(),
         **dashboard_context(),
+        "sample_about": sample_about(),
     }
+
+
+@dataclass(frozen=True)
+class _Said:
+    """A sentence as the about column reads one — duck-typed rather than
+    imported, because the gallery shows the component working, and the
+    real structure is the library's (n26.library.prose)."""
+
+    text: str
+    hint: str = ""
+    href: str = ""
+
+
+@dataclass(frozen=True)
+class _AboutSample:
+    referenced_by: tuple = ()
+    does: tuple = ()
+    assigned_to: object = None
+
+
+@dataclass(frozen=True)
+class _AssignedSample:
+    gangs: int = 0
+    rows: int = 0
+
+
+def sample_about():
+    """One thing's whole story, as the authoring pages tell it."""
+    return _AboutSample(
+        referenced_by=(
+            _Said(
+                text="Built into the Escher gang type.",
+                hint="Every Escher gang holds it from founding.",
+                href="#",
+            ),
+            _Said(
+                text="Taken away from the gang by the Chaos Corrupted affiliation.",
+                hint=(
+                    "Cancelling it retracts everything it gives, for the gang "
+                    "and every fighter; drop the corruption and it returns."
+                ),
+                href="#",
+            ),
+        ),
+        does=(
+            _Said(
+                text="Every fighter's weapons gain Backstab, while the gang holds this.",
+                hint=(
+                    "Targets the model's weapons; held by the gang, so "
+                    '"the model" is each fighter in turn.'
+                ),
+                href="#",
+            ),
+            _Said(
+                text="It asks the gang to choose one affiliation — the sheet says Choose until they pick.",
+            ),
+        ),
+        assigned_to=_AssignedSample(gangs=14, rows=23),
+    )
 
 
 def choice_offer():

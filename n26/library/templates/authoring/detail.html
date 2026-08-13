@@ -33,223 +33,236 @@ thing twice, a line apart.
         </c-slot>
     </c-n26.page-header>
     {% comment %}
+    Two columns on a wide screen: the forms, and beside them the about
+    column — what this thing does and how anyone comes to have it, in
+    sentences (n26.library.prose). On anything narrower the column
+    follows the flow at the end: an author editing on a phone came to
+    edit, and the explanation should not cost them a screen before the
+    first field.
+    {% endcomment %}
+    <div class="mt-2 grid items-start gap-8 xl:grid-cols-[minmax(0,1fr)_20rem]">
+        <div class="min-w-0">
+            {% comment %}
     No documentation of the kind here. It belongs where an author is
     deciding what to make; by the time they are looking at one, they
     know what it is, and a paragraph above every row is in the way.
-    {% endcomment %}
-    {% if thing.library_author_help %}
-        <c-n26.prose class="mt-3 max-w-2xl">
-            <p>{{ thing.library_author_help }}</p>
-        </c-n26.prose>
-    {% endif %}
-    {% if edit_form %}
-        <c-n26.form-section title="This {{ verbose_name }}" class="mt-8">
-            {# A form carrying an upload has to say so, or the browser posts the #}
-            {# file's name and nothing else. The form knows whether it holds one. #}
-            {% comment %}
+            {% endcomment %}
+            {% if thing.library_author_help %}
+                <c-n26.prose class="mt-3 max-w-2xl">
+                    <p>{{ thing.library_author_help }}</p>
+                </c-n26.prose>
+            {% endif %}
+            {% if edit_form %}
+                <c-n26.form-section title="This {{ verbose_name }}" class="mt-8">
+                    {# A form carrying an upload has to say so, or the browser posts the #}
+                    {# file's name and nothing else. The form knows whether it holds one. #}
+                    {% comment %}
             The width sits on the fields rather than on the form, because a
             statline is wider than a column of inputs wants to be: thirteen
             characteristics do not fit beside a name and a price, and boxed
             into that width they would be a scrolling strip on a desktop.
-            {% endcomment %}
-            <form method="post"
-                  {% if edit_form.is_multipart %}enctype="multipart/form-data"{% endif %}
-                  class="space-y-5">
-                {% csrf_token %}
-                <input type="hidden" name="act" value="edit">
-                <div class="max-w-xl space-y-5">{% include "authoring/_form.html" with form=edit_form %}</div>
-                {% if statline_cells %}
-                    <c-n26.form-section title="{{ thing.statline_type }}"
-                                        description="An empty box is a characteristic this {{ verbose_name }} does not have; a card prints it as a dash."
-                                        class="rounded-box border border-box-border p-4">
-                        <c-n26.statline.edit :cells="statline_cells" />
-                    </c-n26.form-section>
-                {% endif %}
-                {# No way out: this form is a section of the page it is on, so #}
-                {# there is nowhere for a cancel to lead that is not here. #}
-                <div class="max-w-xl">
-                    <c-n26.form-actions submit_label="Save changes" />
-                </div>
-            </form>
-            {% comment %}
+                    {% endcomment %}
+                    <form method="post"
+                          {% if edit_form.is_multipart %}enctype="multipart/form-data"{% endif %}
+                          class="space-y-5">
+                        {% csrf_token %}
+                        <input type="hidden" name="act" value="edit">
+                        <div class="max-w-xl space-y-5">{% include "authoring/_form.html" with form=edit_form %}</div>
+                        {% if statline_cells %}
+                            <c-n26.form-section title="{{ thing.statline_type }}"
+                                                description="An empty box is a characteristic this {{ verbose_name }} does not have; a card prints it as a dash."
+                                                class="rounded-box border border-box-border p-4">
+                                <c-n26.statline.edit :cells="statline_cells" />
+                            </c-n26.form-section>
+                        {% endif %}
+                        {# No way out: this form is a section of the page it is on, so #}
+                        {# there is nowhere for a cancel to lead that is not here. #}
+                        <div class="max-w-xl">
+                            <c-n26.form-actions submit_label="Save changes" />
+                        </div>
+                    </form>
+                    {% comment %}
             A link to a page, not a button in this form — deleting has
             its own address, its own question, and its own refusal when
             anything still uses the row.
-            {% endcomment %}
-            <div class="mt-4">
-                <c-n26.link href="{% url 'authoring-thing-delete' kind thing.pk %}"
-                            tone="danger"
-                            class="text-sm">
-                    Delete this {{ verbose_name }}…
-                </c-n26.link>
-            </div>
-        </c-n26.form-section>
-    {% endif %}
-    {% comment %}
+                    {% endcomment %}
+                    <div class="mt-4">
+                        <c-n26.link href="{% url 'authoring-thing-delete' kind thing.pk %}"
+                                    tone="danger"
+                                    class="text-sm">
+                            Delete this {{ verbose_name }}…
+                        </c-n26.link>
+                    </div>
+                </c-n26.form-section>
+            {% endif %}
+            {% comment %}
     A page may carry more than one section of parts. A weapon has firing
     lines that only weapons have, and — like everything an author can
     give a fighter — it can also come with something. Each section is a
     form of its own posting back here, and each names itself in `act` so
     the view knows which was pressed; the kind's own parts name nothing,
     there being at most one such section.
-    {% endcomment %}
-    {% for section in part_sections %}
-        <c-n26.form-section title="{{ section.part_verbose_name_plural|capfirst }}"
-                            description="{{ section.parts_description }}"
-                            class="mt-8">
-            {% if section.parts %}
-                <c-ui.table>
-                    <tbody>
-                        {% for part in section.parts %}
-                            <tr>
-                                {% comment %}
+            {% endcomment %}
+            {% for section in part_sections %}
+                <c-n26.form-section title="{{ section.part_verbose_name_plural|capfirst }}"
+                                    description="{{ section.parts_description }}"
+                                    class="mt-8">
+                    {% if section.parts %}
+                        <c-ui.table>
+                            <tbody>
+                                {% for part in section.parts %}
+                                    <tr>
+                                        {% comment %}
                                 nowrap, because the notes cell's w-full
                                 otherwise squeezes this one to a word a
                                 line — and the name is what the row is.
-                                {% endcomment %}
-                                <td class="whitespace-nowrap">{{ part.label }}</td>
-                                {% comment %}
+                                        {% endcomment %}
+                                        <td class="whitespace-nowrap">{{ part.label }}</td>
+                                        {% comment %}
                                 Removing is a question asked at its own address, not an
                                 act done from here: what it means depends on what else
                                 holds the set, which this row cannot say.
-                                {% endcomment %}
-                                {% if part.remove_url %}
-                                    <td class="w-full text-muted">{{ part.notes|join:" · " }}</td>
-                                    <td class="text-right">
-                                        <c-ui.button href="{{ part.remove_url }}" size="sm" variant="ghost">
-                                            Remove
-                                        </c-ui.button>
-                                    </td>
-                                {% else %}
-                                    <td class="text-right text-muted">{{ part.notes|join:" · " }}</td>
-                                {% endif %}
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </c-ui.table>
-            {% else %}
-                {% comment %}
+                                        {% endcomment %}
+                                        {% if part.remove_url %}
+                                            <td class="w-full text-muted">{{ part.notes|join:" · " }}</td>
+                                            <td class="text-right">
+                                                <c-ui.button href="{{ part.remove_url }}" size="sm" variant="ghost">
+                                                    Remove
+                                                </c-ui.button>
+                                            </td>
+                                        {% else %}
+                                            <td class="text-right text-muted">{{ part.notes|join:" · " }}</td>
+                                        {% endif %}
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </c-ui.table>
+                    {% else %}
+                        {% comment %}
                 A section may say what having none of these means, where
                 that is a state rather than a gap: a profile with no
                 options is hired one way, which is a perfectly good thing
                 for a profile to be.
-                {% endcomment %}
-                <c-ui.description>
-                    {{ section.nothing_yet|default:"None yet." }}
-                </c-ui.description>
-            {% endif %}
-        </c-n26.form-section>
-        <c-n26.form-section title="Add a {{ section.part_verbose_name }}" class="mt-10">
-            {% if section.part_help %}
-                <c-n26.prose class="max-w-2xl">
-                    {% for paragraph in section.part_help %}<p>{{ paragraph }}</p>{% endfor %}
-                </c-n26.prose>
-            {% endif %}
-            <form method="post"
-                  {% if section.form.is_multipart %}enctype="multipart/form-data"{% endif %}
-                  class="max-w-xl space-y-5">
-                {% csrf_token %}
-                {% if section.act %}<input type="hidden" name="act" value="{{ section.act }}">{% endif %}
-                {% include "authoring/_form.html" with form=section.form %}
-                {% if section.statline_form %}
-                    <c-n26.form-section title="{{ thing.statline_type }}"
-                                        class="rounded-box border border-box-border p-4">
-                        <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                            {% for field in section.statline_form %}
-                                {% include "authoring/_field.html" with form=section.statline_form %}
-                            {% endfor %}
-                        </div>
-                    </c-n26.form-section>
-                {% elif section.wants_statline %}
-                    <c-ui.description>
-                        This {{ verbose_name }} has no statline shape set, so its
-                        {{ section.part_verbose_name_plural }} carry no stats.
-                    </c-ui.description>
-                {% endif %}
-                <c-n26.form-actions submit_label="Add {{ section.part_verbose_name }}" />
-            </form>
-        </c-n26.form-section>
-    {% endfor %}
-    {% comment %}
+                        {% endcomment %}
+                        <c-ui.description>
+                            {{ section.nothing_yet|default:"None yet." }}
+                        </c-ui.description>
+                    {% endif %}
+                </c-n26.form-section>
+                <c-n26.form-section title="Add a {{ section.part_verbose_name }}" class="mt-10">
+                    {% if section.part_help %}
+                        <c-n26.prose class="max-w-2xl">
+                            {% for paragraph in section.part_help %}<p>{{ paragraph }}</p>{% endfor %}
+                        </c-n26.prose>
+                    {% endif %}
+                    <form method="post"
+                          {% if section.form.is_multipart %}enctype="multipart/form-data"{% endif %}
+                          class="max-w-xl space-y-5">
+                        {% csrf_token %}
+                        {% if section.act %}<input type="hidden" name="act" value="{{ section.act }}">{% endif %}
+                        {% include "authoring/_form.html" with form=section.form %}
+                        {% if section.statline_form %}
+                            <c-n26.form-section title="{{ thing.statline_type }}"
+                                                class="rounded-box border border-box-border p-4">
+                                <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                                    {% for field in section.statline_form %}
+                                        {% include "authoring/_field.html" with form=section.statline_form %}
+                                    {% endfor %}
+                                </div>
+                            </c-n26.form-section>
+                        {% elif section.wants_statline %}
+                            <c-ui.description>
+                                This {{ verbose_name }} has no statline shape set, so its
+                                {{ section.part_verbose_name_plural }} carry no stats.
+                            </c-ui.description>
+                        {% endif %}
+                        <c-n26.form-actions submit_label="Add {{ section.part_verbose_name }}" />
+                    </form>
+                </c-n26.form-section>
+            {% endfor %}
+            {% comment %}
     Options and their sets are drawn as one section, grouped the way a
     hire offers them, so they leave the generic loop to an include of
     their own. Their two acts still post back here like any section's.
-    {% endcomment %}
-    {% if hire_options %}
-        {% include "authoring/_hire_options.html" %}
-    {% endif %}
-    {% if with_modifiers %}
-        <c-n26.form-section title="Modifiers"
-                            description="What this {{ verbose_name }} does once assigned — each modifier is one scope and one effect, computed onto cards."
-                            class="mt-10">
-            {% if modifier_rows %}
-                <c-ui.table>
-                    <tbody>
-                        {% for row in modifier_rows %}
-                            <tr>
-                                {% comment %}
+            {% endcomment %}
+            {% if hire_options %}
+                {% include "authoring/_hire_options.html" %}
+            {% endif %}
+            {% if with_modifiers %}
+                <c-n26.form-section title="Modifiers"
+                                    description="What this {{ verbose_name }} does once assigned — each modifier is one scope and one effect, computed onto cards."
+                                    class="mt-10">
+                    {% if modifier_rows %}
+                        <c-ui.table>
+                            <tbody>
+                                {% for row in modifier_rows %}
+                                    <tr>
+                                        {% comment %}
                                 The name leads to the modifier's own page, which is
                                 where it is corrected or removed. Detaching, beside
                                 it, only takes it off this carrier.
-                                {% endcomment %}
-                                <td class="whitespace-nowrap">
-                                    <c-n26.link href="{% url 'authoring-modifier' row.pk %}">{{ row.label }}</c-n26.link>
-                                </td>
-                                <td class="w-full text-muted">{{ row.notes|join:" · " }}</td>
-                                <td class="text-right">
-                                    <form method="post">
-                                        {% csrf_token %}
-                                        <input type="hidden" name="act" value="detach">
-                                        <input type="hidden" name="modifier" value="{{ row.pk }}">
-                                        <c-ui.button type="submit" size="sm" variant="ghost">
-                                            Detach
-                                        </c-ui.button>
-                                    </form>
-                                </td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </c-ui.table>
-            {% else %}
-                <c-ui.description>
-                    None yet — the {{ verbose_name }} does nothing special until a modifier hangs here.
-                </c-ui.description>
-            {% endif %}
-            {% if attachable_modifiers %}
-                <form method="post" class="flex max-w-xl items-end gap-3">
-                    {% csrf_token %}
-                    <input type="hidden" name="act" value="attach">
-                    <div class="grow">
-                        <c-ui.field data-field label="Attach an existing modifier" for="attach-modifier">
-                            {% comment %}
+                                        {% endcomment %}
+                                        <td class="whitespace-nowrap">
+                                            <c-n26.link href="{% url 'authoring-modifier' row.pk %}">{{ row.label }}</c-n26.link>
+                                        </td>
+                                        <td class="w-full text-muted">{{ row.notes|join:" · " }}</td>
+                                        <td class="text-right">
+                                            <form method="post">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="act" value="detach">
+                                                <input type="hidden" name="modifier" value="{{ row.pk }}">
+                                                <c-ui.button type="submit" size="sm" variant="ghost">
+                                                    Detach
+                                                </c-ui.button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </c-ui.table>
+                    {% else %}
+                        <c-ui.description>
+                            None yet — the {{ verbose_name }} does nothing special until a modifier hangs here.
+                        </c-ui.description>
+                    {% endif %}
+                    {% if attachable_modifiers %}
+                        <form method="post" class="flex max-w-xl items-end gap-3">
+                            {% csrf_token %}
+                            <input type="hidden" name="act" value="attach">
+                            <div class="grow">
+                                <c-ui.field data-field label="Attach an existing modifier" for="attach-modifier">
+                                    {% comment %}
                             Every reusable modifier in the library is offered
                             here, and a modifier's label is a whole sentence —
                             the longest list on the page, and the one least
                             worth scrolling.
-                            {% endcomment %}
-                            <c-n26.filter-select placeholder="Type to filter modifiers">
-                                <c-ui.select.native name="modifier" id="attach-modifier" placeholder="Pick a modifier">
-                                    {% for mod in attachable_modifiers %}
-                                        <c-ui.select.option value="{{ mod.pk }}">
-                                            {{ mod.label }}
-                                        </c-ui.select.option>
-                                    {% endfor %}
-                                </c-ui.select.native>
-                            </c-n26.filter-select>
-                        </c-ui.field>
-                    </div>
-                    <c-ui.button type="submit">
-                        Attach
-                    </c-ui.button>
-                </form>
-            {% endif %}
-            {% comment %}
+                                    {% endcomment %}
+                                    <c-n26.filter-select placeholder="Type to filter modifiers">
+                                        <c-ui.select.native name="modifier" id="attach-modifier" placeholder="Pick a modifier">
+                                            {% for mod in attachable_modifiers %}
+                                                <c-ui.select.option value="{{ mod.pk }}">
+                                                    {{ mod.label }}
+                                                </c-ui.select.option>
+                                            {% endfor %}
+                                        </c-ui.select.native>
+                                    </c-n26.filter-select>
+                                </c-ui.field>
+                            </div>
+                            <c-ui.button type="submit">
+                                Attach
+                            </c-ui.button>
+                        </form>
+                    {% endif %}
+                    {% comment %}
             Changing the kinds leads to the composer's own address rather
             than back here: this page is long, and redrawing it on every
             choice of kind lands the reader at the top of it again.
-            {% endcomment %}
-            {% url 'authoring-modifier-create' as compose_url %}
-            {% include "authoring/_composer.html" with show_reusable_flag=True composer_action=compose_url composer_carrier_kind=kind composer_carrier_pk=thing.pk composer_title="Build a new modifier" composer_description="Pick who it reaches and what it does; the fields for both follow." composer_class="rounded-box border border-box-border p-4" composer_submit_label="Add modifier" composer_switch_label="Configure new modifier" composer_cancel_url="" %}
-        </c-n26.form-section>
-    {% endif %}
+                    {% endcomment %}
+                    {% url 'authoring-modifier-create' as compose_url %}
+                    {% include "authoring/_composer.html" with show_reusable_flag=True composer_action=compose_url composer_carrier_kind=kind composer_carrier_pk=thing.pk composer_title="Build a new modifier" composer_description="Pick who it reaches and what it does; the fields for both follow." composer_class="rounded-box border border-box-border p-4" composer_submit_label="Add modifier" composer_switch_label="Configure new modifier" composer_cancel_url="" %}
+                </c-n26.form-section>
+            {% endif %}
+        </div>
+        <c-n26.about :prose="prose" class="xl:sticky xl:top-24" />
+    </div>
 {% endblock content %}

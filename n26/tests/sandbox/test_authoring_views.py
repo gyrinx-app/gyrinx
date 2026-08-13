@@ -5226,3 +5226,38 @@ class TestTheRecipes:
     def test_a_plain_user_is_turned_away(self, client, default_pack):
         client.force_login(User.objects.create_user("cook"))
         assert client.get("/n26/authoring/recipes/").status_code == 404
+
+
+class TestTheAboutColumn:
+    """Every detail page explains its thing in sentences: what it does,
+    how anyone comes to have it, and how much is assigned to it."""
+
+    def test_the_column_says_what_a_rule_does_and_links_the_modifier(
+        self, author, client, default_pack
+    ):
+        from n26.library.authoring import (
+            create_rule,
+            ef_adds,
+            modifier,
+            targets_model,
+        )
+        from n26.library.models import Modifier, Skill
+
+        rule = create_rule("Immovable")
+        skill = Skill.objects.create(name="Juggernaut")
+        modifier("Grants Juggernaut", targets_model(), ef_adds(skill), attach_to=rule)
+
+        body = client.get(f"/n26/authoring/rule/{rule.pk}/").content.decode()
+        assert "What it does" in body
+        assert "gain the Juggernaut skill" in body
+        # The sentence is a link to the modifier it describes.
+        made = Modifier.objects.get(name="Grants Juggernaut")
+        assert f"/n26/authoring/modifiers/{made.pk}/" in body
+
+    def test_the_column_counts_what_is_assigned(self, author, client, default_pack):
+        from n26.library.authoring import create_rule
+
+        rule = create_rule("Unclaimed")
+        body = client.get(f"/n26/authoring/rule/{rule.pk}/").content.decode()
+        assert "Assigned to" in body
+        assert "No gang yet." in body

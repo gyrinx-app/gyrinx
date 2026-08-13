@@ -1,0 +1,63 @@
+{% comment %}
+<c-n26.about> — what a piece of content does, and how anyone comes to
+have it, in sentences.
+
+    <c-n26.about :prose="prose" />
+
+The authoring pages' explanation column. ``prose`` is the structure
+n26.library.prose compiles — sentences with a hover hint and, where the
+subject has a page of its own, an address. The column draws three runs:
+how the thing is referenced (built into, given by, offered by…), what it
+does in the order the rules apply it, and how much of the player side is
+assigned to it.
+
+Each sentence's hint sits behind a hover or a keyboard focus, CSS-only,
+with the browser's own title as the fallback — the same pattern as a
+kind card's example. A sentence with an address is a link to the row it
+describes; one without is plain words, which is an answer rather than a
+gap.
+
+  :prose — the compiled structure: .referenced_by, .does, .assigned_to.
+{% endcomment %}
+<c-vars :prose="None" class="" />
+
+{% if prose and prose.referenced_by or prose and prose.does or prose and prose.assigned_to %}
+    <aside {{ attrs }} class="text-sm {{ class }}">
+        {% if prose.referenced_by %}
+            <h3 class="text-xs font-semibold tracking-wide text-muted uppercase">Referenced by</h3>
+            <ul class="mt-2 space-y-2">
+                {% for sentence in prose.referenced_by %}
+                    <li>
+                        <c-n26.about.sentence :sentence="sentence" />
+                    </li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+        {% if prose.does %}
+            <h3 class="{% if prose.referenced_by %}mt-6 {% endif %}text-xs font-semibold tracking-wide text-muted uppercase">What it does</h3>
+            <ul class="mt-2 space-y-2">
+                {% for sentence in prose.does %}
+                    <li>
+                        <c-n26.about.sentence :sentence="sentence" />
+                    </li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+        {% if prose.assigned_to %}
+            <h3 class="mt-6 text-xs font-semibold tracking-wide text-muted uppercase">Assigned to</h3>
+            {% comment %}
+            The tally answers "is anyone using this?" before a change is
+            weighed. Zero is said in words — a dash under a heading reads
+            as the page failing, where "no gang yet" is the fact.
+            {% endcomment %}
+            <p class="mt-2 text-ink-900 dark:text-ink-100">
+                {% if prose.assigned_to.gangs %}
+                    {{ prose.assigned_to.gangs }} gang{{ prose.assigned_to.gangs|pluralize }},
+                    {{ prose.assigned_to.rows }} time{{ prose.assigned_to.rows|pluralize }}.
+                {% else %}
+                    No gang yet.
+                {% endif %}
+            </p>
+        {% endif %}
+    </aside>
+{% endif %}

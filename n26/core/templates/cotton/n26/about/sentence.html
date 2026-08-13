@@ -1,0 +1,25 @@
+{% comment %}
+<c-n26.about.sentence> — one sentence of an about column.
+
+    <c-n26.about.sentence :sentence="sentence" />
+
+Linked where the sentence's subject has a page, plain words where it
+does not. The hint is revealed by hovering or focusing the sentence —
+CSS-only, so it works before and without script — and doubles as the
+title, so a touch reader gets the browser's own fallback.
+
+  :sentence — .text, .hint, .href.
+{% endcomment %}
+<c-vars :sentence="None" class="" />
+
+<span class="group/hint relative inline {{ class }}"
+      {% if sentence.hint %}tabindex="0" title="{{ sentence.hint }}"{% endif %}>
+    {% if sentence.href %}
+        <c-n26.link href="{{ sentence.href }}">{{ sentence.text }}</c-n26.link>
+    {% else %}
+        <span class="text-ink-900 dark:text-ink-100">{{ sentence.text }}</span>
+    {% endif %}
+    {% if sentence.hint %}
+        <span class="pointer-events-none absolute bottom-full left-0 z-30 mb-1.5 hidden w-72 max-w-[70vw] rounded-control border border-[color:var(--color-box-border)] bg-white p-2.5 text-xs font-normal text-ink-900 shadow-lg group-focus-within/hint:block group-hover/hint:block dark:bg-ink-900 dark:text-ink-100">{{ sentence.hint }}</span>
+    {% endif %}
+</span>
