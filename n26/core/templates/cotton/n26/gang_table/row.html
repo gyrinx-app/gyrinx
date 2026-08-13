@@ -31,8 +31,12 @@ you came to the list.
   :sheet — a n26.render.GangSheet, for <c-n26.wealth>.
   href — where the row goes. The edit screen, since that is what a row is for.
   print_href — the print button's destination. Omitted, no print button.
+  owner — whose gang it is, after the type. For a list holding more than one
+    person's; omitted on a list of your own, where it would say your name on
+    every row.
 {% endcomment %}
-<c-vars name="" type="" type_icon="" colour="" :sheet="None" href="" print_href="" class="" />
+<c-vars name="" type="" type_icon="" colour="" :sheet="None" href="" print_href=""
+        owner="" class="" />
 
 <div x-data="{ facets: {
         type: {{ type|json_dumps }},
@@ -75,6 +79,11 @@ you came to the list.
             <c-n26.flair-link text="{{ type }}" tone="current">
                 <c-n26.flair.gang-type :icon="type_icon" />
             </c-n26.flair-link>
+            {% comment %}
+            Only where the list holds more than one person's gangs. On a
+            page of your own, every row would say your name.
+            {% endcomment %}
+            {% if owner %}<span class="text-muted"> · {{ owner }}</span>{% endif %}
         </p>
     </div>
 

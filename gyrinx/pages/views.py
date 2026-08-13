@@ -19,6 +19,11 @@ from gyrinx.pages.models import FlatPageVisibility
 # disallowed for all agents. The print views are the most expensive pages on
 # the site and have no business being indexed.
 #
+# A gang sheet in the n26 edition is readable by whoever holds its address —
+# that is what makes a roster shareable — so /n26/gangs/ is disallowed whole:
+# the sheets, their print views, and the index. Somebody else's roster is not
+# search material, and the print pages are as expensive here as they are there.
+#
 # These paths carry the /n23/ edition prefix. They MUST be kept in step with
 # n23/core/urls/__init__.py: when the edition moved under /n23/ in #2110 these
 # rules silently stopped matching, every fighter and print page became
@@ -35,6 +40,7 @@ User-agent: *
 Disallow: /n23/list/*/fighter/
 Disallow: /n23/list/*/print
 Disallow: /n23/list/*/print/
+Disallow: /n26/gangs/
 Disallow: /accounts/
 Disallow: /admin/
 """

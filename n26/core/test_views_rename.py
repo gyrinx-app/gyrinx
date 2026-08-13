@@ -19,8 +19,8 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def tester(db):
-    """Staff, because /n26/ is fenced to staff and testers."""
-    return User.objects.create_user("player", is_staff=True)
+    """The signed-in person these tests look at the app as."""
+    return User.objects.create_user("player")
 
 
 @pytest.fixture
@@ -100,7 +100,7 @@ class TestTheAct:
         """Which fighters exist is not something to probe for, so the
         answer to somebody else's rename is the same as to no fighter
         at all."""
-        client.force_login(User.objects.create_user("someone-else", is_staff=True))
+        client.force_login(User.objects.create_user("someone-else"))
         response = client.post(
             reverse("n26-rename-fighter", args=[vex.pk]), {"name": "Mine Now"}
         )

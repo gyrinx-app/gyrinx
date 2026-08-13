@@ -5,7 +5,7 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect, render
 from django.urls import reverse
 
-from n26.core.views.permissions import _own_gang_or_404
+from n26.core.views.permissions import _any_gang_or_404, _own_gang_or_404
 
 # The changelog belongs to the site and both editions read the same
 # table, so an entry reaches this dashboard only if someone tagged it for
@@ -51,21 +51,30 @@ def dashboard(request):
 
 @login_required
 def gangs(request):
-    """Every gang you own, on a page of its own.
+    """Every gang you own, on a page of its own — or everybody's.
 
     The dashboard's gangs tab shows the same rows in two thirds of a
     column beside the changelog; this is where the bar's Gangs link
     lands, so the list gets the whole width and nothing else competes
     with it. Same context, same component — the two cannot disagree
     about what a gang row looks like.
+
+    ``?everyone=1`` widens it to every gang on the site, which is the
+    way to somebody else's roster: a sheet is readable by whoever holds
+    its address, and this is where an address is found. Your own is the
+    default, because that is what the link in the bar is for.
     """
-    return render(request, "n26/gangs.html", _gang_table_context(request))
+    return render(
+        request,
+        "n26/gangs.html",
+        _gang_table_context(request, everyone=bool(request.GET.get("everyone"))),
+    )
 
 
-def _gang_table_context(request):
-    """The rows and facets <c-n26.gang-table> needs: the viewer's own
-    gangs, narrowed by ``?q=`` when there is one, and the types present
-    among what survives.
+def _gang_table_context(request, everyone=False):
+    """The rows and facets <c-n26.gang-table> needs: gangs — the
+    viewer's own, or everybody's — narrowed by ``?q=`` when there is
+    one, and the types present among what survives.
 
     Name and gang type are searched because they are the two things a row
     shows, and the two the table's own in-page filter reads — a query that
@@ -80,15 +89,18 @@ def _gang_table_context(request):
     from n26.core.models import Gang
 
     query = request.GET.get("q", "").strip()
-    owned = (
-        Gang.objects.filter(owner=request.user, archived=False)
-        .select_related("gang_type", "stash")
-        .order_by("name")
-    )
-    found = search_queryset(owned, query, ["name", "gang_type__name"])
+    listed = Gang.objects.filter(archived=False)
+    if not everyone:
+        listed = listed.filter(owner=request.user)
+    listed = listed.select_related("gang_type", "stash", "owner").order_by("name")
+    found = search_queryset(listed, query, ["name", "gang_type__name"])
     return {
         "gangs": found,
         "query": query,
+        # A row says whose it is only where that can differ; a page of
+        # your own would print your name down the side of it.
+        "show_owners": everyone,
+        "everyone": everyone,
         # Deduplicated in order rather than sorted: the filter reads
         # better in the order the reader saw the types down the list.
         "gang_type_options": [
@@ -98,7 +110,6 @@ def _gang_table_context(request):
     }
 
 
-@login_required
 def gang_sheet(request, pk):
     """One gang, whole: what it is worth, what it owns, who is in it.
 
@@ -109,9 +120,12 @@ def gang_sheet(request, pk):
     nothing else, and the page draws the same component the gallery's
     shell does.
 
-    Scoped to the owner, and a gang belonging to someone else is a 404
-    rather than a 403: which gangs exist is not something a stranger
-    should be able to probe for.
+    Anyone may read a roster, signed in or not — the address one player
+    sends another shows the same gang to whoever opens it. Owning it is
+    what adds the controls: the reader who does not gets the sheet with
+    every button, dialog and picker left off, and questions nobody has
+    answered read as words rather than as something to press. An
+    archived gang is nobody's to read.
 
     Every choice slot on the sheet — the gang's own and every member's —
     is pointed at its picker here, in one pass over what has already been
@@ -129,28 +143,38 @@ def gang_sheet(request, pk):
     from n26.core.views.learn import link_skills
     from n26.core.views.owned import link_refits, refit_dialog
 
-    gang = _own_gang_or_404(request, pk)
+    gang = _any_gang_or_404(pk)
+    yours = gang.owner_id == getattr(request.user, "id", None)
     at = reverse("n26-gang", args=[gang.pk])
     sheet = render_gang(gang)
-    link_slots(gang, sheet, *sheet.models)
-    link_skills(*sheet.models)
-    # A stashed accessory is somewhere to press: it is gear waiting for a
-    # gun, and the sheet is the screen where the gang's spare kit is read.
-    link_refits(sheet, at)
+    if yours:
+        link_slots(gang, sheet, *sheet.models)
+        link_skills(*sheet.models)
+        # A stashed accessory is somewhere to press: it is gear waiting
+        # for a gun, and the sheet is the screen where the gang's spare
+        # kit is read.
+        link_refits(sheet, at)
     # One question at a time: a URL naming two dialogs draws the leaving
     # one, because two open modals is not a state the page can mean.
-    leaving = _leaving(request, gang)
-    renaming = None if leaving else _renaming(request, gang)
+    leaving = _leaving(request, gang) if yours else None
+    renaming = None if leaving or not yours else _renaming(request, gang)
     return render(
         request,
         "n26/gang_sheet.html",
         {
             "gang": gang,
             "sheet": sheet,
+            "yours": yours,
+            # A reader who does not own this gang reads it and nothing
+            # more: the cards drop every control, and an unanswered
+            # question is the words alone.
+            "card_mode": "gang" if yours else "view",
             "renaming": renaming,
             "leaving": leaving,
             "refitting": (
-                None if leaving or renaming else refit_dialog(request, gang, at)
+                None
+                if leaving or renaming or not yours
+                else refit_dialog(request, gang, at)
             ),
             # A gang founded without a budget never spent credits, so
             # there is nothing a refund could give back: its cards offer

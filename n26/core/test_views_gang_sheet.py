@@ -17,12 +17,8 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def tester(db):
-    """Staff, because /n26/ is fenced to staff and testers.
-
-    Not a group member: staff is the shorter of the two ways through the
-    gate, and which one a viewer used is not what these tests are about.
-    """
-    return User.objects.create_user("player", is_staff=True)
+    """The signed-in person these tests look at the app as."""
+    return User.objects.create_user("player")
 
 
 @pytest.fixture
@@ -103,11 +99,22 @@ def test_no_empty_details_list_when_there_is_nothing_to_list(client, tester, gan
     assert after == before + 1
 
 
-def test_someone_elses_gang_is_not_found(client, gang):
-    """404 rather than 403 — which gangs exist is not there to be probed."""
-    stranger = User.objects.create_user("stranger", is_staff=True)
+def test_someone_elses_gang_is_there_to_be_read(client, gang):
+    """A roster is shareable: the address shows the same gang to whoever
+    opens it, and owning it is what adds the controls."""
+    stranger = User.objects.create_user("stranger")
     client.force_login(stranger)
-    assert client.get(reverse("n26-gang", args=[gang.pk])).status_code == 404
+    response = client.get(reverse("n26-gang", args=[gang.pk]))
+
+    assert response.status_code == 200
+    assert gang.name in response.content.decode()
+
+
+def test_a_gang_reads_without_signing_in_at_all(client, gang):
+    response = client.get(reverse("n26-gang", args=[gang.pk]))
+
+    assert response.status_code == 200
+    assert gang.name in response.content.decode()
 
 
 def test_an_archived_gang_is_not_found(client, tester, gang):

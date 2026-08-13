@@ -42,10 +42,12 @@ that said it twice would be spending the width the name needs.
         controls announced identically tell a reader who cannot see where they
         sit nothing about either.
         {% endcomment %}
-        <c-slot name="switcher">
-            {% gang_switcher gang named=False menu_label="Your other gangs" as heading_gangs_ %}
-            <c-n26.quick-switcher.of :switcher="heading_gangs_" hotkey="r" />
-        </c-slot>
+        {% if yours %}
+            <c-slot name="switcher">
+                {% gang_switcher gang named=False menu_label="Your other gangs" as heading_gangs_ %}
+                <c-n26.quick-switcher.of :switcher="heading_gangs_" hotkey="r" />
+            </c-slot>
+        {% endif %}
         {% comment %}
         The badge is a fact about the owner, and which one they hold is the
         platform's answer — supporter tier or staff, whichever they are entitled
@@ -100,74 +102,83 @@ that said it twice would be spending the width the name needs.
         model's card — so the way to the trading post is the Equip on each card
         below.
         {% endcomment %}
-        <c-slot name="actions">
-            <c-ui.button size="sm"
-                         variant="primary"
-                         href="{% url 'n26-hire-fighter' gang.pk %}">
-                Hire Fighters
-            </c-ui.button>
-        </c-slot>
-        <c-slot name="secondary_actions">
-            <c-n26.button-group>
-                {% comment %}
+        {% comment %}
+        Every control on this page belongs to whoever owns the gang. A
+        reader who does not gets the roster and none of them — not a
+        disabled button, which is a control saying no, but nothing at all:
+        the page is the gang, and the acts are the owner's.
+        {% endcomment %}
+        {% if yours %}
+            <c-slot name="actions">
+                <c-ui.button size="sm"
+                             variant="primary"
+                             href="{% url 'n26-hire-fighter' gang.pk %}">
+                    Hire Fighters
+                </c-ui.button>
+            </c-slot>
+            <c-slot name="secondary_actions">
+                <c-n26.button-group>
+                    {% comment %}
                 The gang's own facts — name, colour, budget — have a page
                 of their own, reached from the same group as the other
                 whole-gang detours.
-                {% endcomment %}
-                <c-ui.button size="sm" variant="default" href="{% url 'n26-edit-gang' gang.pk %}">
-                    Edit
-                </c-ui.button>
-                <c-ui.button size="sm"
-                             variant="default"
-                             href="{% url 'n26-print-setup' gang.pk %}">
-                    Print
-                </c-ui.button>
-                <c-ui.dropdown>
-                    <c-slot name="trigger">
-                        <c-ui.button size="sm" variant="default" aria-label="More actions">
-                            <span class="n26-icon-only gap-0.5">
-                                <c-n26.icon name="ellipsis-vertical" class="size-4" />
-                                <c-n26.icon name="chevron-down" class="size-3" stroke_width="2.5" />
-                            </span>
-                        </c-ui.button>
-                    </c-slot>
-                    {% comment %}
+                    {% endcomment %}
+                    <c-ui.button size="sm" variant="default" href="{% url 'n26-edit-gang' gang.pk %}">
+                        Edit
+                    </c-ui.button>
+                    <c-ui.button size="sm"
+                                 variant="default"
+                                 href="{% url 'n26-print-setup' gang.pk %}">
+                        Print
+                    </c-ui.button>
+                    <c-ui.dropdown>
+                        <c-slot name="trigger">
+                            <c-ui.button size="sm" variant="default" aria-label="More actions">
+                                <span class="n26-icon-only gap-0.5">
+                                    <c-n26.icon name="ellipsis-vertical" class="size-4" />
+                                    <c-n26.icon name="chevron-down" class="size-3" stroke_width="2.5" />
+                                </span>
+                            </c-ui.button>
+                        </c-slot>
+                        {% comment %}
                     A page that asks, not the act: following this link deletes
                     nothing, and the POST it leads to is the only thing that
                     does. Behind the second press because it cannot be undone.
-                    {% endcomment %}
-                    <c-ui.dropdown.item variant="danger" href="{% url 'n26-delete-gang' gang.pk %}">
-                        Delete gang
-                    </c-ui.dropdown.item>
-                </c-ui.dropdown>
-            </c-n26.button-group>
-        </c-slot>
+                        {% endcomment %}
+                        <c-ui.dropdown.item variant="danger" href="{% url 'n26-delete-gang' gang.pk %}">
+                            Delete gang
+                        </c-ui.dropdown.item>
+                    </c-ui.dropdown>
+                </c-n26.button-group>
+            </c-slot>
+        {% endif %}
         <c-slot name="stash_empty">
             Nothing in the stash yet.
         </c-slot>
         <c-slot name="members">
             {% for member in sheet.models %}
-                <c-n26.model-card :card="member">
+                <c-n26.model-card :card="member" mode="{{ card_mode }}">
                     {% comment %}
                     The way to a fighter's own name: a quiet pencil on the
                     name's line, leading to the rename dialog the URL opens
                     below. A link, so it works with no script and an open
                     dialog is an address someone can send.
                     {% endcomment %}
-                    <c-slot name="name_action">
-                        <c-ui.button variant="ghost"
-                                     size="xs"
-                                     class="ms-1 -mt-0.5 px-1! align-middle"
-                                     href="?rename={{ member.id }}"
-                                     aria-label="Rename {{ member.name }}"
-                                     title="Rename">
-                            <span class="n26-icon-only">
-                                <c-n26.icon name="pencil" class="size-3.5 text-ink-500 dark:text-ink-400" />
-                            </span>
-                        </c-ui.button>
-                    </c-slot>
-                    <c-slot name="actions">
-                        {% comment %}
+                    {% if yours %}
+                        <c-slot name="name_action">
+                            <c-ui.button variant="ghost"
+                                         size="xs"
+                                         class="ms-1 -mt-0.5 px-1! align-middle"
+                                         href="?rename={{ member.id }}"
+                                         aria-label="Rename {{ member.name }}"
+                                         title="Rename">
+                                <span class="n26-icon-only">
+                                    <c-n26.icon name="pencil" class="size-3.5 text-ink-500 dark:text-ink-400" />
+                                </span>
+                            </c-ui.button>
+                        </c-slot>
+                        <c-slot name="actions">
+                            {% comment %}
                         Equip is the one you came for and the only per-model act
                         that is not destructive, so it is the primary and it is
                         on its own. Edit — the model's own page, where the rest
@@ -176,26 +187,26 @@ that said it twice would be spending the width the name needs.
                         "things you can do to this model that are not
                         equipping". Delete stays in the dropdown because it is
                         irreversible and should cost a second deliberate press.
-                        {% endcomment %}
-                        <c-ui.button size="xs" variant="primary" href="{% url 'n26-equip' member.id %}">
-                            Equip
-                        </c-ui.button>
-                        <c-n26.button-group>
-                            <c-ui.button size="xs"
-                                         variant="default"
-                                         href="{% url 'n26-edit-fighter' member.id %}">
-                                Edit
+                            {% endcomment %}
+                            <c-ui.button size="xs" variant="primary" href="{% url 'n26-equip' member.id %}">
+                                Equip
                             </c-ui.button>
-                            <c-ui.dropdown>
-                                <c-slot name="trigger">
-                                    <c-ui.button size="xs" variant="default" aria-label="More actions">
-                                        <span class="n26-icon-only gap-0.5">
-                                            <c-n26.icon name="ellipsis-vertical" class="size-3.5" />
-                                            <c-n26.icon name="chevron-down" class="size-3" stroke_width="2.5" />
-                                        </span>
-                                    </c-ui.button>
-                                </c-slot>
-                                {% comment %}
+                            <c-n26.button-group>
+                                <c-ui.button size="xs"
+                                             variant="default"
+                                             href="{% url 'n26-edit-fighter' member.id %}">
+                                    Edit
+                                </c-ui.button>
+                                <c-ui.dropdown>
+                                    <c-slot name="trigger">
+                                        <c-ui.button size="xs" variant="default" aria-label="More actions">
+                                            <span class="n26-icon-only gap-0.5">
+                                                <c-n26.icon name="ellipsis-vertical" class="size-3.5" />
+                                                <c-n26.icon name="chevron-down" class="size-3" stroke_width="2.5" />
+                                            </span>
+                                        </c-ui.button>
+                                    </c-slot>
+                                    {% comment %}
                                 Both open a question rather than acting: the URL
                                 names the fighter and the sheet answers with the
                                 dialog below, so a press works with no script and
@@ -204,18 +215,19 @@ that said it twice would be spending the width the name needs.
                                 Refund only where there is a budget being spent —
                                 a gang founded without one never paid credits, so
                                 there is nothing a refund could give back.
-                                {% endcomment %}
-                                {% if budgeted %}
-                                    <c-ui.dropdown.item href="?refund={{ member.id }}">
-                                        Refund
+                                    {% endcomment %}
+                                    {% if budgeted %}
+                                        <c-ui.dropdown.item href="?refund={{ member.id }}">
+                                            Refund
+                                        </c-ui.dropdown.item>
+                                    {% endif %}
+                                    <c-ui.dropdown.item variant="danger" href="?delete={{ member.id }}">
+                                        Delete
                                     </c-ui.dropdown.item>
-                                {% endif %}
-                                <c-ui.dropdown.item variant="danger" href="?delete={{ member.id }}">
-                                    Delete
-                                </c-ui.dropdown.item>
-                            </c-ui.dropdown>
-                        </c-n26.button-group>
-                    </c-slot>
+                                </c-ui.dropdown>
+                            </c-n26.button-group>
+                        </c-slot>
+                    {% endif %}
                 </c-n26.model-card>
             {% endfor %}
         </c-slot>

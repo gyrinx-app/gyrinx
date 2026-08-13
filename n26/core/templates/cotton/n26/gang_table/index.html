@@ -57,8 +57,11 @@ does not print). Type something else and it narrows from there as usual.
     an expression: through an attribute it is escaped twice and a quote in the
     query comes back as `&amp;quot;`.
   empty — what to show when a search matches nothing.
+  filters — controls that ask the server for different rows, drawn beside the
+    type menu. A link or a form: pressing one reloads the page.
 {% endcomment %}
-<c-vars :type_options="[]" noun="gangs" singular="gang" action="" query="" empty="" class="" />
+<c-vars :type_options="[]" noun="gangs" singular="gang" action="" query="" empty=""
+        filters="" class="" />
 
 <div x-data="{
         rows: [],
@@ -98,9 +101,19 @@ does not print). Type something else and it narrows from there as usual.
     <c-n26.search-bar :live="True" model="query" :action="action"
                       :value="query" placeholder="Search {{ noun }}" />
 
-    {% if type_options|length > 1 %}
+    {% comment %}
+    The type menu narrows the rows already on the page; anything in the
+    `filters` slot is a control that asks the server for different rows —
+    whose gangs these are, say — so it reloads rather than filtering in
+    place. They share a line because a reader reads them as one bar of
+    ways to change what is listed.
+    {% endcomment %}
+    {% if type_options|length > 1 or filters %}
         <div class="flex flex-wrap items-center gap-2">
-            <c-n26.filter-menu label="Type" name="type" :options="type_options" />
+            {% if type_options|length > 1 %}
+                <c-n26.filter-menu label="Type" name="type" :options="type_options" />
+            {% endif %}
+            {{ filters }}
         </div>
     {% endif %}
 

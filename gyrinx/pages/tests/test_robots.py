@@ -23,6 +23,9 @@ def test_robots_txt_policy(client):
     general = [s for s in sections if s.startswith("User-agent: *")][0]
     assert "Disallow: /n23/list/*/fighter/" in general
     assert "Disallow: /n23/list/*/print" in general
+    # A shared roster is readable without signing in, so it is kept out of
+    # search along with everything else under the gangs prefix.
+    assert "Disallow: /n26/gangs/" in general
     assert "Disallow: /accounts/" in general
     assert "Disallow: /admin/" in general
 
@@ -50,7 +53,7 @@ def test_every_disallowed_edition_path_resolves_to_a_real_view(client):
     # /accounts/ and /admin/ are third-party URLconfs mounted at a prefix; the
     # bare prefix is not itself a route, so they are checked by the policy test
     # above rather than resolved here.
-    edition_paths = [p for p in paths if p.startswith("/n23/")]
+    edition_paths = [p for p in paths if p.startswith("/n23/") or p.startswith("/n26/")]
     assert edition_paths, "expected the edition paths to be covered"
 
     unresolved = []

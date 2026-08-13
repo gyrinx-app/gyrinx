@@ -45,11 +45,15 @@ question "Buys from" was there to answer, and closer to hand.
 
   --- modes ---
 
-The card renders in one of two modes. ``gang`` is the sheet's: dense and
+The card renders in one of three modes. ``gang`` is the sheet's: dense and
 read-mostly, the controls kept to the actions slot, the open questions shown
 but their buttons held back — eleven cards abreast should not be eleven rows
 of controls. ``edit`` is the model's own page: the choice buttons come out,
 outlined, and the Gear and Weapons rows carry the way to the Equip tab.
+``view`` is a roster somebody else owns: the same card with nothing on it to
+press, since none of it is the reader's to change. An unanswered question
+still shows in that mode — a roster is honestly incomplete and should look
+it — as the words with nowhere to go.
 
 Inside the template a mode-only region is wrapped in
 <c-n26.model-card.mode when="edit">, which reads this ``mode`` from context —
@@ -57,7 +61,7 @@ so adding an edit affordance is a wrap, not a flag threaded through every
 region between here and the call site.
 
   :card — a n26.render.ModelCard.
-  mode — gang (default) or edit. See modes above.
+  mode — gang (default), edit, or view. See modes above.
   equip_href — where the edit mode's Equip buttons go. Empty draws none, which
     is what a gallery sample wants.
   avatar — a picture of the model, before the name. Any markup; it is framed and
@@ -293,7 +297,7 @@ region between here and the call site.
             it. The pencil to the skills screen is edit mode's alone: it is an
             edit affordance, and the sheet's way in is the card's Edit.
             {% endcomment %}
-            <c-n26.model-card.mode when="gang">
+            <c-n26.model-card.mode when="gang view">
                 {% if card.skill_choices %}
                     <span class="ms-1 inline-flex flex-wrap items-center gap-2 align-middle">
                         {% for choice in card.skill_choices %}
@@ -369,7 +373,7 @@ region between here and the call site.
             <dt class="font-semibold text-ink-900 dark:text-ink-100">Powers</dt>
             <dd class="min-w-0 text-ink-900 dark:text-ink-100">
                 <c-n26.assignable-lines :lines="card.powers" :ratings="False" />
-                <c-n26.model-card.mode when="gang">
+                <c-n26.model-card.mode when="gang view">
                     {% if card.power_choices %}
                         <span class="ms-1 inline-flex flex-wrap items-center gap-2 align-middle">
                             {% for choice in card.power_choices %}

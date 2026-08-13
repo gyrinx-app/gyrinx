@@ -31,6 +31,30 @@ def _own_gang_or_404(request, pk):
         raise Http404("No such gang") from None
 
 
+def _any_gang_or_404(pk):
+    """The gang, whoever owns it — a roster anybody may read.
+
+    A gang sheet is shareable: the address one player sends another shows
+    the same roster to whoever opens it. What differs is what the page
+    lets them *do*, which the sheet decides by asking whether the reader
+    owns it — never by hiding the gang.
+
+    Archived rosters stay out: a gang its owner has put away is not
+    something a link should keep alive. A pk that is not a ULID is a bad
+    URL rather than a server error, as above.
+    """
+    from n26.core.models import Gang
+
+    try:
+        return get_object_or_404(
+            Gang.objects.select_related("gang_type", "owner", "stash"),
+            pk=pk,
+            archived=False,
+        )
+    except ValidationError:
+        raise Http404("No such gang") from None
+
+
 def _own_assignment_or_404(request, pk):
     """One of the viewer's own assignments, live and in a live gang.
 

@@ -17,8 +17,8 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def tester(db):
-    """Staff, because /n26/ is fenced to staff and testers."""
-    return User.objects.create_user("player", is_staff=True)
+    """The signed-in person these tests look at the app as."""
+    return User.objects.create_user("player")
 
 
 @pytest.fixture
@@ -49,15 +49,78 @@ def test_lists_the_gangs_you_own(client, tester, make_gang):
 
 
 def test_a_strangers_gangs_are_not_yours(client, tester, make_gang):
-    """Owner-scoped like the dashboard: which gangs exist is not
-    something a signed-in stranger gets to read off a list page."""
+    """Your own by default: the link in the bar is for your gangs, and a
+    page of everybody's is a different question, asked in the address."""
     make_gang("The Ashen Choir")
-    rival = User.objects.create_user("rival", is_staff=True)
+    rival = User.objects.create_user("rival")
     make_gang("Someone Else's Problem", owner=rival)
 
     client.force_login(rival)
     body = client.get(reverse("n26-gangs")).content.decode()
     assert "Someone Else" in body
+    assert "The Ashen Choir" not in body
+
+
+def test_everyones_gangs_are_there_to_be_asked_for(client, tester, make_gang):
+    """A roster is readable by whoever holds its address, and this is
+    where an address is found."""
+    make_gang("The Ashen Choir")
+    rival = User.objects.create_user("rival")
+    make_gang("Someone Else's Problem", owner=rival)
+
+    client.force_login(rival)
+    body = client.get(reverse("n26-gangs"), {"everyone": "1"}).content.decode()
+
+    assert "Someone Else" in body
+    assert "The Ashen Choir" in body
+
+
+def test_a_wider_list_says_whose_each_gang_is(client, tester, make_gang):
+    make_gang("The Ashen Choir")
+
+    client.force_login(tester)
+    yours = client.get(reverse("n26-gangs")).content.decode()
+    everyones = client.get(reverse("n26-gangs"), {"everyone": "1"}).content.decode()
+
+    # On a page of your own the name would sit on every row saying nothing.
+    assert "· player" not in yours
+    assert "· player" in everyones
+
+
+def test_the_toggle_says_which_list_this_is_and_leads_to_the_other(
+    client, tester, make_gang
+):
+    make_gang("The Ashen Choir")
+    client.force_login(tester)
+
+    yours = client.get(reverse("n26-gangs")).content.decode()
+    assert 'aria-pressed="true"' in yours
+    assert "?everyone=1" in yours
+
+    everyones = client.get(reverse("n26-gangs"), {"everyone": "1"}).content.decode()
+    assert 'aria-pressed="false"' in everyones
+
+
+def test_widening_the_list_keeps_the_search(client, tester, make_gang):
+    """Narrowing the list and widening whose it is are two questions;
+    answering one must not throw away the other."""
+    make_gang("The Ashen Choir")
+    client.force_login(tester)
+
+    body = client.get(reverse("n26-gangs"), {"q": "ashen"}).content.decode()
+
+    assert "everyone=1" in body
+    assert "q=ashen" in body
+
+
+def test_an_archived_gang_is_gone_from_everyones_list_too(client, tester, make_gang):
+    gang = make_gang("The Ashen Choir")
+    gang.archived = True
+    gang.save()
+
+    client.force_login(tester)
+    body = client.get(reverse("n26-gangs"), {"everyone": "1"}).content.decode()
+
     assert "The Ashen Choir" not in body
 
 
@@ -206,7 +269,7 @@ class TestSearchingForAGang:
         self, client, tester, make_gang
     ):
         """The search runs inside the owner scope, not beside it."""
-        rival = User.objects.create_user("rival", is_staff=True)
+        rival = User.objects.create_user("rival")
         make_gang("The Ashen Choir")
         make_gang("The Ashen Rivals", owner=rival)
 

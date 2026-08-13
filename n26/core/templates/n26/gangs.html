@@ -39,6 +39,24 @@ places — the same pattern a gang's screens use for their siblings.
                           noun="gangs"
                           action="{% url 'n26-gangs' %}"
                           :query="query">
+            {% comment %}
+            Whose gangs are listed is the server's answer, not the page's,
+            so the control is a link and pressing it reloads: the address
+            says what is being shown, and a reader can send it. The query
+            rides along, because narrowing the list and widening whose it
+            is are two separate questions and neither should undo the
+            other.
+            {% endcomment %}
+            <c-slot name="filters">
+                <c-ui.button size="sm" variant="default" href="{% url 'n26-gangs' %}{% if everyone %}{% if query %}?q={{ query|urlencode }}{% endif %}{% else %}?everyone=1{% if query %}&amp;q={{ query|urlencode }}{% endif %}{% endif %}" aria-pressed="{% if not everyone %}true{% else %}false{% endif %}">
+                    <span class="flex items-center gap-1.5">
+                        {% if not everyone %}
+                            <c-n26.icon name="check" class="size-4" stroke_width="2.5" />
+                        {% endif %}
+                        Your gangs only
+                    </span>
+                </c-ui.button>
+            </c-slot>
             <c-slot name="empty">
                 {% if gangs or query %}
                     No gangs match that. Try a shorter search.
@@ -52,6 +70,7 @@ places — the same pattern a gang's screens use for their siblings.
                                       :type_icon="gang.gang_type.artwork"
                                       colour="{{ gang.colour }}"
                                       :sheet="gang"
+                                      owner="{% if show_owners %}{{ gang.owner.username }}{% endif %}"
                                       href="{% url 'n26-gang' gang.pk %}" />
             {% endfor %}
         </c-n26.gang-table>
