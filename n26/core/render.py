@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from n26.core.card import build_card
 from n26.core.effects import kind_of, limit_notes
 from n26.library.models import (
+    EMPTY_VALUE,
     Counter,
     Hidden,
     Rule,
@@ -576,9 +577,30 @@ def apply_changes(stat, raw, changes):
     if shift:
         number = stat._as_int(str(raw).rstrip('"+').lstrip("+"))
         if number is None:
+            number = _none_of_it(stat, raw)
+        if number is None:
             return raw, sources  # not a number — leave it, but say it was touched
         raw = str(number + shift)
     return raw, sources
+
+
+def _none_of_it(stat, raw):
+    """Zero, where a dash on this stat means none of the quantity — else None.
+
+    A weapon's Armour Piercing of "-" is no armour piercing, which is
+    zero, so a rule that improves it by one gives -1. Counting the dash
+    is the whole of what makes such a rule reach the guns it is written
+    for: the book prints "-" on exactly the plain weapons a house's
+    improvement is worth having on.
+
+    A distance and a roll target are not quantities that can be zero. A
+    melee weapon's Long Range and a fighter's absent Save are the thing
+    not happening at all, and no shift brings either into existence.
+    """
+    countable = not (stat.is_inches or stat.is_target or stat.is_modifier)
+    if countable and str(raw).strip() in ("", EMPTY_VALUE):
+        return 0
+    return None
 
 
 def build_statline(owner, changes_for=None):

@@ -206,6 +206,73 @@ class TestAHouseImprovesOneCategoryOfWeapon:
         assert_reconciled(gang)
 
 
+class TestAGunThatPiercesNothingYet:
+    """A weapon printed with no Armour Piercing still takes the house's
+    improvement, and comes out at -1.
+
+    The dash is the case the rule is written for: the book prints "-" on
+    exactly the plain lasguns a house's AP improvement is worth having
+    on. Read as "not a number", such a gun quietly kept its dash and the
+    rule looked as though it had not applied.
+    """
+
+    @pytest.fixture
+    def house_rule(self, gang_type, las_weapons, armour_piercing):
+        return modifier(
+            "Van Saar: Las weapons pierce deeper",
+            targets_weapons(in_categories(las_weapons)),
+            changes_stat(armour_piercing, mode="improve", amount=1),
+            carried_by=gang_type,
+        )
+
+    @pytest.fixture
+    def long_range(self, weapon_statline_type):
+        return weapon_statline_type.stats.get(stat__short_name="LR").stat
+
+    def test_a_dash_counts_as_no_armour_piercing_and_improves_to_minus_one(
+        self, gang, fighter, make_gun, las_weapons, house_rule
+    ):
+        give_weapon(fighter, make_gun("Lasgun", las_weapons, armour_piercing="-"), 15)
+
+        assert ap_of(guns_of(fighter)["Lasgun"]) == "-1"
+        assert_reconciled(gang)
+
+    def test_a_stat_nobody_filled_in_improves_the_same_way(
+        self, gang, fighter, weapon_statline_type, las_weapons, house_rule
+    ):
+        """Printed the same as a dash, so it must behave the same: the
+        row is simply absent rather than holding "-"."""
+        gun = create_weapon("Lascarbine", profiles=[("", 0)], category=las_weapons)
+        gun.statline_type = weapon_statline_type
+        gun.save()
+        set_statline(gun.profiles.get(), short_range=8, strength=3, lethality=1)
+        give_weapon(fighter, gun, paid=15)
+
+        assert ap_of(guns_of(fighter)["Lascarbine"]) == "-1"
+        assert_reconciled(gang)
+
+    def test_a_range_the_weapon_does_not_have_is_left_alone(
+        self, gang, gang_type, fighter, make_gun, las_weapons, long_range
+    ):
+        """A distance is not a quantity that can be zero. A weapon with
+        no long range has no band to extend, and a rule that adds inches
+        must not invent one."""
+        modifier(
+            "Van Saar: focused optics",
+            targets_weapons(in_categories(las_weapons)),
+            changes_stat(long_range, mode="improve", amount=2),
+            carried_by=gang_type,
+        )
+        gun = make_gun("Las-cutter", las_weapons)
+        set_statline(gun.profiles.get(), long_range="-")
+        give_weapon(fighter, gun, paid=15)
+
+        cell = guns_of(fighter)["Las-cutter"].profiles[0].statline.get("LR")
+        assert cell.value == "-"
+        assert cell.modified  # reached by the rule, and still left alone
+        assert_reconciled(gang)
+
+
 class TestTheTraitFilterIsUntouched:
     """Narrowing by trait behaves exactly as it did before there was a
     second filter — the category is an addition, not a replacement."""

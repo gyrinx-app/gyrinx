@@ -52,11 +52,15 @@ MODEL_CHARACTERISTICS = [
 #: The shape every weapon table prints (core rules). Strength is the
 #: *same definition* as a fighter's — stat rows are shared across
 #: statline types by design, so this seed reuses one if it is there.
+#:
+#: Armour Piercing is inverted: it is written as a negative number and
+#: improving it means a lower one, so a house rule that improves AP by
+#: one takes -1 to -2 rather than to zero.
 WEAPON_CHARACTERISTICS = [
     ("SR", "Short Range", {"is_inches": True}),
     ("LR", "Long Range", {"is_inches": True}),
     ("Str", "Strength", {}),
-    ("AP", "Armour Piercing", {}),
+    ("AP", "Armour Piercing", {"is_inverted": True}),
     ("L", "Lethality", {}),
 ]
 
