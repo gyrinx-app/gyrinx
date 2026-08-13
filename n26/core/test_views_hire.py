@@ -661,10 +661,13 @@ def test_a_profile_not_offered_for_hire_is_not_on_the_screen(
 
 class TestTheTypedPrice:
     """The dialog's price box is the shop's control: what is typed is
-    what leaves the bank, while the quote stays the list price and the
-    rating — a haggled fighter is not a lesser fighter. Read like every
-    typed price: whole credits in range, or the hire is refused and
-    nothing is written."""
+    what leaves the bank. Read like every typed price: whole credits in
+    range, or the hire is refused and nothing is written.
+
+    These post no rating box, which is an untick — so the quote stays the
+    list price and the rating, as it does everywhere else. What the box
+    does when it is ticked is TestRatingTheHire's.
+    """
 
     def test_the_dialog_offers_the_quote_in_a_box(self, client, tester, gang, ganger):
         client.force_login(tester)
@@ -729,17 +732,31 @@ class TestTheTypedPrice:
 class TestRatingTheHire:
     """The box under the price decides which figure the fighter is worth.
 
-    Left alone the quote stands and the gap is a discount, which is what
-    every other purchase does. Ticked, the gang takes them on at what it
-    paid: the rating follows the money, and so does what they fetch if
-    they are sold on.
+    Ticked — which is how the dialog draws it — the gang takes them on at
+    what it paid: the rating follows the money, and so does what they
+    fetch if they are sold on. Unticked, the quote stands and the gap is
+    a discount, which is what every other purchase does.
     """
 
-    def test_the_dialog_offers_the_box(self, client, tester, gang, ganger):
+    def test_the_dialog_offers_the_box_ready_ticked(self, client, tester, gang, ganger):
+        """Overriding the price offers to override the rating with it, and
+        the offer is already accepted: someone typing 30¢ over a 55¢ quote
+        usually means the fighter is worth 30¢."""
         client.force_login(tester)
         body = client.get(dialog_url(gang, ganger)).content.decode()
         assert 'name="rate"' in body
         assert 'value="paid"' in body
+        checkbox = body[body.index('name="rate"') : body.index('name="rate"') + 200]
+        assert "checked" in checkbox
+
+    def test_the_offer_is_worded_for_both_readings(self, client, tester, gang, ganger):
+        """Both answers are spelled out, with the usual rating in figures —
+        a reader deciding what a fighter is worth should not have to work
+        out what the box does from its label alone."""
+        client.force_login(tester)
+        body = client.get(dialog_url(gang, ganger)).content.decode()
+        assert "usual rating (55¢)" in body
+        assert "price-paid as their rating" in body
 
     def test_ticked_the_price_paid_becomes_the_rating(
         self, client, tester, gang, ganger
@@ -798,34 +815,48 @@ class TestRatingTheHire:
         assert entry.rating_contribution == 80
         assert entry.discount == 0
 
-    def test_left_alone_it_changes_nothing(self, client, tester, gang, ganger):
-        """The default is every other purchase's rule, so a hire nobody
-        haggles over is unaffected by the box existing."""
+    def test_unticked_the_quote_stands_and_the_gap_is_a_discount(
+        self, client, tester, gang, ganger
+    ):
+        """An unticked box posts nothing at all, which is the only thing
+        absence can mean here."""
         client.force_login(tester)
         client.post(
             hire_url(gang),
-            {"profile": str(ganger.pk), "name": "Plain", "paid": "30"},
+            {"profile": str(ganger.pk), "name": "Bargain", "paid": "30"},
+        )
+        entry = Miniature.objects.get(name="Bargain").membership.ledger_entry
+        assert entry.rating_contribution == 55
+        assert entry.discount == 25
+
+    def test_a_hire_at_the_quoted_price_is_unaffected_either_way(
+        self, client, tester, gang, ganger
+    ):
+        """Nobody haggling means the two figures are the same number, so
+        the box being ticked by default changes nothing for them."""
+        client.force_login(tester)
+        client.post(
+            hire_url(gang),
+            {"profile": str(ganger.pk), "name": "Plain", "rate": "paid"},
         )
         entry = Miniature.objects.get(name="Plain").membership.ledger_entry
+        assert entry.paid == 55
         assert entry.rating_contribution == 55
+        assert entry.discount == 0
 
-    def test_a_redrawn_dialog_keeps_the_answer(self, client, tester, gang, ganger):
-        """A name the field refuses brings the dialog back. The tick has
-        to come back with it, or fixing the name quietly re-rates them."""
+    def test_a_redrawn_dialog_keeps_an_untick(self, client, tester, gang, ganger):
+        """A name the field refuses brings the dialog back. The box is
+        drawn ticked, so it is the *untick* that would be lost — and
+        fixing a name would quietly re-rate the fighter."""
         client.force_login(tester)
         body = client.post(
             hire_url(gang),
-            {
-                "profile": str(ganger.pk),
-                "name": "x" * 500,
-                "paid": "30",
-                "rate": "paid",
-            },
+            {"profile": str(ganger.pk), "name": "x" * 500, "paid": "30"},
         ).content.decode()
 
         assert "<dialog open" in body
         checkbox = body[body.index('name="rate"') : body.index('name="rate"') + 200]
-        assert "checked" in checkbox
+        assert "checked" not in checkbox
 
 
 class TestTheScopes:

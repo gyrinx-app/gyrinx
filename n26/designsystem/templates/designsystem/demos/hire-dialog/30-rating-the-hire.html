@@ -1,5 +1,5 @@
-{# title: Taking them on at what you paid #}
-{# note: The box under the price, ticked. Left off, a haggled fighter still counts at the quote — which is what gear always does. Hiring is the one purchase that asks, because a lower price may mean a bargain or a lesser fighter and only the table knows which. #}
+{# title: Hiring at a discount #}
+{# note: The rating box unticked, which is the answer a reader has to give: a typed price is what the fighter is worth unless they say the gang simply got a bargain. Ticked is the default, and the naming demo above shows it. #}
 {# layout: full #}
 <c-n26.hire-dialog action="#"
                    profile="Ganger"
@@ -8,5 +8,5 @@
                    :fields="hire_dialog_fields"
                    cancel_url="#"
                    :form="hire_fighter_form"
-                   :rate_at_paid="True"
+                   :rate_at_paid="False"
                    modal="" />

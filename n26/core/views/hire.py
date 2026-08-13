@@ -217,15 +217,18 @@ def _dialog(
     section="",
     entry=None,
     key=None,
-    rate_at_paid=False,
+    rate_at_paid=True,
 ):
     """What the name dialog draws: who is being hired, at what price, and
     the hidden fields that carry the row's answer to the next request.
 
-    ``rate_at_paid`` comes back only on a redraw. The price box keeps what
-    was typed because the browser reposts it; a checkbox the dialog drew
-    unticked would come back unticked, quietly undoing an answer while the
-    reader was fixing something else.
+    ``rate_at_paid`` is the rating box, ticked to begin with: a price typed
+    over the quote is usually a statement about what the fighter is worth,
+    and the reading where the gang merely got a bargain is the one worth an
+    extra press. A redraw passes back what was answered — the price box
+    keeps what was typed because the browser reposts it, and a box drawn
+    ticked again would quietly undo an untick while the reader was fixing
+    something else.
     """
     try:
         # The operation's own pricing, asked in advance, so the dialog
@@ -446,12 +449,17 @@ def hire_fighter(request, pk):
                 except BadPrice as refusal:
                     messages.error(request, str(refusal))
                     return redirect(back)
-                # Which of the two figures the hire is worth. Ticked, the
-                # gang takes them on at what it paid and the quote is
-                # forgotten; left alone, the quote stands and the gap is a
-                # discount. Only hiring asks: a fighter is the one purchase
-                # where a lower price may mean a bargain or may mean a
-                # lesser fighter, and nobody but the table knows which.
+                # Which of the two figures the hire is worth. Ticked — the
+                # dialog's default — the gang takes them on at what it paid
+                # and the quote is forgotten; unticked, the quote stands and
+                # the gap is a discount. Only hiring asks: a fighter is the
+                # one purchase where a lower price may mean a bargain or may
+                # mean a lesser fighter, and nobody but the table knows
+                # which.
+                #
+                # Absent means unticked, because that is all an unticked box
+                # posts. The default lives in the dialog, which is the only
+                # thing that can draw a box already ticked.
                 rate_at_paid = request.POST.get("rate") == "paid"
                 try:
                     with operation(gang, actor=request.user) as op:

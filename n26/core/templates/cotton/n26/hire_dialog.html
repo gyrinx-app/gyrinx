@@ -27,8 +27,10 @@ works is documented there.
     profile named.
   form — the Django form carrying the name field. c-ui.field reads its label,
     help text and errors.
-  rate_at_paid — whether the rating box starts ticked. What a redrawn dialog
-    hands back, so an answer survives a name the field would not take.
+  rate_at_paid — whether the rating box starts ticked. On by default, so a
+    typed price is what the fighter is worth unless a reader says otherwise.
+    A redrawn dialog hands back what was answered, so an untick survives a
+    name the field would not take.
   modal — promote to the top layer. On by default; off draws the panel in the
     page's flow, which is what a reader without scripting sees.
   slot — the csrf token. A component has no request and renders none itself.
@@ -41,7 +43,7 @@ works is documented there.
     :fields="None"
     cancel_url=""
     :form="None"
-    :rate_at_paid="False"
+    :rate_at_paid="True"
     :modal="True"
     class=""
 />
@@ -84,7 +86,7 @@ works is documented there.
     fighter. The scope holds the pair the include compares.
     {% endcomment %}
     <c-ui.field label="Price"
-                description="What the gang pays. The quote stays the rating unless the box below says otherwise."
+                description="What the gang pays. The box below decides what they are worth."
                 for="hire-paid">
         <span x-data="{ quoted: {{ price|default:0 }}, price: {{ price|default:0 }} }"
               class="inline-flex">
@@ -100,11 +102,16 @@ works is documented there.
     book asks. Gear is not ambiguous that way, so the equipment listing
     settles it without asking (n26/core/views/equip.py, _charge).
 
+    Ticked to begin with, because typing a price over the quote is already
+    the answer most of the way: someone who says this fighter is 30¢
+    usually means they are worth 30¢, and the reading where the gang got a
+    bargain is the one worth an extra press. Untouched it changes nothing
+    either way — the price and the quote are the same number.
+
     Drawn whatever the box above says, rather than revealed when the two
     figures differ: what a form offers is the server's to decide, and a
     control that appears under the reader's hands is one they did not know
-    was coming. Left alone with no discount typed it changes nothing —
-    the price and the quote are the same number.
+    was coming.
 
     A plain input, as the print setup's toggles are: the kit's checkbox is
     wired for its own group scope, and a dialog that must answer with
@@ -117,10 +124,10 @@ works is documented there.
                {% if rate_at_paid %}checked{% endif %}
                class="mt-0.5 size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
         <span class="text-sm text-ink-900 dark:text-ink-100">
-            Use the price paid as their rating
+            Use the price-paid as their rating
             <span class="block text-muted">
-                Left off, a discount is only a discount: they still count {{ price }}¢
-                towards the gang's rating, and are worth that if you sell them on.
+                You can hire this fighter at their usual rating ({{ price }}¢) for a
+                discount, or use the price-paid as their rating.
             </span>
         </span>
     </label>
