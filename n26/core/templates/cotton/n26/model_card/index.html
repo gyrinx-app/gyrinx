@@ -297,7 +297,7 @@ region between here and the call site.
                 {% if card.skill_choices %}
                     <span class="ms-1 inline-flex flex-wrap items-center gap-2 align-middle">
                         {% for choice in card.skill_choices %}
-                            <c-n26.link href="{{ choice.href }}" underline="always">Choose {{ choice.kind_label|lower }}</c-n26.link>
+                            <c-n26.link href="{{ choice.href }}" tone="muted" underline="always" class="text-xs">Choose {{ choice.kind_label|lower }}</c-n26.link>
                         {% endfor %}
                     </span>
                 {% endif %}
@@ -373,7 +373,7 @@ region between here and the call site.
                     {% if card.power_choices %}
                         <span class="ms-1 inline-flex flex-wrap items-center gap-2 align-middle">
                             {% for choice in card.power_choices %}
-                                <c-n26.link href="{{ choice.href }}" underline="always">Choose {{ choice.kind_label|lower }}</c-n26.link>
+                                <c-n26.link href="{{ choice.href }}" tone="muted" underline="always" class="text-xs">Choose {{ choice.kind_label|lower }}</c-n26.link>
                             {% endfor %}
                         </span>
                     {% endif %}
@@ -496,7 +496,7 @@ region between here and the call site.
                                 In gang mode it stays a column header among
                                 the stat columns' headers.
                                 {% endcomment %}
-                                <th scope="col" class="px-4 py-1.5 text-left {% if mode == 'edit' %}text-sm{% else %}text-xs{% endif %} font-semibold text-ink-900 dark:text-ink-100">
+                                <th scope="col" class="px-4 py-1.5 text-left text-sm font-semibold text-ink-900 dark:text-ink-100">
                                     Weapons<c-n26.model-card.mode when="edit">{% if equip_href %}<span class="ms-1 inline-flex items-center align-middle font-normal"><c-ui.button size="xs" variant="primary" :outlined="True" class="py-0!" href="{{ equip_href }}">Equip</c-ui.button></span>{% endif %}</c-n26.model-card.mode>
                                 </th>
                             </c-slot>
