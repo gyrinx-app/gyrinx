@@ -45,15 +45,68 @@ class ReadOnlyAdmin(admin.ModelAdmin):
 
 @admin.register(Gang)
 class GangAdmin(admin.ModelAdmin):
-    list_display = ["name", "gang_type", "owner", "rating", "credits", "archived"]
-    list_filter = ["gang_type", "archived"]
+    list_display = [
+        "name",
+        "gang_type",
+        "owner",
+        "rating",
+        "credits",
+        "archived",
+        "sheet",
+    ]
+    list_filter = ["gang_type", "archived", "created"]
     search_fields = ["name", "owner__username"]
     list_select_related = ["gang_type", "owner"]
     autocomplete_fields = ["owner"]
+    date_hierarchy = "created"
+    ordering = ["-created"]
     # The caches are reconcile's to repair, and the founding is an
     # assignment — a dropdown over that table would render every row in
     # the database into one select.
-    readonly_fields = ["rating", "credits", "founding", "created", "modified"]
+    readonly_fields = [
+        "rating",
+        "credits",
+        "founding",
+        "archived_at",
+        "created",
+        "modified",
+    ]
+    actions = ["archive_gangs", "unarchive_gangs"]
+
+    @admin.display(description="Sheet")
+    def sheet(self, gang):
+        """The gang as a player reads it — a roster is readable by
+        whoever holds its address, so this is a plain link."""
+        from django.utils.html import format_html
+
+        return format_html(
+            '<a href="/n26/gangs/{}/" target="_blank" rel="noopener">Open</a>', gang.pk
+        )
+
+    @admin.action(description="Archive selected gangs")
+    def archive_gangs(self, request, queryset):
+        """Put gangs away, one ``archive()`` each.
+
+        A soft delete: the rows stay, and the gang stops being listed,
+        founded from, or reachable by its address. Row by row rather
+        than one UPDATE, because archiving stamps the time it happened
+        and carries to anything a gang says goes with it — a bulk write
+        would set the flag and neither.
+        """
+        done = 0
+        for gang in queryset.exclude(archived=True):
+            gang.archive()
+            done += 1
+        self.message_user(request, f"Archived {done} gang{'' if done == 1 else 's'}.")
+
+    @admin.action(description="Unarchive selected gangs")
+    def unarchive_gangs(self, request, queryset):
+        """The way back, for a gang put away by mistake."""
+        done = 0
+        for gang in queryset.filter(archived=True):
+            gang.unarchive()
+            done += 1
+        self.message_user(request, f"Restored {done} gang{'' if done == 1 else 's'}.")
 
 
 @admin.register(Miniature)
