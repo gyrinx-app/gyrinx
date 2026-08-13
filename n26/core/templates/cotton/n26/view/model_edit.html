@@ -6,6 +6,7 @@
         <c-slot name="breadcrumb">…breadcrumbs…</c-slot>
         <c-slot name="name_action">…rename pencil…</c-slot>
         <c-slot name="notes">…the notes form…</c-slot>
+        <c-slot name="skills">…the skills form…</c-slot>
         <c-slot name="statline">…the characteristics form…</c-slot>
     </c-n26.view.model-edit>
 
@@ -25,6 +26,12 @@ fields, submit and all — because saving is the page's business; this component
 only decides where the box sits. The box's heading is drawn here so every
 caller's notes box is called the same thing.
 
+The skills box is a square of the grid like the notes: a list of things to tick
+is read down a column, and one stretched across the page would set a set's name
+a hand's width from its own boxes. It draws nothing without the slot, so a model
+whose grid reaches no set is simply not asked — a heading over an empty square
+would read as a list that failed to load.
+
 The characteristics form sits under the grid rather than in it, and full width:
 it is a row of boxes drawn to the same columns as the card's own strip, and a
 strip squeezed into half the page would wrap where the card's does not. Below
@@ -40,6 +47,7 @@ card above, marked as changed.
   actions — the header's far end: the gang's figures and the roster tally.
   name_action — a control on the name's own line: the rename pencil.
   notes — the notes form, whole.
+  skills — the skills form, whole. Nothing is drawn without it.
   statline — the characteristics form, whole. Nothing is drawn without it.
 {% endcomment %}
 <c-vars
@@ -51,6 +59,7 @@ card above, marked as changed.
     actions=""
     name_action=""
     notes=""
+    skills=""
     statline=""
     class=""
 />
@@ -87,6 +96,15 @@ card above, marked as changed.
             </c-slot>
             {{ notes }}
         </c-ui.card>
+
+        {% if skills.strip %}
+            <c-ui.card>
+                <c-slot name="header">
+                    <span class="font-semibold">Skills &amp; Powers</span>
+                </c-slot>
+                {{ skills }}
+            </c-ui.card>
+        {% endif %}
     </div>
 
     {% if statline.strip %}

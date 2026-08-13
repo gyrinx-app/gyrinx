@@ -1630,6 +1630,30 @@ GROUPS: list[Group] = [
                 ),
             ),
             Component(
+                slug="tick-list",
+                tag="c-n26.tick-list",
+                template="n26/tick_list.html",
+                summary="A list of things to tick, grouped under its headings.",
+                notes=(
+                    "The same structure choice-offer draws, and a sibling of it "
+                    "rather than a mode: one of many is the browser's rule over a "
+                    "shared name, any number is the absence of that rule, and the "
+                    "two say different things about what leaving a box alone "
+                    "means. Rows and not cards, because this draws in a box beside "
+                    "a model's card where a grid of cards would be a second page — "
+                    "and a list read down a column is how a set of ticks is read. "
+                    "Checkboxes and no script: what arrives ticked is what the "
+                    "server said, so the form is right before anything runs. An "
+                    "option a rule grants is drawn ticked and fixed, saying what "
+                    "grants it, because nothing stored is behind it and a press "
+                    "could not take it away; a fixed box submits nothing, which is "
+                    "why whatever applies the difference must leave granted things "
+                    "out of it rather than read their silence as a clearing. An "
+                    "empty offer draws nothing — why it is empty is the page's to "
+                    "say, not this component's."
+                ),
+            ),
+            Component(
                 slug="checkbox-card",
                 tag="c-n26.checkbox-card",
                 template="n26/checkbox_card.html",
@@ -2510,7 +2534,11 @@ GROUPS: list[Group] = [
                     "form should be findable without reading any button's words. "
                     "The form arrives as a slot, fields and submit together, "
                     "because saving is the page's business and the gallery has "
-                    "no database to save to. The characteristics an owner sets "
+                    "no database to save to. The skills are a square of the grid "
+                    "beside the notes, because a list of things to tick is read "
+                    "down a column and one stretched across the page would set a "
+                    "set's name a hand's width from its own boxes. The "
+                    "characteristics an owner sets "
                     "by hand sit under the grid, full width and in the same "
                     "columns the card's own strip draws: a strip squeezed into "
                     "half the page would wrap where the card's does not, and it "

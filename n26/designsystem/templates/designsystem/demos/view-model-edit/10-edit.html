@@ -44,6 +44,17 @@
             </div>
         </form>
     </c-slot>
+    <c-slot name="skills">
+        <form>
+            <p class="mb-3 text-sm text-ink-500 dark:text-ink-400">Edit the model's skills &amp; powers</p>
+            <c-n26.tick-list :offer="tick_list_offer" name="skills" />
+            <div class="mt-3 flex justify-end">
+                <c-ui.button type="submit" variant="success" size="sm">
+                    Save skills
+                </c-ui.button>
+            </div>
+        </form>
+    </c-slot>
     <c-slot name="statline">
         <form>
             <p class="mb-3 text-sm text-ink-500 dark:text-ink-400">

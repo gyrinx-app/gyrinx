@@ -70,6 +70,31 @@ class TestTheRadioCardsPage:
         assert 'name="demo-purpose"' in page
 
 
+class TestTheTickListPage:
+    """Its props and its demo reach the gallery drawn, not as a polite
+    fallback."""
+
+    def test_the_page_documents_the_props_declared_in_the_template(self, reader):
+        page = reader.get("/n26/design/c/tick-list/").content.decode()
+        assert "offer" in page
+        assert "name" in page
+
+    def test_the_demo_draws_real_boxes(self, reader):
+        page = reader.get("/n26/design/c/tick-list/").content.decode()
+        assert "A list to tick" in page
+        # From the markup the demo rendered, not from its title: a demo
+        # directory the catalog cannot find yields "No examples yet".
+        assert 'name="skills"' in page
+        assert 'value="library.skill:1"' in page
+
+    def test_a_granted_line_is_drawn_ticked_and_fixed(self, reader):
+        """The one state this component has that a pick list does not, and
+        the one worth seeing before writing a page that uses it."""
+        page = reader.get("/n26/design/c/tick-list/").content.decode()
+        assert 'title="From Keen-eyed"' in page
+        assert "disabled" in page
+
+
 class TestTheOwnedDialogsPage:
     """The two questions the panel grew reach the gallery drawn, not as a
     polite fallback."""

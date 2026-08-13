@@ -26,6 +26,12 @@ which of them have a grid.
 What pressing writes is ``Operation.learn``: free, recorded, and caused
 by nothing, so what a fighter earned survives the row that opened the
 set up to them.
+
+The same listing is offered a second way, as a box to tick on the
+fighter's own edit page (``ticked_offer`` and ``apply_ticks``). One
+screen learns a thing at a time and the other settles the whole list at
+once, but both read the same grid through the same browse: two ways of
+saying it, never two ideas of what a fighter may have.
 """
 
 import dataclasses
@@ -53,6 +59,139 @@ def link_skills(*cards):
     for card in cards:
         if card.id and set(card.placed_in) & learnable:
             card.learn_href = reverse("n26-learn", args=[card.id])
+
+
+def _key(thing):
+    """How a pick list keys its options: the table and the row, because a
+    bare primary key is ambiguous across the assignable tables."""
+    return f"{thing._meta.label_lower}:{thing.pk}"
+
+
+def _rows_on(card):
+    """The stored row behind each thing this model holds, keyed the way a
+    pick list keys its options — so a tick list can find what a cleared
+    box refers to.
+
+    The model's own rows only: what the gang holds rides every member's
+    card and is not one fighter's to give up, and a line something has
+    taken away is not held at all.
+    """
+    rows = {}
+    for node in card.roots:
+        if node.broadcast or node.suppressed or node.assignment is None:
+            continue
+        rows.setdefault(_key(node.assignable), node.assignment)
+    return rows
+
+
+def _grants_on(computed):
+    """What a modifier gives this model and what gives it — skills and
+    powers alike, keyed the same way.
+
+    Nothing stored is behind these, so a surface offering things to tick
+    draws them fixed rather than as rows an owner could clear.
+    """
+    return {
+        _key(contribution.thing): contribution.source
+        for contribution in (*computed.skills, *computed.powers)
+    }
+
+
+def ticked_offer(card, computed):
+    """What this model may hold, as a list to tick rather than to press.
+
+    The learn screen's own listing: the same browse of the same
+    collections, resectioned by the same placements and narrowed to the
+    same tiers, so the two surfaces cannot come to disagree about what is
+    theirs. Skills and powers alike — a tier holds whatever the content
+    swept into it, and a family of powers a fighter's grid places is as
+    much theirs as a skill set is.
+
+    The tiers are the ones their grid names, which for the published
+    lists is Primary and Secondary; the unplaced fallback stays off,
+    because another house's sets are not this fighter's. A tier their
+    grid reaches nothing in simply has no heading.
+
+    Ticked where the model already holds the thing, by any route. What a
+    modifier grants says what grants it and is fixed: no row is behind
+    it, so there is nothing a press here could take away.
+    """
+    from n26.core.access import learnable_for
+    from n26.core.browse import (
+        browse,
+        narrow,
+        placements_for,
+        regrouped_by_placement,
+        usability_for,
+        with_use_notes,
+    )
+    from n26.core.render import ChoiceOffer, offer_from_view
+
+    held = _rows_on(card)
+    granted = _grants_on(computed)
+    groups = []
+    for collection in learnable_for(computed):
+        placements = placements_for(computed, collection)
+        listed = narrow(
+            with_use_notes(
+                regrouped_by_placement(
+                    browse(collection),
+                    placements,
+                    fallback=collection.default_section(),
+                    name=str(collection),
+                ),
+                usability_for(computed),
+            ),
+            sections=[placement.section.name for placement in placements.values()],
+        )
+        groups.extend(
+            offer_from_view(
+                listed, label=str(collection), held=held, granted=granted
+            ).groups
+        )
+    return ChoiceOffer(label="", groups=groups)
+
+
+def apply_ticks(op, miniature, card, computed, ticked):
+    """Make what a model holds match what was ticked, and say what moved.
+
+    The listing is derived again here rather than trusted from the page,
+    so a stale form or a hand-made press can only name things that are on
+    the list now. Nothing off the list is touched: a skill learned from a
+    set the grid has since stopped reaching keeps its row, because it is
+    not being offered and so cannot have been cleared.
+
+    A newly ticked thing is learned — free, and caused by nothing, the
+    same write the skills screen makes — and a cleared one is removed the
+    way anything is taken off a card: archived, with the ledger still
+    saying it was there. Granted things are on neither side of the
+    difference, because a fixed box submits nothing and reading its
+    silence as a clearing would take away the row of anything a modifier
+    also grants.
+    """
+    offer = ticked_offer(card, computed)
+    rows = _rows_on(card)
+    granted = _grants_on(computed)
+
+    # One entry per thing: two collections may both list a skill, and a
+    # second sighting of a ticked one must not learn it twice.
+    options = {}
+    for group in offer.groups:
+        for option in group.options:
+            options.setdefault(option.key, option)
+
+    learned, cleared = [], []
+    for key, option in options.items():
+        if key in granted:
+            continue
+        if key in ticked:
+            if key not in rows:
+                op.learn(miniature, option.thing)
+                learned.append(option.name)
+        elif key in rows:
+            op.remove(rows[key])
+            cleared.append(option.name)
+    return learned, cleared
 
 
 def _known_on(card):

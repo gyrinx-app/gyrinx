@@ -286,12 +286,18 @@ class Choosable:
     key: str
     name: str
     thing: object = None
-    #: True for the thing already answering this slot, so a picker can open
-    #: on the current answer rather than on nothing.
+    #: True for a thing the surface opens on already marked: the answer a
+    #: slot holds, or — where a list is ticked rather than picked — one
+    #: the model already has.
     is_current: bool = False
     #: Remarks about picking this one — "usable by Walkers only". Said,
     #: never enforced; the list is an offer, not a rule.
     detail: str = ""
+    #: What grants this, where the rules hand it over rather than an owner
+    #: taking it — "Keen-eyed". No row is behind such a thing, so a surface
+    #: offering things to tick draws it fixed: there is nothing a press
+    #: could take away.
+    granted_by: str = ""
 
 
 @dataclass
@@ -792,7 +798,7 @@ def build_choice_offer(slot, computed):
     )
 
 
-def offer_from_view(view, *, label, chosen=None, current=None):
+def offer_from_view(view, *, label, chosen=None, current=None, held=(), granted=None):
     """A browsed collection, flattened into the shape a picker draws.
 
     The half of a pick screen that has nothing to do with slots: a
@@ -803,6 +809,12 @@ def offer_from_view(view, *, label, chosen=None, current=None):
 
     ``current`` marks the thing already answering, where something does;
     a listing nobody asked a question about has none.
+
+    ``held`` names by key what the model already has, so a surface that
+    ticks rather than picks opens on the truth rather than on nothing.
+    ``granted`` maps a key to what grants it, for the ones no stored row
+    is behind: they are held too, and a surface must not offer to take
+    away something that would come straight back.
     """
     # Which tier a set sits in is worth saying only where the list spans
     # several: a question narrowed to one has named it in the page's own
@@ -817,7 +829,8 @@ def offer_from_view(view, *, label, chosen=None, current=None):
             name=category.name or section.name,
             caption=section.name if tiered and category.name else "",
             options=[
-                _choosable(line.thing, current, line.notes) for line in category.lines
+                _choosable(line.thing, current, line.notes, held, granted)
+                for line in category.lines
             ],
         )
         for section in view.sections
@@ -830,13 +843,18 @@ def offer_from_view(view, *, label, chosen=None, current=None):
     )
 
 
-def _choosable(thing, current, notes=()):
+def _choosable(thing, current, notes=(), held=(), granted=None):
+    key = f"{thing._meta.label_lower}:{thing.pk}"
+    granted_by = (granted or {}).get(key, "")
     return Choosable(
-        key=f"{thing._meta.label_lower}:{thing.pk}",
+        key=key,
         name=str(thing),
         thing=thing,
-        is_current=current is not None and thing == current,
+        is_current=(current is not None and thing == current)
+        or key in held
+        or bool(granted_by),
         detail="; ".join(note.text for note in notes),
+        granted_by=granted_by,
     )
 
 

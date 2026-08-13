@@ -786,6 +786,9 @@ def context():
         "sorts": SORTS,
         "choice_offer": choice_offer(),
         "empty_choice_offer": ChoiceOffer(label="Primary skill"),
+        # The same list a fighter's edit page ticks: what they hold, and
+        # the one thing a rule gives them that no press can clear.
+        "tick_list_offer": tick_list_offer(),
         "editable_statline": editable_statline(),
         # A profile nobody has typed a statline for yet, and one where a
         # value was refused: the two states the editor has that a card
@@ -894,6 +897,47 @@ def choice_offer():
             ),
             ChoosableGroup(
                 name="Cunning",
+                options=[
+                    Choosable(key="library.skill:4", name="Backstab"),
+                    Choosable(
+                        key="library.skill:5",
+                        name="Infiltrate",
+                        detail="usable by Walkers only",
+                    ),
+                ],
+            ),
+        ],
+    )
+
+
+def tick_list_offer():
+    """The same list as a tick list: two tiers, some of it held already,
+    and one line a rule grants.
+
+    Two sections, so every heading says which tier its set sits in — the
+    one-tier case is the same structure with the captions empty, and the
+    component simply draws no caption.
+    """
+    return ChoiceOffer(
+        label="",
+        groups=[
+            ChoosableGroup(
+                name="Agility",
+                caption="Primary",
+                options=[
+                    Choosable(key="library.skill:1", name="Catfall", is_current=True),
+                    Choosable(key="library.skill:2", name="Clamber"),
+                    Choosable(
+                        key="library.skill:3",
+                        name="Dodge",
+                        is_current=True,
+                        granted_by="Keen-eyed",
+                    ),
+                ],
+            ),
+            ChoosableGroup(
+                name="Cunning",
+                caption="Secondary",
                 options=[
                     Choosable(key="library.skill:4", name="Backstab"),
                     Choosable(

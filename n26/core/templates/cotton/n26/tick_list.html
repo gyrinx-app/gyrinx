@@ -1,0 +1,70 @@
+{% comment %}
+<c-n26.tick-list> — a list of things to tick, grouped under its headings.
+
+    <c-n26.tick-list :offer="skills" name="skills" />
+
+Takes the same n26.render.ChoiceOffer that <c-n26.choice-offer> draws: groups
+with names, options with a line of detail. A sibling of that component rather
+than a mode of it, for the reason radio cards and checkbox cards are siblings —
+one of many is the browser's rule over a shared name, any number is the absence
+of that rule, and the two say different things about what leaving a box alone
+means. One name across every group all the same: the headings are how the list
+is read, not a question each.
+
+Checkboxes and no script. What is ticked when the page arrives is what the
+server said, and a box that submits nothing has been cleared — so the form works
+before anything runs and stays right if nothing ever does.
+
+An option the rules grant is drawn ticked and fixed, saying what grants it:
+nothing stored is behind it, so there is nothing a press could take away. A
+fixed box submits nothing either, which is why whatever applies the difference
+must leave granted things out of it rather than read their silence as a
+clearing.
+
+Rows rather than cards: this draws inside a box beside a model's card, where a
+grid of cards would be a second page. An empty offer draws nothing — whether to
+say something instead depends on why it is empty, which the page knows and this
+does not.
+
+  :offer — a n26.render.ChoiceOffer.
+  name — the input name every box submits under. One name across every group.
+{% endcomment %}
+<c-vars :offer="None" name="thing" class="" />
+
+<div {{ attrs }} class="space-y-4 {{ class }}">
+    {% for group in offer.groups %}
+        {% comment %}
+        A fieldset per heading, because the heading is what the boxes under it
+        have in common — the skill set, the power family. The caption after it
+        names the tier the set sits in, and is filled in only where the list
+        spans several; see n26.render.ChoosableGroup.
+        {% endcomment %}
+        <fieldset>
+            <legend class="mb-1 block text-sm font-semibold text-ink-900 dark:text-ink-100">
+                {{ group.name }}
+                {% if group.caption %}<span class="font-normal text-muted">{{ group.caption }}</span>{% endif %}
+            </legend>
+            <div class="space-y-1">
+                {% for option in group.options %}
+                    <label class="flex items-start gap-2 {% if option.granted_by %}cursor-not-allowed opacity-60{% else %}cursor-pointer{% endif %}"
+                           {% if option.granted_by %}title="From {{ option.granted_by }}"{% endif %}>
+                        <input type="checkbox"
+                               name="{{ name }}"
+                               value="{{ option.key }}"
+                               {% if option.is_current %}checked{% endif %}
+                               {% if option.granted_by %}disabled{% endif %}
+                               class="mt-0.5 size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
+                        <span class="min-w-0 flex-1">
+                            <span class="block text-sm text-ink-900 dark:text-ink-100">{{ option.name }}</span>
+                            {% if option.granted_by %}
+                                <span class="block text-muted">From {{ option.granted_by }}</span>
+                            {% elif option.detail %}
+                                <span class="block text-muted">{{ option.detail }}</span>
+                            {% endif %}
+                        </span>
+                    </label>
+                {% endfor %}
+            </div>
+        </fieldset>
+    {% endfor %}
+</div>

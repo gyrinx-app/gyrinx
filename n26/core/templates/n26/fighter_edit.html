@@ -93,6 +93,32 @@ is named by the page's own heading directly below.
             </form>
         </c-slot>
         {% comment %}
+        Everything this model's grid puts within reach, ticked where they
+        have it. Ticking learns and clearing takes away, in one press and
+        one operation — which is why Save is green here as it is above.
+        What a rule grants is fixed: it is theirs while the thing granting
+        it stands, and no press on this page could take it away.
+
+        The square is drawn only where there is something to tick. A model
+        nobody has graded reaches no set, and their card's Skills row still
+        leads to the screen that says so.
+        {% endcomment %}
+        <c-slot name="skills">
+            {% if skills %}
+                <form method="post" action="{{ edit_url }}">
+                    {% csrf_token %}
+                    <input type="hidden" name="act" value="skills">
+                    <p class="mb-3 text-sm text-ink-500 dark:text-ink-400">Edit the model's skills &amp; powers</p>
+                    <c-n26.tick-list :offer="skills" name="skills" />
+                    <div class="mt-3 flex justify-end">
+                        <c-ui.button type="submit" variant="success" size="sm">
+                            Save skills
+                        </c-ui.button>
+                    </div>
+                </form>
+            {% endif %}
+        </c-slot>
+        {% comment %}
         The same boxes an author types a statline into, filled with what
         this owner has set and suggesting the model's own value where
         they have set nothing. Two forms post to this page, so each says
