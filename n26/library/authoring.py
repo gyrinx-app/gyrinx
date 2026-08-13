@@ -27,6 +27,8 @@ see CLAUDE.md.
 
 import re
 
+from django.core.exceptions import ValidationError
+
 from n26.library.models import (
     GangType,
     Profile,
@@ -802,9 +804,20 @@ def add_built_in(carrier, thing, amount=0, position=None, **kwargs):
     """Something ``carrier`` always comes with, materialised when it is
     acquired — a profile's equipment list, its starting kit, its
     opening XP. Founds the carrier's built-ins set on first use, so an
-    author never makes the set by hand."""
+    author never makes the set by hand.
+
+    Refused for a kind that only ever arrives by being *chosen*: nothing
+    acquires one, so nothing would ever hand the items over.
+    """
     from n26.library.models import DefaultAssignmentSet
 
+    if not getattr(carrier, "takes_built_ins", True):
+        raise ValidationError(
+            f"A {carrier._meta.verbose_name} is chosen rather than acquired, "
+            f"so nothing would ever hand over items built into it. What a "
+            f"chosen thing brings rides it as modifiers instead — gives, "
+            f"brings a model, moves a counter."
+        )
     if carrier.built_ins is None:
         shared = {"pack": kwargs["pack"]} if "pack" in kwargs else {}
         carrier.built_ins = DefaultAssignmentSet.objects.create(

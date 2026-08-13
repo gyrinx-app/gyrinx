@@ -324,13 +324,16 @@ def _carries_modifiers(kind):
 def _carries_built_ins(kind):
     """Whether this kind's rows can come with things.
 
-    ``built_ins`` is a column on the assignable mixin, so coming with
-    something is universal among assignables and absent from the
-    foundation shapes — read off the model for the same reason
-    modifiers are, so a new assignable kind gets the section without
-    anyone remembering to say so.
+    Two facts, both read off the model. ``built_ins`` is a column on the
+    assignable mixin, so coming with something is available to every
+    assignable and absent from the foundation shapes; and the kind itself
+    says whether a set would ever be materialised (``takes_built_ins``)
+    — no, for the kinds that only arrive by being chosen. Derived for the
+    same reason modifiers are, so a new assignable kind gets the section
+    without anyone remembering to say so.
     """
-    return hasattr(_model_for(_spec_for(kind)), "built_in_members")
+    model = _model_for(_spec_for(kind))
+    return hasattr(model, "built_in_members") and model.takes_built_ins
 
 
 def _offers_options(kind):

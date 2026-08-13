@@ -31,6 +31,25 @@ def library_assignables():
     ]
 
 
+def chosen_only_kinds():
+    """The kinds declaring they take no built-ins — the things a gang
+    picks rather than acquires."""
+    return [model for model in library_assignables() if not model.takes_built_ins]
+
+
+def acquired_kind_pages():
+    """The authoring pages of every kind that *is* acquired — the pages
+    the built-ins section belongs on."""
+    from n26.library.views import _kind_slugs
+
+    slugs = _kind_slugs()
+    return [
+        slugs[model]
+        for model in library_assignables()
+        if model.takes_built_ins and model in slugs
+    ]
+
+
 class TestTheDeclarationsHoldTogether:
     """The guard: a declaration is per kind and free-form, so a typo'd
     context or a field the through row does not have must fail here,
@@ -290,3 +309,107 @@ class TestTheSuggestionForm:
         assert {member.assignable for member in made} == {ganger, specialist}
         yolanda.refresh_from_db()
         assert yolanda.built_in_members.count() == 2
+
+
+class TestTheKindsOnlyEverChosen:
+    """Built-in items are handed over when a row *arrives* — a model
+    hired, a gang founded, something bought. A kind that only ever
+    arrives by being chosen never reaches that, so items built into one
+    would sit in the library and never be granted: the attachment is not
+    offered on its pages, and the verb refuses one, whoever is writing.
+    What such a kind brings rides it as modifiers.
+    """
+
+    def test_there_is_something_to_check(self):
+        named = {model.__name__ for model in chosen_only_kinds()}
+        assert {"Affiliation", "Archetype", "SkillTree"} <= named
+        assert len(acquired_kind_pages()) > 5
+
+    @pytest.mark.parametrize(
+        "model", chosen_only_kinds(), ids=lambda model: model.__name__
+    )
+    def test_its_page_offers_no_built_ins(self, model):
+        from n26.library.views import _carries_built_ins, _kind_slugs
+
+        assert not _carries_built_ins(_kind_slugs()[model])
+
+    @pytest.mark.parametrize(
+        "model", chosen_only_kinds(), ids=lambda model: model.__name__
+    )
+    def test_the_verb_refuses_to_build_anything_into_one(self, model, default_pack):
+        """The refusal is at the verb, so an importer building content
+        through the same API is turned away with the same words."""
+        from django.core.exceptions import ValidationError
+
+        from n26.library.authoring import add_built_in, create_rule
+
+        chosen = model.objects.create(name=f"Something {model.__name__}")
+        brought = create_rule(f"What a {model.__name__} brings")
+
+        with pytest.raises(ValidationError, match="chosen rather than acquired"):
+            add_built_in(chosen, brought)
+
+        chosen.refresh_from_db()
+        assert chosen.built_ins_id is None
+
+    @pytest.mark.parametrize(
+        "model", chosen_only_kinds(), ids=lambda model: model.__name__
+    )
+    def test_it_suggests_nothing_at_create(self, model):
+        from n26.library.forms import suggestion_form_for
+
+        assert built_in_offer(model) == ()
+        assert suggestion_form_for(model) is None
+
+    def test_a_kind_that_says_both_things_refuses_loudly(self):
+        """Taking no built-ins and suggesting some contradict: the create
+        page would offer items nothing would ever hand over."""
+        from n26.library.models import Counter
+        from n26.library.offers import Suggest
+
+        class ChosenButSuggesting:
+            takes_built_ins = False
+            SUGGESTED_BUILT_INS = (Suggest("Starting XP", Counter, named="XP"),)
+
+        with pytest.raises(ValueError, match="takes no built-ins"):
+            built_in_offer(ChosenButSuggesting)
+
+    def test_the_page_of_a_chosen_thing_draws_no_comes_with_form(
+        self, client, default_pack
+    ):
+        """The whole section goes, not just the pick: an author of an
+        affiliation is never asked what it comes with, while an author of
+        wargear still is."""
+        from django.contrib.auth.models import User
+        from django.urls import reverse
+
+        from n26.library.authoring import create_affiliation, create_wargear
+
+        client.force_login(User.objects.create_user("author", is_staff=True))
+        chosen = create_affiliation("Chaos Corrupted")
+        bought = create_wargear("Cyber-mastiff")
+
+        def page(kind, thing):
+            return client.get(
+                reverse("authoring-detail", kwargs={"kind": kind, "pk": thing.pk})
+            ).content.decode()
+
+        asked = "the moment it is acquired"
+        assert asked not in page("affiliation", chosen)
+        assert asked in page("wargear", bought)
+
+    @pytest.mark.parametrize("kind", acquired_kind_pages())
+    def test_every_page_of_something_acquired_still_offers_them(self, kind):
+        from n26.library.views import _carries_built_ins
+
+        assert _carries_built_ins(kind)
+
+    def test_the_verb_still_builds_into_something_bought(self, default_pack):
+        from n26.library.authoring import add_built_in, create_rule, create_wargear
+
+        mastiff = create_wargear("Cyber-mastiff")
+        rule = create_rule("Guard")
+        add_built_in(mastiff, rule)
+
+        mastiff.refresh_from_db()
+        assert [member.assignable for member in mastiff.built_in_members] == [rule]

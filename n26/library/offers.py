@@ -17,7 +17,8 @@ usually comes with (``SUGGESTED_BUILT_INS`` — a profile wants Starting
 XP and an equipment list), and :func:`built_in_offer` resolves that
 against the library: the named row found, candidates pre-queried, and
 each suggestion's attachment asks attached. The create page renders the
-offer; blank means skipped.
+offer; blank means skipped. A kind that takes no built-ins at all
+(``takes_built_ins``) can suggest none, and declaring both is refused.
 
 Both functions return frozen structures, and the structures are the
 interface tests assert against — forms are derivations (the
@@ -121,11 +122,22 @@ class Suggestion:
 
 def built_in_offer(kind_model):
     """The quick build-out for creating one of ``kind_model``: its
-    declared suggestions, resolved against the library right now."""
+    declared suggestions, resolved against the library right now.
+
+    A kind that takes no built-ins at all can suggest none: the two
+    declarations would contradict each other, and the create page would
+    offer items nothing ever hands over.
+    """
     from n26.library.models import DefaultAssignment
 
+    suggestions = getattr(kind_model, "SUGGESTED_BUILT_INS", ())
+    if suggestions and not getattr(kind_model, "takes_built_ins", True):
+        raise ValueError(
+            f"{kind_model.__name__} takes no built-ins, so it cannot suggest any."
+        )
+
     offer = []
-    for suggest in getattr(kind_model, "SUGGESTED_BUILT_INS", ()):
+    for suggest in suggestions:
         fixed = (
             suggest.kind.objects.filter(name=suggest.named).first()
             if suggest.named

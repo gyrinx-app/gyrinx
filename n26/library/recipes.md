@@ -30,6 +30,10 @@ and everything below hangs off that pick.
 ### What a corruption grants
 
 Each of these is a modifier carried by the corruption's affiliation.
+Everything a chosen thing brings rides it as modifiers — *gives*,
+*brings a model*, *moves a counter* — and never as built-in items: an
+affiliation is chosen, not bought or hired, so nothing would ever hand
+built-in items over.
 
 **New fighters to hire.** Create the profiles — Aberrant, Abominant,
 Helot Cult Witch, Chaos Spawn, Brood Scum. Create a collection listing

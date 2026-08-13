@@ -100,7 +100,9 @@ what a form shows — no form hardcodes a kind there (the inline-create
 shortcut for rules and subtypes in `forms.py` is the one deliberate
 exception). Note: `ATTACHMENT_ASKS` replaces rather than merges — a
 kind that declares its own must restate the inherited asks it still
-wants.
+wants. `takes_built_ins` is the third of these declarations: a kind that
+only ever arrives by being *chosen* says False, its pages offer no
+built-ins attachment, and `add_built_in` refuses one.
 
 ## Recipes — the living cookbook
 

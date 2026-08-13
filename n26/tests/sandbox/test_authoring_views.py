@@ -4344,21 +4344,27 @@ class TestEveryCarrierIsOfferedTheSection:
     model, never listed, so a new assignable kind gets the section
     without anyone remembering to add it.
 
-    The one gap is a kind whose page is a shape of its own, which draws
-    none of the shared sections. That gap is named here so a second
-    bespoke page is a decision somebody makes rather than a section
-    that quietly stops being offered.
+    A carrier is a kind that can come with things *and* says a set on it
+    would ever be handed over (``takes_built_ins``): the kinds that only
+    arrive by being chosen say no, and offering them the section would
+    author items nothing ever grants.
+
+    The one gap among the carriers is a kind whose page is a shape of its
+    own, which draws none of the shared sections. That gap is named here
+    so a second bespoke page is a decision somebody makes rather than a
+    section that quietly stops being offered.
     """
 
     @staticmethod
     def carriers():
         from n26.library.views import _model_for
 
-        return {
-            kind
-            for kind, verb in LEAF_KINDS.items()
-            if hasattr(_model_for(specs()[verb]), "built_in_members")
-        }
+        found = set()
+        for kind, verb in LEAF_KINDS.items():
+            model = _model_for(specs()[verb])
+            if hasattr(model, "built_in_members") and model.takes_built_ins:
+                found.add(kind)
+        return found
 
     def test_there_is_something_to_check(self):
         assert len(self.carriers()) > 10

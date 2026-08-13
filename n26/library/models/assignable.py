@@ -197,6 +197,16 @@ class Assignable(models.Model):
     #: reason on the card.
     attaches_to_weapons = False
 
+    #: Whether a set of built-ins on this kind would ever come to
+    #: anything. A set is materialised when a row *arrives* — a model
+    #: hired, a gang founded, something bought — so a kind that only ever
+    #: arrives by being **chosen** runs nothing, and items built into one
+    #: would sit in the library unread. Such a kind says False, and what
+    #: it brings rides it as modifiers instead. The authoring pages read
+    #: this to decide whether to offer the attachment at all, and
+    #: ``add_built_in`` refuses one however it is written.
+    takes_built_ins = True
+
     class Meta:
         abstract = True
 
@@ -926,6 +936,8 @@ class Archetype(Content, Assignable):
     """
 
     family = Family.GANG
+    # Chosen, never acquired: nothing would materialise items built in.
+    takes_built_ins = False
 
     class Meta:
         verbose_name = "archetype"
@@ -954,6 +966,8 @@ class Affiliation(Content, Assignable):
     """
 
     family = Family.GANG
+    # Chosen, never acquired: nothing would materialise items built in.
+    takes_built_ins = False
 
     class Meta:
         verbose_name = "affiliation"
@@ -993,6 +1007,8 @@ class SkillTree(Content, Assignable):
     """
 
     family = Family.GANG
+    # Chosen, never acquired: nothing would materialise items built in.
+    takes_built_ins = False
 
     class Meta:
         verbose_name = "skill tree"
