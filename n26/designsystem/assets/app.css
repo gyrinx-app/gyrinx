@@ -321,6 +321,21 @@
         text-underline-offset: 2px;
     }
 
+    /* A heading that links to itself keeps looking like a heading — the
+       anchor is for the address bar, not for reading. */
+    .rich-text :is(h1, h2, h3, h4) a {
+        color: inherit;
+        text-decoration: none;
+    }
+    .rich-text :is(h1, h2, h3, h4) a:hover {
+        text-decoration: underline;
+        text-underline-offset: 3px;
+    }
+    /* Jumped-to headings land clear of the fixed bar. */
+    .rich-text :is(h1, h2, h3, h4)[id] {
+        scroll-margin-top: 5rem;
+    }
+
     .rich-text blockquote {
         border-left: 2px solid var(--color-accent);
         padding-left: 1em;

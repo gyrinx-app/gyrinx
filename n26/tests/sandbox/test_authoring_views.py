@@ -5105,8 +5105,34 @@ class TestTheRecipes:
         body = client.get("/n26/authoring/recipes/").content.decode()
         assert "Corrupted gangs" in body
         # Rendered, not served raw: the markdown heading became a tag.
-        assert "<h2>" in body
         assert "## Corrupted gangs" not in body
+
+    def test_the_file_title_yields_to_the_page_header(
+        self, author, client, default_pack
+    ):
+        """The file opens "# Recipes" so it reads whole as markdown; the
+        page supplies that heading itself, so exactly one is drawn."""
+        body = client.get("/n26/authoring/recipes/").content.decode()
+        assert "<h1>Recipes</h1>" not in body
+
+    def test_every_heading_is_an_anchor_that_links_to_itself(
+        self, author, client, default_pack
+    ):
+        body = client.get("/n26/authoring/recipes/").content.decode()
+        assert '<h2 id="corrupted-gangs"><a href="#corrupted-gangs">' in body
+        assert '<h3 id="the-choice"><a href="#the-choice">' in body
+
+    def test_the_contents_nest_the_sections_under_their_recipe(
+        self, author, client, default_pack
+    ):
+        from n26.library.views import _recipe_page
+
+        source = "# T\n\n## First\n\n### Inside\n\n## Second\n\n### Inside\n"
+        _, contents = _recipe_page(source)
+        assert [entry["title"] for entry in contents] == ["First", "Second"]
+        assert [child["title"] for child in contents[0]["children"]] == ["Inside"]
+        # Two sections sharing a name get their own addresses.
+        assert contents[1]["children"][0]["slug"] == "inside-2"
 
     def test_the_index_points_at_it(self, author, client, default_pack):
         assert (

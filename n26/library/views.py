@@ -753,11 +753,67 @@ def recipes(request):
     """
     from pathlib import Path
 
+    source = (Path(__file__).parent / "recipes.md").read_text(encoding="utf-8")
+    rendered, contents = _recipe_page(source)
+    return render(
+        request,
+        "authoring/recipes.html",
+        {"recipes": mark_safe(rendered), "contents": contents},
+    )
+
+
+def _recipe_page(source):
+    """The recipes file rendered for its page, plus a table of contents.
+
+    The file opens with its own title so it reads whole as markdown; the
+    page supplies that heading itself, so the duplicate is dropped here.
+    Every remaining heading gets an anchor and links to itself, and the
+    contents nest the h3s under their h2 — one walk of the token stream
+    answers both, which is what keeps the sidebar and the anchors from
+    ever disagreeing.
+    """
+    from django.utils.text import slugify
     from markdown_it import MarkdownIt
 
-    source = (Path(__file__).parent / "recipes.md").read_text(encoding="utf-8")
-    rendered = MarkdownIt("commonmark").enable("table").render(source)
-    return render(request, "authoring/recipes.html", {"recipes": mark_safe(rendered)})
+    md = MarkdownIt("commonmark").enable("table")
+    tokens = md.parse(source)
+    if tokens and tokens[0].type == "heading_open" and tokens[0].tag == "h1":
+        tokens = tokens[3:]
+
+    taken = set()
+    contents = []
+    for position, token in enumerate(tokens):
+        if token.type != "heading_open" or token.tag not in ("h2", "h3"):
+            continue
+        title = tokens[position + 1].content
+        stem = slugify(title) or "section"
+        slug, extra = stem, 2
+        while slug in taken:
+            slug, extra = f"{stem}-{extra}", extra + 1
+        taken.add(slug)
+        token.attrSet("id", slug)
+        entry = {"title": title, "slug": slug, "children": []}
+        if token.tag == "h3" and contents:
+            contents[-1]["children"].append(entry)
+        else:
+            contents.append(entry)
+
+    # The heading is its own link: press it and the address bar holds a
+    # way back to this spot. The anchor wraps the words, opened after
+    # the tag and closed before it — the close rule reads its opener two
+    # tokens back (open, inline, close is the shape a heading parses to).
+    def heading_open(self, tokens, idx, options, env):
+        drawn = self.renderToken(tokens, idx, options, env)
+        slug = tokens[idx].attrGet("id")
+        return f'{drawn}<a href="#{slug}">' if slug else drawn
+
+    def heading_close(self, tokens, idx, options, env):
+        drawn = self.renderToken(tokens, idx, options, env)
+        return f"</a>{drawn}" if tokens[idx - 2].attrGet("id") else drawn
+
+    md.add_render_rule("heading_open", heading_open)
+    md.add_render_rule("heading_close", heading_close)
+    return md.renderer.render(tokens, md.options, {}), contents
 
 
 @staff_member_required
