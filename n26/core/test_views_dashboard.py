@@ -43,7 +43,7 @@ class TestTheMarksBesideTheAction:
         assert 'href="https://www.patreon.com/c/Gyrinx"' in header
 
     def test_discord_leads_to_the_same_room_the_footer_does(self, header):
-        assert 'href="https://discord.gg/6yZQ8Y7C4W"' in header
+        assert 'href="https://discord.gg/WnJFKfyEuj"' in header
 
     def test_the_marks_open_in_a_new_tab(self, header):
         # Both marks leave the app; rel=noopener rides every target=_blank.

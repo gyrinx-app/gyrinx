@@ -93,5 +93,5 @@ Documentation for Necromunda 2023, the edition Gyrinx currently implements. Ever
 
 ***
 
-- [Discord](https://discord.gg/jamrJPYC)
+- [Discord](https://discord.gg/WnJFKfyEuj)
 - [Patreon](https://www.patreon.com/c/Gyrinx?utm_medium=unknown\&utm_source=join_link\&utm_campaign=creatorshare_creator\&utm_content=copyLink)

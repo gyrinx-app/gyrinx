@@ -46,7 +46,7 @@ Thanks for fixing the bug!
 
 - Suggest your change in the
   [#core](https://discord.com/channels/1337524316987985963/1337860878782955590)
-  channel on [our Discord](https://discord.gg/jamrJPYC) and start writing code.
+  channel on [our Discord](https://discord.gg/WnJFKfyEuj) and start writing code.
 - Do not open an issue on GitHub until you have collected positive feedback
   about the change. GitHub issues are primarily intended for bug reports and
   fixes.

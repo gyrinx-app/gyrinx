@@ -284,7 +284,7 @@ You've successfully:
 - Explore [Models and Database](models-and-database.md) to learn about the data layer
 - Check [Frontend Development](frontend-development.md) for styling guidelines
 - Review [Testing](testing.md) for comprehensive testing patterns
-- Join the [Discord](https://discord.gg/jamrJPYC) to discuss ideas with the team
+- Join the [Discord](https://discord.gg/WnJFKfyEuj) to discuss ideas with the team
 
 ## Cleaning Up
 
