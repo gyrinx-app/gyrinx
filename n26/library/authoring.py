@@ -1236,6 +1236,16 @@ def ef_requires_companions(for_each, at_least, of):
     )
 
 
+def ef_allows_at_most(at_most, thing):
+    """A ceiling, said on the sheet and never enforced —
+    ``ef_allows_at_most(2, aberrant)``, and ``ef_allows_at_most(0, brute)``
+    for a ban. Aimed at the gang it counts the roster; aimed at a model it
+    counts that model's own rows."""
+    from n26.library.models import AllowsAtMost
+
+    return AllowsAtMost.objects.create(at_most=at_most, **_countable_kwarg(thing))
+
+
 def op_adds_model(profile):
     """A stored effect: assigning the carrier brings this model into the gang."""
     from n26.library.models import OpAddsMiniature
@@ -1278,6 +1288,16 @@ def _assignable_kwarg(thing):
         if isinstance(thing, model):
             return {name: thing}
     raise ValueError(f"{type(thing).__name__} cannot be added or removed")
+
+
+def _countable_kwarg(thing):
+    from n26.library.models import Profile, Subtype, Wargear
+
+    kinds = ((Subtype, "subtype"), (Profile, "profile"), (Wargear, "wargear"))
+    for model, name in kinds:
+        if isinstance(thing, model):
+            return {name: thing}
+    raise ValueError(f"{type(thing).__name__} cannot be counted")
 
 
 # --- Glue -------------------------------------------------------------------

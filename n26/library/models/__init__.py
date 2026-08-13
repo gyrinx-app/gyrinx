@@ -39,6 +39,7 @@ from n26.library.models.defaults import (
 from n26.library.models.gang_type import GangType
 from n26.library.models.modifier import (
     AddsAssignable,
+    AllowsAtMost,
     ChangesCategory,
     ChangesStat,
     CounterAtLeast,
@@ -122,6 +123,7 @@ __all__ = [
     "ProfileType",
     "RemovesAssignable",
     "RequiresCompanions",
+    "AllowsAtMost",
     "Wargear",
     "Skill",
     "Specialisation",

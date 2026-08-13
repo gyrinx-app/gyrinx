@@ -357,6 +357,11 @@ class ComputedCard:
     #: here and resolved against the roster by ``compute_gang`` — only a
     #: gang card ever gathers any.
     requirements: list = field(default_factory=list)
+    #: Composition ceilings (``AllowsAtMost``), collected here and folded
+    #: against what is held by ``limit_notes``. A gang card gathers the
+    #: ones aimed at the gang and counts the roster; a model's card
+    #: gathers the ones aimed at it and counts its own rows.
+    limits: list = field(default_factory=list)
     #: How many granted lines have been dealt. A line's key is built from
     #: it, so a key stays unique even where a grant was taken back and
     #: another dealt after it.
@@ -437,6 +442,7 @@ def compute(card, index):
     """
     from n26.library.models.modifier import (
         AddsAssignable,
+        AllowsAtMost,
         ChangesCategory,
         ChangesStat,
         OffersChoice,
@@ -481,6 +487,7 @@ def compute(card, index):
         PlacesCategory: 3,
         OffersChoice: 4,
         RequiresCompanions: 5,
+        AllowsAtMost: 6,
     }
 
     def steps_for(source, discovered, found_in_round, node=None):
@@ -633,6 +640,12 @@ def compute(card, index):
                         log.applied.append(
                             _Applied(source_key, computed, "requirements", asked)
                         )
+                    elif isinstance(effect, AllowsAtMost):
+                        capped = (effect, label, label_kind)
+                        computed.limits.append(capped)
+                        log.applied.append(
+                            _Applied(source_key, computed, "limits", capped)
+                        )
                     elif isinstance(effect, PlacesCategory):
                         category = _placed_category(effect, step.node, by_cause)
                         if category is None:
@@ -774,7 +787,48 @@ def compute_gang(gang_card, index):
         counters=counter_readings(gang_card),
         placements=computed.placements,
         effects=computed.stored_effects,
-        notes=[*_gang_notes(computed), *_companion_notes(gang_card, computed)],
+        notes=[
+            *_gang_notes(computed),
+            *_companion_notes(gang_card, computed),
+            *_limit_notes(gang_card, computed),
+        ],
+    )
+
+
+def _held(nodes):
+    """How many of each countable thing these lines amount to.
+
+    What composition rules count: a member's rank and entry, and the gear
+    the roster holds. Keyed by identity, so nothing compares names.
+
+    Two lines are passed over. The gang's own rows ride every member's
+    card, and counting a broadcast one would make the gang's kit read as
+    one copy per member. A suppressed row has been taken away — it stays
+    in the database and is no longer part of what the card holds, so a
+    rank a rule cancelled does not prop up a ratio or fill a quota.
+    """
+    from n26.library.models import Profile, Subtype, Wargear
+
+    counted = {}
+    for node in nodes:
+        if node.broadcast or node.suppressed:
+            continue
+        thing = node.assignable
+        if not isinstance(thing, (Profile, Subtype, Wargear)):
+            continue
+        # A Legacy profile rides a card alongside the entry the model was
+        # hired as; only the one the card is drawn from says what it is.
+        if isinstance(thing, Profile) and not node.is_primary_profile:
+            continue
+        key = ModifierIndex.key(thing)
+        counted[key] = counted.get(key, 0) + 1
+    return counted
+
+
+def _roster_holdings(gang_card):
+    """The census a gang-scoped composition rule is read against."""
+    return _held(
+        node for member in gang_card.members.values() for node in member.all_nodes()
     )
 
 
@@ -786,17 +840,10 @@ def _companion_notes(gang_card, computed):
     *printed* hierarchy subtypes: a rank is a hire-time built-in fact.
     """
     from n26.core.notes import WARNING, Note
-    from n26.library.models import Subtype
 
     if not computed.requirements:
         return []
-    tallies = {}
-    for member in gang_card.members.values():
-        for node in member.all_nodes():
-            if node.broadcast or not isinstance(node.assignable, Subtype):
-                continue
-            key = ModifierIndex.key(node.assignable)
-            tallies[key] = tallies.get(key, 0) + 1
+    tallies = _roster_holdings(gang_card)
 
     notes = []
     for effect, source, _kind in computed.requirements:
@@ -814,6 +861,57 @@ def _companion_notes(gang_card, computed):
                     level=WARNING,
                 )
             )
+    return notes
+
+
+def _limit_notes(gang_card, computed):
+    """Where the roster is over a ceiling a rule states — the census half
+    of ``AllowsAtMost``, said on the gang's sheet.
+
+    Only a breach draws a note: a gang inside its limits should not be
+    told what it is allowed, and a gang holding none of the thing is the
+    quietest case of all. Nothing is refused either way; the book turns
+    fighters away and we say the roster is over.
+    """
+    if not computed.limits:
+        return []
+    return _over_the_limit(computed.limits, _roster_holdings(gang_card), "the gang")
+
+
+def limit_notes(card, computed):
+    """Where one model is over a ceiling a rule states — the "each" half
+    of ``AllowsAtMost``: "Leaders and Champions may be equipped with up
+    to one Psychic Familiar each" is a limit on every model it reaches,
+    counted over that model's own rows.
+
+    Breach-only, like the gang's census. Query-free, like everything
+    downstream of ``compute``.
+    """
+    if not computed.limits:
+        return []
+    return _over_the_limit(computed.limits, _held(card.all_nodes()), "this model")
+
+
+def _over_the_limit(limits, tallies, holder):
+    """One note per ceiling the holder has gone past, and none otherwise."""
+    from n26.core.notes import WARNING, Note
+
+    notes = []
+    for effect, source, _kind in limits:
+        thing = effect.thing
+        if thing is None:
+            continue
+        count = tallies.get(ModifierIndex.key(thing), 0)
+        if count <= effect.at_most:
+            continue
+        allowance = f"at most {effect.at_most}" if effect.at_most else "none allowed"
+        notes.append(
+            Note(
+                text=f"{holder} holds {count} {thing}; {allowance} ({source})",
+                about=thing,
+                level=WARNING,
+            )
+        )
     return notes
 
 

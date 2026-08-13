@@ -13,7 +13,7 @@ number of queries regardless of how many models or how much kit — see
 from dataclasses import dataclass, field
 
 from n26.core.card import build_card
-from n26.core.effects import kind_of
+from n26.core.effects import kind_of, limit_notes
 from n26.library.models import (
     Counter,
     Hidden,
@@ -407,6 +407,11 @@ class ModelCard:
     #: one per card.
     placed_in: tuple[str, ...] = ()
     effects: list[EffectLine] = field(default_factory=list)
+    #: What the app has to say about this card — a limit the model is
+    #: over. ``n26.core.notes`` Notes, drawn loud or quiet by level and
+    #: never a gate. Not the player's own notes about the fighter, which
+    #: are prose they write and this card does not carry.
+    remarks: list = field(default_factory=list)
     owned_by: str | None = None
     xp: int = 0
     xp_target: int | None = None
@@ -1016,6 +1021,7 @@ def card_to_model_card(
             if computed
             else []
         ),
+        remarks=limit_notes(card, computed) if computed else [],
         owned_by=owned_by,
         xp=xp if counted_xp is None else counted_xp,
         xp_target=xp_target,

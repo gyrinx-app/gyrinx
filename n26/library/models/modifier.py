@@ -47,6 +47,7 @@ COMPUTED_EFFECT_FIELDS = (
     "offers_choice",
     "places_category",
     "requires_companions",
+    "allows_at_most",
 )
 
 #: Effects that write rows, run by ``n26.operations`` when the carrier is
@@ -101,6 +102,16 @@ GRANTABLE_FIELDS = {
     # a gang's own rules hang off, so that one "takes away" can cancel
     # the lot — see recipes.md, the corrupted gang.
     "hidden": "library.Hidden",
+}
+
+#: What an ``AllowsAtMost`` may count. The books limit ranks ("no
+#: Brutes"), fighter entries ("0–2 Aberrants") and gear ("one Familiar
+#: each") and nothing else, so the three are named rather than the whole
+#: run of assignable kinds.
+COUNTABLE_FIELDS = {
+    "subtype": "library.Subtype",
+    "profile": "library.Profile",
+    "wargear": "library.Wargear",
 }
 
 
@@ -1066,6 +1077,77 @@ class RequiresCompanions(models.Model):
         return target_kind == GANG
 
 
+class AllowsAtMost(models.Model):
+    """The ceiling half of composition — "0–2 Genestealer Cult
+    Aberrants", "up to one Psychic Familiar each", "no Brutes,
+    Hangers-on or Pets from the gang's own list".
+
+    The mirror of ``RequiresCompanions`` and computed the same way: a
+    note on the sheet, never a refusal. **Nought is how a ban is
+    written**, so a limit and a ban are one mechanism and an author never
+    has to decide which of two they are writing.
+
+    What gets counted follows the scope. Aimed at the gang it is a census
+    of the roster — members by rank, by entry, and the gear they hold
+    between them. Aimed at a model it is that model's own rows, which is
+    what "each" means in "up to one Familiar each".
+    """
+
+    is_stored = False
+
+    at_most = models.PositiveIntegerField(
+        default=0,
+        help_text='How many may be held — the 2 in "0–2 Aberrants". Nought is a ban.',
+    )
+    subtype = models.ForeignKey(
+        "library.Subtype",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    profile = models.ForeignKey(
+        "library.Profile",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    wargear = models.ForeignKey(
+        "library.Wargear",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+
+    class Meta:
+        verbose_name = "allows at most"
+        verbose_name_plural = "allow at most"
+        constraints = [
+            models.CheckConstraint(
+                condition=exactly_one_of(COUNTABLE_FIELDS),
+                name="allows_at_most_counts_exactly_one",
+            ),
+        ]
+
+    def __str__(self):
+        if not self.at_most:
+            return f"none of {self.thing}"
+        return f"at most {self.at_most} of {self.thing}"
+
+    @property
+    def thing(self):
+        for name in COUNTABLE_FIELDS:
+            if getattr(self, f"{name}_id") is not None:
+                return getattr(self, name)
+        return None
+
+    def accepts(self, target_kind):
+        # A census over the roster, or a count of one model's own rows.
+        return target_kind in (MODEL, GANG)
+
+
 class OpAddsMiniature(models.Model):
     """Brings another model into the gang — a pet, an exotic beast.
 
@@ -1360,6 +1442,13 @@ class Modifier(Content):
     )
     requires_companions = models.OneToOneField(
         RequiresCompanions,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="modifier",
+    )
+    allows_at_most = models.OneToOneField(
+        AllowsAtMost,
         on_delete=models.CASCADE,
         null=True,
         blank=True,

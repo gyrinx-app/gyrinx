@@ -92,6 +92,8 @@ def render_model_card(card, indent=""):
     for effect in card.effects:
         tense = "" if effect.happened else " (when taken)"
         lines.append(f"{indent}  {_sentence(effect.description)}{tense}")
+    for remark in card.remarks:
+        lines.append(f"{indent}  ({remark.text})")
     return lines
 
 

@@ -65,6 +65,18 @@ one god means rides that god's affiliation the same way.
 affiliation: targets the gang, *gives* the rule. They print on the gang's
 card.
 
+**Counts and bans.** Each is one modifier on the affiliation. For "0–2
+Aberrants": targets the gang, *notes a limit*, set to 2, naming the
+Aberrant profile — the gang's sheet says nothing until a third one is
+hired, and then it says the roster is over. For "no Brutes, Hangers-on or
+Pets from your own list": the same again with the limit set to nought,
+naming the subtype, and the sheet reads "none allowed" — nought is how a
+ban is written. For "up to one Familiar each": target models that are
+Leaders or Champions, name the familiar and set the limit to 1; that one is
+counted per model and its note lands on the fighter's own card, which is
+what "each" means. None of the three refuses anything. A player hires and
+buys what they like, and the sheet says where they have gone past the book.
+
 **Losing the gang's own special rules.** This wants a small change to the
 gang types themselves, once, and then it is one step per corruption. On
 each gang type, create a **hidden** item named for it — "Escher gang
@@ -78,13 +90,6 @@ and at its models, the same two aims the *gives* modifiers use. Everything
 the hidden item was handing out goes with it, and drop the corruption and
 it all comes back. Starting Skills and Skill Access live on the fighter
 entries, so they are untouched either way.
-
-### Not yet possible
-
-**Counts and bans.** "0–2 Aberrants", "one familiar each", "no Brutes,
-Hangers-on or Pets from your own list" — notes on the sheet saying what
-the roster should hold. The composition note today only says "at least";
-"at most" is coming.
 
 ## A model with a rolled statline
 

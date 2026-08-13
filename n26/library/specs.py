@@ -277,6 +277,7 @@ def _build_registry():
     from n26.library import authoring
     from n26.library.models import (
         Affiliation,
+        AllowsAtMost,
         Archetype,
         Category,
         ChangesCategory,
@@ -323,7 +324,11 @@ def _build_registry():
         WeaponProfile,
     )
     from n26.library.models.defaults import DEFAULT_ASSIGNABLE_FIELDS
-    from n26.library.models.modifier import GRANTABLE_FIELDS, OFFERABLE_KINDS
+    from n26.library.models.modifier import (
+        COUNTABLE_FIELDS,
+        GRANTABLE_FIELDS,
+        OFFERABLE_KINDS,
+    )
 
     # What a built-in may be, derived from the DefaultAssignment row
     # itself so the union can never drift from the model's own keys.
@@ -558,6 +563,23 @@ def _build_registry():
                 "on the sheet, never enforced."
             ),
             example="For each Champion, at least three Hive Scum.",
+        ),
+        Spec(
+            authoring.ef_allows_at_most,
+            {
+                "at_most": Int(source=(AllowsAtMost, "at_most")),
+                "thing": Union(over=dict(COUNTABLE_FIELDS)),
+            },
+            label="Notes a limit",
+            blurb=(
+                "Says how many of something the gang — or one model — "
+                "should hold at most. Written on the sheet, never "
+                "enforced; nought is a ban."
+            ),
+            example=(
+                "At most 2 Aberrants on the roster; no Brutes from the "
+                "gang's own list; one Familiar each."
+            ),
         ),
         # -- effects that write rows at purchase time -------------------
         Spec(

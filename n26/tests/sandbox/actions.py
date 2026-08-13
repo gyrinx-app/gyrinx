@@ -46,6 +46,7 @@ from n26.library.authoring import (  # noqa: F401 — re-exported for the suites
     create_weapon,
     create_weapon_accessory,
     ef_adds,
+    ef_allows_at_most,
     ef_changes_category,
     ef_changes_stat,
     ef_offers_choice,
@@ -147,6 +148,12 @@ def places_the_chosen(section):
 def requires_companions(for_each, at_least, of):
     """A composition ask — ``requires_companions(champion, 3, hive_scum)``."""
     return ef_requires_companions(for_each, at_least, of)
+
+
+def allows_at_most(at_most, thing):
+    """A composition ceiling — ``allows_at_most(2, aberrant)``, and
+    ``allows_at_most(0, brute)`` for a ban."""
+    return ef_allows_at_most(at_most, thing)
 
 
 # --- Gangs and assignments ----------------------------------------------

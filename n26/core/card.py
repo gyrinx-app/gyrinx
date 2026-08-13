@@ -655,6 +655,7 @@ def build_modifier_index(assignables, max_depth=3):
 
     from n26.library.models import CounterAtLeast
     from n26.library.models.modifier import (
+        COUNTABLE_FIELDS,
         EFFECT_FIELDS,
         GRANTABLE_FIELDS,
         SCOPE_FIELDS,
@@ -670,6 +671,7 @@ def build_modifier_index(assignables, max_depth=3):
         "places_category__section__collection",
         "requires_companions__for_each",
         "requires_companions__of",
+        *(f"allows_at_most__{name}" for name in COUNTABLE_FIELDS),
         *(f"adds_assignable__{name}" for name in GRANTABLE_FIELDS),
         *(f"removes_assignable__{name}" for name in GRANTABLE_FIELDS),
         "changes_stat__stat",

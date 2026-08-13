@@ -71,6 +71,7 @@ EFFECT_MODELS = {
     "ef_places": "PlacesCategory",
     "ef_places_choice": "PlacesCategory",
     "ef_requires_companions": "RequiresCompanions",
+    "ef_allows_at_most": "AllowsAtMost",
     "op_adds_model": "OpAddsMiniature",
     "op_changes_counter": "OpChangesCounter",
 }
@@ -852,6 +853,7 @@ EFFECT_CAN_TARGET = {
     "ef_places": ("model",),
     "ef_places_choice": ("model",),
     "ef_requires_companions": ("gang",),
+    "ef_allows_at_most": ("model", "gang"),
     "op_adds_model": ("model", "gang"),
     "op_changes_counter": ("model", "gang"),
 }
