@@ -977,6 +977,9 @@ class ModifierComposerForm(forms.Form):
     name = forms.CharField(
         required=False,
         help_text="Blank writes the modifier's own sentence as its name.",
+        # The column's own limit, so an overlong name is this field's
+        # error in words rather than the database refusing the INSERT.
+        max_length=200,
     )
     make_reusable = forms.BooleanField(
         required=False,
@@ -1179,11 +1182,21 @@ class ModifierComposerForm(forms.Form):
         be refused by the unique-name constraint rather than merely read
         oddly.
         """
+        from django.utils.text import Truncator
+
+        from n26.library.models import Modifier
+
         if self.attach_to is None or self.cleaned_data.get("make_reusable"):
-            return f"{scope}: {effect}"
-        if getattr(scope, "narrows", False):
-            return f"{self.attach_to}, {scope}: {effect}"
-        return f"{self.attach_to}: {effect}"
+            written = f"{scope}: {effect}"
+        elif getattr(scope, "narrows", False):
+            written = f"{self.attach_to}, {scope}: {effect}"
+        else:
+            written = f"{self.attach_to}: {effect}"
+        # A derived name must fit its column by construction — the author
+        # never typed it, so no field error can reach them, and the
+        # database's refusal would land as a broken page.
+        limit = Modifier._meta.get_field("name").max_length
+        return Truncator(written).chars(limit)
 
     def save(self):
         """Compile both panes, glue with the modifier verb, attach.
@@ -1309,22 +1322,30 @@ def statline_form_for(statline_type):
         )
         return cls(data, initial=initial, prefix=prefix)
 
-    def cells(self):
+    def cells(self, placeholders=None):
         """The characteristics as the editor draws them, in type order.
 
         Values come off the bound field rather than the database, so a
         form redrawn after a refusal shows what was typed — a complaint
         about a value no longer on the screen is one nobody can act on.
+
+        ``placeholders``, keyed by field name, replaces what an empty box
+        suggests. An editor where empty means "keep what is already
+        printed" has something truer to show there than an example: the
+        value that stands if nothing is typed.
         """
         from n26.core.render import EditableStatCell
 
+        placeholders = placeholders or {}
         return [
             EditableStatCell(
                 short_name=type_stat.short_name,
                 full_name=type_stat.full_name,
                 name=self[type_stat.field_name].html_name,
                 value=self[type_stat.field_name].value() or "",
-                placeholder=type_stat.stat.placeholder,
+                placeholder=placeholders.get(
+                    type_stat.field_name, type_stat.stat.placeholder
+                ),
                 highlighted=type_stat.is_highlighted,
                 first_of_group=type_stat.is_first_of_group,
                 error=" ".join(self.errors.get(type_stat.field_name, [])),

@@ -487,3 +487,37 @@ class TestEverySpecGeneratesAForm:
         )
         assert not form.is_valid()
         assert "qualifier" in form.errors
+
+
+class TestALongConditionStillComposes:
+    """A condition naming a crowd must not write a name no column holds:
+    the crowd is said by its size, and a derived name fits by
+    construction."""
+
+    def test_many_profiles_summarise_rather_than_enumerate(self, db, default_pack):
+        from n26.library.authoring import (
+            create_gang_type,
+            create_profile,
+            create_profile_type,
+            create_stat,
+            create_statline_type,
+            is_profile,
+            targets_model,
+        )
+
+        statline_type = create_statline_type("Bare", stats=[create_stat("M", "Move")])
+        kind = create_profile_type("Fighter", statline_type)
+        home = create_gang_type("Crowded")
+        profiles = [
+            create_profile(f"A Very Long Profile Name Indeed Number {n}", kind, home)
+            for n in range(8)
+        ]
+        scope = targets_model(is_profile(*profiles))
+        said = str(scope)
+        assert "or 6 more" in said
+        assert len(said) < 200
+
+    def test_a_typed_name_too_long_is_a_form_error_not_a_broken_page(self):
+        from n26.library.forms import ModifierComposerForm
+
+        assert ModifierComposerForm.base_fields["name"].max_length == 200

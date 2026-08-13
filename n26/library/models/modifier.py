@@ -244,6 +244,20 @@ class TargetsMiniature(models.Model):
 # ``HasSubtypes`` with several subtypes is any-of).
 
 
+def _some_of(rows):
+    """A few names said whole, a crowd said by its size.
+
+    Condition strings ride into plan traces and auto-composed modifier
+    names, and a row naming twenty profiles would write a name no column
+    holds and no reader finishes. Three names is where a list stops
+    reading as alternatives and starts reading as an inventory.
+    """
+    names = [str(row) for row in rows]
+    if len(names) <= 3:
+        return " or ".join(names)
+    return f"{names[0]}, {names[1]} or {len(names) - 2} more"
+
+
 class HasSubtypes(models.Model):
     """Condition: the model has one of these subtypes.
 
@@ -268,7 +282,7 @@ class HasSubtypes(models.Model):
 
     def __str__(self):
         wanted = list(self.subtypes.all()) if self.pk else []
-        return " or ".join(str(subtype) for subtype in wanted) + " models"
+        return _some_of(wanted) + " models"
 
     def as_condition(self):
         from n26.core import select
@@ -307,7 +321,7 @@ class IsProfile(models.Model):
 
     def __str__(self):
         wanted = list(self.profiles.all()) if self.pk else []
-        return " or ".join(str(profile) for profile in wanted) + " models"
+        return _some_of(wanted) + " models"
 
     def as_condition(self):
         from n26.core import select
