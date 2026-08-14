@@ -46,6 +46,25 @@ READ_WITH = {
 }
 
 
+#: Where a row's own words would only repeat the thing it names, the
+#: column that says something an author can act on instead. A built-in
+#: reads as the assignable it holds, so a page naming built-ins as what
+#: stands in the way would print the same name twice and point nowhere;
+#: the set holding it is what has to be edited. Kinds absent from here
+#: say themselves, which is right wherever the row's own words already
+#: name a second thing — an assignment says the model carrying it.
+#:
+#: Each column here is loaded by ``READ_WITH`` above, so saying a row
+#: this way costs no query.
+NAMED_BY = {"library.defaultassignment": "default_set"}
+
+
+def named(row):
+    """One stored row, as a page naming it should say it."""
+    through = NAMED_BY.get(type(row)._meta.label_lower)
+    return str(getattr(row, through)) if through else str(row)
+
+
 @dataclass(frozen=True)
 class Reference:
     """One stored row naming the thing, and the column it names it in.

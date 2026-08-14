@@ -428,12 +428,13 @@ class TestEditingOne:
     def test_the_two_forms_on_a_page_do_not_share_a_control(
         self, author, client, default_pack
     ):
-        """A weapon's page draws its own fields and the fields that add
-        a firing line, and the two specs name fields alike. Sharing a
-        name means sharing an id, and two switches wired to one id
-        answer for each other: saving a weapon's price used to mark it
-        exclusive, because the *other* form's toggle was what the
-        browser read.
+        """A page may draw a thing's own fields beside a spec-generated
+        form for one of its parts, and two specs name fields alike.
+        Sharing a name means sharing an id, and two switches wired to one
+        id answer for each other — an author saving a weapon's price
+        marks it exclusive, because the *other* form's toggle is what the
+        browser read. The prefix on the thing's own form is what keeps
+        them apart.
         """
         from n26.library.authoring import create_weapon
 
@@ -1092,6 +1093,14 @@ class TestWeapons:
 
         return response, Weapon.objects.get(name="Autogun")
 
+    def add_line(self, client, weapon, **payload):
+        """One firing line, added the way an author adds one — on the
+        page the weapon's own leads to."""
+        return client.post(
+            f"/n26/authoring/weapons/{weapon.pk}/add-profile/",
+            {"trade_point_price": "0", **payload},
+        )
+
     def test_creating_a_weapon_lands_on_its_page(
         self, author, client, default_pack, weapon_statline_type
     ):
@@ -1110,8 +1119,10 @@ class TestWeapons:
         self, author, client, default_pack, weapon_statline_type
     ):
         _, autogun = self.make_autogun(client, weapon_statline_type)
-        body = client.get(f"/n26/authoring/weapon/{autogun.pk}/").content.decode()
-        # One input per stat of *this weapon's* shape, labelled as the
+        body = client.get(
+            f"/n26/authoring/weapons/{autogun.pk}/add-profile/"
+        ).content.decode()
+        # One input per stat of *this weapon's* shape, headed as the
         # book prints it — no spec could have known these field names.
         for short, field in (
             ("SR", "short_range"),
@@ -1121,18 +1132,18 @@ class TestWeapons:
             ("L", "lethality"),
         ):
             assert f'name="{field}"' in body
-            # The kit's label wraps its text in a whitespace-padded span —
-            # assert the words where they land, not the chrome around them.
-            assert re.search(rf">\s*{re.escape(short)}\s*</span>", body)
+            # The boxes are a statline strip, so each characteristic is
+            # named by the column heading above its box.
+            assert re.search(rf">\s*{re.escape(short)}\s*</th>", body)
         assert 'placeholder="4&quot;"' in body  # the stat's own example
 
     def test_a_renamed_column_is_renamed_wherever_the_page_prints_it(
         self, author, client, default_pack, make_stat
     ):
         """A weapon shape built on the model's own Strength row heads
-        the column Str. The editor's boxes and the line the page lists
-        underneath both read it off the shape, so neither shows the S
-        the characteristic itself carries."""
+        the column Str. The boxes that type a line and the line the
+        weapon's page lists both read it off the shape, so neither shows
+        the S the characteristic itself carries."""
         from n26.library.authoring import (
             add_stat_to_statline_type,
             create_statline_type,
@@ -1143,20 +1154,17 @@ class TestWeapons:
         add_stat_to_statline_type(shape, strength, short_name_override="Str")
 
         _, autogun = self.make_autogun(client, shape)
-        client.post(
-            f"/n26/authoring/weapon/{autogun.pk}/",
-            {
-                "name": "Standard",
-                "price": "0",
-                "trade_point_price": "0",
-                "strength": "3",
-            },
-        )
+        self.add_line(client, autogun, name="Standard", price="0", strength="3")
+
+        editor = client.get(
+            f"/n26/authoring/weapons/{autogun.pk}/add-profile/"
+        ).content.decode()
+        assert re.search(r">\s*Str\s*</th>", editor)  # the box's heading
+        assert not re.search(r">\s*S\s*</th>", editor)
 
         body = client.get(f"/n26/authoring/weapon/{autogun.pk}/").content.decode()
-        assert re.search(r">\s*Str\s*</span>", body)  # the editor's box
-        assert "Str 3" in body  # the line listed above it
-        assert not re.search(r">\s*S\s*</span>", body)
+        assert "Str 3" in body  # the line the weapon lists
+        assert "S 3" not in body
 
     def test_adding_the_mandatory_profile_with_its_stats_and_traits(
         self, author, client, default_pack, weapon_statline_type
@@ -1167,19 +1175,17 @@ class TestWeapons:
         _, autogun = self.make_autogun(client, weapon_statline_type)
         rapid_fire = create_trait("Rapid Fire", "1")
 
-        response = client.post(
-            f"/n26/authoring/weapon/{autogun.pk}/",
-            {
-                "name": "Standard",
-                "price": "0",
-                "trade_point_price": "0",
-                "traits": [str(rapid_fire.pk)],
-                "short_range": "8",
-                "long_range": "24",
-                "strength": "3",
-                "armour_piercing": "-",
-                "lethality": "1",
-            },
+        response = self.add_line(
+            client,
+            autogun,
+            name="Standard",
+            price="0",
+            traits=[str(rapid_fire.pk)],
+            short_range="8",
+            long_range="24",
+            strength="3",
+            armour_piercing="-",
+            lethality="1",
         )
         assert response.status_code == 302
 
@@ -1222,10 +1228,7 @@ class TestWeapons:
                 "traits": [str(cursed.pk), str(single_shot.pk)],
             },
         ):
-            client.post(
-                f"/n26/authoring/weapon/{autogun.pk}/",
-                {"trade_point_price": "0", **payload},
-            )
+            self.add_line(client, autogun, **payload)
 
         profiles = list(
             WeaponProfile.objects.filter(weapon=autogun).order_by("position")
@@ -1260,19 +1263,17 @@ class TestWeapons:
 
         _, autogun = self.make_autogun(client, weapon_statline_type)
         rapid_fire = create_trait("Rapid Fire", "1")
-        client.post(
-            f"/n26/authoring/weapon/{autogun.pk}/",
-            {
-                "name": "Standard",
-                "price": "0",
-                "trade_point_price": "0",
-                "traits": [str(rapid_fire.pk)],
-                "short_range": "8",
-                "long_range": "24",
-                "strength": "3",
-                "armour_piercing": "-",
-                "lethality": "1",
-            },
+        self.add_line(
+            client,
+            autogun,
+            name="Standard",
+            price="0",
+            traits=[str(rapid_fire.pk)],
+            short_range="8",
+            long_range="24",
+            strength="3",
+            armour_piercing="-",
+            lethality="1",
         )
 
         ganger = create_profile("Ganger", fighter_type, gang_type, price=50)
@@ -1556,11 +1557,19 @@ class TestAWeaponsOwnLine:
 
         return Weapon.objects.get(name="Autogun")
 
+    def add_line(self, client, weapon, **payload):
+        return client.post(
+            f"/n26/authoring/weapons/{weapon.pk}/add-profile/",
+            {"trade_point_price": "0", **payload},
+        )
+
     def test_the_form_does_not_demand_one(
         self, author, client, default_pack, weapon_statline_type
     ):
         autogun = self.make_autogun(client, weapon_statline_type)
-        body = client.get(f"/n26/authoring/weapon/{autogun.pk}/").content.decode()
+        body = client.get(
+            f"/n26/authoring/weapons/{autogun.pk}/add-profile/"
+        ).content.decode()
         # Requiredness is read off the verb, so this is the real check.
         from n26.library.forms import generate_form
 
@@ -1574,17 +1583,15 @@ class TestAWeaponsOwnLine:
         from n26.library.models import WeaponProfile
 
         autogun = self.make_autogun(client, weapon_statline_type)
-        response = client.post(
-            f"/n26/authoring/weapon/{autogun.pk}/",
-            {
-                "price": "0",
-                "trade_point_price": "0",
-                "short_range": "8",
-                "long_range": "24",
-                "strength": "3",
-                "armour_piercing": "-",
-                "lethality": "1",
-            },
+        response = self.add_line(
+            client,
+            autogun,
+            price="0",
+            short_range="8",
+            long_range="24",
+            strength="3",
+            armour_piercing="-",
+            lethality="1",
         )
         assert response.status_code == 302
 
@@ -1603,16 +1610,14 @@ class TestAWeaponsOwnLine:
 
         autogun = self.make_autogun(client, weapon_statline_type)
         rapid_fire = create_trait("Rapid Fire", "1")
-        client.post(
-            f"/n26/authoring/weapon/{autogun.pk}/",
-            {
-                "price": "0",
-                "trade_point_price": "0",
-                "traits": [str(rapid_fire.pk)],
-                "short_range": "8",
-                "long_range": "24",
-                "strength": "3",
-            },
+        self.add_line(
+            client,
+            autogun,
+            price="0",
+            traits=[str(rapid_fire.pk)],
+            short_range="8",
+            long_range="24",
+            strength="3",
         )
 
         body = client.get(f"/n26/authoring/weapon/{autogun.pk}/").content.decode()
@@ -1636,14 +1641,13 @@ class TestAWeaponsOwnLine:
         self, author, client, default_pack, weapon_statline_type
     ):
         autogun = self.make_autogun(client, weapon_statline_type)
-        client.post(
-            f"/n26/authoring/weapon/{autogun.pk}/",
-            {
-                "name": "Warp round",
-                "price": "10",
-                "trade_point_price": "4",
-                "short_range": "8",
-            },
+        self.add_line(
+            client,
+            autogun,
+            name="Warp round",
+            price="10",
+            trade_point_price="4",
+            short_range="8",
         )
         body = client.get(f"/n26/authoring/weapon/{autogun.pk}/").content.decode()
         # The row itself, not the field help — which also mentions the
@@ -1682,26 +1686,23 @@ class TestAWeaponsOwnLine:
         autogun = self.make_autogun(client, weapon_statline_type)
         rapid_fire = create_trait("Rapid Fire", "1")
         cursed = create_trait("Cursed")
-        client.post(
-            f"/n26/authoring/weapon/{autogun.pk}/",
-            {
-                "price": "0",
-                "trade_point_price": "0",
-                "traits": [str(rapid_fire.pk)],
-                "short_range": "8",
-                "long_range": "24",
-            },
+        self.add_line(
+            client,
+            autogun,
+            price="0",
+            traits=[str(rapid_fire.pk)],
+            short_range="8",
+            long_range="24",
         )
-        client.post(
-            f"/n26/authoring/weapon/{autogun.pk}/",
-            {
-                "name": "Warp round",
-                "price": "10",
-                "trade_point_price": "4",
-                "traits": [str(cursed.pk)],
-                "short_range": "8",
-                "long_range": "24",
-            },
+        self.add_line(
+            client,
+            autogun,
+            name="Warp round",
+            price="10",
+            trade_point_price="4",
+            traits=[str(cursed.pk)],
+            short_range="8",
+            long_range="24",
         )
 
         ganger = create_profile("Ganger", fighter_type, gang_type, price=50)
@@ -1765,7 +1766,7 @@ class TestCorrectingAFiringLine:
         from n26.library.models import WeaponProfile
 
         client.post(
-            f"/n26/authoring/weapon/{weapon.pk}/",
+            f"/n26/authoring/weapons/{weapon.pk}/add-profile/",
             {"price": "0", "trade_point_price": "0", **payload},
         )
         return WeaponProfile.objects.get(weapon=weapon, name=payload.get("name", ""))
@@ -1982,6 +1983,338 @@ class TestTheFiringLinePageIsStaffed:
         response = client.get(f"/n26/authoring/weapon-profiles/{line.pk}/")
         assert response.status_code == 302
         assert "login" in response["Location"]
+
+
+@pytest.fixture
+def autogun(author, default_pack, weapon_statline_type):
+    from n26.library.authoring import create_weapon
+
+    return create_weapon("Autogun", price=20, statline_type=weapon_statline_type)
+
+
+class TestAddingAFiringLine:
+    """A line is added at an address of its own, reached from the
+    weapon's page. It is a form and a whole statline both, and the
+    weapon's own fields sit above them on that page — a listing with all
+    of that under it leaves nowhere to read the weapon."""
+
+    def address(self, weapon):
+        return f"/n26/authoring/weapons/{weapon.pk}/add-profile/"
+
+    def test_the_weapon_page_offers_the_way_there_rather_than_a_form(
+        self, autogun, client
+    ):
+        body = client.get(f"/n26/authoring/weapon/{autogun.pk}/").content.decode()
+
+        assert self.address(autogun) in body
+        assert "Add weapon profile" in body
+        # No form here: neither the line's own fields nor its stats.
+        assert 'name="short_range"' not in body
+        assert "Add a weapon profile" not in body
+
+    def test_a_line_is_added_with_its_stats_and_traits(self, autogun, client):
+        from n26.library.authoring import create_trait
+        from n26.library.models import WeaponProfile
+
+        rapid_fire = create_trait("Rapid Fire", "1")
+
+        added = client.post(
+            self.address(autogun),
+            {
+                "name": "Warp round",
+                "price": "10",
+                "trade_point_price": "4",
+                "traits": [str(rapid_fire.pk)],
+                "short_range": "8",
+                "long_range": "24",
+                "strength": "3",
+                "armour_piercing": "-",
+                "lethality": "1",
+            },
+        )
+
+        assert added.status_code == 302
+        assert added["Location"] == f"/n26/authoring/weapon/{autogun.pk}/"
+
+        line = WeaponProfile.objects.get(weapon=autogun, name="Warp round")
+        assert (line.price, line.trade_point_price) == (10, 4)
+        assert line.annotation == "Autogun"  # what a card prints in brackets
+        assert line.trait_names == ["Rapid Fire (1)"]
+        assert {
+            stat.statline_type_stat.short_name: stat.value
+            for stat in line.statline.stats.all()
+        } == {"SR": '8"', "LR": '24"', "Str": "3", "AP": "-", "L": "1"}
+
+        # And the weapon's page says what landed.
+        body = client.get(added["Location"]).content.decode()
+        assert "Added Warp round." in body
+        assert f'href="/n26/authoring/weapon-profiles/{line.pk}/"' in body
+
+    def test_untyped_characteristics_are_recorded_as_nothing(self, autogun, client):
+        """Adding means nothing by an empty box. A line typed with every
+        characteristic blank is a line with no statline, not a statline
+        of blanks — which is what correcting one would mean."""
+        from n26.library.models import WeaponProfile
+
+        client.post(self.address(autogun), {"name": "Silent", "price": "0"})
+
+        line = WeaponProfile.objects.get(weapon=autogun, name="Silent")
+        assert getattr(line, "statline", None) is None
+
+    def test_a_second_nameless_line_is_refused_in_words(self, autogun, client):
+        """A weapon has one line that *is* the weapon. A second nameless
+        one would print the gun twice with no way to tell them apart, so
+        the page says so rather than falling over."""
+        from n26.library.authoring import add_weapon_profile
+        from n26.library.models import WeaponProfile
+
+        add_weapon_profile(autogun)
+
+        refused = client.post(self.address(autogun), {"price": "0"})
+
+        assert refused.status_code == 200  # back on the page, not a 500
+        assert (
+            "This weapon already has its own unnamed line" in refused.content.decode()
+        )
+        assert WeaponProfile.objects.filter(weapon=autogun).count() == 1
+
+    def test_an_exclusive_line_with_a_trade_point_price_is_refused_in_words(
+        self, autogun, client
+    ):
+        """Exclusive means never offered at the Trading Post, and a Trade
+        Point price means offered there — the database refuses the pair,
+        and the page that adds a line must say which pair it was in the
+        same words as the page that corrects one."""
+        from n26.library.models import WeaponProfile
+
+        refused = client.post(
+            self.address(autogun),
+            {
+                "name": "Warp round",
+                "price": "10",
+                "trade_point_price": "2",
+                "is_exclusive": "on",
+            },
+        )
+
+        assert refused.status_code == 200
+        body = refused.content.decode()
+        assert "never offered at the Trading Post" in body
+        assert "unnamed line" not in body
+        assert not WeaponProfile.objects.filter(weapon=autogun).exists()
+
+    def test_a_weapon_with_no_shape_says_so_instead_of_drawing_boxes(
+        self, author, client, default_pack
+    ):
+        """A weapon whose statline type was never set has nothing to
+        type characteristics into. The page says why rather than drawing
+        an empty strip, and a line can still be added without them."""
+        from n26.library.authoring import create_weapon
+        from n26.library.models import WeaponProfile
+
+        club = create_weapon("Club", price=10)
+
+        body = client.get(self.address(club)).content.decode()
+        assert "Club has no statline shape set" in body
+        assert "carry no stats" in body
+
+        client.post(self.address(club), {"name": "Two-handed", "price": "0"})
+        assert WeaponProfile.objects.filter(weapon=club, name="Two-handed").exists()
+
+    def test_an_unknown_weapon_is_a_404(self, author, client, default_pack):
+        import uuid
+
+        address = f"/n26/authoring/weapons/{uuid.uuid4()}/add-profile/"
+        assert client.get(address).status_code == 404
+
+    def test_another_kinds_page_keeps_its_own_add_form(
+        self, author, client, default_pack, make_stat
+    ):
+        """Only the weapon's parts moved. A statline shape still grows a
+        column in a form under its listing, where a column is a name and
+        two switches and nothing more."""
+        from n26.library.authoring import create_statline_type
+
+        shape = create_statline_type("Weapon")
+        make_stat("Str", "Strength")
+
+        body = client.get(f"/n26/authoring/statline-type/{shape.pk}/").content.decode()
+
+        assert "add-profile" not in body
+        assert 'name="stat"' in body
+
+
+class TestRemovingAFiringLine:
+    """A line is taken off from the weapon's page, where the rest of them
+    are: what removing one means is read against the lines it leaves
+    behind, not from inside one of them. Deleting is for the unused, as
+    it is for anything else in the library — a line somebody's gang
+    holds, or one a hire comes with, is refused in words."""
+
+    @pytest.fixture
+    def own(self, autogun):
+        """The weapon's own line — the one with no name."""
+        from n26.library.authoring import add_weapon_profile, set_statline
+
+        line = add_weapon_profile(autogun)
+        set_statline(line, short_range=8, strength=3)
+        return line
+
+    @pytest.fixture
+    def warp(self, autogun):
+        from n26.library.authoring import add_weapon_profile
+
+        return add_weapon_profile(autogun, "Warp round", price=10)
+
+    def address(self, line):
+        return f"/n26/authoring/weapon-profiles/{line.pk}/delete/"
+
+    def test_the_weapon_page_offers_a_way_off_each_line(
+        self, autogun, own, warp, client
+    ):
+        body = client.get(f"/n26/authoring/weapon/{autogun.pk}/").content.decode()
+
+        assert self.address(own) in body
+        assert self.address(warp) in body
+
+    def test_asking_names_the_line_and_its_weapon_and_changes_nothing(
+        self, autogun, warp, client
+    ):
+        from n26.library.models import WeaponProfile
+
+        body = client.get(self.address(warp)).content.decode()
+
+        assert "Delete Warp round (Autogun)?" in body
+        assert "no undo" in body
+        assert f'href="/n26/authoring/weapon/{autogun.pk}/"' in body
+        assert WeaponProfile.objects.filter(pk=warp.pk).exists()
+
+    def test_the_line_goes_and_its_characteristics_with_it(self, autogun, own, client):
+        from n26.library.models import Statline, WeaponProfile
+
+        statline = own.statline
+
+        done = client.post(self.address(own))
+
+        assert done["Location"] == f"/n26/authoring/weapon/{autogun.pk}/"
+        assert not WeaponProfile.objects.filter(pk=own.pk).exists()
+        assert not Statline.objects.filter(pk=statline.pk).exists()
+        # A weapon with no lines at all is a legitimate mid-authoring
+        # state, so the page it lands on says so rather than refusing.
+        body = client.get(done["Location"]).content.decode()
+        assert "Deleted Autogun." in body
+        assert "None yet" in body
+
+    def test_a_line_a_hire_comes_with_is_refused_in_words(
+        self, autogun, warp, client, default_pack, gang_type, fighter_type
+    ):
+        """An ammo line named as a built-in — a launcher's gas rounds
+        arriving with the fighter that carries it — protects the line it
+        names.
+
+        The refusal names the *set*, which is where an author has to go
+        to undo it. A built-in says itself as the thing it holds, so a
+        page naming built-ins plainly would print the line's own name
+        twice and point nowhere.
+        """
+        from n26.library.authoring import add_built_in, create_profile
+        from n26.library.models import WeaponProfile
+
+        ganger = create_profile("Ganger", fighter_type, gang_type, price=50)
+        member = add_built_in(ganger, warp)
+
+        refused = client.post(self.address(warp), follow=True)
+        body = refused.content.decode()
+
+        assert refused.redirect_chain[-1][0] == self.address(warp)
+        assert "still in use" in body
+        assert f"— {member.default_set.name} point at it" in body
+        assert "Ganger built-ins" == member.default_set.name
+        assert WeaponProfile.objects.filter(pk=warp.pk).exists()
+
+    def test_a_line_a_gang_holds_is_refused_in_words(
+        self, autogun, own, warp, client, default_pack, gang_type, fighter_type
+    ):
+        from django.contrib.auth.models import User
+
+        from n26.library.authoring import create_profile, set_statline
+        from n26.library.models import WeaponProfile
+        from n26.tests.sandbox.actions import (
+            buy_weapon_profile,
+            found_gang,
+            give_weapon,
+            hire,
+        )
+
+        ganger = create_profile("Ganger", fighter_type, gang_type, price=50)
+        set_statline(ganger, movement=5, weapon_skill=4)
+        gang = found_gang(
+            "The Armed",
+            gang_type,
+            owner=User.objects.create_user("armourer"),
+            budget=500,
+        )
+        fighter = hire(gang, ganger, "Yolanda", paid=50)
+        held = give_weapon(fighter, autogun, paid=20)
+        buy_weapon_profile(held, warp)
+
+        refused = client.post(self.address(warp), follow=True)
+        body = refused.content.decode()
+
+        assert refused.redirect_chain[-1][0] == self.address(warp)
+        assert "still in use" in body
+        assert "history, not clutter" in body
+        # An assignment's own words already name a second thing — whose
+        # it is — so it is said plainly rather than through a set.
+        assert "Yolanda" in body
+        assert WeaponProfile.objects.filter(pk=warp.pk).exists()
+
+    def test_an_unknown_line_is_a_404(self, author, client, default_pack):
+        import uuid
+
+        address = f"/n26/authoring/weapon-profiles/{uuid.uuid4()}/delete/"
+        assert client.get(address).status_code == 404
+
+
+class TestTheFiringLineActPagesAreStaffed:
+    """The same door the rest of the authoring surface has: staff, or
+    the sign-in page — and a post gets no further than a read."""
+
+    @pytest.fixture
+    def line(self, default_pack):
+        from n26.library.authoring import add_weapon_profile, create_weapon
+
+        return add_weapon_profile(create_weapon("Autogun", price=20))
+
+    def test_a_stranger_cannot_reach_either_page(self, client, line):
+        for address in (
+            f"/n26/authoring/weapon-profiles/{line.pk}/delete/",
+            f"/n26/authoring/weapons/{line.weapon.pk}/add-profile/",
+        ):
+            response = client.get(address)
+            assert response.status_code == 302
+            assert "login" in response["Location"]
+
+    def test_a_plain_user_cannot_delete_a_line(self, client, line):
+        from n26.library.models import WeaponProfile
+
+        client.force_login(User.objects.create_user("player"))
+        response = client.post(f"/n26/authoring/weapon-profiles/{line.pk}/delete/")
+
+        assert response.status_code == 302
+        assert "login" in response["Location"]
+        assert WeaponProfile.objects.filter(pk=line.pk).exists()
+
+    def test_a_plain_user_cannot_add_one(self, client, line):
+        client.force_login(User.objects.create_user("player"))
+        response = client.post(
+            f"/n26/authoring/weapons/{line.weapon.pk}/add-profile/",
+            {"name": "Warp round", "price": "10"},
+        )
+
+        assert response.status_code == 302
+        assert "login" in response["Location"]
+        assert not line.weapon.profiles.filter(name="Warp round").exists()
 
 
 class TestListingsSayWhatARowIs:
@@ -3258,7 +3591,7 @@ class TestTheModifierSection:
 
         gun = create_weapon("Autogun", statline_type=weapon_statline_type)
         body = client.get(f"/n26/authoring/weapon/{gun.pk}/").content.decode()
-        assert "Add a weapon profile" in body
+        assert f"/n26/authoring/weapons/{gun.pk}/add-profile/" in body
         assert "does nothing special until" in body
 
 
@@ -4829,20 +5162,35 @@ class TestAnythingCanComeWithSomething:
         assert "Comes with" in body
         assert 'value="built_in"' in body
 
-    def test_the_kinds_own_parts_are_what_a_post_naming_nothing_means(
-        self, claws, client
-    ):
-        """Two forms post to one address, so one of them has to say
-        which it is. The kind's own is the one that says nothing —
-        adding a firing line is unchanged by the arrival of the other."""
+    def test_the_built_ins_form_says_which_it_is(self, claws, client):
+        """Several forms post to a weapon's address, so each has to say
+        which it is. A post naming nothing is nobody's form: the lines a
+        weapon fires are added at an address of their own, and nothing
+        else here answers to silence."""
+        from n26.library.authoring import create_wargear
+
+        pouch = create_wargear("Ammo pouch", price=10)
         added = client.post(
+            f"/n26/authoring/weapon/{claws.pk}/",
+            {
+                "act": "built_in",
+                "thing_kind": "wargear",
+                "thing_wargear": str(pouch.pk),
+            },
+        )
+
+        assert added.status_code == 302
+        claws.refresh_from_db()
+        assert claws.built_in_members.count() == 1
+
+        nobody = client.post(
             f"/n26/authoring/weapon/{claws.pk}/",
             {"name": "Warp round", "price": "10"},
         )
 
-        assert added.status_code == 302
-        assert claws.profiles.filter(name="Warp round").exists()
-        assert not claws.built_in_members.exists()
+        assert nobody.status_code == 200  # redrawn, nothing added
+        assert not claws.profiles.filter(name="Warp round").exists()
+        assert claws.built_in_members.count() == 1
 
 
 class TestEveryCarrierIsOfferedTheSection:
@@ -5653,7 +6001,7 @@ class TestThePickersStillPostWhatTheySay:
         create_trait("Web")
 
         response = client.post(
-            f"/n26/authoring/weapon/{autogun.pk}/",
+            f"/n26/authoring/weapons/{autogun.pk}/add-profile/",
             {
                 "name": "Burst",
                 "price": "0",
@@ -5681,7 +6029,9 @@ class TestThePickersStillPostWhatTheySay:
         autogun = self.make_autogun(client, weapon_statline_type)
         rending = create_trait("Rending")
 
-        body = client.get(f"/n26/authoring/weapon/{autogun.pk}/").content.decode()
+        body = client.get(
+            f"/n26/authoring/weapons/{autogun.pk}/add-profile/"
+        ).content.decode()
         picker = re.search(r'<select[^>]*name="traits".*?</select>', body, re.S)
         assert picker, "the traits picker is not a <select>"
         assert "multiple" in picker.group(0)

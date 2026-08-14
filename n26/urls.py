@@ -156,6 +156,19 @@ urlpatterns = [
         name="authoring-weapon-profile",
     ),
     path(
+        "authoring/weapon-profiles/<str:pk>/delete/",
+        authoring_views.weapon_profile_delete,
+        name="authoring-weapon-profile-delete",
+    ),
+    # Adding one is addressed by the weapon, the way a second item
+    # inside an option is addressed by the option: there is no line yet
+    # to name, and the parent is what the act is about.
+    path(
+        "authoring/weapons/<str:pk>/add-profile/",
+        authoring_views.weapon_profile_add,
+        name="authoring-weapon-profile-add",
+    ),
+    path(
         "authoring/foundations/",
         authoring_views.foundations,
         name="authoring-foundations",

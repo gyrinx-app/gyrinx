@@ -1,0 +1,65 @@
+{% extends "authoring/base.html" %}
+{% comment %}
+A new firing line for one weapon, at an address of its own — the shape
+of the page that corrects one, with nothing to explain yet: no about
+column, because there is no line for the compiler to read, and no
+switcher, because this is not one of the gun's lines.
+
+The weapon's page lists what it fires and leads here. Adding a line
+there would put a whole statline under a listing, beneath the weapon's
+own fields, on a page that is already long.
+{% endcomment %}
+{% block head_title %}
+    New {{ verbose_name }}
+{% endblock head_title %}
+{% block content %}
+    <c-n26.page-header title="New {{ verbose_name }}">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Content library</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-leaf' 'weapon' %}">
+                    {{ weapons_plural|capfirst }}
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{{ back }}">
+                    {{ weapon }}
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    New {{ verbose_name }}
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+    </c-n26.page-header>
+    {% if part_help %}
+        <c-n26.prose class="mt-3 max-w-2xl">
+            {% for paragraph in part_help %}<p>{{ paragraph }}</p>{% endfor %}
+        </c-n26.prose>
+    {% endif %}
+    {% comment %}
+    The width sits on the fields rather than on the form, because a
+    statline is wider than a column of inputs wants to be: the
+    characteristics do not fit beside a name and a price, and boxed into
+    that width they would be a scrolling strip on a desktop.
+    {% endcomment %}
+    <form method="post"
+          {% if form.is_multipart %}enctype="multipart/form-data"{% endif %}
+          class="mt-6 space-y-5">
+        {% csrf_token %}
+        <div class="max-w-xl space-y-5">{% include "authoring/_form.html" with form=form %}</div>
+        {% if statline_cells %}
+            <c-n26.form-section title="{{ weapon.statline_type }}"
+                                description="An empty box is a characteristic this {{ verbose_name }} does not have; a card prints it as a dash."
+                                class="rounded-box border border-box-border p-4">
+                <c-n26.statline.edit :cells="statline_cells" />
+            </c-n26.form-section>
+        {% else %}
+            <c-ui.description>
+                {{ weapon }} has no statline shape set, so its {{ verbose_name_plural }} carry no stats.
+            </c-ui.description>
+        {% endif %}
+        {# The way out leads back to the weapon, which is where the page #}
+        {# was reached from and where a line that lands is listed. #}
+        <div class="max-w-xl">
+            <c-n26.form-actions submit_label="Add {{ verbose_name }}" cancel_url="{{ back }}" />
+        </div>
+    </form>
+{% endblock content %}

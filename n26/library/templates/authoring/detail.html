@@ -163,36 +163,50 @@ thing twice, a line apart.
                         </c-ui.description>
                     {% endif %}
                 </c-n26.form-section>
-                <c-n26.form-section title="Add a {{ section.part_verbose_name }}" class="mt-10">
-                    {% if section.part_help %}
-                        <c-n26.prose class="max-w-2xl">
-                            {% for paragraph in section.part_help %}<p>{{ paragraph }}</p>{% endfor %}
-                        </c-n26.prose>
-                    {% endif %}
-                    <form method="post"
-                          {% if section.form.is_multipart %}enctype="multipart/form-data"{% endif %}
-                          class="max-w-xl space-y-5">
-                        {% csrf_token %}
-                        {% if section.act %}<input type="hidden" name="act" value="{{ section.act }}">{% endif %}
-                        {% include "authoring/_form.html" with form=section.form %}
-                        {% if section.statline_form %}
-                            <c-n26.form-section title="{{ thing.statline_type }}"
-                                                class="rounded-box border border-box-border p-4">
-                                <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                                    {% for field in section.statline_form %}
-                                        {% include "authoring/_field.html" with form=section.statline_form %}
-                                    {% endfor %}
-                                </div>
-                            </c-n26.form-section>
-                        {% elif section.wants_statline %}
-                            <c-ui.description>
-                                This {{ verbose_name }} has no statline shape set, so its
-                                {{ section.part_verbose_name_plural }} carry no stats.
-                            </c-ui.description>
+                {% comment %}
+                A section whose parts are added elsewhere draws the way
+                there instead of a form. Primary, not success: this
+                begins the journey that the green button on the page it
+                leads to finishes.
+                {% endcomment %}
+                {% if section.add_url %}
+                    <div class="mt-6">
+                        <c-ui.button href="{{ section.add_url }}" variant="primary">
+                            Add {{ section.part_verbose_name }}
+                        </c-ui.button>
+                    </div>
+                {% else %}
+                    <c-n26.form-section title="Add a {{ section.part_verbose_name }}" class="mt-10">
+                        {% if section.part_help %}
+                            <c-n26.prose class="max-w-2xl">
+                                {% for paragraph in section.part_help %}<p>{{ paragraph }}</p>{% endfor %}
+                            </c-n26.prose>
                         {% endif %}
-                        <c-n26.form-actions submit_label="Add {{ section.part_verbose_name }}" />
-                    </form>
-                </c-n26.form-section>
+                        <form method="post"
+                              {% if section.form.is_multipart %}enctype="multipart/form-data"{% endif %}
+                              class="max-w-xl space-y-5">
+                            {% csrf_token %}
+                            {% if section.act %}<input type="hidden" name="act" value="{{ section.act }}">{% endif %}
+                            {% include "authoring/_form.html" with form=section.form %}
+                            {% if section.statline_form %}
+                                <c-n26.form-section title="{{ thing.statline_type }}"
+                                                    class="rounded-box border border-box-border p-4">
+                                    <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                                        {% for field in section.statline_form %}
+                                            {% include "authoring/_field.html" with form=section.statline_form %}
+                                        {% endfor %}
+                                    </div>
+                                </c-n26.form-section>
+                            {% elif section.wants_statline %}
+                                <c-ui.description>
+                                    This {{ verbose_name }} has no statline shape set, so its
+                                    {{ section.part_verbose_name_plural }} carry no stats.
+                                </c-ui.description>
+                            {% endif %}
+                            <c-n26.form-actions submit_label="Add {{ section.part_verbose_name }}" />
+                        </form>
+                    </c-n26.form-section>
+                {% endif %}
             {% endfor %}
             {% comment %}
     Options and their sets are drawn as one section, grouped the way a

@@ -401,7 +401,7 @@ class TestSeededContentIsUsable:
         )
         lasgun = Weapon.objects.get(name="Lasgun")
         client.post(
-            f"/n26/authoring/weapon/{lasgun.pk}/",
+            f"/n26/authoring/weapons/{lasgun.pk}/add-profile/",
             {
                 "name": "Standard",
                 "price": "0",

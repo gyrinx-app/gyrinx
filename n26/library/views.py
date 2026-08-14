@@ -227,6 +227,15 @@ DETAIL_KINDS = {
         # of its own: its stats are a form of their own and its traits a
         # set, neither of which fits in a listing row.
         "opens": "authoring-weapon-profile",
+        # Where a row's Remove control leads, as the built-ins rows have
+        # one: what deleting a line reaches — a gang that holds it, a
+        # hire that comes with it — cannot be read off the row.
+        "removes": "authoring-weapon-profile-delete",
+        # Adding one happens at an address of its own rather than in a
+        # form under the listing. A line is a form and a whole statline
+        # both, and the page already carries the weapon's own fields
+        # above them. Named by the weapon, there being no line yet.
+        "adds": "authoring-weapon-profile-add",
     },
     "statline-type": {
         "verb": "add_stat_to_statline_type",
@@ -1114,7 +1123,12 @@ def detail(request, kind, pk):
 
     composer = None
     act = request.POST.get("act", "")
-    posted_to = next((one for one in sections if one.get("act", "") == act), None)
+    # A section whose add form lives elsewhere has no form here to post
+    # to, so it is not a candidate however the act reads.
+    posted_to = next(
+        (one for one in sections if one.get("act", "") == act and not one.get("adds")),
+        None,
+    )
     if (
         request.method == "POST"
         and act
@@ -1159,13 +1173,18 @@ def detail(request, kind, pk):
     for section in sections:
         part_spec = specs()[section["verb"]]
         part_model = _model_for(part_spec)
-        form_class = generate_form(part_spec)
+        # A section that adds its parts elsewhere draws a way there
+        # instead of a form, so neither form is built at all.
+        elsewhere = section.get("adds")
+        form_class = None if elsewhere else generate_form(part_spec)
         statline_class = (
             statline_form_for(thing.statline_type)
-            if section["statline"] and thing.statline_type
+            if section["statline"] and thing.statline_type and not elsewhere
             else None
         )
-        if section is posted_to and request.method == "POST":
+        if elsewhere:
+            form = statline_form = None
+        elif section is posted_to and request.method == "POST":
             form = form_class(request.POST, request.FILES, carrier=thing)
             statline_form = statline_class(request.POST) if statline_class else None
             forms_valid = form.is_valid() and (
@@ -1217,6 +1236,9 @@ def detail(request, kind, pk):
                 "parts": parts,
                 "form": form,
                 "statline_form": statline_form,
+                # Blank for a section adding its parts in a form here;
+                # the page then draws that form rather than a way out.
+                "add_url": reverse(elsewhere, args=[thing.pk]) if elsewhere else "",
             }
         )
 
@@ -1298,6 +1320,31 @@ def _modifier_action(request, kind, thing, act):
     return redirect("authoring-detail", kind=kind, pk=thing.pk), None
 
 
+def _refuse_the_line(form, spec, refused):
+    """Say a database refusal of a firing line on the box it is about.
+
+    Two constraints can refuse the form that writes a line, and each is
+    said where the author was typing. A weapon has one line that *is*
+    the weapon, so a second line cannot be left nameless; and exclusive
+    means never offered at the Trading Post, so an exclusive line cannot
+    also carry a Trade Point price. The two pages writing a line — the
+    one that adds and the one that corrects — say the same words,
+    because it is the same refusal about the same box.
+    """
+    if "exclusive_has_no_tp" in str(refused):
+        form.add_error(
+            "trade_point_price",
+            "An exclusive item is never offered at the Trading "
+            "Post, so it cannot carry a Trade Point price. "
+            "Clear one or the other.",
+        )
+    else:
+        form.add_error(
+            spec.identity,
+            "This weapon already has its own unnamed line. Give this profile a name.",
+        )
+
+
 @staff_member_required
 def weapon_profile(request, pk):
     """One firing line, on a page of its own.
@@ -1334,25 +1381,7 @@ def weapon_profile(request, pk):
                     if statline_edit is not None:
                         statline_edit.save_every_value(profile)
             except IntegrityError as refused:
-                # Two constraints can refuse this form, and each is said
-                # on the box the author was typing in. A weapon has one
-                # line that *is* the weapon, so a second line cannot be
-                # left nameless; and exclusive means never offered at
-                # the Trading Post, so an exclusive line cannot also
-                # carry a Trade Point price.
-                if "exclusive_has_no_tp" in str(refused):
-                    edit_form.add_error(
-                        "trade_point_price",
-                        "An exclusive item is never offered at the Trading "
-                        "Post, so it cannot carry a Trade Point price. "
-                        "Clear one or the other.",
-                    )
-                else:
-                    edit_form.add_error(
-                        spec.identity,
-                        "This weapon already has its own unnamed line. "
-                        "Give this profile a name.",
-                    )
+                _refuse_the_line(edit_form, spec, refused)
             else:
                 messages.success(request, f"Saved {profile}.")
                 return redirect("authoring-weapon-profile", pk=pk)
@@ -1376,6 +1405,110 @@ def weapon_profile(request, pk):
             "edit_form": edit_form,
             "statline_cells": statline_edit.cells() if statline_edit else None,
             "prose": _prose_addresses(prose_for(profile)),
+        },
+    )
+
+
+@staff_member_required
+def weapon_profile_add(request, pk):
+    """One more firing line for a weapon, at an address of its own.
+
+    Addressed by the weapon, there being no line yet to name. The form
+    is the spec-generated one that adds a line, with the characteristics
+    beside it in whatever shape the weapon's statline type sets — a form
+    no spec can know, since its fields come from content.
+
+    A page rather than a form under the weapon's listing of lines,
+    because a line is a form and a whole statline both, and the weapon's
+    own fields sit above them on that page. Adding means nothing by an
+    empty box: a line typed with every characteristic blank is a line
+    with no statline, not a statline of blanks.
+    """
+    from n26.library.models import Weapon, WeaponProfile
+
+    weapon = get_object_or_404(Weapon, pk=pk)
+    back = reverse("authoring-detail", args=["weapon", weapon.pk])
+    spec = specs()["add_weapon_profile"]
+    form_class = generate_form(spec)
+    statline_class = (
+        statline_form_for(weapon.statline_type) if weapon.statline_type else None
+    )
+
+    if request.method == "POST":
+        form = form_class(request.POST, request.FILES, carrier=weapon)
+        statline_form = statline_class(request.POST) if statline_class else None
+        if form.is_valid() and (statline_form is None or statline_form.is_valid()):
+            try:
+                with transaction.atomic():
+                    profile = spec.verb(weapon, **form.verb_data())
+                    if statline_form is not None:
+                        statline_form.save(profile)
+            except IntegrityError as refused:
+                _refuse_the_line(form, spec, refused)
+            else:
+                said, _ = _describe_weapon_profile(profile)
+                messages.success(request, f"Added {said}.")
+                return redirect(back)
+    else:
+        form = form_class(carrier=weapon)
+        statline_form = statline_class() if statline_class else None
+
+    return render(
+        request,
+        "authoring/weapon_profile_add.html",
+        {
+            # The bar stands in Weapons, as the line's own page does:
+            # a firing line has no listing of its own.
+            "kind": "weapon",
+            "weapon": weapon,
+            "weapons_plural": str(weapon._meta.verbose_name_plural),
+            "verbose_name": str(WeaponProfile._meta.verbose_name),
+            "verbose_name_plural": str(WeaponProfile._meta.verbose_name_plural),
+            "part_help": kind_help(WeaponProfile),
+            "form": form,
+            "statline_cells": statline_form.cells() if statline_form else None,
+            "back": back,
+        },
+    )
+
+
+@staff_member_required
+def weapon_profile_delete(request, pk):
+    """The question asked before a firing line leaves its weapon.
+
+    A line is a part of its weapon rather than an authored kind, so the
+    generic delete page — which reads a kind out of the address — cannot
+    ask for one. This is the same question at an address of its own.
+
+    Deleting is for the unused, and the act itself is the one every
+    delete page performs (``_deleting``): a line a gang holds, a list
+    offers, or a hire comes with as an ammo type is refused in words,
+    and nothing half-happens.
+
+    The characteristics go with the line. The weapon and its other lines
+    are untouched, and a weapon with none is a legitimate thing to have
+    — an author part-way through correcting a table.
+    """
+    from n26.library.models import WeaponProfile
+
+    profile = get_object_or_404(WeaponProfile.objects.select_related("weapon"), pk=pk)
+    weapon = profile.weapon
+    back = reverse("authoring-detail", args=["weapon", weapon.pk])
+
+    if request.method == "POST":
+        return redirect(back if _deleting(request, profile) else request.path)
+
+    return render(
+        request,
+        "authoring/weapon_profile_delete.html",
+        {
+            "kind": "weapon",
+            "thing": profile,
+            "label": _label_for(profile),
+            "weapon": weapon,
+            "weapons_plural": str(weapon._meta.verbose_name_plural),
+            "verbose_name": str(WeaponProfile._meta.verbose_name),
+            "back": back,
         },
     )
 
@@ -1448,6 +1581,47 @@ def built_in_remove(request, pk):
     )
 
 
+def _deleting(request, thing):
+    """Take a row out of the library, or say what is standing in the way.
+
+    ``True`` when the row went. On a refusal the words are already on
+    the page and the caller sends the reader back to the question. The
+    two delete pages differ in where they lead and in nothing else: what
+    a refusal says is one sentence, said in one place.
+
+    Deleting is for the unused, and the database is the authority — it
+    refuses first, and its own list of protectors is what the words fall
+    back on. What is standing in the way is otherwise read through the
+    one reference reader (``n26.library.references``), the same one the
+    reach column reads, so a page cannot come to name a different set of
+    things from the one that explains where the row is used.
+    """
+    from django.db.models import ProtectedError
+
+    from n26.library import authoring
+    from n26.library.references import named
+
+    said = _label_for(thing)
+    try:
+        with transaction.atomic():
+            authoring.delete_content(thing)
+    except ProtectedError as refusal:
+        held_by = [
+            reference.row for reference in references_to(thing) if reference.protects
+        ] or list(refusal.protected_objects)
+        naming = ", ".join(named(row) for row in held_by[:3])
+        more = f" and {len(held_by) - 3} more" if len(held_by) > 3 else ""
+        messages.error(
+            request,
+            f"{said} is still in use — {naming}{more} point at it. "
+            "Remove those first; content that has been used is "
+            "history, not clutter.",
+        )
+        return False
+    messages.success(request, f"Deleted {said}.")
+    return True
+
+
 def _carrier_page(carrier):
     """The page of the thing an option or a set of options belongs to."""
     kind = _kind_slugs().get(type(carrier))
@@ -1463,46 +1637,19 @@ def thing_delete(request, kind, pk):
     Deleting is for the unused: the database protects every reference —
     a gang's assignment, a list's entry, an option's kit — so a row
     anybody relies on is refused, in words, and nothing half-happens.
-    A page rather than a prompt, as every destructive act here is.
-
-    What is standing in the way is read through the one reference
-    reader (``n26.library.references``), the same one the reach column
-    reads, so the page cannot come to name a different set of things
-    from the one that explains where the row is used. The database is
-    still the authority: it refuses first, and its own list of
-    protectors is what the words fall back on.
+    A page rather than a prompt, as every destructive act here is. The
+    act itself is ``_deleting``, shared with the pages that delete
+    something which is not an authored kind.
     """
-    from django.db.models import ProtectedError
-
-    from n26.library import authoring
-
     spec = _spec_for(kind)
     model = _model_for(spec)
     thing = get_object_or_404(model, pk=pk)
     back = reverse("authoring-detail", args=[kind, pk])
 
     if request.method == "POST":
-        said = getattr(thing, "authoring_label", str(thing))
-        try:
-            with transaction.atomic():
-                authoring.delete_content(thing)
-        except ProtectedError as refusal:
-            held_by = [
-                reference.row
-                for reference in references_to(thing)
-                if reference.protects
-            ] or list(refusal.protected_objects)
-            named = ", ".join(str(row) for row in held_by[:3])
-            more = f" and {len(held_by) - 3} more" if len(held_by) > 3 else ""
-            messages.error(
-                request,
-                f"{said} is still in use — {named}{more} point at it. "
-                "Remove those first; content that has been used is "
-                "history, not clutter.",
-            )
-            return redirect(request.path)
-        messages.success(request, f"Deleted {said}.")
-        return redirect("authoring-leaf", kind=kind)
+        if _deleting(request, thing):
+            return redirect("authoring-leaf", kind=kind)
+        return redirect(request.path)
 
     return render(
         request,
@@ -1510,7 +1657,7 @@ def thing_delete(request, kind, pk):
         {
             "thing": thing,
             "kind": kind,
-            "label": getattr(thing, "authoring_label", str(thing)),
+            "label": _label_for(thing),
             "verbose_name": model._meta.verbose_name,
             "back": back,
         },

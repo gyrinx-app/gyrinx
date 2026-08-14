@@ -1,0 +1,55 @@
+{% extends "authoring/base.html" %}
+{% comment %}
+The question asked before a firing line leaves its weapon, at an address
+of its own. A page rather than a prompt: it survives a reload, Back is a
+real answer, and it works with scripting switched off. Nothing here
+changes anything — the form's POST is the act.
+
+Deleting is for the unused. Every reference protects the line — a gang
+that holds it, a list that offers it, a hire that comes with it as an
+ammo type — so a line anybody relies on is refused in words, and the way
+to make it deletable is to remove those references first.
+{% endcomment %}
+{% block head_title %}Delete {{ label }}{% endblock head_title %}
+{% block content %}
+    <c-n26.form-page action="{% url 'authoring-weapon-profile-delete' thing.pk %}"
+                     title="Delete {{ label }}?"
+                     lead="For good: the {{ verbose_name }} leaves {{ weapon }}, and its characteristics with it. There is no undo."
+                     submit_label="Delete it"
+                     submit_variant="danger"
+                     cancel_url="{{ back }}">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Content library</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-leaf' 'weapon' %}">
+                    {{ weapons_plural|capfirst }}
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{{ back }}">
+                    {{ weapon }}
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-weapon-profile' thing.pk %}">
+                    {{ label }}
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Delete
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% csrf_token %}
+        <c-ui.alert variant="info" title="Anything still using it refuses this">
+            A gang that holds it, a list that offers it, a hire that comes
+            with it as an ammo type — each protects it. If any exist,
+            nothing is deleted and this page says who they are.
+        </c-ui.alert>
+        {% comment %}
+        The weapon stands whatever happens here. Said because the control
+        that leads here sits in a row of the weapon's own lines, where
+        "Remove" beside the gun's name reads as one that deletes the gun.
+        {% endcomment %}
+        <c-ui.alert variant="info" title="{{ weapon }} is not deleted">
+            The weapon stays in the library with its other lines. A weapon
+            with no lines at all is a fine thing to have part-way through
+            correcting a table.
+        </c-ui.alert>
+    </c-n26.form-page>
+{% endblock content %}
