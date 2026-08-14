@@ -713,7 +713,7 @@ def spawn(person_type, gang_type, default_pack, make_statline):
     The book rolls each characteristic at a table and the roster takes
     the option matching the die, so the sets do not add kit — they *set*
     a characteristic outright. Two such groups is what makes this the
-    content to test a preview with: answering both is a fighter neither
+    content to test a preview with: picking in both is a fighter neither
     group's own card depicts.
 
     A third set of options grants a mutation instead, which is the other
@@ -781,8 +781,8 @@ def card_address(gang, profile, *sets, entry=None):
 
 
 class TestThePreviewFollowsEveryOption:
-    """A hire row's card shows the fighter as configured — every option
-    ticked on it, not the one group the main pick answers.
+    """A hire listing's card shows the fighter as configured — every
+    option ticked on it, not the one group the main pick belongs to.
 
     The card is fetched, because the alternative is a card per
     combination and enumerating those is exactly the explosion the option
@@ -790,11 +790,11 @@ class TestThePreviewFollowsEveryOption:
     ``option`` and the fragment composes them.
     """
 
-    def test_two_answered_groups_both_show_on_one_card(
+    def test_two_picked_groups_both_show_on_one_card(
         self, client, hirer, spawn_gang, spawn
     ):
         """Roll a 6 for Weapon Skill and a 6 for Toughness and the card
-        says both. Each group's own card knows only its own answer, so a
+        says both. Each group's own card knows only its own pick, so a
         card following one of them shows a fighter nobody is buying."""
         profile, rolled = spawn
         client.force_login(hirer)
@@ -812,11 +812,12 @@ class TestThePreviewFollowsEveryOption:
         assert "WS changed by WS rolled 6" in body
         assert "T changed by T rolled 6" in body
 
-    def test_answering_one_group_leaves_the_others_printed(
+    def test_picking_in_one_group_leaves_the_others_printed(
         self, client, hirer, spawn_gang, spawn
     ):
-        """One option is what a row asked for before, and it still means
-        what it meant: this set taken, everything else as standard."""
+        """One option is what a listing asked for before, and it still
+        means what it meant: this set taken, everything else as
+        standard."""
         profile, rolled = spawn
         client.force_login(hirer)
         response = client.get(card_address(spawn_gang, profile, rolled["WS"]))
@@ -889,10 +890,8 @@ class TestThePreviewFollowsEveryOption:
         response = client.get(card_address(spawn_gang, profile, rolled["WS"], stray))
         assert response.status_code == 404
 
-    def test_two_answers_to_one_group_are_refused(
-        self, client, hirer, spawn_gang, spawn
-    ):
-        """A group offering one answer cannot be given two — no row can
+    def test_two_picks_in_one_group_are_refused(self, client, hirer, spawn_gang, spawn):
+        """A group offering one pick cannot be given two — no listing can
         produce it, and the hire itself refuses the same selection."""
         profile, rolled = spawn
         client.force_login(hirer)

@@ -866,8 +866,8 @@ class OffersChoice(models.Model):
         ),
     )
 
-    class AnswerHost(models.TextChoices):
-        #: The model (or gang) whose row carries the question — the
+    class WillBeAssignedTo(models.TextChoices):
+        #: The model (or gang) whose row carries the offered choice — the
         #: ordinary case: a Specialist's specialisation rides them.
         BEARER = "bearer", "the bearer"
         #: The Leader → Gang arrow:
@@ -877,14 +877,14 @@ class OffersChoice(models.Model):
         #: the Leader.
         GANG = "gang", "the gang"
 
-    answer_host = models.CharField(
+    will_be_assigned_to = models.CharField(
         max_length=20,
-        choices=AnswerHost,
-        default=AnswerHost.BEARER,
+        choices=WillBeAssignedTo,
+        default=WillBeAssignedTo.BEARER,
         help_text=(
-            "Which host the chosen thing's assignment lands on. Almost "
-            "always the bearer; a Leader's archetype pick is carried by "
-            "the gang, not the Leader."
+            "Where the chosen thing's assignment will land. Almost always "
+            "the bearer; a Leader's archetype pick is carried by the gang, "
+            "not the Leader."
         ),
     )
 
@@ -913,14 +913,20 @@ class OffersChoice(models.Model):
         super().save(*args, **kwargs)
 
     @classmethod
-    def of(cls, model, from_section=None, label="", answer_host=AnswerHost.BEARER):
+    def of(
+        cls,
+        model,
+        from_section=None,
+        label="",
+        will_be_assigned_to=WillBeAssignedTo.BEARER,
+    ):
         from django.contrib.contenttypes.models import ContentType
 
         return cls.objects.create(
             of_kind=ContentType.objects.get_for_model(model),
             from_section=from_section,
             label=label,
-            answer_host=answer_host,
+            will_be_assigned_to=will_be_assigned_to,
         )
 
     @property

@@ -480,7 +480,7 @@ class CollectionSelector(Content):
         found = model.objects.filter(self.as_selector().as_q(model)).select_related(
             # built_ins because pricing a swept line composes the set's
             # own price in — without it, a sweep full of kitted things
-            # pays a query per row at the till.
+            # pays a query per row at purchase.
             "category__section",
             "built_ins",
         )
@@ -488,7 +488,7 @@ class CollectionSelector(Content):
             # So marking a swept listing usable costs no extra queries.
             found = found.prefetch_related(*USABLE_BY_LISTS)
         if issubclass(model, Optioned):
-            # So a swept thing that offers alternatives at the till — a
+            # So a swept thing that offers alternatives at purchase — a
             # mount and its weapon swaps — puts them on screen without a
             # query per row.
             found = found.prefetch_related(*OPTION_OFFER_PATHS)

@@ -454,7 +454,7 @@ class Operation:
         """Change which of its options an assignment's thing is taken with.
 
         The later edit ``ChosenProfileOption`` is stored for: a hire took
-        a set at the till, and the owner changes their mind. The new
+        a set at purchase, and the owner changes their mind. The new
         selection resolves exactly as the hire's did — one-of groups fall
         back to their heads, a set the thing does not offer is refused —
         so what this prices is what materialises. Naming the selection
@@ -715,7 +715,8 @@ class Operation:
         # ``choose(founding, skill, miniature=leader)``.
         if not any(key in kwargs for key in ("miniature", "gang", "stash", "parent")):
             if any(
-                offer.answer_host == OffersChoice.AnswerHost.GANG for offer in matched
+                offer.will_be_assigned_to == OffersChoice.WillBeAssignedTo.GANG
+                for offer in matched
             ):
                 kwargs |= {"gang": anchor.gang or anchor.gang_root}
             else:
@@ -793,7 +794,7 @@ class Operation:
         surface charges them, and the entry that priced it (None on a
         derived collection — that is fine, the ledger just has no entry to
         point at). Nothing is checked; the line pre-fills what the ledger
-        remembers, and any of it may be overridden at the till.
+        remembers, and any of it may be overridden at purchase.
 
         ``option`` names what was chosen where the thing offers a choice —
         a mount swapping its weapon. Its built-ins and the sets taken
@@ -871,8 +872,8 @@ class Operation:
         """Take on something a model *is* — a skill, a power.
 
         Free, and recorded as a reward. No credits move: what a fighter
-        learns is earned rather than bought, and the till is not the way
-        to it. What it adds to the gang's rating is the thing's own
+        learns is earned rather than bought, and a purchase is not the
+        way to it. What it adds to the gang's rating is the thing's own
         reference price, which is nothing for a skill the rules hand
         out and whatever content says for one that is worth something.
 

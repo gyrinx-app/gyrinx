@@ -199,7 +199,7 @@ def profiles(gang_list, subtypes, pick_lists, person_type):
             Archetype,
             from_section=pick_lists["archetypes"],
             label="archetype",
-            answer_host="gang",
+            will_be_assigned_to="gang",
         ),
         carried_by=made["leader"],
     )

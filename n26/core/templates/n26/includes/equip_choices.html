@@ -24,17 +24,17 @@ different kind of number from the figure in the box above, which is the one
 anyone is charged, and it is measured from that figure — so the standard option
 adds nothing and prints nothing.
 
-Works with no script running: every control posts its own value and the till
-does the arithmetic. What is lost without one is the price box updating as the
-radios move.
+Works with no script running: every control posts its own value and the server
+does the arithmetic when the purchase is made. What is lost without one is the
+price box updating as the radios move.
 {% endcomment %}
 {% for group in row.choices %}
     {% comment %}
-    Every set after the first says how many to take, and its answers step in
+    Every set after the first says how many to take, and its options step in
     from that label — the two together are how a reader is told where one set's
-    answers stop. The first set needs neither: the row it belongs to is directly
-    above it, saying what is being configured, and controls that are plainly one
-    group say so themselves.
+    options stop. The first set needs neither: the listing it belongs to is
+    directly above it, saying what is being configured, and controls that are
+    plainly one group say so themselves.
     {% endcomment %}
     {% if not forloop.first %}
         <div class="mt-1 flex min-h-8 items-center gap-2 pt-1">
@@ -67,10 +67,10 @@ radios move.
         </label>
     {% endfor %}
     {% comment %}
-    A one-or-none set starts with nothing taken, and radios cannot be unpressed
-    once pressed — so "None" is the row that makes taking nothing pressable,
-    checked from the start and adding nothing. Its empty value is what the till
-    skips.
+    A one-or-none set starts with nothing taken, and radios cannot be unclicked
+    once clicked — so "None" is the option that makes taking nothing clickable,
+    checked from the start and adding nothing. Its empty value is what the
+    purchase skips.
     {% endcomment %}
     {% if group.choose == "one-or-none" %}
         <label class="flex min-h-9 cursor-pointer items-center gap-2 rounded-control py-0.5 hover:bg-ink-500/5 {% if not forloop.first %}n26-cp-substep{% endif %}">

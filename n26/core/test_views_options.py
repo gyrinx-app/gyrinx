@@ -1,8 +1,8 @@
-"""The Options face of a model's own page: the hire row's choices,
-reopened, with what the model currently takes checked.
+"""The Options face of a model's own page: the hire listing's option
+groups, reopened, with what the model currently takes checked.
 
 ``op.rechoose`` has its own suite; these tests are the seam — the page
-draws the current answer, and a Save parses through the hire's own
+draws the current pick, and a Save parses through the hire's own
 field scheme into the operation.
 """
 
@@ -75,7 +75,7 @@ def field(profile, group):
 
 
 class TestThePage:
-    def test_it_draws_the_groups_with_the_current_answer_checked(
+    def test_it_draws_the_groups_with_the_current_pick_checked(
         self, client, tester, gang, ganger, vex
     ):
         client.force_login(tester)
@@ -131,7 +131,7 @@ class TestSaving:
         assert gang.credits == 200 - 55 - 25
         vex.refresh_from_db()
         assert vex.rating == 80
-        # And the page comes back with the new answer checked.
+        # And the page comes back with the new pick checked.
         (group,) = client.get(options_url(vex)).context["groups"]
         assert [option["checked"] for option in group["options"]] == [False, True]
         assert_reconciled(gang)

@@ -2453,7 +2453,7 @@ def entry_remove(request, pk):
     What goes is the *entry* — this collection's row for the thing, its
     overrides included. The thing named stays in the library and on
     every other list that names it, and nothing already bought changes:
-    a purchase pinned its own record at the till.
+    a purchase pinned its own record when it was made.
     """
     from n26.library import authoring
     from n26.library.models import CollectionEntry

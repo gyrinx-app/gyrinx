@@ -1,10 +1,10 @@
-"""Buying something that asks a question: the shop end of the offer.
+"""Buying something with a group of options: the equip page's end of the offer.
 
 Some things offer alternatives when they are acquired. A fighter entry
 offers them at hire, and the hire screen has always put them in front of
 a player; a piece of wargear offers them when it is bought, and this is
 that — the same three modes ("one", "any", "one-or-none"), the same
-controls, the same indices read back against the row the server
+controls, the same indices read back against the listing the server
 re-derives.
 
 The worked case is the Escher Cutter: a mount that comes with grenade
@@ -262,7 +262,7 @@ class TestWhatTheScreenDraws:
         assert "Cutter plasma guns" in body
         assert "+15¢" in body
 
-    def test_the_standard_option_arrives_already_chosen(
+    def test_the_standard_option_arrives_already_picked(
         self, client, owner, fighter, house_list, cutter
     ):
         client.force_login(owner)
@@ -275,9 +275,9 @@ class TestWhatTheScreenDraws:
     def test_a_further_set_says_how_many_to_take_and_offers_none(
         self, client, owner, fighter, house_list, cutter
     ):
-        """Radios cannot be unpressed, so "None" is the row that makes
-        taking nothing pressable — and its empty value is what the till
-        skips."""
+        """Radios cannot be unclicked, so "None" is the option that makes
+        taking nothing clickable — and its empty value is what the
+        purchase skips."""
         client.force_login(owner)
         body = client.get(equip_url(fighter, house_list)).content.decode()
 
@@ -296,8 +296,8 @@ class TestWhatTheScreenDraws:
         assert body.count('type="submit"') == body.count('name="thing"')
 
 
-class TestBuyingWithoutAnswering:
-    """A press with no answer takes what comes as standard."""
+class TestBuyingWithNothingPicked:
+    """A press with nothing picked takes what comes as standard."""
 
     def test_it_takes_the_standard_guns_at_the_price_the_list_asked(
         self, client, owner, gang, fighter, house_list, cutter
@@ -359,7 +359,7 @@ class TestBuyingASwap:
         assert gang.rating == 165
         assert_reconciled(gang)
 
-    def test_the_confirmation_names_what_was_chosen(
+    def test_the_confirmation_names_what_was_picked(
         self, client, owner, fighter, house_list, cutter
     ):
         client.force_login(owner)
@@ -391,7 +391,7 @@ class TestBuyingASwap:
 
 
 class TestTakingNothingFromAnOptionalSet:
-    """A one-or-none set's None row is an answer, not a missing one."""
+    """A one-or-none set's None option is a pick, not a missing one."""
 
     def test_the_dispenser_is_left_behind_and_nothing_extra_is_charged(
         self, client, owner, gang, fighter, house_list, cutter
@@ -435,7 +435,7 @@ class TestTakingNothingFromAnOptionalSet:
         assert_reconciled(gang)
 
 
-class TestAnAnswerTheRowNeverOffered:
+class TestAPickTheListingNeverOffered:
     """A tampered index is a broken link, not a rule to explain — and it
     buys nothing at all, not even the mount."""
 
@@ -454,10 +454,10 @@ class TestAnAnswerTheRowNeverOffered:
         gang.refresh_from_db()
         assert gang.credits == 1000
 
-    def test_two_answers_to_one_set_are_refused(
+    def test_two_picks_in_one_set_are_refused(
         self, client, owner, gang, fighter, house_list, cutter
     ):
-        """Radios cannot both be pressed, so two values for one set is a
+        """Radios cannot both be clicked, so two values for one set is a
         tampered form — and one press was never an order for two mounts'
         worth of guns."""
         client.force_login(owner)
@@ -471,11 +471,11 @@ class TestAnAnswerTheRowNeverOffered:
         gang.refresh_from_db()
         assert gang.credits == 1000
 
-    def test_an_answer_scoped_to_another_row_rides_along_and_is_ignored(
+    def test_a_pick_scoped_to_another_listing_rides_along_and_is_ignored(
         self, client, owner, gang, fighter, house_list, cutter, default_pack
     ):
         """With no script running, a press submits every control on the
-        page. Only the ones scoped to the pressed line may decide
+        page. Only the ones scoped to the clicked line may decide
         anything."""
         knife = create_wargear("Stiletto knife", price=10)
         house_list.entries.create(wargear=knife)
@@ -493,8 +493,8 @@ class TestAnAnswerTheRowNeverOffered:
 
 
 class TestScaling:
-    """The offer rides the listing's own prefetches: a shop full of
-    mounts asks the database no more than a shop with one."""
+    """The offer rides the listing's own prefetches: a collection full of
+    mounts asks the database no more than a collection with one."""
 
     def test_a_list_of_optioned_things_costs_no_more_queries_to_browse(
         self, gang, default_pack
@@ -569,12 +569,12 @@ class TestScaling:
 
 
 class TestTheActionAndTheScreenAgree:
-    """The till's arithmetic is the operation's own, reached two ways."""
+    """The purchase's arithmetic is the operation's own, reached two ways."""
 
     def test_a_swap_bought_through_the_page_is_priced_as_the_verb_prices_it(
         self, client, owner, gang, fighter, house_list, cutter, make_profile
     ):
-        """One fighter buys through the shop, another through
+        """One fighter buys through the equip page, another through
         ``Operation.buy`` with the set named. The ledger must not be able
         to tell them apart — the page is a way to the operation, never a
         second pricing of it."""

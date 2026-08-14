@@ -299,9 +299,13 @@ class TestOffers:
 
     def test_the_leaders_archetype_pick_lands_on_the_gang(self, default_pack):
         effect = specs()["ef_offers_choice"].compile(
-            {"model": "archetype", "label": "archetype", "answer_host": "gang"}
+            {
+                "model": "archetype",
+                "label": "archetype",
+                "will_be_assigned_to": "gang",
+            }
         )
-        assert effect.answer_host == "gang"
+        assert effect.will_be_assigned_to == "gang"
         assert effect.kind_label == "Archetype"
 
     def test_the_venator_rank_slots_label(self, default_pack):

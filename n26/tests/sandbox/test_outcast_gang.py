@@ -11,8 +11,8 @@ What this pins:
 
 * **Leader → Gang → fighters**: the Leader
   carries the archetype question, what is chosen is *for the gang*
-  (``OffersChoice.answer_host="gang"``), it radiates via the broadcast — and
-  dies with the Leader through the caused_by cascade;
+  (``OffersChoice.will_be_assigned_to="gang"``), it radiates via the
+  broadcast — and dies with the Leader through the caused_by cascade;
 * the archetype tables per rank, one carrier per printed archetype,
   **including the Wyrd counts proof** (Wyrd runs one Primary short at
   every rank; Wyrd Powers supplies it);
@@ -413,7 +413,10 @@ def archetype_question(archetypes, profiles):
             f"{leader.name}: chooses the gang's Archetype",
             targets_model(),
             offers_choice(
-                Archetype, from_section=section, label="archetype", answer_host="gang"
+                Archetype,
+                from_section=section,
+                label="archetype",
+                will_be_assigned_to="gang",
             ),
             carried_by=leader,
         )

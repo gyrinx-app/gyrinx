@@ -308,7 +308,7 @@ class TestWhatTheSquareShows:
     def test_a_restricted_skill_keeps_its_place_with_a_note(
         self, client, player, yolanda, library
     ):
-        """Inform, never police — the till's rule, on this square too."""
+        """Inform, never police — the equip page's rule, on this square too."""
         from n26.tests.sandbox.actions import restrict_use
 
         restrict_use(library["skills"]["Catfall"], create_subtype("Walker"))

@@ -13,11 +13,11 @@ from n26.core.views.permissions import _own_miniature_or_404
 def _option_rows(entry, chosen_pks):
     """The entry's groups as the page draws them, checked states decided here.
 
-    The same groups the hire row drew, in the same order and under the
-    same field scheme, so the submission parses through the same code —
-    but checked from what the model *currently* takes rather than from
+    The same groups the hire listing drew, in the same order and under
+    the same field scheme, so the submission parses through the same code
+    — but checked from what the model *currently* takes rather than from
     the defaults. A one-of group with nothing recorded is on its head:
-    that is what an unanswered group meant at the till, and what
+    that is what a group with nothing picked means at purchase, and what
     ``resolve_selection`` will read an untouched submission back to.
     """
     groups = []
@@ -58,7 +58,7 @@ def _option_rows(entry, chosen_pks):
 def fighter_options(request, pk):
     """The options a model was hired with, reopened.
 
-    The same groups the hire row offered, checked from what the model
+    The same groups the hire listing offered, checked from what the model
     currently takes, with one Save. POST resolves the picks exactly as
     the hire did and hands them to ``op.rechoose``: rows swap, the price
     difference lands on the hire's own line in either direction, and an
@@ -124,7 +124,7 @@ def fighter_options(request, pk):
             "roster_count": len(members),
             "summary": summarise_roster(members),
             "groups": _option_rows(entry, chosen_pks),
-            # The field scheme is the hire row's, slugified pk and all,
+            # The field scheme is the hire listing's, slugified pk and all,
             # so the parser reads this page's POST unchanged.
             "field_scope": slugify(str(profile.pk)),
             "options_url": here,

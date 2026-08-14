@@ -695,7 +695,7 @@ class TestTheHireScreen:
         assert rig.base_price == 275
         # Two sets: the main pick, then the hardpoints. What the
         # author calls the second one is not here to be asserted on —
-        # a player is shown the answers, never the question.
+        # a player is shown the options, never the group's own name.
         assert [g.choose for g in rig.groups] == ["one", "any"]
         assert [o.name for o in rig.groups[1].options] == ["Rad gun", "Plasma gun"]
 

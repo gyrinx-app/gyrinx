@@ -81,12 +81,13 @@ def choice_field(key, group):
     """The input name one set of a line's alternatives shares.
 
     Scoped by the line and then by the set, because one form holds the
-    whole listing and a line may put more than one question: without the
-    line's scope a mount's swap would arrive with another row's press, and
-    without the set's the two questions would be one radio group where
-    answering the second unanswers the first. Slugified for the same
-    reason the rest are — the template renders the slug, and reading the
-    raw key back would ignore every choice made in a real browser.
+    whole listing and a line may put more than one group: without the
+    line's scope a mount's swap would arrive with another listing's
+    press, and without the set's the two groups would be one radio group
+    where picking in the second clears the pick in the first. Slugified
+    for the same reason the rest are — the template renders the slug, and
+    reading the raw key back would ignore every pick made in a real
+    browser.
     """
     return f"{slugify(key)}:option:{group}"
 
@@ -149,15 +150,15 @@ class OptionRow:
 
 @dataclass(frozen=True)
 class ChoiceOption:
-    """One answer a reader may give to a question a row asks.
+    """One option a reader may pick, from a group of options on a specific listing.
 
     ``value`` is its place in the set the server re-derives, which is what
     the control submits — naming it any other way would let a tampered
-    form ask for something the row never offered.
+    form ask for something the listing never offered.
 
-    ``surcharge`` is what taking it adds to the figure in the row's price
-    box, and ``surcharge_label`` is that as a reader sees it. Nothing is
-    drawn where taking it changes nothing.
+    ``surcharge`` is what taking it adds to the figure in the listing's
+    price box, and ``surcharge_label`` is that as a reader sees it.
+    Nothing is drawn where taking it changes nothing.
     """
 
     name: str
@@ -175,17 +176,18 @@ class ChoiceOption:
 
 @dataclass(frozen=True)
 class ChoiceGroup:
-    """One question a row asks, and the answers on offer.
+    """A group of options on one listing, and how many to pick — one,
+    any, or one-or-none.
 
-    ``choose`` is the row's own word for how the question works — "one",
-    "any", "one-or-none" — and drawing it as radios or tick boxes is the
-    template's business, the same division as a tone and a colour.
+    ``choose`` is the listing's own word for how the group works, and
+    drawing it as radios or tick boxes is the template's business, the
+    same division as a tone and a colour.
 
     The set is never named to a reader; see ``n26.core.browse``.
     """
 
     choose: str
-    #: The input every answer in this set shares.
+    #: The input every option in this group shares.
     field: str
     options: tuple[ChoiceOption, ...]
 
@@ -266,7 +268,7 @@ class OwnedRow:
     copies: tuple[OwnedCopyRow, ...]
     #: The row this would have been had they owned none, so a reader can
     #: buy another. Always present: owning one of something has never
-    #: been a reason the shop stops selling it.
+    #: been a reason the equip page stops selling it.
     buy: PricedRow
 
 
@@ -343,7 +345,7 @@ def _choices_of(line, key):
     """The line's offered alternatives as controls, in the line's own order.
 
     The order is load-bearing: a control submits its place in the set and
-    the till reads that place against the line it re-derives, so this
+    the purchase reads that place against the line it re-derives, so this
     walks the browsed line and never a second derivation of it.
     """
     return tuple(

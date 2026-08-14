@@ -14,7 +14,7 @@ from n26.core.listing import price_field as _price_field
 from n26.core.owned import thing_key as _thing_key
 from n26.core.views.permissions import _own_miniature_or_404
 
-#: The most a till will take for one line. No price in the game comes
+#: The most a purchase will take for one line. No price in the game comes
 #: near it; it is here because the number is typed by hand, and a slip on
 #: the keyboard should be refused rather than stored — an unbounded
 #: figure does not fit the ledger's integer column, and a gang playing
@@ -58,13 +58,13 @@ def _parts_picked(data, key, line):
 
 
 def _choices_picked(data, key, line):
-    """The alternatives a submission chose on this line, set by set.
+    """The alternatives a submission picked on this line, group by group.
 
     Values are indices into the sets the server has just re-derived, so a
-    tampered form can name nothing the line does not offer — and a set the
-    line does not draw has no field to answer with.
+    tampered form can name nothing the line does not offer — and a group
+    the line does not draw has no field to pick from.
 
-    An empty value is a one-or-none set's "None": the reader chose to take
+    An empty value is a one-or-none set's "None": the reader took
     nothing, which is not a pick to pass on. A repeated index is refused
     like a repeated tick box — one press was never an order for two of the
     same swap.
@@ -91,8 +91,8 @@ def _choices_picked(data, key, line):
 
 def price_typed(data, field, quoted, name):
     """What a purchase is charged: the price typed for it, or the price
-    it quoted where the form carried none. The same reading for a shop
-    row and a hire — the box is the same control on both.
+    it quoted where the form carried none. The same reading for an equip
+    page's listing and a hire — the box is the same control on both.
 
     The number arrives from the browser, so it is read as a whole number
     of credits and nothing else. A negative one would hand the gang
@@ -130,10 +130,10 @@ def _charge(line, paid, surcharge=0):
     make it a lesser sword, and paying over the odds does not make it a
     better one. Only the credits leaving the bank move.
 
-    ``surcharge`` is what the alternatives chosen on this line add. It
+    ``surcharge`` is what the options picked on this line add. It
     lands on both figures, because a mount with plasma guns is a dearer
     mount and not a discounted one: what was agreed at the table is the
-    gap between the two, and choosing an option never changes it.
+    gap between the two, and picking an option never changes it.
     """
     listed = line.credits + surcharge
     paid = paid + surcharge
@@ -210,23 +210,23 @@ def equip(request, pk):
     nothing. What the gang *owns* is unaffected — see ``_charge``.
 
     A weapon's paid ammo and firing modes are ticked on the weapon's own
-    row and bought with it, in the same operation and onto the same gun.
-    One press, one purchase, however many boxes are ticked: ammo is a way
-    the gun you are buying is built, not a second thing on the list.
-    Ammo for a gun a fighter already owns has no route here yet.
+    listing and bought with it, in the same operation and onto the same
+    gun. One press, one purchase, however many boxes are ticked: ammo is
+    a way the gun you are buying is built, not a second thing on the
+    list. Ammo for a gun a fighter already owns has no route here yet.
 
-    Some things ask a question at the till — a mount that comes with
-    grenade launchers and offers plasma guns for fifteen more. It is
-    answered on the row, in the same press, and the answer travels to the
-    operation as the set to materialise, so what the mount comes with is
-    caused by the purchase and leaves with it. Left unanswered, a pick-one
-    set takes what comes as standard, which is what the row was quoting.
-    What an answer adds lands on the price *and* on the rating: a mount
-    with plasma guns is a dearer mount, not a discounted one.
+    Some things offer a group of options at purchase — a mount that comes
+    with grenade launchers and offers plasma guns for fifteen more. It is
+    picked on the listing, in the same click, and the pick travels to the
+    assignment, so what the mount comes with is caused by the purchase
+    and leaves with it. With nothing picked, a pick-one uses the default,
+    which is what the listing was quoting. What a pick adds lands on the
+    price *and* on the rating: a mount with plasma guns is a dearer
+    mount, not a discounted one.
 
-    Owning something is a *state of its row*. Where the fighter already
-    holds one, the row says so instead of offering another: the count
-    stands where Buy would be and opens the row onto the copies
+    Owning something is a *state of its listing*. Where the fighter
+    already holds one, the listing says so instead of offering another:
+    the count stands where Buy would be and opens it onto the copies
     themselves, each with the things that can happen to it — sold, handed
     on, taken off — and onto the ordinary row underneath them, so buying
     another is still one press. Read off the card this page already
@@ -333,8 +333,8 @@ def equip(request, pk):
             messages.error(request, "That item is not on this list.")
             return redirect(back)
         picked = _parts_picked(request.POST, key, line)
-        answers = _choices_picked(request.POST, key, line)
-        surcharge = sum(option.surcharge for option in answers)
+        picks = _choices_picked(request.POST, key, line)
+        surcharge = sum(option.surcharge for option in picks)
         # Every price the press carries, read and bounded before anything
         # is written: one bad box buys nothing at all, rather than a gun
         # at a good price and its ammo at a refused one.
@@ -350,31 +350,31 @@ def equip(request, pk):
         charge = _charge(line, paid, surcharge)
         try:
             with operation(gang, actor=request.user) as op:
-                # The chosen sets go to the operation, which materialises
+                # The picked sets go to the operation, which materialises
                 # them onto the model caused by this purchase — so selling
-                # the mount takes its guns with it. An unanswered pick-one
-                # set is resolved there too, to the option that comes as
-                # standard.
+                # the mount takes its guns with it. A pick-one set with
+                # nothing picked is resolved there too, to the option that
+                # comes as standard.
                 bought = op.buy(
                     miniature,
                     line=line,
-                    option=[option.default_set for option in answers],
+                    option=[option.default_set for option in picks],
                     **charge,
                 )
                 # Onto the gun, not onto the fighter: a profile belongs to
-                # one particular weapon, and it is the same till either
-                # way, so each part is charged at the price its own row
-                # was showing.
+                # one particular weapon, and it is the same purchase
+                # either way, so each part is charged at the price its own
+                # listing was showing.
                 for part, part_paid in paid_for:
                     op.buy(bought, line=part, **_charge(part, part_paid))
         except Refusal as refusal:
             messages.error(request, str(refusal))
             return redirect(back)
         except ValueError:
-            # Two answers to one exclusive set, or a set this thing does
+            # Two picks in one exclusive set, or a set this thing does
             # not offer — what ``resolve_selection`` refuses and the
-            # indices cannot express. Same answer as a bad index: a broken
-            # link, not a rule to explain.
+            # indices cannot express. Treated the way a bad index is: a
+            # broken link, not a rule to explain.
             raise Http404("No such option") from None
         # The confirmation names what left the bank, because with the
         # prices in the reader's hands the total is no longer something
@@ -394,13 +394,13 @@ def equip(request, pk):
             collection=chosen.name,
             paid=spent,
             parts=len(paid_for),
-            options=len(answers),
+            options=len(picks),
         )
-        # What was chosen is named before what was ticked: an option is a
+        # What was picked is named before what was ticked: an option is a
         # way the thing itself is built, while a paid round is something
         # extra riding along with it.
         extras = [
-            *(option.name for option in answers),
+            *(option.name for option in picks),
             *(part.thing.name for part, _ in paid_for),
         ]
         if extras:
@@ -528,7 +528,7 @@ def equip(request, pk):
             "price_ceiling": max((line.credits for line in lines), default=0),
             "tp_ceiling": max(trade_points, default=0),
             "has_trade_points": bool(trade_points),
-            # The same bound the till enforces, so a browser can say no
+            # The same bound the purchase enforces, so a browser can say no
             # before a press does. The input's max is a courtesy; the
             # check that counts is in the view.
             "price_cap": PRICE_CEILING,

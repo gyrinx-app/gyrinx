@@ -634,7 +634,7 @@ class TestBuyingAManyProfiledGun:
         line = self.gun_line(enforcer_list)
         gun = buy(fighter, line)
         choke = next(part for part in line.parts if "choke" in part.name)
-        # Onto the gun, as the till buys a part: a profile belongs to one
+        # Onto the gun, as a purchase buys a part: a profile belongs to one
         # particular weapon, not to the fighter carrying it.
         with operation(gang, actor=gang.owner) as op:
             op.buy(gun, choke)
@@ -1060,7 +1060,7 @@ class TestTradingPostMembership:
         one per sweep, one for the weapon sweep's nested profiles, four
         use-restriction prefetches for each sweep whose kind can carry
         them (an accessory cannot), one for the wargear sweep's options —
-        the one kind here that can offer alternatives at the till — and
+        the one kind here that can offer alternatives at purchase — and
         one for the entries. Nothing stocked offers any, so the group and
         set rows behind an option are never asked for: an empty level
         ends the chain."""

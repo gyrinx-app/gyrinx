@@ -127,7 +127,8 @@ class HireEntry:
         collection's. The two rows are different offers of the same
         fighter, so the identity a press carries is both halves. Neither
         half is a price: the server looks the entry up and reads the
-        price off it, the same way a shop row submits a line's identity.
+        price off it, the way an equip page's listing submits a line's
+        identity.
         """
         if self.entry is None:
             return str(self.profile.pk)
@@ -451,10 +452,10 @@ def preview_model_card(profile, option=None, base=None):
     would produce, its effects computed, shaped for a renderer.
 
     ``option`` is one set or a list of them, as everywhere a selection is
-    named. A list is the whole configuration — one answer per group,
-    composed — which is what a row following all of its controls asks
+    named. A list is the whole configuration — one pick per group,
+    composed — which is what a listing following all of its controls asks
     for; the per-option cards a list builds are that with one group
-    answered and the rest left at their defaults.
+    picked and the rest left at their defaults.
 
     ``base`` prices it as an offering collection does, so the card behind
     a collection's row carries the same number the row quotes.

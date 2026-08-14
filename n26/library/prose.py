@@ -402,7 +402,7 @@ def _says_offers_choice(effect, parts):
             "an offered choice with no placement behind it has nothing "
             "on it."
         )
-    if effect.answer_host == effect.AnswerHost.GANG:
+    if effect.will_be_assigned_to == effect.WillBeAssignedTo.GANG:
         said += " What is chosen belongs to the gang, not to whoever was asked."
     return said, hint
 

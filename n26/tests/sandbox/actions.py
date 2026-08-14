@@ -125,12 +125,15 @@ def changes_stat(stat, mode="worsen", amount=1):
     return ef_changes_stat(stat, mode=mode, amount=amount)
 
 
-def offers_choice(model, from_section=None, label="", answer_host="bearer"):
+def offers_choice(model, from_section=None, label="", will_be_assigned_to="bearer"):
     """An OffersChoice effect — ``offers_choice(Skill, from_section=primary)``
     for "a skill from a set that is Primary for this fighter".
-    ``answer_host="gang"`` is the Leader-picks-for-the-gang arrow."""
+    ``will_be_assigned_to="gang"`` is the Leader-picks-for-the-gang arrow."""
     return ef_offers_choice(
-        model, from_section=from_section, label=label, answer_host=answer_host
+        model,
+        from_section=from_section,
+        label=label,
+        will_be_assigned_to=will_be_assigned_to,
     )
 
 

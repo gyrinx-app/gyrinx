@@ -1,4 +1,4 @@
-"""Equipping a fighter: the till's contract, server side.
+"""Equipping a fighter: the equip page's contract, server side.
 
 ``browse`` and ``Operation.buy`` have their own tests — these are about
 the wiring: the list draws from a list the fighter can actually browse,
@@ -120,7 +120,7 @@ def test_a_buy_stays_on_the_section_tab_too(client, tester, fighter, house_list)
 
 
 def test_a_thing_not_on_the_list_is_refused(client, tester, gang, fighter, house_list):
-    """The till only accepts lines the browse produced. An off-list
+    """A purchase only accepts lines the browse produced. An off-list
     thing — here a wargear that exists but sits on no list the fighter
     holds — buys nothing, whatever the form says."""
     stray = create_wargear("Contraband", price=5)
@@ -701,10 +701,10 @@ def test_ammo_ticked_on_one_row_does_not_ride_another_press(
 # --- the price is the reader's to set --------------------------------------
 
 
-def test_the_row_quotes_its_price_in_a_box(client, tester, fighter, house_list):
+def test_the_listing_quotes_its_price_in_a_box(client, tester, fighter, house_list):
     """A price a table can change is a box holding the listing's number,
     not a printed figure — and the box the reader types in must be the
-    one the till reads back."""
+    one the purchase reads back."""
     from n26.library.models import Wargear
 
     sword = Wargear.objects.get(name="Sword")
@@ -712,8 +712,8 @@ def test_the_row_quotes_its_price_in_a_box(client, tester, fighter, house_list):
     body = client.get(equip_url(fighter, house_list)).content.decode()
 
     assert f'name="{price_field(sword)}"' in body
-    # The list's own price for the sword, which is what the till will
-    # charge if nobody touches it.
+    # The list's own price for the sword, which is what the purchase
+    # will charge if nobody touches it.
     assert 'value="35"' in body
 
 
@@ -1267,7 +1267,7 @@ def test_a_row_for_something_owned_counts_it_and_still_sells_another(
     """The count stands where Buy was, and Buy moves under it. A reader
     looking at a row for a thing they are carrying is usually asking what
     to do with the one they have — but owning one has never been a reason
-    the shop stops selling it, so the offer is still on the page."""
+    the equip page stops selling it, so the offer is still on the page."""
     from n26.core.listing import PricedRow
     from n26.library.models import Wargear
 
@@ -1295,7 +1295,7 @@ def test_buying_another_from_inside_an_owned_row_buys_one(
     client, tester, gang, fighter, house_list
 ):
     """The nested row is the ordinary row, so its press is the ordinary
-    press: same key, same till, same result as a fighter with none."""
+    press: same key, same purchase, same result as a fighter with none."""
     from n26.library.models import Wargear
 
     knife = Wargear.objects.get(name="Knife")

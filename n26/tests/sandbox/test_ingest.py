@@ -2318,7 +2318,7 @@ class TestTheArchetypeSheet:
         def offers(profile_name):
             profile = Profile.objects.get(name=profile_name)
             return [
-                (modifier.name, modifier.offers_choice.answer_host)
+                (modifier.name, modifier.offers_choice.will_be_assigned_to)
                 for modifier in profile.modifiers.filter(offers_choice__isnull=False)
             ]
 

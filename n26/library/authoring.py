@@ -1353,15 +1353,18 @@ def ef_changes_stat(stat, mode="worsen", amount=1):
     return ChangesStat.objects.create(stat=stat, mode=mode, amount=amount)
 
 
-def ef_offers_choice(model, from_section=None, label="", answer_host="bearer"):
+def ef_offers_choice(model, from_section=None, label="", will_be_assigned_to="bearer"):
     """Puts an open question on the bearer's card —
     ``ef_offers_choice(Skill, from_section=primary)`` for "a skill from a
     set that is Primary for this fighter".
-    ``answer_host="gang"`` is the Leader-picks-for-the-gang arrow."""
+    ``will_be_assigned_to="gang"`` is the Leader-picks-for-the-gang arrow."""
     from n26.library.models import OffersChoice
 
     return OffersChoice.of(
-        model, from_section=from_section, label=label, answer_host=answer_host
+        model,
+        from_section=from_section,
+        label=label,
+        will_be_assigned_to=will_be_assigned_to,
     )
 
 

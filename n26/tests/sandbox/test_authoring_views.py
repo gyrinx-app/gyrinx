@@ -2965,7 +2965,7 @@ class TestTheCollectionPage:
                 "what-model": "affiliation",
                 "what-from_section": str(section.pk),
                 "what-label": "affiliation",
-                "what-answer_host": "bearer",
+                "what-will_be_assigned_to": "bearer",
                 "conditions-TOTAL_FORMS": "0",
                 "conditions-INITIAL_FORMS": "0",
                 "conditions-MIN_NUM_FORMS": "0",

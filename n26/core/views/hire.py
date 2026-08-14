@@ -220,7 +220,7 @@ def _dialog(
     rate_at_paid=True,
 ):
     """What the name dialog draws: who is being hired, at what price, and
-    the hidden fields that carry the row's answer to the next request.
+    the hidden fields that carry the listing's picks to the next request.
 
     ``rate_at_paid`` is the rating box, ticked to begin with: a price typed
     over the quote is usually a statement about what the fighter is worth,
@@ -305,7 +305,7 @@ def hire_card(request, pk, profile):
     whenever they change what the row is set to. ``?option=`` names a set
     the card is taken with and may be repeated — every ticked option
     composes, so the card shows the fighter as configured rather than one
-    group's answer. Without any, the card is the default hire.
+    group's pick. Without any, the card is the default hire.
     ``?entry=`` names the collection row that offered this fighter, whose
     price the card is drawn at — the row's own quote, so the two agree.
 
@@ -410,7 +410,7 @@ def hire_fighter(request, pk):
     def offers():
         """What the collections this gang carries offer, worked out once.
 
-        Both the sections and the check on a pressed offer read this, and
+        Both the sections and the check on a clicked offer read this, and
         it costs a gang card, so the two never build it twice — and a
         scope that draws no collection sections and a press naming no
         entry never build it at all.
@@ -426,7 +426,7 @@ def hire_fighter(request, pk):
         if profile is not None:
             picks = _picks(request.POST, profile, build_hire_entry(profile), key=key)
             if form.is_valid():
-                # The same typed-over price a shop row takes, read the
+                # The same typed-over price an equip page's listing takes, read the
                 # same way: the box's figure is what leaves the bank,
                 # while the quote stays the list price and the rating —
                 # a haggled fighter is not a lesser fighter. Priced
@@ -470,10 +470,10 @@ def hire_fighter(request, pk):
                             paid=paid,
                             list_price=paid if rate_at_paid else quoted,
                             discount=0 if rate_at_paid else quoted - paid,
-                            # Where the money came from, as a shop
-                            # purchase records it: the row that priced
-                            # this hire, or nothing where the catalogue
-                            # did.
+                            # Where the money came from, as an equip-page
+                            # purchase records it: the listing that
+                            # priced this hire, or nothing where the
+                            # catalogue did.
                             bought_from=offer,
                         )
                 except Refusal as refusal:
@@ -527,7 +527,7 @@ def hire_fighter(request, pk):
                 return redirect(back)
             # A name the field will not take. The dialog comes back holding
             # what was typed, with the error under it — the selection is in
-            # the hidden fields, so nothing else has to be re-answered.
+            # the hidden fields, so nothing else has to be picked again.
             dialog = _dialog(
                 request,
                 profile,
@@ -613,7 +613,7 @@ def hire_fighter(request, pk):
             "gang": gang,
             "form": form,
             "dialog": dialog,
-            # The dialog's price box is the shop's control, and the cap
+            # The dialog's price box is the equip page's control, and the cap
             # is the same ceiling every typed price is read against.
             "price_cap": PRICE_CEILING,
             # Both forms post here rather than to the bare route: an

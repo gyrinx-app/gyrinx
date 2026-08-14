@@ -97,7 +97,7 @@ class PricedLine:
     """One line of a collection's listing: the item, and what buying it *here* costs.
 
     A line is a complete purchase — ``Operation.buy`` takes one whole, so
-    nothing is disassembled and reassembled at the till.
+    nothing is disassembled and reassembled when the purchase is made.
     """
 
     thing: object
@@ -108,7 +108,7 @@ class PricedLine:
     #: reference prices, no row anywhere.
     entry: object = None
     #: Whether buying here spends Trade Points. An equipment list never
-    #: charges them; a trading post does. Rides the line so the till
+    #: charges them; a trading post does. Rides the line so the purchase
     #: needs no idea where the line came from.
     charges_trade_points: bool = False
     #: Whether the surface this line came from deals in Trade Points at
@@ -126,10 +126,10 @@ class PricedLine:
     notes: tuple = ()
     #: Nested lines riding this one — a weapon's paid ammo and firing
     #: modes, printed under the gun the way the book's table does. Each
-    #: part is itself a PricedLine, so the till buys one the same way:
+    #: part is itself a PricedLine, so a purchase buys one the same way:
     #: onto the gun's own assignment, which is what a profile hangs off.
     parts: tuple = ()
-    #: The alternatives this line offers at the till — a mount's grenade
+    #: The alternatives this line offers at purchase — a mount's grenade
     #: launchers or, for a surcharge, its plasma guns. Sets that offer no
     #: real choice are left out, so anything here is worth asking about.
     #: Empty for everything that offers none, which is most of a listing.
@@ -176,8 +176,8 @@ def browse(collection, terms=EQUIPMENT_LIST):
     customisation lives (the Nomad post pricing Imperial equipment above
     the usual). Swept-in items are priced at reference. The ``terms``
     are the caller's — how this browse charges is the shopping flow's
-    business, not the collection's — and they ride every line so the till
-    never needs to know where a line came from.
+    business, not the collection's — and they ride every line so the
+    purchase never needs to know where a line came from.
 
     Sweeps respect the terms (a trading trip has no Exclusive items on
     the listing); curated entries always show — they are the author's
@@ -256,7 +256,7 @@ def browse(collection, terms=EQUIPMENT_LIST):
                 )
                 for listed in USABLE_BY_LISTS
             ),
-            # The alternatives a line offers at the till, derived for every
+            # The alternatives a line offers at purchase, derived for every
             # kind that can carry them — so a list of a hundred mounts puts
             # their swaps on screen for the same queries as a list of one.
             *(
@@ -313,8 +313,8 @@ def _offered_choices(thing):
     Sets that are not a choice are left out: a pick-one set with a single
     option is taken unasked, and drawing it would ask a reader to consider
     something they cannot change. What comes back is what a surface draws
-    *and* what the till reads a submitted answer against, so a set missing
-    here is one nothing can name.
+    *and* what the purchase checks the picked option against, so a set
+    missing here is one nothing can name.
     """
     if not isinstance(thing, Optioned):
         return ()
@@ -605,7 +605,7 @@ def offered_by(slot, computed, terms=EQUIPMENT_LIST):
     them") draws the view they already browse: take the section's
     collection, resection it by their placements, and keep that tier. So
     a Leader's pickable skills and the skills they browse are the same
-    list built the same way — the pick is a shop with one section
+    list built the same way — the pick is a collection with one section
     showing, not a second mechanism.
 
     An unnarrowed slot has no collection to browse, so it draws the whole

@@ -1,5 +1,5 @@
 {% comment %}
-<c-n26.hire-dialog> — name the fighter whose Hire was pressed.
+<c-n26.hire-dialog> — name the fighter whose Hire was clicked.
 
     <c-n26.hire-dialog action="/gangs/1/hire/" profile="Ganger" price="55"
                        :choices="choices" :fields="fields"
@@ -8,9 +8,9 @@
     </c-n26.hire-dialog>
 
 The last step of a hire and the only one that asks anything. Which profile and
-which options were answered by the row that was pressed, so they arrive here as
+which options were picked on the listing that was clicked, so they arrive here as
 hidden fields rather than as controls: changing them means going back to the
-row. What is left is a name, and the price the answer adds up to.
+listing. What is left is a name, and the price the picks add up to.
 
 The panel, the promotion and the footer are <c-n26.dialog>, which every
 server-decided dialog in the edition is built from — this is that shell with
@@ -20,9 +20,9 @@ works is documented there.
   action — where the name posts. The hire page itself.
   profile — the profile pressed, named in the title.
   price — what this hire will charge, in credits.
-  choices — the options ticked on the row, listed so a reader can see what they
-    are confirming.
-  fields — the hidden inputs carrying that answer, as {name, value} pairs.
+  choices — the options ticked on the listing, listed so a reader can see what
+    they are confirming.
+  fields — the hidden inputs carrying those picks, as {name, value} pairs.
   cancel_url — where Cancel and a dismissed dialog go: this page with no
     profile named.
   form — the Django form carrying the name field. c-ui.field reads its label,
@@ -55,7 +55,7 @@ works is documented there.
               :modal="modal"
               class="{{ class }}">
     {% comment %}
-    The price is the whole answer the row was configured to, not the advertised
+    The price is everything the listing was configured to, not the advertised
     one — an option ticked upstairs is charged here, so it is named here too.
     A slot rather than an attribute, because a set's name may hold an ampersand
     and an attribute would carry it here already escaped.
@@ -80,7 +80,7 @@ works is documented there.
     </c-ui.field>
 
     {% comment %}
-    The same typed-over price a shop row offers, in the same control: what
+    The same typed-over price an equip page's listing offers, in the same control: what
     is agreed at the table is what leaves the bank, while the quote stays
     the list price and the rating — a haggled fighter is not a lesser
     fighter. The scope holds the pair the include compares.

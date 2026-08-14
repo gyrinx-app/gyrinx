@@ -1819,7 +1819,7 @@ def _plan_archetypes(plan, rows):
                         "kind": "Archetype",
                         "collection": collection_key,
                         "label": "archetype",
-                        "answer_host": host,
+                        "will_be_assigned_to": host,
                     },
                 },
                 source,
@@ -3168,7 +3168,7 @@ class _Performer:
                 apps.get_model("library", offers["kind"]),
                 from_section=section,
                 label=offers["label"],
-                answer_host=offers["answer_host"],
+                will_be_assigned_to=offers["will_be_assigned_to"],
             )
         places = planned.fields["places"]
         return authoring.ef_places(

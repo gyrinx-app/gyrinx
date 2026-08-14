@@ -234,8 +234,9 @@ def learn(request, pk):
     identity — and writes it as the fighter's own, at no charge.
 
     Nothing is removed from the listing: a skill the fighter's Type may
-    not use keeps its place with a note on it, exactly as it does at the
-    till, and a skill they already have is marked rather than hidden.
+    not use keeps its place with a note on it, exactly as it does on the
+    equip page, and a skill they already have is marked rather than
+    hidden.
     The one press refused is a second copy of something they hold — by
     any route, a grant and a settled choice included — because a
     duplicate skill means nothing and a card reading "Marksman,

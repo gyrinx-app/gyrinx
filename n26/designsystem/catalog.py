@@ -1125,7 +1125,7 @@ GROUPS: list[Group] = [
                     "hiding, because a dialog closed in place would leave the "
                     "page on screen while the URL still named what it was "
                     "asking about. It was two copies of that dance before this "
-                    "existed — hiring's and the shop's — which is one copy more "
+                    "existed — hiring's and the equip page's — which is one copy more "
                     "than a promotion this fiddly can survive."
                 ),
             ),
@@ -1142,9 +1142,9 @@ GROUPS: list[Group] = [
                     "c-n26.dialog with hiring's questions in it. What is left "
                     "here is the questions and the fields under them: the "
                     "profile and its options are hidden fields rather than "
-                    "controls, because they were answered by the row that was "
-                    "pressed and the way to change them is to go back to it. "
-                    "The price in the lead is the whole answer the row was "
+                    "controls, because they were picked on the listing that "
+                    "was clicked and the way to change them is to go back to "
+                    "it. The price in the lead is everything the listing was "
                     "configured to and not the advertised one — an option "
                     "ticked upstairs is charged here, so it is named here. "
                     "The box under the price is the edition's one place a "

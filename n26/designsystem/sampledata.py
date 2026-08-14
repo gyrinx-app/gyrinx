@@ -527,7 +527,7 @@ def trading_post_context():
             {"value": name, "label": name} for name in categories
         ],
         "trading_post_in_stash": IN_STASH,
-        # The bound the real till enforces, so the shell's boxes refuse what
+        # The bound the real purchase enforces, so the shell's boxes refuse what
         # the application's boxes refuse.
         "trading_post_price_cap": PRICE_CEILING,
         "trading_post_tabs": _shop_tabs(),
