@@ -239,12 +239,16 @@ class TestTheMasterOfWhispers:
             f"/{said.key[1]}/"
         )
 
-    def test_a_power_says_it_may_answer_the_offered_choice(self, master, whispers):
+    def test_a_power_says_it_may_answer_the_offered_choice(
+        self, master, whispers, primary
+    ):
         whisper = create_power("Crawling Doom", category=whispers)
+        add_entry(primary.collection, whisper)
 
         assert texts(prose_for(whisper).referenced_by) == [
+            "Offered by Skills & Powers free.",
             "May answer the Primary power choice offered by the Master of "
-            "Whispers special rule."
+            "Whispers special rule.",
         ]
 
     def test_a_choice_nothing_offers_yet_is_still_a_way_in(self, whispers):
@@ -573,6 +577,108 @@ class TestWhereAThingIsSold:
 
         assert texts(prose_for(knife).referenced_by) == [
             "Offered by Trading Post free."
+        ]
+
+    def test_a_list_that_both_names_it_and_sweeps_it_speaks_once(self, saw):
+        """The price the shop's own line states is the one a buyer is
+        asked for, so the sweep behind it says nothing further."""
+        from n26.library.models import CollectionSelector, Weapon
+
+        post = create_collection("Trading Post")
+        add_entry(post, saw, price_override=35)
+        CollectionSelector.of(post, Weapon)
+
+        assert texts(prose_for(saw).referenced_by) == [
+            "Offered by Trading Post at 35 credits."
+        ]
+
+    def test_a_different_shop_sweeping_it_in_still_speaks(self, saw):
+        """Only the shop that named it goes quiet: a second shop sweeping
+        the same kind is a route of its own."""
+        from n26.library.models import CollectionSelector, Weapon
+
+        goliath = create_collection("Goliath Equipment List")
+        add_entry(goliath, saw, price_override=35)
+        post = create_collection("Trading Post")
+        CollectionSelector.of(post, Weapon)
+
+        assert texts(prose_for(saw).referenced_by) == [
+            "Offered by Goliath Equipment List at 35 credits.",
+            "Offered by Trading Post at 40 credits, swept in as every weapon.",
+        ]
+
+
+class TestWhatMayAnswerAnOfferedChoice:
+    """A choice drawn from a tier is answered by what that tier's
+    collection holds, and only those things say they may answer it.
+
+    Nothing else can be picked: a narrowed choice offers the collection
+    browsed and resectioned for that model, so a power no collection
+    holds is on nobody's list however many choices of Power exist.
+    """
+
+    @pytest.fixture
+    def whispers(self, default_pack):
+        return create_category(create_section("Wyrd Powers"), "Psychoteric Whispers")
+
+    @pytest.fixture
+    def primary(self, default_pack):
+        return section_of(create_collection("Skills & Powers"), "Primary", 0)
+
+    @pytest.fixture
+    def master(self, primary):
+        from n26.library.models import Power
+
+        rule = create_rule("Master of Whispers")
+        attach_modifiers_to(
+            rule,
+            [
+                modifier(
+                    "Whispers: the founding power",
+                    targets_model(),
+                    ef_offers_choice(Power, from_section=primary),
+                )
+            ],
+        )
+        return rule
+
+    def test_a_power_the_list_neither_names_nor_sweeps_is_no_answer(
+        self, master, whispers
+    ):
+        whisper = create_power("Crawling Doom", category=whispers)
+
+        assert texts(prose_for(whisper).referenced_by) == []
+
+    def test_a_power_the_list_names_may_answer_it(self, master, primary, whispers):
+        whisper = create_power("Crawling Doom", category=whispers)
+        add_entry(primary.collection, whisper)
+
+        assert texts(prose_for(whisper).referenced_by) == [
+            "Offered by Skills & Powers free.",
+            "May answer the Primary power choice offered by the Master of "
+            "Whispers special rule.",
+        ]
+
+    def test_a_power_the_list_sweeps_in_may_answer_it(self, master, primary, whispers):
+        from n26.library.models import CollectionSelector, Power
+
+        whisper = create_power("Crawling Doom", category=whispers)
+        CollectionSelector.of(primary.collection, Power)
+
+        assert texts(prose_for(whisper).referenced_by) == [
+            "Offered by Skills & Powers free, swept in as every power.",
+            "May answer the Primary power choice offered by the Master of "
+            "Whispers special rule.",
+        ]
+
+    def test_a_power_on_another_list_entirely_is_no_answer(self, master, whispers):
+        """Being sold somewhere is not being in the tier the choice draws
+        from — the offer names one collection's section, not the world."""
+        whisper = create_power("Crawling Doom", category=whispers)
+        add_entry(create_collection("Wyrd Compendium"), whisper)
+
+        assert texts(prose_for(whisper).referenced_by) == [
+            "Offered by Wyrd Compendium free."
         ]
 
 

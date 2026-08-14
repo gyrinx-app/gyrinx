@@ -720,11 +720,12 @@ def _modifier_of(row):
 class _Edges:
     """Every edge into a thing, read once and shared by the sentences.
 
-    Three sweeps, each batched and each a fixed number of queries: what
-    names the thing, what holds the sets it is built into, and what
-    carries the modifiers naming it. Gathered here rather than by each
-    sentence, because a sentence that fetched its own subject would
-    charge the page once per route it found.
+    Four sweeps, each batched and each a fixed number of queries: what
+    names the thing, what holds the sets it is built into, what carries
+    the modifiers naming it, and which collections sweep its kind in.
+    Gathered here rather than by each sentence, because a sentence that
+    fetched its own subject would charge the page once per route it
+    found.
     """
 
     thing: object
@@ -736,6 +737,8 @@ class _Edges:
     carriers: dict
     #: The offered choices its kind could answer.
     offers: tuple
+    #: The sweeps that catch the thing without naming it.
+    swept: tuple = ()
 
 
 def _edges_into(thing):
@@ -763,7 +766,30 @@ def _edges_into(thing):
         holders=holders,
         carriers=_carriers_of(wanted),
         offers=offers,
+        swept=_sweeps_catching(thing),
     )
+
+
+def _sweeps_catching(thing):
+    """The sweeps of the thing's kind that actually catch it.
+
+    A sweep says a kind and a narrowing rather than a row, so nothing
+    points at the thing and there is no edge to read — the sweeps of its
+    kind are fetched and asked in memory, exactly as a browse asks them.
+    Read here rather than where a sentence wants them, because two
+    readers want the same answer: what offers the thing, and which
+    offered choices it is genuinely one of the answers to.
+    """
+    from django.contrib.contenttypes.models import ContentType
+
+    from n26.core import select
+    from n26.library.models import CollectionSelector
+
+    sweeps = CollectionSelector.objects.filter(
+        of_kind=ContentType.objects.get_for_model(type(thing))
+    ).select_related("collection", "category")
+    target = select.matchable(thing)
+    return tuple(sweep for sweep in sweeps if sweep.as_selector().matches(target))
 
 
 def _sets_holding(references):
@@ -1004,16 +1030,41 @@ def _brought(edges):
     return said
 
 
+def _entries_naming(edges):
+    """The entries that list the thing — the rows that put it on a shop.
+
+    Gated to the columns that mean listing: an entry's usable-by columns
+    name the fighters a line is for, and a line about somebody is not a
+    line offering them.
+    """
+    from n26.library.models.collection import ENTRY_ASSIGNABLE_FIELDS
+
+    return tuple(
+        reference.row
+        for reference in of_kind(edges.references, "library.collectionentry")
+        if reference.field in ENTRY_ASSIGNABLE_FIELDS
+    )
+
+
+def _collections_holding(edges):
+    """Every collection the thing is in, by identity.
+
+    A collection holds a thing two ways and no others: an entry names
+    it, or one of the collection's sweeps catches it.
+    """
+    held = {entry.collection_id for entry in _entries_naming(edges)}
+    held.update(sweep.collection_id for sweep in edges.swept)
+    return held
+
+
 def _offered(edges):
     """The shops: a list that names it, and a sweep that catches it."""
-    from n26.library.models.collection import ENTRY_ASSIGNABLE_FIELDS, price_of
+    from n26.library.models.collection import price_of
 
     thing = edges.thing
-    said = []
-    for reference in of_kind(edges.references, "library.collectionentry"):
-        if reference.field not in ENTRY_ASSIGNABLE_FIELDS:
-            continue
-        entry = reference.row
+    said, listed = [], set()
+    for entry in _entries_naming(edges):
+        listed.add(entry.collection_id)
         # Priced against the thing in hand rather than through the
         # entry's own pointer back to it: the row is already loaded, and
         # asking the entry would fetch it again for every list that
@@ -1037,27 +1088,20 @@ def _offered(edges):
                 key=_identity(entry.collection),
             )
         )
-    said.extend(_swept(thing))
+    said.extend(_swept(thing, edges.swept, listed))
     return said
 
 
-def _swept(thing):
+def _swept(thing, sweeps, listed):
     """Collections that sweep the thing in without naming it.
 
-    A sweep says a kind and a narrowing rather than a row, so nothing
-    points at the thing and there is no edge to read — the sweeps of its
-    kind are fetched and asked in memory, exactly as a browse asks them.
+    A collection that does both speaks once, in its entry's voice: an
+    entry wins over a sweep for the same item, so the sweep's reference
+    price is not what the reader would be asked for, and two "Offered
+    by" sentences from one shop at two prices tell them nothing true.
     """
-    from django.contrib.contenttypes.models import ContentType
-
-    from n26.core import select
-    from n26.library.models import CollectionSelector
     from n26.library.models.collection import price_of
 
-    sweeps = CollectionSelector.objects.filter(
-        of_kind=ContentType.objects.get_for_model(type(thing))
-    ).select_related("collection", "category")
-    target = select.matchable(thing)
     return [
         Sentence(
             text=(
@@ -1072,7 +1116,7 @@ def _swept(thing):
             key=_identity(sweep.collection),
         )
         for sweep in sweeps
-        if sweep.as_selector().matches(target)
+        if sweep.collection_id not in listed
     ]
 
 
@@ -1081,9 +1125,21 @@ def _answerable(edges):
 
     An offer names a kind, not a row, so nothing points at the thing:
     every choice of its kind is a way somebody could come to have it.
+
+    An offer drawing from a section is narrower than its kind, though.
+    What a player is shown there is what the section's collection holds,
+    resectioned for their model — so a thing that collection neither
+    lists nor sweeps in is no answer to that choice, whatever kind it
+    is, and saying it may answer would offer a route nobody can take.
     """
+    holding = _collections_holding(edges)
     said = []
     for offer in edges.offers:
+        if (
+            offer.from_section_id is not None
+            and offer.from_section.collection_id not in holding
+        ):
+            continue
         hint = (
             "The offered choice is on the card while the thing offering it "
             "is, and this is one of the answers it takes."

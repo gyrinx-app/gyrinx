@@ -4207,6 +4207,26 @@ class TestAModifiersOwnPage:
         assert here.modifiers.count() == 0
         assert list(other.modifiers.all()) == [made]
 
+    def test_the_page_says_what_the_modifier_does(self, shared, client):
+        """The same sentence the carriers' own pages show, on the page
+        that edits it: an author correcting a modifier is reading what it
+        says, and the scope-and-effect line above is the shorthand."""
+        made, _ = shared
+        body = client.get(f"/n26/authoring/modifiers/{made.pk}/").content.decode()
+
+        assert "What it does" in body
+        assert "They gain the Mounted subtype, while they have it." in body
+
+    def test_it_does_not_say_the_carriers_a_second_time(self, shared, client):
+        """The carriers are a table further up, with their kinds and a
+        link each. The about column's sentences would say less of the
+        same thing beside it, so that run is left off."""
+        made, _ = shared
+        body = client.get(f"/n26/authoring/modifiers/{made.pk}/").content.decode()
+
+        assert "Referenced by" not in body
+        assert "Carried by the Beast Handler special rule." not in body
+
     def test_more_carriers_do_not_mean_more_queries(
         self, mounted, client, default_pack, django_assert_num_queries
     ):

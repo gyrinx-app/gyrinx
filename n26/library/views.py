@@ -16,6 +16,7 @@ The composer and the preview pane hang off this same skeleton later
 import inspect
 import re
 from collections import Counter
+from dataclasses import replace
 
 from django import forms
 from django.contrib import messages
@@ -2092,6 +2093,19 @@ def _carriers_said(count):
     return f"{count} things carry this modifier"
 
 
+def _what_it_does(modifier):
+    """The about column for a modifier: its sentence, and nothing else.
+
+    The compiler also says who carries it, and this page drops that run:
+    the carriers are a table further up, with their kinds, their author
+    help and a link each, and the same fact said twice in two shapes is
+    the weaker one being read.
+    """
+    from n26.library.prose import prose_for
+
+    return _prose_addresses(replace(prose_for(modifier), referenced_by=()))
+
+
 def _modifier_or_404(pk):
     """One modifier with everything its sentence reads already loaded."""
     from n26.library.models import Modifier
@@ -2165,6 +2179,7 @@ def modifier_page(request, pk):
         {
             "thing": modifier,
             "sentence": f"{modifier.scope}: {modifier.effect}",
+            "prose": _what_it_does(modifier),
             "carriers": carriers,
             "carrier_count": len(carriers),
             "carrier_said": _carriers_said(len(carriers)),
