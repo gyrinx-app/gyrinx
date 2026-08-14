@@ -218,6 +218,10 @@ DETAIL_KINDS = {
         "statline": True,
         "describe": _describe_weapon_profile,
         "parts_hint": _weapon_parts,
+        # Where a row's name leads. A firing line is corrected on a page
+        # of its own: its stats are a form of their own and its traits a
+        # set, neither of which fits in a listing row.
+        "opens": "authoring-weapon-profile",
     },
     "statline-type": {
         "verb": "add_stat_to_statline_type",
@@ -1010,6 +1014,10 @@ def _prose_addresses(prose):
         label, pk = sentence.key
         if label == "library.modifier":
             return sentence.at(reverse("authoring-modifier", args=[pk]))
+        # A firing line is a part of its weapon rather than a kind, so
+        # its page is not one of the kind pages the slugs cover.
+        if label == "library.weaponprofile":
+            return sentence.at(reverse("authoring-weapon-profile", args=[pk]))
         if label in slugs:
             return sentence.at(reverse("authoring-detail", args=[slugs[label], pk]))
         return sentence
@@ -1123,6 +1131,7 @@ def detail(request, kind, pk):
             form = form_class(carrier=thing)
             statline_form = statline_class() if statline_class else None
         removes = section.get("removes")
+        opens = section.get("opens")
         parts = []
         for part in section.get("parts_hint", lambda parts: parts)(
             getattr(thing, section["parts"]).all()
@@ -1132,6 +1141,9 @@ def detail(request, kind, pk):
                 {
                     "label": label,
                     "notes": notes,
+                    # Blank for a kind whose parts have no page of their
+                    # own; the row's name is then plain words.
+                    "href": reverse(opens, args=[part.pk]) if opens else "",
                     # Blank for a kind whose parts cannot be taken off
                     # here; the row simply draws no control.
                     "remove_url": reverse(removes, args=[part.pk]) if removes else "",
@@ -1232,6 +1244,88 @@ def _modifier_action(request, kind, thing, act):
     else:
         raise Http404(f"No such action: {act}")
     return redirect("authoring-detail", kind=kind, pk=thing.pk), None
+
+
+@staff_member_required
+def weapon_profile(request, pk):
+    """One firing line, on a page of its own.
+
+    A weapon's page lists its lines and adds new ones; correcting one
+    happens here, where there is room for the whole of it — the name and
+    the price, the characteristics in their own boxes, and the traits as
+    a set. The form is the spec-generated one that *adds* a line, opened
+    on a line that already exists, so the two cannot come to ask for
+    different things.
+
+    Editing means something different by an empty box than adding does,
+    so the characteristics are written with every value the form drew,
+    blanks included: a line whose Strength was typed by mistake can be
+    emptied again.
+    """
+    from n26.library.models import WeaponProfile
+    from n26.library.prose import prose_for
+
+    profile = get_object_or_404(WeaponProfile.objects.select_related("weapon"), pk=pk)
+    spec = specs()["add_weapon_profile"]
+    edit_class = generate_form(spec)
+    statline_class = _statline_editor_for(profile)
+
+    if request.method == "POST":
+        edit_form = edit_class.opened_on(profile, request.POST, request.FILES)
+        statline_edit = (
+            statline_class.opened_on(profile, request.POST) if statline_class else None
+        )
+        if edit_form.is_valid() and (statline_edit is None or statline_edit.is_valid()):
+            try:
+                with transaction.atomic():
+                    edit_form.apply_to(profile)
+                    if statline_edit is not None:
+                        statline_edit.save_every_value(profile)
+            except IntegrityError as refused:
+                # Two constraints can refuse this form, and each is said
+                # on the box the author was typing in. A weapon has one
+                # line that *is* the weapon, so a second line cannot be
+                # left nameless; and exclusive means never offered at
+                # the Trading Post, so an exclusive line cannot also
+                # carry a Trade Point price.
+                if "exclusive_has_no_tp" in str(refused):
+                    edit_form.add_error(
+                        "trade_point_price",
+                        "An exclusive item is never offered at the Trading "
+                        "Post, so it cannot carry a Trade Point price. "
+                        "Clear one or the other.",
+                    )
+                else:
+                    edit_form.add_error(
+                        spec.identity,
+                        "This weapon already has its own unnamed line. "
+                        "Give this profile a name.",
+                    )
+            else:
+                messages.success(request, f"Saved {profile}.")
+                return redirect("authoring-weapon-profile", pk=pk)
+    else:
+        edit_form = edit_class.opened_on(profile)
+        statline_edit = statline_class.opened_on(profile) if statline_class else None
+
+    return render(
+        request,
+        "authoring/weapon_profile.html",
+        {
+            # The bar stands in Weapons: a firing line has no listing of
+            # its own, and the weapon is where its reader came from.
+            "kind": "weapon",
+            "thing": profile,
+            "label": _label_for(profile),
+            "weapon": profile.weapon,
+            "weapons_plural": str(profile.weapon._meta.verbose_name_plural),
+            "verbose_name": str(WeaponProfile._meta.verbose_name),
+            "verbose_name_plural": str(WeaponProfile._meta.verbose_name_plural),
+            "edit_form": edit_form,
+            "statline_cells": statline_edit.cells() if statline_edit else None,
+            "prose": _prose_addresses(prose_for(profile)),
+        },
+    )
 
 
 def _back_to(holders):

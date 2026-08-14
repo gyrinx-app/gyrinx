@@ -1,6 +1,6 @@
 """What the authoring pages offer as a way out of themselves.
 
-Two switchers, both built here rather than added to nine view contexts:
+Three switchers, all built here rather than added to nine view contexts:
 every authoring page draws the same bar and none of them differ in what it
 should hold. Tags rather than a context processor for the reason the
 drawer's gang list is one — the query, where there is one, runs only on the
@@ -116,4 +116,46 @@ def siblings_switcher(kind, thing):
         items=with_current(
             [item(row) for row in _rows(model, kind)[:NAV_SIBLINGS]], item(thing)
         ),
+    )
+
+
+@register.simple_tag
+def weapon_profiles_switcher(profile):
+    """The other firing lines of one weapon, from the page of one of them.
+
+    The same shortcut the kind pages offer over their rows, over the set
+    that means something here: a gun's lines are read against each other
+    — the standard shot, then what each ammo type changes — and the
+    weapon's own page is the way back to all of them.
+
+    Ordered by position, which is the order the book's table prints, and
+    capped like every other switcher; the weapon's page lists them all.
+    """
+    from django.urls import reverse
+
+    from n26.core.navigation import (
+        NAV_SIBLINGS,
+        Switcher,
+        SwitcherItem,
+        with_current,
+    )
+    from n26.library.models import WeaponProfile
+    from n26.library.views import _label_for
+
+    plural = str(WeaponProfile._meta.verbose_name_plural)
+
+    def item(line):
+        return SwitcherItem(
+            label=_label_for(line),
+            href=reverse("authoring-weapon-profile", args=[line.pk]),
+            current=line.pk == profile.pk,
+        )
+
+    lines = profile.weapon.profiles.order_by("position")[:NAV_SIBLINGS]
+    return Switcher(
+        heading=plural.capitalize(),
+        menu_label=f"Switch to another {WeaponProfile._meta.verbose_name}",
+        placeholder=f"Search {plural}",
+        empty=f"No {plural} match",
+        items=with_current([item(line) for line in lines], item(profile)),
     )

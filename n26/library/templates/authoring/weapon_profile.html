@@ -1,0 +1,94 @@
+{% extends "authoring/base.html" %}
+{% load authoring_nav %}
+{% block head_title %}
+    {{ label }}
+{% endblock head_title %}
+{% comment %}
+No nav_heading: the bar says where you are standing — Weapons, carried
+by its switcher's leading link — and the line being corrected is the
+page heading's to name.
+{% endcomment %}
+{% block content %}
+    <c-n26.page-header title="{{ label }}">
+        {% comment %}
+        The gun's other lines, for the reason a kind's page offers its
+        other rows: a firing line is read against the ones above it.
+        {% endcomment %}
+        <c-slot name="trailing">
+            {% weapon_profiles_switcher thing as siblings_ %}
+            <c-n26.quick-switcher.of :switcher="siblings_" hotkey="r" />
+        </c-slot>
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Content library</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-leaf' 'weapon' %}">
+                    {{ weapons_plural|capfirst }}
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-detail' 'weapon' weapon.pk %}">
+                    {{ weapon }}
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    {{ label }}
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+    </c-n26.page-header>
+    {% comment %}
+    Two columns on a wide screen, as the kind pages have: the form, and
+    beside it what this line does and how anyone comes to have it, in
+    sentences (n26.library.prose). On anything narrower the column
+    follows at the end — an author who opened this came to correct
+    something, and the explanation should not cost them a screen first.
+    {% endcomment %}
+    <div class="mt-2 grid items-start gap-8 xl:grid-cols-[minmax(0,1fr)_20rem]">
+        <div class="min-w-0">
+            {% if thing.library_author_help %}
+                <c-n26.prose class="mt-3 max-w-2xl">
+                    <p>{{ thing.library_author_help }}</p>
+                </c-n26.prose>
+            {% endif %}
+            <c-n26.form-section title="This {{ verbose_name }}" class="mt-8">
+                {% comment %}
+                The width sits on the fields rather than on the form, because a
+                statline is wider than a column of inputs wants to be: the
+                characteristics do not fit beside a name and a price, and boxed
+                into that width they would be a scrolling strip on a desktop.
+                {% endcomment %}
+                <form method="post"
+                      {% if edit_form.is_multipart %}enctype="multipart/form-data"{% endif %}
+                      class="space-y-5">
+                    {% csrf_token %}
+                    <div class="max-w-xl space-y-5">{% include "authoring/_form.html" with form=edit_form %}</div>
+                    {% if statline_cells %}
+                        <c-n26.form-section title="{{ thing.statline_type }}"
+                                            description="An empty box is a characteristic this {{ verbose_name }} does not have; a card prints it as a dash."
+                                            class="rounded-box border border-box-border p-4">
+                            <c-n26.statline.edit :cells="statline_cells" />
+                        </c-n26.form-section>
+                    {% else %}
+                        <c-ui.description>
+                            {{ weapon }} has no statline shape set, so its {{ verbose_name_plural }} carry no stats.
+                        </c-ui.description>
+                    {% endif %}
+                    {# No way out: this form is the whole of the page it is on, so #}
+                    {# there is nowhere for a cancel to lead that is not here. #}
+                    <div class="max-w-xl">
+                        <c-n26.form-actions submit_label="Save changes" />
+                    </div>
+                </form>
+                {% comment %}
+                A line is taken off from the weapon's own page, where the
+                rest of them are: what removing one means is read against
+                the lines it leaves behind, not from inside one of them.
+                {% endcomment %}
+                <div class="mt-4">
+                    <c-n26.link href="{% url 'authoring-detail' 'weapon' weapon.pk %}"
+                                class="text-sm">
+                        Back to {{ weapon }}
+                    </c-n26.link>
+                </div>
+            </c-n26.form-section>
+        </div>
+        <c-n26.about :prose="prose" class="xl:sticky xl:top-24" />
+    </div>
+{% endblock content %}

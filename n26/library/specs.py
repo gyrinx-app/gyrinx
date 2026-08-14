@@ -827,6 +827,12 @@ def _build_registry():
             authoring.add_weapon_profile,
             {
                 "name": Text(source=(WeaponProfile, "name")),
+                # Beside the name, because the two are one answer: a
+                # named line prints "Warp round (Autogun)", and the
+                # bracket is this. Left blank on a new line the verb
+                # fills in the weapon's name, which is what the book
+                # prints.
+                "annotation": Text(source=(WeaponProfile, "annotation")),
                 "price": Int(source=(WeaponProfile, "price")),
                 "trade_point_price": Int(source=(WeaponProfile, "trade_point_price")),
                 "is_exclusive": Bool(source=(WeaponProfile, "is_exclusive")),

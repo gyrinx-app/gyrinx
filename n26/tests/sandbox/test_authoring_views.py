@@ -1445,6 +1445,7 @@ class TestAWeaponsOwnLine:
         cannot check it — and an unnamed line must not read as a row
         with a missing name."""
         from n26.library.authoring import create_trait
+        from n26.library.models import WeaponProfile
 
         autogun = self.make_autogun(client, weapon_statline_type)
         rapid_fire = create_trait("Rapid Fire", "1")
@@ -1461,12 +1462,15 @@ class TestAWeaponsOwnLine:
         )
 
         body = client.get(f"/n26/authoring/weapon/{autogun.pk}/").content.decode()
+        # The row is found by where its name leads, the name itself being
+        # a link to the line's own page.
+        line = WeaponProfile.objects.get(weapon=autogun)
+        opens = f'href="/n26/authoring/weapon-profiles/{line.pk}/"'
+        assert opens in body
+        row = body.split(opens, 1)[1].split("</tr>", 1)[0]
         # Labelled with the weapon and saying why — never a blank cell,
         # which would read as a name someone forgot.
-        assert '<td class="whitespace-nowrap">Autogun</td>' in body
-        row = body.split('<td class="whitespace-nowrap">Autogun</td>', 1)[1].split(
-            "</tr>", 1
-        )[0]
+        assert "Autogun" in row
         assert "own line" in row  # apostrophe is escaped in the markup
         assert "SR 8&quot;" in row  # the stats, as they will print
         assert "LR 24&quot;" in row
@@ -1491,10 +1495,14 @@ class TestAWeaponsOwnLine:
         # The row itself, not the field help — which also mentions the
         # weapon's own line, since that is what leaving the name blank
         # means.
-        assert '<td class="whitespace-nowrap">Warp round</td>' in body
-        row = body.split('<td class="whitespace-nowrap">Warp round</td>', 1)[1]
-        assert "+10cr" in row.split("</tr>", 1)[0]
-        assert "own line" not in row.split("</tr>", 1)[0]
+        from n26.library.models import WeaponProfile
+
+        line = WeaponProfile.objects.get(weapon=autogun)
+        opens = f'href="/n26/authoring/weapon-profiles/{line.pk}/"'
+        row = body.split(opens, 1)[1].split("</tr>", 1)[0]
+        assert "Warp round" in row
+        assert "+10cr" in row
+        assert "own line" not in row
 
     def test_named_and_unnamed_lines_read_as_the_book_prints_them(
         self,
@@ -1575,6 +1583,251 @@ class TestAWeaponsOwnLine:
         assert named.startswith("- Warp round (+10cr)")
         assert "Cursed" in named
         assert "(Autogun)" not in named
+
+
+class TestCorrectingAFiringLine:
+    """A firing line is corrected on a page of its own, reached from the
+    weapon's. The row on the weapon's page says what the line is; putting
+    the whole of it — the stats in their boxes, the traits as a set —
+    into that row would leave nowhere to read the weapon."""
+
+    def make_autogun(self, client, weapon_statline_type):
+        client.post(
+            "/n26/authoring/weapon/new/",
+            {
+                "name": "Autogun",
+                "slots": "1",
+                "statline_type": str(weapon_statline_type.pk),
+                "price": "20",
+                "trade_point_price": "0",
+            },
+        )
+        from n26.library.models import Weapon
+
+        return Weapon.objects.get(name="Autogun")
+
+    def add_line(self, client, weapon, **payload):
+        """One firing line, added the way an author adds one."""
+        from n26.library.models import WeaponProfile
+
+        client.post(
+            f"/n26/authoring/weapon/{weapon.pk}/",
+            {"price": "0", "trade_point_price": "0", **payload},
+        )
+        return WeaponProfile.objects.get(weapon=weapon, name=payload.get("name", ""))
+
+    def test_the_weapon_page_leads_to_each_lines_own_page(
+        self, author, client, default_pack, weapon_statline_type
+    ):
+        autogun = self.make_autogun(client, weapon_statline_type)
+        own = self.add_line(client, autogun)
+        warp = self.add_line(client, autogun, name="Warp round", price="10")
+
+        body = client.get(f"/n26/authoring/weapon/{autogun.pk}/").content.decode()
+
+        assert f'href="/n26/authoring/weapon-profiles/{own.pk}/"' in body
+        assert f'href="/n26/authoring/weapon-profiles/{warp.pk}/"' in body
+
+    def test_the_page_opens_the_form_on_what_is_there(
+        self, author, client, default_pack, weapon_statline_type
+    ):
+        autogun = self.make_autogun(client, weapon_statline_type)
+        warp = self.add_line(
+            client, autogun, name="Warp round", price="10", short_range="8"
+        )
+
+        body = client.get(f"/n26/authoring/weapon-profiles/{warp.pk}/").content.decode()
+
+        assert 'value="Warp round"' in body
+        assert re.search(r'name="edit-price"[^>]*value="10"', body)
+        assert re.search(r'name="statline-short_range"[^>]*value="8&quot;"', body)
+        # The way back to the rest of the gun's lines.
+        assert f'href="/n26/authoring/weapon/{autogun.pk}/"' in body
+
+    def test_a_change_to_the_name_and_the_price_is_saved(
+        self, author, client, default_pack, weapon_statline_type
+    ):
+        autogun = self.make_autogun(client, weapon_statline_type)
+        warp = self.add_line(client, autogun, name="Warp round", price="10")
+
+        response = client.post(
+            f"/n26/authoring/weapon-profiles/{warp.pk}/",
+            {"edit-name": "Warp shell", "edit-price": "12"},
+        )
+        assert response.status_code == 302
+
+        warp.refresh_from_db()
+        assert (warp.name, warp.price) == ("Warp shell", 12)
+
+        body = client.get(response["Location"]).content.decode()
+        assert 'value="Warp shell"' in body
+        assert re.search(r'name="edit-price"[^>]*value="12"', body)
+
+    def test_the_characteristics_are_rewritten_and_one_can_be_emptied(
+        self, author, client, default_pack, weapon_statline_type
+    ):
+        """An author who typed a Strength into the wrong box must be able
+        to empty it again. Adding a line means nothing by a blank box;
+        correcting one means "this line has no such characteristic"."""
+        autogun = self.make_autogun(client, weapon_statline_type)
+        own = self.add_line(
+            client, autogun, short_range="8", long_range="24", strength="3"
+        )
+
+        client.post(
+            f"/n26/authoring/weapon-profiles/{own.pk}/",
+            {
+                "edit-price": "0",
+                "statline-short_range": "6",
+                "statline-long_range": "18",
+                "statline-strength": "",
+            },
+        )
+
+        own.refresh_from_db()
+        values = {
+            stat.statline_type_stat.short_name: stat.value
+            for stat in own.statline.stats.all()
+        }
+        # Stored as the stat says it reads — an author types 6 for a
+        # range and it lands as 6".
+        assert values["SR"] == '6"'
+        assert values["LR"] == '18"'
+        assert values["Str"] == ""
+
+    def test_the_traits_typed_are_the_traits_it_has(
+        self, author, client, default_pack, weapon_statline_type
+    ):
+        """A set is replaced, never added to: a line corrected from Rapid
+        Fire (1) to Rapid Fire (2) would otherwise print both for good."""
+        from n26.library.authoring import create_trait
+
+        autogun = self.make_autogun(client, weapon_statline_type)
+        once = create_trait("Rapid Fire", "1")
+        twice = create_trait("Rapid Fire", "2")
+        own = self.add_line(client, autogun, traits=[str(once.pk)])
+        assert own.trait_names == ["Rapid Fire (1)"]
+
+        client.post(
+            f"/n26/authoring/weapon-profiles/{own.pk}/",
+            {"edit-price": "0", "edit-traits": [str(twice.pk)]},
+        )
+
+        assert own.trait_names == ["Rapid Fire (2)"]
+
+    def test_the_bracket_a_named_line_prints_can_be_corrected(
+        self, author, client, default_pack, weapon_statline_type
+    ):
+        """A line added under a weapon takes the weapon's name as its
+        bracket. An ingest that got that wrong is fixed here, without
+        anyone touching the weapon."""
+        autogun = self.make_autogun(client, weapon_statline_type)
+        warp = self.add_line(client, autogun, name="Warp round", price="10")
+        assert warp.annotation == "Autogun"
+
+        client.post(
+            f"/n26/authoring/weapon-profiles/{warp.pk}/",
+            {
+                "edit-name": "Warp round",
+                "edit-annotation": "Autogun, hot-shot",
+                "edit-price": "10",
+            },
+        )
+
+        warp.refresh_from_db()
+        assert warp.annotation == "Autogun, hot-shot"
+        assert str(warp) == "Warp round (Autogun, hot-shot)"
+
+    def test_a_second_nameless_line_is_refused_in_words(
+        self, author, client, default_pack, weapon_statline_type
+    ):
+        """A weapon has one line that *is* the weapon. Emptying a second
+        line's name would print the gun twice with no way to tell them
+        apart, so the page says so rather than falling over."""
+        autogun = self.make_autogun(client, weapon_statline_type)
+        self.add_line(client, autogun)
+        warp = self.add_line(client, autogun, name="Warp round", price="10")
+
+        response = client.post(
+            f"/n26/authoring/weapon-profiles/{warp.pk}/",
+            {"edit-name": "", "edit-price": "10"},
+        )
+
+        assert response.status_code == 200  # back on the page, not a 500
+        assert (
+            "This weapon already has its own unnamed line" in response.content.decode()
+        )
+        warp.refresh_from_db()
+        assert warp.name == "Warp round"  # and nothing was written
+
+    def test_an_exclusive_line_with_a_trade_point_price_is_refused_in_words(
+        self, author, client, default_pack, weapon_statline_type
+    ):
+        """Exclusive means never offered at the Trading Post, and a Trade
+        Point price means offered there — the database refuses the pair,
+        and the page must say which pair it was, not blame the name."""
+        autogun = self.make_autogun(client, weapon_statline_type)
+        warp = self.add_line(client, autogun, name="Warp round", price="10")
+
+        response = client.post(
+            f"/n26/authoring/weapon-profiles/{warp.pk}/",
+            {
+                "edit-name": "Warp round",
+                "edit-price": "10",
+                "edit-trade_point_price": "2",
+                "edit-is_exclusive": "on",
+            },
+        )
+
+        assert response.status_code == 200
+        body = response.content.decode()
+        assert "never offered at the Trading Post" in body
+        assert "unnamed line" not in body
+        warp.refresh_from_db()
+        assert warp.is_exclusive is False
+        assert warp.trade_point_price == 0
+
+    def test_the_page_offers_the_guns_other_lines(
+        self, author, client, default_pack, weapon_statline_type
+    ):
+        autogun = self.make_autogun(client, weapon_statline_type)
+        own = self.add_line(client, autogun)
+        warp = self.add_line(client, autogun, name="Warp round", price="10")
+
+        body = client.get(f"/n26/authoring/weapon-profiles/{own.pk}/").content.decode()
+
+        assert f"/n26/authoring/weapon-profiles/{warp.pk}/" in body
+        assert "Warp round (Autogun)" in body
+
+    def test_an_unknown_line_is_a_404(self, author, client, default_pack):
+        import uuid
+
+        assert (
+            client.get(f"/n26/authoring/weapon-profiles/{uuid.uuid4()}/").status_code
+            == 404
+        )
+
+
+class TestTheFiringLinePageIsStaffed:
+    """The same door the weapon's own page has: staff, or the sign-in
+    page — whoever you are already signed in as."""
+
+    @pytest.fixture
+    def line(self, default_pack):
+        from n26.library.authoring import add_weapon_profile, create_weapon
+
+        return add_weapon_profile(create_weapon("Autogun", price=20))
+
+    def test_a_stranger_is_sent_to_log_in(self, client, line):
+        response = client.get(f"/n26/authoring/weapon-profiles/{line.pk}/")
+        assert response.status_code == 302
+        assert "login" in response["Location"]
+
+    def test_a_plain_user_is_not_staff(self, client, line):
+        client.force_login(User.objects.create_user("player"))
+        response = client.get(f"/n26/authoring/weapon-profiles/{line.pk}/")
+        assert response.status_code == 302
+        assert "login" in response["Location"]
 
 
 class TestListingsSayWhatARowIs:

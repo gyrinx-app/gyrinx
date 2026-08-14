@@ -116,8 +116,22 @@ thing twice, a line apart.
                                 nowrap, because the notes cell's w-full
                                 otherwise squeezes this one to a word a
                                 line — and the name is what the row is.
+
+                                The name leads to the part's own page
+                                where it has one, which is where the
+                                part is corrected. A part with nowhere
+                                to go reads as plain words rather than
+                                as a control that does nothing.
                                         {% endcomment %}
-                                        <td class="whitespace-nowrap">{{ part.label }}</td>
+                                        <td class="whitespace-nowrap">
+                                            {% if part.href %}
+                                                <c-n26.link href="{{ part.href }}">
+                                                    {{ part.label }}
+                                                </c-n26.link>
+                                            {% else %}
+                                                {{ part.label }}
+                                            {% endif %}
+                                        </td>
                                         {% comment %}
                                 Removing is a question asked at its own address, not an
                                 act done from here: what it means depends on what else
