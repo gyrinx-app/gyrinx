@@ -72,10 +72,11 @@ twice in a row.
                         <tr x-data="{ haystack: '{{ row.search|escapejs }}' }"
                             x-init="register(haystack)"
                             :hidden="!matches(haystack)">
-                            <td class="whitespace-nowrap">
-                                <c-n26.link href="{% url 'authoring-detail' kind row.pk %}">{{ row.label }}</c-n26.link>
+                            {% include "authoring/_name_cell.html" with row=row %}
+                            {# The author's own note reads as one more thing the row says about itself. #}
+                            <td class="w-full text-muted">
+                                {{ row.notes|join:" · " }}{% if row.notes and row.help %} · {% endif %}{{ row.help }}
                             </td>
-                            <td class="w-full text-muted">{{ row.notes|join:" · " }}</td>
                         </tr>
                     {% endfor %}
                 </tbody>

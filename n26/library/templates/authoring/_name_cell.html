@@ -1,0 +1,23 @@
+{% comment %}
+The cell naming one piece of content, on every authoring table that
+lists other people's things.
+
+The link carries the thing as it is called, and nothing else: an author
+following a name should press the thing, not the words hung beside it to
+tell it from its twin. The qualifier follows as plain text, so it reads
+as an aside rather than as part of the name.
+
+Takes `row`, with `label`, `qualifier`, and `url` — the view decides
+where a name leads, and a thing with no page of its own is still named,
+only unlinked.
+{% endcomment %}
+<td class="whitespace-nowrap">
+    {% if row.url %}
+        <c-n26.link href="{{ row.url }}">
+            {{ row.label }}
+        </c-n26.link>
+    {% else %}
+        {{ row.label }}
+    {% endif %}
+    {% if row.qualifier %}— {{ row.qualifier }}{% endif %}
+</td>

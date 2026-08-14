@@ -37,14 +37,8 @@
                 <tbody>
                     {% for carrier in carriers %}
                         <tr>
-                            <td class="whitespace-nowrap">
-                                {% if carrier.kind %}
-                                    <c-n26.link href="{% url 'authoring-detail' carrier.kind carrier.pk %}">{{ carrier.label }}</c-n26.link>
-                                {% else %}
-                                    {{ carrier.label }}
-                                {% endif %}
-                            </td>
-                            <td class="w-full text-muted">{{ carrier.kind_name }}</td>
+                            {% include "authoring/_name_cell.html" with row=carrier %}
+                            <td class="w-full text-muted">{{ carrier.kind_name }}{% if carrier.help %} · {{ carrier.help }}{% endif %}</td>
                         </tr>
                     {% endfor %}
                 </tbody>

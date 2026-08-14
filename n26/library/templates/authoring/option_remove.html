@@ -76,15 +76,9 @@ weapon's name reads as one that deletes weapons.
                 <tbody>
                     {% for holder in shared_with %}
                         <tr>
-                            <td class="whitespace-nowrap">
-                                {% if holder.kind %}
-                                    <c-n26.link href="{% url 'authoring-detail' holder.kind holder.pk %}">{{ holder.label }}</c-n26.link>
-                                {% else %}
-                                    {{ holder.label }}
-                                {% endif %}
-                            </td>
+                            {% include "authoring/_name_cell.html" with row=holder %}
                             <td class="text-muted">{{ holder.kind_name }}</td>
-                            <td class="w-full text-muted">{{ holder.how }}</td>
+                            <td class="w-full text-muted">{{ holder.how }}{% if holder.help %} · {{ holder.help }}{% endif %}</td>
                         </tr>
                     {% endfor %}
                 </tbody>

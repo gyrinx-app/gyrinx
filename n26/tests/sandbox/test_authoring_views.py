@@ -1310,6 +1310,33 @@ class TestWeaponAccessories:
         assert "fits_asterisked" not in form.fields
 
 
+def row_printing(body, words):
+    """The one table row that prints these words, markup and all."""
+    printing = [row for row in re.findall(r"<tr\b.*?</tr>", body, re.S) if words in row]
+    assert len(printing) == 1, f"{len(printing)} rows print {words!r}"
+    return printing[0]
+
+
+def cells_of(row):
+    """A row's cells, in the order they are read."""
+    return re.findall(r"<td\b.*?</td>", row, re.S)
+
+
+def words_in(markup):
+    """What a reader sees, with the markup and the spacing taken out."""
+    return " ".join(unescape(re.sub(r"<[^>]+>", " ", markup)).split())
+
+
+def link_words(markup):
+    """The words the first link here carries — what a reader presses."""
+    return words_in(re.search(r"<a\b[^>]*>(.*?)</a>", markup, re.S).group(1))
+
+
+def haystack_of(row):
+    """What the row hands the in-page search to match on."""
+    return re.search(r"haystack: '(.*?)'", row, re.S).group(1)
+
+
 class TestTheQualifier:
     """Two things may print the same name — the books give Delaque's
     and Goliath's beasts the same Ferocious jaws, with different
@@ -1369,6 +1396,101 @@ class TestTheQualifier:
         labels = [str(label) for _, label in form.fields["thing_subtype"].choices]
         assert "Hardened — Goliath" in labels
         assert "Hardened — Escher" in labels
+
+    def test_a_listing_links_the_name_and_says_the_qualifier_beside_it(
+        self, author, client, default_pack
+    ):
+        """The link is the thing itself. An author following a name is
+        going to the jaws, not to the beast they were told apart by."""
+        from n26.library.authoring import create_weapon
+
+        for qualifier in ("Sumpkroc", "Psychoteric Wyrm"):
+            create_weapon("Ferocious jaws", qualifier=qualifier)
+
+        body = client.get("/n26/authoring/weapon/").content.decode()
+        name_cell, _ = cells_of(row_printing(body, "Sumpkroc"))
+
+        assert link_words(name_cell) == "Ferocious jaws"
+        # Beside the link, in the reader's words, and unpressable.
+        assert words_in(name_cell) == "Ferocious jaws — Sumpkroc"
+
+    def test_the_link_still_carries_the_bracket_a_card_prints(
+        self, author, client, default_pack
+    ):
+        """The annotation is part of what the thing is called, so it
+        rides inside the link; only the qualifier is left outside."""
+        from n26.library.authoring import create_wargear
+
+        create_wargear("Ammo", annotation="5+", qualifier="Goliath")
+
+        body = client.get("/n26/authoring/wargear/").content.decode()
+        name_cell, _ = cells_of(row_printing(body, "Goliath"))
+
+        assert link_words(name_cell) == "Ammo (5+)"
+        assert words_in(name_cell) == "Ammo (5+) — Goliath"
+
+    def test_the_search_still_finds_a_row_by_it(self, author, client, default_pack):
+        """Told apart by the qualifier, an author looks for it by the
+        qualifier."""
+        from n26.library.authoring import create_weapon
+
+        create_weapon("Ferocious jaws", qualifier="Sumpkroc")
+
+        body = client.get("/n26/authoring/weapon/").content.decode()
+
+        assert "sumpkroc" in haystack_of(row_printing(body, "Sumpkroc"))
+
+    def test_a_carrier_table_splits_it_from_the_name_too(
+        self, author, client, default_pack
+    ):
+        """A modifier's page names what carries it, and those names are
+        read the same way as a listing's."""
+        from n26.library.authoring import (
+            attach_modifiers_to,
+            create_subtype,
+            create_weapon,
+            ef_adds,
+            modifier,
+            targets_model,
+        )
+
+        made = modifier(
+            "Grants Mounted", targets_model(), ef_adds(create_subtype("Mounted"))
+        )
+        attach_modifiers_to(
+            create_weapon("Ferocious jaws", qualifier="Sumpkroc"), [made]
+        )
+
+        body = client.get(f"/n26/authoring/modifiers/{made.pk}/").content.decode()
+        name_cell, _ = cells_of(row_printing(body, "Sumpkroc"))
+
+        assert link_words(name_cell) == "Ferocious jaws"
+        assert words_in(name_cell) == "Ferocious jaws — Sumpkroc"
+
+    def test_a_carried_firing_line_links_to_its_own_page(
+        self, author, client, default_pack
+    ):
+        """A firing line is not a kind with a listing of its own, but it
+        has a page, and a modifier's carrier table should lead there."""
+        from n26.library.authoring import (
+            add_weapon_profile,
+            attach_modifiers_to,
+            create_subtype,
+            create_weapon,
+            ef_adds,
+            modifier,
+            targets_model,
+        )
+
+        made = modifier(
+            "Grants Mounted", targets_model(), ef_adds(create_subtype("Mounted"))
+        )
+        line = add_weapon_profile(create_weapon("Autogun"), name="Warp round")
+        attach_modifiers_to(line, [made])
+
+        body = client.get(f"/n26/authoring/modifiers/{made.pk}/").content.decode()
+
+        assert f'href="/n26/authoring/weapon-profiles/{line.pk}/"' in body
 
     def test_it_is_distinguished_from_the_annotation(self):
         """Two fields beside a name with opposite visibility is a trap,
@@ -1833,7 +1955,9 @@ class TestTheFiringLinePageIsStaffed:
 class TestListingsSayWhatARowIs:
     """A name alone is not enough to check content by: a skill needs its
     set, a priced thing its price, and a skill tree the set it stands
-    for — which is the whole of what a tree is."""
+    for — which is the whole of what a tree is. Whatever the kind says
+    about itself, the author's own note about the row is read beside
+    it."""
 
     def test_a_skill_shows_its_set_and_its_number(self, author, client, default_pack):
         from n26.library.standard_content import STANDARD_CONTENT
@@ -1879,6 +2003,82 @@ class TestListingsSayWhatARowIs:
         create_wargear("House gear", price=20, is_exclusive=True)
         body = client.get("/n26/authoring/wargear/").content.decode()
         assert "TP E" in body
+
+    def test_a_row_carries_the_note_its_author_wrote(
+        self, author, client, default_pack
+    ):
+        """The words are for whoever wields this while building other
+        content, so they belong where content is being checked over."""
+        from n26.library.authoring import create_wargear
+
+        create_wargear(
+            "Mesh armour",
+            price=15,
+            library_author_help="Ask before repricing these.",
+        )
+
+        body = client.get("/n26/authoring/wargear/").content.decode()
+        _, notes = cells_of(row_printing(body, "Mesh armour"))
+
+        assert words_in(notes) == "15cr · Ask before repricing these."
+        assert "text-muted" in notes
+
+    def test_a_row_with_no_note_says_only_what_the_kind_says(
+        self, author, client, default_pack
+    ):
+        """Most rows have none written, and an empty note must not leave
+        a separator dangling after the price."""
+        from n26.library.authoring import create_wargear
+
+        create_wargear("Mesh armour", price=15)
+
+        body = client.get("/n26/authoring/wargear/").content.decode()
+        _, notes = cells_of(row_printing(body, "Mesh armour"))
+
+        assert words_in(notes) == "15cr"
+
+    def test_the_search_finds_a_row_by_the_note(self, author, client, default_pack):
+        """A note is often the only place a word an author remembers was
+        ever written."""
+        from n26.library.authoring import create_wargear
+
+        create_wargear(
+            "Mesh armour",
+            price=15,
+            library_author_help="Ask before repricing these.",
+        )
+
+        body = client.get("/n26/authoring/wargear/").content.decode()
+
+        assert "repricing" in haystack_of(row_printing(body, "Mesh armour"))
+
+    def test_a_carrier_table_carries_the_note_too(self, author, client, default_pack):
+        """The page asking whether to change a shared modifier is one of
+        the places the note was written for."""
+        from n26.library.authoring import (
+            attach_modifiers_to,
+            create_subtype,
+            create_wargear,
+            ef_adds,
+            modifier,
+            targets_model,
+        )
+
+        made = modifier(
+            "Grants Mounted", targets_model(), ef_adds(create_subtype("Mounted"))
+        )
+        attach_modifiers_to(
+            create_wargear(
+                "Mesh armour", library_author_help="Ask before repricing these."
+            ),
+            [made],
+        )
+
+        body = client.get(f"/n26/authoring/modifiers/{made.pk}/").content.decode()
+        _, notes = cells_of(row_printing(body, "Mesh armour"))
+
+        assert words_in(notes) == "wargear · Ask before repricing these."
+        assert "text-muted" in notes
 
 
 class TestTheGangSurface:

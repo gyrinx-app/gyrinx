@@ -448,14 +448,44 @@ def _kind_slugs():
     return {_model_for(specs()[verb]): kind for kind, verb in LEAF_KINDS.items()}
 
 
+def _naming(row):
+    """How a listing row says which thing it is about.
+
+    Three separate facts, because they are read differently. The label
+    is the thing itself, as a player would read it, and is what the link
+    carries: pressing a name presses the thing, not the words an author
+    hung beside it. The qualifier — author facing, never a player's —
+    follows the link as plain text. The help is the author's own note
+    about wielding this while building other content; the foundation
+    kinds have neither, and plenty of rows have no help written yet.
+    """
+    return {
+        "label": str(row),
+        "qualifier": getattr(row, "qualifier", "") or "",
+        "help": getattr(row, "library_author_help", "") or "",
+    }
+
+
 def _named_row(row, model, slugs):
     """One row, as a page naming other people's things prints it."""
-    return {
-        "label": _label_for(row),
-        "kind_name": str(model._meta.verbose_name),
+    from n26.library.models import WeaponProfile
+
+    kind = slugs.get(model)
+    if kind:
+        url = reverse("authoring-detail", args=[kind, row.pk])
+    elif model is WeaponProfile:
+        # A firing line is a part of its weapon rather than a kind, so
+        # its page is not one of the kind pages the slugs cover.
+        url = reverse("authoring-weapon-profile", args=[row.pk])
+    else:
         # A kind with no authoring page of its own is still named; only
         # the link is missing.
-        "kind": slugs.get(model),
+        url = ""
+    return {
+        **_naming(row),
+        "kind_name": str(model._meta.verbose_name),
+        "kind": kind,
+        "url": url,
         "pk": row.pk,
     }
 
@@ -474,7 +504,14 @@ def _carriers(modifier):
         rows = model.objects.select_related(*_forward_relations(model))
         for row in rows.filter(modifiers=modifier):
             found.append(_named_row(row, model, slugs))
-    return sorted(found, key=lambda carrier: (carrier["kind_name"], carrier["label"]))
+    return sorted(
+        found,
+        key=lambda carrier: (
+            carrier["kind_name"],
+            carrier["label"],
+            carrier["qualifier"],
+        ),
+    )
 
 
 def _holders_of(default_set):
@@ -504,7 +541,10 @@ def _holders_of(default_set):
                 "how": "offers it as an option",
             }
         )
-    return sorted(found, key=lambda holder: (holder["kind_name"], holder["label"]))
+    return sorted(
+        found,
+        key=lambda holder: (holder["kind_name"], holder["label"], holder["qualifier"]),
+    )
 
 
 def _label_for(row):
@@ -778,15 +818,22 @@ def leaf(request, kind):
 
     rows = []
     for row in _rows(model, kind):
-        label, notes = _label_for(row), describe(row)
+        naming, notes = _naming(row), describe(row)
         rows.append(
             {
+                **naming,
                 "pk": row.pk,
-                "label": label,
+                "kind": kind,
+                "url": reverse("authoring-detail", args=[kind, row.pk]),
                 "notes": notes,
                 # What the in-page search reads. Lowercased here so the
                 # comparison is a plain substring test in the browser.
-                "search": " ".join([label, *notes]).lower(),
+                # Everything the row shows is in it: an author who can
+                # only remember the qualifier, or a word from the help,
+                # finds the row by typing that.
+                "search": " ".join(
+                    [naming["label"], naming["qualifier"], *notes, naming["help"]]
+                ).lower(),
             }
         )
 
