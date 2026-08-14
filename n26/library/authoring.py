@@ -112,17 +112,23 @@ def add_stat_to_statline_type(
     statline_type,
     stat,
     position=None,
+    short_name_override="",
     is_highlighted=False,
     is_first_of_group=False,
     **kwargs,
 ):
-    """Put one characteristic in a shape, at the end unless placed."""
+    """Put one characteristic in a shape, at the end unless placed.
+
+    ``short_name_override`` heads the column with something other than
+    the stat's own abbreviation, for a shape that prints it differently.
+    """
     if position is None:
         position = statline_type.stats.count()
     return StatlineTypeStat.objects.create(
         statline_type=statline_type,
         stat=stat,
         position=position,
+        short_name_override=short_name_override,
         is_highlighted=is_highlighted,
         is_first_of_group=is_first_of_group,
         **kwargs,

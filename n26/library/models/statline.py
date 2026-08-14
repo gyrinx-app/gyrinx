@@ -206,6 +206,16 @@ class StatlineTypeStat(Content):
     position = models.PositiveIntegerField(
         default=0, help_text="Display order; lower numbers come first."
     )
+    short_name_override = models.CharField(
+        max_length=10,
+        blank=True,
+        default="",
+        help_text=(
+            "Prints instead of the stat's own short name, on this shape "
+            "only. Blank means the stat's own — a weapon shape prints "
+            "Strength as Str where a model prints S."
+        ),
+    )
     is_highlighted = models.BooleanField(
         default=False,
         help_text="Drawn with emphasis — the psychology stats (Ld, Cl, Wil, Int).",
@@ -234,7 +244,10 @@ class StatlineTypeStat(Content):
 
     @property
     def short_name(self):
-        return self.stat.short_name
+        """What this column is headed. One stat definition is shared
+        across shapes, so the abbreviation belongs to the placement:
+        Strength is S on a model and Str on a weapon."""
+        return self.short_name_override or self.stat.short_name
 
     @property
     def full_name(self):

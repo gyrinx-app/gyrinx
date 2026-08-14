@@ -1126,6 +1126,38 @@ class TestWeapons:
             assert re.search(rf">\s*{re.escape(short)}\s*</span>", body)
         assert 'placeholder="4&quot;"' in body  # the stat's own example
 
+    def test_a_renamed_column_is_renamed_wherever_the_page_prints_it(
+        self, author, client, default_pack, make_stat
+    ):
+        """A weapon shape built on the model's own Strength row heads
+        the column Str. The editor's boxes and the line the page lists
+        underneath both read it off the shape, so neither shows the S
+        the characteristic itself carries."""
+        from n26.library.authoring import (
+            add_stat_to_statline_type,
+            create_statline_type,
+        )
+
+        strength = make_stat("S", "Strength")
+        shape = create_statline_type("Weapon")
+        add_stat_to_statline_type(shape, strength, short_name_override="Str")
+
+        _, autogun = self.make_autogun(client, shape)
+        client.post(
+            f"/n26/authoring/weapon/{autogun.pk}/",
+            {
+                "name": "Standard",
+                "price": "0",
+                "trade_point_price": "0",
+                "strength": "3",
+            },
+        )
+
+        body = client.get(f"/n26/authoring/weapon/{autogun.pk}/").content.decode()
+        assert re.search(r">\s*Str\s*</span>", body)  # the editor's box
+        assert "Str 3" in body  # the line listed above it
+        assert not re.search(r">\s*S\s*</span>", body)
+
     def test_adding_the_mandatory_profile_with_its_stats_and_traits(
         self, author, client, default_pack, weapon_statline_type
     ):

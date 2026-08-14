@@ -1258,7 +1258,7 @@ def statline_form_for(statline_type):
     fields = {
         type_stat.stat.field_name: forms.CharField(
             required=False,
-            label=type_stat.stat.short_name,
+            label=type_stat.short_name,
             help_text=type_stat.stat.full_name,
             widget=forms.TextInput(
                 attrs={"placeholder": type_stat.stat.placeholder, "size": 6}

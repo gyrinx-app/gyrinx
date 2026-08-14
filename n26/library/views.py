@@ -107,9 +107,13 @@ def _statline_summary(owner):
 
 def _describe_statline_stat(type_stat):
     """One column of a shape. Not prefixed with the shape's name — the
-    page is already that shape — and showing the two display flags,
-    which are the only things about the row a reader cannot infer."""
+    page is already that shape — and showing the display flags and any
+    renaming, which are the only things about the row a reader cannot
+    infer. The row is named for the stat, so a shape that heads the
+    column differently has to say so."""
     notes = []
+    if type_stat.short_name_override:
+        notes.append(f"prints as {type_stat.short_name_override}")
     if type_stat.is_first_of_group:
         notes.append("starts a group")
     if type_stat.is_highlighted:

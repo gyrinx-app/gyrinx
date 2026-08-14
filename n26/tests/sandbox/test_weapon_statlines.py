@@ -25,8 +25,11 @@ from n26.core.render_text import render_model_card
 from n26.library.authoring import add_weapon_profile
 from n26.library.models import Statline, StatlineType, StatlineTypeStat, Weapon
 from n26.tests.sandbox.actions import (
+    add_stat_to_statline_type,
     buy_weapon_profile,
+    create_profile,
     create_stat,
+    create_statline_type,
     create_weapon,
     found_gang,
     give_weapon,
@@ -493,3 +496,82 @@ class TestValuesAreStoredAsTheyRead:
         statline = set_statline(weapon.profiles.get(), short_range="E", strength="S")
         stored = {s.short_name: s.value for s in statline.stats.all()}
         assert stored == {"SR": "E", "Str": "S"}
+
+
+class TestOneCharacteristicHeadedTwoWays:
+    """A weapon's Strength is the model's Strength — one definition,
+    shared. The book still heads the two tables differently: a model
+    prints S, a weapon prints Str. So the abbreviation belongs to the
+    placement, and a shape says how it heads a column when the stat's
+    own answer is not the one it wants.
+    """
+
+    @pytest.fixture
+    def shared_weapon_shape(self, fighter_stats):
+        """A weapon shape built on the model's own Strength row."""
+        shape = create_statline_type("Weapon (shared)")
+        add_stat_to_statline_type(
+            shape, create_stat("SR", "Short Range", is_inches=True)
+        )
+        add_stat_to_statline_type(shape, fighter_stats["S"], short_name_override="Str")
+        return shape
+
+    @pytest.fixture
+    def armed(self, gang_type, make_statline, fighter_type):
+        entry = create_profile("Escher Ganger", fighter_type, gang_type)
+        make_statline(entry, strength=3, movement=5)
+        gang = found_gang(
+            "The Two Headings",
+            gang_type,
+            owner=User.objects.create_user("headings"),
+            budget=1000,
+        )
+        return hire(gang, entry, "Yolanda", paid=55)
+
+    def test_the_weapon_column_is_headed_str(self, armed, shared_weapon_shape):
+        boltgun = create_weapon(
+            "Boltgun", profiles=[("", 0)], statline_type=shared_weapon_shape
+        )
+        set_statline(boltgun.profiles.get(), short_range=12, strength=4)
+        give_weapon(armed, boltgun, paid=55)
+
+        card = build_model_card(armed)
+        assert [(c.short_name, c.value) for c in card.weapons[0].own_stats] == [
+            ("SR", '12"'),
+            ("Str", "4"),
+        ]
+
+    def test_the_model_who_carries_it_still_prints_s(self, armed, shared_weapon_shape):
+        """The same row, on the shape that did not rename it."""
+        card = build_model_card(armed)
+        assert card.statline.get("Str") is None
+        assert card.statline.get("S").value == "3"
+
+    def test_the_text_renderer_heads_them_apart(self, armed, shared_weapon_shape):
+        chainaxe = create_weapon(
+            "Chainaxe", profiles=[("", 0)], statline_type=shared_weapon_shape
+        )
+        set_statline(chainaxe.profiles.get(), short_range="E", strength="S+1")
+        give_weapon(armed, chainaxe, paid=25)
+
+        text = "\n".join(render_model_card(build_model_card(armed)))
+        print("\n" + text)
+
+        assert "SR E  Str S+1" in text
+        # The model's own header, where Strength sits between Ballistic
+        # Skill and Toughness, keeps the shorter one.
+        assert "BS    S     T" in text
+
+    def test_saying_nothing_keeps_the_stats_own_name(self, armed, fighter_stats):
+        """The default path: a shape that renames nothing prints what
+        each characteristic calls itself."""
+        shape = create_statline_type("Weapon (plain)")
+        add_stat_to_statline_type(shape, fighter_stats["S"])
+        stick = create_weapon(
+            "Sharpened stick", profiles=[("", 0)], statline_type=shape
+        )
+        set_statline(stick.profiles.get(), strength=2)
+        give_weapon(armed, stick, paid=5)
+
+        card = build_model_card(armed)
+        assert [c.short_name for c in card.weapons[0].own_stats] == ["S"]

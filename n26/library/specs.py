@@ -771,6 +771,9 @@ def _build_registry():
             authoring.add_stat_to_statline_type,
             {
                 "stat": One(model=Stat, source=(StatlineTypeStat, "stat")),
+                "short_name_override": Text(
+                    source=(StatlineTypeStat, "short_name_override")
+                ),
                 "is_highlighted": Bool(source=(StatlineTypeStat, "is_highlighted")),
                 "is_first_of_group": Bool(
                     source=(StatlineTypeStat, "is_first_of_group")

@@ -265,6 +265,14 @@ def _stat(short, full, flags):
     return stat
 
 
+def _heading(stat, short):
+    """How this shape heads the column, where the shared definition
+    abbreviates it differently. Strength is one definition, printed S on
+    a model and Str on a weapon, and whichever shape is seeded second
+    finds the other's abbreviation already on the row."""
+    return {} if stat.short_name == short else {"short_name_override": short}
+
+
 def _statline_type(name, rows):
     """A statline shape and its ordered stats. ``rows`` are
     ``(stat, display flags)`` in print order."""
@@ -296,10 +304,10 @@ def _count(model, **lookup):
 def _create_model_characteristics():
     from n26.library.models import ProfileType
 
-    rows = [
-        (_stat(short, full, flags), display)
-        for short, full, flags, display in MODEL_CHARACTERISTICS
-    ]
+    rows = []
+    for short, full, flags, display in MODEL_CHARACTERISTICS:
+        stat = _stat(short, full, flags)
+        rows.append((stat, display | _heading(stat, short)))
     statline_type = _statline_type(MODEL_STATLINE, rows)
     for name in TYPE_NAMES:
         ProfileType.objects.get_or_create(
@@ -322,9 +330,10 @@ def _check_model_characteristics():
 
 
 def _create_weapon_characteristics():
-    rows = [
-        (_stat(short, full, flags), {}) for short, full, flags in WEAPON_CHARACTERISTICS
-    ]
+    rows = []
+    for short, full, flags in WEAPON_CHARACTERISTICS:
+        stat = _stat(short, full, flags)
+        rows.append((stat, _heading(stat, short)))
     _statline_type(WEAPON_STATLINE, rows)
 
 

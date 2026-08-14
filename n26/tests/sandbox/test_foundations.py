@@ -128,13 +128,23 @@ class TestWhatTheSeedsCreate:
         assert Stat.objects.filter(full_name="Strength").count() == 1
         weapon = StatlineType.objects.get(name=WEAPON_STATLINE)
         printed = [t.short_name for t in weapon.stats.all()]
-        assert printed == ["SR", "LR", "S", "AP", "L"]
-        # Note the honest consequence: one shared row carries one
-        # abbreviation, so a weapon table prints the fighter's "S" where
-        # the book prints "Str". Fixing that means the abbreviation
-        # belongs to the *shape* rather than the characteristic — a
-        # short name on StatlineTypeStat — which is a decision, not a
-        # bug, and is not made here.
+        # One shared row, two headings: the shape says how it prints the
+        # column where the book disagrees with the characteristic's own
+        # abbreviation.
+        assert printed == ["SR", "LR", "Str", "AP", "L"]
+        assert weapon.stats.get(stat__full_name="Strength").stat.short_name == "S"
+
+    def test_either_shape_may_be_seeded_first(self, default_pack):
+        """Whichever comes second finds Strength already defined, and
+        must still head its own column its own way."""
+        STANDARD_CONTENT["weapon-characteristics"].create()
+        STANDARD_CONTENT["model-characteristics"].create()
+
+        assert Stat.objects.filter(full_name="Strength").count() == 1
+        model = StatlineType.objects.get(name=MODEL_STATLINE)
+        weapon = StatlineType.objects.get(name=WEAPON_STATLINE)
+        assert model.stats.get(stat__full_name="Strength").short_name == "S"
+        assert weapon.stats.get(stat__full_name="Strength").short_name == "Str"
 
     def test_the_core_subtypes_arrive_named(self, default_pack):
         STANDARD_CONTENT["core-subtypes"].create()
@@ -304,6 +314,46 @@ class TestTheFoundationPages:
         assert "starts a group" in body
         assert "highlighted" in body
         assert "Model — Ld" not in body  # no redundant prefix
+
+    def test_a_shape_can_head_a_column_its_own_way(self, author, client, default_pack):
+        """A weapon table prints the model's Strength as Str. The row is
+        still named for the characteristic, so the page says the
+        renaming rather than leaving a reader to wonder."""
+        from n26.library.authoring import create_stat
+
+        client.post("/n26/authoring/statline-type/new/", {"name": "Weapon"})
+        shape = StatlineType.objects.get(name="Weapon")
+        client.post(
+            f"/n26/authoring/statline-type/{shape.pk}/",
+            {
+                "stat": str(create_stat("S", "Strength").pk),
+                "short_name_override": "Str",
+            },
+        )
+
+        (row,) = shape.stats.all()
+        assert (row.short_name, row.stat.short_name) == ("Str", "S")
+
+        body = client.get(f"/n26/authoring/statline-type/{shape.pk}/").content.decode()
+        assert "S (Strength)" in body
+        assert "prints as Str" in body
+
+    def test_a_column_that_says_nothing_keeps_the_stats_own_name(
+        self, author, client, default_pack
+    ):
+        from n26.library.authoring import create_stat
+
+        client.post("/n26/authoring/statline-type/new/", {"name": "Model"})
+        shape = StatlineType.objects.get(name="Model")
+        client.post(
+            f"/n26/authoring/statline-type/{shape.pk}/",
+            {"stat": str(create_stat("S", "Strength").pk), "short_name_override": ""},
+        )
+
+        (row,) = shape.stats.all()
+        assert row.short_name == "S"
+        body = client.get(f"/n26/authoring/statline-type/{shape.pk}/").content.decode()
+        assert "prints as" not in body
 
     def test_a_shape_can_mark_where_a_group_starts(self, author, client, default_pack):
         from n26.library.authoring import create_stat
