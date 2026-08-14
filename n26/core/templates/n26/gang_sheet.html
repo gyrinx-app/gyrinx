@@ -97,10 +97,11 @@ that said it twice would be spending the width the name needs.
             </c-slot>
         {% endif %}
         {% comment %}
-        Hiring is a gang-level act: it adds a fighter to the roster. Buying is
-        not — equipment is bought for a particular model and lives on that
-        model's card — so the way to the trading post is the Equip on each card
-        below.
+        Both acts here are the gang's. Hiring adds a fighter to the roster;
+        buying from this page puts equipment in the stash, which is the gang's
+        own store rather than anybody's kit. Buying *for* a fighter is the Equip
+        on each card below — that purchase lands on that model's card, and which
+        of the two a reader wants is which screen they start from.
         {% endcomment %}
         {% comment %}
         Every control on this page belongs to whoever owns the gang. A
@@ -114,6 +115,9 @@ that said it twice would be spending the width the name needs.
                              variant="primary"
                              href="{% url 'n26-hire-fighter' gang.pk %}">
                     Hire Fighters
+                </c-ui.button>
+                <c-ui.button size="sm" variant="primary" href="{% url 'n26-equip-gang' gang.pk %}">
+                    Buy Equipment
                 </c-ui.button>
             </c-slot>
             <c-slot name="secondary_actions">

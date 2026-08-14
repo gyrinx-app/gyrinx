@@ -15,7 +15,7 @@ what makes it a move rather than a change.
 from n26.core.views.api import preview_view
 from n26.core.views.choose import choose
 from n26.core.views.edit import edit_fighter
-from n26.core.views.equip import equip
+from n26.core.views.equip import equip, equip_gang
 from n26.core.views.gangs import (
     create_gang,
     dashboard,
@@ -49,6 +49,7 @@ __all__ = [
     "edit_fighter",
     "edit_gang",
     "equip",
+    "equip_gang",
     "fighter_options",
     "gang_sheet",
     "gangs",

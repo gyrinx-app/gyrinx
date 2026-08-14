@@ -327,6 +327,10 @@ def test_a_tab_drops_the_words_every_tab_shares(client, tester, gang, fighter):
     body = client.get(equip_url(fighter, nomads)).content.decode()
     assert re.search(r">\s*Ash Waste Nomads\s*<", body)
     assert 'title="Ash Waste Nomads Equipment List"' in body
+    # And as an attribute rather than as words. A template tag written
+    # inside a component's attributes is not read as one: it lands in the
+    # page as text, where a search for the name above still finds it.
+    assert "{% if" not in body
 
 
 def test_two_names_that_shorten_alike_keep_their_full_names():

@@ -127,9 +127,13 @@ breadcrumb above it has the gang as well, so nothing is lost.
             {% if collection_tabs|length > 1 %}
                 <c-ui.navlist variant="sidebar" aria-label="Which list" class="self-start text-sm">
                     {% for tab in collection_tabs %}
-                        <c-ui.navlist.item href="{{ tab.href }}"
-                                           :current="tab.current"
-                                           {% if tab.title and tab.title != tab.label %}title="{{ tab.title }}"{% endif %}>
+                        {% comment %}
+                        The full name where the tab shortened it, empty where
+                        nothing was lost — decided in the view, because a
+                        template tag written inside a component's attributes is
+                        not read as one and lands in the page as text.
+                        {% endcomment %}
+                        <c-ui.navlist.item href="{{ tab.href }}" :current="tab.current" title="{{ tab.title }}">
                             {{ tab.label }}
                         </c-ui.navlist.item>
                     {% endfor %}

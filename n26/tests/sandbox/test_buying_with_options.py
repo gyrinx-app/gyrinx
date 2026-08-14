@@ -247,7 +247,7 @@ class TestWhatTheRowAsks:
 class TestWhatTheScreenDraws:
     """Controls on the row, working with no script running."""
 
-    def test_every_option_is_a_radio_named_what_the_till_reads_back(
+    def test_every_option_is_a_radio_named_what_the_purchase_reads_back(
         self, client, owner, fighter, house_list, cutter
     ):
         """Asserted on the rendered page, not on a hand-built POST: the

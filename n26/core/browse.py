@@ -302,6 +302,81 @@ def browse(collection, terms=EQUIPMENT_LIST):
     return _sectioned(str(collection), lines.values())
 
 
+def all_gear(name, terms=EQUIPMENT_LIST):
+    """Everything in the library a list could sell, browsed as one surface.
+
+    Not a collection: nobody authored it and no gang holds it. The kinds
+    are the gear ones a collection may hold, asked by family the way
+    ``Collection.containing`` asks it, so a new sort of gear appears here
+    the day it exists.
+
+    Firing lines are not among them. A profile names one particular
+    weapon and is bought onto it, so each gun's paid lines ride under it
+    as parts — the shape a trading post's sweep prints — and a line with
+    no gun above it would be a purchase with nowhere to land.
+
+    What a discovery surface offers: the standard pack's content,
+    unarchived, the same question a picker asks. Nothing is loaded for
+    use notes — there is no fighter here to test a restriction against,
+    and noting this view afterwards would cost a query per line.
+
+    A fixed number of queries, one per kind plus its prefetches, however
+    much the library holds.
+    """
+    from django.db.models import Prefetch
+
+    from n26.library.models.assignable import (
+        OPTION_OFFER_PATHS,
+        Family,
+        Optioned,
+        WeaponProfile,
+    )
+    from n26.library.models.collection import (
+        TRADEABLE_PROFILES,
+        entryable_kinds,
+        paid_profiles,
+    )
+
+    lines = []
+    for model in entryable_kinds().values():
+        if model.family != Family.GEAR or issubclass(model, WeaponProfile):
+            continue
+        # built_ins because pricing composes the set's own price in, and
+        # category__section because every line is filed under its home.
+        found = model.objects.selectable().select_related(
+            "category__section", "built_ins"
+        )
+        if issubclass(model, Optioned):
+            found = found.prefetch_related(*OPTION_OFFER_PATHS)
+        if hasattr(model, "profiles"):
+            found = found.prefetch_related(
+                Prefetch(
+                    "profiles",
+                    queryset=paid_profiles(),
+                    to_attr=TRADEABLE_PROFILES,
+                )
+            )
+        if not terms.shows_exclusive:
+            found = found.filter(is_exclusive=False)
+        for thing in found:
+            price = price_of(thing)
+            lines.append(
+                (
+                    thing.category,
+                    PricedLine(
+                        thing=thing,
+                        credits=price.credits,
+                        trade_points=price.trade_points,
+                        is_exclusive=price.is_exclusive,
+                        charges_trade_points=terms.charges_trade_points,
+                        parts=_swept_parts(thing, terms, False),
+                        choices=_offered_choices(thing),
+                    ),
+                )
+            )
+    return _sectioned(name, lines)
+
+
 def _offered_choices(thing):
     """The sets of alternatives this thing puts to a buyer.
 
