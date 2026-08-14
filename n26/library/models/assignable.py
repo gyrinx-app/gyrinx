@@ -930,8 +930,8 @@ class Archetype(Content, Assignable):
     individually — chooses one of several archetypes, and everything an
     archetype *means* rides it as ordinary modifiers: fixed skill-set
     placements per rank, a granted subtype, a powers family. Where a
-    ``SkillTree`` answer contributes one datum (its home), an archetype
-    answer knows its whole payload, so no indirection is involved.
+    chosen ``SkillTree`` contributes one datum (its home), a chosen
+    archetype knows its whole payload, so no indirection is involved.
     Its own kind so the card says "Archetype:".
     """
 
@@ -961,7 +961,7 @@ class Affiliation(Content, Assignable):
     same reason. An affiliation's payload is typically *access* —
     equipment lists opened to some ranks — and an affiliation may
     itself offer a further choice (Clan House's "choose one of the six
-    Houses"): the answer is an ordinary gang row, so a choice carried
+    Houses"): what is chosen is an ordinary gang row, so a choice carried
     on it simply computes into another slot.
     """
 

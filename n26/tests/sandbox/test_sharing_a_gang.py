@@ -153,8 +153,8 @@ class TestNothingToPress:
         assert reverse("n26-print-setup", args=[gang.pk]) not in body
 
 
-class TestAnUnansweredQuestion:
-    """A roster with a question nobody has answered is honestly
+class TestAQuestionNobodyHasChosenFor:
+    """A roster with a question nobody has chosen for is honestly
     incomplete, and a reader should see that — as words, not as a
     control that would turn them away."""
 

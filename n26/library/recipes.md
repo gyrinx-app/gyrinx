@@ -24,7 +24,7 @@ everything it does rides the chosen item as ordinary modifiers.
    gang type that can be corrupted.
 
 Every gang of those types now shows an open "Corruption" question on its
-sheet. Most players never answer it. The ones who do pick one affiliation,
+sheet. Most players never make that choice. The ones who do pick one affiliation,
 and everything below hangs off that pick.
 
 ### What a corruption grants

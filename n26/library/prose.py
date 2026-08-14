@@ -28,8 +28,8 @@ player-plain, the game's own words. Four rules hold the voice together:
   registers, and the second exists because a bare "their weapons" would
   be taken for the gang's.
 * **Structural facts say "is"; potential routes say "may".** Being built
-  into a gang type is a fact about the world; answering an offered
-  choice is something that might happen.
+  into a gang type is a fact about the world; being chosen for an
+  offered choice is something that might happen.
 * **A content name is said exactly as it was authored.** "3 Hive Scum",
   never "3 Hive Scums": the name is the book's, and inflecting it
   invents a word no author wrote. Ordinary words around it still count
@@ -392,8 +392,8 @@ def _says_offers_choice(effect, parts):
         "card says Choose until they pick."
     )
     hint = (
-        "The offered choice stays on the card until it is answered. "
-        "Answering late costs nothing."
+        "The offered choice stays on the card until the choice is made. "
+        "Making the choice late costs nothing."
     )
     if effect.from_section_id is not None:
         hint += (
@@ -403,7 +403,7 @@ def _says_offers_choice(effect, parts):
             "on it."
         )
     if effect.answer_host == effect.AnswerHost.GANG:
-        said += " The answer belongs to the gang, not to whoever was asked."
+        said += " What is chosen belongs to the gang, not to whoever was asked."
     return said, hint
 
 
@@ -421,8 +421,8 @@ def _says_places_category(effect, parts):
         return (
             f"whatever set {who.subject} {picks} appears as {section}.",
             (
-                f"{hint} Unanswered, the placement simply does not "
-                "happen, and the plan says why."
+                f"{hint} With nothing chosen, the placement simply does "
+                "not happen, and the plan says why."
             ),
         )
     return f"{who.possessive} {effect.category.name} set appears as {section}.", hint
@@ -735,7 +735,7 @@ class _Edges:
     holders: tuple
     #: The carriers of every modifier naming the thing, keyed by modifier.
     carriers: dict
-    #: The offered choices its kind could answer.
+    #: The offered choices its kind could be chosen for.
     offers: tuple
     #: The sweeps that catch the thing without naming it.
     swept: tuple = ()
@@ -778,7 +778,7 @@ def _sweeps_catching(thing):
     kind are fetched and asked in memory, exactly as a browse asks them.
     Read here rather than where a sentence wants them, because two
     readers want the same answer: what offers the thing, and which
-    offered choices it is genuinely one of the answers to.
+    offered choices it can genuinely be chosen for.
     """
     from django.contrib.contenttypes.models import ContentType
 
@@ -804,7 +804,7 @@ def _sets_holding(references):
 
 
 def _offers_of_kind(thing):
-    """Every offered choice this thing's kind could be the answer to."""
+    """Every offered choice this thing's kind could be chosen for."""
     from django.contrib.contenttypes.models import ContentType
 
     from n26.library.models import OffersChoice
@@ -894,15 +894,15 @@ def _referenced_by(edges):
     Ordered as the reader needs it: what is structurally true first —
     built into something, given by something, taken away by something —
     and the routes that merely *may* happen after, because a shop that
-    stocks it and a choice it could answer are possibilities rather
-    than facts.
+    stocks it and a choice it could be chosen for are possibilities
+    rather than facts.
     """
     said = [
         *_built_into(edges),
         *_granted(edges),
         *_brought(edges),
         *_offered(edges),
-        *_answerable(edges),
+        *_may_be_chosen(edges),
     ]
     return tuple(_once(said))
 
@@ -1120,8 +1120,8 @@ def _swept(thing, sweeps, listed):
     ]
 
 
-def _answerable(edges):
-    """Offered choices this could be the answer to — the "may" half.
+def _may_be_chosen(edges):
+    """Offered choices this could be chosen for — the "may" half.
 
     An offer names a kind, not a row, so nothing points at the thing:
     every choice of its kind is a way somebody could come to have it.
@@ -1129,8 +1129,9 @@ def _answerable(edges):
     An offer drawing from a section is narrower than its kind, though.
     What a player is shown there is what the section's collection holds,
     resectioned for their model — so a thing that collection neither
-    lists nor sweeps in is no answer to that choice, whatever kind it
-    is, and saying it may answer would offer a route nobody can take.
+    lists nor sweeps in can never be chosen for that choice, whatever
+    kind it is, and saying it may be would offer a route nobody can
+    take.
     """
     holding = _collections_holding(edges)
     said = []
@@ -1142,7 +1143,7 @@ def _answerable(edges):
             continue
         hint = (
             "The offered choice is on the card while the thing offering it "
-            "is, and this is one of the answers it takes."
+            "is, and this is one of the things that can be chosen."
         )
         if offer.from_section_id is not None:
             hint += (
@@ -1155,15 +1156,17 @@ def _answerable(edges):
         if not holders:
             said.append(
                 Sentence(
-                    text=f"May answer an offered choice of {offer.kind_label}.",
+                    text=(
+                        f"May be chosen for an offered choice of {offer.kind_label}."
+                    ),
                     hint=hint,
                 )
             )
         said.extend(
             Sentence(
                 text=(
-                    f"May answer the {offer.kind_label} choice offered by "
-                    f"{_named(holder)}."
+                    f"May be chosen for the {offer.kind_label} choice "
+                    f"offered by {_named(holder)}."
                 ),
                 hint=hint,
                 key=_identity(holder),

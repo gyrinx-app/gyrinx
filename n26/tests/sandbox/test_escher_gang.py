@@ -461,7 +461,7 @@ class TestTheGangRules:
     def test_the_offer_lists_that_fighter_s_own_primary_sets(
         self, gang, profiles, catalogue
     ):
-        """One rule on the gang; a different answer per fighter, because
+        """One rule on the gang; a different list per fighter, because
         the grid gives each entry different Primary sets."""
         queen = hire_with_option(gang, profiles["Escher Gang Queen"], "Yolanda")
         matriarch = hire_with_option(gang, profiles["Escher Gang Matriarch"], "Mags")

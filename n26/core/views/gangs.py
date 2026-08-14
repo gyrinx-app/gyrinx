@@ -195,8 +195,8 @@ def gang_sheet(request, pk):
     Anyone may read a roster, signed in or not — the address one player
     sends another shows the same gang to whoever opens it. Owning it is
     what adds the controls: the reader who does not gets the sheet with
-    every button, dialog and picker left off, and questions nobody has
-    answered read as words rather than as something to press. An
+    every button, dialog and picker left off, and choices nobody has
+    made read as words rather than as something to press. An
     archived gang is nobody's to read.
 
     Every choice slot on the sheet — the gang's own and every member's —
@@ -238,8 +238,8 @@ def gang_sheet(request, pk):
             "sheet": sheet,
             "yours": yours,
             # A reader who does not own this gang reads it and nothing
-            # more: the cards drop every control, and an unanswered
-            # question is the words alone.
+            # more: the cards drop every control, and a choice still to
+            # be made is the words alone.
             "card_mode": "gang" if yours else "view",
             "renaming": renaming,
             "leaving": leaving,

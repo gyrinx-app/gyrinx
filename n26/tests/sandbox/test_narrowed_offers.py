@@ -188,7 +188,7 @@ class TestTheTwoRestrictionsCompose:
         self, gang, ranks, person_type, saw, goliath_list
     ):
         """The item restricted to something everyone here is — its
-        question is asked, and answered."""
+        question is asked, and chosen for."""
         restrict_use(saw, person_type)
         bruiser = hire_with_option(gang, ranks["bruiser"], "Krug")
 
@@ -247,7 +247,7 @@ class TestWhatAnEntryOfThisCollectionAsks:
         )
 
     def test_a_menu_asks_for_nothing_but_the_item(self, db):
-        """A menu's entries are the answers to a question rather than
+        """A menu's entries are what a question offers rather than
         things anybody acquires: no price, and nobody to narrow to —
         which models are asked at all is the offering modifier's word."""
         menu = create_collection("Corruptions", prices_its_entries=False)

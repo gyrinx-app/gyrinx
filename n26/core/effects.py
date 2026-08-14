@@ -131,16 +131,16 @@ class ComputedWeapon:
 class ChoiceSlot:
     """A choice a modifier offers, resolved or not.
 
-    The slot is computed — present while its carrier is — and only the
-    answer is stored, as an assignment caused by the carrier's. Unresolved
-    is the absence of that answer: nothing pending is written.
+    The slot is computed — present while its carrier is — and only what
+    was chosen is stored, as an assignment caused by the carrier's.
+    Unresolved is the absence of that row: nothing pending is written.
     """
 
     kind_label: str
     source: str
     source_kind: str
     anchor: object  # the card node carrying the offer
-    resolved_with: object = None  # the card node that answers it, if any
+    resolved_with: object = None  # the card node chosen for it, if any
     #: The offer itself, so a picker can ask what this fighter may choose
     #: (``n26.core.browse.offered_by``). Its section narrowing needs the card,
     #: which the slot does not carry — hence asking rather than storing.
@@ -505,9 +505,10 @@ def compute(card, index):
     offers = _Offers()
     log = _Log()
 
-    # Answers by what caused them. Choice answers are stored rows — printed
-    # facts — so this is built once, before the rounds: a chosen-mode
-    # placement in any round reads the same settled answer a slot does.
+    # Chosen rows by what caused them. What a choice settles on is a
+    # stored row — a printed fact — so this is built once, before the
+    # rounds: a chosen-mode placement in any round reads the same
+    # settled row a slot does.
     by_cause = {}
     for node in card.all_nodes():
         if node.caused_by_key is not None:
@@ -793,18 +794,18 @@ def _acquisitions(log, dead):
 
 def _placed_category(effect, node, by_cause):
     """The category a placement puts somewhere: its own, or — chosen
-    mode — the home of whatever answered its carrier's choice.
+    mode — the home of whatever was chosen for its carrier's choice.
 
-    The answer is an assignment caused by the carrier's, exactly as a
-    slot resolves; its assignable's ``category`` home names the set
-    (a ``SkillTree`` token's whole payload). No answer, no category.
+    What was chosen is an assignment caused by the carrier's, exactly as
+    a slot resolves; its assignable's ``category`` home names the set
+    (a ``SkillTree`` token's whole payload). Nothing chosen, no category.
     """
     if not effect.the_chosen:
         return effect.category
     if node is None:
         return None  # a discovered carrier is caused by nothing on the card
-    for answer in by_cause.get(node.key, ()):
-        home = getattr(answer.assignable, "category", None)
+    for chosen in by_cause.get(node.key, ()):
+        home = getattr(chosen.assignable, "category", None)
         if home is not None:
             return home
     return None
@@ -1028,22 +1029,24 @@ def _gang_notes(computed):
     from n26.core.notes import WARNING, Note
 
     notes = []
-    first_answered_by = {}
+    first_chosen_for = {}
     for slot in computed.choices:
         if slot.resolved_with is None:
             continue
         thing = slot.resolved_with.assignable
-        held = first_answered_by.get(ModifierIndex.key(thing))
+        held = first_chosen_for.get(ModifierIndex.key(thing))
         if held is not None:
             notes.append(
                 Note(
-                    text=f"{thing} answers both {held.source} and {slot.source}",
+                    text=(
+                        f"{thing} is chosen for both {held.source} and {slot.source}"
+                    ),
                     about=thing,
                     level=WARNING,
                 )
             )
         else:
-            first_answered_by[ModifierIndex.key(thing)] = slot
+            first_chosen_for[ModifierIndex.key(thing)] = slot
     return notes
 
 
@@ -1095,9 +1098,8 @@ class _Facts:
 def _fill_choice_slots(computed, offers, by_cause):
     """Resolve each offered choice against what the anchor has caused.
 
-    The answer to a choice is stored as an assignment caused by the
-    carrier's; a slot reads as resolved when such a row matches the
-    offer's selector.
+    What is chosen is stored as an assignment caused by the carrier's; a
+    slot reads as resolved when such a row matches the offer's selector.
     """
     from n26.core import select
 

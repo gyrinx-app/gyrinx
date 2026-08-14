@@ -816,7 +816,7 @@ class OffersChoice(models.Model):
     """The bearer may select one assignable of a given kind.
 
     Computed: the offer is a *slot* on the card, present while the carrier
-    is; only the answer is ever stored (an assignment caused by the
+    is; only what was chosen is ever stored (an assignment caused by the
     carrier's). Unresolved is simply the absence of a resolution — nothing
     pending is written, so nothing pending can go stale, and deferring the
     pick costs nothing.
@@ -872,9 +872,9 @@ class OffersChoice(models.Model):
         BEARER = "bearer", "the bearer"
         #: The Leader → Gang arrow:
         #: the Outcast Leader picks the archetype, but the pick belongs
-        #: to the gang — the answer lands as a gang row, radiates to the
-        #: members, and, being caused by the Leader's row, dies with the
-        #: Leader.
+        #: to the gang — what is chosen lands as a gang row, radiates to
+        #: the members, and, being caused by the Leader's row, dies with
+        #: the Leader.
         GANG = "gang", "the gang"
 
     answer_host = models.CharField(
@@ -882,9 +882,9 @@ class OffersChoice(models.Model):
         choices=AnswerHost,
         default=AnswerHost.BEARER,
         help_text=(
-            "Which host the answer's assignment lands on. Almost always "
-            "the bearer; a Leader's archetype pick is carried by the "
-            "gang, not the Leader."
+            "Which host the chosen thing's assignment lands on. Almost "
+            "always the bearer; a Leader's archetype pick is carried by "
+            "the gang, not the Leader."
         ),
     )
 
@@ -1009,14 +1009,15 @@ class PlacesCategory(models.Model):
         ),
     )
     #: The carrier-relative mode (design/venator-skill-trees.md): place
-    #: whatever category the carrier's answered choice is homed in. A
+    #: whatever category the carrier's chosen thing is homed in. A
     #: Venator rank slot says "put *the chosen tree* under Primary" —
-    #: which tree that is lives on the answer, not here. Unanswered, the
-    #: placement simply does not happen, and the plan says why.
+    #: which tree that is lives on what was chosen, not here. With
+    #: nothing chosen, the placement simply does not happen, and the
+    #: plan says why.
     the_chosen = models.BooleanField(
         default=False,
         help_text=(
-            "Place whatever category the carrier's answered choice is "
+            "Place whatever category the carrier's chosen thing is "
             "homed in, instead of naming one."
         ),
     )

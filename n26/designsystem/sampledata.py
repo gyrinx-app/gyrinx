@@ -1238,9 +1238,9 @@ def model_card():
         # provenance rather than by living in a separate field — which is why
         # the card no longer has a "Rules" row for the granted ones.
         # Sorted by name, as build_model_card() returns them. Overseer is not
-        # here even though the fighter has it: it answers the Leader's skill
-        # choice, and the builder draws a node that answers a choice as that
-        # choice's row rather than as a loose skill as well.
+        # here even though the fighter has it: it was chosen for the Leader's
+        # skill choice, and the builder draws a chosen node as that choice's
+        # row rather than as a loose skill as well.
         skills=[
             _granted("Gang Hierarchy", "Leader", "subtype"),
             _granted("Group Activation (2)", "Leader", "subtype"),
@@ -1269,7 +1269,7 @@ def model_card():
         ],
         # A question asking for a skill, kept apart because the card draws it
         # in the Skills row rather than as a row of its own. Only open ones are
-        # ever here: answered, it would be a skill above.
+        # ever here: once chosen for, it would be a skill above.
         skill_choices=[
             ChoiceLine(
                 kind_label="Primary skill",
@@ -1649,10 +1649,10 @@ STASH = [
 
 #: The gang's open questions. Each carries the address of its own picker —
 #: "#" here, because the gallery has no gang behind it, and what the strip is
-#: showing is that a slot is a control whether or not it has been answered.
+#: showing is that a slot is a control whether or not a choice has been made.
 #:
 #: The third has no address at all: a card built from a profile's default
-#: equipment has real offers and no stored rows to answer them against, so it
+#: equipment has real offers and no stored rows to choose against, so it
 #: draws as a fact rather than as a button that goes nowhere.
 CHOICES = [
     ChoiceLine(kind_label="Skill trees", chosen="Ferocity, Brawn, Cunning", href="#"),
@@ -1666,7 +1666,7 @@ CHOICES = [
 def gang_sheet():
     """One gang, with enough going on to exercise the sheet.
 
-    The awkward cases on purpose: a choice with three answers — the "list inside
+    The awkward cases on purpose: a choice holding three things — the "list inside
     one control" the detail list exists for — an unresolved choice, a choice with
     nowhere to send anyone, counters, and a stash holding something granted rather
     than bought.

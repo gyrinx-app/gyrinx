@@ -1,15 +1,15 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
 {% comment %}
-Answering one choice slot.
+Making one choice.
 
 One page for every kind of choice. The view has already flattened whatever the
-offer answered with into groups of options (n26.render.ChoiceOffer), so nothing
+offer lists into groups of options (n26.render.ChoiceOffer), so nothing
 here knows whether it is drawing skills, archetypes or affiliations — a page that
 did would be three pages wearing one filename.
 
 Radios in a form, no script: one of many is the browser's rule, the press posts,
-and the server writes the answer. A reader who leaves without pressing Save has
+and the server writes what was chosen. A reader who leaves without pressing Save has
 changed nothing, which is the whole point of an open slot — so the footer offers
 the leaving, to the same place a save lands on. A page reached by pressing an
 open slot needs a way back to the sheet that is not the browser's chrome.
@@ -30,7 +30,7 @@ open slot needs a way back to the sheet that is not the browser's chrome.
                      cancel_url="{{ back }}">
         {% comment %}
         A fighter's question gets the gang's other fighters beside it, the
-        same control the equip and skills screens carry: answering for one
+        same control the equip and skills screens carry: choosing for one
         and then moving to the next is how a roster is worked through.
 
         Only when a fighter was asked. The gang's own questions — an
@@ -71,7 +71,7 @@ open slot needs a way back to the sheet that is not the browser's chrome.
         <c-n26.choice-offer :offer="offer">
             <c-slot name="empty">
                 Nothing is on offer here yet. This slot draws on lists that other
-                picks open up, so answering those first fills it in.
+                picks open up, so making those choices first fills it in.
             </c-slot>
         </c-n26.choice-offer>
     </c-n26.form-page>

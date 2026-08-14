@@ -599,26 +599,26 @@ def regrouped_by_placement(view, placements, fallback=None, name=None):
 
 
 def offered_by(slot, computed, terms=EQUIPMENT_LIST):
-    """What *this* fighter may pick to answer a choice slot.
+    """What *this* fighter may choose for a choice slot.
 
     A slot narrowed to a tier ("a Skill from a set that is Primary for
-    them") is answered by the view they already browse: take the
-    section's collection, resection it by their placements, and keep that
-    tier. So a Leader's pickable skills and the skills they browse
-    are the same list built the same way — the pick is a shop with one
-    section showing, not a second mechanism.
+    them") draws the view they already browse: take the section's
+    collection, resection it by their placements, and keep that tier. So
+    a Leader's pickable skills and the skills they browse are the same
+    list built the same way — the pick is a shop with one section
+    showing, not a second mechanism.
 
-    An unnarrowed slot has no collection to browse, so it answers with the
-    whole kind. Either way this is a **list to offer**, never a rule:
+    An unnarrowed slot has no collection to browse, so it draws the whole
+    kind. Either way this is a **list to offer**, never a rule:
     ``Operation.choose`` checks the kind and nothing else, so an
     owner may still hand over something off-list.
 
     Both branches offer the offer's own kind and nothing else. A tier is
     not a kind: a fighter whose Primary sets include a family of powers
-    browses skills and powers under one heading, and a question asking
-    for a skill is not answered by a power — the slot would read as open
-    however the answer was written. Narrowing the list is not policing
-    it; drawing a button that cannot work is the harm.
+    browses skills and powers under one heading, and a slot asking for a
+    skill is not settled by choosing a power — it would read as open
+    whatever was chosen. Narrowing the list is not policing it; drawing a
+    button that cannot work is the harm.
     """
     offer = slot.offer
     section = getattr(offer, "from_section", None) if offer is not None else None

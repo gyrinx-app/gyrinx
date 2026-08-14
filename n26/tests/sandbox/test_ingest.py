@@ -2332,8 +2332,8 @@ class TestTheArchetypeSheet:
         assert offers("Hive Scum") == []
 
     def test_the_ingested_content_actually_plays(self, foundation):
-        """The whole point, end to end: hire any Leader variant, answer
-        the question it carries, and the gang's pick lands the scum's
+        """The whole point, end to end: hire any Leader variant, choose
+        for the question it carries, and the gang's pick lands the scum's
         table while the Champion — who wears a subtype the sheet never
         targets — reads nothing until they choose their own."""
         from django.contrib.auth.models import User

@@ -263,7 +263,7 @@ class ChoiceLine:
     #: carrying the offer, and the offer itself. All three are needed — one
     #: carrier may offer two slots of the same kind, and a gang-held carrier
     #: puts a slot on every card it reaches. Empty when the card draws no
-    #: stored rows: a preview depicts nobody, so it has no slot to answer.
+    #: stored rows: a preview depicts nobody, so it has no slot to choose for.
     key: str = ""
     #: Where a Choose control leads. Filled in by whoever knows the URL
     #: space, because this module knows what a slot *is* and not where a
@@ -278,7 +278,7 @@ class ChoiceLine:
 
 @dataclass(frozen=True)
 class Choosable:
-    """One thing that could answer a choice slot."""
+    """One thing that could be chosen for a choice slot."""
 
     #: The identity a form submits — the model's label and its primary key,
     #: the same pair the equipment listing keys its Buy buttons on, because
@@ -286,8 +286,8 @@ class Choosable:
     key: str
     name: str
     thing: object = None
-    #: True for a thing the surface opens on already marked: the answer a
-    #: slot holds, or — where a list is ticked rather than picked — one
+    #: True for a thing the surface opens on already marked: what a slot
+    #: already holds, or — where a list is ticked rather than picked — one
     #: the model already has.
     is_current: bool = False
     #: Remarks about picking this one — "usable by Walkers only". Said,
@@ -315,7 +315,7 @@ class ChoosableGroup:
 
 @dataclass
 class ChoiceOffer:
-    """A slot and what may answer it — the pick screen, as data.
+    """A slot and what may be chosen for it — the pick screen, as data.
 
     One structure whatever the offer names, which is the point: a skill, an
     archetype and an affiliation differ in the rows they list and in
@@ -388,9 +388,9 @@ class ModelCard:
     #: reader looks at to find out what this fighter can do — a founding
     #: pick left in the general run of slots is an obligation filed
     #: under the same heading as their archetype. ``question_row`` says
-    #: which questions qualify. Answered ones are not here: the thing
-    #: they chose is a skill or a power, and it sits in its row with the
-    #: others.
+    #: which questions qualify. A slot already chosen for is not here:
+    #: the thing chosen is a skill or a power, and it sits in its row
+    #: with the others.
     skill_choices: list[ChoiceLine] = field(default_factory=list)
     power_choices: list[ChoiceLine] = field(default_factory=list)
 
@@ -430,8 +430,8 @@ class ModelCard:
         Where a question is drawn is a surface's business: on screen the
         ones filed to a row go in the Skills or Powers row, beside what
         the fighter already knows. A renderer with no rows to fold them
-        into — the text card, the printed one — draws the lot, because an
-        unanswered question is worth a line on paper and none of them
+        into — the text card, the printed one — draws the lot, because a
+        choice still to be made is worth a line on paper and none of them
         should go missing for want of somewhere to put it.
         """
         return [*self.choices, *self.skill_choices, *self.power_choices]
@@ -537,7 +537,7 @@ class GangSheet:
     #: credits figure counts nothing. Stated rather than inferred from a
     #: zero, which is also what a gang that has spent everything has.
     credits_unlimited: bool = False
-    #: Remarks worth drawing — the same tree answering two slots. Loud
+    #: Remarks worth drawing — the same tree chosen for two slots. Loud
     #: or quiet per the note's level; never a gate.
     notes: list = field(default_factory=list)
     models: list[ModelCard] = field(default_factory=list)
@@ -696,7 +696,7 @@ def _slot_key(slot, host):
     """What addresses one computed slot, or empty when nothing does.
 
     A slot hangs off an assignment, so a card built from a profile's
-    default equipment has no row to answer against — the offer is real,
+    default equipment has no row to choose against — the offer is real,
     the address is not, and an empty key is how a line says there is
     nowhere to send a reader.
     """
@@ -754,7 +754,7 @@ def choice_lines(computed, host=""):
     ``host`` is what the slots are addressed under — a model's id, or
     ``GANG_SLOT_HOST`` for the gang's own. Passed rather than derived
     because the same slot may sit on a member's card and on the gang's,
-    and which one a reader pressed decides whose answer it is.
+    and which one a reader pressed decides whose choice it is.
     """
     if not computed:
         return []
@@ -762,13 +762,13 @@ def choice_lines(computed, host=""):
 
 
 def build_choice_offer(slot, computed):
-    """What may answer one slot, in the one shape a picker draws.
+    """What may be chosen for one slot, in the one shape a picker draws.
 
     The offer decides the list; this only flattens it. A slot narrowed to
-    a tier answers with the browsable view the fighter already shops from,
-    so its categories become the headings and the fighter's own placements
+    a tier draws the browsable view the fighter already shops from, so
+    its categories become the headings and the fighter's own placements
     have already shaped it. An unnarrowed slot has no collection and
-    answers with the whole kind, which is one heading-less group. Neither
+    draws the whole kind, which is one heading-less group. Neither
     branch knows what kind of thing is being picked — that is what lets a
     skill, an archetype and an affiliation share a screen.
     """
@@ -803,12 +803,12 @@ def offer_from_view(view, *, label, chosen=None, current=None, held=(), granted=
 
     The half of a pick screen that has nothing to do with slots: a
     ``CollectionView`` goes in and groups of options come out, so
-    answering a question about one tier and browsing everything a fighter
-    may learn are two callers of one structure rather than two screens
-    that look alike.
+    choosing within one tier and browsing everything a fighter may learn
+    are two callers of one structure rather than two screens that look
+    alike.
 
-    ``current`` marks the thing already answering, where something does;
-    a listing nobody asked a question about has none.
+    ``current`` marks the thing already chosen, where something is; a
+    listing nobody asked a question about has none.
 
     ``held`` names by key what the model already has, so a surface that
     ticks rather than picks opens on the truth rather than on nothing.
@@ -924,13 +924,13 @@ def card_to_model_card(
     }
     counted_xp = None
 
-    # A node that answers a choice is drawn as that choice's row, not as a
+    # A node chosen for a choice is drawn as that choice's row, not as a
     # loose piece of equipment as well. Questions filed to a row are the
-    # exception, because their answers have a row already: an answered
-    # skill question puts the skill in the Skills row with the rest, an
-    # answered power question a power in Powers, and the question stops
-    # being asked.
-    answers = (
+    # exception, because what they settle on has a row already: choosing
+    # for a skill question puts the skill in the Skills row with the
+    # rest, choosing for a power question puts a power in Powers, and the
+    # question stops being asked.
+    chosen_keys = (
         {
             slot.resolved_with.key
             for slot in computed.choices
@@ -1016,11 +1016,11 @@ def card_to_model_card(
     # line is drawn like any other — a weapon with its firing lines — and
     # tells itself apart by its provenance, which says it was computed.
     for node in (*card.roots, *card.granted):
-        if node.key in answers:
-            # An answer is drawn as its choice's row, not as a loose
-            # piece — except that an answered *subtype* is still a
-            # subtype: the type line states facts, and rules match on
-            # it (a chosen Psyrender is a Psyrender).
+        if node.key in chosen_keys:
+            # A chosen thing is drawn as its choice's row, not as a loose
+            # piece — except that a chosen *subtype* is still a subtype:
+            # the type line states facts, and rules match on it (a chosen
+            # Psyrender is a Psyrender).
             if isinstance(node.assignable, Subtype):
                 line_rows["subtypes"].append(
                     AssignableLine(name=node.name, provenance=provenance_of(node))
@@ -1122,8 +1122,8 @@ def card_to_model_card(
             for slot in (computed.choices if computed else [])
             if question_row(slot) is None
         ],
-        # Only the open ones: an answered skill question is a skill, an
-        # answered power question a power, and both are already in their
+        # Only the open ones: a settled skill question is a skill, a
+        # settled power question a power, and both are already in their
         # rows above.
         skill_choices=[
             _choice_line(slot, id)
@@ -1201,8 +1201,8 @@ def _provenance_within(card):
 
 def _gang_rows(gang_card, gang_computed):
     """The gang's own rows as lines, same skipping rules as a model card:
-    a Hidden draws nothing, an answer is drawn as its choice's row, and
-    counters have their own readings. Rules come back as their own list,
+    a Hidden draws nothing, a chosen thing is drawn as its choice's row,
+    and counters have their own readings. Rules come back as their own list,
     dispatched the way a model card keeps rules apart from kit.
 
     What a rule grants the gang folds in from ``ComputedGang`` the way a
@@ -1214,7 +1214,7 @@ def _gang_rows(gang_card, gang_computed):
     """
     from n26.library.models import Counter
 
-    answers = (
+    chosen_keys = (
         {
             slot.resolved_with.key
             for slot in gang_computed.choices
@@ -1227,7 +1227,7 @@ def _gang_rows(gang_card, gang_computed):
     rows = []
     rules = []
     for node in gang_card.roots:
-        if node.key in answers:
+        if node.key in chosen_keys:
             continue
         if node.suppressed:
             # Taken away by a modifier — the row stays, the line goes.

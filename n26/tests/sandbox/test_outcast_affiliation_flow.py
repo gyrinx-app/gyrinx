@@ -3,13 +3,13 @@
 The 2026 Outcast gang list: at creation the gang chooses one of four
 affiliations — Clanless, Clan House, Mutant, Aranthian — and exactly one;
 a Clan House gang then chooses which of the six Houses it affiliates
-with, and that second question exists only because of the first answer.
+with, and that second question exists only because of the first pick.
 Each affiliation's benefit is list access scoped by rank.
 
 test_outcast_gang.py proves the structures; this file proves the flow as
 clicked: the gang sheet offers the choice, the picker page lists exactly
-the right options at each step and nothing else, one press answers, and
-changing the answer replaces it — with everything the old answer caused
+the right options at each step and nothing else, one press chooses, and
+changing the choice replaces it — with everything the old pick caused
 retired along with it.
 
 What the rules say that this deliberately does not model: Clanless TP
@@ -117,7 +117,7 @@ def affiliations(subtypes, house_lists):
             ],
         ),
     }
-    # The chained pick rides the Clan House answer, so the "which House?"
+    # The chained pick rides the Clan House pick, so the "which House?"
     # question exists exactly while that affiliation is the chosen one.
     modifier(
         "Clan House: choose one of the six Houses",
@@ -203,7 +203,7 @@ def top_level_rows(gang):
 
 
 class TestTheAffiliationPicker:
-    """The first question: four answers on offer, and only those."""
+    """The first question: four things on offer, and only those."""
 
     def test_the_gang_sheet_offers_the_choice_from_founding(self, client, owner, gang):
         line = slot_line(gang, "Affiliation")
@@ -230,7 +230,7 @@ class TestTheAffiliationPicker:
         for house in HOUSES:
             assert f"House {house}" not in body, house
 
-    def test_one_press_answers_it(self, client, owner, gang, affiliations):
+    def test_one_press_settles_it(self, client, owner, gang, affiliations):
         top, _ = affiliations
         client.force_login(owner)
         response = pick(client, gang, "Affiliation", top["Clan House"])
@@ -243,9 +243,9 @@ class TestTheAffiliationPicker:
 
 
 class TestOnlyOneAffiliation:
-    """One question, one answer: picking again replaces, never stacks."""
+    """One question, one pick: picking again replaces, never stacks."""
 
-    def test_changing_the_answer_replaces_it(self, client, owner, gang, affiliations):
+    def test_changing_the_pick_replaces_it(self, client, owner, gang, affiliations):
         top, _ = affiliations
         client.force_login(owner)
         pick(client, gang, "Affiliation", top["Clanless"])
@@ -258,7 +258,7 @@ class TestOnlyOneAffiliation:
 
 
 class TestTheChainedHousePick:
-    """The second question exists exactly while Clan House is the answer."""
+    """The second question exists exactly while Clan House is chosen."""
 
     def test_no_house_question_until_clan_house_is_chosen(
         self, client, owner, gang, affiliations
@@ -304,10 +304,10 @@ class TestTheChainedHousePick:
         assert "House Escher Equipment List" in lists_of(crew["champion"])
         assert "House Escher Equipment List" not in lists_of(crew["ganger"])
 
-    def test_changing_the_affiliation_retires_the_house_answer_too(
+    def test_changing_the_affiliation_retires_the_house_pick_too(
         self, client, owner, gang, affiliations
     ):
-        """The House answer is caused by the Clan House answer, so
+        """The House pick is caused by the Clan House pick, so
         replacing the affiliation must not leave a stray House behind —
         a Mutant gang affiliated with Escher is not a thing the rules
         can express."""
@@ -324,7 +324,7 @@ class TestTheChainedHousePick:
 
 
 class TestWhatEachAffiliationOpens:
-    """The printed benefit of each answer, read off a member's card."""
+    """The printed benefit of each pick, read off a member's card."""
 
     def test_mutants_open_the_mutation_list_to_every_rank(
         self, client, owner, gang, crew, affiliations

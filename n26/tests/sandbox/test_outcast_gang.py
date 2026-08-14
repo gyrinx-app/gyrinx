@@ -10,7 +10,7 @@ in this file's ``ARCHETYPES`` dict; no code knows it.
 What this pins:
 
 * **Leader → Gang → fighters**: the Leader
-  carries the archetype question, the answer is *for the gang*
+  carries the archetype question, what is chosen is *for the gang*
   (``OffersChoice.answer_host="gang"``), it radiates via the broadcast — and
   dies with the Leader through the caused_by cascade;
 * the archetype tables per rank, one carrier per printed archetype,
@@ -23,8 +23,8 @@ What this pins:
 * "…all models except Champions": the Champion row is **bearer only**
   (``TargetsMiniature.when_directly_assigned``) — what a Champion gets
   if *they* pick it, inert in the gang's radiated copy;
-* **chained choices**: Clan House's answer offers the house pick —
-  a slot caused by a slot's answer, no new machinery;
+* **chained choices**: the chosen Clan House offers the house pick —
+  a slot caused by what another slot settled on, no new machinery;
 * affiliations as scoped access grants;
 * Lead the Masses as a composition *note*, never a removal.
 """
@@ -271,7 +271,7 @@ def mutations(db):
 
 @pytest.fixture
 def affiliations(subtypes, house_lists, mutations):
-    """Four affiliations; Clan House chains a second pick whose answers
+    """Four affiliations; Clan House chains a second pick whose options
     carry their own payloads (each house token knows its own list)."""
     house_tokens = {}
     for house, house_list in house_lists.items():
@@ -330,7 +330,7 @@ def outcasts(subtypes, skills_collection, affiliations, affiliation_lists):
         ),
         carried_by=affiliation_slot,
     )
-    # The chained pick: carried by the Clan House *answer*, so the slot
+    # The chained pick: carried by the chosen *Clan House*, so the slot
     # exists exactly while that affiliation is the chosen one.
     tokens, _ = affiliations
     modifier(
@@ -399,10 +399,10 @@ def archetype_question(archetypes, profiles):
     """The pick list, and the offers that ask it.
 
     Leader → Gang → fighters: every Leader variant carries the
-    archetype choice, but the answer is for the gang — it lands as a
-    gang row, radiates to the members, and dies with the Leader.
+    archetype choice, but what is chosen is for the gang — it lands as
+    a gang row, radiates to the members, and dies with the Leader.
     Champions may choose a different Archetype to their gang's Leader:
-    the same five archetypes, answered on — and borne by — the fighter.
+    the same five archetypes, chosen on — and borne by — the fighter.
     """
     collection = create_collection(
         "Archetypes", entries=[(a, {}) for a in archetypes.values()]
@@ -505,15 +505,15 @@ def leader_anchor(crew):
 
 
 def pick_archetype(crew, archetype):
-    """The Leader → Gang arrow: the Leader answers; the gang carries it."""
+    """The Leader → Gang arrow: the Leader chooses; the gang carries it."""
     return choose(leader_anchor(crew), archetype)
 
 
 class TestArchetypes:
-    def test_the_leader_answers_and_the_gang_carries_it(self, gang, crew, archetypes):
-        answer = pick_archetype(crew, archetypes["Brawler"])
-        assert answer.gang == gang and answer.miniature is None
-        assert answer.caused_by == leader_anchor(crew)
+    def test_the_leader_chooses_and_the_gang_carries_it(self, gang, crew, archetypes):
+        chosen = pick_archetype(crew, archetypes["Brawler"])
+        assert chosen.gang == gang and chosen.miniature is None
+        assert chosen.caused_by == leader_anchor(crew)
 
         slot = next(
             s
@@ -526,7 +526,7 @@ class TestArchetypes:
         self, gang, crew, archetypes, skills_collection, sets
     ):
         """ "When an Outcast Leader is recruited they must choose" falls
-        out of the hosting: the answer is caused by the Leader's row, so
+        out of the hosting: the chosen row is caused by the Leader's, so
         removing the Leader retires it, and the scum's sections reset."""
         from n26.tests.sandbox.actions import remove
 
@@ -617,8 +617,8 @@ class TestArchetypes:
         the champion is neither."""
         pick_archetype(crew, archetypes["Brawler"])
         anchor = crew["champion"].assignments.get(profile__isnull=False)
-        answer = choose(anchor, archetypes["Gunslinger"])
-        assert answer.miniature == crew["champion"]
+        chosen = choose(anchor, archetypes["Gunslinger"])
+        assert chosen.miniature == crew["champion"]
 
         assert tiers_for(crew["champion"], skills_collection, sets) == {
             "agility": "Primary",
@@ -654,18 +654,20 @@ class TestArchetypes:
             "Medicate",
         }
 
-    def test_a_gang_carried_offer_is_answered_per_fighter(self, gang, crew, archetypes):
+    def test_a_gang_carried_offer_is_chosen_for_per_fighter(
+        self, gang, crew, archetypes
+    ):
         """Starting Skills rides the gang type, so the slot appears on
-        every Leader's and Champion's card — but each answer names its
+        every Leader's and Champion's card — but each chosen row names its
         fighter, and only that fighter's slot resolves."""
         from n26.library.models import Skill
 
         pick_archetype(crew, archetypes["Brawler"])
         founding = gang_slot(gang, "Outcasts")
-        answer = choose(
+        chosen = choose(
             founding, Skill.objects.get(name="Berserker"), miniature=crew["leader"]
         )
-        assert answer.miniature == crew["leader"]
+        assert chosen.miniature == crew["leader"]
 
         leader_slot = next(
             slot
@@ -688,7 +690,7 @@ class TestArchetypes:
 
 class TestAffiliationChains:
     def test_clan_house_opens_the_second_pick(self, gang, affiliations):
-        """The chained-choice proof: the answer is an ordinary gang row,
+        """The chained-choice proof: what is chosen is an ordinary gang row,
         so the choice it carries computes into a new slot."""
         tokens, house_tokens = affiliations
         computed = the_gang_computed(gang)
@@ -771,7 +773,7 @@ class TestTheSheet:
         text = gang_to_text(gang)
         print("\n" + text)
         # The Leader's choice, resolved on the Leader's card; the gang
-        # carries the answer, so the gang block lists it as a row.
+        # carries what was chosen, so the gang block lists it as a row.
         assert "Archetype: Wyrd" in text
         assert "Gang: Outcasts, Wyrd" in text
         assert "Affiliation: Clan House Outcast" in text

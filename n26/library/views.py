@@ -2424,7 +2424,7 @@ def collection_page(request, pk):
                 "blank to offer it at its own reference price, and the "
                 "narrowing blank to offer it to everyone."
                 if collection.prices_its_entries
-                else "One more answer this menu offers. Nothing is for "
+                else "One more thing this menu offers. Nothing is for "
                 "sale here, so listing an item asks for nothing but the "
                 "item."
             ),
@@ -2434,7 +2434,7 @@ def collection_page(request, pk):
                 "as a plain list; a trading trip withholds “E” rows and "
                 "charges the TP shown."
                 if collection.prices_its_entries
-                else "What the definition means right now — the answers "
+                else "What the definition means right now — the things "
                 "this menu puts in front of a player, under its own "
                 "headings."
             ),

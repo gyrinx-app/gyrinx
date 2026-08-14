@@ -181,22 +181,22 @@ class TestScopeSymmetry:
 
 
 class TestComputedGang:
-    def test_an_unanswered_choice_is_an_open_slot(self, gang):
+    def test_a_choice_nobody_has_made_is_an_open_slot(self, gang):
         slot = gang_computed(gang).choice("Skill")
         assert slot is not None and not slot.is_resolved
 
-    def test_choosing_answers_it_gang_hosted(self, gang):
+    def test_choosing_settles_it_gang_hosted(self, gang):
         anchor = next(
             row for row in gang.assignments.all() if row.assignable.name == "Escher"
         )
-        answer = _choose(anchor, create_skill("Overwatch"))
+        chosen = _choose(anchor, create_skill("Overwatch"))
 
-        assert answer.gang == gang and answer.miniature is None
+        assert chosen.gang == gang and chosen.miniature is None
         slot = gang_computed(gang).choice("Skill")
         assert slot.is_resolved and slot.chosen_name == "Overwatch"
 
-    def test_the_same_thing_answering_twice_draws_a_note(self, gang, escherish):
-        """Two slots, one answer — incoherent-ish, so it is *said*, never
+    def test_the_same_thing_chosen_twice_draws_a_note(self, gang, escherish):
+        """Two slots, one thing chosen — incoherent-ish, so it is *said*, never
         blocked: the owner may do as they please (inform, not police)."""
         modifier(
             "The gang names a second skill",
@@ -419,7 +419,7 @@ class TestTheSheetDerives:
         ]
         assert [(line.name, line.rating) for line in sheet.stash] == [("Lasgun", 15)]
         assert sheet.stash_rating == 15
-        # The answer row is drawn as the choice's line, never twice.
+        # The chosen row is drawn as the choice's line, never twice.
         assert "Overwatch" not in [line.name for line in sheet.rows]
 
     def test_the_gangs_rules_are_their_own_list(self, gang):

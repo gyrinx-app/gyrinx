@@ -1,5 +1,5 @@
 {# title: Facts you can change #}
-{# note: A label and a value that is also the way to edit it. The skill trees are three answers to one question, so they are one control. Type is settled, so it gets no control at all. Territory opens a form in place; a row that leads to a page of its own passes href instead, which is what the gang's choice slots do — see c-n26.choice-slots. #}
+{# note: A label and a value that is also the way to edit it. The skill trees are one choice, so they are one control. Type is settled, so it gets no control at all. Territory opens a form in place; a row that leads to a page of its own passes href instead, which is what the gang's choice slots do — see c-n26.choice-slots. #}
 <c-n26.detail-list>
     {% comment %}
     A settled fact, for the :editable="False" case: what kind of gang this is was
@@ -8,9 +8,8 @@
     {% endcomment %}
     <c-n26.detail-list.row label="Type" value="{{ gang.gang_type }}" :editable="False" />
     {% comment %}
-    A value holding a list, all inside one control: three skill trees are three
-    answers to one question, and three buttons would say there were three
-    questions.
+    A value holding a list, all inside one control: three skill trees are one
+    choice, and three buttons would say there were three questions.
     {% endcomment %}
     <c-n26.detail-list.row label="Skill trees" value="Ferocity, Brawn, Cunning" href="#" />
     {% comment %}

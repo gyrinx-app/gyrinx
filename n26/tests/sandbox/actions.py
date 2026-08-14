@@ -140,7 +140,7 @@ def places(category, section):
 
 
 def places_the_chosen(section):
-    """The carrier-relative placement: whatever set the carrier's answered
+    """The carrier-relative placement: whatever set the carrier's chosen
     choice is homed in sits under this tier — a Venator rank slot."""
     return ef_places_choice(section)
 
@@ -262,7 +262,7 @@ def remove(assignment, actor=None, note=""):
 
 
 def choose(anchor, chosen, actor=None, **kwargs):
-    """Answer an offered choice — pick a specialisation."""
+    """Make an offered choice — pick a specialisation."""
     from n26.core.operations import operation
 
     gang = anchor.gang_root

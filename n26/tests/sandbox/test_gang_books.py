@@ -6,7 +6,7 @@ and builds each from shipped pieces, no new machinery:
 
 * **Chaos Corruption** (the corrupted-gang pattern, shared by
   Genestealer and Malstrain corruption): a founding-time gang choice
-  whose answer *suppresses* the house's own rules, asks its own
+  whose pick *suppresses* the house's own rules, asks its own
   follow-up (which Dark God?), opens a corruption-only equipment list,
   and sells the Leader a priced Wyrd ascension whose power pick falls
   out of a placement.
@@ -126,7 +126,7 @@ def escher(ranks, default_pack):
     """A slim House Escher: its rule, and the founding corruption slot.
 
     The charter Hidden is the gang type's anchor row — founding assigns
-    it, so gang-level questions have an assignment to hang answers off.
+    it, so gang-level questions have an assignment to hang picks off.
     """
     nimble = create_rule("Nimble")
     charter = create_hidden(
@@ -135,7 +135,7 @@ def escher(ranks, default_pack):
             (targets_model(), ef_adds(nimble)),
             # "During Gang Creation a player can decide that their gang
             # has been corrupted" — an open question on the gang's own
-            # card, answered or simply left.
+            # card, chosen for or simply left.
             (targets_gang(), ef_offers_choice(Affiliation, label="corruption")),
         ],
     )
@@ -198,8 +198,8 @@ def chaos_corruption(escher, ranks, chaos_powers, skills_catalogue):
                 targets_model(),
                 ef_adds(create_rule("Ritual Focus", annotation="max one Fighter")),
             ),
-            # "The gang must select one of the Chaos gods" — the answer
-            # asks its own follow-up. Chained by construction.
+            # "The gang must select one of the Chaos gods" — what is
+            # chosen asks its own follow-up. Chained by construction.
             (targets_gang(), ef_offers_choice(Affiliation, label="dedication")),
             # The corruption-only shopping list, opened for everyone.
             (targets_model(), ef_adds(options)),
@@ -288,15 +288,15 @@ class TestChaosCorruption:
         assert "Ritual Focus (max one Fighter)" in rule_names
         assert "Lead Ritual (Leader only)" not in rule_names  # Leader's alone
 
-    def test_the_dedication_is_a_chained_answer_on_the_gang(
+    def test_the_dedication_is_a_chained_choice_on_the_gang(
         self, escher, chaos_corruption, leader_profile
     ):
         gang = self.corrupted_gang(escher, chaos_corruption)
 
         sheet = render_gang(gang)
-        answered = {line.kind_label: line.chosen for line in sheet.choices}
-        assert answered["Corruption"] == "Chaos Corrupted"
-        assert answered["Dedication"] == "Dedicated: the Blood God"
+        settled = {line.kind_label: line.chosen for line in sheet.choices}
+        assert settled["Corruption"] == "Chaos Corrupted"
+        assert settled["Dedication"] == "Dedicated: the Blood God"
 
     def test_the_leaders_ascension_and_the_favour_counter(
         self, escher, chaos_corruption, leader_profile
@@ -339,7 +339,7 @@ class TestChaosCorruption:
     def test_uncorrupted_neighbours_keep_nimble(
         self, escher, chaos_corruption, ganger_profile
     ):
-        """The corruption is one gang's answer, not a library edit."""
+        """The corruption is one gang's choice, not a library edit."""
         gang_type, _, _ = escher
         pure = found_gang(
             "The Untainted", gang_type, owner=User.objects.create_user("loyal")
@@ -709,7 +709,7 @@ class TestMasterOfWhispers:
 
         card = card_for(gang, "Silence")
         (slot,) = [c for c in card.choices if c.kind_label == "Whispers power"]
-        assert slot.chosen is None  # open until answered
+        assert slot.chosen is None  # open until the choice is made
 
         anchor = Assignment.objects.get(
             miniature__name="Silence", hidden__name="Master of Whispers"

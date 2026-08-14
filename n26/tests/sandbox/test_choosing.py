@@ -1,14 +1,14 @@
-"""Answering choices through the screens.
+"""Making choices through the screens.
 
 The engine underneath is pinned elsewhere — ``test_outcast_gang.py`` for
 archetypes and affiliations, ``test_venator_skill_trees.py`` for the
 whole-kind pick, ``test_specialist.py`` for the ordinary one. This file
-is about the surface: that an unanswered slot draws as something to
+is about the surface: that an open slot draws as something to
 press, that pressing it lists what *this* card may pick, and that the
-press writes an answer the slot then reads back.
+press writes a row the slot then reads back.
 
 The three questions here are deliberately unalike underneath — a skill
-narrowed to a tier the archetype opens, an archetype whose answer belongs
+narrowed to a tier the archetype opens, an archetype whose pick belongs
 to the gang, an affiliation the gang itself is asked — and the screens
 tell them apart by nothing at all. One route, one page, one press.
 """
@@ -146,8 +146,8 @@ def gang_list(subtypes, skills_collection, pick_lists, trees):
     gang_type = create_gang_type("Outcasts")
 
     # Two questions on one carrier, which is why an address names the
-    # offer as well as the row it hangs off: without it, answering one
-    # would read as having answered the other.
+    # offer as well as the row it hangs off: without it, choosing for one
+    # would read as having settled the other.
     #
     # The second names a kind with nothing narrowing it, which is the
     # branch with no collection to browse.
@@ -170,7 +170,7 @@ def gang_list(subtypes, skills_collection, pick_lists, trees):
     gang_type.save()
 
     # Carried by the gang type and scoped to Leaders: the slot lands on
-    # every Leader's card through the broadcast, and each answer names
+    # every Leader's card through the broadcast, and each chosen row names
     # its own fighter.
     modifier(
         "Outcasts: a Leader starts with a Primary skill",
@@ -191,7 +191,7 @@ def profiles(gang_list, subtypes, pick_lists, person_type):
         )
         profile.save()
         made[key] = profile
-    # The answer is the gang's, though the Leader is asked.
+    # What is chosen is the gang's, though the Leader is asked.
     modifier(
         "Outcast Leader: chooses the gang's Archetype",
         targets_model(),
@@ -292,8 +292,8 @@ def fighter_computed(miniature):
     return compute(card, index)
 
 
-class TestAnUnansweredSlotIsAnInvitation:
-    """A slot that has not been answered draws as something to press, and
+class TestAnOpenSlotIsAnInvitation:
+    """A slot nobody has chosen for draws as something to press, and
     as nothing else: it is not an error and nothing counts it."""
 
     def test_every_open_slot_carries_the_address_of_its_own_picker(self, gang, crew):
@@ -331,8 +331,8 @@ class TestAnUnansweredSlotIsAnInvitation:
         assert slots["Sorrow: Primary skill"].href in body
 
     def test_a_card_with_no_stored_rows_has_no_address(self, gang_list, profiles):
-        """A hire preview has real offers and nothing to answer them
-        against, so its lines are drawn as facts, not as dead controls."""
+        """A hire preview has real offers and nothing to choose against,
+        so its lines are drawn as facts, not as dead controls."""
         from n26.core.card import build_card_from_profile
         from n26.core.render import card_to_model_card
 
@@ -378,13 +378,13 @@ class TestWhatOneCardMayPick:
 
 
 class TestATierHoldingTwoKinds:
-    """The list is what may answer the question, and only that.
+    """The list is what may be chosen, and only that.
 
     A tier is not a kind: a Leader whose Primary sets include a family of
     powers browses skills and powers under the one heading, and the
     question they carry asks for a skill. A power drawn beside the skills
-    would be a button that cannot work — the slot reads as answered only
-    where the answer matches the offer, so a power would leave the
+    would be a button that cannot work — the slot reads as resolved only
+    where what was chosen matches the offer, so a power would leave the
     question open with a stray row beside it.
     """
 
@@ -476,8 +476,8 @@ def gang_anchor(gang, assignable_name, crew):
     )
 
 
-class TestAnsweringOne:
-    """One press writes one answer, and the slot reads it back."""
+class TestMakingOneChoice:
+    """One press writes one row, and the slot reads it back."""
 
     def post(self, client, href, thing):
         return client.post(href, {"thing": f"{thing._meta.label_lower}:{thing.pk}"})
@@ -489,42 +489,42 @@ class TestAnsweringOne:
         )
         assert response.status_code == 302
 
-        answer = Assignment.objects.get(affiliation=affiliations["Mutant"])
-        assert answer.gang == gang
+        chosen = Assignment.objects.get(affiliation=affiliations["Mutant"])
+        assert chosen.gang == gang
         assert sheet_slots(gang)["Affiliation"].chosen == "Mutant"
         assert_reconciled(gang)
 
     def test_one_carriers_other_question_stays_open(
         self, client, owner, gang, crew, affiliations
     ):
-        """Both gang questions hang off the same row. Answering one must
-        not read as having answered the other."""
+        """Both gang questions hang off the same row. Choosing for one
+        must not read as having settled the other."""
         client.force_login(owner)
         self.post(client, sheet_slots(gang)["Affiliation"].href, affiliations["Mutant"])
         slots = sheet_slots(gang)
         assert slots["Affiliation"].chosen == "Mutant"
         assert not slots["Favoured set"].is_resolved
 
-    def test_an_answer_the_gang_carries_though_a_fighter_was_asked(
+    def test_what_the_gang_carries_though_a_fighter_was_asked(
         self, client, owner, gang, crew, archetypes
     ):
-        """The offer says the gang holds the answer, so it does — and the
-        Leader's slot still reads as the one that was answered."""
+        """The offer says the gang holds what is chosen, so it does — and
+        the Leader's slot still reads as the one that was settled."""
         client.force_login(owner)
         self.post(
             client, sheet_slots(gang)["Sorrow: Archetype"].href, archetypes["Brawler"]
         )
 
-        answer = Assignment.objects.get(archetype=archetypes["Brawler"])
-        assert answer.gang == gang and answer.miniature is None
+        chosen = Assignment.objects.get(archetype=archetypes["Brawler"])
+        assert chosen.gang == gang and chosen.miniature is None
         assert sheet_slots(gang)["Sorrow: Archetype"].chosen == "Brawler"
         assert_reconciled(gang)
 
-    def test_a_gang_carried_question_is_answered_per_fighter(
+    def test_a_gang_carried_question_is_chosen_for_per_fighter(
         self, client, owner, gang, crew, profiles, archetypes, skills
     ):
         """The skill offer rides the gang type and reaches every Leader.
-        The answer names the Leader whose slot was pressed, and nobody
+        The chosen row names the Leader whose slot was pressed, and nobody
         else's slot moves."""
         choose(gang_anchor(gang, "Outcast Leader", crew), archetypes["Brawler"])
         second = hire_with_option(gang, profiles["leader"], "Ash")
@@ -536,9 +536,9 @@ class TestAnsweringOne:
             skills["Berserker"],
         )
 
-        answer = Assignment.objects.get(skill=skills["Berserker"])
-        assert answer.miniature == crew["leader"]
-        # Answered, a skill question stops being asked and the skill it
+        chosen = Assignment.objects.get(skill=skills["Berserker"])
+        assert chosen.miniature == crew["leader"]
+        # Once chosen for, a skill question stops being asked and the skill
         # named joins that fighter's Skills row. The other Leader is still
         # being asked, on a slot of her own.
         sorrow = next(c for c in render_gang(gang).models if c.name == "Sorrow")
@@ -549,16 +549,16 @@ class TestAnsweringOne:
         assert second.name == "Ash"
         assert_reconciled(gang)
 
-    def test_the_answer_dies_with_its_carrier(
+    def test_what_was_chosen_dies_with_its_carrier(
         self, client, owner, gang, crew, archetypes
     ):
-        """The answer is caused by the row that asked, so retiring the
-        Leader retires the gang's archetype with them."""
+        """What was chosen is caused by the row that asked, so retiring
+        the Leader retires the gang's archetype with them."""
         client.force_login(owner)
         self.post(
             client, sheet_slots(gang)["Sorrow: Archetype"].href, archetypes["Brawler"]
         )
-        assert gang_computed(gang).choices  # the gang carries the answer
+        assert gang_computed(gang).choices  # the gang carries the pick
 
         remove(crew["leader"].assignments.get(profile__isnull=False))
         assert not Assignment.objects.filter(
@@ -566,10 +566,10 @@ class TestAnsweringOne:
         ).exists()
         assert_reconciled(gang)
 
-    def test_changing_your_mind_replaces_the_answer(
+    def test_changing_your_mind_replaces_what_was_chosen(
         self, client, owner, gang, crew, affiliations
     ):
-        """One question, one answer: the old row is retired in the same
+        """One question, one chosen thing: the old row is retired in the same
         press, so the slot never reads two things at once."""
         client.force_login(owner)
         href = sheet_slots(gang)["Affiliation"].href
@@ -584,13 +584,13 @@ class TestAnsweringOne:
         ).exists()
         assert_reconciled(gang)
 
-    def test_an_answered_slot_still_leads_somewhere(
+    def test_a_settled_slot_still_leads_somewhere(
         self, client, owner, gang, crew, affiliations
     ):
         client.force_login(owner)
         self.post(client, sheet_slots(gang)["Affiliation"].href, affiliations["Mutant"])
-        answered = sheet_slots(gang)["Affiliation"]
-        assert answered.is_resolved and answered.href
+        settled = sheet_slots(gang)["Affiliation"]
+        assert settled.is_resolved and settled.href
 
     def test_a_thing_that_is_not_on_offer_writes_nothing(
         self, client, owner, gang, crew, trees
@@ -608,14 +608,14 @@ class TestAnsweringOne:
 
 
 class TestAPressTheDomainWillNotTake:
-    """A press is answered in words, whatever it names. Nothing a reader
+    """A press is met with words, whatever it names. Nothing a reader
     can send to one of these addresses is worth an error page: the whole
-    of the flow is one list and one button, so the list is the answer."""
+    of the flow is one list and one button, so the list is the reply."""
 
     def post(self, client, href, thing):
         return client.post(href, {"thing": f"{thing._meta.label_lower}:{thing.pk}"})
 
-    def test_a_power_cannot_answer_a_question_about_skills(
+    def test_a_power_cannot_be_chosen_for_a_question_about_skills(
         self, client, owner, gang, crew, archetypes, whispers
     ):
         """A power filed in the fighter's Primary tier, pressed at the
@@ -633,13 +633,11 @@ class TestAPressTheDomainWillNotTake:
         assert sheet_slots(gang)["Sorrow: Primary skill"].is_resolved is False
         assert "not one of the things on offer" in client.get(href).content.decode()
 
-    def test_an_answer_of_the_wrong_kind_is_refused_in_words(
-        self, gang, crew, whispers
-    ):
+    def test_a_pick_of_the_wrong_kind_is_refused_in_words(self, gang, crew, whispers):
         """The operation's own guard, under whatever asks it. A pick that
         cannot resolve the slot is declined with a sentence a player could
-        read, and the transaction unwinds — so no surface can leave an
-        answer that answers nothing."""
+        read, and the transaction unwinds — so no surface can leave a row
+        that settles nothing."""
         from n26.core.operations import Refusal, operation
 
         before = Assignment.objects.count()

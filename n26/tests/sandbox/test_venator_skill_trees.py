@@ -202,7 +202,7 @@ def slot_row(gang, rank):
 
 
 def pick(gang, tokens, ranked):
-    """Answer the rank slots: ``pick(gang, tokens, ["agility", ...])``."""
+    """Choose for the rank slots: ``pick(gang, tokens, ["agility", ...])``."""
     return [
         choose(slot_row(gang, rank), tokens[key])
         for rank, key in enumerate(ranked, start=1)
@@ -254,7 +254,7 @@ class TestTheGangPicks:
             "Shooting",
         }
 
-    def test_answers_live_on_the_gang(self, gang, tokens):
+    def test_the_chosen_rows_live_on_the_gang(self, gang, tokens):
         picks = pick(gang, tokens, ["agility", "cunning", "savant", "shooting"])
         assert all(row.gang == gang for row in picks)
 
@@ -349,8 +349,8 @@ class TestChangingYourMind:
         )
 
     def test_before_any_pick_the_plan_says_why(self, gang, hunters):
-        """An unanswered slot places nothing, visibly: the step ran, found
-        its fighter, and skipped for want of an answer."""
+        """An open slot places nothing, visibly: the step ran, found
+        its fighter, and skipped for want of a choice."""
         computed = fighter_computed(hunters["leader"])
         steps = [
             step
@@ -358,7 +358,7 @@ class TestChangingYourMind:
             if "the chosen set" in step.effect and step.outcome == "skipped"
         ]
         # Five placement modifiers ride the four slots (slot 2 carries
-        # two). Four name the Leader and skip for want of an answer; the
+        # two). Four name the Leader and skip for want of a choice; the
         # fifth names only the Specialist and skips at the scope. All
         # skipped, nothing placed — and the plan distinguishes why.
         assert len(steps) == 5

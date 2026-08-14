@@ -525,8 +525,8 @@ def _build_registry():
             },
             label="Offers a choice",
             blurb=(
-                "Puts an open question on the card; the player answers it "
-                "with one thing of a kind."
+                "Puts an open question on the card; the player chooses one "
+                "thing of a kind."
             ),
             example=(
                 "A Leader starts with a Primary skill — the card says "
@@ -978,7 +978,7 @@ def _build_registry():
             model=CollectionEntry,
         ),
         # One tier of a collection's schema — where placements point and
-        # where a pick-list's answers live.
+        # where a pick-list's options live.
         Spec(
             authoring.add_section,
             {

@@ -1,6 +1,6 @@
 """Specialist: a subtype that offers a choice of specialisation.
 
-The slot is computed; only the answer is stored. "Active but empty" is
+The slot is computed; only what was chosen is stored. "Active but empty" is
 never a written state — it is the absence of a resolution next to a
 computed offer, so deferring the pick costs nothing and nothing pending
 can go stale.
@@ -125,7 +125,7 @@ class TestChoosing:
     def test_the_pick_is_the_choice_row_not_loose_equipment(
         self, yolanda, specialisations
     ):
-        """The answer draws as the choice's own row, and nowhere else."""
+        """What was chosen draws as the choice's own row, and nowhere else."""
         choose(anchor_of(yolanda), specialisations["sharpshooter"])
         card = card_for(yolanda)
         assert card.equipment == []
@@ -240,7 +240,7 @@ class TestTheAllowList:
 
 
 class TestThePicker:
-    def test_the_offer_answers_what_may_be_picked(self, yolanda, specialisations):
+    def test_the_offer_says_what_may_be_picked(self, yolanda, specialisations):
         """The first real database consumer: a choice UI's queryset."""
         from n26.library.models.modifier import OffersChoice
 

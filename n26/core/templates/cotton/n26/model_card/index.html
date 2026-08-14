@@ -18,8 +18,8 @@ Read-only about the *fighter's numbers*: nothing here changes a statline or a
 weapon, and there are no controls over either. Three rows carry controls, and each
 carries one for the same reason — the row is where a reader is already looking for
 the thing it does. Notes and lore take an Edit each, being the only things on a
-card a player writes rather than earns. Skills take two: an open question to
-answer, and the way to the screen of what this fighter may learn. Every one of
+card a player writes rather than earns. Skills take two: an open choice to
+make, and the way to the screen of what this fighter may learn. Every one of
 them is drawn from an href on the structure, so a card with nowhere to send
 anyone — a print sheet, a hire preview — draws none of them.
 
@@ -51,7 +51,7 @@ but their buttons held back — eleven cards abreast should not be eleven rows
 of controls. ``edit`` is the model's own page: the choice buttons come out,
 outlined, and the Gear and Weapons rows carry the way to the Equip tab.
 ``view`` is a roster somebody else owns: the same card with nothing on it to
-press, since none of it is the reader's to change. An unanswered question
+press, since none of it is the reader's to change. A choice not yet made
 still shows in that mode — a roster is honestly incomplete and should look
 it — as the words with nowhere to go.
 
@@ -269,8 +269,8 @@ region between here and the call site.
             and it is here rather than in the run of choice rows below because a
             skill has a row already: filed with the archetype and the affiliation
             it reads as one more field to fill in, where beside the skills it
-            reads as the thing it is. Answered, it stops being drawn and the
-            skill it picked joins the list above; changing your mind is done from
+            reads as the thing it is. Once the choice is made, it stops being
+            drawn and the chosen skill joins the list above; changing your mind is done from
             the skills screen. One button per open question, since a fighter may
             be asked twice.
 
@@ -311,7 +311,7 @@ region between here and the call site.
             button draws an inert <button> when handed an empty href, which is a
             control that lies — where c-n26.link falls back to a span and reads
             as the fact it is. Every surface that draws a question needs the
-            guard: a card depicting nobody has no rows to answer against, so its
+            guard: a card depicting nobody has no rows to choose against, so its
             questions are real and their addresses are not.
             {% endcomment %}
             <c-n26.model-card.mode when="edit">
@@ -456,7 +456,7 @@ region between here and the call site.
                 happen to point at it. A solid rule also reads apart from the dotted
                 one provenance uses, which is a different statement entirely.
 
-                An answered choice is a link too, on the default hover underline:
+                A settled choice is a link too, on the default hover underline:
                 pressing it is how you change your mind, and it goes to the same
                 page the prompt does. Quieter than the prompt because it is a value
                 first and a control second — the empty one has nothing to read, so

@@ -1,7 +1,7 @@
 """Learning a skill — the standing half of the skills surface.
 
 A founding pick is a question somebody asked ("a Leader starts with a
-Primary skill") and it is answered at its own address. This is the other
+Primary skill") and it is chosen for at its own address. This is the other
 half: what a fighter may learn at any time, which nobody asked and which
 is not a question at all — it is their **grid**, the placements their
 profile and subtypes carry, read as a list.
@@ -237,7 +237,7 @@ def learn(request, pk):
     not use keeps its place with a note on it, exactly as it does at the
     till, and a skill they already have is marked rather than hidden.
     The one press refused is a second copy of something they hold — by
-    any route, a grant and an answered choice included — because a
+    any route, a grant and a settled choice included — because a
     duplicate skill means nothing and a card reading "Marksman,
     Marksman" is a bug however honestly it got there.
     """
@@ -331,11 +331,11 @@ def learn(request, pk):
         )
         if picked is None:
             # Not on this list — a stale page, or a press with nothing
-            # selected. The list itself is the answer either way.
+            # selected. The list itself is the reply either way.
             messages.error(request, "That is not one of the things on offer.")
             return redirect(here)
         # A skill the model already has, by any route — learned, granted,
-        # or the answer to a founding choice. A second copy means nothing
+        # or chosen for a founding choice. A second copy means nothing
         # in the game and reads as a bug on the card, so this is refused
         # like a stale press rather than left to the owner: it is not a
         # judgement about the rules, there is simply nothing it could add.

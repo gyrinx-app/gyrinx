@@ -1376,8 +1376,8 @@ def ef_places(category, section):
 
 
 def ef_places_choice(section):
-    """The carrier-relative placement: whatever set the carrier's answered
-    choice is homed in sits under this tier — a Venator rank slot."""
+    """The carrier-relative placement: whatever set the carrier's chosen
+    thing is homed in sits under this tier — a Venator rank slot."""
     from n26.library.models import PlacesCategory
 
     return PlacesCategory.objects.create(the_chosen=True, section=section)

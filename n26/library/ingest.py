@@ -1581,7 +1581,7 @@ def _archetype_profile_ref(plan, cell, gang):
 def _wearers(plan, gang_name, subtype_key):
     """The gang's profiles that come wearing this subtype — planned in
     this upload, or already in the pack. These are the entries that
-    carry the gang-answered archetype question."""
+    carry the gang-held archetype question."""
     from n26.library.models import Profile
 
     gang_key = f"GangType:{_norm(gang_name)}"
@@ -1618,7 +1618,7 @@ def _plan_archetypes(plan, rows):
     vocabulary another gang's entry might wear. ``Own pick`` marks the
     profile rows whose table wakes only for the model's own choice — so
     those entries are offered their own question, while subtype rows put
-    the gang-answered question on every entry of the gang that wears the
+    the gang-held question on every entry of the gang that wears the
     subtype. The pick list is a small collection per gang, so each offer
     narrows to exactly its own archetypes.
     """

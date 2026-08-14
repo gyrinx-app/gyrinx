@@ -385,7 +385,7 @@ class TestKnowingAPower:
         self, gang, gang_sister, library, wyrd
     ):
         """Same machinery as the Specialist: the offer is a computed slot,
-        the answer is a stored assignment caused by the anchor."""
+        what was chosen is a stored assignment caused by the anchor."""
         from n26.library.models import OffersChoice
 
         modifier(
@@ -408,8 +408,9 @@ class TestKnowingAPower:
 
         choose(anchor, library["powers"]["Terrify"])
         card = card_with_effects()
-        # Answered, the question folds away and the pick is a power in
-        # the Powers row — the same fold an answered skill question does.
+        # Once chosen for, the question folds away and the pick is a
+        # power in the Powers row — the same fold a settled skill
+        # question does.
         assert card.power_choices == []
         assert "Terrify (Double)" in [p.name for p in card.powers]
 
@@ -653,7 +654,7 @@ class TestPickingASkill:
     The last step of the collections design: the offer names a *tier row* — the
     same ``CollectionSection`` a placement aims at — so what a fighter may
     pick is their own view with one section showing. No second
-    mechanism, no access table, and the answer differs per fighter
+    mechanism, no access table, and the list differs per fighter
     because their placements do.
     """
 
@@ -704,7 +705,7 @@ class TestPickingASkill:
     def test_another_fighter_is_offered_something_else(
         self, gang, make_profile, sets, tiers, leader, catalogue, library
     ):
-        """The offer is one content row; the answer is per fighter."""
+        """The offer is one content row; the pick is per fighter."""
         goliath = make_profile("Goliath Champion", price=120)
         modifier(
             "Goliath Champion: Brawn under Primary",
@@ -759,7 +760,7 @@ class TestPickingASkill:
         assert slot.chosen_name == "Catfall"
 
         card = build_model_card(yolanda, computed=self.computed_for(yolanda))
-        # An answered skill question is a skill: it joins the Skills row
+        # A settled skill question is a skill: it joins the Skills row
         # with the rest, and the question stops being asked.
         assert card.skill_choices == []
         assert "Catfall" in [s.name for s in card.skills]
@@ -777,7 +778,7 @@ class TestPickingASkill:
     def test_an_off_list_pick_is_still_allowed(self, yolanda, library):
         """Inform, don't police: the narrowing shortens the list a picker
         shows; it is not a rule. The owner may hand a Brawn skill
-        to a Gang Sister, and the slot reads as answered."""
+        to a Gang Sister, and the slot reads as settled."""
         anchor = yolanda.assignments.get(subtype__name="Leader")
         choose(anchor, library["skills"]["Bull Charge"])
 
@@ -807,7 +808,7 @@ class TestPickingASkill:
         ]
 
     def test_offering_a_kind_with_no_tier_offers_all_of_it(self, yolanda, library):
-        """An unnarrowed offer still works — it just answers with the kind."""
+        """An unnarrowed offer still works — it just lists the whole kind."""
         plain = create_subtype("Studious")
         modifier(
             "Studious offers any skill",
@@ -894,7 +895,7 @@ class TestWhereAQuestionSits:
         assert card.power_choices == []
         assert [line.kind_label for line in card.choices] == ["Bonecrusher Wyrd Powers"]
 
-    def test_an_answered_power_question_is_a_power(self, yolanda, library):
+    def test_a_settled_power_question_is_a_power(self, yolanda, library):
         """The question stops being asked and the pick joins the Powers
         row — the same fold the Skills row does."""
         anchor = self.offer_power(yolanda)

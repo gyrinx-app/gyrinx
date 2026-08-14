@@ -203,7 +203,7 @@ class Card:
 
         A specialisation counts as a possession for the same reason a
         subtype does: "(Gunner specialist only)" asks what this fighter
-        *is*, and the choice is the answer.
+        *is*, and what they chose says so.
         """
         from n26.core import select
         from n26.library.models import Counter, Specialisation, Subtype
@@ -253,7 +253,7 @@ class GangCard:
 
     gang: object
     #: Gang-hosted assignment trees: the founding, the house list, rules,
-    #: counters, choice slots and their answers.
+    #: counters, choice slots and what was chosen for them.
     roots: list[Node] = field(default_factory=list)
     #: Stash-hosted trees. On the card so the sheet can draw them,
     #: but not in ``all_nodes()``: nothing in the stash is a fact about
@@ -396,7 +396,7 @@ def hydrate_rows(rows, with_statlines=False):
         "profile_role",
         "counter_value",
         "profile__profile_type",
-        # A chosen-mode placement reads the answering token's home off
+        # A chosen-mode placement reads the chosen token's home off
         # the row already in memory — never by a query.
         "skill_tree__category",
         # A firing line's home is its gun's, so a scope narrowed to a

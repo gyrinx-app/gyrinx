@@ -125,8 +125,8 @@ class Refusal(Exception):
     is written for the player who pressed the button.
 
     What belongs here is an act some control really offered and the
-    domain declines: an overspend, a pick that cannot answer the
-    question it was given. What does not is a content bug or a caller
+    domain declines: an overspend, a pick that cannot settle the
+    choice it was given. What does not is a content bug or a caller
     mistake — nobody can press their way to one, the sentence would mean
     nothing to a player, and an unhandled error is the right answer.
     """
@@ -152,13 +152,14 @@ class NotEnoughCredits(Refusal):
 
 
 class NotOnOffer(Refusal):
-    """The thing picked cannot answer the question that was asked.
+    """The thing picked cannot settle the choice that was offered.
 
-    A choice names one kind of thing and only that kind answers it: a
-    question about skills is not answered by the powers filed beside them
-    in the same collection, because a slot reads as resolved only where
-    the answer matches the offer. The pick screen lists what may answer
-    (``n26.core.browse.offered_by``), so a press that lands here is a
+    A choice names one kind of thing and only that kind settles it: a
+    slot asking for a skill is not settled by the powers filed beside
+    them in the same collection, because a slot reads as resolved only
+    where what was chosen matches the offer. The pick screen lists what
+    may be chosen (``n26.core.browse.offered_by``), so a press that
+    lands here is a
     stale page or a hand-made address rather than a choice worth writing.
     """
 
@@ -677,16 +678,16 @@ class Operation:
             ChosenProfileOption.objects.create(assignment=carrier, default_set=chosen)
 
     def choose(self, anchor, chosen, **kwargs):
-        """Answer a choice a modifier offered — pick a specialisation.
+        """Make a choice a modifier offered — pick a specialisation.
 
         ``anchor`` is the assignment whose assignable carries the offer (the
-        Specialist subtype's); the answer is a free assignment caused by it,
-        so removing the carrier takes the answer along, and the computed
+        Specialist subtype's); what was chosen is a free assignment caused
+        by it, so removing the carrier takes it along, and the computed
         slot reads as resolved because this row exists.
 
         Something of a kind the offer does not name is refused
-        (:class:`NotOnOffer`), because it would not answer: the slot
-        resolves by the same match, so the question would stay open with
+        (:class:`NotOnOffer`), because it would settle nothing: the slot
+        resolves by the same match, so the choice would stay open with
         a stray row beside it. Within the kind nothing is checked — a
         narrowed offer shortens the list a picker draws and is not a rule,
         so an owner may still hand over something off-list.
@@ -702,15 +703,15 @@ class Operation:
         ]
         if not matched:
             raise NotOnOffer(anchor, chosen)
-        # The answer lands on the host the offer names: the bearer of
-        # the question by default — a fighter's choice on the fighter, a
+        # What was chosen lands on the host the offer names: the bearer
+        # of the question by default — a fighter's choice on the fighter, a
         # gang's (a Venator's ranked trees) on the gang — or the gang,
         # when the offer says so (the Outcast Leader picks the
         # archetype; the gang carries it, and it dies with the Leader
         # through the caused_by cascade). An explicit host wins over all
         # of it — a *gang-carried* offer scoped to fighters ("Leaders
         # and Champions each select a skill") puts a slot on every
-        # matching card, and the caller says whose is being answered:
+        # matching card, and the caller says whose is being settled:
         # ``choose(founding, skill, miniature=leader)``.
         if not any(key in kwargs for key in ("miniature", "gang", "stash", "parent")):
             if any(
@@ -879,7 +880,7 @@ class Operation:
         grid placed the set it came from, so swapping a profile — or
         dropping the wargear that opened a set up — never unlearns
         anything. That is the difference between this and ``choose``,
-        where the answer belongs to the question and dies with it.
+        where what was chosen belongs to the offer and dies with it.
         """
         from n26.library.models.collection import price_of
 

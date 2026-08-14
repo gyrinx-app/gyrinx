@@ -1,14 +1,14 @@
-"""Answering a choice a modifier offered.
+"""Making a choice a modifier offered.
 
-A slot is computed — it exists while its carrier does, and only the
-answer is ever stored — so there is nothing to open until a reader
+A slot is computed — it exists while its carrier does, and only what was
+chosen is ever stored — so there is nothing to open until a reader
 presses Choose. Choose leads here: the slot's question, and what this
-gang or this fighter may pick to answer it.
+gang or this fighter may choose for it.
 
 The whole flow is one page because the difference between a skill, an
-archetype and an affiliation is data. The offer itself says what may
-answer it (``n26.core.browse.offered_by``) and the pick screen is built
-from that answer (``n26.core.render.build_choice_offer``), so nothing
+archetype and an affiliation is data. The offer itself says what may be
+chosen (``n26.core.browse.offered_by``) and the pick screen is built
+from that list (``n26.core.render.build_choice_offer``), so nothing
 here asks what kind of thing is being chosen.
 
 The address holds the slot::
@@ -57,7 +57,7 @@ def link_slots(gang, *holders):
     drawn beside the skills and the powers the model already has — so what
     is asked for here is the holder's whole run of questions rather than
     each list by name. Where a question is drawn is the holder's business;
-    every one of them is answered at the same address, and a holder that
+    every one of them is chosen for at the same address, and a holder that
     grows another row is linked by the same line.
     """
     for holder in holders:
@@ -116,14 +116,15 @@ def _find_slot(gang, key):
 
 
 def _host(found):
-    """Whose answer this is, when the carrier cannot say.
+    """Whose choice this is, when the carrier cannot say.
 
     A carrier held by the gang and echoed onto a member's card offers the
     slot to that member — "Leaders and Champions each select a skill" —
-    and the row it echoed from belongs to nobody in particular, so the
-    answer has to name the fighter whose card was pressed. Every other
-    slot lets the offer decide: a fighter's own carrier answers on the
-    fighter, and an offer that says the gang holds the answer still does.
+    and the row it echoed from belongs to nobody in particular, so what
+    is chosen has to name the fighter whose card was pressed. Every other
+    slot lets the offer decide: a fighter's own carrier lands on the
+    fighter, and an offer that says the gang holds what is chosen still
+    does.
     """
     if found.miniature is not None and found.slot.anchor.broadcast:
         return {"miniature": found.miniature}
@@ -132,23 +133,23 @@ def _host(found):
 
 @login_required
 def choose(request, pk, slot):
-    """The pick screen for one slot, and the press that answers it.
+    """The pick screen for one slot, and the press that settles it.
 
     GET asks and writes nothing. POST names one thing from the list the
     server has just re-derived — never a price and never a free-text
-    identity — and writes the answer as an assignment caused by the
-    carrier's, so removing the carrier takes the answer with it.
+    identity — and writes what was chosen as an assignment caused by the
+    carrier's, so removing the carrier takes it with it.
 
-    Changing your mind retires the old answer in the same operation. One
-    question has one answer; two rows answering one slot would resolve it
-    to whichever loaded first.
+    Changing your mind retires the old row in the same operation. One
+    slot holds one chosen thing; two rows against one slot would resolve
+    it to whichever loaded first.
 
     Nothing here withholds a pick. The list is short because the offer is
     narrow, and leaving the slot open costs nothing — the way back is the
-    gang. The operation may still refuse the press: a pick that would not
-    answer the question, or a gang with no room in its budget. Either way
-    the reader is told and lands back on the list, because a page that
-    drew the button owes an answer rather than a traceback.
+    gang. The operation may still refuse the press: a pick that would
+    settle nothing, or a gang with no room in its budget. Either way the
+    reader is told and lands back on the list, because a page that drew
+    the button owes a reply rather than a traceback.
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.operations import Refusal, operation
@@ -172,7 +173,7 @@ def choose(request, pk, slot):
         )
         if picked is None:
             # Nothing on the list — a stale page, or a press with nothing
-            # selected. The list itself is the answer either way.
+            # selected. The list itself is the reply either way.
             messages.error(request, "That is not one of the things on offer.")
             return redirect(request.path)
         try:
@@ -184,8 +185,8 @@ def choose(request, pk, slot):
         except Refusal as refusal:
             messages.error(request, str(refusal))
             return redirect(request.path)
-        # Which question was answered and with what. Changing your mind
-        # records a second answer rather than editing the first: what a
+        # Which choice was made and with what. Changing your mind
+        # records a second choice rather than editing the first: what a
         # player picked and then dropped is a thing worth being able to ask
         # about.
         record(

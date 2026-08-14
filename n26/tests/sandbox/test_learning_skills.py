@@ -421,7 +421,7 @@ class TestLearning:
     ):
         """A duplicate skill means nothing in the game, so the press is
         refused — and "already has it" covers every route in, a learned
-        one and one granted by an answered choice alike. A card reading
+        one and one granted by a settled choice alike. A card reading
         "Marksman, Marksman" is a bug however honestly each row was
         written."""
         catfall = library["skills"]["Catfall"]
@@ -552,7 +552,7 @@ class TestTheSkillsRow:
         assert [line.kind_label for line in card.choices] == ["Subtype"]
         assert card.skill_choices == []
 
-    def test_answering_names_the_skill_and_takes_the_question_away(
+    def test_choosing_names_the_skill_and_takes_the_question_away(
         self, leader_yolanda, library
     ):
         anchor = leader_yolanda.assignments.get(subtype__name="Leader")

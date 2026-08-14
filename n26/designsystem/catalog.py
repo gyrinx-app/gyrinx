@@ -1615,11 +1615,11 @@ GROUPS: list[Group] = [
                 notes=(
                     "The pick screen, minus the page. It exists because two "
                     "screens draw the same list for different reasons — "
-                    "answering a question a rule asked, and browsing everything "
+                    "choosing for a slot a rule offered, and browsing everything "
                     "a fighter may learn — and the alternative was a second "
                     "template that looked identical and would drift the first "
                     "time one of them grew a badge. Every group shares one input "
-                    "name, so the browser keeps a single answer across the lot: "
+                    "name, so the browser keeps a single selection across the lot: "
                     "the headings are how the list is read, not four separate "
                     "questions. Nothing here knows what is being picked; the "
                     "view has already flattened it into groups and options, "
@@ -1907,7 +1907,7 @@ GROUPS: list[Group] = [
                     "A gang has a dozen small standing facts and every one of them "
                     "is something you can change, so the value is also the way to "
                     "edit it. One control however much it holds: three skill trees "
-                    "are three answers to one question, and three buttons would "
+                    "are one choice, and three buttons would "
                     "say there were three questions. Built along action-links' "
                     "lines — the rhythm belongs to the container, so hiding a row "
                     "behind a permission check cannot leave a gap — but with no "
@@ -1924,21 +1924,21 @@ GROUPS: list[Group] = [
                 slug="choice-slots",
                 tag="c-n26.choice-slots",
                 template="n26/choice_slots.html",
-                summary="Open questions as rows: the answer, or a Choose control.",
+                summary="Open questions as rows: what was chosen, or a Choose control.",
                 needs=(ALPINE, KIT_JS, FOCUS),
                 notes=(
                     "Rows rather than a container of its own, so a gang's choices "
                     "and its counters sit in one detail list. Two containers side "
                     "by side would set one run of labelled facts at two rhythms "
-                    "with a gap between them that means nothing. Answered and "
-                    "unanswered are the same control leading to the same page, "
-                    "because they are the same question — pressing an answered "
+                    "with a gap between them that means nothing. Settled and "
+                    "open are the same control leading to the same page, "
+                    "because they are the same question — pressing a settled "
                     "slot is how you change your mind, and giving it a different "
-                    "shape would say it was settled. An unanswered one is never "
-                    "marked as missing: nothing counts it, nothing refuses to "
-                    "proceed without it. A line with no address — a card built "
+                    "shape would say it could not be revisited. An open one is "
+                    "never marked as missing: nothing counts it, nothing refuses "
+                    "to proceed without it. A line with no address — a card built "
                     "from a profile's default equipment has real offers and no "
-                    "rows to answer them against — draws as text with an em dash "
+                    "rows to choose against — draws as text with an em dash "
                     "rather than as a button that goes nowhere."
                 ),
             ),
@@ -2010,7 +2010,7 @@ GROUPS: list[Group] = [
                     "provenance, so a modified characteristic says what changed it "
                     "and a granted skill or trait is marked apart from a bought one. "
                     "Paid ammo is priced under its weapon, and a choice draws as its "
-                    "own row — resolved or not, because an unanswered one is "
+                    "own row — resolved or not, because an open one is "
                     "information rather than an error. Read-only about the fighter's "
                     "numbers: nothing here changes a statline or a weapon. Three rows "
                     "carry controls, each because it is the row a reader is already "

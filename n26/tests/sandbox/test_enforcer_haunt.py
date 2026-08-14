@@ -15,7 +15,7 @@ the type line, and the payload rides the subtype as ordinary modifiers:
   that family.
 
 The only code this took was ``OFFERABLE_KINDS += ("subtype",)`` and a
-render decision: an answered subtype still joins the type line — the
+render decision: a chosen subtype still joins the type line — the
 slot shows the resolution, the type line stays honest.
 """
 
@@ -146,7 +146,7 @@ class TestTheHaunt:
         computed = computed_for(morrow)
         asked = slot(computed, "Sanctioned wyrd type")
         assert asked is not None and not asked.is_resolved
-        # And no power question yet: it belongs to the unanswered type.
+        # And no power question yet: it belongs to the type not yet chosen.
         assert slot(computed, "Primary power") is None
 
     def test_the_pick_list_is_the_two_types(self, morrow):
@@ -161,8 +161,8 @@ class TestTheHaunt:
         self, morrow, wyrd_types, powers_collection, families
     ):
         anchor = morrow.assignments.get(profile__isnull=False)
-        answer = choose(anchor, wyrd_types["psyrender"])
-        assert answer.miniature == morrow  # the type is the fighter's own
+        chosen = choose(anchor, wyrd_types["psyrender"])
+        assert chosen.miniature == morrow  # the type is the fighter's own
 
         computed = computed_for(morrow)
         collection, _ = powers_collection
@@ -181,8 +181,8 @@ class TestTheHaunt:
 
     def test_knowing_the_power(self, morrow, wyrd_types):
         """Drawn once, in the Powers row: a power question folds away
-        when answered and the pick sits with the powers, exactly as an
-        answered skill question becomes a skill."""
+        once chosen for and the pick sits with the powers, exactly as a
+        settled skill question becomes a skill."""
         anchor = morrow.assignments.get(profile__isnull=False)
         choose(anchor, wyrd_types["psyrender"])
         type_row = morrow.assignments.get(subtype__name="Psyrender")
@@ -194,14 +194,14 @@ class TestTheHaunt:
         assert [p.name for p in card.powers] == ["Mind Flense"]  # and only once
 
     def test_the_type_line_stays_honest(self, morrow, wyrd_types):
-        """The answered subtype is drawn as its choice's line AND joins
+        """The chosen subtype is drawn as its choice's line AND joins
         the type line — it is still a subtype, and rules match on it."""
         anchor = morrow.assignments.get(profile__isnull=False)
         choose(anchor, wyrd_types["psyrender"])
 
         card = build_model_card(morrow, computed=computed_for(morrow))
         assert card.type_line == "Fighter (Psyrender)"
-        answered = next(
+        settled = next(
             c for c in card.choices if c.kind_label == "Sanctioned wyrd type"
         )
-        assert answered.chosen == "Psyrender"
+        assert settled.chosen == "Psyrender"

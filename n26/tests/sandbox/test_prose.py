@@ -239,7 +239,7 @@ class TestTheMasterOfWhispers:
             f"/{said.key[1]}/"
         )
 
-    def test_a_power_says_it_may_answer_the_offered_choice(
+    def test_a_power_says_it_may_be_chosen_for_the_offered_choice(
         self, master, whispers, primary
     ):
         whisper = create_power("Crawling Doom", category=whispers)
@@ -247,20 +247,20 @@ class TestTheMasterOfWhispers:
 
         assert texts(prose_for(whisper).referenced_by) == [
             "Offered by Skills & Powers free.",
-            "May answer the Primary power choice offered by the Master of "
-            "Whispers special rule.",
+            "May be chosen for the Primary power choice offered by the Master "
+            "of Whispers special rule.",
         ]
 
     def test_a_choice_nothing_offers_yet_is_still_a_way_in(self, whispers):
         """Written in the composer, before anything carries it: the kind is
-        already enough to say a power could answer it."""
+        already enough to say a power could be chosen for it."""
         from n26.library.models import Power
 
         modifier("A loose offer", targets_model(), ef_offers_choice(Power))
         whisper = create_power("Crawling Doom", category=whispers)
 
         assert texts(prose_for(whisper).referenced_by) == [
-            "May answer an offered choice of Power."
+            "May be chosen for an offered choice of Power."
         ]
 
 
@@ -608,9 +608,9 @@ class TestWhereAThingIsSold:
         ]
 
 
-class TestWhatMayAnswerAnOfferedChoice:
-    """A choice drawn from a tier is answered by what that tier's
-    collection holds, and only those things say they may answer it.
+class TestWhatMayBeChosenForAnOfferedChoice:
+    """A choice drawn from a tier is settled by what that tier's
+    collection holds, and only those things say they may be chosen.
 
     Nothing else can be picked: a narrowed choice offers the collection
     browsed and resectioned for that model, so a power no collection
@@ -642,24 +642,28 @@ class TestWhatMayAnswerAnOfferedChoice:
         )
         return rule
 
-    def test_a_power_the_list_neither_names_nor_sweeps_is_no_answer(
+    def test_a_power_the_list_neither_names_nor_sweeps_cannot_be_chosen(
         self, master, whispers
     ):
         whisper = create_power("Crawling Doom", category=whispers)
 
         assert texts(prose_for(whisper).referenced_by) == []
 
-    def test_a_power_the_list_names_may_answer_it(self, master, primary, whispers):
+    def test_a_power_the_list_names_may_be_chosen_for_it(
+        self, master, primary, whispers
+    ):
         whisper = create_power("Crawling Doom", category=whispers)
         add_entry(primary.collection, whisper)
 
         assert texts(prose_for(whisper).referenced_by) == [
             "Offered by Skills & Powers free.",
-            "May answer the Primary power choice offered by the Master of "
-            "Whispers special rule.",
+            "May be chosen for the Primary power choice offered by the Master "
+            "of Whispers special rule.",
         ]
 
-    def test_a_power_the_list_sweeps_in_may_answer_it(self, master, primary, whispers):
+    def test_a_power_the_list_sweeps_in_may_be_chosen_for_it(
+        self, master, primary, whispers
+    ):
         from n26.library.models import CollectionSelector, Power
 
         whisper = create_power("Crawling Doom", category=whispers)
@@ -667,11 +671,11 @@ class TestWhatMayAnswerAnOfferedChoice:
 
         assert texts(prose_for(whisper).referenced_by) == [
             "Offered by Skills & Powers free, swept in as every power.",
-            "May answer the Primary power choice offered by the Master of "
-            "Whispers special rule.",
+            "May be chosen for the Primary power choice offered by the Master "
+            "of Whispers special rule.",
         ]
 
-    def test_a_power_on_another_list_entirely_is_no_answer(self, master, whispers):
+    def test_a_power_on_another_list_entirely_cannot_be_chosen(self, master, whispers):
         """Being sold somewhere is not being in the tier the choice draws
         from — the offer names one collection's section, not the world."""
         whisper = create_power("Crawling Doom", category=whispers)
