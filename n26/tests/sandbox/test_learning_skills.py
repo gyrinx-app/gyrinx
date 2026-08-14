@@ -273,7 +273,7 @@ class TestWhatTheScreenShows:
         self, client, player, gang, gridless, catalogue
     ):
         """No list, so no act at the foot of the page — a Learn button with
-        nothing selectable above it is a press that can only fail."""
+        nothing selectable above it is a click that can only fail."""
         nobody = hire_with_option(gang, gridless, "Nobody")
         client.force_login(player)
         body = client.get(skills_url(nobody)).content.decode()
@@ -400,7 +400,7 @@ class TestGettingToTheNextFighter:
 
 
 class TestLearning:
-    def test_a_press_on_the_screen_writes_it(
+    def test_a_click_on_the_screen_writes_it(
         self, client, player, gang, yolanda, library
     ):
         """The whole way through: the button submits an identity, the
@@ -419,7 +419,7 @@ class TestLearning:
     def test_a_second_copy_is_refused_however_the_first_arrived(
         self, client, player, gang, yolanda, library
     ):
-        """A duplicate skill means nothing in the game, so the press is
+        """A duplicate skill means nothing in the game, so the click is
         refused — and "already has it" covers every route in, a learned
         one and one granted by a settled choice alike. A card reading
         "Marksman, Marksman" is a bug however honestly each row was
@@ -437,11 +437,11 @@ class TestLearning:
         assert names.count("Catfall") == 1
         assert_reconciled(gang)
 
-    def test_a_press_for_something_off_the_list_writes_nothing(
+    def test_a_click_for_something_off_the_list_writes_nothing(
         self, client, player, gang, yolanda, library
     ):
         """Brawn is nobody's here, so it is not on her screen — and the
-        press is answered by the list rather than by the ledger."""
+        click is answered by the list rather than by the ledger."""
         off_list = library["skills"]["Bull Charge"]
         client.force_login(player)
         client.post(

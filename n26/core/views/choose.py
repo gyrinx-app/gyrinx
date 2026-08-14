@@ -2,7 +2,7 @@
 
 A slot is computed — it exists while its carrier does, and only what was
 chosen is ever stored — so there is nothing to open until a reader
-presses Choose. Choose leads here: the slot's question, and what this
+clicks Choose. Choose leads here: the slot's question, and what this
 gang or this fighter may choose for it.
 
 The whole flow is one page because the difference between a skill, an
@@ -15,7 +15,7 @@ The address holds the slot::
 
     /gangs/<gang>/choose/<card>:<carrier>:<offer>/
 
-``card`` is the model whose card was pressed, or ``gang`` for the gang's
+``card`` is the model whose card was clicked, or ``gang`` for the gang's
 own row; ``carrier`` is the assignment offering the choice; ``offer`` is
 which of its offers. Everything the page needs is in the URL, so it is a
 link, it survives a reload, and it works with scripting off.
@@ -50,7 +50,7 @@ def link_slots(gang, *holders):
 
     Costs no queries: a slot's address is already on the line, and this
     only turns it into a URL. A slot with no address keeps an empty href
-    and draws as a fact with nothing to press — which is right for a card
+    and draws as a fact with nothing to click — which is right for a card
     depicting nobody.
 
     A card files some of its questions into rows of their own — the ones
@@ -121,7 +121,7 @@ def _host(found):
     A carrier held by the gang and echoed onto a member's card offers the
     slot to that member — "Leaders and Champions each select a skill" —
     and the row it echoed from belongs to nobody in particular, so what
-    is chosen has to name the fighter whose card was pressed. Every other
+    is chosen has to name the fighter whose card was clicked. Every other
     slot lets the offer decide: a fighter's own carrier lands on the
     fighter, and an offer that says the gang holds what is chosen still
     does.
@@ -133,7 +133,7 @@ def _host(found):
 
 @login_required
 def choose(request, pk, slot):
-    """The pick screen for one slot, and the press that settles it.
+    """The pick screen for one slot, and the click that settles it.
 
     GET asks and writes nothing. POST names one thing from the list the
     server has just re-derived — never a price and never a free-text
@@ -146,7 +146,7 @@ def choose(request, pk, slot):
 
     Nothing here withholds a pick. The list is short because the offer is
     narrow, and leaving the slot open costs nothing — the way back is the
-    gang. The operation may still refuse the press: a pick that would
+    gang. The operation may still refuse the click: a pick that would
     settle nothing, or a gang with no room in its budget. Either way the
     reader is told and lands back on the list, because a page that drew
     the button owes a reply rather than a traceback.
@@ -172,7 +172,7 @@ def choose(request, pk, slot):
             None,
         )
         if picked is None:
-            # Nothing on the list — a stale page, or a press with nothing
+            # Nothing on the list — a stale page, or a click with nothing
             # selected. The list itself is the reply either way.
             messages.error(request, "That is not one of the things on offer.")
             return redirect(request.path)

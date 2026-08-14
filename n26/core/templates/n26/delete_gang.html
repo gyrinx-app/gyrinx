@@ -13,8 +13,8 @@ footer match every other screen that asks for a decision. The footer is the
 shared pair: a way out, and an act marked `danger` because this form ends by
 taking something away rather than by making something.
 
-Cancel leads back to the sheet the press came from, which is why the page needs
-a cancel_url at all — leaving is not a submission, and a reader who presses it
+Cancel leads back to the sheet the click came from, which is why the page needs
+a cancel_url at all — leaving is not a submission, and a reader who clicks it
 should land where they were rather than on a page this form chose for them.
 
 The alert is warning rather than error: an error reports something that already
@@ -36,8 +36,8 @@ that said it twice would be spending the width the name needs.
 {% block content %}
     {% comment %}
     The lead identifies rather than warns: a reader arriving here from a
-    dropdown needs to know which gang the press caught before they read what
-    the press does. Type, roster and rating are the three facts that tell two
+    dropdown needs to know which gang the click caught before they read what
+    the click does. Type, roster and rating are the three facts that tell two
     similarly named gangs apart.
     {% endcomment %}
     <c-n26.form-page action="{% url 'n26-delete-gang' gang.pk %}"

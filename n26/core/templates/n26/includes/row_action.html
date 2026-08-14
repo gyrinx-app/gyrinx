@@ -1,12 +1,12 @@
 {% load listing %}
 {% comment %}
-One of a listing row's actions, as a button. Expects `action` — an
+One of a catalogue row's actions, as a button. Expects `action` — an
 n26.core.listing.Action — and optionally `name`, the form field a submit
 carries its target under.
 
     {% include "n26/includes/row_action.html" with action=row.buy name="thing" %}
 
-The row says whether the press is a submit within the listing's own form or a
+The row says whether the click is a submit within the catalogue's own form or a
 navigation to a confirmation the server draws, so nothing here has to know that
 Sell opens a dialog and Buy does not. Adding a fifth act is a change to the
 structure and to nothing on this page.

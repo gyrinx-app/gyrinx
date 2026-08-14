@@ -85,7 +85,7 @@ def siblings_switcher(kind, thing):
     is put back if the cap dropped it — a switcher that does not list the
     page it is sitting on says the reader is nowhere.
 
-    The listing is the whole set and is a press away, which is what makes
+    The listing is the whole set and is a click away, which is what makes
     a cap honest here rather than a hidden limit.
     """
     from django.urls import reverse

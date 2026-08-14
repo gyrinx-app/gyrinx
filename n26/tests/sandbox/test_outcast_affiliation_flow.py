@@ -1,4 +1,4 @@
-"""The Outcast affiliation, chosen through the pages a player presses.
+"""The Outcast affiliation, chosen through the pages a player clicks.
 
 The 2026 Outcast gang list: at creation the gang chooses one of four
 affiliations — Clanless, Clan House, Mutant, Aranthian — and exactly one;
@@ -8,7 +8,7 @@ Each affiliation's benefit is list access scoped by rank.
 
 test_outcast_gang.py proves the structures; this file proves the flow as
 clicked: the gang sheet offers the choice, the picker page lists exactly
-the right options at each step and nothing else, one press chooses, and
+the right options at each step and nothing else, one click chooses, and
 changing the choice replaces it — with everything the old pick caused
 retired along with it.
 
@@ -230,7 +230,7 @@ class TestTheAffiliationPicker:
         for house in HOUSES:
             assert f"House {house}" not in body, house
 
-    def test_one_press_settles_it(self, client, owner, gang, affiliations):
+    def test_one_click_settles_it(self, client, owner, gang, affiliations):
         top, _ = affiliations
         client.force_login(owner)
         response = pick(client, gang, "Affiliation", top["Clan House"])

@@ -2,7 +2,7 @@
 
 The four routes are addressed by assignment rather than by fighter, so
 what is pinned here is the wiring around ``Operation.sell``, ``move``,
-``refund`` and ``remove`` — that a press writes the right one, that the
+``refund`` and ``remove`` — that a click writes the right one, that the
 books still agree afterwards, that nobody reaches another player's rows,
 and that a GET writes nothing at all.
 
@@ -105,7 +105,7 @@ class TestSelling:
         assert sword.archived is True
         assert_reconciled(gang)
 
-    def test_the_press_lands_back_on_the_shop_it_came_from(
+    def test_the_click_lands_back_on_the_shop_it_came_from(
         self, client, tester, fighter, sword, house_list
     ):
         client.force_login(tester)
@@ -114,7 +114,7 @@ class TestSelling:
             reverse("n26-equip", args=[fighter.pk]) + f"?list={house_list.pk}"
         )
 
-    def test_a_second_press_of_a_stale_button_sells_nothing_twice(
+    def test_a_second_click_of_a_stale_button_sells_nothing_twice(
         self, client, tester, gang, sword
     ):
         """The archived row is gone as far as these routes are concerned,
@@ -175,7 +175,7 @@ class TestReassigning:
         self, client, tester, gang, sword, make_profile
     ):
         """The select only offers this gang's roster, so this can only be a
-        hand-made press — and it moves nothing."""
+        hand-made click — and it moves nothing."""
         stranger = User.objects.create_user("stranger")
         theirs = Gang.objects.create(
             name="Their Gang",
@@ -274,7 +274,7 @@ class TestRefunding:
     def test_a_gun_and_its_ammo_are_refunded_together(
         self, client, tester, gang, fighter
     ):
-        """They were bought on one press, so they come back on one."""
+        """They were bought on one click, so they come back on one."""
         from n26.library.authoring import add_weapon_profile, create_weapon
 
         autogun = create_weapon("Autogun", profiles=[("", 0)], price=20)
@@ -384,7 +384,7 @@ class TestRemoving:
         assert_reconciled(gang)
 
 
-class TestWhatMayBePressedOn:
+class TestWhatMayBeClickedOn:
     """These acts are about kit, and a gang holds a great deal that is not
     kit — every bit of it an assignment with a primary key of its own.
 
@@ -461,7 +461,7 @@ class TestWhatMayBePressedOn:
 
     def test_the_shop_offers_none_of_them_either(self, gang, fighter, tester, sword):
         """One rule, read by the listing that draws the controls and by the
-        routes behind them, so a screen can never offer what a press would
+        routes behind them, so a screen can never offer what a click would
         refuse."""
         from n26.core.card import build_card
         from n26.core.owned import owned_things, thing_key
@@ -476,7 +476,7 @@ class TestWhatMayBePressedOn:
         assert not [key for key in held if key.startswith("library.skill:")]
 
 
-class TestWhoMayPress:
+class TestWhoMayClick:
     """Every one of these writes, so every one of them is guarded — and
     none of them is a GET."""
 
@@ -549,7 +549,7 @@ def gun(gang, fighter, tester):
 class TestFittingAnAccessory:
     """Bought onto the weapon's own row, at the price the library says."""
 
-    def test_a_press_bolts_it_onto_the_weapon(
+    def test_a_click_bolts_it_onto_the_weapon(
         self, client, tester, gang, fighter, gun, sight
     ):
         client.force_login(tester)
@@ -569,7 +569,7 @@ class TestFittingAnAccessory:
         assert_reconciled(gang)
 
     def test_the_form_never_says_what_it_costs(self, client, tester, gang, gun, sight):
-        """A figure in the press buys nothing at a figure nobody offered:
+        """A figure in the click buys nothing at a figure nobody offered:
         the server reads the price off the library."""
         client.force_login(tester)
         gang.refresh_from_db()
@@ -583,7 +583,7 @@ class TestFittingAnAccessory:
         assert gang.credits == before - 25
         assert_reconciled(gang)
 
-    def test_the_press_lands_back_on_the_list_and_tab_it_came_from(
+    def test_the_click_lands_back_on_the_list_and_tab_it_came_from(
         self, client, tester, fighter, gun, sight, house_list
     ):
         client.force_login(tester)
@@ -603,7 +603,7 @@ class TestFittingAnAccessory:
     def test_something_that_is_not_a_weapon_is_nowhere_to_fit_one(
         self, client, tester, sword, sight
     ):
-        """No control draws this address for anything but a gun, so a press
+        """No control draws this address for anything but a gun, so a click
         that arrives is a hand-made URL."""
         client.force_login(tester)
         response = client.post(
@@ -741,7 +741,7 @@ class TestFittingOneBackOntoAGun:
             op.move(bolted, stash)
         return bolted
 
-    def test_a_press_fits_it_to_the_named_weapon(
+    def test_a_click_fits_it_to_the_named_weapon(
         self, client, tester, gang, fighter, gun, stashed, stash
     ):
         client.force_login(tester)
@@ -764,7 +764,7 @@ class TestFittingOneBackOntoAGun:
         assert gang.credits == before
         assert_reconciled(gang)
 
-    def test_the_press_lands_on_the_sheet_it_was_made_from(
+    def test_the_click_lands_on_the_sheet_it_was_made_from(
         self, client, tester, gang, gun, stashed
     ):
         client.force_login(tester)
@@ -777,7 +777,7 @@ class TestFittingOneBackOntoAGun:
         self, client, tester, gang, stashed, gang_type, make_profile, make_statline
     ):
         """The select offers this gang's guns alone, so this can only be a
-        hand-made press — and it fits nothing."""
+        hand-made click — and it fits nothing."""
         from n26.library.authoring import create_weapon
 
         stranger = User.objects.create_user("stranger")
@@ -804,7 +804,7 @@ class TestFittingOneBackOntoAGun:
         assert_reconciled(gang)
 
     def test_a_firing_line_is_refused_in_words(self, client, tester, gang, gun, stash):
-        """The listing offers no control for this, so a press that reaches
+        """The listing offers no control for this, so a click that reaches
         it is hand-made — and it is answered with a sentence rather than a
         traceback."""
         client.force_login(tester)
@@ -968,7 +968,7 @@ def test_a_miniature_that_is_not_this_gangs_is_no_destination(gang, fighter):
 
 class TestThePanelsAPageCarries:
     """The accessory question is built for every gun on a card rather than
-    for the one an address names, so the press that opens one has nothing
+    for the one an address names, so the click that opens one has nothing
     to wait for. Which is *open* is still the address's answer alone."""
 
     @staticmethod

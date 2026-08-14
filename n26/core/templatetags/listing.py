@@ -1,4 +1,4 @@
-"""Turning a listing row's tones into the button kit's colours.
+"""Turning a catalogue row's tones into the button kit's colours.
 
 A row says what an act *means* — the one the reader came to do, one that
 takes a thing away, or one of the rarer rest. Which colour that is

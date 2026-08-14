@@ -65,7 +65,7 @@ class TestTheStrip:
 
 
 class TestTheSearchBarsButton:
-    """The submit appears exactly where pressing it does something. A bar
+    """The submit appears exactly where clicking it does something. A bar
     that narrows rows already on the page has nothing to submit, and a
     button that does nothing is worse than no button."""
 
@@ -74,7 +74,7 @@ class TestTheSearchBarsButton:
         assert 'type="submit"' in html
 
     def test_a_nested_bar_has_no_button(self):
-        """Nested is inside somebody else's form: a real submit would press
+        """Nested is inside somebody else's form: a real submit would post
         theirs, so there is nothing a button here could ever do."""
         html = render('<c-n26.search-bar :live="True" :nested="True" model="query" />')
         assert 'type="submit"' not in html

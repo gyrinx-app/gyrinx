@@ -1,12 +1,12 @@
-"""What a model already holds, as a shop listing needs to see it.
+"""What a model already holds, as a shop catalogue needs to see it.
 
-A listing asks two questions of a fighter's card. Does this fighter
+A catalogue asks two questions of a fighter's card. Does this fighter
 already own one of these? And if so, what exactly — which copy, worth
 what, with what hanging off it — so the reader can sell it, hand it to
 somebody else, undo the purchase, or take it off the card.
 
 Both answers come off the card the page has already built. Nothing here
-queries, which is the whole point: a listing is hundreds of rows, and an
+queries, which is the whole point: a catalogue is hundreds of rows, and an
 owned-count fetched per row would be hundreds of queries.
 
 What is owned is drawn as a *state of a shop row*: where the fighter holds
@@ -22,7 +22,7 @@ re-homed on its own depends on what sort of part it is, and
 
 Neither is *anything* the gang holds. Selling, handing on and dropping
 are acts on **possessions**, and :func:`is_possession` is the one place
-that says what one is — read by the listing that draws the controls and
+that says what one is — read by the catalogue that draws the controls and
 by the routes behind them, so a screen can never offer what a route
 would refuse, nor the other way round.
 
@@ -191,7 +191,7 @@ def _parts_of(node, at):
 
 
 def owned_things(card, at):
-    """Everything on this card, keyed the way a listing keys its rows.
+    """Everything on this card, keyed the way a catalogue keys its rows.
 
     Keyed by :func:`thing_key`, so a row looks its own key up and finds
     the copies of itself the fighter is carrying — one dictionary read per

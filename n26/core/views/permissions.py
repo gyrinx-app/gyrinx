@@ -62,7 +62,7 @@ def _own_assignment_or_404(request, pk):
     hangs off — so a weapon on a fighter, a sight on that weapon and a
     crate in the stash are all reached the same way, and none of them by
     somebody else. Archived rows are out: a thing already sold is not
-    something to sell again, and a second press of a stale button must
+    something to sell again, and a second click of a stale button must
     find nothing rather than charge the gang twice.
     """
     from n26.core.models import Assignment

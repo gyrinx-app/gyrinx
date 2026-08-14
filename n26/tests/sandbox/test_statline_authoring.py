@@ -53,7 +53,7 @@ def edit(client, profile, statline=None, **overrides):
 
     The whole form goes every time — its own fields prefixed ``edit`` and
     the characteristics prefixed ``statline`` — because that is what a
-    press of Save sends, and a payload naming only the field under test
+    click of Save sends, and a payload naming only the field under test
     would prove the view tolerates something no browser produces.
     """
     payload = {
@@ -206,7 +206,7 @@ class TestChangingAStatlineAlreadyThere:
         assert Statline.objects.filter(profile=written).count() == 1
         assert StatlineStat.objects.filter(statline__profile=written).count() == 3
 
-    def test_the_profiles_own_fields_save_in_the_same_press(
+    def test_the_profiles_own_fields_save_in_the_same_click(
         self, author, client, written
     ):
         """One form, one Save. The statline is not a second thing to
@@ -264,7 +264,7 @@ class TestWhatAnAuthorMayType:
     def test_a_refusal_writes_nothing_at_all(self, author, client, ganger):
         """Both halves of the form save together or not at all — a page
         that took the new name and dropped the statline would leave the
-        author unsure which of the two presses had landed."""
+        author unsure which of the two clicks had landed."""
         response = edit(
             client,
             ganger,

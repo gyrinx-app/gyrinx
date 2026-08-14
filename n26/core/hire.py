@@ -105,7 +105,7 @@ class HireEntry:
     groups: list[HireGroup] = field(default_factory=list)
     #: The collection entry that offered this row, where a collection did.
     #: Its price is the one the row quotes and the one the hire charges, so
-    #: a press has to say which entry offered it — hence ``key``.
+    #: a click has to say which entry offered it — hence ``key``.
     entry: object = None
     #: Where a card for this row is fetched from before any option is
     #: named — what the offer is priced by, and nothing about the
@@ -119,13 +119,13 @@ class HireEntry:
 
     @property
     def key(self):
-        """What a press submits to name this row — the profile, and the
+        """What a click submits to name this row — the profile, and the
         offer it was made under when a collection made it.
 
         A profile can be on this screen twice: once on the gang's own list
         at reference price and once in a carried collection at the
         collection's. The two rows are different offers of the same
-        fighter, so the identity a press carries is both halves. Neither
+        fighter, so the identity a click carries is both halves. Neither
         half is a price: the server looks the entry up and reads the
         price off it, the way an equip page's listing submits a line's
         identity.
@@ -225,7 +225,7 @@ def build_hire_entry(profile, index=None, with_cards=True, base=None, entry=None
 
     ``base`` prices the fighter as an offering collection does, and
     ``entry`` is the row that made the offer — carried on the entry so a
-    press can say which offer it answered.
+    click can say which offer it answered.
     """
     grouped = profile.grouped_offers()
     if not grouped or grouped[0][0] is not None:

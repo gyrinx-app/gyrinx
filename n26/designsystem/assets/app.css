@@ -727,7 +727,7 @@
      * The row needs `relative` for the stretch to have something to fill, and
      * anything meant to stay clickable — the buttons — needs `relative` too so it
      * paints above the sheet. Both are on the markup rather than here, because
-     * which parts of a row are still pressable is the row's decision. */
+     * which parts of a row are still clickable is the row's decision. */
     .n26-row-link::after {
         content: "";
         position: absolute;
@@ -736,7 +736,7 @@
 
     /* Two lines of a changelog entry, then an ellipsis. A summary that is allowed
      * to run to five lines is a summary the eye skips, and the entry it belongs to
-     * is one press away — so this cuts at the point where reading it in full stops
+     * is one click away — so this cuts at the point where reading it in full stops
      * being cheaper than opening it. */
     .n26-clamp-2 {
         display: -webkit-box;
@@ -992,7 +992,7 @@
      *
      * The active state repeats the whole transform and adds to it. Transforms do
      * not compose across rules: naming only the translate would replace the
-     * perspective and rotation, and the card would snap flat as it was pressed.
+     * perspective and rotation, and the card would snap flat as it was clicked.
      *
      * No motion for anyone who has asked for none. A perspective tilt is exactly
      * the kind of movement that prefers-reduced-motion exists for, and the

@@ -17,7 +17,7 @@ the slot.
 
 The page draws this only when the URL says so, so there is no trigger, no toggle
 and no client-side open flag — the dialog is in the HTML or it is not. That is
-what makes a press work with scripting off, and what makes an open dialog a link
+what makes a click work with scripting off, and what makes an open dialog a link
 somebody can send.
 
 The kit's c-ui.dialog is the other shape: a trigger beside content teleported
@@ -40,15 +40,15 @@ journey — the next section.)
   --- a panel that waits on the page ---
 
 One question a screen asks is not a confirmation but an offer — which accessory
-to fit — and rebuilding a listing of hundreds of rows to put it on screen is
+to fit — and rebuilding a catalogue of hundreds of rows to put it on screen is
 seconds a reader spends on a panel the page could already be holding. So a
-caller may draw the panel closed (`open=""`) and open it with a press:
+caller may draw the panel closed (`open=""`) and open it with a click:
 $dispatch('n26-dialog-open', { id, url }) reaches whichever one carries that id.
 
 The address still says which is open, and it is still the server that decides
 what a request draws: the control is a link to the same address, so with no
 script the page comes back with that panel open and nothing here is needed. What
-the press adds is that the same address is reached without the page being built
+the click adds is that the same address is reached without the page being built
 again — history.replaceState writes it, so a reload lands on the open panel and
 the link is still one somebody can send.
 
@@ -62,12 +62,12 @@ closes rather than travels.
   --- one at a time, unless they are waiting ---
 
 The ids are the caller's: a page drawing one panel needs none and the default
-serves, while a page holding several must name them, because that is how a press
+serves, while a page holding several must name them, because that is how a click
 says which. The heading takes its id from the same word, so two panels on one
 page do not both claim to be the thing a screen reader announces.
 
   title — the question, as the heading.
-  lead — a sentence under it: what pressing will do, what it will pay, what it
+  lead — a sentence under it: what clicking will do, what it will pay, what it
     will take away. A slot, so a caller can compose it from figures.
   action — where the answer posts.
   cancel_url — where Cancel and a dismissed dialog go. Without one there is no
@@ -80,8 +80,8 @@ page do not both claim to be the thing a screen reader announces.
     page's flow, which is what a reader without scripting sees.
   open — the server says this one is open. On by default, which is every
     confirmation: they are drawn only when the URL asks for them. Off draws the
-    panel closed, waiting for a press to name it.
-  id — the element's id, which is also what a press names and what the heading
+    panel closed, waiting for a click to name it.
+  id — the element's id, which is also what a click names and what the heading
     builds its own id from. Only a page holding several needs to set it.
   slot — the csrf token, the hidden fields, and whatever the question needs
     answering with. A component has no request and renders no token itself.
@@ -124,9 +124,9 @@ it with no script. So the attribute goes back on, `promoted` stays false, the
 panel keeps its in-flow presentation, and the exception is logged rather than
 swallowed.
 
-A press opens a waiting panel the same way, and a promotion that fails there
-has a better answer than a panel below the fold: the press named an address
-that draws this open, so it goes there. `pressed` is what the closing half
+A click opens a waiting panel the same way, and a promotion that fails there
+has a better answer than a panel below the fold: the click named an address
+that draws this open, so it goes there. `clicked` is what the closing half
 reads — a panel this page opened is closed by putting the address back, where
 one the server drew open can only be left by asking for a page without it.
 {% endcomment %}
@@ -134,7 +134,7 @@ one the server drew open can only be left by asking for a page without it.
         id="{{ id }}"
         {% if modal %}x-data="{
             promoted: false,
-            pressed: false,
+            clicked: false,
             cancelUrl: '{{ cancel_url }}',
             promote(dialog) {
                 try {
@@ -148,7 +148,7 @@ one the server drew open can only be left by asking for a page without it.
             },
             reveal(dialog, url) {
                 if (dialog.open) return;
-                this.pressed = true;
+                this.clicked = true;
                 this.promote(dialog);
                 if (!this.promoted) {
                     window.location = url;
@@ -157,16 +157,16 @@ one the server drew open can only be left by asking for a page without it.
                 }
             },
             dismiss() {
-                if (!this.pressed) {
+                if (!this.clicked) {
                     window.location = this.cancelUrl;
                     return;
                 }
-                this.pressed = false;
+                this.clicked = false;
                 this.promoted = false;
                 history.replaceState({}, '', this.cancelUrl);
             },
             leaving(event) {
-                if (!this.pressed) return;
+                if (!this.clicked) return;
                 const link = event.target.closest('a[href]');
                 if (link && link.getAttribute('href') === this.cancelUrl) {
                     event.preventDefault();

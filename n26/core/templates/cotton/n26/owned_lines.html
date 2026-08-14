@@ -31,10 +31,10 @@ this asks whether the act is there and never what kind of thing the row is.
 
 Every control is a link to a real address, because every dialog behind them is a
 server state that a reader can send, reload and reach with no script. The
-accessory panel is drawn on the page ahead of the press as well, so pressing it
+accessory panel is drawn on the page ahead of the click as well, so clicking it
 opens what is already there instead of asking for a screen of several hundred
-rows to be built again; the link is what that press falls back to. Being links
-also keeps this out of the listing's own form, which wraps every row on the page
+rows to be built again; the link is what that click falls back to. Being links
+also keeps this out of the catalogue's own form, which wraps every row on the page
 — a form inside a form is not a thing HTML has.
 
   :copies — a list of n26.core.listing.OwnedCopyRow.
@@ -56,16 +56,16 @@ also keeps this out of the listing's own form, which wraps every row on the page
                 control that adds to it. Quiet with it: a fighter's guns are
                 read for what they are, not for what could be bolted on.
 
-                A link to the address that draws the panel, and a press that
+                A link to the address that draws the panel, and a click that
                 opens the panel already on the page. Both reach the same state;
-                the second does it without rebuilding a listing of several
+                the second does it without rebuilding a catalogue of several
                 hundred rows. Its own x-data because Alpine only walks into
                 elements a component contains, and a row is drawn in places
                 where nothing above it is one.
                 {% endcomment %}
                 {% comment %}
                 An icon and the words, together: a bare plus beside a
-                gun's name says nothing about what pressing it adds, and
+                gun's name says nothing about what clicking it adds, and
                 words without the plus don't read as a control that adds
                 one. Ghost and small is what keeps it quiet.
                 {% endcomment %}

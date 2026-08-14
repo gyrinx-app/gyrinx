@@ -13,7 +13,7 @@ click handler on a div would lose the URL, middle-click and keyboard focus.
 So: the row is `relative` for the stretch to fill, and the actions are `relative`
 so they paint above it. That is the whole trick, and it is why those two classes
 are on the markup rather than in the CSS rule — which parts of a row stay
-pressable is the row's decision, not the stylesheet's.
+clickable is the row's decision, not the stylesheet's.
 
   --- the layout ---
 
@@ -97,7 +97,7 @@ you came to the list.
 
     {% comment %}
     relative, so the buttons sit above the stretched link rather than under it —
-    without this the row swallows every press and Print becomes unreachable.
+    without this the row swallows every click and Print becomes unreachable.
 
     Both the same variant. Print was quieter on the argument that the row already
     edits — but stacked narrow, a bordered button above a bare word reads as

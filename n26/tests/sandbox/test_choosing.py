@@ -4,13 +4,13 @@ The engine underneath is pinned elsewhere — ``test_outcast_gang.py`` for
 archetypes and affiliations, ``test_venator_skill_trees.py`` for the
 whole-kind pick, ``test_specialist.py`` for the ordinary one. This file
 is about the surface: that an open slot draws as something to
-press, that pressing it lists what *this* card may pick, and that the
-press writes a row the slot then reads back.
+click, that clicking it lists what *this* card may pick, and that the
+click writes a row the slot then reads back.
 
 The three questions here are deliberately unalike underneath — a skill
 narrowed to a tier the archetype opens, an archetype whose pick belongs
 to the gang, an affiliation the gang itself is asked — and the screens
-tell them apart by nothing at all. One route, one page, one press.
+tell them apart by nothing at all. One route, one page, one click.
 """
 
 import pytest
@@ -293,7 +293,7 @@ def fighter_computed(miniature):
 
 
 class TestAnOpenSlotIsAnInvitation:
-    """A slot nobody has chosen for draws as something to press, and
+    """A slot nobody has chosen for draws as something to click, and
     as nothing else: it is not an error and nothing counts it."""
 
     def test_every_open_slot_carries_the_address_of_its_own_picker(self, gang, crew):
@@ -400,7 +400,7 @@ class TestATierHoldingTwoKinds:
     def test_a_tier_of_nothing_but_powers_offers_nothing(self, gang, crew, whispers):
         """Without the archetype no skill set is Primary, so the whispers
         are all that tier holds — and the question says it has nothing on
-        offer rather than drawing presses that write nothing."""
+        offer rather than drawing clicks that write nothing."""
         assert offer_for(sheet_slots(gang)["Sorrow: Primary skill"]).is_empty
 
     def test_the_powers_are_still_there_to_browse(
@@ -477,7 +477,7 @@ def gang_anchor(gang, assignable_name, crew):
 
 
 class TestMakingOneChoice:
-    """One press writes one row, and the slot reads it back."""
+    """One click writes one row, and the slot reads it back."""
 
     def post(self, client, href, thing):
         return client.post(href, {"thing": f"{thing._meta.label_lower}:{thing.pk}"})
@@ -524,7 +524,7 @@ class TestMakingOneChoice:
         self, client, owner, gang, crew, profiles, archetypes, skills
     ):
         """The skill offer rides the gang type and reaches every Leader.
-        The chosen row names the Leader whose slot was pressed, and nobody
+        The chosen row names the Leader whose slot was clicked, and nobody
         else's slot moves."""
         choose(gang_anchor(gang, "Outcast Leader", crew), archetypes["Brawler"])
         second = hire_with_option(gang, profiles["leader"], "Ash")
@@ -570,7 +570,7 @@ class TestMakingOneChoice:
         self, client, owner, gang, crew, affiliations
     ):
         """One question, one chosen thing: the old row is retired in the same
-        press, so the slot never reads two things at once."""
+        click, so the slot never reads two things at once."""
         client.force_login(owner)
         href = sheet_slots(gang)["Affiliation"].href
         self.post(client, href, affiliations["Mutant"])
@@ -607,8 +607,8 @@ class TestMakingOneChoice:
         assert not sheet_slots(gang)["Affiliation"].is_resolved
 
 
-class TestAPressTheDomainWillNotTake:
-    """A press is met with words, whatever it names. Nothing a reader
+class TestAClickTheDomainWillNotTake:
+    """A click is met with words, whatever it names. Nothing a reader
     can send to one of these addresses is worth an error page: the whole
     of the flow is one list and one button, so the list is the reply."""
 
@@ -618,8 +618,8 @@ class TestAPressTheDomainWillNotTake:
     def test_a_power_cannot_be_chosen_for_a_question_about_skills(
         self, client, owner, gang, crew, archetypes, whispers
     ):
-        """A power filed in the fighter's Primary tier, pressed at the
-        skill question. It is not on the list, so the press writes
+        """A power filed in the fighter's Primary tier, clicked at the
+        skill question. It is not on the list, so the click writes
         nothing, says why, and comes back to the list."""
         choose(gang_anchor(gang, "Outcast Leader", crew), archetypes["Brawler"])
         client.force_login(owner)

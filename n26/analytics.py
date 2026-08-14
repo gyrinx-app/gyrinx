@@ -58,12 +58,12 @@ def record(request, noun, verb, obj=None, **context):
     ``obj`` is the row the action was about, when there is one; anything else
     worth asking a question about later goes in ``context``.
 
-    One press, one event. An action that touches many rows — a print of a
+    One click, one event. An action that touches many rows — a print of a
     whole roster, an ingest of a whole spreadsheet — is still one event
     carrying counts, because a row-by-row loop turns a page into as many
     writes as it has rows.
 
-    A speculative fetch is not a press. Browsers prefetch and prerender
+    A speculative fetch is not a click. Browsers prefetch and prerender
     pages nobody has opened yet — tab strips ask for it — and an event
     recorded then would count readers who never arrived.
     """

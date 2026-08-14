@@ -1,5 +1,5 @@
 {% comment %}
-<c-n26.detail-list.row> — one labelled value you can press to change.
+<c-n26.detail-list.row> — one labelled value you can click to change.
 
     {# the value as plain text #}
     <c-n26.detail-list.row label="House list" value="Escher" />
@@ -9,7 +9,7 @@
         Ferocity, Brawn, Cunning
     </c-n26.detail-list.row>
 
-    {# pressing it opens a form #}
+    {# clicking it opens a form #}
     <c-n26.detail-list.row label="House list" value="Escher">
         <c-slot name="dialog_header"><h2 class="text-lg font-semibold">House list</h2></c-slot>
         <c-slot name="dialog">…a form…</c-slot>
@@ -21,7 +21,7 @@
 
 The value is one control however much it holds. A list of three skill trees is
 still one choice — "which trees does this gang have" — so it is one
-thing to press, and the dialog it opens is where the three become three. Three
+thing to click, and the dialog it opens is where the three become three. Three
 buttons would say there were three questions.
 
 xs, and the smallest button the kit draws. There are a dozen of these above the
@@ -31,7 +31,7 @@ toolbar.
   --- default rather than ghost ---
 
 The control carries a border. A ghost button here would be a value that only looks
-pressable once you are already pointing at it, which on a phone means never — and
+clickable once you are already pointing at it, which on a phone means never — and
 the whole premise is that every one of these is editable. The border is the
 affordance; the label beside it stays plain text precisely so the contrast reads.
 
@@ -47,7 +47,7 @@ affordance; the label beside it stays plain text precisely so the contrast reads
   :editable — False draws the value as text with no control. For a fact that is
     settled: when it was founded, what it started as.
   href — make the control a link to an edit page instead of a dialog trigger.
-  dialog — a form to open on press: the dialog's body.
+  dialog — a form to open on click: the dialog's body.
   dialog_header, dialog_footer — the dialog's heading and its buttons. Named here
     rather than nested inside `dialog`, because Cotton reads a component's slots
     from the tags written as its children at compile time — a <c-slot> arriving

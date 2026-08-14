@@ -1017,10 +1017,10 @@ GROUPS: list[Group] = [
                     "one worth a ResizeObserver and a ghost copy of the strip. They "
                     "are two blocks of markup rather than one that adapts, because "
                     "what they do differs: a full strip must not move when a tab is "
-                    "pressed, and a strip of one is the current section followed by "
+                    "clicked, and a strip of one is the current section followed by "
                     "the way to the others. One block serving both pulled the active "
                     "tab to the front, which is the second shape's rule imposed on "
-                    "the first, where it reorders the whole row on every press. "
+                    "the first, where it reorders the whole row on every click. "
                     "Categories collapse, because "
                     "thirty rows is a lot of thumb; and every control applies on "
                     "touch, so the loop is filter, look, adjust rather than filter, "
@@ -1112,7 +1112,7 @@ GROUPS: list[Group] = [
                     "the only kind of dialog here whose open state is a server "
                     "state: the page draws it when the URL says so, which is "
                     "what makes it a link, makes it survive a reload, and makes "
-                    "the press that opened it work with scripting off. "
+                    "the click that opened it work with scripting off. "
                     "c-ui.dialog is the other shape — a trigger beside content "
                     "teleported into a <template> and revealed by Alpine — and "
                     "with the answer already decided by the server and no "
@@ -1134,7 +1134,7 @@ GROUPS: list[Group] = [
                 tag="c-n26.hire-dialog",
                 template="n26/hire_dialog.html",
                 summary=(
-                    "What a press leaves to answer: what this fighter is "
+                    "What a click leaves to answer: what this fighter is "
                     "called, and what the gang pays for them."
                 ),
                 needs=(ALPINE,),
@@ -1154,7 +1154,7 @@ GROUPS: list[Group] = [
                     "the table knows which. It starts ticked, because typing a "
                     "price over the quote is most of the way to saying what "
                     "the fighter is worth and the bargain reading is the one "
-                    "worth an extra press. It is drawn whether or not the "
+                    "worth an extra click. It is drawn whether or not the "
                     "price has been typed over, because a control that appears "
                     "under the reader's hands is one they did not know was "
                     "coming."
@@ -1187,7 +1187,7 @@ GROUPS: list[Group] = [
                     "that also take the thing away. The stash is a button and the roster a select "
                     "because they are not the same kind of choice — one place "
                     "that is always there, against a list that may be long — "
-                    "and only the pressed submit is sent, which is the whole of "
+                    "and only the clicked submit is sent, which is the whole of "
                     "how the view tells the two apart. Selling a gun with "
                     "something bolted to it is two sales at two prices, so the "
                     "answers carry a figure each rather than the lead carrying "
@@ -1216,9 +1216,9 @@ GROUPS: list[Group] = [
                     "colour with nothing edited. A part offers no move: "
                     "it belongs to the thing it hangs off, and Operation.move "
                     "refuses an assignment with a parent, so a control for it "
-                    "would be a press that cannot work. Every control is a link "
+                    "would be a click that cannot work. Every control is a link "
                     "to a real address — the dialog is a server state, and the "
-                    "listing's own form wraps every row on the page, so a form "
+                    "catalogue's own form wraps every row on the page, so a form "
                     "in here would be a form inside a form."
                 ),
             ),
@@ -1445,7 +1445,7 @@ GROUPS: list[Group] = [
                     "eye finishes the last field, and the act is last because "
                     "it is what the form is for. Cancel is an href and never a "
                     "submit, because leaving is not a submission and a reader "
-                    "pressing it should land where they already were; a form "
+                    "clicking it should land where they already were; a form "
                     "with nowhere to go back to passes no cancel_url and gets "
                     "no cancel, which beats one that leads somewhere "
                     "arbitrary. It is ghost so the two do not compete — the act "
@@ -1645,7 +1645,7 @@ GROUPS: list[Group] = [
                     "Checkboxes and no script: what arrives ticked is what the "
                     "server said, so the form is right before anything runs. An "
                     "option a rule grants is drawn ticked and fixed, saying what "
-                    "grants it, because nothing stored is behind it and a press "
+                    "grants it, because nothing stored is behind it and a click "
                     "could not take it away; a fixed box submits nothing, which is "
                     "why whatever applies the difference must leave granted things "
                     "out of it rather than read their silence as a clearing. An "
@@ -1662,7 +1662,7 @@ GROUPS: list[Group] = [
                 notes=(
                     "The kit's checkbox cards make the whole surface the toggle, "
                     "which is right up until the card holds controls of its own — "
-                    "then a press on any of them would toggle the card. This one "
+                    "then a click on any of them would toggle the card. This one "
                     "confines the toggle to its header and keeps the body live, "
                     "which is the difference that justifies a second component; "
                     "the presentation is deliberately the kit's, so the two read "
@@ -1805,7 +1805,7 @@ GROUPS: list[Group] = [
                     "on a dashboard is seeing at a glance whether anything has "
                     "happened since last time. Summaries clamp at two lines — one "
                     "is a headline and the entry already has a headline, and the "
-                    "full text is a press away, so it cuts where reading it here "
+                    "full text is a click away, so it cuts where reading it here "
                     "stops being cheaper than opening it. The way through to "
                     "everything is in the heading rather than a last row: a row "
                     "that opens an index is the one row in a list that does not "
@@ -1916,7 +1916,7 @@ GROUPS: list[Group] = [
                     "than a grid: a grid aligns every value to the widest label on "
                     "the sheet, which spends most of a phone on nothing. The "
                     "control keeps its border, because a ghost button is a value "
-                    "that only looks pressable once you are already pointing at "
+                    "that only looks clickable once you are already pointing at "
                     "it, which on a phone is never."
                 ),
             ),
@@ -1932,7 +1932,7 @@ GROUPS: list[Group] = [
                     "by side would set one run of labelled facts at two rhythms "
                     "with a gap between them that means nothing. Settled and "
                     "open are the same control leading to the same page, "
-                    "because they are the same question — pressing a settled "
+                    "because they are the same question — clicking a settled "
                     "slot is how you change your mind, and giving it a different "
                     "shape would say it could not be revisited. An open one is "
                     "never marked as missing: nothing counts it, nothing refuses "
@@ -2136,7 +2136,7 @@ GROUPS: list[Group] = [
                     "affordance: at rest they are the text colour of whatever they "
                     "sit in, so the control reads as words in a bar rather than as "
                     "furniture competing with the page's own name, and the hover "
-                    "fill is what says a half can be pressed — the name is the way "
+                    "fill is what says a half can be clicked — the name is the way "
                     "to the thing, the chevron the way to the rest. The padding is "
                     "cut well below what a button this size asks for so nothing "
                     "sits between the halves, but the text is not: a name should "
@@ -2157,7 +2157,7 @@ GROUPS: list[Group] = [
                     "lands in that box on open and never leaves it: Down and Up "
                     "move a highlight, Enter goes to the highlighted row, and "
                     "Escape empties a filter that has something in it before a "
-                    "second press closes the panel. The highlight walks only the "
+                    "second click closes the panel. The highlight walks only the "
                     "rows the filter is showing — a position in the whole list "
                     "counts rows nobody can see and lands on one of them — and it "
                     "is a tint plus a name, because the box carries "
@@ -2396,7 +2396,7 @@ GROUPS: list[Group] = [
                     "of the site is the least of what a phone's bar can hold — so "
                     "the page's name, and the switcher that acts on it, survive to "
                     "the narrowest width. The colour scheme lives in the account "
-                    "menu for the same reason: it is pressed once in a reader's "
+                    "menu for the same reason: it is clicked once in a reader's "
                     "life, and a bar's one row of space is wanted by the page on "
                     "every screen. It is a segmented control of three there, not "
                     "three rows — three rows would carry the weight of the places "
@@ -2429,7 +2429,7 @@ GROUPS: list[Group] = [
                     "changing edition is going somewhere, and two links need no "
                     "script. Quiet on purpose: the filled half is a fact rather "
                     "than a control competing with the page, and the hollow half "
-                    "only says it can be pressed when the pointer is on it. It "
+                    "only says it can be clicked when the pointer is on it. It "
                     "is drawn only where a reader can follow both links — both "
                     "editions want a signed-in account, so the classic bar's "
                     "copy asks for one before drawing the pill."
@@ -2498,7 +2498,7 @@ GROUPS: list[Group] = [
                     "printing is a detour, deleting is irreversible — and one row "
                     "would sort them by nothing while putting a Delete in thumb "
                     "range of a Hire. The dropboard around Delete is not "
-                    "decoration; it is the second deliberate press an irreversible "
+                    "decoration; it is the second deliberate click an irreversible "
                     "thing should cost. The cards are a CSS grid to three columns, "
                     "because a card holds a fixed amount of information: as the "
                     "screen widens the answer is more cards abreast, not one wide "
@@ -2576,7 +2576,7 @@ GROUPS: list[Group] = [
                 slug="view-fighter-hire",
                 tag="c-n26.view.fighter-hire",
                 template="n26/view/fighter_hire.html",
-                summary="Pick what a fighter is, one press at a time.",
+                summary="Pick what a fighter is, one click at a time.",
                 needs=(ALPINE, KIT_JS, COLLAPSE, FOCUS),
                 notes=(
                     "Optimised for finding the profile and nothing else. "
@@ -2584,20 +2584,20 @@ GROUPS: list[Group] = [
                     "on a phone every row of chrome is a row of fighters you "
                     "cannot see — so the screen is a list, and nothing above it "
                     "asks a question the reader has not reached yet. Naming is "
-                    "one of those questions: it is asked after the press, by "
+                    "one of those questions: it is asked after the click, by "
                     "c-n26.hire-dialog, because a name field at the top is a "
                     "field answered once and then in the way, and blocking a "
                     "hire on it would slow the common case, which is buying "
                     "three Gangers and naming them once they have done "
                     "something worth naming. There is no submit button. Every "
                     "Hire in the list is this form's submit, carrying which "
-                    "profile or which option was pressed, which is what the "
+                    "profile or which option was clicked, which is what the "
                     "row's `value` is for — and the form should not grow a "
                     "primary action of its own, because a Hire at the bottom of "
                     "a list of Hire buttons is a second answer to a question "
                     "already answered. A hire lands back here rather than on "
                     "the gang sheet, so the notice slot draws the confirmation "
-                    "beside the list it was pressed in."
+                    "beside the list it was clicked in."
                 ),
             ),
             Component(

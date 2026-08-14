@@ -26,7 +26,7 @@ the affordance, and it is per half: hover the name and it is the way to the
 thing, hover the chevron and it is the way to the rest. The chevron also turns
 over while the panel is open, and says so through aria-expanded.
 
-They are as narrow as they can be while staying pressable. The padding is cut
+They are as narrow as they can be while staying clickable. The padding is cut
 well below what a button this size asks for, so nothing sits between the two
 halves and the pair sits close to whatever it was put beside.
 
@@ -97,7 +97,7 @@ registered after the kit's, and both ride a frame — so the fit lands after
 the kit's write, inside the same frame, before the frame is drawn.
 
 What the placement does need is a panel that has been laid out at all. A
-press that lands in a frame before that has happened finds a box of no width;
+click that lands in a frame before that has happened finds a box of no width;
 the placement comes back a frame later rather than giving up. Until it has
 been placed once, the panel is kept invisible — the moments between gaining
 layout and being placed would otherwise show it wherever the kit left it.
@@ -196,7 +196,7 @@ order, and Tab-then-Enter works with the panel's script and without it.
         {% comment %}
         Ghost, both halves. A switcher sits beside a page's own name, where a
         filled or bordered pair would read as the loudest thing on the screen;
-        ghost keeps the pressable area and gives the ink back to the heading.
+        ghost keeps the clickable area and gives the ink back to the heading.
         The two hover fills meet with no seam because the group has already
         squared the corners between them.
 
@@ -235,11 +235,11 @@ order, and Tab-then-Enter works with the panel's script and without it.
                 shrink-0, because the switcher is put in rows that run out of
                 room — a top bar on a phone among them. Everything else in the
                 group can give ground and the label truncates, but a chevron
-                squeezed to a sliver is a control nobody can press.
+                squeezed to a sliver is a control nobody can click.
 
                 Narrower than the name and by more, because there is only a
                 glyph to hold: the padding comes down to what keeps the square
-                pressable.
+                clickable.
 
                 The glyph itself is drawn at the size the account menu's
                 chevron uses, weight included. A bar carrying two chevrons that
@@ -484,7 +484,7 @@ order, and Tab-then-Enter works with the panel's script and without it.
                 No title strip. The panel is already named by the trigger it
                 hangs from and by the placeholder in its own filter, so a line
                 repeating the same words costs a row of the list to say what
-                the reader just pressed. `heading` still names the chevron for
+                the reader just clicked. `heading` still names the chevron for
                 anything reading the page aloud — it is spoken, not drawn.
                 {% endcomment %}
                 {% comment %}

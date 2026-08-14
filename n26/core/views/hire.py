@@ -1,6 +1,6 @@
 """Hiring a fighter — the web face of :mod:`n26.core.hire`.
 
-Three submissions land on one URL, and each is a step of the same press:
+Three submissions land on one URL, and each is a step of the same click:
 
 ``POST hire=<profile>``
     A Hire button in the list. It answers *which profile*, not "do it": the
@@ -8,7 +8,7 @@ Three submissions land on one URL, and each is a step of the same press:
     ticked options in the query string.
 ``GET ?hire=<profile>``
     That page — the list, with the name dialog open over it. The dialog is
-    a server state, so it survives a reload, it is a link, and a press
+    a server state, so it survives a reload, it is a link, and a click
     works with scripting switched off.
 ``POST profile=<profile>``
     The dialog's own submit: the name, and the options it carried through
@@ -57,7 +57,7 @@ HIRE_SCOPES = {
 
 
 def _scope(request):
-    """Which scope the request names — from the POST when a press carries
+    """Which scope the request names — from the POST when a click carries
     it through, the URL otherwise. Anything unknown is the gang list."""
     named = request.POST.get("list", request.GET.get("list", ""))
     return named if named in HIRE_SCOPES else "gang"
@@ -73,7 +73,7 @@ def _section(request):
 
 
 def _here(request, scope, section):
-    """This page's own address, state included — where every press lands:
+    """This page's own address, state included — where every click lands:
     the redirect after a hire, the dialog's cancel, and the form's action,
     so no hop of the flow snaps the reader back to the default tabs."""
     params = [
@@ -115,7 +115,7 @@ def _hireable(gang, pk):
 
 
 def _offered(gang, raw, offers):
-    """What a press names: the profile, and the offer it was made under.
+    """What a click names: the profile, and the offer it was made under.
 
     A row's identity is ``<profile>`` on the gang's own list and
     ``<profile>-<entry>`` where a collection the gang carries offered it
@@ -129,7 +129,7 @@ def _offered(gang, raw, offers):
     option index the profile does not have.
 
     ``offers`` answers what the gang's collections offer, asked only when
-    a press names an entry: the answer costs a gang card.
+    a click names an entry: the answer costs a gang card.
     """
     profile_pk, _, entry_pk = (raw or "").partition("-")
     profile = _hireable(gang, profile_pk)
@@ -225,7 +225,7 @@ def _dialog(
     ``rate_at_paid`` is the rating box, ticked to begin with: a price typed
     over the quote is usually a statement about what the fighter is worth,
     and the reading where the gang merely got a bargain is the one worth an
-    extra press. A redraw passes back what was answered — the price box
+    extra click. A redraw passes back what was answered — the price box
     keeps what was typed because the browser reposts it, and a box drawn
     ticked again would quietly undo an untick while the reader was fixing
     something else.
@@ -365,13 +365,13 @@ def hire_card(request, pk, profile):
 
 @login_required
 def hire_fighter(request, pk):
-    """The gang list, and the dialog that turns a press into a fighter.
+    """The gang list, and the dialog that turns a click into a fighter.
 
     A gang can be offered fighters its own list never had: a collection it
     carries — a corruption's, an alliance's — lists profiles at its own
     prices, and each such collection is a section of its own after the
     house's. Those rows hire through this same flow, at the collection's
-    price, and a press carries which entry offered it.
+    price, and a click carries which entry offered it.
 
     A refusal comes from the operation itself — an overspend unwinds the
     transaction — and lands back here as a message: nothing half-written,
@@ -399,7 +399,7 @@ def hire_fighter(request, pk):
     gang = _own_gang_or_404(request, pk)
     scope = _scope(request)
     section = _section(request)
-    # Where every step of the press lands: the list being browsed and the
+    # Where every step of the click lands: the list being browsed and the
     # section tab in it, so a hire made from the supplementary scope
     # confirms onto it rather than snapping back to the gang list.
     back = _here(request, scope, section)
@@ -412,7 +412,7 @@ def hire_fighter(request, pk):
 
         Both the sections and the check on a clicked offer read this, and
         it costs a gang card, so the two never build it twice — and a
-        scope that draws no collection sections and a press naming no
+        scope that draws no collection sections and a click naming no
         entry never build it at all.
         """
         return collection_offers(
@@ -540,10 +540,10 @@ def hire_fighter(request, pk):
             )
     elif request.method == "POST":
         # A Hire button in the list. Which profile is now a URL, so the
-        # dialog has an address of its own and the press survives a reload.
+        # dialog has an address of its own and the click survives a reload.
         # The row's whole identity travels, the offer included: a
         # collection's row and the gang list's row for the same fighter are
-        # two different presses.
+        # two different clicks.
         key = request.POST.get("hire", "")
         profile, offer = _offered(gang, key, offers)
         if profile is not None:
@@ -618,7 +618,7 @@ def hire_fighter(request, pk):
             "price_cap": PRICE_CEILING,
             # Both forms post here rather than to the bare route: an
             # action that dropped the query would lose which tab the
-            # reader was on at the first press.
+            # reader was on at the first click.
             "back": back,
             "hire_list": hire_list,
             "scope_tabs": _scope_tabs(request, scope),

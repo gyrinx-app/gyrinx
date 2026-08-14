@@ -34,11 +34,11 @@ do not fill.
     name when `label` has been shortened to fit; it becomes the link's tooltip.
   label — what the strip is choosing between, as its accessible name.
   speculate — ask the browser to start on the other tabs before they are
-    pressed, so a strip whose every choice is a whole page-build answers
-    a press with the expensive part already paid. "prefetch" fetches the
+    clicked, so a strip whose every choice is a whole page-build answers
+    a click with the expensive part already paid. "prefetch" fetches the
     HTML — the server's work, which is most of the wait — and holds only
-    bytes; the press still parses and boots the page. "prerender" builds
-    the whole hidden page, so the press is instant — but each one is a
+    bytes; the click still parses and boots the page. "prerender" builds
+    the whole hidden page, so the click is instant — but each one is a
     full document, DOM, scripts and all, held in memory behind the page
     being read, and a strip of heavy pages can hold several pages'
     worth. Prefetch is the safe spelling; reach for prerender only where

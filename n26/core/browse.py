@@ -350,7 +350,7 @@ def _ammo_by_weapon(entries):
 
     A profile a list names is that list's row for that ammo, and it
     belongs under the gun rather than beside it — otherwise a reader
-    cannot buy the two on one press, and the same thing can be priced
+    cannot buy the two on one click, and the same thing can be priced
     twice on one page by two different routes.
 
     A profile whose gun the list does not name keeps a row of its own:
@@ -373,7 +373,7 @@ def _entry_parts(entries, terms, shows_trade_points):
     """A curated gun's ammo: the list's own entries, at the list's prices.
 
     Priced through the entry like every other line the list carries, so
-    an author who reprices a round reprices the one the reader presses.
+    an author who reprices a round reprices the one the reader clicks.
     Whether the profile costs anything of its own is beside the point —
     a list naming a free profile at 15 credits is the list pricing it at
     15 credits.

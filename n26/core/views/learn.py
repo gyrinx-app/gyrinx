@@ -23,7 +23,7 @@ than the gap: it is theirs whether or not anybody has graded them, so
 the switcher on the next fighter's screen can offer it without knowing
 which of them have a grid.
 
-What pressing writes is ``Operation.learn``: free, recorded, and caused
+What clicking writes is ``Operation.learn``: free, recorded, and caused
 by nothing, so what a fighter earned survives the row that opened the
 set up to them.
 
@@ -98,7 +98,7 @@ def _grants_on(computed):
 
 
 def ticked_offer(card, computed):
-    """What this model may hold, as a list to tick rather than to press.
+    """What this model may hold, as a list to tick rather than to click.
 
     The learn screen's own listing: the same browse of the same
     collections, resectioned by the same placements and narrowed to the
@@ -114,7 +114,7 @@ def ticked_offer(card, computed):
 
     Ticked where the model already holds the thing, by any route. What a
     modifier grants says what grants it and is fixed: no row is behind
-    it, so there is nothing a press here could take away.
+    it, so there is nothing a click here could take away.
     """
     from n26.core.access import learnable_for
     from n26.core.browse import (
@@ -156,7 +156,7 @@ def apply_ticks(op, miniature, card, computed, ticked):
     """Make what a model holds match what was ticked, and say what moved.
 
     The listing is derived again here rather than trusted from the page,
-    so a stale form or a hand-made press can only name things that are on
+    so a stale form or a hand-made click can only name things that are on
     the list now. Nothing off the list is touched: a skill learned from a
     set the grid has since stopped reaching keeps its row, because it is
     not being offered and so cannot have been cleared.
@@ -227,7 +227,7 @@ def _marked(offer, known):
 
 @login_required
 def learn(request, pk):
-    """What this fighter may learn, and the press that learns it.
+    """What this fighter may learn, and the click that learns it.
 
     GET asks and writes nothing. POST names one thing from the list the
     server has just re-derived — never a price, and never a free-text
@@ -237,7 +237,7 @@ def learn(request, pk):
     not use keeps its place with a note on it, exactly as it does on the
     equip page, and a skill they already have is marked rather than
     hidden.
-    The one press refused is a second copy of something they hold — by
+    The one click refused is a second copy of something they hold — by
     any route, a grant and a settled choice included — because a
     duplicate skill means nothing and a card reading "Marksman,
     Marksman" is a bug however honestly it got there.
@@ -331,14 +331,14 @@ def learn(request, pk):
             None,
         )
         if picked is None:
-            # Not on this list — a stale page, or a press with nothing
+            # Not on this list — a stale page, or a click with nothing
             # selected. The list itself is the reply either way.
             messages.error(request, "That is not one of the things on offer.")
             return redirect(here)
         # A skill the model already has, by any route — learned, granted,
         # or chosen for a founding choice. A second copy means nothing
         # in the game and reads as a bug on the card, so this is refused
-        # like a stale press rather than left to the owner: it is not a
+        # like a stale click rather than left to the owner: it is not a
         # judgement about the rules, there is simply nothing it could add.
         if picked.key in _known_on(card):
             messages.error(request, f"{miniature.name} already has {picked.name}.")

@@ -101,7 +101,7 @@ def _config_for(request, gang):
 def print_setup(request, pk):
     """Choose what a print includes, before the paper is committed.
 
-    GET lists the gang's saved configs — each a one-press print — above
+    GET lists the gang's saved configs — each a one-click print — above
     the form for a new run: an optional name, the two toggles, and every
     model with its weapons as checkboxes, all ticked to start. Loading a
     saved config (?config=) pre-fills the form instead, which is how one

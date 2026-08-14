@@ -476,7 +476,7 @@ def _create_specialisations():
 
     A specialisation is only half itself without the skill it grants, so
     this seed owns that dependency and creates the skills first rather than
-    relying on which button someone pressed. ``_create_skills`` is
+    relying on which button someone clicked. ``_create_skills`` is
     get-or-create throughout, so saying so costs nothing when they are
     already there.
 

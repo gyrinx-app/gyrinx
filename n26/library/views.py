@@ -257,7 +257,7 @@ DETAIL_KINDS = {
 #: Naming itself in ``act`` is what lets it do that. A post that names
 #: no section is for the kind's own parts, of which there is at most
 #: one; this one shares its page and so has to say which form was
-#: pressed.
+#: clicked.
 #:
 #: The words are ours rather than the part model's, because the row is a
 #: DefaultAssignment — accurate, and nothing an author says. They avoid
@@ -467,7 +467,7 @@ def _naming(row):
 
     Three separate facts, because they are read differently. The label
     is the thing itself, as a player would read it, and is what the link
-    carries: pressing a name presses the thing, not the words an author
+    carries: clicking a name opens the thing, not the words an author
     hung beside it. The qualifier — author facing, never a player's —
     follows the link as plain text. The help is the author's own note
     about wielding this while building other content; the foundation
@@ -800,7 +800,7 @@ def _recipe_page(source):
         else:
             contents.append(entry)
 
-    # The heading is its own link: press it and the address bar holds a
+    # The heading is its own link: click it and the address bar holds a
     # way back to this spot. The anchor wraps the words, opened after
     # the tag and closed before it — the close rule reads its opener two
     # tokens back (open, inline, close is the shape a heading parses to).
@@ -924,7 +924,7 @@ def _hire_options_context(request, kind, thing, drawn):
     ("one of the following", "any of the following"), options beneath
     it, and an add control per set.
 
-    The option form's set is decided by which control was pressed — it
+    The option form's set is decided by which control was clicked — it
     rides the URL (``?set=``) into the form as a hidden field, so the
     form itself never asks. A refusal on that hidden field would be
     invisible, so it is said again as a form-wide error.
@@ -1006,7 +1006,7 @@ def _hire_options_context(request, kind, thing, drawn):
                 "options": rows,
                 # ?add=option (or ?set=) is what tells the redrawn page
                 # to arrive with the add-option form open — the control
-                # pressed is the state, and it lives in the URL.
+                # clicked is the state, and it lives in the URL.
                 "add_url": (
                     f"{request.path}?set={group.pk}#add-option"
                     if group
@@ -1035,7 +1035,7 @@ def _hire_options_context(request, kind, thing, drawn):
         "groups": blocks,
         "option": option_section,
         "sets": sets_section,
-        # The forms fold closed; a press that leads to one — or a
+        # The forms fold closed; a click that leads to one — or a
         # submission refused with errors — arrives with it open.
         "option_open": (
             form.is_bound or bool(picked) or request.GET.get("add") == "option"
@@ -1106,7 +1106,7 @@ def detail(request, kind, pk):
     A page may carry more than one section of parts: a weapon has firing
     lines of its own *and*, like every assignable, can come with things.
     Each section says which it is, so a post reaches the form that was
-    pressed; the one saying nothing is the kind's own.
+    clicked; the one saying nothing is the kind's own.
 
     Kinds in ``DETAIL_VIEWS`` have a page of their own shape instead —
     a collection's page previews what its definition means right now,
@@ -1142,7 +1142,7 @@ def detail(request, kind, pk):
 
     edit_class = generate_form(spec)
     # A thing that can own a statline is edited with its characteristics
-    # in the same form: one press of Save writes both, or neither.
+    # in the same form: one click of Save writes both, or neither.
     statline_class = _statline_editor_for(thing)
     if request.method == "POST" and act == "edit":
         edit_form = edit_class.opened_on(thing, request.POST, request.FILES)
@@ -1825,7 +1825,7 @@ CONDITION_TOTAL = f"{CONDITION_PREFIX}-TOTAL_FORMS"
 _COMPOSER_KEYS = ("chips", "name", "make_reusable", "scope_kind", "effect_kind")
 _COMPOSER_PREFIXES = ("who-", "what-", f"{CONDITION_PREFIX}-")
 
-#: Posted keys that describe the press rather than the form, and so
+#: Posted keys that describe the click rather than the form, and so
 #: must not be written into an address a reader can reload.
 _NOT_CARRIED = ("csrfmiddlewaretoken", "act", "drop_condition")
 
@@ -1840,7 +1840,7 @@ def _carried_state(request):
     ``None`` where the address carries no form at all.
 
     A form written into the query string is what lets taking a condition
-    off keep the rest: the press redirects, and everything typed arrives
+    off keep the rest: the click redirects, and everything typed arrives
     back as an ordinary GET.
 
     A count naming more chips than the composer will ever draw is
@@ -1904,10 +1904,10 @@ def _composer_state(request, attach_to=None, bound_composer=None):
 
 
 def _dropped_condition(request):
-    """Which condition chip the press was asking to remove, or ``None``
+    """Which condition chip the click was asking to remove, or ``None``
     when the submit was an ordinary one.
 
-    A submit rather than a link, because the press must keep everything
+    A submit rather than a link, because the click must keep everything
     typed into the other chips and both panes — a link carries none of
     it. It saves nothing: taking a condition off is an edit to the form.
     """
@@ -1919,13 +1919,13 @@ def _dropped_condition(request):
 
 
 def _dropping_a_condition(request, index, *, attach_to=None, editing=None):
-    """The answer to a "remove this condition" press, as ``(response,
+    """The answer to a "remove this condition" click, as ``(response,
     form)`` — one or the other, never both.
 
-    The chip count is read off the address on every draw, so a press
+    The chip count is read off the address on every draw, so a click
     that only redrew the page would leave the address claiming a chip
     that is no longer on the screen, and a reload would bring it back.
-    The press therefore redirects, and everything the author has typed
+    The click therefore redirects, and everything the author has typed
     rides the address with it.
 
     Some forms will not fit. A condition may name any number of weapons,
@@ -1952,7 +1952,7 @@ def _carrying(request, data):
     The composer's own keys are cleared out of the query string before
     the posted ones go in: left in place, the fields of a form that has
     since lost a chip would sit alongside the fields of the form that
-    replaced it, and the address would grow with every press.
+    replaced it, and the address would grow with every click.
     """
     params = request.GET.copy()
     for key in list(params):
@@ -1971,7 +1971,7 @@ def _one_more_chip(request, chips, scope_kind, effect_kind):
     Built from the whole query string rather than from the two kinds
     alone: the page is showing step two because the address says so, and
     everything else the address says — which carrier this is being
-    composed for, and any form it carries — has to survive the press.
+    composed for, and any form it carries — has to survive the click.
     The kinds are written in rather than read back off it, because the
     page also draws itself after a refused submit, where they arrived in
     the post body and the address has nothing in it.
@@ -2290,8 +2290,8 @@ def modifier_page(request, pk):
     dropping = _dropped_condition(request) if request.method == "POST" else None
     if dropping is not None:
         # The condition row itself goes when the modifier is saved, not
-        # on this press: every carrier holding this row would otherwise
-        # be changed by a press that only edited a form.
+        # on this click: every carrier holding this row would otherwise
+        # be changed by a click that only edited a form.
         dropped, composer = _dropping_a_condition(request, dropping, editing=modifier)
         if dropped is not None:
             return dropped
@@ -2403,7 +2403,7 @@ def collection_page(request, pk):
     Curation happens on this page: an entry form (the union picker, each
     kind's own override asks, and who this list offers the row to) and a
     section form for the schema. Two acts, as the parts pages have them,
-    so a post says which form was pressed.
+    so a post says which form was clicked.
     """
     from n26.core.browse import browse
     from n26.library.models import Collection
@@ -2847,7 +2847,7 @@ def ingest(request):
 
     Undoing an import is its own page. Counting what would go is real
     work, and a page that did it on every visit would charge everyone
-    for a button almost nobody presses — but the greater part of the
+    for a button almost nobody clicks — but the greater part of the
     reason is that nothing irreversible should happen on one click.
     """
     from n26.analytics import EventVerb, N26Noun, record
@@ -2894,7 +2894,7 @@ def ingest(request):
                         performed = result.counts()
                         # One event for the run, outside the transaction and
                         # carrying totals. A row apiece would write thousands
-                        # of events for one press.
+                        # of events for one click.
                         record(
                             request,
                             N26Noun.INGEST,

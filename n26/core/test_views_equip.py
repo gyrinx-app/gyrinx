@@ -354,7 +354,7 @@ def test_two_names_that_shorten_alike_keep_their_full_names():
 def test_the_filter_bar_offers_nothing_to_submit(client, tester, fighter, house_list):
     """The bar narrows rows already on the page, as you type. There is no
     server search behind it, so a Search button would be a control that
-    cannot do anything — and a real submit would press the Buy form it sits
+    cannot do anything — and a real submit would post the Buy form it sits
     inside."""
     client.force_login(tester)
     body = client.get(equip_url(fighter, house_list)).content.decode()
@@ -365,7 +365,7 @@ def test_the_filter_bar_offers_nothing_to_submit(client, tester, fighter, house_
 
 def test_the_strip_names_each_section_once(client, tester, gang, fighter):
     """The strip keys its tabs by name, so a repeat draws neither — and
-    the page would serve rows no tab could reach. The listing gives each
+    the page would serve rows no tab could reach. The catalogue gives each
     section one group, and this is the strip agreeing with it."""
     from n26.library.models import Wargear
 
@@ -385,7 +385,7 @@ def test_the_strip_names_each_section_once(client, tester, gang, fighter):
 
     strip = response.context["sections"]
     assert strip == ["Close combat", "Ranged"]
-    assert [s.name for s in response.context["listing"].sections] == strip
+    assert [s.name for s in response.context["catalogue"].sections] == strip
 
 
 def test_a_house_list_draws_no_trade_point_slider(
@@ -499,7 +499,7 @@ def test_every_registration_name_is_a_known_category(
     response = client.get(equip_url(fighter))
     registration_names = {
         category.name or section.name
-        for section in response.context["listing"].sections
+        for section in response.context["catalogue"].sections
         for category in section.categories
     }
     assert registration_names <= set(response.context["categories"])
@@ -524,11 +524,11 @@ def test_a_homeless_line_gets_a_tab_of_its_own(client, tester, fighter, house_li
     response = client.get(equip_url(fighter, house_list))
     assert response.context["sections"] == ["Armoury", UNCATEGORISED]
 
-    drawn = {section.name for section in response.context["listing"].sections}
+    drawn = {section.name for section in response.context["catalogue"].sections}
     assert drawn <= set(response.context["sections"])
     registration_names = {
         category.name or section.name
-        for section in response.context["listing"].sections
+        for section in response.context["catalogue"].sections
         for category in section.categories
     }
     assert registration_names <= set(response.context["categories"])
@@ -587,7 +587,7 @@ def test_the_ammo_input_is_named_what_the_server_reads(
     assert f'name="{parts_field(autogun)}"' in body
     assert 'value="0"' in body
     # The round is priced in a box of its own, under the gun's: two
-    # charges on one press, so two numbers a reader can set.
+    # charges on one click, so two numbers a reader can set.
     assert f'name="{price_field(autogun, 0)}"' in body
     # The bare name: the row is drawn under the gun, which has already
     # said which gun it is.
@@ -659,7 +659,7 @@ def test_an_index_the_row_does_not_offer_is_refused(
 
 def test_the_same_ammo_twice_is_refused(client, tester, gang, fighter, gun_list):
     """A checkbox cannot be ticked twice, so a repeated index is a
-    tampered form — and one press was never an order for two rounds."""
+    tampered form — and one click was never an order for two rounds."""
     from n26.library.models import Weapon
 
     autogun = Weapon.objects.get(name="Autogun")
@@ -674,10 +674,10 @@ def test_the_same_ammo_twice_is_refused(client, tester, gang, fighter, gun_list)
     assert gang.credits == 100
 
 
-def test_ammo_ticked_on_one_row_does_not_ride_another_press(
+def test_ammo_ticked_on_one_row_does_not_ride_another_click(
     client, tester, gang, fighter, gun_list
 ):
-    """One form holds the whole listing, so the fields are scoped by
+    """One form holds the whole catalogue, so the fields are scoped by
     line. Buying something else while the gun's box is ticked buys only
     the something else."""
     from n26.library.models import Weapon, WeaponProfile
@@ -814,7 +814,7 @@ def test_a_price_of_nothing_is_a_gift_and_still_counts(
 def test_an_empty_box_leaves_the_listing_to_price_it(
     client, tester, gang, fighter, house_list
 ):
-    """A box cleared and pressed is not an offer of nothing. With no
+    """A box cleared and clicked is not an offer of nothing. With no
     number in it there is no override, so the row's own price stands."""
     from n26.core.reconcile import assert_reconciled
     from n26.library.models import Wargear
@@ -891,8 +891,8 @@ def test_an_overridden_price_the_gang_cannot_afford_is_still_refused(
 def test_the_prices_of_other_rows_ride_along_and_are_ignored(
     client, tester, gang, fighter, house_list
 ):
-    """With no script running, a press submits every box on the page.
-    Only the boxes scoped to the pressed line may charge anything —
+    """With no script running, a click submits every box on the page.
+    Only the boxes scoped to the clicked line may charge anything —
     otherwise the knife's price would decide what the sword costs."""
     from n26.core.reconcile import assert_reconciled
     from n26.library.models import Wargear
@@ -917,7 +917,7 @@ def test_the_prices_of_other_rows_ride_along_and_are_ignored(
 def test_a_round_is_charged_at_the_price_typed_on_its_own_row(
     client, tester, gang, fighter, gun_list
 ):
-    """One press, two charges: a discount on the gun is not a discount
+    """One click, two charges: a discount on the gun is not a discount
     on the ammo, so each carries its own box and its own entry."""
     from n26.core.models import LedgerEntry
     from n26.core.reconcile import assert_reconciled
@@ -950,7 +950,7 @@ def test_a_round_is_charged_at_the_price_typed_on_its_own_row(
 def test_a_bad_price_on_the_ammo_buys_neither_it_nor_the_gun(
     client, tester, gang, fighter, gun_list
 ):
-    """Every price on the press is read before anything is written, so a
+    """Every price on the click is read before anything is written, so a
     refused round does not leave a gun bought behind it."""
     from n26.core.models import Assignment
     from n26.library.models import Weapon
@@ -1044,7 +1044,7 @@ def test_the_bands_a_reader_steers_with_stay_on_screen_together(
     """How the list is narrowed and which section is on screen: both stay
     put while the rows scroll under them, pinned by sitting in one sticky
     box rather than two, so neither band has to know how tall the other
-    is. Which list is the rail's business — beside the listing, not
+    is. Which list is the rail's business — beside the catalogue, not
     pinned over it — so it must not be in the box."""
     from n26.library.authoring import create_trading_post
 
@@ -1092,7 +1092,7 @@ def test_a_section_the_strip_has_no_room_for_is_still_reachable(
     rows = [tag for tag in pinned_tags(body) if tag.get("role") == "menuitem"]
     assert rows
     # Each section's name reaches its row through the row's own state, which
-    # is where the menu reads it back from when the row is pressed.
+    # is where the menu reads it back from when the row is clicked.
     for section_name in sections:
         assert any(section_name in (tag.get("x-data") or "") for tag in rows)
 
@@ -1118,7 +1118,7 @@ def test_the_strip_is_two_shapes_and_the_width_picks_one(
     assert 'x-ref="ghost"' not in body
 
 
-def test_pressing_a_tab_in_the_full_strip_moves_nothing(
+def test_clicking_a_tab_in_the_full_strip_moves_nothing(
     client, tester, fighter, house_list
 ):
     """Where every section is a tab, the row is fixed: choosing one changes
@@ -1152,13 +1152,13 @@ def test_the_narrow_strip_is_the_current_tab_and_a_counted_menu(
     assert "`+${picker.liveSections.length - 1} more`" in body
 
 
-def test_the_section_menu_asks_the_listing_and_not_the_menu(
+def test_the_section_menu_asks_the_catalogue_and_not_the_menu(
     client, tester, fighter, house_list
 ):
     """The switcher's panel keeps state under the same names this component
     does — items, matches, register — so a row asking how full a section is
     gets the menu's own row count instead, every section reads as empty, and
-    nothing anywhere says why. The listing's scope is therefore held under
+    nothing anywhere says why. The catalogue's scope is therefore held under
     a name of its own for the rows to reach."""
     client.force_login(tester)
     body = client.get(equip_url(fighter, house_list)).content.decode()
@@ -1193,8 +1193,8 @@ def buy_one(gang, fighter, tester, thing, **kwargs):
 
 
 def rows_of(response):
-    """The listing's rows, by name. What the page was handed to draw."""
-    return {row.name: row for row in response.context["listing"].all_rows()}
+    """The catalogue's rows, by name. What the page was handed to draw."""
+    return {row.name: row for row in response.context["catalogue"].all_rows()}
 
 
 def test_owning_one_is_a_state_of_the_row_whatever_kind_of_thing_it_is(
@@ -1203,14 +1203,14 @@ def test_owning_one_is_a_state_of_the_row_whatever_kind_of_thing_it_is(
     """Not a treatment reserved for some rows. The knife is an ordinary
     line — freely available, no exclusivity, nothing special about it —
     and holding one turns its row into the owned kind all the same."""
-    from n26.core.listing import OwnedRow, PricedRow
+    from n26.core.listing import Listing, OwnedRow
     from n26.library.models import Wargear
 
     knife = Wargear.objects.get(name="Knife")
     client.force_login(tester)
     rows = rows_of(client.get(equip_url(fighter, house_list)))
     assert rows["Knife"].is_exclusive is False
-    assert isinstance(rows["Knife"], PricedRow)
+    assert isinstance(rows["Knife"], Listing)
 
     buy_one(gang, fighter, tester, knife, paid=10)
 
@@ -1226,7 +1226,7 @@ def test_two_of_one_weapon_are_two_lines_that_can_be_told_apart(
     and each is sold on its own — so one line counted twice would be a
     control that acts on whichever the server picked. The page carries an
     address per copy and per part; the shape behind it is pinned in the
-    listing's own suite."""
+    listing module's own suite."""
     from n26.library.models import Weapon, WeaponProfile
 
     autogun = Weapon.objects.get(name="Autogun")
@@ -1268,13 +1268,13 @@ def test_a_row_for_something_owned_counts_it_and_still_sells_another(
     looking at a row for a thing they are carrying is usually asking what
     to do with the one they have — but owning one has never been a reason
     the equip page stops selling it, so the offer is still on the page."""
-    from n26.core.listing import PricedRow
+    from n26.core.listing import Listing
     from n26.library.models import Wargear
 
     knife = Wargear.objects.get(name="Knife")
     client.force_login(tester)
     assert isinstance(
-        rows_of(client.get(equip_url(fighter, house_list)))["Knife"], PricedRow
+        rows_of(client.get(equip_url(fighter, house_list)))["Knife"], Listing
     )
 
     buy_one(gang, fighter, tester, knife, paid=10)
@@ -1283,7 +1283,7 @@ def test_a_row_for_something_owned_counts_it_and_still_sells_another(
     response = client.get(equip_url(fighter, house_list))
     rows = rows_of(response)
     assert rows["Knife"].count == 2
-    assert isinstance(rows["Sword"], PricedRow)
+    assert isinstance(rows["Sword"], Listing)
     # The count is drawn in words, and the Buy the row replaced is still
     # submitted by the same key from inside it.
     body = response.content.decode()
@@ -1294,8 +1294,8 @@ def test_a_row_for_something_owned_counts_it_and_still_sells_another(
 def test_buying_another_from_inside_an_owned_row_buys_one(
     client, tester, gang, fighter, house_list
 ):
-    """The nested row is the ordinary row, so its press is the ordinary
-    press: same key, same purchase, same result as a fighter with none."""
+    """The nested row is the ordinary row, so its click is the ordinary
+    click: same key, same purchase, same result as a fighter with none."""
     from n26.library.models import Wargear
 
     knife = Wargear.objects.get(name="Knife")
@@ -1311,7 +1311,7 @@ def test_buying_another_from_inside_an_owned_row_buys_one(
 def test_a_thing_taken_off_the_card_stops_being_counted(
     client, tester, gang, fighter, house_list
 ):
-    from n26.core.listing import PricedRow
+    from n26.core.listing import Listing
     from n26.library.models import Wargear
 
     knife = Wargear.objects.get(name="Knife")
@@ -1321,7 +1321,7 @@ def test_a_thing_taken_off_the_card_stops_being_counted(
 
     client.force_login(tester)
     rows = rows_of(client.get(equip_url(fighter, house_list)))
-    assert isinstance(rows["Knife"], PricedRow)
+    assert isinstance(rows["Knife"], Listing)
 
 
 def test_the_owned_row_offers_everything_that_can_happen_to_a_copy(
@@ -1497,7 +1497,7 @@ def test_the_sheet_links_each_card_to_equip(client, tester, gang, fighter):
     assert reverse("n26-equip", args=[fighter.pk]) in body
 
 
-def test_the_figures_and_the_roster_line_stand_above_the_listing(
+def test_the_figures_and_the_roster_line_stand_above_the_catalogue(
     client, tester, gang, fighter, make_profile, make_statline
 ):
     """The same strip the hire screen carries, and under it every fighter
@@ -1566,7 +1566,7 @@ def accessories(db):
 
 @pytest.fixture
 def owned_gun(client, tester, gang, fighter, gun_list):
-    """An autogun on the fighter, bought through the listing."""
+    """An autogun on the fighter, bought through the catalogue."""
     from n26.library.models import Weapon
 
     with operation(gang, actor=tester) as op:
@@ -1610,11 +1610,11 @@ class TestTheAccessoryDialog:
         assert 'aria-label="Add accessory to Autogun"' in body
         assert "Autogun" in name_cell(body, "Add accessory to Autogun")
 
-    def test_the_press_opens_the_panel_the_page_is_already_holding(
+    def test_the_click_opens_the_panel_the_page_is_already_holding(
         self, client, tester, fighter, gun_list, owned_gun, accessories
     ):
-        """The link and the press reach one state. The press does it
-        without asking for a listing of several hundred rows again."""
+        """The link and the click reach one state. The click does it
+        without asking for a catalogue of several hundred rows again."""
         client.force_login(tester)
         body = client.get(equip_url(fighter, gun_list)).content.decode()
 
@@ -1628,7 +1628,7 @@ class TestTheAccessoryDialog:
         self, client, tester, gang, fighter, gun_list, owned_gun, accessories
     ):
         """Nothing is asked for, and every gun's question is answered
-        anyway — that is what makes the press instant."""
+        anyway — that is what makes the click instant."""
         from n26.library.models import Weapon
 
         with operation(gang, actor=tester) as op:
@@ -1644,14 +1644,14 @@ class TestTheAccessoryDialog:
         }
         assert not any(panel["open"] for panel in response.context["accessorise"])
         # Closed, so no `open` attribute — a browser draws nothing until
-        # the press, and a reader with no script follows the link instead.
+        # the click, and a reader with no script follows the link instead.
         assert "<dialog open" not in body
         assert body.count("Telescopic sight — 25¢") == 2
 
     def test_the_address_opens_it(
         self, client, tester, fighter, gun_list, owned_gun, accessories
     ):
-        """A link somebody sent, or a reload of a page opened by a press.
+        """A link somebody sent, or a reload of a page opened by a click.
         The server draws that one open and the rest closed."""
         client.force_login(tester)
         response = client.get(
@@ -1750,7 +1750,7 @@ class TestTheAccessoryDialog:
         bolted = Assignment.objects.get(weapon_accessory=crystal)
         assert bolted.parent_id == owned_gun.pk
 
-    def test_a_weapon_with_nothing_to_fit_it_is_told_so_and_offered_no_press(
+    def test_a_weapon_with_nothing_to_fit_it_is_told_so_and_offered_no_click(
         self, client, tester, fighter, gun_list, owned_gun
     ):
         """No accessories authored at all. A green button over an empty
@@ -1798,7 +1798,7 @@ class TestTheAccessoryDialog:
         body = client.get(equip_url(fighter, house_list)).content.decode()
         assert "Add accessory to Knife" not in body
 
-    def test_the_dialog_carries_the_list_and_tab_through_the_press(
+    def test_the_dialog_carries_the_list_and_tab_through_the_click(
         self, client, tester, fighter, gun_list, owned_gun, accessories
     ):
         """Cancel comes back to the page as it was, and so does the answer."""

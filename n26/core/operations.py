@@ -99,10 +99,10 @@ def refund_of(assignment):
 
     Asked before the act as well as during it, for the same reason
     :func:`sale_of` is — a confirmation that quotes its own arithmetic is
-    a confirmation that can disagree with the press underneath it.
+    a confirmation that can disagree with the click underneath it.
 
     What comes back is what was **paid**, every credit of it, across the
-    whole subtree: a gun's ammo was bought on the same press and is
+    whole subtree: a gun's ammo was bought on the same click and is
     refunded on this one. That is a different number from a sale's, which
     is half of what the thing is *worth*, and the two part company the
     moment anything is discounted or given away.
@@ -121,13 +121,13 @@ class Refusal(Exception):
 
     Raised inside the operation, so the transaction unwinds and nothing
     is left half-written. A view catches it, shows the sentence, and
-    sends the reader back to the page they pressed on — so the sentence
-    is written for the player who pressed the button.
+    sends the reader back to the page they clicked on — so the sentence
+    is written for the player who clicked the button.
 
     What belongs here is an act some control really offered and the
     domain declines: an overspend, a pick that cannot settle the
     choice it was given. What does not is a content bug or a caller
-    mistake — nobody can press their way to one, the sentence would mean
+    mistake — nobody can click their way to one, the sentence would mean
     nothing to a player, and an unhandled error is the right answer.
     """
 
@@ -158,7 +158,7 @@ class NotOnOffer(Refusal):
     slot asking for a skill is not settled by the powers filed beside
     them in the same collection, because a slot reads as resolved only
     where what was chosen matches the offer. The pick screen lists what
-    may be chosen (``n26.core.browse.offered_by``), so a press that
+    may be chosen (``n26.core.browse.offered_by``), so a click that
     lands here is a
     stale page or a hand-made address rather than a choice worth writing.
     """

@@ -51,7 +51,7 @@ leaves one out gets a section with no heading.
     composer itself render.
     {% endcomment %}
     {% comment %}
-    The press is only worth making when the pickers name a pair other
+    The click is only worth making when the pickers name a pair other
     than the one below them: submitting the pair the page is already
     drawn from fetches that same page again, and on a carrier's page it
     scrolls the reader back to the top to do it. So the button goes dead
@@ -69,7 +69,7 @@ leaves one out gets a section with no heading.
     listens for.
 
     With no script the button is what the server rendered: live. One
-    that only became pressable once Alpine had run would leave the
+    that only became clickable once Alpine had run would leave the
     composer with no first step at all.
     {% endcomment %}
     {% comment %}
@@ -134,7 +134,7 @@ leaves one out gets a section with no heading.
         Small, and worded by the caller like the submit below it: on a
         carrier's page the reader is starting a modifier from nothing,
         while on the standalone page the header has already said so and
-        the press re-shapes what is drawn. Either way it fetches a
+        the click re-shapes what is drawn. Either way it fetches a
         differently shaped composer, which is starting something, so it
         carries the colour that starts things and not the green that
         ends the form below it.
@@ -166,8 +166,8 @@ leaves one out gets a section with no heading.
                 {% comment %}
                 The switch sets its checkbox through x-model, and a property
                 Alpine assigns fires no native change event — so this reads
-                the controls on the press that reaches it rather than
-                listening for one, a tick later, because the press is what
+                the controls on the click that reaches it rather than
+                listening for one, a tick later, because the click is what
                 Alpine is about to act on. Typing is caught on the window:
                 the name box is a field above this block, not inside it, so
                 its own input event never arrives here.

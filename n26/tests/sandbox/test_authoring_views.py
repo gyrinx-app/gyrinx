@@ -332,7 +332,7 @@ class TestEditingOne:
 
     def test_a_row_priced_at_nought_saves(self, author, client, default_pack):
         """The whole journey the report came from: open such a weapon,
-        change one thing, press Save."""
+        change one thing, click Save."""
         from n26.library.authoring import create_weapon
 
         saw = create_weapon("Heavy rock saw", price=0, slots=2, is_exclusive=True)
@@ -1361,7 +1361,7 @@ def words_in(markup):
 
 
 def link_words(markup):
-    """The words the first link here carries — what a reader presses."""
+    """The words the first link here carries — what a reader clicks."""
     return words_in(re.search(r"<a\b[^>]*>(.*?)</a>", markup, re.S).group(1))
 
 
@@ -1444,7 +1444,7 @@ class TestTheQualifier:
         name_cell, _ = cells_of(row_printing(body, "Sumpkroc"))
 
         assert link_words(name_cell) == "Ferocious jaws"
-        # Beside the link, in the reader's words, and unpressable.
+        # Beside the link, in the reader's words, and unclickable.
         assert words_in(name_cell) == "Ferocious jaws — Sumpkroc"
 
     def test_the_link_still_carries_the_bracket_a_card_prints(
@@ -2869,7 +2869,7 @@ class TestOfferingAChoice:
         assert "players never see it" in body
         assert "Choke gas" in body
 
-    def test_an_add_control_pins_the_set_it_was_pressed_on(
+    def test_an_add_control_pins_the_set_it_was_clicked_on(
         self, author, client, profile
     ):
         """Each set's add control carries the set in the URL, and the
@@ -3318,7 +3318,7 @@ class TestTheCollectionPage:
         )
         assert aboard.status_code == 302
 
-        # The player's side of the seam: found a gang, press the choice.
+        # The player's side of the seam: found a gang, click the choice.
         from django.contrib.auth.models import User
 
         owner = User.objects.create_user("outcast-founder")
@@ -3567,7 +3567,7 @@ class TestTheModifierSection:
     ):
         """The flag is about the name, not about where the row goes: an
         author composing on a carrier wants it on that carrier either
-        way, and one that saved itself somewhere else would be a press
+        way, and one that saved itself somewhere else would be a click
         that appeared to do nothing."""
         made = self._compose_on_rule(rule, client, reusable=True)
 
@@ -3852,9 +3852,9 @@ class TestTheButtonThatChangesTheModifierType:
     and its button is worded by the surface: a carrier's page is where a
     reader starts a modifier from nothing, so it invites — Configure new
     modifier — while the standalone page's header has already said what
-    is being made and the press re-shapes it: Change modifier type.
+    is being made and the click re-shapes it: Change modifier type.
 
-    Pressed with the pair the page is already showing it fetches the
+    Clicked with the pair the page is already showing it fetches the
     same page again — and on a carrier's page it scrolls the reader back
     to the top to do it — so it is dead until one of the two kinds
     moves. Dead is Alpine's doing, never the server's: served out of
@@ -3891,7 +3891,7 @@ class TestTheButtonThatChangesTheModifierType:
         assert "bg-accent" in tag
         assert "bg-green" not in tag
 
-    def test_it_is_pressable_for_a_reader_with_no_script(
+    def test_it_is_clickable_for_a_reader_with_no_script(
         self, author, client, default_pack
     ):
         """The whole of step one is this button. Rendered out of service
@@ -4030,7 +4030,7 @@ class TestTheKindCards:
         self, author, client, default_pack
     ):
         """The client-side gate reads it off the card's wrapper — every
-        effect states its kinds, so a scope press can grey the rest."""
+        effect states its kinds, so a scope click can grey the rest."""
         from n26.library.forms import EFFECT_CAN_TARGET
 
         body = client.get("/n26/authoring/modifiers/new/").content.decode()
@@ -4414,7 +4414,7 @@ class TestAModifiersOwnPage:
         )
         assert removed.status_code == 302
         made.refresh_from_db()
-        assert "Leader" in str(made.scope)  # the press saved nothing
+        assert "Leader" in str(made.scope)  # the click saved nothing
         # The address it sends the author to holds no chip, so the page
         # that draws next shows none — including on a reload.
         assert "conditions-TOTAL_FORMS=0" in removed.url
@@ -5132,7 +5132,7 @@ class TestAnythingCanComeWithSomething:
         model that arrives when it does. Both are called the same thing,
         and a set of built-ins may be named only once in a pack — so the
         second one to be given anything has to be named around the
-        first, rather than refusing the press."""
+        first, rather than refusing the click."""
         from n26.library.authoring import add_built_in, create_profile, create_subtype
 
         twin = create_profile("Dustback Helamite", person_type, gang_type, price=45)
@@ -5524,11 +5524,11 @@ class TestRemovingAConditionRemovesIt:
     there and then, and off the address the page is at.
 
     A tickbox that only takes effect on the next save reads as a control
-    that does nothing. What the press must not do is lose the rest: an
-    author part-way through two conditions and both panes presses it, and
+    that does nothing. What the click must not do is lose the rest: an
+    author part-way through two conditions and both panes clicks it, and
     everything except that chip has to come back.
 
-    The chip count is read off the address, so a press that only redrew
+    The chip count is read off the address, so a click that only redrew
     the page would leave the address claiming a chip the page no longer
     shows — and a reload would put it back. Every one of these follows
     the redirect and reads the page the address gives.
@@ -5636,7 +5636,7 @@ class TestRemovingAConditionRemovesIt:
 
         assert removed.status_code == 302
         # The count the page draws from says one chip, not the two the
-        # press arrived with.
+        # click arrived with.
         assert "conditions-TOTAL_FORMS=1" in removed.url
         # Reloading is asking for that same address a second time.
         for _ in range(2):
@@ -5645,9 +5645,9 @@ class TestRemovingAConditionRemovesIt:
             assert drawn_picked(body, champion.pk)
             assert not drawn_picked(body, leader.pk)
 
-    def test_the_carrier_survives_the_press(self, rule, client, default_pack):
+    def test_the_carrier_survives_the_click(self, rule, client, default_pack):
         """The address says which thing is being composed for, and the
-        press rewrites that address — a rewrite that dropped the carrier
+        click rewrites that address — a rewrite that dropped the carrier
         would quietly turn this into the standalone page."""
         from n26.library.authoring import create_subtype
 
@@ -5746,7 +5746,7 @@ class TestRemovingAConditionRemovesIt:
         assert 'name="conditions-0-subtypes"' in body
         assert 'name="conditions-1-subtypes"' not in body
 
-    def test_the_press_saves_nothing(self, rule, client, default_pack):
+    def test_the_click_saves_nothing(self, rule, client, default_pack):
         from n26.library.authoring import create_subtype
 
         champion = create_subtype("Champion")
@@ -5775,7 +5775,7 @@ class TestRemovingAConditionRemovesIt:
     def test_a_half_filled_form_is_not_refused_yet(self, rule, client, default_pack):
         """Taking a condition off is an edit to the form. A pane the
         author has not reached is not a refusal, and lighting the whole
-        form up red for pressing Remove would read as one."""
+        form up red for clicking Remove would read as one."""
         from n26.library.authoring import create_subtype
 
         champion = create_subtype("Champion")

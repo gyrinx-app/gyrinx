@@ -1,8 +1,8 @@
-"""A shopping listing: what is for sale, joined to what the fighter holds.
+"""A shopping catalogue: what is for sale, joined to what the fighter holds.
 
 ``browse`` knows a collection and nothing about who is reading it;
 ``owned_things`` knows a fighter's card and nothing about what is for
-sale. ``build_listing`` is the join, and this suite is what pins the two
+sale. ``build_catalogue`` is the join, and this suite is what pins the two
 rules the join exists for: owning something *replaces* its row, and the
 row it replaces is still there, nested, so a reader can buy another.
 
@@ -23,9 +23,9 @@ from n26.core.listing import (
     PRIMARY,
     SECONDARY,
     SUBMIT,
+    Listing,
     OwnedRow,
-    PricedRow,
-    build_listing,
+    build_catalogue,
     parts_field,
     price_field,
 )
@@ -96,13 +96,13 @@ def house_list(gang, autogun, knife, warp):
     return collection
 
 
-def listing_for(fighter, collection):
+def catalogue_for(fighter, collection):
     card = build_card(fighter)
-    return build_listing(browse(collection), owned_things(card, AT))
+    return build_catalogue(browse(collection), owned_things(card, AT))
 
 
-def rows_by_name(listing):
-    return {row.name: row for row in listing.all_rows()}
+def rows_by_name(catalogue):
+    return {row.name: row for row in catalogue.all_rows()}
 
 
 @pytest.fixture
@@ -120,9 +120,9 @@ class TestARowNobodyOwns:
     def test_a_line_becomes_a_row_that_offers_to_sell_it(
         self, fighter, house_list, knife
     ):
-        row = rows_by_name(listing_for(fighter, house_list))["Knife"]
+        row = rows_by_name(catalogue_for(fighter, house_list))["Knife"]
 
-        assert isinstance(row, PricedRow)
+        assert isinstance(row, Listing)
         assert row.key == thing_key(knife)
         assert row.price == 10
         assert row.buy.label == "Buy"
@@ -131,10 +131,10 @@ class TestARowNobodyOwns:
     def test_buying_submits_the_rows_identity_and_nothing_else(
         self, fighter, house_list, knife
     ):
-        """The listing is one form and a purchase is a press within it, so
+        """The catalogue is one form and a purchase is a click within it, so
         Buy carries the key the server looks the line up by — never a
         price, which the server derives for itself."""
-        row = rows_by_name(listing_for(fighter, house_list))["Knife"]
+        row = rows_by_name(catalogue_for(fighter, house_list))["Knife"]
 
         assert row.buy.kind == SUBMIT
         assert row.buy.target == thing_key(knife)
@@ -145,7 +145,7 @@ class TestARowNobodyOwns:
         """Derived from the key on both sides. Computed twice from two
         places, they would eventually disagree, and a box a reader typed
         in would be read as belonging to some other row."""
-        row = rows_by_name(listing_for(fighter, house_list))["Knife"]
+        row = rows_by_name(catalogue_for(fighter, house_list))["Knife"]
         key = thing_key(knife)
 
         assert row.price_field == price_field(key)
@@ -160,7 +160,7 @@ class TestAGunsPaidAmmo:
     ):
         """An equipment list prices in credits, so what it offers is
         everything paid. The gun's own unnamed line *is* the gun."""
-        row = rows_by_name(listing_for(fighter, house_list))["Autogun"]
+        row = rows_by_name(catalogue_for(fighter, house_list))["Autogun"]
 
         assert [option.name for option in row.options] == ["warp round"]
 
@@ -169,7 +169,7 @@ class TestAGunsPaidAmmo:
     ):
         """A discount on the gun is not a discount on the rounds, so each
         is charged at the figure typed on its own row."""
-        row = rows_by_name(listing_for(fighter, house_list))["Autogun"]
+        row = rows_by_name(catalogue_for(fighter, house_list))["Autogun"]
         (option,) = row.options
 
         assert option.index == 0
@@ -178,9 +178,9 @@ class TestAGunsPaidAmmo:
         assert option.price_field == price_field(thing_key(autogun), 0)
 
     def test_an_option_offers_no_action_of_its_own(self, fighter, house_list):
-        """It rides the gun's Buy: one press, one purchase, however many
+        """It rides the gun's Buy: one click, one purchase, however many
         boxes are ticked."""
-        row = rows_by_name(listing_for(fighter, house_list))["Autogun"]
+        row = rows_by_name(catalogue_for(fighter, house_list))["Autogun"]
         (option,) = row.options
 
         assert not hasattr(option, "buy")
@@ -191,7 +191,7 @@ class TestOwningOneReplacesTheRow:
     asking what to do with the one they have."""
 
     def test_the_row_becomes_an_owned_row(self, fighter, house_list, armed, autogun):
-        row = rows_by_name(listing_for(fighter, house_list))["Autogun"]
+        row = rows_by_name(catalogue_for(fighter, house_list))["Autogun"]
 
         assert isinstance(row, OwnedRow)
         assert row.key == thing_key(autogun)
@@ -201,17 +201,17 @@ class TestOwningOneReplacesTheRow:
     ):
         """Never both for one thing, and never a flag on one type: the
         row a reader sees is the whole answer to whether they own one."""
-        listing = listing_for(fighter, house_list)
-        rows = list(listing.all_rows())
+        catalogue = catalogue_for(fighter, house_list)
+        rows = list(catalogue.all_rows())
 
-        assert [type(row).__name__ for row in rows] == ["OwnedRow", "PricedRow"]
+        assert [type(row).__name__ for row in rows] == ["OwnedRow", "Listing"]
         # One row per thing on the list, whoever owns what.
         assert len({row.key for row in rows}) == len(rows)
 
     def test_the_count_is_copies_and_not_pieces(self, fighter, house_list, armed):
         """Two guns with a round in one of them is two. Counting the round
         would tell a reader they were carrying three Autoguns."""
-        row = rows_by_name(listing_for(fighter, house_list))["Autogun"]
+        row = rows_by_name(catalogue_for(fighter, house_list))["Autogun"]
 
         assert row.count == 2
         assert len(row.copies) == 2
@@ -223,7 +223,7 @@ class TestOwningOneReplacesTheRow:
         — one line counted twice would be a control acting on whichever
         copy the server happened to pick."""
         first, _, second = armed
-        row = rows_by_name(listing_for(fighter, house_list))["Autogun"]
+        row = rows_by_name(catalogue_for(fighter, house_list))["Autogun"]
 
         assert {copy.id for copy in row.copies} == {str(first.pk), str(second.pk)}
 
@@ -231,7 +231,7 @@ class TestOwningOneReplacesTheRow:
         self, fighter, house_list, armed
     ):
         first, ammo, second = armed
-        row = rows_by_name(listing_for(fighter, house_list))["Autogun"]
+        row = rows_by_name(catalogue_for(fighter, house_list))["Autogun"]
         parts = {copy.id: [part.name for part in copy.parts] for copy in row.copies}
 
         assert parts[str(first.pk)] == ["fully automatic", "warp round"]
@@ -240,7 +240,7 @@ class TestOwningOneReplacesTheRow:
     def test_a_part_goes_by_its_own_name(self, fighter, house_list, armed):
         """ "warp round (Autogun)" is what a card prints, where nothing
         above the line says which gun. Here the gun is the row above."""
-        row = rows_by_name(listing_for(fighter, house_list))["Autogun"]
+        row = rows_by_name(catalogue_for(fighter, house_list))["Autogun"]
         parts = [part.name for copy in row.copies for part in copy.parts]
 
         assert "warp round (Autogun)" not in parts
@@ -248,9 +248,9 @@ class TestOwningOneReplacesTheRow:
     def test_a_thing_the_fighter_does_not_hold_is_untouched(
         self, fighter, house_list, armed
     ):
-        row = rows_by_name(listing_for(fighter, house_list))["Knife"]
+        row = rows_by_name(catalogue_for(fighter, house_list))["Knife"]
 
-        assert isinstance(row, PricedRow)
+        assert isinstance(row, Listing)
 
 
 class TestBuyingAnother:
@@ -260,9 +260,9 @@ class TestBuyingAnother:
     def test_an_owned_row_still_carries_the_row_it_replaced(
         self, fighter, house_list, armed
     ):
-        row = rows_by_name(listing_for(fighter, house_list))["Autogun"]
+        row = rows_by_name(catalogue_for(fighter, house_list))["Autogun"]
 
-        assert isinstance(row.buy, PricedRow)
+        assert isinstance(row.buy, Listing)
         assert row.buy.buy.kind == SUBMIT
         assert row.buy.buy.target == row.key
 
@@ -276,10 +276,10 @@ class TestBuyingAnother:
         make_statline(profile, movement=5, weapon_skill=5, toughness=3)
         empty_handed = hire(gang, profile, "Sid")
 
-        theirs = rows_by_name(listing_for(empty_handed, house_list))["Autogun"]
-        mine = rows_by_name(listing_for(fighter, house_list))["Autogun"]
+        theirs = rows_by_name(catalogue_for(empty_handed, house_list))["Autogun"]
+        mine = rows_by_name(catalogue_for(fighter, house_list))["Autogun"]
 
-        assert isinstance(theirs, PricedRow)
+        assert isinstance(theirs, Listing)
         assert mine.buy == theirs
 
 
@@ -290,7 +290,7 @@ class TestWhatACopyOffers:
     def test_selling_is_the_act_in_the_open_and_the_rest_share_a_chevron(
         self, fighter, house_list, armed
     ):
-        row = rows_by_name(listing_for(fighter, house_list))["Autogun"]
+        row = rows_by_name(catalogue_for(fighter, house_list))["Autogun"]
         copy = row.copies[0]
 
         assert copy.sell.label == "Sell"
@@ -306,10 +306,10 @@ class TestWhatACopyOffers:
         self, fighter, house_list, armed
     ):
         """A server state, so it survives a reload and works with
-        scripting off — and so it stays out of the listing's own form,
+        scripting off — and so it stays out of the catalogue's own form,
         which HTML would not nest one inside."""
         first, _, _ = armed
-        row = rows_by_name(listing_for(fighter, house_list))["Autogun"]
+        row = rows_by_name(catalogue_for(fighter, house_list))["Autogun"]
         copy = next(copy for copy in row.copies if copy.id == str(first.pk))
 
         assert copy.sell.kind == LINK
@@ -323,11 +323,11 @@ class TestWhatACopyOffers:
     def test_a_part_is_offered_no_move(self, fighter, house_list, armed):
         """A part belongs to the thing it hangs off, and ``Operation.move``
         refuses an assignment with a parent — so offering one here would
-        be offering a press that cannot work. It keeps the rest: buying
+        be offering a click that cannot work. It keeps the rest: buying
         the wrong ammunition is as easy a mistake as buying the wrong
         gun."""
         _, ammo, _ = armed
-        row = rows_by_name(listing_for(fighter, house_list))["Autogun"]
+        row = rows_by_name(catalogue_for(fighter, house_list))["Autogun"]
         (part,) = [
             part
             for copy in row.copies
@@ -360,7 +360,7 @@ class TestWhatARowPrints:
         collection = create_collection("House List", entries=[exclusive, posted])
         assign(collection, gang=gang)
 
-        rows = rows_by_name(listing_for(fighter, collection))
+        rows = rows_by_name(catalogue_for(fighter, collection))
 
         assert rows["Rope"].trade_points is None
         assert rows["Heirloom"].is_exclusive is False
@@ -390,14 +390,14 @@ class TestWhatARowPrints:
         post = create_trading_post()
         assign(post, gang=gang)
 
-        rows = rows_by_name(listing_for(fighter, post))
+        rows = rows_by_name(catalogue_for(fighter, post))
 
         assert rows["Rope"].trade_points == 3
 
     def test_a_guns_rounds_print_the_same_way_the_gun_does(
         self, gang, fighter, autogun, warp, house_list
     ):
-        row = rows_by_name(listing_for(fighter, house_list))["Autogun"]
+        row = rows_by_name(catalogue_for(fighter, house_list))["Autogun"]
         (option,) = row.options
 
         assert row.trade_points is None
@@ -410,12 +410,12 @@ class TestTheShapeAScreenDraws:
     def test_a_section_the_content_never_named_gets_a_word_on_it(
         self, fighter, house_list
     ):
-        """A listing is drawn as a strip of tabs, and a tab with no word
-        on it is one nobody can press — so its rows would be served with
+        """A catalogue is drawn as a strip of tabs, and a tab with no word
+        on it is one nobody can click — so its rows would be served with
         no way to reach them."""
-        listing = listing_for(fighter, house_list)
+        catalogue = catalogue_for(fighter, house_list)
 
-        assert [section.name for section in listing.sections] == ["Uncategorised"]
+        assert [section.name for section in catalogue.sections] == ["Uncategorised"]
 
     def test_a_named_category_keeps_its_heading(self, fighter, gang, autogun, knife):
         from n26.tests.sandbox.actions import create_category
@@ -426,13 +426,13 @@ class TestTheShapeAScreenDraws:
         collection = create_collection("Armoury List", entries=[knife])
         assign(collection, gang=gang)
 
-        listing = listing_for(fighter, collection)
-        (section,) = listing.sections
+        catalogue = catalogue_for(fighter, collection)
+        (section,) = catalogue.sections
         (category,) = section.categories
 
         assert section.name == "Armoury"
         assert category.name == "Blades"
         assert [row.name for row in category.rows] == ["Knife"]
 
-    def test_the_listing_goes_by_the_collections_name(self, fighter, house_list):
-        assert listing_for(fighter, house_list).name == str(house_list)
+    def test_the_catalogue_goes_by_the_collections_name(self, fighter, house_list):
+        assert catalogue_for(fighter, house_list).name == str(house_list)

@@ -31,10 +31,10 @@ breadcrumb above it has the gang as well, so nothing is lost.
 {% endblock %}
 {% block content %}
     {% comment %}
-    Before the listing, and outside its form: with scripting off this is a panel
+    Before the catalogue, and outside its form: with scripting off this is a panel
     in the flow of the page rather than a modal over it, and a panel below three
     hundred rows is one nobody finds. Outside the form because it is a form
-    itself — HTML has no nested forms — and the listing wraps every row on the
+    itself — HTML has no nested forms — and the catalogue wraps every row on the
     page.
     {% endcomment %}
     {% if dialog %}
@@ -44,8 +44,8 @@ breadcrumb above it has the gang as well, so nothing is lost.
     {% endif %}
     {% comment %}
     And one accessory panel per gun the fighter is carrying, closed unless the
-    address names it. They are here rather than fetched on the press because
-    the press is on a screen of several hundred rows, and asking the server for
+    address names it. They are here rather than fetched on the click because
+    the click is on a screen of several hundred rows, and asking the server for
     a panel would mean building the whole of it again to show one. The list in
     each is the same shortened one the address would have drawn — see
     n26.core.views.owned.accessorise_dialogs — and the plus beside a gun's name
@@ -92,7 +92,7 @@ breadcrumb above it has the gang as well, so nothing is lost.
         {% comment %}
         The numbers a purchase is decided against, in the corner the gang
         sheet keeps its own — and beside them the roster's arithmetic,
-        one press away rather than a line of the page.
+        one click away rather than a line of the page.
         {% endcomment %}
         <c-slot name="actions">
             <c-n26.gang-figures :gang="gang" :count="roster_count" />
@@ -112,10 +112,10 @@ breadcrumb above it has the gang as well, so nothing is lost.
     {% comment %}
     Which list, as the page's top-level choice: a fighter's own lists — the ones
     their built-ins carry — then the Trading Post, as a sidebar down the left of
-    the listing. A rail rather than a strip over the rows, because choosing the
+    the catalogue. A rail rather than a strip over the rows, because choosing the
     list you are shopping is a larger decision than narrowing what it shows and
     should not sit among the filters that only mean anything within one of them.
-    On a phone the rail takes the full width above the listing.
+    On a phone the rail takes the full width above the catalogue.
 
     Links, not client state: a list is a place you can be, so it goes in the URL
     — linkable, back-button-friendly, and the server renders the one you are on.
@@ -161,7 +161,7 @@ breadcrumb above it has the gang as well, so nothing is lost.
                         bands a reader steers with — how the list is narrowed,
                         which section is on screen — stay together as the rows
                         scroll under them. Which list is the rail's business,
-                        beside the listing rather than pinned over it.
+                        beside the catalogue rather than pinned over it.
                         {% endcomment %}
                         <c-n26.search-bar :live="True"
                                           :nested="True"
@@ -224,7 +224,7 @@ breadcrumb above it has the gang as well, so nothing is lost.
                     `categories`. The two would not match, and the whole
                     category would count zero and hide itself.
                     {% endcomment %}
-                    {% for section in listing.sections %}
+                    {% for section in catalogue.sections %}
                         <c-n26.collection-picker.section :name="section.name" :open="forloop.first">
                             {% for category in section.categories %}
                                 {% if category.name %}

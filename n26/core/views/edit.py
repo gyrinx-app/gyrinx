@@ -21,7 +21,7 @@ def edit_fighter(request, pk):
     are offered here, outlined, and the Gear and Weapons rows carry the
     way to the Equip tab.
 
-    Three forms post here, and ``act`` says which was pressed. Notes are
+    Three forms post here, and ``act`` says which was clicked. Notes are
     the owner's prose and characteristics they set are the owner's
     numbers; neither is a fact the books watch — no rating moves, no
     ledger row is written — so both are plain saves rather than

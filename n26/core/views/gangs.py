@@ -89,7 +89,7 @@ def _gang_table_context(request, everyone=False, per_page=None):
 
     Name and gang type are searched because they are the two things a row
     shows, and the two the table's own in-page filter reads — a query that
-    works in the box works after pressing Search.
+    works in the box works after clicking Search.
 
     The matching is the platform's ``search_queryset``: full-text plus a
     substring fallback on every field, so "scav" finds "Scavvies". It
@@ -196,7 +196,7 @@ def gang_sheet(request, pk):
     sends another shows the same gang to whoever opens it. Owning it is
     what adds the controls: the reader who does not gets the sheet with
     every button, dialog and picker left off, and choices nobody has
-    made read as words rather than as something to press. An
+    made read as words rather than as something to click. An
     archived gang is nobody's to read.
 
     Every choice slot on the sheet — the gang's own and every member's —
@@ -222,7 +222,7 @@ def gang_sheet(request, pk):
     if yours:
         link_slots(gang, sheet, *sheet.models)
         link_skills(*sheet.models)
-        # A stashed accessory is somewhere to press: it is gear waiting
+        # A stashed accessory is somewhere to click: it is gear waiting
         # for a gun, and the sheet is the screen where the gang's spare
         # kit is read.
         link_refits(sheet, at)
@@ -603,7 +603,7 @@ def delete_gang(request, pk):
     """Deleting a gang: the question at its own address, then the act.
 
     GET asks and changes nothing; the POST from that page archives. Two
-    steps rather than one because the press is not reversible by the
+    steps rather than one because the click is not reversible by the
     player who made it, and because a link that deleted what it pointed
     at would be deleted by anything that follows links.
 
@@ -637,7 +637,7 @@ def delete_gang(request, pk):
         {
             "gang": gang,
             # Live memberships only: a fighter already off the roster is
-            # not one of the things this press takes away.
+            # not one of the things this click takes away.
             "roster": Miniature.objects.filter(
                 membership__gang=gang, membership__archived=False
             ).count(),

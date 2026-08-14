@@ -193,7 +193,7 @@ class TestWhatTheSeedsCreate:
     def test_specialisations_create_the_skills_they_grant(self, default_pack):
         """Created alone — no skills yet — it still completes, because a
         specialisation without its skill is half a thing and the seed
-        owns that dependency rather than the order of button presses."""
+        owns that dependency rather than the order of button clicks."""
         from n26.library.models import Skill, Specialisation
 
         seed = STANDARD_CONTENT["specialisations"]

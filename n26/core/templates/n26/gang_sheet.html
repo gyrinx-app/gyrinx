@@ -80,7 +80,7 @@ that said it twice would be spending the width the name needs.
                     The gang's rules are one answer to one question — which is
                     why they share a row (see detail_list/row.html) — and a
                     settled fact: they come from the gang type, so there is
-                    nothing here to press.
+                    nothing here to click.
                     {% endcomment %}
                     {% if sheet.rules %}
                         <c-n26.detail-list.row label="Rules" :editable="False">
@@ -143,7 +143,7 @@ that said it twice would be spending the width the name needs.
                         {% comment %}
                     A page that asks, not the act: following this link deletes
                     nothing, and the POST it leads to is the only thing that
-                    does. Behind the second press because it cannot be undone.
+                    does. Behind the second click because it cannot be undone.
                         {% endcomment %}
                         <c-ui.dropdown.item variant="danger" href="{% url 'n26-delete-gang' gang.pk %}">
                             Delete gang
@@ -186,7 +186,7 @@ that said it twice would be spending the width the name needs.
                         overflow: the pair reads as one place to look for
                         "things you can do to this model that are not
                         equipping". Delete stays in the dropdown because it is
-                        irreversible and should cost a second deliberate press.
+                        irreversible and should cost a second deliberate click.
                             {% endcomment %}
                             <c-ui.button size="xs" variant="primary" href="{% url 'n26-equip' member.id %}">
                                 Equip
@@ -209,7 +209,7 @@ that said it twice would be spending the width the name needs.
                                     {% comment %}
                                 Both open a question rather than acting: the URL
                                 names the fighter and the sheet answers with the
-                                dialog below, so a press works with no script and
+                                dialog below, so a click works with no script and
                                 an open question is an address someone can send.
 
                                 Refund only where there is a budget being spent —
@@ -292,7 +292,7 @@ that said it twice would be spending the width the name needs.
     a gun, and this is where it goes back on one. Every gun in the gang is
     offered rather than only the ones it fits — fitting shortens a long list,
     and a gang's guns are few enough that hiding one would be a refusal in
-    disguise. With no gun anywhere there is nothing to press, so no submit is
+    disguise. With no gun anywhere there is nothing to click, so no submit is
     drawn.
     {% endcomment %}
     {% if refitting %}

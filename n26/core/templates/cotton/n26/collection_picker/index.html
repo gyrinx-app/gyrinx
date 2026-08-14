@@ -42,7 +42,7 @@ zero — an empty category disappears rather than sitting there as a header
 with nothing under it, which on a phone is most of a screen wasted. The table
 is what keeps a big list quick in the hand: counting per read instead would
 walk every item through the reactive proxy once per tab, per group and per
-readout, and a press on a tab — which changes no item and no filter — would
+readout, and a click on a tab — which changes no item and no filter — would
 spend a second recomputing numbers that cannot have changed.
 
 The readout counts what is on screen rather than what was registered, which
@@ -82,7 +82,7 @@ dispatches, and listens for `filter-reset` to be told.
     :categories="[]"
     :sections="[]"
     {% comment %}
-    Tabs by default. Two stacked collapsibles made you press
+    Tabs by default. Two stacked collapsibles made you click
     twice to reach the second section — once to shut the first, once to open it —
     and the tab strip leaves the category as the only thing that collapses, which
     is the level where having two open at once is actually useful.
@@ -122,7 +122,7 @@ dispatches, and listens for `filter-reset` to be told.
         {% comment %}
         The chosen section survives a reload by living in the URL: init
         reads ?section= back, and chooseSection writes it without a
-        navigation. Pages that answer a press with a redirect echo the
+        navigation. Pages that answer a click with a redirect echo the
         parameter (a hidden input below carries it in the POST), so
         buying from the third tab lands the reader back on the third
         tab. An unknown name needs no guarding here — visibleSection
@@ -152,8 +152,8 @@ dispatches, and listens for `filter-reset` to be told.
         caches nothing, so a count that walked the items itself would
         walk them once per tab, per group and per readout — hundreds of
         passes through the reactive proxy, a second of dependency
-        bookkeeping per press on a strip this size — to show numbers a
-        tab press cannot have changed.
+        bookkeeping per click on a strip this size — to show numbers a
+        tab click cannot have changed.
 
         countIn (a category's number) deliberately ignores the category
         filter — the filter menu shows what each choice would yield —
@@ -217,7 +217,7 @@ dispatches, and listens for `filter-reset` to be told.
         ways to handle that are to correct the stored choice — an effect that
         races the thing that caused it, which <c-n26.range-slider> has a long
         note about — or to not store a conclusion at all. So `chosenSection` is
-        only what was last pressed, and what is *shown* is that if it still has
+        only what was last clicked, and what is *shown* is that if it still has
         anything, else the first section that does.
 
         Which also means the reader's choice survives a filter that empties it:
@@ -283,9 +283,9 @@ dispatches, and listens for `filter-reset` to be told.
 
     {% comment %}
     The section on screen, riding whatever form this picker sits inside —
-    so a press that answers with a redirect can put the reader back on
+    so a click that answers with a redirect can put the reader back on
     the tab they were using. Bound to what is shown rather than what was
-    pressed, and empty without tabs or without script, which the views
+    clicked, and empty without tabs or without script, which the views
     read as "no tab to restore".
     {% endcomment %}
     <input type="hidden" name="section" :value="tabbed ? (visibleSection || '') : ''">
@@ -354,7 +354,7 @@ dispatches, and listens for `filter-reset` to be told.
 
         A tab with nothing behind it is hidden rather than disabled: an empty
         tab is not a choice a reader can act on, and leaving it there to be
-        pressed and do nothing is a worse answer than removing it while the
+        clicked and do nothing is a worse answer than removing it while the
         filter holds.
         {% endcomment %}
         {% if tabs %}
@@ -384,14 +384,14 @@ dispatches, and listens for `filter-reset` to be told.
 
             They are written as two blocks rather than one that adapts,
             because what they do differs. Showing every tab means the row is
-            fixed: pressing one moves the accent and nothing else, so a reader
+            fixed: clicking one moves the accent and nothing else, so a reader
             can go back to the tab they came from without hunting for where it
             went. Showing one means the row is the current section followed by
             everything else, which is the markup order — no rule needed to put
             the current one first, because there is nothing else in the row to
             be in front of it. One strip serving both had to pull the active
             tab to the front, which is right in the second shape and reorders
-            the whole row on every press in the first.
+            the whole row on every click in the first.
             {% endcomment %}
             <div role="tablist" class="relative hidden flex-wrap gap-x-1 sm:flex">
                 <template x-for="name in sections" :key="name">
@@ -427,7 +427,7 @@ dispatches, and listens for `filter-reset` to be told.
 
             The tab is bound to the section on screen rather than picked out of
             a drawn row, so there is only ever one of it and no sibling to hide.
-            It is not pressable: it is the section you are looking at, and the
+            It is not clickable: it is the section you are looking at, and the
             control beside it is the way to any other.
 
             The menu appears only while more than one section is live. Behind a

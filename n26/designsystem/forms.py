@@ -124,7 +124,7 @@ class HireFighterForm(forms.Form):
     optional field from one they have not reached yet.
 
     The profile is not a field here. It arrives as the name and value of
-    whichever Hire button was pressed, which is why this form has no submit of
+    whichever Hire button was clicked, which is why this form has no submit of
     its own; see <c-n26.view.fighter-hire>.
     """
 

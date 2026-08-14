@@ -143,8 +143,8 @@ def rows_of(response, section_name):
     }
 
 
-def press(client, gang, key, **data):
-    """Press Hire on a row, as the picker's form does."""
+def click(client, gang, key, **data):
+    """Click Hire on a row, as the picker's form does."""
     return client.post(hire_url(gang), {"hire": key, **data})
 
 
@@ -451,7 +451,7 @@ class TestTheCollectionsPriceIsThePrice:
     def key(self, client, gang, name):
         """What the row for ``name`` in the corruption's section submits as.
 
-        Read off the page rather than composed here: the identity a press
+        Read off the page rather than composed here: the identity a click
         carries is the page's own, and a test that built its own could
         pass against a server nothing on screen can reach.
         """
@@ -463,7 +463,7 @@ class TestTheCollectionsPriceIsThePrice:
 
 
 class TestAForgedPriceTag:
-    """The offer a press names is checked, never trusted: the entry must
+    """The offer a click names is checked, never trusted: the entry must
     exist, name that fighter, and belong to a collection this gang really
     carries. Anything else is a broken link."""
 
@@ -476,7 +476,7 @@ class TestAForgedPriceTag:
         client.force_login(owner)
         key = f"{aberrant.pk}-{forged.pk}"
         assert client.get(f"{hire_url(gang)}?hire={key}").status_code == 404
-        assert press(client, gang, key).status_code == 404
+        assert click(client, gang, key).status_code == 404
         assert hire_through(client, gang, key, name="Sneaky").status_code == 404
         assert not Miniature.objects.filter(membership__gang=gang).exists()
 
@@ -532,7 +532,7 @@ class TestAForgedPriceTag:
 class TestOptionsOnACollectionsRow:
     """A collection prices the fighter, not what the fighter is built
     with: an option still adds its own surcharge on top, and the row's
-    controls travel through the press exactly as they do anywhere."""
+    controls travel through the click exactly as they do anywhere."""
 
     @pytest.fixture
     def armed(self, corrupted_profiles, default_pack):
@@ -564,7 +564,7 @@ class TestOptionsOnACollectionsRow:
         assert entry.base_price == 120
         assert [option.total_price for option in entry.options] == [120, 145]
 
-    def test_a_press_carries_the_pick_and_the_offer_together(
+    def test_a_click_carries_the_pick_and_the_offer_together(
         self, client, owner, corrupted_gang, armed
     ):
         """Both halves of the row's answer ride the redirect: the option
@@ -578,11 +578,11 @@ class TestOptionsOnACollectionsRow:
         ].key
         scoped = f"{slugify(key)}:0"
 
-        pressed = press(client, corrupted_gang, key, **{scoped: "1"})
-        assert pressed.status_code == 302
-        assert f"hire={key}" in pressed.url
+        clicked = click(client, corrupted_gang, key, **{scoped: "1"})
+        assert clicked.status_code == 302
+        assert f"hire={key}" in clicked.url
 
-        body = client.get(pressed.url).content.decode()
+        body = client.get(clicked.url).content.decode()
         assert "145¢" in body
         assert "With a heavy rock drill" in body
 

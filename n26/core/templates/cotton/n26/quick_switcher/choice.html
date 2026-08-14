@@ -12,7 +12,7 @@ The sibling of <c-n26.quick-switcher.item>, for a switcher whose alternatives
 are states of the page rather than destinations. Everything around it is the
 same — the panel, its placement, the filter box, the arrow keys — because all
 of that belongs to the switcher and none of it cares what a row does when
-pressed. A menu written again beside this one would have to get the placement
+clicked. A menu written again beside this one would have to get the placement
 right a second time.
 
 A <button>, not a link with a dead href: a link that goes nowhere is offered to
@@ -22,7 +22,7 @@ highlighted row, and a button is clickable.
 
   --- how the answer gets out ---
 
-Pressing dispatches a bubbling `quick-switcher-choose` carrying this row's
+Clicking dispatches a bubbling `quick-switcher-choose` carrying this row's
 label, and the caller listens for it on whatever holds the switcher. The
 alternative is passing the caller's own expression in as a prop, and an
 expression that has to name a value arrives as quoted text — which comes back

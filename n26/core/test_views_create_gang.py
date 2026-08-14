@@ -2,7 +2,7 @@
 
 The type is chosen from a grid of cards rather than a dropdown, so what these
 pin is that the grid is still a plain form control — one radio per type over a
-shared name, submitting the type the reader pressed — and that a type's badge
+shared name, submitting the type the reader clicked — and that a type's badge
 is drawn where it has one and nowhere where it does not.
 """
 
@@ -94,7 +94,7 @@ class TestPickingATypeFromTheGrid:
         body = client.get(reverse("n26-create-gang")).content.decode()
         assert '<select id="gang-type"' not in body
 
-    def test_pressing_create_founds_a_gang_of_the_type_that_was_ticked(
+    def test_clicking_create_founds_a_gang_of_the_type_that_was_ticked(
         self, client, tester, drawn, undrawn
     ):
         client.force_login(tester)

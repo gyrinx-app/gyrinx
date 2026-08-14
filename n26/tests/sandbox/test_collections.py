@@ -1352,7 +1352,7 @@ class TestAmmoRidesUnderTheGun:
     def test_a_named_round_is_not_also_a_row_of_its_own(self, autogun, warp):
         """Drawn twice, one thing has two prices on one page the moment
         an author overrides either of them — and the reader cannot tell
-        which press they are about to make."""
+        which click they are about to make."""
         house = create_collection("House List", entries=[autogun, warp])
         names = [line.name for line in browse(house).all_lines()]
 
@@ -1399,7 +1399,7 @@ class TestAmmoRidesUnderTheGun:
 
     def test_the_round_is_priced_by_the_entry_that_named_it(self, autogun, warp):
         """One route to the price, so an author who reprices a round
-        reprices the one the reader presses."""
+        reprices the one the reader clicks."""
         house = create_collection(
             "House List", entries=[autogun, (warp, {"price_override": 25})]
         )

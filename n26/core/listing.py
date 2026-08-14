@@ -6,14 +6,14 @@ collection was written out by hand or swept together by a selector.
 :mod:`n26.core.owned` reads the other half off the fighter's card: which
 copies of which content rows they are already carrying.
 
-A listing is the two joined. It is what a shopping screen draws, and it
-is a structure rather than a bag of dictionaries so that the join has one
-definition: a test can build one and ask what a row offers without going
-through a request, and a gallery can build one without a database.
+A catalogue is the two joined. It is what a shopping screen draws, and
+it is a structure rather than a bag of dictionaries so that the join has
+one definition: a test can build one and ask what a row offers without
+going through a request, and a gallery can build one without a database.
 
   --- owning something replaces its row ---
 
-A category holds :class:`PricedRow` or :class:`OwnedRow`, one or the
+A category holds :class:`Listing` or :class:`OwnedRow`, one or the
 other for a given content row, never both and never a flag on one type.
 Where the fighter holds one of the thing a row names, the row says so
 instead of offering another: the count stands where Buy would be and
@@ -26,11 +26,11 @@ so there is one definition of what buying this thing looks like.
 
   --- a row's actions say what they mean, never how to draw it ---
 
-Buy is a submit: the listing is one form, and a purchase names its line
-and presses. Sell, Reassign and Delete are links, because each opens a
-confirmation that is a server-rendered state of the page it was pressed
-on. A template that had to know which of the four was which would decide
-that by name, and the first act added would be drawn wrong.
+Buy is a submit: the catalogue is one form, and a purchase names its
+line and clicks. Sell, Reassign and Delete are links, because each opens
+a confirmation that is a server-rendered state of the page it was
+clicked on. A template that had to know which of the four was which
+would decide that by name, and the first act added would be drawn wrong.
 
 Tones are the row's own vocabulary — what the control *means* — and a
 template maps them to whatever the button kit calls those colours. So
@@ -39,7 +39,7 @@ nothing here knows that a sale is red.
   --- what a row submits ---
 
 Each input's name is derived from the row's key and carried on the row.
-The server derives the same names when it reads the press back, and a
+The server derives the same names when it reads the click back, and a
 name computed twice from two places is a name that eventually disagrees
 with itself.
 """
@@ -58,8 +58,8 @@ DANGER = "danger"
 #: The rarer acts, the ones that share a chevron.
 SECONDARY = "secondary"
 
-#: A press within the listing's own form, carrying :attr:`Action.target`
-#: as its value.
+#: A click within the catalogue's own form, carrying
+#: :attr:`Action.target` as its value.
 SUBMIT = "submit"
 #: A navigation to :attr:`Action.target`.
 LINK = "link"
@@ -68,11 +68,12 @@ LINK = "link"
 def parts_field(key):
     """The input name the tickable parts of one line share.
 
-    Scoped by the line, because one form holds the whole listing: without
-    it, ticking warp rounds on the autogun row would arrive with the stub
-    gun's press. Slugified, because that is what the template renders —
-    read the raw key back and every box ticked in a real browser is
-    silently ignored while a test posting the raw key still passes.
+    Scoped by the line, because one form holds the whole catalogue:
+    without it, ticking warp rounds on the autogun row would arrive with
+    the stub gun's click. Slugified, because that is what the template
+    renders — read the raw key back and every box ticked in a real
+    browser is silently ignored while a test posting the raw key still
+    passes.
     """
     return f"{slugify(key)}:parts"
 
@@ -81,9 +82,9 @@ def choice_field(key, group):
     """The input name one set of a line's alternatives shares.
 
     Scoped by the line and then by the set, because one form holds the
-    whole listing and a line may put more than one group: without the
+    whole catalogue and a line may put more than one group: without the
     line's scope a mount's swap would arrive with another listing's
-    press, and without the set's the two groups would be one radio group
+    click, and without the set's the two groups would be one radio group
     where picking in the second clears the pick in the first. Slugified
     for the same reason the rest are — the template renders the slug, and
     reading the raw key back would ignore every pick made in a real
@@ -97,8 +98,8 @@ def price_field(key, index=None):
     one of its parts'.
 
     Scoped by the line for the same reason the tick boxes are: one form
-    holds the whole listing, so a price typed on the autogun row must not
-    arrive with the stub gun's press.
+    holds the whole catalogue, so a price typed on the autogun row must
+    not arrive with the stub gun's click.
     """
     scope = slugify(key)
     return f"{scope}:price" if index is None else f"{scope}:parts:{index}:price"
@@ -108,8 +109,8 @@ def price_field(key, index=None):
 class Action:
     """One thing a row offers, said in the row's own words.
 
-    ``kind`` is how the press happens — :data:`SUBMIT` inside the
-    listing's form, or :data:`LINK` to an address. ``target`` is the
+    ``kind`` is how the click happens — :data:`SUBMIT` inside the
+    catalogue's form, or :data:`LINK` to an address. ``target`` is the
     value a submit carries or the address a link goes to.
 
     ``tone`` is what the act means: :data:`PRIMARY` for the one the
@@ -133,7 +134,7 @@ class OptionRow:
 
     ``index`` is its place in the line the server re-derives, which is
     what the tick box submits. Naming the part any other way would let a
-    tampered form ask for something the listing never offered.
+    tampered form ask for something the catalogue never offered.
     """
 
     name: str
@@ -149,7 +150,7 @@ class OptionRow:
 
 
 @dataclass(frozen=True)
-class ChoiceOption:
+class GroupOption:
     """One option a reader may pick, from a group of options on a specific listing.
 
     ``value`` is its place in the set the server re-derives, which is what
@@ -175,7 +176,7 @@ class ChoiceOption:
 
 
 @dataclass(frozen=True)
-class ChoiceGroup:
+class PickGroup:
     """A group of options on one listing, and how many to pick — one,
     any, or one-or-none.
 
@@ -189,11 +190,11 @@ class ChoiceGroup:
     choose: str
     #: The input every option in this group shares.
     field: str
-    options: tuple[ChoiceOption, ...]
+    options: tuple[GroupOption, ...]
 
 
 @dataclass(frozen=True)
-class PricedRow:
+class Listing:
     """Something for sale, and what buying it here asks for."""
 
     key: str
@@ -209,8 +210,8 @@ class PricedRow:
     options: tuple[OptionRow, ...]
     buy: Action
     #: The questions buying this asks — a mount's weapon swap. Empty for
-    #: everything that asks none, which is most of a listing.
-    choices: tuple[ChoiceGroup, ...] = ()
+    #: everything that asks none, which is most of a catalogue.
+    choices: tuple[PickGroup, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -219,7 +220,7 @@ class OwnedPartRow:
 
     No move among its actions. A part belongs to the thing it hangs off
     and ``Operation.move`` refuses an assignment with a parent, so
-    offering one would be offering a press that cannot work.
+    offering one would be offering a click that cannot work.
     """
 
     id: str
@@ -269,11 +270,11 @@ class OwnedRow:
     #: The row this would have been had they owned none, so a reader can
     #: buy another. Always present: owning one of something has never
     #: been a reason the equip page stops selling it.
-    buy: PricedRow
+    buy: Listing
 
 
 @dataclass
-class ListingCategory:
+class CatalogueCategory:
     """One category heading and its rows. An empty name means the content
     filed nothing here, and the rows sit straight inside the section."""
 
@@ -282,19 +283,19 @@ class ListingCategory:
 
 
 @dataclass
-class ListingSection:
+class CatalogueSection:
     """One section heading and its categories."""
 
     name: str
-    categories: list[ListingCategory] = field(default_factory=list)
+    categories: list[CatalogueCategory] = field(default_factory=list)
 
 
 @dataclass
-class Listing:
+class Catalogue:
     """A whole shopping surface for one fighter, ready to draw."""
 
     name: str
-    sections: list[ListingSection] = field(default_factory=list)
+    sections: list[CatalogueSection] = field(default_factory=list)
 
     def all_rows(self):
         for section in self.sections:
@@ -349,11 +350,11 @@ def _choices_of(line, key):
     walks the browsed line and never a second derivation of it.
     """
     return tuple(
-        ChoiceGroup(
+        PickGroup(
             choose=group.choose,
             field=choice_field(key, index),
             options=tuple(
-                ChoiceOption(
+                GroupOption(
                     name=option.name,
                     value=str(position),
                     surcharge=option.surcharge,
@@ -366,10 +367,10 @@ def _choices_of(line, key):
     )
 
 
-def priced_row(line):
+def listing_row(line):
     """One line of a browsed collection as a row that offers to sell it."""
     key = thing_key(line.thing)
-    return PricedRow(
+    return Listing(
         key=key,
         name=line.name,
         price=line.credits,
@@ -454,7 +455,7 @@ def owned_row(row, copies, refunds=True):
     )
 
 
-def build_listing(view, owned, name=None, refunds=True):
+def build_catalogue(view, owned, name=None, refunds=True):
     """A browsed collection joined to what one fighter already holds.
 
     ``owned`` is the index :func:`n26.core.owned.owned_things` returns,
@@ -462,22 +463,22 @@ def build_listing(view, owned, name=None, refunds=True):
     row, however much the fighter is carrying and however long the list.
 
     ``refunds`` rides down to every owned copy: a gang with no budget is
-    offered no Refund anywhere on the listing.
+    offered no Refund anywhere in the catalogue.
 
     Sections keep the order and the shape the browse gave them, with one
     substitution: a section the content left unnamed is called
-    "Uncategorised" here. A listing is drawn as a strip of tabs, and a
-    tab with no word on it is one nobody can press.
+    "Uncategorised" here. A catalogue is drawn as a strip of tabs, and a
+    tab with no word on it is one nobody can click.
     """
-    listing = Listing(name=name or view.name)
+    catalogue = Catalogue(name=name or view.name)
     for section in view.sections:
-        drawn = ListingSection(name=section.name or UNCATEGORISED)
+        drawn = CatalogueSection(name=section.name or UNCATEGORISED)
         for category in section.categories:
             rows = []
             for line in category.lines:
-                row = priced_row(line)
+                row = listing_row(line)
                 copies = owned.get(row.key)
                 rows.append(owned_row(row, copies, refunds=refunds) if copies else row)
-            drawn.categories.append(ListingCategory(name=category.name, rows=rows))
-        listing.sections.append(drawn)
-    return listing
+            drawn.categories.append(CatalogueCategory(name=category.name, rows=rows))
+        catalogue.sections.append(drawn)
+    return catalogue

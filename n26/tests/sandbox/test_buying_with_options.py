@@ -147,7 +147,7 @@ def row_named(client, owner, fighter, collection, name):
     client.force_login(owner)
     response = client.get(equip_url(fighter, collection))
     return next(
-        row for row in response.context["listing"].all_rows() if row.name == name
+        row for row in response.context["catalogue"].all_rows() if row.name == name
     )
 
 
@@ -297,7 +297,7 @@ class TestWhatTheScreenDraws:
 
 
 class TestBuyingWithNothingPicked:
-    """A press with nothing picked takes what comes as standard."""
+    """A click with nothing picked takes what comes as standard."""
 
     def test_it_takes_the_standard_guns_at_the_price_the_list_asked(
         self, client, owner, gang, fighter, house_list, cutter
@@ -458,7 +458,7 @@ class TestAPickTheListingNeverOffered:
         self, client, owner, gang, fighter, house_list, cutter
     ):
         """Radios cannot both be clicked, so two values for one set is a
-        tampered form — and one press was never an order for two mounts'
+        tampered form — and one click was never an order for two mounts'
         worth of guns."""
         client.force_login(owner)
         response = client.post(
@@ -474,7 +474,7 @@ class TestAPickTheListingNeverOffered:
     def test_a_pick_scoped_to_another_listing_rides_along_and_is_ignored(
         self, client, owner, gang, fighter, house_list, cutter, default_pack
     ):
-        """With no script running, a press submits every control on the
+        """With no script running, a click submits every control on the
         page. Only the ones scoped to the clicked line may decide
         anything."""
         knife = create_wargear("Stiletto knife", price=10)

@@ -8,7 +8,7 @@ and the standard option of every pick-one set wears one too, because
 kept making people ask.
 
 Two forms share the section, folded closed until needed. "Add an
-option" is pinned to a set by the control that was pressed — each
+option" is pinned to a set by the control that was clicked — each
 card's add button carries ?set= (or ?add=option for the main pick) in
 the URL, so the redrawn page arrives with the form open and the form
 holds the destination as a hidden field — and "Offer another set of
@@ -121,7 +121,7 @@ Takes `hire_options` (built by views._hire_options_context) and `thing`.
             </c-slot>
             <div class="mt-3 max-w-xl space-y-5">
                 <c-ui.alert variant="info" title="Where it goes">
-                    {{ hire_options.joins_text }} To aim somewhere else, press
+                    {{ hire_options.joins_text }} To aim somewhere else, click
                     that set's own "Add an option here".
                 </c-ui.alert>
                 {% if hire_options.option.part_help %}

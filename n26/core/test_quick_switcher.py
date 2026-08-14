@@ -73,7 +73,7 @@ class TestTheLeadingLink:
     def test_both_halves_are_ghost_buttons_in_one_group(self):
         """Ghost is the whole affordance: no fill and no rule until the
         pointer is on one of them, so the control reads as words beside a
-        heading and the hover says which half you are about to press. Two
+        heading and the hover says which half you are about to click. Two
         of them, joined, and the group is what makes them one object."""
         html = render(
             f"""
@@ -166,7 +166,7 @@ class TestTheList:
 
 class TestStayingOnTheScreen:
     """A panel hung from a trigger in the middle of a narrow window runs off
-    the edge, and the destinations past the edge cannot be pressed. Nothing a
+    the edge, and the destinations past the edge cannot be clicked. Nothing a
     server-rendered test can see says whether that happened, so what is pinned
     here is the two pieces that stop it — one CSS, one script — because either
     can be dropped in an edit and leave a page that still serves 200."""

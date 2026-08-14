@@ -437,7 +437,7 @@ class TestTheCardFollowsTheMainPick:
         assert 'x-show="mainpick === 0"' in body
         assert 'x-show="mainpick === 1"' in body
 
-    def test_only_the_default_card_shows_before_anything_is_pressed(self, ogryn):
+    def test_only_the_default_card_shows_before_anything_is_clicked(self, ogryn):
         """The alternatives arrive cloaked; scripting only ever narrows
         what is already there."""
         body = self.drawn(ogryn)
@@ -449,7 +449,7 @@ class TestTheCardFollowsTheMainPick:
 class TestAnOptionalPickOnTheRow:
     """A one-or-none set on the hire screen: radios, none of them
     checked by the data, and a "None" row that makes taking nothing
-    pressable — a pressed radio group cannot otherwise be unpressed."""
+    pickable — a checked radio group cannot otherwise be unchecked."""
 
     @pytest.fixture
     def grenadier(self, person_type, gang_type, default_pack):

@@ -132,7 +132,7 @@ label goes on naming the control and goes on focusing it when clicked.
          },
          show() {
              this.open = true;
-             // A frame, not a tick. Pressing the trigger focuses it, and the
+             // A frame, not a tick. Clicking the trigger focuses it, and the
              // browser does that after this handler has run — a focus moved
              // inside the same task is taken straight back by the button.
              this.$nextTick(() => requestAnimationFrame(() => this.$refs.filter.focus()));
@@ -167,7 +167,7 @@ label goes on naming the control and goes on focusing it when clicked.
                  this.options.forEach(row => { row.selected = row.index === index });
              }
              // Anything watching the select for a change — the union
-             // pickers' own script among them — never saw the press.
+             // pickers' own script among them — never saw the click.
              this.select.dispatchEvent(new Event('change', { bubbles: true }));
              if (!this.select.multiple) this.close(true);
          },

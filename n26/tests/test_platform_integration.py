@@ -372,7 +372,7 @@ class TestTheNavigation:
     ):
         """A scheme is chosen once and then never again, and a control in
         the bar holds a row of space the page's own name wants on every
-        screen. Behind the name it is still one press away."""
+        screen. Behind the name it is still one click away."""
         body = client.get("/n26/").content.decode()
         assert "set('system')" in account_menu(body)
         assert 'aria-label="Toggle dark mode"' not in nav_bar(body)
@@ -746,7 +746,7 @@ class TestTheEditionToggle:
     """One pill in each edition's bar: the segment you are in filled, the
     other a plain link to the other edition's front page. Drawn for
     anyone signed in — both editions are theirs — and for nobody else,
-    since a visitor pressing the far half would only meet a sign-in
+    since a visitor clicking the far half would only meet a sign-in
     page."""
 
     def test_the_n26_bar_offers_the_way_back(self, tester, client, default_pack):
@@ -997,7 +997,7 @@ class TestFoundingAGang:
         assert response.status_code == 302
 
         gang = Gang.objects.get(name="The Bad Girls")
-        # Straight to the new gang's own sheet, where hiring is one press.
+        # Straight to the new gang's own sheet, where hiring is one click.
         assert response["Location"] == f"/n26/gangs/{gang.pk}/"
         assert gang.owner == tester
         assert gang.gang_type == gang_type

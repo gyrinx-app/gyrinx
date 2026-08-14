@@ -78,7 +78,7 @@ class TestTheCardRows:
         """Drawn is not enough. A question carries its address and a view
         turns it into a URL, so a bucket nothing links draws a control with
         nowhere to go — which is worse than not drawing it, because the
-        reader presses it."""
+        reader clicks it."""
         from n26.core.render import ChoiceLine, Statline
         from n26.core.views.choose import link_slots
 

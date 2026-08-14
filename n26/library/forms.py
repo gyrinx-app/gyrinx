@@ -638,7 +638,7 @@ def condition_formset_for(spec, data=None, prefix="conditions", extra=0, initial
     is the narrowing a scope already has, one entry per chip.
 
     A scope narrowed too far is corrected by taking a condition off it,
-    and the chip goes there and then: the press posts the form,
+    and the chip goes there and then: the click posts the form,
     the view drops that chip from what arrived
     (``without_condition_chip``) and sends the rest back as an address.
     There is no delete field, because a tickbox that only takes effect
@@ -662,7 +662,7 @@ def without_condition_chip(data, index, prefix="conditions"):
     there is one fewer. Left as a gap, the missing position reads as a
     chip the author emptied and the last chip is read twice.
 
-    An index naming no chip leaves the data alone — a press cannot be
+    An index naming no chip leaves the data alone — a click cannot be
     allowed to rewrite a form on the strength of a number that came
     from the page.
     """
@@ -1204,7 +1204,7 @@ class ModifierComposerForm(forms.Form):
         Attaching happens either way. The reusable flag decides what the
         row is *called*, never where it goes: an author composing on a
         carrier wants it on that carrier, and one that saved itself
-        somewhere else would be a press that appeared to do nothing.
+        somewhere else would be a click that appeared to do nothing.
 
         Editing takes the same two compiled parts to
         ``recompose_modifier``, which puts them on the row the carriers

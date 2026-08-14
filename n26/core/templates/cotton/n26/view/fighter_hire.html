@@ -1,5 +1,5 @@
 {% comment %}
-<c-n26.view.fighter-hire> — pick what a fighter is, one press at a time.
+<c-n26.view.fighter-hire> — pick what a fighter is, one click at a time.
 
     <c-n26.view.fighter-hire action="/gangs/1/hire/" gang="The Ashen Choir">
         <c-n26.profile-picker …>…</c-n26.profile-picker>
@@ -16,7 +16,7 @@ Finding the profile, and nothing else. Everything on the screen above the list
 is there under protest, because on a phone every row of chrome is a row of
 fighters you cannot see. So the screen is a list, and nothing above it asks a
 question the reader has not reached yet — naming is asked once a profile has
-been pressed, by <c-n26.hire-dialog>, which is also the only place it can be
+been clicked, by <c-n26.hire-dialog>, which is also the only place it can be
 asked without slowing down the common case: buying three Gangers and naming
 them when they have done something worth naming.
 
@@ -26,7 +26,7 @@ stays reachable while the list scrolls.
   --- picking is submitting ---
 
 There is no separate submit. Every Hire button in the list is this form's submit
-button, carrying which profile — or which option — was pressed. That is the
+button, carrying which profile — or which option — was clicked. That is the
 whole reason the row takes a `value`.
 
 Which means the form has no primary action of its own, and should not grow one:
@@ -38,7 +38,7 @@ it applied to.
 
 The notice slot, which draws between the lead and the list. A hire lands back
 here rather than on the gang sheet, because the answer to "who else?" is this
-screen; so the line saying who was hired belongs beside the list it was pressed
+screen; so the line saying who was hired belongs beside the list it was clicked
 in, not at the top of a page above the heading where the eye has already moved
 on from.
 
@@ -51,8 +51,8 @@ on from.
   breadcrumb — the trail above the title: the owner, then the gang.
   figures — the numbers a hire is decided against: the gang's wealth strip,
     with the roster count beside it. Drawn under the lead, above the notice
-    and the list, so the credits a press will spend are on the same screen
-    as the press. Server-rendered per request, so a hire's redirect brings
+    and the list, so the credits a click will spend are on the same screen
+    as the click. Server-rendered per request, so a hire's redirect brings
     the strip back already updated.
   notice — what happened last time: the confirmation of a hire, or the refusal
     of one. Drawn under the lead, above the list.
@@ -77,12 +77,12 @@ buttons in the list are this form's submits.
 The lead says what the screen does rather than which gang it is for. "Joining The
 Ashen Choir" was the whole of it, which told a reader something the breadcrumb
 above now says better, and left the two things they might actually not know —
-that naming is asked for after the press, and that the controls under a profile
+that naming is asked for after the click, and that the controls under a profile
 change what they are buying — to be discovered.
 {% endcomment %}
 <c-n26.form-page action="{{ action }}" :form="form" {{ attrs }}
                  title="{{ heading }}"
-                 lead="Pick a profile and press Hire, then name the fighter. The options under each one change what you get and what you pay, and you can hire as many as you like without leaving this page."
+                 lead="Pick a profile and click Hire, then name the fighter. The options under each one change what you get and what you pay, and you can hire as many as you like without leaving this page."
                  class="{{ class }}">
     {% if breadcrumb %}<c-slot name="breadcrumb">{{ breadcrumb }}</c-slot>{% endif %}
 

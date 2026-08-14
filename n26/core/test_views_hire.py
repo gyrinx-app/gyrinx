@@ -1,7 +1,7 @@
 """Hiring a fighter: the picker's form contract, server side.
 
 ``build_hire_list`` and ``Operation.hire`` have their own tests — these
-are about the wiring. A hire is three requests: a press says which
+are about the wiring. A hire is three requests: a click says which
 profile, the URL it lands on draws the name dialog, and the dialog's
 submit hires and comes back for the next one. Each step is pinned here,
 along with the refusals, because every one of them is a way a fighter
@@ -67,7 +67,7 @@ def hire_url(gang):
 
 
 def dialog_url(gang, profile, options=()):
-    """The URL a press lands on: the list, with the dialog open.
+    """The URL a click lands on: the list, with the dialog open.
 
     ``options`` are (group index, option index) pairs, scoped the way the
     rows scope theirs.
@@ -78,8 +78,8 @@ def dialog_url(gang, profile, options=()):
     return f"{hire_url(gang)}?hire={profile.pk}{'&' + query if query else ''}"
 
 
-def press(client, gang, profile, **data):
-    """Press Hire on a row, as the picker's form does."""
+def click(client, gang, profile, **data):
+    """Click Hire on a row, as the picker's form does."""
     return client.post(hire_url(gang), {"hire": str(profile.pk), **data})
 
 
@@ -198,11 +198,11 @@ def test_every_registration_name_is_a_known_category(client, tester, gang, gange
     assert registration_names <= set(response.context["categories"])
 
 
-def test_a_press_lands_on_the_dialogs_url(client, tester, gang, ganger):
-    """Which profile was pressed is a URL, not a hidden state: that is what
-    makes the dialog survive a reload and a press work without scripting."""
+def test_a_click_lands_on_the_dialogs_url(client, tester, gang, ganger):
+    """Which profile was clicked is a URL, not a hidden state: that is what
+    makes the dialog survive a reload and a click work without scripting."""
     client.force_login(tester)
-    response = press(client, gang, ganger)
+    response = click(client, gang, ganger)
     assert response.status_code == 302
     assert response.url == dialog_url(gang, ganger)
     assert not Miniature.objects.filter(membership__gang=gang).exists()
@@ -301,7 +301,7 @@ def test_the_confirmation_is_drawn_once_and_inside_the_form(
     client, tester, gang, ganger
 ):
     """The layout draws messages above everything; this screen wants its
-    confirmation beside the list the press came from. Both would be the
+    confirmation beside the list the click came from. Both would be the
     same message twice, so the page empties the layout's block — and the
     only way to tell is where the alert sits relative to the form.
     """
@@ -316,7 +316,7 @@ def test_the_confirmation_is_drawn_once_and_inside_the_form(
 def test_hiring_twice_running_needs_no_detour(client, tester, gang, ganger):
     client.force_login(tester)
     for name in ("Vex", "Sull"):
-        assert press(client, gang, ganger).url == dialog_url(gang, ganger)
+        assert click(client, gang, ganger).url == dialog_url(gang, ganger)
         client.post(hire_url(gang), {"profile": str(ganger.pk), "name": name})
 
     assert sorted(
@@ -335,15 +335,15 @@ def test_an_unnamed_hire_takes_the_profiles_name(client, tester, gang, ganger):
     assert "Hired Ganger for 55¢." in body
 
 
-def test_a_press_carries_the_ticked_option_into_the_dialogs_url(
+def test_a_click_carries_the_ticked_option_into_the_dialogs_url(
     client, tester, gang, ganger, armament
 ):
-    """The row's controls are answered before the press, so the dialog must
+    """The row's controls are answered before the click, so the dialog must
     inherit them: dropping one here would quote and charge the base price
     for a fighter the player configured otherwise.
     """
     client.force_login(tester)
-    response = press(client, gang, ganger, **{f"{slugify(str(ganger.pk))}:1": "1"})
+    response = click(client, gang, ganger, **{f"{slugify(str(ganger.pk))}:1": "1"})
     assert response.url == dialog_url(gang, ganger, [(1, 1)])
 
     body = client.get(response.url).content.decode()
@@ -610,7 +610,7 @@ def test_someone_elses_gang_is_not_found(client, gang, ganger):
     assert client.get(hire_url(gang)).status_code == 404
     assert client.get(dialog_url(gang, ganger)).status_code == 404
     assert client.post(hire_url(gang), {"profile": str(ganger.pk)}).status_code == 404
-    assert press(client, gang, ganger).status_code == 404
+    assert click(client, gang, ganger).status_code == 404
 
 
 def test_a_pk_that_is_not_a_ulid_is_not_found(client, tester):
@@ -924,12 +924,12 @@ class TestTheScopes:
     ):
         supplementary, _ = elsewhere
         client.force_login(tester)
-        pressed = client.post(
+        clicked = client.post(
             f"{hire_url(gang)}?list=supplementary",
             {"hire": str(supplementary.pk), "list": "supplementary"},
         )
-        assert pressed.status_code == 302
-        assert "list=supplementary" in pressed.url
+        assert clicked.status_code == 302
+        assert "list=supplementary" in clicked.url
 
         hired = client.post(
             hire_url(gang),
@@ -949,7 +949,7 @@ class TestTheScopes:
     def test_the_forms_post_to_the_scoped_address(
         self, client, tester, gang, ganger, elsewhere
     ):
-        """The bug a player saw: press Hire on a supplementary profile
+        """The bug a player saw: click Hire on a supplementary profile
         and land back on the gang list. The row's form posted to the
         bare route, dropping ?list= at the first hop — so the action is
         this page's own scoped address."""
@@ -962,11 +962,11 @@ class TestTheScopes:
         URL, and every hop keeps it."""
         supplementary, _ = elsewhere
         client.force_login(tester)
-        pressed = client.post(
+        clicked = client.post(
             f"{hire_url(gang)}?list=supplementary", {"hire": str(supplementary.pk)}
         )
-        assert pressed.status_code == 302
-        assert "list=supplementary" in pressed.url
+        assert clicked.status_code == 302
+        assert "list=supplementary" in clicked.url
 
         hired = client.post(
             f"{hire_url(gang)}?list=supplementary",
@@ -983,15 +983,15 @@ class TestTheScopes:
         the reader back on the third tab."""
         supplementary, _ = elsewhere
         client.force_login(tester)
-        pressed = client.post(
+        clicked = client.post(
             f"{hire_url(gang)}?list=supplementary",
             {"hire": str(supplementary.pk), "section": "Supplementary Profiles"},
         )
-        assert pressed.status_code == 302
-        assert "section=Supplementary+Profiles" in pressed.url
+        assert clicked.status_code == 302
+        assert "section=Supplementary+Profiles" in clicked.url
 
         hired = client.post(
-            pressed.url,
+            clicked.url,
             {"profile": str(supplementary.pk), "name": ""},
         )
         assert hired.status_code == 302

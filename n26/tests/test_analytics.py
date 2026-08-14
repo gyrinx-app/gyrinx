@@ -44,7 +44,7 @@ def found_one(client, gang_type, name="Rust in Peace", headers=None):
     )
 
 
-class TestASpeculativeFetchIsNotAPress:
+class TestASpeculativeFetchIsNotAClick:
     """Browsers prefetch and prerender pages nobody has opened — the tab
     strips ask them to — and an event recorded then would count readers
     who never arrived."""
@@ -104,7 +104,7 @@ class TestFoundingAGangIsRecorded:
 
 
 class TestDeletingAGangIsRecorded:
-    def test_the_press_is_recorded_as_a_deletion(self, client, tester, gang_type):
+    def test_the_click_is_recorded_as_a_deletion(self, client, tester, gang_type):
         client.force_login(tester)
         found_one(client, gang_type)
         gang = Gang.objects.get()
@@ -144,7 +144,7 @@ class TestTrackingNeverBreaksWhatItObserves:
         assert not Event.objects.exists()
 
 
-class TestOnePressIsOneEvent:
+class TestOneClickIsOneEvent:
     """A page that wrote an event per row would turn a big roster into a
     pile of writes."""
 

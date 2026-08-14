@@ -1205,7 +1205,7 @@ class TestSpottingWhatChanged:
 
 class TestThePreviewShowsTheDifference:
     """A count of changes is not a contract. What the preview owes an
-    author is the difference itself, field by field — because pressing
+    author is the difference itself, field by field — because clicking
     Import applies all of it, and "145 to change" is not something
     anybody can agree to."""
 

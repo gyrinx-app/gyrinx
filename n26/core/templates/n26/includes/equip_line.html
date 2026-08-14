@@ -1,6 +1,6 @@
 {% comment %}
 One buyable row: the picker's item, with the action the row says it offers.
-Expects `row` — an n26.core.listing.PricedRow — and `price_cap` from the page.
+Expects `row` — an n26.core.listing.Listing — and `price_cap` from the page.
 
 An include rather than repeated inline, because the equip page draws it from
 three places: categorised rows, uncategorised rows, and nested under a row for
@@ -12,7 +12,7 @@ that it is green — see n26/includes/row_action.html.
 
   --- the price is a box ---
 
-The listing is a price list, not a tariff: a table that has agreed a discount
+The catalogue is a price list, not a tariff: a table that has agreed a discount
 types it in and buys. So the price column holds an input, and what is in it is
 what the gang is charged. The server bounds it — the min and max here only save
 a reader the round trip.

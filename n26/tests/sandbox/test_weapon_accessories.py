@@ -329,7 +329,7 @@ class TestBuyingOneOntoAGunAlreadyOwned:
 class TestSellingTheGunUnderIt:
     """A sale takes the whole subtree, so an accessory the gang means to
     keep has to leave the gun first. Both answers are real ones; which a
-    press meant is the seller's to say."""
+    click meant is the seller's to say."""
 
     @pytest.fixture
     def kitted(self, fighter, sight, weapon_stats):

@@ -43,7 +43,7 @@ tomorrow, since a stashed sight can be sold and a sold one cannot be recovered.
 
 The stash is a button and the roster is a select, because they are not the same
 kind of choice: the stash is one place and always there, while which fighter is
-a list that may be long. Only the pressed submit is sent, so `to=stash`
+a list that may be long. Only the clicked submit is sent, so `to=stash`
 arriving is the whole of how the view tells them apart. With nobody else on the
 roster there is no select and no second act — the stash becomes the act itself,
 and a hidden field says so.
@@ -68,7 +68,7 @@ else about them is the same panel as the four confirmations.
   modal — promote to the top layer. On by default; off draws the panel in the
     page's flow, which is what a reader without scripting sees.
   open — the server says this one is open. Off draws it closed, waiting for a
-    press that names its id.
+    click that names its id.
   id — the element's id, for a page holding more than one of these.
   slot — the csrf token. A component has no request and renders none itself.
 {% endcomment %}
@@ -113,7 +113,7 @@ else about them is the same panel as the four confirmations.
 
     {{ slot }}
     {% comment %}
-    Which list the reader was shopping, carried through the press so they come
+    Which list the reader was shopping, carried through the click so they come
     back to it rather than to the first tab of the strip.
     {% endcomment %}
     {% if dialog.list %}<input type="hidden" name="list" value="{{ dialog.list }}">{% endif %}
@@ -178,7 +178,7 @@ else about them is the same panel as the four confirmations.
             the start, so Move always has an answer. A "Select an option" row
             would make the modal open on a state where its own act does
             nothing, and it is disabled, so a reader who left it alone would
-            press Move and be told there was nowhere to move to.
+            click Move and be told there was nowhere to move to.
             {% endcomment %}
             <c-ui.field label="To" for="reassign-to">
                 <c-ui.select.native name="miniature" id="reassign-to" placeholder="">

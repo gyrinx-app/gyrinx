@@ -8,7 +8,7 @@ sample rows, the same relationship the dashboard and the gang sheet have to
 their shell twins. Edit them together.
 
 Every Hire button in the list is this form's submit, carrying which profile was
-pressed; the option inputs are scoped per-row by the picker. The view maps them
+clicked; the option inputs are scoped per-row by the picker. The view maps them
 back through the same derivation that drew them, and answers with the URL of
 this page with the name dialog open on that profile.
 
@@ -31,7 +31,7 @@ that said it twice would be spending the width the name needs.
 {% endblock %}
 {% comment %}
 Emptied, and included again inside the form below. The confirmation of a hire
-belongs beside the list that hire was pressed in, not above the page heading —
+belongs beside the list that hire was clicked in, not above the page heading —
 and the storage is consumed by whichever place reads it first, so it can only
 be read in one.
 {% endcomment %}
@@ -90,7 +90,7 @@ be read in one.
         {% comment %}
         Prefetched on intent: each scope is a whole hire list built and
         priced — seconds of server work a reader would otherwise sit
-        through after pressing — so a hover or a touch starts the fetch
+        through after clicking — so a hover or a touch starts the fetch
         early. Prefetch, not prerender: the all-profiles document runs
         to megabytes, and holding built copies of the other scopes in
         memory behind this one is heavier than the wait it saves.
@@ -144,7 +144,7 @@ be read in one.
             A row submits its whole identity, which is the profile and — in a
             section a carried collection offers — the entry that priced it. The
             same fighter can be on this screen twice at two prices, so the
-            profile alone would not say which row was pressed. Never a price:
+            profile alone would not say which row was clicked. Never a price:
             the server reads that off the entry.
             {% endcomment %}
             {% for section in hire_list %}

@@ -22,7 +22,7 @@ list narrows as you type, so the answer is already on screen before anything is
 submitted. It also gains a clear button, which a submitting search does not need
 — you can see your query in the URL — and a live one very much does.
 
-*The submit button appears exactly where pressing it does something.* That is a
+*The submit button appears exactly where clicking it does something.* That is a
 bar with somewhere to go: any bar that is not live, and a live one given an
 `action` — a page that can find things the current one is not showing, which is
 also the only version a reader with no JavaScript can use.
@@ -30,10 +30,10 @@ also the only version a reader with no JavaScript can use.
 The other two cases have no destination, so they draw no button. A live bar with
 no `action` has its submit prevented, because committing a query that is already
 committed would reload the page to show the same rows. A nested one sits inside
-somebody else's form, and its button has to be a plain one so it does not press
+somebody else's form, and its button has to be a plain one so it does not post
 theirs. A button in either place looks like an action and is not one — and the
 bar is not really searching there: it narrows rows already on the page, as you
-type, with nothing to press.
+type, with nothing to click.
 
   action, method — form target. Default GET to the current URL.
   name — query parameter. Default "q".

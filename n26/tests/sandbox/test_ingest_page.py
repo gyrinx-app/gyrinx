@@ -162,7 +162,7 @@ class TestTheDangerZone:
 
     def test_the_ingest_page_only_links_to_it(self, author, client, foundation):
         """Counting is real work, and a page that did it on every visit
-        would charge everyone for a button almost nobody presses."""
+        would charge everyone for a button almost nobody clicks."""
         body = client.get(URL).content.decode()
         assert "Danger zone" in body
         assert CLEAR_URL in body

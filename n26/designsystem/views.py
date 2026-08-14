@@ -258,7 +258,7 @@ def shell_hire(request):
     scroll — a sticky bar whose heading outlives the h1, and a form whose submit
     is three hundred rows down rather than at the bottom.
 
-    A press is answered the way the real screen answers one — with this page's
+    A click is answered the way the real screen answers one — with this page's
     URL naming the profile, and the dialog drawn over it — because the whole
     point of the loop is that it happens without leaving the list, and a shell
     that skipped it would be showing half of the pattern.

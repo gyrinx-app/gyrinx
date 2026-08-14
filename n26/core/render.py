@@ -295,7 +295,7 @@ class Choosable:
     detail: str = ""
     #: What grants this, where the rules hand it over rather than an owner
     #: taking it — "Keen-eyed". No row is behind such a thing, so a surface
-    #: offering things to tick draws it fixed: there is nothing a press
+    #: offering things to tick draws it fixed: there is nothing a click
     #: could take away.
     granted_by: str = ""
 
@@ -498,7 +498,7 @@ class StashLine:
     can_refit: bool = False
     #: Where that control goes, filled in by the screen drawing it (see
     #: ``n26.core.views.owned.link_refits``). Empty is a line with
-    #: nothing to press, which is right for a print-out.
+    #: nothing to click, which is right for a print-out.
     refit_href: str = ""
 
 
@@ -754,7 +754,7 @@ def choice_lines(computed, host=""):
     ``host`` is what the slots are addressed under — a model's id, or
     ``GANG_SLOT_HOST`` for the gang's own. Passed rather than derived
     because the same slot may sit on a member's card and on the gang's,
-    and which one a reader pressed decides whose choice it is.
+    and which one a reader clicked decides whose choice it is.
     """
     if not computed:
         return []

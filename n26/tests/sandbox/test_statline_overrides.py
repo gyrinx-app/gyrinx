@@ -201,7 +201,7 @@ class TestWhatTheCardShows:
         assert_reconciled(gang)
 
     def test_a_deleted_model_takes_its_settings_with_it(self, yolanda, cell_for):
-        """Nothing a player presses deletes a model — leaving the roster
+        """Nothing a player clicks deletes a model — leaving the roster
         is archiving — but a row that outlived its model would be a
         setting belonging to nobody."""
         set_by_hand(yolanda, cell_for, toughness="4")
@@ -319,7 +319,7 @@ class TestTheEditPage:
     def test_saving_the_notes_leaves_the_settings_alone(
         self, client, player, yolanda, ganger
     ):
-        """Two forms on one page: pressing one must not clear the
+        """Two forms on one page: clicking one must not clear the
         other's answers."""
         client.force_login(player)
         post_statline(client, yolanda, ganger, toughness="4")

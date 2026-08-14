@@ -1,4 +1,4 @@
-"""A roster somebody else owns: the same gang, nothing to press.
+"""A roster somebody else owns: the same gang, nothing to click.
 
 A gang sheet is shareable — the address one player sends another shows
 that gang to whoever opens it, signed in or not. What the reader owns is
@@ -117,7 +117,7 @@ class TestNothingIsWithheld:
             assert said in theirs and said in mine
 
 
-class TestNothingToPress:
+class TestNothingToClick:
     """Every control on the sheet leads somewhere only the owner may go,
     so a reader who does not own it gets none of them — not a disabled
     one, which is a control saying no, but nothing at all."""
@@ -177,7 +177,7 @@ class TestAQuestionNobodyHasChosenFor:
 
         assert "Choose" in body
 
-    def test_a_stranger_reads_it_and_cannot_press_it(self, client, asked, at):
+    def test_a_stranger_reads_it_and_cannot_click_it(self, client, asked, at):
         import re
 
         body = read(client, at)

@@ -203,7 +203,7 @@ class _Label:
 class _Stock:
     """Stands in for a library assignable in a list: a name and a home.
 
-    Carries a key the way a real row does, because a listing names every
+    Carries a key the way a real row does, because a catalogue names every
     input after the row's content key and the shell posts nothing without
     one. The label is a fiction the same size as the real thing: what
     matters is that two rows never collide.
@@ -329,7 +329,7 @@ USE_NOTES = {
 #: Paid parts riding a line, keyed by the item they belong to, as
 #: ``(name, credits, trade points)``. A gun's ammo is not a second thing on
 #: the list — it is a way the gun is built — so a row that has any draws
-#: tick boxes under it and buys them on the same press.
+#: tick boxes under it and buys them on the same click.
 #:
 #: Two guns carry some, and which two matters: the Boltgun is one nobody
 #: holds, so its boxes sit on the row in the open, and the Meltagun is one
@@ -489,7 +489,7 @@ def trading_post_context():
     span the data — derived here rather than typed into the template, where an
     item priced outside the range would silently vanish from the list.
     """
-    from n26.core.listing import build_listing
+    from n26.core.listing import build_catalogue
 
     view = trading_post()
     lines = [
@@ -508,7 +508,7 @@ def trading_post_context():
         # it with the application's own row templates, so the two cannot come
         # to disagree about what a row looks like — the failure this replaces
         # was a hand-written copy of the row shape that nothing checked.
-        "trading_post_listing": build_listing(view, carried()),
+        "trading_post_catalogue": build_catalogue(view, carried()),
         # Both levels, with the first section flagged so it starts open. Flagged
         # here rather than tested in the template because a Cotton `:` attribute
         # resolves an expression rather than evaluating one, so `forloop.first`
@@ -542,7 +542,7 @@ def trading_post_context():
 
 
 #: The crowded catalogue's shape: a section per supplier, sized the way the
-#: biggest live listings are — most holding a handful of rows, a couple
+#: biggest live catalogues are — most holding a handful of rows, a couple
 #: holding dozens. The point of the numbers is their spread, not their sum:
 #: a strip of twenty uneven tabs is what the component has to stay fast on.
 _CROWDED_SUPPLIERS = (
@@ -584,7 +584,7 @@ _CROWDED_WARES = (
 
 
 def crowded_catalogue() -> CollectionView:
-    """A catalogue at the volume the biggest live listings reach.
+    """A catalogue at the volume the biggest live catalogues reach.
 
     Generated rather than written out — a couple of hundred rows typed
     by hand would be a page nobody maintains — and deterministic, so the
@@ -787,7 +787,7 @@ def context():
         "choice_offer": choice_offer(),
         "empty_choice_offer": ChoiceOffer(label="Primary skill"),
         # The same list a fighter's edit page ticks: what they hold, and
-        # the one thing a rule gives them that no press can clear.
+        # the one thing a rule gives them that no click can clear.
         "tick_list_offer": tick_list_offer(),
         "editable_statline": editable_statline(),
         # A profile nobody has typed a statline for yet, and one where a
@@ -1551,9 +1551,9 @@ def hire_list():
 
 
 def hire_entry(value):
-    """The sample entry a press names, looked up by what the rows submit.
+    """The sample entry a click names, looked up by what the rows submit.
 
-    The shell's rows submit their slugified name, so pressing Hire on one
+    The shell's rows submit their slugified name, so clicking Hire on one
     of three hundred can be answered with that one's dialog rather than a
     fixed example that would name the wrong fighter.
     """
@@ -1582,7 +1582,7 @@ def hire_context():
         ],
         "hire_price_floor": min(entry.base_price for entry in entries),
         "hire_price_ceiling": max(entry.base_price for entry in entries),
-        # What a press hands the name dialog: the row's answer, already
+        # What a click hands the name dialog: the row's answer, already
         # given, riding to the next request as fields nobody has to retype.
         "hire_dialog_choices": ["Chainsword"],
         "hire_dialog_fields": [
@@ -1838,7 +1838,7 @@ CHANGELOG = [
 
 # A shop row for something the fighter already has, and the three
 # confirmations behind it. Real OwnedThings put through the real conversion,
-# because the components end up typed against what a listing produces — a
+# because the components end up typed against what a catalogue produces — a
 # rename upstream should fail at import rather than at a glance, and the acts
 # a copy offers should appear here the day the structure grows one.
 #
@@ -1859,7 +1859,7 @@ def carried():
     """What the fighter shopping the sample list is already holding.
 
     Keyed the way :func:`n26.core.owned.owned_things` keys it — by the
-    content row, not by the copy — so ``build_listing`` joins it to the
+    content row, not by the copy — so ``build_catalogue`` joins it to the
     catalogue exactly as the application does. The shell's owned rows are
     owned rows because the real function said so, and not because a
     template drew them differently.

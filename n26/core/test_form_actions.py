@@ -45,14 +45,14 @@ class TestThePair:
         """Right-aligned as a pair, the act last: a reader running down the
         fields meets the alternative on the way to the one they want, and
         buttons that swap places between screens have to be read before
-        they are pressed."""
+        they are clicked."""
         html = render('<c-n26.form-actions submit_label="Save" cancel_url="/back/" />')
 
         assert html.index("Cancel") < html.index("Save")
         assert "justify-end" in html
 
     def test_the_way_out_never_posts(self):
-        """Leaving is not a submission. Cancel is an anchor, so pressing it
+        """Leaving is not a submission. Cancel is an anchor, so clicking it
         goes where it says rather than sending the form somewhere."""
         html = render('<c-n26.form-actions submit_label="Save" cancel_url="/back/" />')
 

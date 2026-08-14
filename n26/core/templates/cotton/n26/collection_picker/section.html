@@ -45,8 +45,8 @@ an item outside a category would be reaching for a name that exists nowhere — 
     {% endcomment %}
     {% comment %}
     Hidden under `tabs`: the tab strip is the disclosure, and a header that also
-    collapses would be a second control for the same section — press the tab to
-    see it, then press its header to hide it again.
+    collapses would be a second control for the same section — click the tab to
+    see it, then click its header to hide it again.
     {% endcomment %}
     <button type="button" @click="open = !open" x-show="!tabbed"
             :aria-expanded="open || query.length > 0 ? 'true' : 'false'"

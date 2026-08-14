@@ -17,7 +17,7 @@ from dataclasses import dataclass
 
 #: The most siblings a switcher lists, and the limit on the query that
 #: fetches them. A switcher is a shortcut rather than an index — the page
-#: that lists everything is one press away — so a reader with three hundred
+#: that lists everything is one click away — so a reader with three hundred
 #: of something still pays for eleven rows and a panel that fits on screen.
 NAV_SIBLINGS = 10
 

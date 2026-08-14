@@ -180,7 +180,7 @@ The two modifiers are one thing, and the order to think of them in is
 placement first: the offer narrows to whatever is Primary *for this
 model*, and the placement is what puts the family there. **An offer with
 no placement behind it is a question with nothing on it** — the player
-presses Choose and lands on an empty page. The reverse is a real setup
+clicks Choose and lands on an empty page. The reverse is a real setup
 rather than a mistake: place the family and offer nothing, and the model
 may learn powers from it whenever they like, but was never handed the
 founding one.

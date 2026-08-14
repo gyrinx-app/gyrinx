@@ -49,7 +49,7 @@ def delete_url(gang):
 
 class TestBeingAsked:
     """The confirmation is a page, so it has an address, survives a
-    reload, and can be left by pressing Back."""
+    reload, and can be left by clicking Back."""
 
     def test_the_owner_is_asked_before_anything_happens(
         self, client, tester, gang, delete_url
@@ -68,7 +68,7 @@ class TestBeingAsked:
         assert 'type="submit"' in body
         assert "Delete gang" in body
 
-    def test_the_page_says_the_press_cannot_be_taken_back(
+    def test_the_page_says_the_click_cannot_be_taken_back(
         self, client, tester, gang, delete_url
     ):
         """The wording is the feature. There is no unarchive, so a screen
@@ -127,9 +127,9 @@ class TestBeingAsked:
         assert "Switch to another gang" in body
 
     def test_the_way_out_is_on_the_page(self, client, tester, gang, delete_url):
-        """Cancel goes back to the sheet the press came from — a
+        """Cancel goes back to the sheet the click came from — a
         confirmation with only one button is a trap, not a question. It is
-        a link, so pressing it leaves rather than posting the form."""
+        a link, so clicking it leaves rather than posting the form."""
         client.force_login(tester)
         body = client.get(delete_url).content.decode()
 
@@ -194,7 +194,7 @@ class TestDoingIt:
         assert "Deleted The Ashen Choir." in body
 
     def test_deleting_twice_is_not_found(self, client, tester, gang, delete_url):
-        """The second press has nothing live to act on — a stale tab is
+        """The second click has nothing live to act on — a stale tab is
         answered the same way a stranger is."""
         client.force_login(tester)
         client.post(delete_url)

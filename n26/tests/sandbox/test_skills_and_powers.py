@@ -414,10 +414,10 @@ class TestKnowingAPower:
         assert card.power_choices == []
         assert "Terrify (Double)" in [p.name for p in card.powers]
 
-    def test_a_power_question_is_pressable(self, gang, gang_sister, library, wyrd):
+    def test_a_power_question_is_clickable(self, gang, gang_sister, library, wyrd):
         """The question in the Powers row leads to its picker.
 
-        A question drawn where a reader can press it and left without an
+        A question drawn where a reader can click it and left without an
         address is the one failure the card cannot show: the row looks
         exactly like the one beside it and nothing happens."""
         from n26.core.views.choose import link_slots

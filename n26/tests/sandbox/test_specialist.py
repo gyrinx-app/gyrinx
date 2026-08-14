@@ -153,7 +153,7 @@ class TestChoosing:
 
     def test_only_offered_kinds_may_be_chosen(self, yolanda):
         """A refusal rather than an error: the sentence is one a player
-        could be shown, because a screen that drew the press has to say
+        could be shown, because a screen that drew the click has to say
         something."""
         with pytest.raises(Refusal, match="does not offer a choice of trait"):
             choose(anchor_of(yolanda), Trait.objects.create(name="Melee"))

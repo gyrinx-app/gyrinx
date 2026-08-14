@@ -2,7 +2,7 @@
 
 The skills screen learns one thing at a time, at its own address. This is
 the same list as a box on the model's edit page: everything their grid
-puts within reach, ticked where they have it, settled in one press.
+puts within reach, ticked where they have it, settled in one click.
 
 The rules this file pins:
 
@@ -328,7 +328,7 @@ class TestWhatTheSquareShows:
         assert client.get(edit_url(yolanda)).status_code == 404
 
 
-# --- The press -------------------------------------------------------------
+# --- The click -------------------------------------------------------------
 
 
 class TestSavingTheSquare:
@@ -358,7 +358,7 @@ class TestSavingTheSquare:
         assert card.skills == []
         assert_reconciled(gang)
 
-    def test_several_go_in_one_press(self, client, player, gang, yolanda, library):
+    def test_several_go_in_one_click(self, client, player, gang, yolanda, library):
         client.force_login(player)
         post_skills(
             client,
@@ -382,7 +382,7 @@ class TestSavingTheSquare:
         assert held_by(yolanda) == []
         assert_reconciled(gang)
 
-    def test_a_press_keeps_what_was_left_ticked(
+    def test_a_click_keeps_what_was_left_ticked(
         self, client, player, gang, yolanda, library
     ):
         """Two she knows and one box cleared: settling the whole list must
@@ -428,11 +428,11 @@ class TestSavingTheSquare:
         assert sorted(held_by(yolanda)) == ["Catfall", "Connected"]
         assert_reconciled(gang)
 
-    def test_a_press_naming_something_off_the_list_writes_nothing(
+    def test_a_click_naming_something_off_the_list_writes_nothing(
         self, client, player, gang, yolanda, library
     ):
         """Brawn is nobody's here, so it is not on her square — and the
-        press is answered by the list rather than by the ledger."""
+        click is answered by the list rather than by the ledger."""
         client.force_login(player)
         post_skills(client, yolanda, library["skills"]["Bull Charge"])
 
@@ -469,7 +469,7 @@ class TestSavingTheSquare:
     def test_saving_the_notes_leaves_the_skills_alone(
         self, client, player, gang, yolanda, library
     ):
-        """Three forms on one page: pressing one must not clear another's
+        """Three forms on one page: clicking one must not clear another's
         answers."""
         client.force_login(player)
         post_skills(client, yolanda, library["skills"]["Catfall"])

@@ -38,7 +38,7 @@ def _parts_picked(data, key, line):
     Values are indices into the line the server has just re-derived, so a
     tampered form can name nothing the listing does not offer. A repeated
     index is refused as well: a checkbox cannot be ticked twice, and one
-    press was never an order for two of the same ammo.
+    click was never an order for two of the same ammo.
 
     The index comes back out because it names the part's own price field.
     """
@@ -66,7 +66,7 @@ def _choices_picked(data, key, line):
 
     An empty value is a one-or-none set's "None": the reader took
     nothing, which is not a pick to pass on. A repeated index is refused
-    like a repeated tick box — one press was never an order for two of the
+    like a repeated tick box — one click was never an order for two of the
     same swap.
     """
     picked = []
@@ -203,7 +203,7 @@ def equip(request, pk):
 
     The one number the form does decide is what the gang pays. Each row
     quotes its price in a box, and the figure in the box is what leaves
-    the bank — the listing is a price list, not a fixed tariff, and a
+    the bank — the catalogue is a price list, not a fixed tariff, and a
     table that agrees a discount should not have to be argued with. It
     is still bounded here rather than only in the input: whole credits,
     nothing negative, nothing past ``PRICE_CEILING``, and a refusal buys
@@ -211,7 +211,7 @@ def equip(request, pk):
 
     A weapon's paid ammo and firing modes are ticked on the weapon's own
     listing and bought with it, in the same operation and onto the same
-    gun. One press, one purchase, however many boxes are ticked: ammo is
+    gun. One click, one purchase, however many boxes are ticked: ammo is
     a way the gun you are buying is built, not a second thing on the
     list. Ammo for a gun a fighter already owns has no route here yet.
 
@@ -229,10 +229,10 @@ def equip(request, pk):
     the count stands where Buy would be and opens it onto the copies
     themselves, each with the things that can happen to it — sold, handed
     on, taken off — and onto the ordinary row underneath them, so buying
-    another is still one press. Read off the card this page already
-    built, so a listing of hundreds of rows costs no query for it.
+    another is still one click. Read off the card this page already
+    built, so a catalogue of hundreds of rows costs no query for it.
 
-    What the screen draws is a ``Listing``: the browsed collection joined
+    What the screen draws is a ``Catalogue``: the browsed collection joined
     to what the fighter holds, built in one place and asserted on
     directly. The template asks a row what it is and what its controls
     mean, and never composes an identity the server would have to guess
@@ -251,7 +251,7 @@ def equip(request, pk):
     from n26.core.browse import browse, usability_for, with_use_notes
     from n26.core.card import build_card, build_modifier_index
     from n26.core.effects import compute
-    from n26.core.listing import build_listing
+    from n26.core.listing import build_catalogue
     from n26.core.operations import Refusal, operation
     from n26.core.owned import owned_things
     from n26.core.views.owned import accessorise_dialogs, owned_dialog
@@ -335,7 +335,7 @@ def equip(request, pk):
         picked = _parts_picked(request.POST, key, line)
         picks = _choices_picked(request.POST, key, line)
         surcharge = sum(option.surcharge for option in picks)
-        # Every price the press carries, read and bounded before anything
+        # Every price the click carries, read and bounded before anything
         # is written: one bad box buys nothing at all, rather than a gun
         # at a good price and its ammo at a refused one.
         try:
@@ -380,7 +380,7 @@ def equip(request, pk):
         # prices in the reader's hands the total is no longer something
         # the page can be read off for.
         spent = charge["paid"] + sum(part_paid for _, part_paid in paid_for)
-        # One press, one event, whatever it bought. A gun with three paid
+        # One click, one event, whatever it bought. A gun with three paid
         # ammo types is one purchase to the player and should be one row
         # here — the parts are a count, not four writes.
         record(
@@ -426,18 +426,18 @@ def equip(request, pk):
     # the fighter holds. A row is a row for something on sale or a row for
     # something they are carrying, and which it is is the structure's
     # answer rather than a question the template asks of the card.
-    listing = (
-        build_listing(view, owned, refunds=not gang.credits_unlimited)
+    catalogue = (
+        build_catalogue(view, owned, refunds=not gang.credits_unlimited)
         if view is not None
         else None
     )
-    sections = listing.sections if listing is not None else []
+    sections = catalogue.sections if catalogue is not None else []
 
     # The sliders' ends are read off the browsed lines rather than the
-    # listing's rows: a slider's job is to bound what the *list* asks, and
+    # catalogue's rows: a slider's job is to bound what the *list* asks, and
     # an owned row asks the same as it ever did.
     lines = list(view.all_lines()) if view is not None else []
-    # Only what this listing prints. A slider over a figure the rows do
+    # Only what this catalogue prints. A slider over a figure the rows do
     # not draw is a control with nothing on screen to steer.
     trade_points = [
         line.trade_points
@@ -479,7 +479,7 @@ def equip(request, pk):
             "collections": collections,
             "collection_tabs": tabs,
             "chosen": chosen,
-            "listing": listing,
+            "catalogue": catalogue,
             # The confirmation the URL says is open, if any: sell, move or
             # remove one row of this fighter's card. A server state, so it
             # is a link, it survives a reload, and it is drawn rather than
@@ -490,8 +490,8 @@ def equip(request, pk):
             # The accessory question for every gun the fighter is
             # carrying, drawn closed beside the rows. The one the address
             # names is drawn open, so the link works with no script; with
-            # a script the press opens the panel that is already on the
-            # page and never rebuilds the listing.
+            # a script the click opens the panel that is already on the
+            # page and never rebuilds the catalogue.
             "accessorise": accessorise_dialogs(request, card, at=at),
             # Registration names — see the hire view: a row in an unnamed
             # category registers under its section's name, and a list that
@@ -529,7 +529,7 @@ def equip(request, pk):
             "tp_ceiling": max(trade_points, default=0),
             "has_trade_points": bool(trade_points),
             # The same bound the purchase enforces, so a browser can say no
-            # before a press does. The input's max is a courtesy; the
+            # before a click does. The input's max is a courtesy; the
             # check that counts is in the view.
             "price_cap": PRICE_CEILING,
         },

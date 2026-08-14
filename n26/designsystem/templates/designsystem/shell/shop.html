@@ -27,11 +27,11 @@ component's own page shows it working; this shows it working under a header.
         </c-slot>
     </c-n26.page-header>
     {% comment %}
-    The whole listing is one form on the real screen, because the Buy buttons
+    The whole catalogue is one form on the real screen, because the Buy buttons
     are submits within it. The shell keeps the form for that reason and for its
     consequence: it is why a copy's Sell and Reassign are links to a
-    confirmation rather than presses, since HTML has no nested forms. There is
-    no purchase behind this one, so a press reloads the shell.
+    confirmation rather than submits, since HTML has no nested forms. There is
+    no purchase behind this one, so a click reloads the shell.
     {% endcomment %}
     <form action="{% url 'designsystem:shell_shop' %}" method="get">
         <c-n26.collection-picker class="mt-6"
@@ -51,7 +51,7 @@ component's own page shows it working; this shows it working under a header.
                 {% endcomment %}
                 <c-n26.tab-links label="Which list" :tabs="trading_post_tabs" />
                 {% comment %}
-            Nested, like the real screen's: there the whole listing is one form
+            Nested, like the real screen's: there the whole catalogue is one form
             whose buttons buy, so the bar is a <div> inside it and narrows rows
             already on the page rather than submitting anything.
                 {% endcomment %}
@@ -98,7 +98,7 @@ component's own page shows it working; this shows it working under a header.
         shows both states side by side: a row offering a purchase, and a row
         counting what is held and opening onto it.
             {% endcomment %}
-            {% for section in trading_post_listing.sections %}
+            {% for section in trading_post_catalogue.sections %}
                 <c-n26.collection-picker.section name="{{ section.name }}" :open="forloop.first">
                     {% for category in section.categories %}
                         <c-n26.collection-picker.category name="{{ category.name }}">

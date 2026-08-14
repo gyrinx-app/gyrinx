@@ -2,7 +2,7 @@
 
 Five acts, five addresses, one shape each: a POST names the assignment
 in its path, an ``operation`` writes it, and the reader lands back where
-they pressed. They are addressed by *assignment* rather than by
+they clicked. They are addressed by *assignment* rather than by
 fighter, because that is what they are about — a weapon on a fighter, a
 sight on that weapon, a crate in the stash are all one row — and because
 the next screen that wants them (a gang sheet, a stash page) then needs
@@ -11,10 +11,10 @@ no routes of its own.
 Which dialog is open is URL state on the screen that opened it
 (``?sell=<assignment>``), so an open confirmation is a link, survives a
 reload, and is drawn by the server rather than revealed by a script. The
-press behind it is a real form to a real address, so it works with
+click behind it is a real form to a real address, so it works with
 scripting switched off.
 
-An operation that refuses an act answers on the screen it was pressed
+An operation that refuses an act answers on the screen it was clicked
 from — a control the page drew is owed a sentence, not a traceback — and
 nothing is written, because the refusal unwinds the transaction.
 
@@ -66,7 +66,7 @@ def _possession_or_404(request, pk):
     row's Sell button.
 
     A 404 rather than a message: no control anywhere draws these
-    addresses, so a press that reaches here is a hand-made URL, and the
+    addresses, so a click that reaches here is a hand-made URL, and the
     honest answer is that there is no such thing to sell. That is
     different from the refusals below, which answer a control that does
     exist with a reason.
@@ -82,12 +82,12 @@ def _held(card, pk):
 
     The card is the fighter's own, so finding a row on it is the whole of
     the permission check for drawing a dialog about it — and it is free,
-    where fetching the row again would be a query per press. The gang's
+    where fetching the row again would be a query per click. The gang's
     broadcast rows are skipped: they ride the card so gang-wide rules
     reach it, and they are not this fighter's to sell.
 
     The same kind test the routes apply, so a URL naming the fighter's own
-    profile draws no dialog rather than a confirmation whose press would
+    profile draws no dialog rather than a confirmation whose click would
     404 — a screen must not ask a question its answer refuses.
     """
     return next(
@@ -180,7 +180,7 @@ def _panel(request, assignment, kind, at):
         "action": reverse(f"n26-{kind}", args=[assignment.pk]),
         "list": request.GET.get("list", ""),
         # Which section tab the reader had open, carried through the
-        # press so the answer lands where the question was asked. The
+        # click so the answer lands where the question was asked. The
         # listing's own form does this with a hidden field the picker
         # writes; a dialog is a form of its own and has to say it here.
         "section": request.GET.get("section", ""),
@@ -191,7 +191,7 @@ def accessorise_dialogs(request, card, *, at):
     """The accessory question for every weapon on this card, all of them.
 
     Not only the one the URL names. A page draws the lot — closed, and
-    each one addressed by the id of the row it is about — so the press
+    each one addressed by the id of the row it is about — so the click
     that opens one is the browser showing a panel that is already there
     rather than a rebuild of a screen that can run to hundreds of rows.
     The address is still what says which is open: with no script the
@@ -231,7 +231,7 @@ def accessorise_dialogs(request, card, *, at):
                 "open": kind == "accessorise" and named == pk,
                 "title": f"Add an accessory to {panel['name']}",
                 "accessories": accessories,
-                # Nothing that fits is nothing to press. The panel says so
+                # Nothing that fits is nothing to click. The panel says so
                 # and offers the way out, rather than a green button over an
                 # empty list — the commit is the one control that must mean
                 # something.
@@ -374,7 +374,7 @@ def link_refits(sheet, at):
 
     Costs no queries: the line already knows its own row and whether it
     is the sort of thing that goes on a weapon, and this only turns that
-    into a URL. A line without one draws as a name with nothing to press,
+    into a URL. A line without one draws as a name with nothing to click,
     which is what a print-out wants.
     """
     for line in sheet.stash:
@@ -451,11 +451,11 @@ def refit_dialog(request, gang, at):
 
 
 def _back_to(request, miniature, gang):
-    """Where a press lands: the screen it was pressed on.
+    """Where a click lands: the screen it was clicked on.
 
     The fighter's own shopping screen, on the list they were reading and
     the section tab they had open — kitting a fighter out is a run of
-    presses, and one that drops the reader back at the top of the first
+    clicks, and one that drops the reader back at the top of the first
     list has undone their place in it. With no fighter to return to, the
     gang's sheet.
     """
@@ -561,7 +561,7 @@ def reassign_assignment(request, pk):
     assignment = _possession_or_404(request, pk)
     gang = assignment.gang_root
     # Read before the move, because afterwards it names the new home and
-    # the reader wants the screen they pressed on.
+    # the reader wants the screen they clicked on.
     came_from = assignment.miniature_root
     back = _back_to(request, came_from, gang)
     name = str(assignment.assignable)
@@ -660,7 +660,7 @@ def accessorise_assignment(request, pk):
             pk=request.POST.get("accessory", "")
         )
     except WeaponAccessory.DoesNotExist, ValidationError, ValueError:
-        # A stale dialog or a hand-made press. The screen it came from is
+        # A stale dialog or a hand-made click. The screen it came from is
         # the answer, with the list on it as it now stands.
         messages.error(request, "That accessory is not one to fit.")
         return redirect(back)
