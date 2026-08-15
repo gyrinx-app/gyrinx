@@ -661,7 +661,7 @@ def test_a_profile_not_offered_for_hire_is_not_on_the_screen(
 
 
 class TestTheTypedPrice:
-    """The dialog's price box is the shop's control: what is typed is
+    """The dialog's price box is the purchase's control: what is typed is
     what leaves the bank. Read like every typed price: whole credits in
     range, or the hire is refused and nothing is written.
 

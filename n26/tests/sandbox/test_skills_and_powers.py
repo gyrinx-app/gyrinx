@@ -740,7 +740,7 @@ class TestPickingASkill:
         assert [group.caption for group in offer.groups] == ["", ""]
 
     def test_the_offered_skills_keep_their_d6_order(self, yolanda, catalogue):
-        """A picker is a shop: same sections, same ordering rules."""
+        """A picker is a catalogue: same sections, same ordering rules."""
         computed = self.computed_for(yolanda)
         (slot,) = computed.choices
         offered = offered_by(slot, computed)

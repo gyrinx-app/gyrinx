@@ -1203,7 +1203,7 @@ GROUPS: list[Group] = [
                 template="n26/owned_lines.html",
                 summary="What a model is already carrying, and what can happen to it.",
                 notes=(
-                    "The inside of a shop row for something the fighter already "
+                    "The inside of an equip row for something the fighter already "
                     "has. Drawn the way a card draws the same rows — the thing, "
                     "what it contributed, its parts indented under it — so a "
                     "reader recognises what they are looking at; the weapon's "

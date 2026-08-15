@@ -1,6 +1,6 @@
 """Filing rows under the catalogue's headings.
 
-Two surfaces group this way — a shopping list and the gang list you hire
+Two surfaces group this way — a catalogue and the gang list you hire
 from — and each has its own containers and its own idea of what order
 rows take. So the rules are checked here, once, on stand-ins: no gang, no
 content rows, no database. What a heading and a category need is a name

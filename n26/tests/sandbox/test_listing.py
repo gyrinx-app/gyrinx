@@ -1,4 +1,4 @@
-"""A shopping catalogue: what is for sale, joined to what the fighter holds.
+"""A catalogue: what is for sale, joined to what the fighter holds.
 
 ``browse`` knows a collection and nothing about who is reading it;
 ``owned_things`` knows a fighter's card and nothing about what is for
@@ -254,7 +254,7 @@ class TestOwningOneReplacesTheRow:
 
 
 class TestBuyingAnother:
-    """Owning one of something has never been a reason the shop stops
+    """Owning one of something has never been a reason the catalogue stops
     selling it."""
 
     def test_an_owned_row_still_carries_the_row_it_replaced(

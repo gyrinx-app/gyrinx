@@ -234,10 +234,10 @@ class TestWhatAnEntryOfThisCollectionAsks:
     """``entry_asks`` is the seam: the entry form and the page's tables
     both read it, so they cannot disagree about what an entry may say."""
 
-    def test_a_shop_asks_for_its_prices_and_who_it_offers_to(self, db):
-        shop = create_collection("Goliath Equipment List")
+    def test_a_list_asks_for_its_prices_and_who_it_offers_to(self, db):
+        equipment_list = create_collection("Goliath Equipment List")
 
-        assert shop.entry_asks() == (
+        assert equipment_list.entry_asks() == (
             "price_override",
             "trade_point_override",
             "usable_by_profile_types",
@@ -260,7 +260,7 @@ class TestWhatAnEntryOfThisCollectionAsks:
         on another's."""
         from n26.library.models.collection import ENTRY_ASKS
 
-        assert set(create_collection("Shop").entry_asks()) == set(ENTRY_ASKS)
+        assert set(create_collection("Catalogue").entry_asks()) == set(ENTRY_ASKS)
 
 
 class TestNarrowingAnOfferThroughThePages:
@@ -425,7 +425,7 @@ class TestTheItemsOwnBracketIsTypedOnItsPage:
         assert made.status_code == 302
         assert Skill.objects.get(name="Mounted Charge").usable_by_words() == "Walker"
 
-    def test_what_is_typed_reaches_a_shopper(self, author, gang, ranks, saw):
+    def test_what_is_typed_reaches_a_buyer(self, author, gang, ranks, saw):
         """End to end: a restriction typed on the item's page is what a
         fighter browsing a list that offers it is told."""
         plain = create_collection("Trade Row", entries=[saw])
@@ -579,7 +579,7 @@ class TestScaling:
         from django.test.utils import CaptureQueriesContext
 
         bruiser = hire_with_option(gang, ranks["bruiser"], "Krug")
-        shopper = usability_for(computed_for(bruiser))
+        buyer = usability_for(computed_for(bruiser))
 
         def narrowed(count):
             listing = create_collection(f"List of {count}")
@@ -592,7 +592,7 @@ class TestScaling:
 
         def measure(collection):
             with CaptureQueriesContext(connection) as captured:
-                noted = with_use_notes(browse(collection), shopper)
+                noted = with_use_notes(browse(collection), buyer)
                 lines = list(noted.all_lines())
                 assert lines and all(line.notes for line in lines)
             return len(captured.captured_queries)

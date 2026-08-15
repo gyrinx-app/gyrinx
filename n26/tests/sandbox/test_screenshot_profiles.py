@@ -188,7 +188,7 @@ def arachni_rig(vehicle_type, gang_type, default_pack):
     profile.save()
 
     # The asterisked footnote as data: taking a gun costs an Attack. The
-    # carrier is Hidden — no card row, no shop will ever sweep it in — but
+    # carrier is Hidden — no card row, no catalogue will ever sweep it in — but
     # the shifted Attacks cell names it, so nothing it does is secret.
     attacks = profile.statline_type.stats.get(stat__short_name="A").stat
     conversion = create_hidden(

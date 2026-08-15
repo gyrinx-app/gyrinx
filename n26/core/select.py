@@ -10,7 +10,7 @@ vocabulary, usable in two contexts:
     In memory, against a wrapped thing — a card node, a piece of content.
 
 ``selector.as_q(for_model)``
-    Compiled to a database filter, for discovery surfaces: pickers, shop
+    Compiled to a database filter, for discovery surfaces: pickers, catalogue
     pages. Relative to the model being queried, because "has trait X" is
     ``traits=x`` when filtering weapon profiles and ``profiles__traits=x``
     when filtering weapons.

@@ -6,7 +6,7 @@ collection was written out by hand or swept together by a selector.
 :mod:`n26.core.owned` reads the other half off the fighter's card: which
 copies of which content they are already carrying.
 
-A catalogue is the two joined. It is what a shopping screen draws, and
+A catalogue is the two joined. It is what the equip screen draws, and
 it is a structure rather than a bag of dictionaries so that the join has
 one definition: a test can build one and ask what a row offers without
 going through a request, and a gallery can build one without a database.
@@ -292,7 +292,7 @@ class CatalogueSection:
 
 @dataclass
 class Catalogue:
-    """A whole shopping surface for one fighter, ready to draw."""
+    """A whole equip surface for one fighter, ready to draw."""
 
     name: str
     sections: list[CatalogueSection] = field(default_factory=list)

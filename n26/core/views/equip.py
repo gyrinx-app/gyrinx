@@ -168,11 +168,11 @@ def _tab_label(collection):
     return name[: -len(LIST_SUFFIX)].strip(" -–—:") or name
 
 
-def shoppable_lists(held):
+def buyable_lists(held):
     """The lists among those held that are somewhere to buy kit, in the
     order they were come by, with the standard Trading Post after them.
 
-    Holding a collection and shopping from it are different things: a
+    Holding a collection and buying from it are different things: a
     set of skills is carried exactly as an equipment list is, and only
     one of the two is somewhere to buy from. So which of them a buying
     screen offers follows from what they contain, never from how they
@@ -190,12 +190,12 @@ def shoppable_lists(held):
     from n26.library.standard_content import TRADING_POST_COLLECTION
 
     held = list(held)
-    shoppable = set(
+    buyable = set(
         Collection.objects.filter(pk__in=[c.pk for c in held])
         .containing(Family.GEAR)
         .values_list("pk", flat=True)
     )
-    collections = [c for c in held if c.pk in shoppable]
+    collections = [c for c in held if c.pk in buyable]
     post = Collection.objects.filter(
         name=TRADING_POST_COLLECTION, pack=get_default_pack()
     ).first()
@@ -349,7 +349,7 @@ def equip(request, pk):
     ``collections_for`` finds — the fighter's own lists, their gang's,
     computed grants — kept down to the ones holding gear, plus the
     standard Trading Post when the library has one. Holding a collection
-    and shopping from it are different things: a fighter carries their
+    and buying from it are different things: a fighter carries their
     skill sets the same way they carry their equipment list, and only one
     of the two is somewhere to buy from.
 
@@ -423,7 +423,7 @@ def equip(request, pk):
     index = build_modifier_index([node.assignable for node in card.all_nodes()])
     computed = compute(card, index)
 
-    collections = shoppable_lists(
+    collections = buyable_lists(
         access.collection
         for access in collections_for(miniature, card=card, computed=computed)
     )
@@ -486,7 +486,7 @@ def equip(request, pk):
     # Which list is being browsed is a tab when there are several. With
     # one there is nothing to choose, so no strip is drawn — the search
     # box names the list it is searching, which is where a reader looks
-    # to find out what they are shopping.
+    # to find out what they are buying from.
     tabs = collection_tabs(collections, chosen)
     from n26.core.render import roster as gang_roster
     from n26.core.render import summarise_roster
@@ -668,7 +668,7 @@ def equip_gang(request, pk):
     index = build_modifier_index([node.assignable for node in card.all_nodes()])
     computed = compute_gang(card, index)
 
-    collections = shoppable_lists(
+    collections = buyable_lists(
         access.collection
         for access in gang_collections(gang, card=card, computed=computed)
     )

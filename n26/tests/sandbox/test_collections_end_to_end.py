@@ -1,7 +1,7 @@
 """A gang, its lists, and everything it buys — collections end to end.
 
 Three surfaces, one shape: the gang list you hire from, the equipment
-list you always shop, and the Trading Post you visit. Each is a
+list you always buy from, and the Trading Post you visit. Each is a
 collection; each browses to the same structure; the same `op.buy` spends
 against all of them.
 
@@ -40,8 +40,8 @@ pytestmark = pytest.mark.django_db
 
 def browse_the_post():
     """The default Trading Post, authored once per test database (two
-    sweeps: every weapon, every wargear) — and shopped on TRADING_POST terms,
-    because being a trading post is how you shop it, not what it is."""
+    sweeps: every weapon, every wargear) — and bought on TRADING_POST terms,
+    because being a trading post is how you buy it, not what it is."""
     from n26.library.models import Collection
     from n26.tests.sandbox.actions import create_trading_post
 
@@ -53,7 +53,7 @@ def browse_the_post():
 
 
 def show(view, indent=""):
-    """A collection, as a shopfront."""
+    """A collection, as a catalogue."""
     lines = [f"{indent}┌─ {view.name}"]
     for section in view.sections:
         lines.append(f"{indent}│ {section.name or '(uncategorised)'}")
@@ -218,7 +218,7 @@ def gang_list(person_type, gang_type, taxonomy, equipment_list):
     """Three fighters and two hangers-on, in two categories.
 
     Every profile carries the house list in its built-ins, so hiring one
-    is what gives that fighter somewhere to shop.
+    is what gives that fighter somewhere to buy from.
     """
     made = {}
     entries = [
@@ -309,7 +309,9 @@ class TestFoundingAndEquipping:
             "ganger": hire_with_option(gang, profiles["Escher Gang Sister"], "Sindi"),
         }
 
-    def test_hiring_gives_everyone_somewhere_to_shop(self, gang, crew, equipment_list):
+    def test_hiring_gives_everyone_somewhere_to_buy_from(
+        self, gang, crew, equipment_list
+    ):
         print("\n\n== After hiring ==")
         print(gang_to_text(gang))
 
@@ -442,7 +444,7 @@ class TestVenatorsAndLegacy:
         assert set(access) == {"Venator Hunt List", "House Escher Equipment List"}
         assert access["House Escher Equipment List"].source == "Escher Matriarch"
 
-        print("\n\n== A Venator's shopping ==")
+        print("\n\n== A Venator's buying ==")
         for name, entry in sorted(access.items()):
             print(f"  {name}  (from {entry.source})")
         show(browse(venator_list), indent="  ")
@@ -481,7 +483,7 @@ class TestVenatorsAndLegacy:
 
 
 class TestCustomViews:
-    """Narrowing a list — a search box and a whole shopfront are one screen."""
+    """Narrowing a list — a search box and a whole catalogue are one screen."""
 
     def test_by_price(self, equipment_list):
         view = narrow(browse(equipment_list), credits=(0, 15), name="Under 15cr")

@@ -302,7 +302,7 @@ class TestACorruptedGang:
     def test_the_payload_is_three_things_the_gang_gets(self, corruption):
         assert texts(prose_for(corruption).does) == [
             "The gang gains access to Corruption Armoury, and every member "
-            "may shop it.",
+            "may buy from it.",
             "The gang loses Escher gang rules, and everything it gave goes with it.",
             "The gang should hold at most 2 Aberrant — the gang page warns "
             "when it holds more; nothing is blocked.",
@@ -509,7 +509,8 @@ class TestWhatIsWrittenOnce:
 
 
 class TestWhereAThingIsSold:
-    """The shops: a list that names it, and a sweep that catches it."""
+    """Two routes to being sold: a list that names it, and a sweep that
+    catches it."""
 
     @pytest.fixture
     def saw(self, default_pack):
@@ -580,7 +581,7 @@ class TestWhereAThingIsSold:
         ]
 
     def test_a_list_that_both_names_it_and_sweeps_it_speaks_once(self, saw):
-        """The price the shop's own line states is the one a buyer is
+        """The price the list's own line states is the one a buyer is
         asked for, so the sweep behind it says nothing further."""
         from n26.library.models import CollectionSelector, Weapon
 
@@ -592,8 +593,8 @@ class TestWhereAThingIsSold:
             "Offered by Trading Post at 35 credits."
         ]
 
-    def test_a_different_shop_sweeping_it_in_still_speaks(self, saw):
-        """Only the shop that named it goes quiet: a second shop sweeping
+    def test_a_different_list_sweeping_it_in_still_speaks(self, saw):
+        """Only the list that named it goes quiet: a second list sweeping
         the same kind is a route of its own."""
         from n26.library.models import CollectionSelector, Weapon
 

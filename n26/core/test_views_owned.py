@@ -106,7 +106,7 @@ class TestSelling:
         assert sword.archived is True
         assert_reconciled(gang)
 
-    def test_the_click_lands_back_on_the_shop_it_came_from(
+    def test_the_click_lands_back_on_the_equip_page_it_came_from(
         self, client, tester, fighter, sword, house_list
     ):
         client.force_login(tester)
@@ -393,7 +393,7 @@ class TestWhatMayBeClickedOn:
     take the fighter off the roster with everything they carry, and pay half
     the price of the profile for the lot. The one naming the gang's type is
     the gang. A skill is what a fighter knows, an equipment list is where they
-    shop. None of them is a possession, and none of these routes will touch
+    buy from. None of them is a possession, and none of these routes will touch
     one — whatever a hand-made URL says.
     """
 
@@ -461,7 +461,9 @@ class TestWhatMayBeClickedOn:
         assert learned.archived is False
         assert_reconciled(gang)
 
-    def test_the_shop_offers_none_of_them_either(self, gang, fighter, tester, sword):
+    def test_the_equip_page_offers_none_of_them_either(
+        self, gang, fighter, tester, sword
+    ):
         """One rule, read by the listing that draws the controls and by the
         routes behind them, so a screen can never offer what a click would
         refuse."""
@@ -877,7 +879,7 @@ def test_a_part_goes_by_its_own_name_under_the_thing_it_hangs_off(
 ):
     """A card prints "warp round (Autogun)" because nothing above the
     line says which gun. Drawn under the gun's own row the bracket only
-    repeats it, so the part reads as the shop's row for the same ammo
+    repeats it, so the part reads as the equip row for the same ammo
     reads — and the two agree."""
     from n26.core.card import build_card
     from n26.core.owned import owned_things, thing_key

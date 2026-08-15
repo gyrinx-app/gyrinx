@@ -42,8 +42,8 @@ pytestmark = pytest.mark.django_db
 
 def browse_the_post():
     """The default Trading Post, authored once per test database (two
-    sweeps: every weapon, every wargear) — and shopped on TRADING_POST terms,
-    because being a trading post is how you shop it, not what it is."""
+    sweeps: every weapon, every wargear) — and bought on TRADING_POST terms,
+    because being a trading post is how you buy it, not what it is."""
     from n26.library.models import Collection
     from n26.tests.sandbox.actions import create_trading_post
 
@@ -790,7 +790,7 @@ class TestRefunds:
 
 
 class TestWhatATradingPostStocks:
-    """A trading post is a collection shopped on TRADING_POST terms: selector
+    """A trading post is a collection bought on TRADING_POST terms: selector
     sweeps define what exists, entries customise prices, and everything
     about charging belongs to the terms of the browse — not to the
     collection, which only declares contents and prices."""
@@ -932,7 +932,7 @@ class TestScaling:
         from n26.library.authoring import create_subtype
 
         walker = create_subtype("Walker")
-        shopper = select.matchable(make_profile("Shopper"))
+        buyer = select.matchable(make_profile("Buyer"))
 
         def restricted(count):
             items = []
@@ -952,7 +952,7 @@ class TestScaling:
 
         def measure(collection):
             with CaptureQueriesContext(connection) as captured:
-                noted = with_use_notes(browse(collection), shopper)
+                noted = with_use_notes(browse(collection), buyer)
                 assert list(noted.all_lines())
             return len(captured.captured_queries)
 

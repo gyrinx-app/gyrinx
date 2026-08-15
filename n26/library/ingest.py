@@ -35,7 +35,7 @@ Three standing rules are load-bearing here:
   even on an exact name match (§5a — the Techmite's power fist is not
   the one on the Ironhead list). The same set is how a fighter reaches
   an equipment list at all: access is a built-in like any other, and
-  its being free is what keeps shopping rights out of a fighter's
+  its being free is what keeps buying rights out of a fighter's
   rating.
 * **Ingest stands on standard content.** The statline shapes, profile
   types, XP counter and skill tiers a plan resolves against come from
@@ -981,13 +981,13 @@ def _plan_profiles(plan, rows):
         # A fighter reaches an equipment list by holding it among its
         # built-ins, which is why the column lands here rather than
         # anywhere else: access is a thing the fighter comes with.
-        shops_at = _clean(row.get(EQUIPMENT_LIST_COLUMN) or "")
-        if shops_at:
-            listed = _resolve_equipment_list(plan, shops_at)
+        buys_at = _clean(row.get(EQUIPMENT_LIST_COLUMN) or "")
+        if buys_at:
+            listed = _resolve_equipment_list(plan, buys_at)
             if listed is None:
                 plan.problem(
                     source,
-                    f"{name!r} has {shops_at!r} in the {EQUIPMENT_LIST_COLUMN} "
+                    f"{name!r} has {buys_at!r} in the {EQUIPMENT_LIST_COLUMN} "
                     f"column, and no equipment list of that title is defined "
                     f"or in the pack — imported without it, so the fighter "
                     f"buys from nothing (lists resolve, never create)",
@@ -1178,7 +1178,7 @@ def _resolve_equipment_list(plan, title):
     """The equipment list a fighter's ``Equipment List`` cell names.
 
     A title is put together with the kind exactly as the equipment-lists
-    sheet's own rows are, so a fighter and the list it shops at cannot
+    sheet's own rows are, so a fighter and the list it buys from cannot
     come to mean different collections. A cell spelling the whole name
     out is then taken as written, which makes both readings of the
     column land on one row; each attempt is an exact match on a folded

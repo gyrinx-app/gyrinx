@@ -2,7 +2,7 @@
 
 An assignable's home is its own data: a ``Category``, inside a
 ``Section`` heading. So every surface that shows rows under headings is
-grouping the same way — a shopping list, the gang list you hire from —
+grouping the same way — a catalogue, the gang list you hire from —
 and this is the one place that grouping is written down. What differs
 between them is what a row *is* and what order rows take within a
 category, which are the two things :func:`group_by_home` is told.

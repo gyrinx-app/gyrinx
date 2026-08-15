@@ -289,7 +289,7 @@ def _gained(thing):
 #: something different by arriving.
 _ON_THE_GANG = {
     "rule": "printed on the gang page",
-    "collection": "and every member may shop it",
+    "collection": "and every member may buy from it",
     "hidden": "which draws no line of its own",
 }
 
@@ -893,8 +893,8 @@ def _referenced_by(edges):
 
     Ordered as the reader needs it: what is structurally true first —
     built into something, given by something, taken away by something —
-    and the routes that merely *may* happen after, because a shop that
-    stocks it and a choice it could be chosen for are possibilities
+    and the routes that merely *may* happen after, because a collection
+    that stocks it and a choice it could be chosen for are possibilities
     rather than facts.
     """
     said = [
@@ -1031,7 +1031,7 @@ def _brought(edges):
 
 
 def _entries_naming(edges):
-    """The entries that list the thing — the rows that put it on a shop.
+    """The entries that list the thing — the rows that put it in a catalogue.
 
     Gated to the columns that mean listing: an entry's usable-by columns
     name the fighters a line is for, and a line about somebody is not a
@@ -1058,7 +1058,8 @@ def _collections_holding(edges):
 
 
 def _offered(edges):
-    """The shops: a list that names it, and a sweep that catches it."""
+    """Two routes to being sold: a list that names it, and a sweep that
+    catches it."""
     from n26.library.models.collection import price_of
 
     thing = edges.thing
@@ -1098,7 +1099,7 @@ def _swept(thing, sweeps, listed):
     A collection that does both speaks once, in its entry's voice: an
     entry wins over a sweep for the same item, so the sweep's reference
     price is not what the reader would be asked for, and two "Offered
-    by" sentences from one shop at two prices tell them nothing true.
+    by" sentences from one collection at two prices tell them nothing true.
     """
     from n26.library.models.collection import price_of
 

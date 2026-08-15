@@ -23,7 +23,7 @@ from n26.library.models import Optioned, price_of
 
 @dataclass(frozen=True)
 class Terms:
-    """The terms a collection is shopped on. Usage, never content.
+    """The terms a collection is bought on. Usage, never content.
 
     Charging is not a concern of a collection — a collection declares
     contents and prices, and the code that handles a purchase decides how it
@@ -47,8 +47,8 @@ class Terms:
 #: Browsing a list: everything the author put there, nothing charges TP.
 EQUIPMENT_LIST = Terms()
 #: A trading trip: purchases spend Trade Points, Exclusive items are off
-#: the listing. What makes shopping "at a trading post" is the terms you
-#: shop on, not the collection you shop from.
+#: the listing. What makes buying "at a trading post" is the terms you
+#: buy on, not the collection you buy from.
 TRADING_POST = Terms(charges_trade_points=True, shows_exclusive=False)
 
 
@@ -112,7 +112,7 @@ class PricedLine:
     #: needs no idea where the line came from.
     charges_trade_points: bool = False
     #: Whether the surface this line came from deals in Trade Points at
-    #: all — a fact about the collection, not about the shopping trip.
+    #: all — a fact about the collection, not about the buying trip.
     #: A collection whose contents were chosen *by* having a TP price
     #: deals in them; one an author wrote out by hand does not, and a
     #: number drawn there answers a question nobody browsing it can ask.
@@ -175,7 +175,7 @@ def browse(collection, terms=EQUIPMENT_LIST):
     Entries win over selectors for the same item — that is where per-item
     customisation lives (the Nomad post pricing Imperial equipment above
     the usual). Swept-in items are priced at reference. The ``terms``
-    are the caller's — how this browse charges is the shopping flow's
+    are the caller's — how this browse charges is the buying flow's
     business, not the collection's — and they ride every line so the
     purchase never needs to know where a line came from.
 

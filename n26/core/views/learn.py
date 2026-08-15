@@ -312,7 +312,7 @@ def learn(request, pk):
         ),
         # Only the tiers their grid names. The browse keeps every
         # unplaced category under the fallback so nothing is hidden from
-        # a reader shopping a list; here the tiers *are* the offer, and
+        # a reader buying from a list; here the tiers *are* the offer, and
         # another house's sets are not this fighter's to learn.
         sections=[placement.section.name for placement in placements.values()],
     )

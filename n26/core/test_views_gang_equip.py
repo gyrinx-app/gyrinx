@@ -131,7 +131,7 @@ class TestWhichListsAreOffered:
     def test_a_list_of_skills_is_no_tab_however_the_gang_holds_it(
         self, client, tester, gang, house_list
     ):
-        """Holding a collection and shopping from it are different things:
+        """Holding a collection and buying from it are different things:
         a gang carries its skill sets the same way it carries an equipment
         list, and only one of the two is somewhere to buy from."""
         from n26.library.authoring import create_category, create_skill

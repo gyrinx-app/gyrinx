@@ -766,7 +766,7 @@ def build_choice_offer(slot, computed):
     """What may be chosen for one slot, in the one shape a picker draws.
 
     The offer decides the list; this only flattens it. A slot narrowed to
-    a tier draws the browsable view the fighter already shops from, so
+    a tier draws the browsable view the fighter already buys from, so
     its categories become the headings and the fighter's own placements
     have already shaped it. An unnarrowed slot has no collection and
     draws the whole kind, which is one heading-less group. Neither

@@ -272,7 +272,7 @@ class TestTheShellStillDraws:
         assert 'name="gang_type"' in page
         assert "Escher (HoB)" in page
 
-    def test_the_shop_shell_draws_a_listing_with_a_group_of_options(self, reader):
+    def test_the_equip_shell_draws_a_listing_with_a_group_of_options(self, reader):
         """One line in the sample catalogue offers alternatives at
         purchase — a mount and its weapon swaps — so this is where that
         control is documented. The sample carries what the real browse

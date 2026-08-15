@@ -272,7 +272,7 @@ class TestWhatFitsWhere:
     def test_attaching_anyway_is_still_allowed(
         self, las_weapons, fighter, weapon_stats
     ):
-        """Inform, never police: the note is for the shop; the owner
+        """Inform, never police: the note is for the listing; the owner
         may bolt anything to anything."""
         crystal = create_weapon_accessory("Focusing Crystal", fits_category=las_weapons)
         heavy = give_weapon(fighter, make_gun("Heavy stubber", weapon_stats), paid=70)

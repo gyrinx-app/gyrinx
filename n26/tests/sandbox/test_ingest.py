@@ -1870,7 +1870,7 @@ class TestTheEquipmentListAFighterBuysFrom:
 
     Access is not kit, and the two places that matters are here: there
     is one list, so naming one replaces whichever was held; and it is
-    free, so shopping rights never reach a fighter's rating.
+    free, so buying rights never reach a fighter's rating.
     """
 
     #: The Gang Queen's cell, and the columns either side of it, so a
@@ -1915,7 +1915,7 @@ class TestTheEquipmentListAFighterBuysFrom:
     def test_a_title_no_list_carries_is_said_against_the_column_and_the_row(
         self, foundation, sheets
     ):
-        """A typo must not pass as a fighter who shops nowhere in
+        """A typo must not pass as a fighter who buys nowhere in
         particular. Nothing incorrect is written, so the fighter still
         arrives — and the report says which cell to fix."""
         typo = edited(PROFILES_CSV, self.CELL, ",Catfall,,Eschur,")
@@ -2015,7 +2015,7 @@ class TestTheEquipmentListAFighterBuysFrom:
 
     def test_the_list_adds_nothing_to_what_the_fighter_is_worth(self, imported):
         """Access is not a purchase. A list that counted would inflate
-        every fighter who shops, by the whole worth of the shop."""
+        every fighter who buys, by the whole worth of the list."""
         from django.contrib.auth.models import User
 
         from n26.core.reconcile import assert_reconciled
@@ -2028,9 +2028,9 @@ class TestTheEquipmentListAFighterBuysFrom:
         Collection.objects.filter(name="Escher Equipment List").update(price=500)
 
         gang = found_gang(
-            "Shoppers",
+            "Buyers",
             GangType.objects.get(name="Escher"),
-            owner=User.objects.create_user("shopper"),
+            owner=User.objects.create_user("buyer"),
             budget=1000,
         )
         model = hire_with_option(

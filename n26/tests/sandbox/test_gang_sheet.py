@@ -288,10 +288,10 @@ class TestTheRosterOrder:
             op_adds_model(beast),
             carried_by=leash,
         )
-        shop = create_collection("Pet Shop", entries=[(leash, {})])
+        traders = create_collection("Pet Traders", entries=[(leash, {})])
 
         ann = Miniature.objects.get(name="Ann")
-        buy(ann, next(browse(shop).all_lines()))
+        buy(ann, next(browse(traders).all_lines()))
         # The spawned model takes the profile's name until renamed.
         sheet = render_gang(ranked_crew)
         assert [card.name for card in sheet.models] == [

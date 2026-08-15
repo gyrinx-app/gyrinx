@@ -50,7 +50,7 @@ from n26.library.models.assignable import (
 from n26.library.models.base import Content, ContentQuerySet
 
 #: What a collection entry may name. Not traits or injuries — those are
-#: never shopped for — and not collections (a list does not contain a list;
+#: never bought — and not collections (a list does not contain a list;
 #: granting access is the modifier system's job).
 ENTRY_ASSIGNABLE_FIELDS = (
     "weapon",
@@ -252,9 +252,9 @@ class Collection(Content, Assignable):
 
     Deliberately absent: anything about **charging**. How a purchase is
     paid — whether Trade Points are spent, from what budget, pooled or
-    per-fighter, temporary or standing — is the shopping flow's concern,
+    per-fighter, temporary or standing — is the buying flow's concern,
     expressed as the ``Terms`` a browse is made on (``n26.core.browse``). The
-    same collection can be shopped as a plain list or as a trading trip;
+    same collection can be browsed as a plain list or as a trading trip;
     it declares contents and prices, and nothing else.
     """
 
@@ -376,7 +376,7 @@ class CollectionSection(Content):
 
 
 #: What a selector row may sweep in, by ContentType model name. The same
-#: kinds an entry may name — a collection contains shoppable things
+#: kinds an entry may name — a collection contains buyable things
 #: however it lists them.
 SELECTABLE_KIND_NAMES = tuple(name.replace("_", "") for name in ENTRY_ASSIGNABLE_FIELDS)
 

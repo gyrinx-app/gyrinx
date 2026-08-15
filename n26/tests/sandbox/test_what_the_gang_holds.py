@@ -208,21 +208,21 @@ class TestARuleTheGangIsGiven:
 
 
 class TestAListTheGangIsGiven:
-    """A list granted to the gang is somewhere every fighter shops."""
+    """A list granted to the gang is somewhere every fighter buys from."""
 
     @pytest.fixture
     def armoury(self, charter, knife):
         """A list the charter opens to the gang, the way an alliance does."""
         collection = create_collection("Escher Armoury", entries=[knife])
         modifier(
-            "Escher: the gang shops the Armoury",
+            "Escher: the gang buys from the Armoury",
             targets_gang(),
             ef_adds(collection),
             carried_by=charter,
         )
         return collection
 
-    def test_every_fighter_may_shop_it(self, gang, crew, armoury):
+    def test_every_fighter_may_buy_from_it(self, gang, crew, armoury):
         for miniature in crew.values():
             assert "Escher Armoury" in [
                 access.name for access in collections_for(miniature)
@@ -290,7 +290,7 @@ class TestWhatTheGangHoldsIsNotTheFightersToShow:
 
     def test_a_granted_list_draws_no_line_either(self, gang, crew, charter, knife):
         modifier(
-            "Escher: the gang shops the Armoury",
+            "Escher: the gang buys from the Armoury",
             targets_gang(),
             ef_adds(create_collection("Escher Armoury", entries=[knife])),
             carried_by=charter,

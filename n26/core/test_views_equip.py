@@ -93,7 +93,7 @@ def test_a_buy_lands_on_the_fighter_at_the_servers_price(
     assert gang.credits == 65
 
 
-def test_a_buy_stays_on_the_shop(client, tester, fighter, house_list):
+def test_a_buy_stays_on_the_equip_page(client, tester, fighter, house_list):
     from n26.library.models import Wargear
 
     knife = Wargear.objects.get(name="Knife")
@@ -257,13 +257,13 @@ def test_the_strip_holds_this_fighters_list_and_no_other_houses(
 def test_a_collection_of_skills_is_no_tab_however_the_fighter_holds_it(
     client, tester, gang, make_profile, make_statline
 ):
-    """Holding a collection and shopping from it are different things.
+    """Holding a collection and buying from it are different things.
 
     A fighter's skill sets reach their card by exactly the route their
     equipment list does — a built-in on their profile — so nothing about
     how it is held can tell the two apart. What is in it can: there is
     nothing in a set of skills to buy, so a collection of them is offered
-    to nobody as somewhere to shop.
+    to nobody as somewhere to buy from.
     """
     from n26.core.access import collections_for
     from n26.library.authoring import add_built_in, create_skill

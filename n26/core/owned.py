@@ -1,4 +1,4 @@
-"""What a model already holds, as a shop catalogue needs to see it.
+"""What a model already holds, as a catalogue needs to see it.
 
 A catalogue asks two questions of a fighter's card. Does this fighter
 already own one of these? And if so, what exactly — which copy, worth
@@ -9,7 +9,7 @@ Both answers come off the card the page has already built. Nothing here
 queries, which is the whole point: a catalogue is hundreds of rows, and an
 owned-count fetched per row would be hundreds of queries.
 
-What is owned is drawn as a *state of a shop row*: where the fighter holds
+What is owned is drawn as a *state of an equip row*: where the fighter holds
 one of the thing a row names, the row says so instead of offering another.
 Anything they own that the list on screen does not sell has nowhere to be
 drawn, which is a known gap and not one to be closed from here.
@@ -66,14 +66,14 @@ def is_possession(thing):
     sellable, movable and droppable. Everything else it holds fails this:
     a profile **is** the model, and parting with one is leaving the
     roster rather than clearing out a kitbag; a skill or a subtype is what
-    the model is and knows; a collection is somewhere to shop rather than
-    something owned; a counter is a running number; a gang type is the
-    gang itself.
+    the model is and knows; a collection is somewhere to buy from rather
+    than something owned; a counter is a running number; a gang type is
+    the gang itself.
 
     Asked of the library's own families rather than a list kept here, so
     a new kind of gear is sellable the day it is authored and nobody has
-    to remember this file — and so the set matches what the shop sells,
-    which is chosen the same way.
+    to remember this file — and so the set matches what the catalogue
+    sells, which is chosen the same way.
     """
     return getattr(type(thing), "family", None) == Family.GEAR
 
@@ -154,7 +154,7 @@ def _part_name(node):
     A weapon profile prints the gun it belongs to in brackets — "warp
     round (Autogun)" — which is what a card wants, where nothing above
     the line says which gun. Beneath the gun's own row the bracket only
-    repeats it, so the bare name stands, exactly as the shop row for the
+    repeats it, so the bare name stands, exactly as the equip row for the
     same ammo does.
     """
     if node.is_weapon_profile:
@@ -209,7 +209,7 @@ def owned_things(card, at):
     carries a good deal more than kit, and none of the rest is something
     to put a Sell button beside: the fighter's own profile is the
     fighter, their skills are what they know, their equipment lists are
-    where they shop.
+    where they buy from.
 
     The gang-hosted assignments are skipped for a second reason. They ride
     every member's card so gang-wide rules reach them, but they are the gang's

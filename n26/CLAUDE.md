@@ -13,7 +13,7 @@ see it.
 | package | what it holds |
 |---|---|
 | `n26/library/` | Game content and the tools for writing it: models, authoring verbs, specs, generated forms, spreadsheet ingest, the staff authoring pages. |
-| `n26/core/` | Player data (gangs, models, assignments, the money ledger) and the pure-Python layers that turn rows into cards, sheets, and shop listings. |
+| `n26/core/` | Player data (gangs, models, assignments, the money ledger) and the pure-Python layers that turn rows into cards, sheets, and equip listings. |
 | `n26/designsystem/` | The living component gallery at `/n26/design/`. Documents the components; owns none of them. |
 | `n26/tests/` | Shared fixtures and the sandbox suites — whole slices of real rulebook content built and exercised end to end. |
 | `n26/design/` | The specification. These markdown files are where design decisions are recorded and argued. **Not committed — they exist only in the maintainer's checkout.** When present, read the relevant one before a non-trivial change (`glossary.md` defines the shared vocabulary); when absent, module docstrings are the next-best source. Code cites them as `design/foo.md`. |
@@ -133,7 +133,7 @@ Concretely:
   rewritten by recomputing from the ledger, never adjusted by deltas.
   `n26.core.reconcile` proves the caches honest.
 - **Structures before renderers.** Every surface is built as a plain
-  dataclass first (a card, a sheet, a shop view, a spec); rendering it is
+  dataclass first (a card, a sheet, an equip view, a spec); rendering it is
   a separate, dumber step. Tests assert on the structure.
 - **UI state lives in the URL, with one sanctioned exception.** The
   platform rule applies here too: anything that picks a form variant,

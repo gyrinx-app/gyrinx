@@ -61,7 +61,7 @@ def detail_groups(card) -> list[DetailGroup]:
 
     The lists a model buys from (``card.collections``) are deliberately
     absent. Which listings the app will offer them is an affordance of the
-    app, not a fact about the model: nobody shops from a card in their
+    app, not a fact about the model: nobody buys from a card in their
     hand, and the row spends space a reader needs for what the model can
     do. The screen card leaves it out for the same reason and sends a
     reader to Equip instead — this is the last surface that printed it.

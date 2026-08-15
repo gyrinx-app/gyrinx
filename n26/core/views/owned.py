@@ -455,7 +455,7 @@ def refit_dialog(request, gang, at):
 def _back_to(request, miniature, gang):
     """Where a click lands: the screen it was clicked on.
 
-    The fighter's own shopping screen, on the list they were reading and
+    The fighter's own equip screen, on the list they were reading and
     the section tab they had open — kitting a fighter out is a run of
     clicks, and one that drops the reader back at the top of the first
     list has undone their place in it. With no fighter to return to, the

@@ -75,8 +75,8 @@ class TestEveryDialectCompiles:
 
     def test_a_sweep_with_a_category_narrowing(self, db):
         pistols = create_category("Ranged Weapons", "Pistols", 0)
-        shop = create_collection("Shop", contains=[(Weapon, pistols)])
-        (sweep,) = shop.selectors.all()
+        catalogue = create_collection("Catalogue", contains=[(Weapon, pistols)])
+        (sweep,) = catalogue.selectors.all()
         assert str(sweep.as_selector()) == "any weapon and homed in Pistols"
 
     def test_the_narrowed_sweep_compiles_to_sql_and_agrees_with_memory(self, db):
@@ -85,8 +85,8 @@ class TestEveryDialectCompiles:
         pistols = create_category("Ranged Weapons", "Pistols", 0)
         stub = create_wargear("Stub gun", category=pistols)  # wargear for ease
         mesh = create_wargear("Mesh armour")
-        shop = create_collection("Shop", contains=[(Wargear, pistols)])
-        (sweep,) = shop.selectors.all()
+        catalogue = create_collection("Catalogue", contains=[(Wargear, pistols)])
+        (sweep,) = catalogue.selectors.all()
 
         assert list(sweep.contents()) == [stub]
         assert sweep.as_selector().matches(select.matchable(stub))
@@ -135,8 +135,9 @@ class TestRoundsBySpecificity:
         assert [c.name for c in computed.skills] == ["Hit & Run"]
 
     def test_usability_and_scopes_now_agree(self, rider):
-        """One world: the fighter the shop sees is the fighter the rules
-        see. The divergence this class used to pin is resolved by rounds."""
+        """One world: the fighter the equip screen sees is the fighter the
+        rules see. The divergence this class used to pin is resolved by
+        rounds."""
         fighter, mounted = rider
         _, computed = computed_for(fighter)
 

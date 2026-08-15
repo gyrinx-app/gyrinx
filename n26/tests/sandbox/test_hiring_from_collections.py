@@ -365,7 +365,7 @@ class TestTheCollectionsPriceIsThePrice:
     def test_the_ledger_says_which_row_it_was_bought_through(
         self, client, owner, corrupted_gang, corrupted_list
     ):
-        """The money's provenance, as a shop purchase records it."""
+        """The money's provenance, as a purchase records it."""
         client.force_login(owner)
         key = self.key(client, corrupted_gang, "Chaos Spawn")
         hire_through(client, corrupted_gang, key, name="Thing")
@@ -429,7 +429,7 @@ class TestTheCollectionsPriceIsThePrice:
     def test_a_typed_price_is_still_a_discount_against_that_quote(
         self, client, owner, corrupted_gang
     ):
-        """The dialog's box is the shop's control: what is typed is what
+        """The dialog's box is the purchase's control: what is typed is what
         leaves the bank, while the collection's price stays the list price
         and the rating — a haggled fighter is not a lesser fighter."""
         client.force_login(owner)

@@ -325,12 +325,12 @@ class TestWhatPaperLeavesOut:
     with it.
 
     What a player saw: "BUYS FROM — Delaque Equipment List" printed under
-    Gear on every card of the roster. Nobody shops from a card in their
+    Gear on every card of the roster. Nobody buys from a card in their
     hand, and the row spends space the rules need.
     """
 
     @pytest.fixture
-    def shopper(self, gang, make_profile, make_statline, tester):
+    def buyer(self, gang, make_profile, make_statline, tester):
         """A fighter who arrives holding their house list, as a hire does."""
         from n26.library.authoring import (
             create_collection,
@@ -348,16 +348,16 @@ class TestWhatPaperLeavesOut:
         with operation(gang, actor=tester) as op:
             return op.hire(profile, "Nyla")
 
-    def test_the_card_still_holds_the_lists_it_buys_from(self, shopper):
+    def test_the_card_still_holds_the_lists_it_buys_from(self, buyer):
         """The fact stays on the structure — it is what the app reads to
         offer Equip. Only paper leaves it out."""
         from n26.core.render import build_model_card
 
-        drawn = build_model_card(shopper)
+        drawn = build_model_card(buyer)
 
         assert [line.name for line in drawn.collections] == ["Delaque Equipment List"]
 
-    def test_the_paper_carries_no_buys_from_row(self, client, tester, gang, shopper):
+    def test_the_paper_carries_no_buys_from_row(self, client, tester, gang, buyer):
         client.force_login(tester)
 
         body = client.get(print_url(gang)).content.decode()

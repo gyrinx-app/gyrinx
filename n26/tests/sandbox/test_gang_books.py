@@ -201,7 +201,7 @@ def chaos_corruption(escher, ranks, chaos_powers, skills_catalogue):
             # "The gang must select one of the Chaos gods" — what is
             # chosen asks its own follow-up. Chained by construction.
             (targets_gang(), ef_offers_choice(Affiliation, label="dedication")),
-            # The corruption-only shopping list, opened for everyone.
+            # The corruption-only equipment list, opened for everyone.
             (targets_model(), ef_adds(options)),
         ],
     )

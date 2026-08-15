@@ -94,7 +94,7 @@ def _collections_on(card, computed, gang, gang_hosted=False):
     Stored assignments first, in the order the card holds them, then the
     computed grants; first mention of a collection wins, so a list reached
     twice collapses towards the more direct source. A list something has taken
-    away is not somewhere to shop: the card no longer shows it, so it
+    away is not somewhere to buy from: the card no longer shows it, so it
     opens nothing either.
 
     A held list names whatever brought it, which after founding is the
@@ -130,7 +130,7 @@ def _collections_on(card, computed, gang, gang_hosted=False):
     for contribution in computed.collections:
         add(contribution.thing, contribution.source, is_computed=True)
 
-    # A list the gang was granted is somewhere its fighters shop, exactly
+    # A list the gang was granted is somewhere its fighters buy from, exactly
     # as the house list assigned to the gang is. It rides a member's card
     # as the gang's guest, drawing no line, so it is read from the guests
     # — of which the gang's own card has none, the grant being its own.

@@ -168,7 +168,7 @@ LISTS = [
 #:
 #: Deliberately not on the line. A PricedLine says what a thing costs *here*;
 #: whether you own one is gang state and belongs to whoever is doing the
-#: shopping, so the sample keeps the two apart exactly as the real code does.
+#: buying, so the sample keeps the two apart exactly as the real code does.
 IN_STASH = {"Autopistol", "Stub gun", "Shotgun", "Mesh armour", "Photo-goggles"}
 
 
@@ -454,7 +454,7 @@ def trading_post() -> CollectionView:
 class _Collection:
     """A stand-in for a Collection where only its name and key are read.
 
-    The tab strip is built by the shop screen's own function, so the
+    The tab strip is built by the equip screen's own function, so the
     gallery shortens names by the rule the real page uses rather than by
     a copy of it — and that function reads nothing else off a
     collection.
@@ -503,7 +503,7 @@ def trading_post_context():
     ]
     return {
         "trading_post": view,
-        # The shop screen's own structure, built by the real function from the
+        # The equip screen's own structure, built by the real function from the
         # sample catalogue and the sample fighter's kit. The shell then draws
         # it with the application's own row templates, so the two cannot come
         # to disagree about what a row looks like — the failure this replaces
@@ -1291,7 +1291,7 @@ def model_card():
             _printed("Assail")[0],
             _granted("Mind Lock", "Wyrd", "subtype"),
         ],
-        # Where this fighter can shop. Access to buy, not things owned, which
+        # Where this fighter can buy from. Access to buy, not things owned, which
         # is why the card draws it apart from gear — see ModelCard.collections.
         collections=[
             _granted("House Escher Equipment List", "Escher", "profile"),
@@ -1836,7 +1836,7 @@ CHANGELOG = [
 
 # ------------------------------------------------------------- what is owned
 
-# A shop row for something the fighter already has, and the three
+# An equip row for something the fighter already has, and the three
 # confirmations behind it. Real OwnedThings put through the real conversion,
 # because the components end up typed against what a catalogue produces — a
 # rename upstream should fail at import rather than at a glance, and the acts
@@ -1856,7 +1856,7 @@ class _Roster:
 
 
 def carried():
-    """What the fighter shopping the sample list is already holding.
+    """What the fighter buying from the sample list is already holding.
 
     Keyed the way :func:`n26.core.owned.owned_things` keys it — by the
     content row, not by the copy — so ``build_catalogue`` joins it to the

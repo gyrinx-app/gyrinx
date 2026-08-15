@@ -18,7 +18,7 @@ everything it does rides the chosen item as ordinary modifiers.
 1. Create an **affiliation** for each corruption — "Genestealer Cult
    Corrupted", "Chaos Corrupted", "Malstrain Corrupted".
 2. Create a **collection** named "Corruptions" and switch off *Prices its
-   entries* — it is a menu, not a shop. List the three affiliations in it.
+   entries* — it is a menu, not a catalogue. List the three affiliations in it.
 3. Create a **modifier**: targets the gang, *offers a choice* of
    affiliation from that menu, labelled "Corruption". Attach it to every
    gang type that can be corrupted.

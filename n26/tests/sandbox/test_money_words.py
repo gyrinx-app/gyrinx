@@ -5,7 +5,7 @@ confuse, because for one instant they are equal:
 
 **A price** is what a surface asks you to pay, right now: a catalogue
 number, an equipment list's override, an option's surcharge. It lives on
-content and on shop structures, and it is answered fresh every time
+content and on catalogue structures, and it is answered fresh every time
 anyone asks.
 
 **A rating** is what an assignment contributed to a model's worth. It is
