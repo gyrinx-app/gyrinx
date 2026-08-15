@@ -9,9 +9,11 @@ every request in production.
 import warnings
 
 import pytest
-from django.core.cache import caches
 
 from n23.content.models import ContentBook, ContentPageRef
+
+# The page-ref cache is emptied before every test by an autouse fixture in the
+# root conftest, so these tests each start from an empty cache.
 
 
 @pytest.fixture
@@ -20,13 +22,6 @@ def page_ref(db):
     return ContentPageRef.objects.create(
         book=book, title="The Path We Follow", page="120", category="Skills"
     )
-
-
-@pytest.fixture(autouse=True)
-def _clear_cache():
-    caches["content_page_ref_cache"].clear()
-    yield
-    caches["content_page_ref_cache"].clear()
 
 
 @pytest.mark.django_db

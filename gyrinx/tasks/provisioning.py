@@ -185,20 +185,25 @@ def _update_subscription_tolerating_conflict(
     """
     Update a subscription, retrying briefly if another process is writing it.
 
-    Two containers cold-starting at once both provision, and Pub/Sub rejects the
-    loser with 409 "The request raced with another user request". Both are
-    writing byte-identical config, so the conflict carries no information — but
-    it used to be logged at ERROR with a traceback for every task on every boot.
-    Retry with jitter, then settle for a WARNING: whichever writer won has
-    already put the correct config in place.
+    Two containers provisioning at once both write this subscription, and Pub/Sub
+    rejects the loser with 409 "The request raced with another user request".
+    Usually both are writing identical config and the conflict carries no
+    information, so retry with jitter and do not treat it as a failure.
+
+    Where the two writers are different revisions, though, they can be writing
+    *different* config — and silently giving up would leave the subscription on
+    the other revision's settings. So once the retries are exhausted, read the
+    subscription back and check: matching config is a WARNING, genuinely
+    divergent config is an ERROR worth chasing.
     """
+    desired = {
+        "name": subscription_path,
+        "push_config": push_config,
+        "ack_deadline_seconds": route.ack_deadline,
+        "retry_policy": route_retry_policy(route),
+    }
     request = {
-        "subscription": {
-            "name": subscription_path,
-            "push_config": push_config,
-            "ack_deadline_seconds": route.ack_deadline,
-            "retry_policy": route_retry_policy(route),
-        },
+        "subscription": desired,
         "update_mask": {
             "paths": ["push_config", "ack_deadline_seconds", "retry_policy"]
         },
@@ -211,16 +216,101 @@ def _update_subscription_tolerating_conflict(
             return
         except (Aborted, Conflict) as e:
             if attempt == CONFLICT_RETRIES:
-                logger.warning(
-                    f"Subscription {subscription_name} is being updated concurrently "
-                    f"and did not settle after {CONFLICT_RETRIES + 1} attempts; "
-                    f"leaving the other writer's identical config in place ({e})"
+                _report_unsettled_conflict(
+                    subscriber=subscriber,
+                    subscription_path=subscription_path,
+                    subscription_name=subscription_name,
+                    desired=desired,
+                    route=route,
+                    error=e,
                 )
-                track("task_provisioning_conflict", task_name=route.name)
                 return
             # nosec B311 - backoff jitter to decorrelate two containers retrying
             # in lockstep; nothing security-sensitive depends on it.
             time.sleep(0.25 * (2**attempt) + random.uniform(0, 0.25))  # nosec B311
+
+
+def _diff_against_live(desired: dict, live) -> list[str]:
+    """
+    Name the settings where a live subscription differs from what we wanted.
+
+    Compares the individual values the update sets, never whole messages. The
+    server fills in defaults we never asked for — a push subscription comes back
+    carrying an empty `pubsub_wrapper`, for instance — so comparing the protos
+    whole reports a difference for every subscription, including correct ones.
+    """
+    want_push = desired["push_config"]
+    want_retry = desired["retry_policy"]
+    live_push, live_retry = live.push_config, live.retry_policy
+
+    differences = []
+    if live_push.push_endpoint != want_push.push_endpoint:
+        differences.append("push endpoint")
+    if (
+        live_push.oidc_token.service_account_email
+        != want_push.oidc_token.service_account_email
+        or live_push.oidc_token.audience != want_push.oidc_token.audience
+    ):
+        differences.append("OIDC token")
+    if live.ack_deadline_seconds != desired["ack_deadline_seconds"]:
+        differences.append("ack deadline")
+    if (
+        live_retry.minimum_backoff != want_retry.minimum_backoff
+        or live_retry.maximum_backoff != want_retry.maximum_backoff
+    ):
+        differences.append("retry backoff")
+    return differences
+
+
+def _report_unsettled_conflict(
+    subscriber: pubsub_v1.SubscriberClient,
+    subscription_path: str,
+    subscription_name: str,
+    desired: dict,
+    route: TaskRoute,
+    error: Exception,
+):
+    """
+    Decide how loudly to complain about a conflict that never settled.
+
+    Reads the subscription back and compares the fields the update would have
+    set. If the winning writer left the same values, nothing is wrong. If it did
+    not, the subscription is running someone else's config and that needs saying
+    plainly.
+    """
+    try:
+        live = subscriber.get_subscription(request={"subscription": subscription_path})
+    except Exception as read_error:
+        logger.warning(
+            f"Subscription {subscription_name} is being updated concurrently and "
+            f"did not settle ({error}); could not read it back to confirm its "
+            f"config ({read_error})"
+        )
+        track("task_provisioning_conflict", task_name=route.name, verified=False)
+        return
+
+    divergent = _diff_against_live(desired, live)
+
+    if divergent:
+        logger.error(
+            f"Subscription {subscription_name} was written concurrently by another "
+            f"process and now differs from this revision's config in "
+            f"{', '.join(divergent)}. It will be corrected the next time a "
+            f"container provisions without contention ({error})"
+        )
+        track(
+            "task_provisioning_diverged",
+            task_name=route.name,
+            fields=",".join(divergent),
+        )
+        return
+
+    logger.warning(
+        f"Subscription {subscription_name} is being updated concurrently and did "
+        f"not settle after {CONFLICT_RETRIES + 1} attempts, but the config now in "
+        f"place matches what this revision wanted ({error})"
+    )
+    track("task_provisioning_conflict", task_name=route.name, verified=True)
 
 
 def route_retry_policy(route: TaskRoute) -> pubsub_v1.types.RetryPolicy:

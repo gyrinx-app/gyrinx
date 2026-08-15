@@ -7,10 +7,12 @@ gunicorn worker, blocking ~120s of a ~160s Cloud Run cold start.
 """
 
 import inspect
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
 from google.api_core.exceptions import AlreadyExists, Conflict
+from google.cloud import pubsub_v1
 
 from gyrinx.tasks import provisioning
 from gyrinx.tasks.apps import TasksConfig
@@ -46,7 +48,13 @@ def test_provision_tasks_command_is_a_noop_outside_cloud_run(monkeypatch):
     from django.core.management import call_command
 
     monkeypatch.delenv("K_SERVICE", raising=False)
-    with patch.object(provisioning, "provision_task_infrastructure") as provision:
+    # Patched where the command looks it up, not where it is defined: the command
+    # imports the name at module load, so patching the source module would leave
+    # the real function bound and this assertion would pass without testing
+    # anything — while a regressed guard provisioned against GCP from the suite.
+    with patch(
+        "gyrinx.tasks.management.commands.provision_tasks.provision_task_infrastructure"
+    ) as provision:
         call_command("provision_tasks")
     provision.assert_not_called()
 
@@ -62,15 +70,99 @@ def test_provision_tasks_command_provisions_in_cloud_run(monkeypatch):
     provision.assert_called_once()
 
 
-def test_update_subscription_retries_then_warns_on_conflict(caplog):
-    """
-    A 409 from a concurrent writer is benign and must not be logged as a failure.
-
-    Two containers cold-starting together both write byte-identical config; the
-    loser used to produce an ERROR with a traceback for every task on every boot.
-    """
+def _subscriber_conflicting_with(live_config):
+    """A subscriber that always 409s, and reads back as `live_config`."""
     subscriber = MagicMock()
     subscriber.update_subscription.side_effect = Conflict("raced with another request")
+    subscriber.get_subscription.return_value = live_config
+    return subscriber
+
+
+def _push_config(endpoint="https://svc.test/tasks/pubsub/", **extra):
+    return pubsub_v1.types.PushConfig(
+        push_endpoint=endpoint,
+        oidc_token=pubsub_v1.types.PushConfig.OidcToken(
+            service_account_email="pubsub-invoker@p.iam.gserviceaccount.com",
+            audience="https://svc.test",
+        ),
+        **extra,
+    )
+
+
+def test_update_subscription_retries_then_warns_when_config_matches(caplog):
+    """
+    A 409 whose winner left the config we wanted is benign.
+
+    The live subscription carries a `pubsub_wrapper` the update never asked for,
+    because Pub/Sub fills that in itself. Comparing the messages whole would call
+    that a difference and report every correct subscription as overwritten —
+    restoring the per-task, per-boot ERROR this change exists to remove.
+    """
+    route = _route()
+    wanted = _push_config()
+    live = SimpleNamespace(
+        push_config=_push_config(
+            pubsub_wrapper=pubsub_v1.types.PushConfig.PubsubWrapper()
+        ),
+        ack_deadline_seconds=route.ack_deadline,
+        retry_policy=provisioning.route_retry_policy(route),
+    )
+    subscriber = _subscriber_conflicting_with(live)
+
+    with caplog.at_level("WARNING"):
+        provisioning._update_subscription_tolerating_conflict(
+            subscriber=subscriber,
+            subscription_path="projects/p/subscriptions/s",
+            subscription_name="s",
+            push_config=wanted,
+            route=route,
+        )
+
+    assert (
+        subscriber.update_subscription.call_count == provisioning.CONFLICT_RETRIES + 1
+    )
+    assert not [r for r in caplog.records if r.levelname == "ERROR"]
+    assert any(r.levelname == "WARNING" for r in caplog.records)
+
+
+def test_update_subscription_errors_when_the_winner_wrote_different_config(caplog):
+    """
+    A conflict is only benign if the winner wrote what we wanted.
+
+    Two *different* revisions provisioning at once write different config, and
+    the loser silently accepting that would leave the subscription on the other
+    revision's settings with nothing said about it.
+    """
+    route = _route()
+    live = SimpleNamespace(
+        push_config=_push_config(
+            endpoint="https://an-older-revision.test/tasks/pubsub/"
+        ),
+        ack_deadline_seconds=route.ack_deadline + 120,
+        retry_policy=provisioning.route_retry_policy(route),
+    )
+    subscriber = _subscriber_conflicting_with(live)
+
+    with caplog.at_level("WARNING"):
+        provisioning._update_subscription_tolerating_conflict(
+            subscriber=subscriber,
+            subscription_path="projects/p/subscriptions/s",
+            subscription_name="s",
+            push_config=_push_config(),
+            route=route,
+        )
+
+    errors = [r for r in caplog.records if r.levelname == "ERROR"]
+    assert len(errors) == 1
+    assert "push endpoint" in errors[0].message
+    assert "ack deadline" in errors[0].message
+
+
+def test_update_subscription_warns_when_it_cannot_read_back(caplog):
+    """Failing to confirm must not turn into an unhandled provisioning error."""
+    subscriber = MagicMock()
+    subscriber.update_subscription.side_effect = Conflict("raced")
+    subscriber.get_subscription.side_effect = RuntimeError("read failed")
 
     with caplog.at_level("WARNING"):
         provisioning._update_subscription_tolerating_conflict(
@@ -81,11 +173,8 @@ def test_update_subscription_retries_then_warns_on_conflict(caplog):
             route=_route(),
         )
 
-    assert (
-        subscriber.update_subscription.call_count == provisioning.CONFLICT_RETRIES + 1
-    )
     assert not [r for r in caplog.records if r.levelname == "ERROR"]
-    assert any(r.levelname == "WARNING" for r in caplog.records)
+    assert any("could not read it back" in r.message for r in caplog.records)
 
 
 def test_update_subscription_succeeds_after_a_transient_conflict():
