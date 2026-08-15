@@ -22,15 +22,16 @@ class TasksConfig(AppConfig):
 
         Pub/Sub provisioning deliberately does **not** happen here. `ready()` runs
         in every Django process — every management command and every gunicorn
-        worker — and provisioning is a serial run of blocking Pub/Sub admin calls.
-        On Cloud Run that meant four runs per container (collectstatic,
-        ensuresuperuser, and once per worker), ~120s of a ~160s cold start, all of
-        it re-creating resources that already existed. Worse, the workers ran it
-        *after* gunicorn had bound the port, so Cloud Run's startup probe passed
-        and real requests were routed into processes still blocked in `ready()`.
+        worker — and provisioning is a run of blocking Pub/Sub admin calls. On
+        Cloud Run that puts four runs in each container (collectstatic,
+        ensuresuperuser, and one per worker), around two minutes of a
+        two-and-a-half minute cold start, all of it re-creating resources that
+        already exist. The runs inside the workers are the worst of them: they
+        happen after gunicorn has bound the port, so the startup probe passes and
+        real requests are routed into processes still blocked in `ready()`.
 
-        Provisioning is now a background step in `docker/entrypoint.sh`
-        (`manage provision_tasks`), off the request path entirely.
+        Provisioning belongs in `docker/entrypoint.sh` (`manage provision_tasks`),
+        off the request path entirely.
         """
         # Import signal handlers to register them (works with any backend)
         from gyrinx.tasks import signals  # noqa: F401  # isort: skip
