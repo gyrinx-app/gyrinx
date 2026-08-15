@@ -49,92 +49,62 @@ its slot is invisible and inert, so building one in can only be a mistake.
   pickable may give a further **slot** (the chained choice: picking Clan
   House opens the House choice; un-choosing retracts the chain through
   cause).
-- Reach beyond the bearer is **positive inclusion**, which the grammar
-  already says: the rulebook's one gang-level archetype effect reads "if
-  the Leader has the Mutant Archetype, then Outcast Mutations will also
-  be available to Hive Scum in their gang" — a named rank added, never a
-  rank excluded. No negation mechanism is needed; an earlier draft's
-  "every model except Champions" was not in the rules.
+- Scopes must be able to say **except**: the Outcast archetype's gang-wide
+  payload reaches every model *except* Champions. The condition grammar
+  carries a spoken negation for this ("every model except Champion").
 
-## Example A — Gang Legacy (Apocrypha: Bonedry and Broke, p7)
+## Example A — Gang Legacy, with a default
 
-Slot type *Gang Legacy* (repeats: no). Eight pickables — Cawdor, Delaque,
-Escher, Goliath, Orlock, Van Saar, Ironhead Squat, Ogryn — each carrying
-one modifier: *gives* the named fighter's equipment list *to the bearer*
-(Cawdor gives the Cawdor Word-Keeper list; purchases at that list's own
-prices). **Three picklists, keyed by profile family** — no fighter may
-ever choose from all eight:
+Slot type *Gang Legacy* (repeats: no). Eight pickables — Cawdor, Escher,
+Goliath, Orlock, Van Saar, Delaque, Ironhead Squats, Ogryn — each carrying
+one modifier: *gives* that house's equipment list *to the bearer*. Picklist
+*Gang Legacies*, all eight. One Slot: (*Gang Legacy*, *Gang Legacies*,
+label "Gang Legacy", 1..1, assigned to bearer). Hunter profiles carry the
+Slot in their built-ins; the Ironhead Squats profile carries the
+slot-with-default (Slot, Ironhead Squats).
 
-- *House Legacies* — the six House options, on House profiles' slots
-- *Ogryn Legacy* — one member, on Ogryn profiles' slots
-- *Squat Legacy* — one member, on Ironhead Squat profiles' slots
+The exact option lists, and which profiles carry which slot or default,
+are the maintainer's to state before the scenario suites pin them.
 
-Three Slots share the type, one per picklist, each (label "Gang Legacy",
-1..1, assigned to bearer), built into the matching profiles. Ratling and
-Beastman profiles carry no slot at all. A one-member picklist is still a
-choice — the rules say *may select*, so nothing is pre-written.
-
-Kaustos, hired from a House profile, chooses Cawdor:
+Kaustos, hired plain, chooses Cawdor:
 
     [Hunter profile]    host = the gang   cause = —               (the hire)
     [Gang Legacy slot]  host = Kaustos    cause = the membership
     [Cawdor]            host = Kaustos    cause = the slot's assignment
                         chosen_for = the slot's assignment
-    (no row)            Cawdor Word-Keeper equipment list — computed give,
+    (no row)            House Cawdor Equipment List — computed give,
                         on his equip page at that list's own prices
 
-Grounded but out of the first build, recorded so the suites can note
-them: the list is recruitment-time access (a note, never a gate); Leaders
-and Champions may also buy their legacy's Status Items and Exotic Beasts
-(rank-scoped gives); and "if a Venator gang's Leader has a Gang Legacy
-then the gang may claim Enhanced Boons" — a gang-level consequence of a
-bearer-hosted pick, which wants the has-this-pickable condition read at
-gang level and is flagged as follow-on design.
+Grendel, hired from the Squats profile, arrives with the pick already
+made — same rows, [Ironhead Squats] written at hire. Changing it is the
+ordinary rechoose: the pick is replaced, the slot stays.
 
-## Example B — the Affiliation shape (Book of the Outcast, p17-19)
+## Example B — the Affiliation shape (grounded in prod's Outcast content)
 
-Slot type *Affiliation*. The five pickables: Clanless (a deliberately
-empty payload — grants nothing, a clean test case), Clan House, Merchant
-Guild, Criminal Organisation, Noble House. Picklist *Affiliations*. One
-Slot: (*Affiliation*, *Affiliations*, label "Affiliation", 1..1,
-**assigned to the gang**), built into the **Leader profile** — the rules
-say the Leader chooses at creation and the effects are gang-wide, so the
-choice row draws on the Leader's card and the pick lands on the gang.
-The same leader-chooses, gang-holds shape as the archetype.
+Slot type *Affiliation*. Pickables shaped like the live content — Aranthian
+carrying *gives the Aranthian Equipment List to Champion, Ganger and
+Leader models*. Picklist *Affiliations*. One Slot: (*Affiliation*,
+*Affiliations*, label "Affiliation", 1..1, **assigned to the gang**),
+built into the **gang type** — exactly where prod's Outcast built-ins
+carry the Affiliation choice today. The choice row draws on the gang's
+card only; the pick, gang-hosted, applies its scoped gives to the ranks
+it names; no member card grows a row.
 
-Chained — four of the five open a second choice: each of Clan House,
-Merchant Guild, Criminal Organisation and Noble House gives another Slot
-of its own slot type (label "House", "Guild", "Organisation"…), whose
-picklist holds that family's options. Un-choosing the first retracts the
-chain. Tests must not pin the sub-list lengths — the FAQ has already
-grown two of them.
+Chained: a pickable may give another Slot (Clan House opening a choice of
+House), so making the first choice opens the second, and un-choosing
+retracts the chain through cause.
 
-The grounded slot-with-default case lives here: a **Delegation** gang's
-Leader "must be given an Affiliation to match their Delegation type" —
-the Delegation leader profile carries the slot-with-default naming its
-matching affiliation.
+## Example C — the Archetype shape (sandbox proof, not a migration)
 
-## Example C — the Archetype shape (Book of the Outcast, p18 and p26)
+Slot type *Archetype* (repeats: no). Two Slots over one type:
 
-Slot type *Archetype* (repeats allowed — a Leader and a Champion may both
-be Brawlers). Two Slots over one type, and **two pickable sets**, because
-the same archetype name carries a different skill grid at each rank
-(Brawler-as-Leader places three primary sets; Brawler-as-Champion one):
-
-- (*Archetype*, *Leader Archetypes*, label "Archetype", 1..1, assigned to
-  **bearer**) — built into the leader profile. The core payload is the
-  bearer's own skill access. The one genuine gang-level effect is
-  Mutant's, expressed as a positive inclusion: the Mutant pickable's
-  extra give is scoped *to Hive Scum models* and assigned to the gang —
-  wanting the leader-hosted pick to carry a gang-reaching give, the
-  case that grounds gives with their own landing spot.
+- (*Archetype*, *Outcast Archetypes*, label "Archetype", 1..1, **assigned
+  to the gang**) — built into the leader profile. The choice row draws on
+  the leader's card (he is the host); the pick lands on the gang. Its
+  payload is scoped **to every model except Champions** — the spoken
+  negation the condition grammar carries.
 - (*Archetype*, *Champion Archetypes*, label "Archetype", 1..1, assigned
-  to bearer) — built into champion profiles. Same type, its own picklist,
-  its own pickables.
-
-Flagged, not built: Mutant's cross-slot constraint ("a Leader that takes
-the Mutant Archetype can only have the Clanless Affiliation") has no
-machinery; it is a note candidate for later.
+  to bearer) — built into a champion profile. Same type, personal reach.
 
 ## Out of scope
 
