@@ -63,6 +63,23 @@ COPY docker/ /app/docker/
 
 EXPOSE $PORT
 
+# Collect static into the image rather than on each container boot: the manifest
+# and the gzip/brotli variants that CompressedManifestStaticFilesStorage writes
+# are a pure function of the image's files, so a container recomputing them
+# learns nothing and spends ~50s of its startup doing it.
+#
+# This must stay the LAST step that can see application files. The manifest only
+# covers what exists when it runs, and ManifestStaticFilesStorage raises on a
+# name it has no entry for — so a static asset added by a later COPY does not
+# 404, it 500s every page that references it.
+#
+# settings_prod is required: it is what selects the WhiteNoise compressed-manifest
+# storage, so building under plain `settings` would emit an unhashed tree that
+# the manifest lookups then fail against at runtime. It needs no runtime
+# environment — no database, no secrets, no GCP credentials; tracing init catches
+# its own failure to reach GCP.
+RUN DJANGO_SETTINGS_MODULE=gyrinx.settings_prod manage collectstatic --noinput
+
 # Exec form: the script's shell becomes PID 1, so its `exec gunicorn` makes
 # gunicorn PID 1 and SIGTERM from Cloud Run reaches it for graceful shutdown.
 # (Shell form wraps the script in an outer `sh -c` that keeps PID 1 and dies

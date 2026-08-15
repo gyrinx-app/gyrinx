@@ -17,9 +17,12 @@ jobs from running.
 import json
 import logging
 import os
+import random
+import time
+from concurrent.futures import ThreadPoolExecutor
 
 from django.conf import settings
-from google.api_core.exceptions import AlreadyExists, NotFound
+from google.api_core.exceptions import Aborted, AlreadyExists, Conflict, NotFound
 from google.cloud import pubsub_v1, scheduler_v1
 from google.protobuf import duration_pb2
 
@@ -31,6 +34,16 @@ logger = logging.getLogger(__name__)
 
 # Prefix used for scheduler job names to identify jobs managed by this system
 SCHEDULER_JOB_PREFIX = "gyrinx-scheduler"
+
+# Tasks are provisioned concurrently: each one is ~3 blocking round trips to the
+# Pub/Sub admin API (~1.5s each), and run serially that was ~40s for 8 tasks.
+# They touch disjoint resources, so there is nothing to serialise for.
+PROVISION_MAX_WORKERS = 8
+
+# Two containers cold-starting together will both try to update the same
+# subscription, and one gets a 409. It is benign — the other process is writing
+# the identical config — so retry briefly rather than reporting a failure.
+CONFLICT_RETRIES = 2
 
 
 def get_service_url() -> str:
@@ -79,7 +92,7 @@ def provision_task_infrastructure():
     tasks = get_all_tasks()
     logger.info(f"Provisioning {len(tasks)} tasks (env={env})")
 
-    for route in tasks:
+    def _run(route: TaskRoute):
         try:
             _provision_task(
                 publisher=publisher,
@@ -94,6 +107,11 @@ def provision_task_infrastructure():
         except Exception as e:
             logger.error(f"Failed to provision {route.name}: {e}", exc_info=True)
             track("task_provisioning_failed", task_name=route.name, error=str(e))
+
+    # `_run` swallows its own exceptions, so the pool always drains and one bad
+    # task cannot take the rest of the provisioning down with it.
+    with ThreadPoolExecutor(max_workers=PROVISION_MAX_WORKERS) as pool:
+        list(pool.map(_run, tasks))
 
     # Provision Cloud Scheduler jobs for scheduled tasks
     _provision_scheduled_tasks(project_id=project_id, publisher=publisher, tasks=tasks)
@@ -132,10 +150,7 @@ def _provision_task(
     )
 
     # Configure retry policy from task route settings
-    retry_policy = pubsub_v1.types.RetryPolicy(
-        minimum_backoff=duration_pb2.Duration(seconds=route.min_retry_delay),
-        maximum_backoff=duration_pb2.Duration(seconds=route.max_retry_delay),
-    )
+    retry_policy = route_retry_policy(route)
 
     # Create subscription or update if it exists
     try:
@@ -151,20 +166,165 @@ def _provision_task(
         logger.info(f"Created subscription: {subscription_name}")
     except AlreadyExists:
         # Update existing subscription with current configuration
-        subscriber.update_subscription(
-            request={
-                "subscription": {
-                    "name": subscription_path,
-                    "push_config": push_config,
-                    "ack_deadline_seconds": route.ack_deadline,
-                    "retry_policy": retry_policy,
-                },
-                "update_mask": {
-                    "paths": ["push_config", "ack_deadline_seconds", "retry_policy"]
-                },
-            }
+        _update_subscription_tolerating_conflict(
+            subscriber=subscriber,
+            subscription_path=subscription_path,
+            subscription_name=subscription_name,
+            push_config=push_config,
+            route=route,
         )
-        logger.debug(f"Updated subscription: {subscription_name}")
+
+
+def _update_subscription_tolerating_conflict(
+    subscriber: pubsub_v1.SubscriberClient,
+    subscription_path: str,
+    subscription_name: str,
+    push_config,
+    route: TaskRoute,
+):
+    """
+    Update a subscription, retrying briefly if another process is writing it.
+
+    Two containers provisioning at once both write this subscription, and Pub/Sub
+    rejects the loser with 409 "The request raced with another user request".
+    Usually both are writing identical config and the conflict carries no
+    information, so retry with jitter and do not treat it as a failure.
+
+    Where the two writers are different revisions, though, they can be writing
+    *different* config — and silently giving up would leave the subscription on
+    the other revision's settings. So once the retries are exhausted, read the
+    subscription back and say which of the two happened. Both are WARNINGs; the
+    `task_provisioning_diverged` metric is what distinguishes them for alerting.
+    """
+    desired = {
+        "name": subscription_path,
+        "push_config": push_config,
+        "ack_deadline_seconds": route.ack_deadline,
+        "retry_policy": route_retry_policy(route),
+    }
+    request = {
+        "subscription": desired,
+        "update_mask": {
+            "paths": ["push_config", "ack_deadline_seconds", "retry_policy"]
+        },
+    }
+
+    for attempt in range(CONFLICT_RETRIES + 1):
+        try:
+            subscriber.update_subscription(request=request)
+            logger.debug(f"Updated subscription: {subscription_name}")
+            return
+        except (Aborted, Conflict) as e:
+            if attempt == CONFLICT_RETRIES:
+                _report_unsettled_conflict(
+                    subscriber=subscriber,
+                    subscription_path=subscription_path,
+                    subscription_name=subscription_name,
+                    desired=desired,
+                    route=route,
+                    error=e,
+                )
+                return
+            # nosec B311 - backoff jitter to decorrelate two containers retrying
+            # in lockstep; nothing security-sensitive depends on it.
+            time.sleep(0.25 * (2**attempt) + random.uniform(0, 0.25))  # nosec B311
+
+
+def _diff_against_live(desired: dict, live) -> list[str]:
+    """
+    Name the settings where a live subscription differs from what we wanted.
+
+    Compares the individual values the update sets, never whole messages. The
+    server fills in defaults we never asked for — a push subscription comes back
+    carrying an empty `pubsub_wrapper`, for instance — so comparing the protos
+    whole reports a difference for every subscription, including correct ones.
+    """
+    want_push = desired["push_config"]
+    want_retry = desired["retry_policy"]
+    live_push, live_retry = live.push_config, live.retry_policy
+
+    differences = []
+    if live_push.push_endpoint != want_push.push_endpoint:
+        differences.append("push endpoint")
+    if (
+        live_push.oidc_token.service_account_email
+        != want_push.oidc_token.service_account_email
+        or live_push.oidc_token.audience != want_push.oidc_token.audience
+    ):
+        differences.append("OIDC token")
+    if live.ack_deadline_seconds != desired["ack_deadline_seconds"]:
+        differences.append("ack deadline")
+    if (
+        live_retry.minimum_backoff != want_retry.minimum_backoff
+        or live_retry.maximum_backoff != want_retry.maximum_backoff
+    ):
+        differences.append("retry backoff")
+    return differences
+
+
+def _report_unsettled_conflict(
+    subscriber: pubsub_v1.SubscriberClient,
+    subscription_path: str,
+    subscription_name: str,
+    desired: dict,
+    route: TaskRoute,
+    error: Exception,
+):
+    """
+    Decide how loudly to complain about a conflict that never settled.
+
+    Reads the subscription back and compares the fields the update would have
+    set. If the winning writer left the same values, nothing is wrong. If it did
+    not, the subscription is running someone else's config and that needs saying
+    plainly.
+    """
+    try:
+        live = subscriber.get_subscription(request={"subscription": subscription_path})
+    except Exception as read_error:
+        logger.warning(
+            f"Subscription {subscription_name} is being updated concurrently and "
+            f"did not settle ({error}); could not read it back to confirm its "
+            f"config ({read_error})"
+        )
+        track("task_provisioning_conflict", task_name=route.name, verified=False)
+        return
+
+    divergent = _diff_against_live(desired, live)
+
+    if divergent:
+        # WARNING, not ERROR. A rolling deploy is exactly when two revisions
+        # provision at once, so a route whose config changed in that deploy will
+        # land here on the way through — an expected, self-correcting condition,
+        # and crying wolf about it in Cloud Logging is the habit this whole change
+        # is trying to break. The metric below is the thing worth alerting on:
+        # it firing repeatedly, long after a deploy has settled, is the signal.
+        logger.warning(
+            f"Subscription {subscription_name} was written concurrently by another "
+            f"process and now differs from this revision's config in "
+            f"{', '.join(divergent)}. It will be corrected the next time a "
+            f"container provisions without contention ({error})"
+        )
+        track(
+            "task_provisioning_diverged",
+            task_name=route.name,
+            fields=",".join(divergent),
+        )
+        return
+
+    logger.warning(
+        f"Subscription {subscription_name} is being updated concurrently and did "
+        f"not settle after {CONFLICT_RETRIES + 1} attempts, but the config now in "
+        f"place matches what this revision wanted ({error})"
+    )
+    track("task_provisioning_conflict", task_name=route.name, verified=True)
+
+
+def route_retry_policy(route: TaskRoute) -> pubsub_v1.types.RetryPolicy:
+    """Build the Pub/Sub retry policy for a route's backoff settings."""
+    return pubsub_v1.types.RetryPolicy(
+        minimum_backoff=duration_pb2.Duration(seconds=route.min_retry_delay),
+        maximum_backoff=duration_pb2.Duration(seconds=route.max_retry_delay),
+    )
 
 
 def _provision_scheduled_tasks(
