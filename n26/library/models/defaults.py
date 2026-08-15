@@ -255,7 +255,7 @@ class DefaultAssignment(NamesAnAssignable, Content):
                     "default_pickable": (
                         f"{self.default_pickable} belongs to "
                         f"{self.default_pickable.slot_type}, and "
-                        f"{self.slot} offers {self.slot.slot_type} options."
+                        f"{self.slot} offers {self.slot.slot_type} pickables."
                     )
                 }
             )

@@ -4,14 +4,14 @@
     {{ thing }}
 {% endblock head_title %}
 {% comment %}
-A domain of choice, and everything built in it: its options, the lists
-that offer them, and the choices that draw on those lists. Three tables
-and three forms on one page, because the three only mean anything
-together — an option nothing lists can never be offered, and a list
+A slot type, and everything built in it: its pickables, the picklists
+that offer them, and the slots that draw on those picklists. Three
+tables and three forms on one page, because the three only mean anything
+together — a pickable nothing lists can never be offered, and a picklist
 nothing draws on is never asked.
 
 No nav_heading: the bar says where you are standing — Slot types,
-carried by its switcher's leading link — and the domain itself is the
+carried by its switcher's leading link — and the slot type itself is the
 page heading's to name.
 {% endcomment %}
 {% block content %}
@@ -53,9 +53,10 @@ page heading's to name.
         </div>
     </c-n26.form-section>
     {% comment %}
-    The three sets of parts, in the order a domain is built. Each row's
-    name leads to that row's own page, which is where it is corrected —
-    and, for an option, where the modifier saying what it does hangs.
+    The three sets of parts, in the order a slot type is built. Each
+    row's name leads to that row's own page, which is where it is
+    corrected — and, for a pickable, where the modifier saying what it
+    does hangs.
     {% endcomment %}
     {% for section in sections %}
         <c-n26.form-section title="{{ section.title }}"

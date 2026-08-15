@@ -532,13 +532,13 @@ def create_affiliation(
     return carrier
 
 
-# --- Slots and picks: a domain of choice, authored ---------------------------
+# --- Slots and picks: a slot type, authored ----------------------------------
 
 
 def create_slot_type(name, plural_name="", allows_repeats=True, **kwargs):
-    """A domain of choice — Gang Legacy, Affiliation, Archetype.
+    """What is chosen — Gang Legacy, Affiliation, Archetype.
 
-    The first thing built: its options, its lists and the choices
+    The first thing built: its pickables, its picklists and the slots
     themselves all name it, and authoring refuses a mismatch.
     """
     from n26.library.models import SlotType
@@ -554,14 +554,14 @@ def create_slot_type(name, plural_name="", allows_repeats=True, **kwargs):
 def create_pickable(
     name, slot_type, effects=(), qualifier="", library_author_help="", **kwargs
 ):
-    """One option a choice offers; ``effects`` are (scope, effect) pairs.
+    """One pickable a choice offers; ``effects`` are (scope, effect) pairs.
 
-    Everything the option *means* rides it as ordinary modifiers — an
+    Everything the pickable *means* rides it as ordinary modifiers — an
     equipment list opened, a subtype granted, a further choice given.
     """
     from n26.library.models import Pickable
 
-    option = Pickable.objects.create(
+    pickable = Pickable.objects.create(
         name=name,
         slot_type=slot_type,
         qualifier=qualifier,
@@ -569,12 +569,14 @@ def create_pickable(
         **kwargs,
     )
     for scope, effect in effects:
-        modifier(name=f"{name}: {effect}", scope=scope, effect=effect, attach_to=option)
-    return option
+        modifier(
+            name=f"{name}: {effect}", scope=scope, effect=effect, attach_to=pickable
+        )
+    return pickable
 
 
 def create_picklist(name, slot_type, members=(), **kwargs):
-    """A flat, ordered list of options of one domain.
+    """A flat, ordered list of one slot type's pickables.
 
     ``members`` are pickables, in order, or ``(pickable, "wording")``
     where this list calls one of them something else.
@@ -589,18 +591,18 @@ def create_picklist(name, slot_type, members=(), **kwargs):
 
 
 def add_picklist_member(picklist, pickable, label_override="", position=None, **kwargs):
-    """One more option on a list, at the end unless placed.
+    """One more pickable on a list, at the end unless placed.
 
-    Refused where the option belongs to another domain: a list offers
-    one domain's options and a choice reading it has to be settleable by
-    every one of them.
+    Refused where the pickable belongs to another slot type: a list
+    offers one slot type's pickables and a choice reading it has to be
+    settleable by every one of them.
     """
     from n26.library.models import PicklistMember
 
     if pickable.slot_type_id != picklist.slot_type_id:
         raise ValidationError(
             f"{pickable} belongs to {pickable.slot_type}, and {picklist} "
-            f"lists {picklist.slot_type} options."
+            f"lists {picklist.slot_type} pickables."
         )
     if position is None:
         position = picklist.members.count()
@@ -614,11 +616,11 @@ def add_picklist_member(picklist, pickable, label_override="", position=None, **
 
 
 def remove_picklist_member(member):
-    """Stop offering one option on one list.
+    """Stop offering one pickable on one list.
 
-    The option itself stays in the library and on every other list that
-    offers it; anyone who already picked it keeps it, because a pick is
-    an assignment and this is only what is offered next.
+    The pickable itself stays in the library and on every other list
+    that offers it; anyone who already picked it keeps it, because a
+    pick is an assignment and this is only what is offered next.
     """
     member.delete()
 
@@ -637,7 +639,7 @@ def create_slot(
     library_author_help="",
     **kwargs,
 ):
-    """One named use of a domain: the choice a card actually asks.
+    """One named use of a slot type: the choice a card actually asks.
 
     Assign one — built into a fighter entry, given by something else —
     and the card draws ``label`` (or this slot's name) with what has been
@@ -648,7 +650,7 @@ def create_slot(
 
     if picklist.slot_type_id != slot_type.pk:
         raise ValidationError(
-            f"{picklist} lists {picklist.slot_type} options, and this is a "
+            f"{picklist} lists {picklist.slot_type} pickables, and this is a "
             f"{slot_type} choice."
         )
     return Slot.objects.create(
@@ -985,7 +987,7 @@ def add_built_in(
 
 
 def _refuse_a_bare_pickable(thing):
-    """An option built into something, with no choice behind it, in words.
+    """A pickable built into something, with no slot behind it, in words.
 
     It would sit in the library unread: a pick's slot is what puts it on
     a card and what gives it its meaning.
@@ -1395,7 +1397,7 @@ def has_pickable(*pickables, negate=False):
     ``targets_model(has_pickable(cawdor))`` for "models with the Cawdor
     legacy". ``negate=True`` reaches everyone who picked something else.
 
-    One condition serving every domain of choice ever authored: what was
+    One condition serving every slot type ever authored: what was
     picked is an ordinary possession."""
     from n26.library.models import HasPickable
 

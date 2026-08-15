@@ -1042,17 +1042,17 @@ def _picklists_holding(edges):
 
 
 def _listed(edges):
-    """The lists that offer the thing.
+    """The picklists that offer the thing.
 
-    A fact about each list rather than a route on its own: being on a
-    list is how an option comes to be offered, and which choices do the
-    offering is said further down.
+    A fact about each picklist rather than a route on its own: being on
+    a picklist is how a pickable comes to be offered, and which choices
+    do the offering is said further down.
     """
     return [
         Sentence(
             text=f"Listed in {picklist}.",
             hint=(
-                "The options behind a choice. Everything on this list is "
+                "The pickables behind a choice. Everything on this list is "
                 "offered wherever a choice draws on it."
             ),
             key=_identity(picklist),
@@ -1064,9 +1064,9 @@ def _listed(edges):
 def _offered_by_a_choice(edges):
     """The choices that draw on a list the thing is on — the "may" half.
 
-    A choice names a list, so nothing points at the option itself: every
-    choice drawing on a list that offers it is a way somebody could come
-    to have it. One query however many lists hold it.
+    A choice names a picklist, so nothing points at the pickable itself:
+    every choice drawing on a list that offers it is a way somebody could
+    come to have it. One query however many lists hold it.
     """
     from n26.library.models import Slot
 
@@ -1078,7 +1078,7 @@ def _offered_by_a_choice(edges):
             text=f"May be chosen for {_named(slot)}.",
             hint=(
                 "The choice is on the card while whatever asks it is, and "
-                "this is one of the options it offers."
+                "this is one of the pickables it offers."
             ),
             key=_identity(slot),
         )
@@ -1089,8 +1089,8 @@ def _offered_by_a_choice(edges):
 def _started_with(edges):
     """The choices this arrives already settling — a slot with a default.
 
-    A route of its own: nothing gives the option and nobody picks it, it
-    simply comes with the choice, changed afterwards by the ordinary
+    A route of its own: nothing gives the pickable and nobody picks it,
+    it simply comes with the choice, changed afterwards by the ordinary
     rechoose.
     """
     return [

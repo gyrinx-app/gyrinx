@@ -308,9 +308,9 @@ class Choosable:
     #: could take away.
     granted_by: str = ""
     #: The other choice on this holder that has already settled on it,
-    #: where the domain says one option answers one choice. Marked and
-    #: never withheld: the owner may still pick it, and the card says so
-    #: afterwards.
+    #: where the slot type says one pickable answers one choice. Marked
+    #: and never withheld: the owner may still pick it, and the card says
+    #: so afterwards.
     taken_for: str = ""
     #: What this option's own control does, where a choice is settled one
     #: option at a time: ``"choose"`` adds it, ``"remove"`` takes back the
@@ -809,9 +809,9 @@ def build_choice_offer(slot, computed):
     branch knows what kind of thing is being picked — that is what lets a
     skill, an archetype and an affiliation share a screen.
 
-    Where the domain of choice takes one option once, the options this
-    holder has already spent elsewhere are marked. Marked, not withheld:
-    the list informs, the click still works, and the card says so
+    Where the slot type takes one pickable once, the ones this holder
+    has already spent elsewhere are marked. Marked, not withheld: the
+    list informs, the click still works, and the card says so
     afterwards.
 
     A choice holding more than one pick is settled a pick at a time:
@@ -916,9 +916,9 @@ def offer_from_view(view, *, label, chosen=None, current=None, held=(), granted=
 
 def _taken_elsewhere(slot, computed):
     """What this holder has already picked for another choice of the same
-    domain, keyed the way the picker keys its options.
+    slot type, keyed the way the picker keys its options.
 
-    Only where the domain takes one option once: where it allows
+    Only where the slot type takes one pickable once: where it allows
     repeats, picking the same thing twice is the content working as
     written and there is nothing to say. The choice being made is left
     out of its own answer — what is already picked *here* is marked as
@@ -955,7 +955,7 @@ def _choosable(
     granted_by = (granted or {}).get(key, "")
     return Choosable(
         key=key,
-        # The wording a list gives an option, where it gives it one. The
+        # The wording a list gives a pickable, where it gives it one. The
         # thing's own name everywhere else, and on every other surface.
         name=name or str(thing),
         thing=thing,

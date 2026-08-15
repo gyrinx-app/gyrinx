@@ -873,7 +873,7 @@ def sample_about():
                 href="#",
             ),
             _Said(
-                text="It asks the gang to choose one affiliation — the card says Choose until they pick.",
+                text="It asks the gang to make the choice — the card says Choose until they pick.",
             ),
         ),
         assigned_to=_AssignedSample(gangs=14, rows=23),
@@ -923,7 +923,7 @@ def choice_picks_offer(full=False):
     """A choice that holds several picks, part-way through being made.
 
     One nameless group, because a picklist has no headings — it is the
-    options behind a choice and nothing else. Two of the three are held,
+    pickables behind a choice and nothing else. Two of the three are held,
     so both acts are on the page at once; ``full`` is the same choice with
     no room left, where the ones it does not hold are not listed at all.
     """
@@ -1873,7 +1873,7 @@ CHANGELOG = [
         "title": "Outcasts",
         "date": "28 Jul",
         "text": (
-            "Archetypes and affiliations, chained picks, and the ratio notes that "
+            "Gang legacies, chained picks, and the ratio notes that "
             "come with them. Said, never enforced."
         ),
     },

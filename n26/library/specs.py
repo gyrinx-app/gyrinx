@@ -40,8 +40,9 @@ class _Sourced:
     source: tuple = None
     #: Asked when the thing is made and never again. Some answers are
     #: what the thing *is* rather than something about it — a choice's
-    #: domain decides which options could ever settle it, so changing it
-    #: leaves a list and a pick that no longer belong to each other.
+    #: slot type decides which pickables could ever settle it, so
+    #: changing it leaves a list and a pick that no longer belong to
+    #: each other.
     #: Changing one of these is making a different thing. A form opened
     #: on a row that already exists does not offer the field, and so
     #: does not write it (``GeneratedForm.opened_on``).
@@ -937,8 +938,8 @@ def _build_registry():
                 ),
             },
         ),
-        # Slots and picks: a domain of choice, its options, the list they
-        # are offered on, and the choice itself. Four pages and no code,
+        # Slots and picks: a slot type, its pickables, the picklist they
+        # are offered on, and the slot itself. Four pages and no code,
         # which is the whole point of the shape.
         Spec(
             authoring.create_slot_type,
@@ -952,10 +953,10 @@ def _build_registry():
             authoring.create_pickable,
             {
                 "name": Text(source=(Pickable, "name")),
-                # The domain is what this is an option *in*: settled when
-                # the option is made and not afterwards, or a list would
-                # be left offering something no choice of its domain
-                # could take.
+                # The slot type is what this pickable belongs to:
+                # settled when it is made and not afterwards, or a list
+                # would be left offering something no choice of its slot
+                # type could take.
                 "slot_type": One(
                     model=SlotType, source=(Pickable, "slot_type"), fixed=True
                 ),
@@ -969,9 +970,9 @@ def _build_registry():
             authoring.create_picklist,
             {
                 "name": Text(source=(Picklist, "name")),
-                # One domain throughout, settled when the list is made:
-                # every option on it and every choice drawing on it were
-                # accepted against this.
+                # One slot type throughout, settled when the list is
+                # made: every pickable on it and every choice drawing on
+                # it were accepted against this.
                 "slot_type": One(
                     model=SlotType, source=(Picklist, "slot_type"), fixed=True
                 ),
@@ -980,8 +981,8 @@ def _build_registry():
         Spec(
             authoring.add_picklist_member,
             {
-                # A list offers one domain's options, so the picker on
-                # its page offers that domain's and nothing else.
+                # A list offers one slot type's pickables, so the picker
+                # on its page offers that slot type's and nothing else.
                 "pickable": One(
                     model=Pickable,
                     source=(PicklistMember, "pickable"),
@@ -996,17 +997,17 @@ def _build_registry():
             authoring.create_slot,
             {
                 "name": Text(source=(Slot, "name")),
-                # The domain a choice is in, settled when it is made.
+                # The slot type a choice is in, settled when it is made.
                 # Changed afterwards, the list behind it would offer
-                # options the choice could not take and the picks
+                # pickables the choice could not take and the picks
                 # already made would answer nothing.
                 "slot_type": One(
                     model=SlotType, source=(Slot, "slot_type"), fixed=True
                 ),
-                # Narrowed where the domain is already settled — on its
-                # own page, where a choice is added to it. The page that
-                # makes a slot from scratch has no domain to narrow by
-                # and offers every list there is.
+                # Narrowed where the slot type is already settled — on
+                # its own page, where a slot is added to it. The page
+                # that makes a slot from scratch has no slot type to
+                # narrow by and offers every list there is.
                 "picklist": One(
                     model=Picklist,
                     source=(Slot, "picklist"),

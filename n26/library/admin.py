@@ -118,9 +118,9 @@ class StatlineInline(admin.StackedInline):
     fields = []
 
 
-# Slots and picks. A domain of choice is authored on its own page in the
+# Slots and picks. A slot type is authored on its own page in the
 # library; these registrations are the inspectable graph behind it — every
-# table filterable by the domain it belongs to, so "what is in Gang
+# table filterable by the slot type it belongs to, so "what is in Gang
 # Legacy" is one question of any of them.
 
 

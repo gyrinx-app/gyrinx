@@ -118,8 +118,10 @@ def test_statline_admin_inlines_its_values(admin_client, make_profile, make_stat
     assert response.status_code == 200
 
 
-def test_a_domain_of_choice_is_inspectable_by_its_own_name(admin_client, default_pack):
-    """The whole graph filters by the domain it belongs to, so "what is
+def test_a_slot_type_of_choice_is_inspectable_by_its_own_name(
+    admin_client, default_pack
+):
+    """The whole graph filters by the slot type it belongs to, so "what is
     in Gang Legacy" is one question of any of the four tables."""
     from n26.library.authoring import (
         create_pickable,
@@ -142,7 +144,7 @@ def test_a_domain_of_choice_is_inspectable_by_its_own_name(admin_client, default
         assert "Gang Legacy" in response.content.decode(), model
 
 
-def test_a_lists_options_are_edited_on_the_list(admin_client, default_pack):
+def test_a_lists_pickables_are_edited_on_the_list(admin_client, default_pack):
     from n26.library.authoring import (
         create_pickable,
         create_picklist,

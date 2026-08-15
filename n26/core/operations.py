@@ -799,14 +799,14 @@ class Operation:
 
         The pick names both the assignment that asked and the slot it
         settles. One assignment may ask twice — a thing giving two choices
-        of one domain — and the pair says which of them this answers.
+        of one slot type — and the pair says which of them this answers.
 
-        The one check is the domain — a Gang Legacy choice is settled by
-        a Gang Legacy option and by nothing else, because the row reads
-        as settled by the same match and anything else would leave the
-        choice open with a stray assignment beside it. Which options the
-        picklist offers is not checked: a shorter list informs, and an
-        owner may still hand over something off it.
+        The one check is the slot type — a Gang Legacy choice is settled
+        by a Gang Legacy pickable and by nothing else, because the row
+        reads as settled by the same match and anything else would leave
+        the choice open with a stray assignment beside it. Which
+        pickables the picklist offers is not checked: a shorter list
+        informs, and an owner may still hand over something off it.
 
         Where the pick lands is the slot's own business — the bearer, or
         the gang where the slot says so (the Leader is asked and the gang
@@ -826,7 +826,7 @@ class Operation:
                 chosen,
                 message=(
                     f"{chosen} cannot settle {slot.choice_label} — that "
-                    f"choice takes {slot.slot_type} options."
+                    f"choice takes {slot.slot_type} pickables."
                 ),
             )
         if not any(key in kwargs for key in ("miniature", "gang", "stash", "parent")):

@@ -3,11 +3,11 @@
 The second example of the slots-and-picks design. A gang type carrying a
 choice in its built-ins, so a gang founded from it is offered one from
 the moment it exists; the pick lands on the gang, and what it gives is
-scoped to the ranks it names. One of the options opens a second choice,
+scoped to the ranks it names. One of the pickables opens a second choice,
 and changing the first retracts it.
 
 Sandbox content shaped like a gang list that works this way — an
-Affiliation domain, four options, ranks named Leader, Champion, Ganger
+Affiliation slot type, four pickables, ranks named Leader, Champion, Ganger
 and Hive Scum. Which affiliations the edition offers, which ranks each
 one reaches, and what the lists hold are the maintainer's to state; what
 is proved here is the shape.
@@ -50,7 +50,7 @@ from n26.tests.sandbox.actions import found_gang
 pytestmark = pytest.mark.django_db
 
 
-#: The four options, in the order the list offers them. Illustrative:
+#: The four pickables, in the order the list offers them. Illustrative:
 #: what a gang of outcasts may affiliate with is content.
 AFFILIATIONS = ("Clanless", "Clan House", "Mutant", "Aranthian")
 
@@ -87,19 +87,19 @@ def ranks(default_pack):
 
 
 @pytest.fixture
-def domain(default_pack):
-    """One affiliation per gang, so the domain refuses repeats."""
+def slot_type(default_pack):
+    """One affiliation per gang, so the slot type refuses repeats."""
     return create_slot_type("Affiliation", allows_repeats=False)
 
 
 @pytest.fixture
-def house_domain(default_pack):
-    """The domain the chained choice draws on."""
+def house_slot_type(default_pack):
+    """The slot type the chained choice draws on."""
     return create_slot_type("Clan House", plural_name="Clan Houses")
 
 
 @pytest.fixture
-def house_choice(house_domain, ranks):
+def house_choice(house_slot_type, ranks):
     """The second choice: which house, offered once Clan House is picked.
 
     Assigned to the gang like the first, because a gang affiliates with
@@ -107,9 +107,9 @@ def house_choice(house_domain, ranks):
     """
     houses = create_picklist(
         "Clan Houses",
-        house_domain,
+        house_slot_type,
         members=[
-            create_pickable(f"House {name}", house_domain) for name in CLAN_HOUSES
+            create_pickable(f"House {name}", house_slot_type) for name in CLAN_HOUSES
         ],
     )
     cawdor = houses.members.first().pickable
@@ -125,16 +125,16 @@ def house_choice(house_domain, ranks):
         attach_to=cawdor,
     )
     return create_slot(
-        "Clan House", house_domain, houses, label="Clan House", assigned_to="gang"
+        "Clan House", house_slot_type, houses, label="Clan House", assigned_to="gang"
     )
 
 
 @pytest.fixture
-def affiliations(domain, ranks, house_choice):
-    """The four options. Aranthian gives its list to three of the four
+def affiliations(slot_type, ranks, house_choice):
+    """The four pickables. Aranthian gives its list to three of the four
     ranks; Clan House gives the second choice; Clanless gives nothing,
-    which is a perfectly good option."""
-    made = {name: create_pickable(name, domain) for name in AFFILIATIONS}
+    which is a perfectly good pickable."""
+    made = {name: create_pickable(name, slot_type) for name in AFFILIATIONS}
     modifier(
         "Aranthian: its equipment list",
         targets_model(has_subtypes(*[ranks[name] for name in ARANTHIAN_RANKS])),
@@ -161,15 +161,15 @@ def affiliations(domain, ranks, house_choice):
 
 
 @pytest.fixture
-def outcasts(domain, affiliations):
+def outcasts(slot_type, affiliations):
     """The gang type, carrying the choice in its built-ins: founding is
     what asks it, and the pick belongs to the gang."""
-    offered = create_picklist("Affiliations", domain)
+    offered = create_picklist("Affiliations", slot_type)
     for position, name in enumerate(AFFILIATIONS):
         add_picklist_member(offered, affiliations[name], position=position)
     choice = create_slot(
         "Affiliation",
-        domain,
+        slot_type,
         offered,
         label="Affiliation",
         min_picks=1,
@@ -227,9 +227,9 @@ def chosen_for(gang, label):
     return None if line is None else line.chosen
 
 
-def choose(reader, gang, label, option):
+def choose(reader, gang, label, pickable):
     return reader.post(
-        picker_url(gang, label), {"thing": f"library.pickable:{option.pk}"}
+        picker_url(gang, label), {"thing": f"library.pickable:{pickable.pk}"}
     )
 
 
@@ -343,7 +343,7 @@ class TestChoosingAnAffiliation:
 
 class TestWhatTheGangsPickReaches:
     """The pick is the gang's, so its gives are broadcast — and scoped, so
-    they stop at the ranks the option names."""
+    they stop at the ranks the pickable names."""
 
     @pytest.fixture
     def affiliated(self, reader, gang, crew, affiliations):
@@ -380,7 +380,7 @@ class TestWhatTheGangsPickReaches:
 
 
 class TestOnePickOpensAnother:
-    """An option may give a further choice. Making the first offers the
+    """A pickable may give a further choice. Making the first offers the
     second, and changing the first takes the second away with everything
     it settled — the chain retracts through what caused it.
 
@@ -459,11 +459,11 @@ def _house(name):
 
 
 class TestTheGangPageStaysFlat:
-    """A gang page is one fixed run of queries whatever the domain holds:
+    """A gang page is one fixed run of queries whatever the slot type holds:
     a list that grows is rows to read, never round trips to make."""
 
-    def test_more_options_do_not_mean_more_queries(
-        self, reader, gang, crew, affiliations, domain, django_assert_num_queries
+    def test_more_pickables_do_not_mean_more_queries(
+        self, reader, gang, crew, affiliations, slot_type, django_assert_num_queries
     ):
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
@@ -478,7 +478,9 @@ class TestTheGangPageStaysFlat:
 
         offered = Picklist.objects.get(name="Affiliations")
         for index in range(20):
-            add_picklist_member(offered, create_pickable(f"Affiliate {index}", domain))
+            add_picklist_member(
+                offered, create_pickable(f"Affiliate {index}", slot_type)
+            )
 
         with django_assert_num_queries(len(few), exact=False):
             assert reader.get(page).status_code == 200

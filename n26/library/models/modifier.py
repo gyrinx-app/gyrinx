@@ -109,8 +109,8 @@ GRANTABLE_FIELDS = {
     "hidden": "library.Hidden",
     # A further choice: picking Clan House opens the House choice.
     # Un-choosing the first retracts the second and its pick through the
-    # ordinary cause chain. The *pickable* is deliberately not here — an
-    # option handed over with no slot to answer shows nothing and does
+    # ordinary cause chain. The *pickable* is deliberately not here — a
+    # pickable handed over with no slot to answer shows nothing and does
     # nothing, so giving one could only be a mistake.
     "slot": "library.Slot",
 }
@@ -385,13 +385,13 @@ class IsProfile(models.Model):
 class HasPickable(models.Model):
     """Condition: the model has one of these picked.
 
-    "Models with the Cawdor legacy" — one condition serving every domain
-    of choice ever authored, because what was picked is an ordinary
+    "Models with the Cawdor legacy" — one condition serving every slot
+    type ever authored, because what was picked is an ordinary
     assignment and picking it is an ordinary possession. Any-of within
     the row; negated, it is everyone who picked something else.
 
     A pick with no slot behind it is not a possession, so it is not
-    matched here either: an option nobody was offered says nothing about
+    matched here either: a pickable nobody was offered says nothing about
     the model holding it.
     """
 

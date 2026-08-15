@@ -89,7 +89,7 @@ def kind_of(thing):
 
 
 def is_orphan_pick(node):
-    """An option nobody was offered: a pick with no choice behind it.
+    """A pickable nobody was offered: a pick with no choice behind it.
 
     Its slot is what puts it on a card and what gives it its meaning, so
     without one it shows nothing and does nothing — not a line, not a
@@ -603,7 +603,7 @@ def compute(card, index):
     for node in card.all_nodes():
         seen.add(ModifierIndex.key(node.assignable))
         if is_orphan_pick(node):
-            # An option with no choice behind it does nothing at all —
+            # A pickable with no choice behind it does nothing at all —
             # see ``is_orphan_pick``.
             continue
         pending.extend(steps_for(node.assignable, False, 0, node=node))
@@ -1122,12 +1122,13 @@ def choice_notes(computed):
 
 
 def _repeat_notes(computed):
-    """One thing picked for two choices, where the domain says no repeats.
+    """One thing picked for two choices, where the slot type says no
+    repeats.
 
     A modifier's offer says nothing about repeats, so any two of them
-    settling on one thing is worth mentioning. A slot's domain decides:
-    where it allows repeats, picking the same option twice is the
-    content working as written.
+    settling on one thing is worth mentioning. A slot's slot type
+    decides: where it allows repeats, picking the same pickable twice is
+    the content working as written.
     """
     from n26.core.notes import WARNING, Note
 

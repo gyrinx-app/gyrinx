@@ -1,11 +1,11 @@
-"""The Archetype shape: two choices over one domain, reaching differently.
+"""The Archetype shape: two choices over one slot type, reaching differently.
 
-The third example of the slots-and-picks design. One domain, used twice:
+The third example of the slots-and-picks design. One slot type, used twice:
 
 * the leader is offered a choice whose pick belongs to the **gang**, and
   whose payload reaches every model *except* Champions — the spoken
   negation the condition grammar carries;
-* a champion is offered a choice of the same domain whose pick is his
+* a champion is offered a choice of the same slot type whose pick is his
   own, and reaches nobody else.
 
 Sandbox content shaped like a gang list that works this way. Which
@@ -48,7 +48,7 @@ pytestmark = pytest.mark.django_db
 
 
 #: What the leader's choice offers, and what the champion's does. One
-#: option is on both lists, which is what makes taking it twice a thing
+#: pickable is on both lists, which is what makes taking it twice a thing
 #: anybody could do.
 GANG_ARCHETYPES = ("Mutant", "Renegade")
 CHAMPION_ARCHETYPES = ("Mutant", "Duellist")
@@ -82,20 +82,20 @@ def ranks(default_pack):
 
 
 @pytest.fixture
-def domain(default_pack):
-    """One domain for both choices. Nobody takes an archetype twice."""
+def slot_type(default_pack):
+    """One slot type for both choices. Nobody takes an archetype twice."""
     return create_slot_type("Archetype", allows_repeats=False)
 
 
 @pytest.fixture
-def archetypes(domain, ranks):
-    """The options of the domain, and what two of them do.
+def archetypes(slot_type, ranks):
+    """The pickables of the slot type, and what two of them do.
 
     The gang's Mutant reaches every model except Champions; the
     champion's Duellist reaches whoever picked it and nobody else.
     """
     made = {
-        name: create_pickable(name, domain)
+        name: create_pickable(name, slot_type)
         for name in dict.fromkeys(GANG_ARCHETYPES + CHAMPION_ARCHETYPES)
     }
     modifier(
@@ -114,14 +114,14 @@ def archetypes(domain, ranks):
 
 
 @pytest.fixture
-def gang_choice(domain, archetypes):
+def gang_choice(slot_type, archetypes):
     """Offered to the leader, answered by the gang."""
     return create_slot(
         "Gang archetype",
-        domain,
+        slot_type,
         create_picklist(
             "Outcast Archetypes",
-            domain,
+            slot_type,
             members=[archetypes[name] for name in GANG_ARCHETYPES],
         ),
         label="Archetype",
@@ -132,14 +132,14 @@ def gang_choice(domain, archetypes):
 
 
 @pytest.fixture
-def champion_choice(domain, archetypes):
+def champion_choice(slot_type, archetypes):
     """Offered to a champion, and his own."""
     return create_slot(
         "Champion archetype",
-        domain,
+        slot_type,
         create_picklist(
             "Champion Archetypes",
-            domain,
+            slot_type,
             members=[archetypes[name] for name in CHAMPION_ARCHETYPES],
         ),
         label="Archetype",
@@ -194,9 +194,9 @@ def picker_url(gang, name):
     return line.href
 
 
-def choose(reader, gang, name, option):
+def choose(reader, gang, name, pickable):
     return reader.post(
-        picker_url(gang, name), {"thing": f"library.pickable:{option.pk}"}
+        picker_url(gang, name), {"thing": f"library.pickable:{pickable.pk}"}
     )
 
 
@@ -291,7 +291,7 @@ class TestReachingEveryoneExceptOneRank:
 
 
 class TestTheChampionsOwnChoice:
-    """The same domain, a personal reach: his card asks, his card
+    """The same slot type, a personal reach: his card asks, his card
     answers, and nobody else is touched."""
 
     def test_his_card_asks_it(self, reader, gang, crew):
@@ -322,13 +322,13 @@ class TestTheChampionsOwnChoice:
         assert_reconciled(gang)
 
 
-class TestTwoChoicesOfOneDomainOnTwoHolders:
-    """Both choices are of a domain that refuses repeats, and they sit on
+class TestTwoChoicesOfOneSlotTypeOnTwoHolders:
+    """Both choices are of a slot type that refuses repeats, and they sit on
     two different holders — the gang and the champion.
 
-    What a domain refusing repeats buys is what one holder says about
-    itself: its picker marks the options it has already spent on another
-    of its own choices, and its card notes the same option answering two
+    What a slot type refusing repeats buys is what one holder says about
+    itself: its picker marks the pickables it has already spent on another
+    of its own choices, and its card notes the same pickable answering two
     of them. Neither is said here, because there is no holder holding
     both: one pick is the gang's and the other is the champion's.
     Marking across holders would be a different rule, and a mark would
@@ -348,9 +348,9 @@ class TestTwoChoicesOfOneDomainOnTwoHolders:
 
     def test_the_champions_picker_marks_nothing(self, reader, gang, settled):
         marks = {
-            option.name: option.taken_for
+            pickable.name: pickable.taken_for
             for group in offer_for(settled[EXCEPTED]).groups
-            for option in group.options
+            for pickable in group.options
         }
 
         assert marks == {name: "" for name in CHAMPION_ARCHETYPES}
@@ -376,11 +376,11 @@ class TestTwoChoicesOfOneDomainOnTwoHolders:
 
 
 class TestTheGangPageStaysFlat:
-    """Two choices and a domain that grows are rows for the page to
+    """Two choices and a slot type that grows are rows for the page to
     read, never round trips for it to make."""
 
-    def test_more_options_do_not_mean_more_queries(
-        self, reader, gang, crew, archetypes, domain, django_assert_num_queries
+    def test_more_pickables_do_not_mean_more_queries(
+        self, reader, gang, crew, archetypes, slot_type, django_assert_num_queries
     ):
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
@@ -396,7 +396,9 @@ class TestTheGangPageStaysFlat:
 
         offered = Picklist.objects.get(name="Outcast Archetypes")
         for index in range(20):
-            add_picklist_member(offered, create_pickable(f"Archetype {index}", domain))
+            add_picklist_member(
+                offered, create_pickable(f"Archetype {index}", slot_type)
+            )
 
         with django_assert_num_queries(len(few), exact=False):
             assert reader.get(page).status_code == 200

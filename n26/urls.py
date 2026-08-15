@@ -161,7 +161,7 @@ urlpatterns = [
         authoring_views.entry_remove,
         name="authoring-entry-remove",
     ),
-    # An option's place on a list belongs to that list, the same way,
+    # A pickable's place on a picklist belongs to that list, the same way,
     # so taking it off has an address here.
     path(
         "authoring/picklist-members/<str:pk>/remove/",

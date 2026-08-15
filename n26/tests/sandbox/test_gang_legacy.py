@@ -1,4 +1,4 @@
-"""Gang Legacy: a domain of choice authored on the pages, then played.
+"""Gang Legacy: a slot type authored on the pages, then played.
 
 The first example of the slots-and-picks design, walked from an empty
 library to a fighter buying from the equipment list his choice opened.
@@ -6,11 +6,11 @@ Everything an author does here goes through the real authoring pages,
 and everything a player does goes through the real player pages: found,
 hire, choose, equip, and leave.
 
-The shape being proved is the example's — one domain, its options, the
+The shape being proved is the example's — one slot type, its pickables, the
 list that offers them, one choice at 1..1 assigned to the bearer, and a
 second profile carrying the same choice with a starting pick. The house
 names and prices below are content for the walkthrough to stand on;
-which options the edition offers, and which profiles carry the choice or
+which pickables the edition offers, and which profiles carry the choice or
 arrive already settled, are the maintainer's to state.
 
 The engine underneath is ``test_slots_and_picks.py``'s and the authoring
@@ -41,8 +41,8 @@ from n26.library.models import (
 pytestmark = pytest.mark.django_db
 
 
-#: The options, in the order the list offers them. Eight is the point of
-#: the example — a domain wide enough that the picker's order is a fact
+#: The pickables, in the order the list offers them. Eight is the point of
+#: the example — a slot type wide enough that the picker's order is a fact
 #: worth pinning — rather than a claim about the edition's content.
 HOUSES = (
     "Cawdor",
@@ -106,7 +106,7 @@ def posted(session, url, data):
     """A form submitted and accepted — a redirect, never a redrawn form.
 
     A refusal comes back as a 200 with the words on it, so a fixture that
-    only checked for 200 would build half a domain and fail somewhere
+    only checked for 200 would build half a slot type and fail somewhere
     else entirely.
     """
     response = session.post(url, data)
@@ -115,8 +115,8 @@ def posted(session, url, data):
 
 
 @pytest.fixture
-def domain(author, default_pack):
-    """The domain, made on the slot type's create page. Repeats are left
+def slot_type(author, default_pack):
+    """The slot type, made on the slot type's create page. Repeats are left
     off, which is the switch untouched: nobody holds two legacies."""
     posted(
         author,
@@ -163,20 +163,20 @@ def house_lists(author, default_pack):
 
 
 @pytest.fixture
-def options(author, domain, house_lists):
-    """The eight options, each made on the domain's own page and each
+def pickables(author, slot_type, house_lists):
+    """The eight pickables, each made on the slot type's own page and each
     given its house's equipment list through the modifier composer."""
     made = {}
     for house in HOUSES:
         posted(
             author,
-            f"/n26/authoring/slot-type/{domain.pk}/",
+            f"/n26/authoring/slot-type/{slot_type.pk}/",
             {"act": "pickable", "name": house},
         )
-        option = Pickable.objects.get(name=house)
+        pickable = Pickable.objects.get(name=house)
         posted(
             author,
-            f"/n26/authoring/pickable/{option.pk}/",
+            f"/n26/authoring/pickable/{pickable.pk}/",
             {
                 "act": "compose",
                 "scope_kind": "targets_model",
@@ -186,16 +186,16 @@ def options(author, domain, house_lists):
                 **NO_CONDITIONS,
             },
         )
-        made[house] = option
+        made[house] = pickable
     return made
 
 
 @pytest.fixture
-def legacies(author, domain, options):
-    """The list, and the eight options added to it in order."""
+def legacies(author, slot_type, pickables):
+    """The list, and the eight pickables added to it in order."""
     posted(
         author,
-        f"/n26/authoring/slot-type/{domain.pk}/",
+        f"/n26/authoring/slot-type/{slot_type.pk}/",
         {"act": "picklist", "name": "Gang Legacies"},
     )
     picklist = Picklist.objects.get(name="Gang Legacies")
@@ -204,7 +204,7 @@ def legacies(author, domain, options):
             author,
             f"/n26/authoring/picklist/{picklist.pk}/",
             {
-                "pickable": str(options[house].pk),
+                "pickable": str(pickables[house].pk),
                 "label_override": "",
                 "position": str(position),
             },
@@ -213,11 +213,11 @@ def legacies(author, domain, options):
 
 
 @pytest.fixture
-def choice(author, domain, legacies):
+def choice(author, slot_type, legacies):
     """The choice itself: one pick, landing on whoever was asked."""
     posted(
         author,
-        f"/n26/authoring/slot-type/{domain.pk}/",
+        f"/n26/authoring/slot-type/{slot_type.pk}/",
         {
             "act": "slot",
             "name": "Gang Legacy",
@@ -265,7 +265,7 @@ def hunter(author, person_type, gang_type, choice):
 
 
 @pytest.fixture
-def squats_hunter(author, person_type, gang_type, choice, options):
+def squats_hunter(author, person_type, gang_type, choice, pickables):
     """The slot-with-default: the same choice, carrying a starting pick."""
     profile = make_profile(author, "Squats Hunter", person_type, gang_type)
     posted(
@@ -275,7 +275,7 @@ def squats_hunter(author, person_type, gang_type, choice, options):
             "act": "built_in",
             "thing_kind": "slot",
             "thing_slot": str(choice.pk),
-            "default_pickable": str(options[DEFAULT_HOUSE].pk),
+            "default_pickable": str(pickables[DEFAULT_HOUSE].pk),
         },
     )
     profile.refresh_from_db()
@@ -351,10 +351,10 @@ def picker_url(gang, name, label="Gang Legacy"):
     return line.href
 
 
-def choose(client, gang, name, option, label="Gang Legacy"):
+def choose(client, gang, name, pickable, label="Gang Legacy"):
     return client.post(
         picker_url(gang, name, label),
-        {"thing": f"library.pickable:{option.pk}"},
+        {"thing": f"library.pickable:{pickable.pk}"},
     )
 
 
@@ -377,29 +377,29 @@ def lists_on(gang, name):
     return [line.name for line in compute(card, index).collections]
 
 
-class TestTheDomainIsBuiltOnItsOwnPages:
-    """An author with an empty library ends with a domain of eight
-    options, a list offering them in order, and a choice drawing on that
+class TestTheSlotTypeIsBuiltOnItsOwnPages:
+    """An author with an empty library ends with a slot type of eight
+    pickables, a list offering them in order, and a choice drawing on that
     list — every step a form on a page."""
 
-    def test_the_domain_page_holds_all_eight_options(
-        self, author, client, domain, options
+    def test_the_slot_type_page_holds_all_eight_pickables(
+        self, author, client, slot_type, pickables
     ):
-        body = author.get(f"/n26/authoring/slot-type/{domain.pk}/").content.decode()
+        body = author.get(f"/n26/authoring/slot-type/{slot_type.pk}/").content.decode()
 
         for house in HOUSES:
             assert house in body, house
 
-    def test_each_option_gives_its_own_equipment_list(self, options, house_lists):
-        for house, option in options.items():
-            (modifier,) = option.modifiers.all()
+    def test_each_pickable_gives_its_own_equipment_list(self, pickables, house_lists):
+        for house, pickable in pickables.items():
+            (modifier,) = pickable.modifiers.all()
             assert str(modifier.effect) == f"adds {house_lists[house].name}"
 
     def test_the_list_offers_them_in_the_order_they_were_added(self, legacies):
         assert [member.label for member in legacies.members.all()] == list(HOUSES)
 
-    def test_the_choice_asks_for_one_of_that_list(self, choice, legacies, domain):
-        assert (choice.slot_type, choice.picklist) == (domain, legacies)
+    def test_the_choice_asks_for_one_of_that_list(self, choice, legacies, slot_type):
+        assert (choice.slot_type, choice.picklist) == (slot_type, legacies)
         assert (choice.min_picks, choice.max_picks) == (1, 1)
         assert choice.assigned_to == "bearer"
         assert choice.label == "Gang Legacy"
@@ -410,11 +410,11 @@ class TestTheDomainIsBuiltOnItsOwnPages:
         assert built_in.default_pickable is None
 
     def test_the_other_profile_comes_with_the_choice_already_settled(
-        self, squats_hunter, choice, options
+        self, squats_hunter, choice, pickables
     ):
         (built_in,) = squats_hunter.built_in_members
         assert built_in.assignable == choice
-        assert built_in.default_pickable == options[DEFAULT_HOUSE]
+        assert built_in.default_pickable == pickables[DEFAULT_HOUSE]
 
     def test_the_choices_page_says_what_it_asks_for(self, author, choice):
         """The about column is where an author checks their work."""
@@ -464,7 +464,7 @@ class TestHiringIntoAnOpenChoice:
 
 
 class TestChoosingAHouse:
-    """One click on the picker settles the choice, and what the option
+    """One click on the picker settles the choice, and what the pickable
     gives arrives with it."""
 
     @pytest.fixture
@@ -472,13 +472,13 @@ class TestChoosingAHouse:
         return hire(client, gang, hunter, "Kaustos")
 
     def test_the_picker_offers_the_list_in_its_own_order(
-        self, client, gang, kaustos, options
+        self, client, gang, kaustos, pickables
     ):
         body = client.get(picker_url(gang, "Kaustos")).content.decode()
 
         # By key rather than by name: the order is the fact, and a name
         # can appear anywhere on a page for its own reasons.
-        places = [body.index(f"library.pickable:{options[h].pk}") for h in HOUSES]
+        places = [body.index(f"library.pickable:{pickables[h].pk}") for h in HOUSES]
         assert places == sorted(places)
 
     def test_the_picker_names_who_is_being_asked(self, client, gang, kaustos):
@@ -486,59 +486,59 @@ class TestChoosingAHouse:
 
         assert "For Kaustos." in body
 
-    def test_one_click_settles_it(self, client, gang, kaustos, options):
-        response = choose(client, gang, "Kaustos", options["Cawdor"])
+    def test_one_click_settles_it(self, client, gang, kaustos, pickables):
+        response = choose(client, gang, "Kaustos", pickables["Cawdor"])
 
         assert response.status_code == 302
         (line,) = card_of(gang, "Kaustos").questions
         assert line.chosen == "Cawdor"
 
     def test_the_pick_lands_on_the_fighter_and_answers_his_choice(
-        self, client, gang, kaustos, options
+        self, client, gang, kaustos, pickables
     ):
-        choose(client, gang, "Kaustos", options["Cawdor"])
+        choose(client, gang, "Kaustos", pickables["Cawdor"])
 
-        pick = Assignment.objects.get(pickable=options["Cawdor"], archived=False)
+        pick = Assignment.objects.get(pickable=pickables["Cawdor"], archived=False)
         slot = Assignment.objects.get(slot__isnull=False, miniature_root=kaustos)
         assert pick.miniature == kaustos
         assert pick.chosen_for == slot
         assert pick.caused_by == slot
 
     def test_the_shortfall_note_goes_with_the_choice_being_made(
-        self, client, gang, kaustos, options
+        self, client, gang, kaustos, pickables
     ):
-        choose(client, gang, "Kaustos", options["Cawdor"])
+        choose(client, gang, "Kaustos", pickables["Cawdor"])
 
         assert card_of(gang, "Kaustos").remarks == []
 
-    def test_the_pick_is_free(self, client, gang, kaustos, options):
+    def test_the_pick_is_free(self, client, gang, kaustos, pickables):
         before = purse(gang)
 
-        choose(client, gang, "Kaustos", options["Cawdor"])
+        choose(client, gang, "Kaustos", pickables["Cawdor"])
 
         assert purse(gang) == before
         reconciled(gang)
 
     def test_his_equip_page_gains_the_house_list(
-        self, client, gang, kaustos, options, house_lists
+        self, client, gang, kaustos, pickables, house_lists
     ):
         item, _, _ = STOCK["Cawdor"]
         assert "House Cawdor Equipment List" not in equip_page(client, kaustos)
 
-        choose(client, gang, "Kaustos", options["Cawdor"])
+        choose(client, gang, "Kaustos", pickables["Cawdor"])
 
         body = equip_page(client, kaustos, house_lists["Cawdor"])
         assert "House Cawdor Equipment List" in body
         assert item in body
 
     def test_buying_from_it_pays_the_price_that_list_asks(
-        self, client, gang, kaustos, options, house_lists
+        self, client, gang, kaustos, pickables, house_lists
     ):
         """A list prices its own stock, and the price the list asks is
         what leaves the bank — not the figure the library prints against
         the item."""
         item, reference, here = STOCK["Cawdor"]
-        choose(client, gang, "Kaustos", options["Cawdor"])
+        choose(client, gang, "Kaustos", pickables["Cawdor"])
         before = purse(gang)
 
         response = client.post(
@@ -552,8 +552,8 @@ class TestChoosingAHouse:
         assert Assignment.objects.get(wargear__name=item).miniature == kaustos
         reconciled(gang)
 
-    def test_an_option_the_list_never_offered_is_not_settled_by_a_post(
-        self, client, gang, kaustos, domain, default_pack
+    def test_a_pickable_the_list_never_offered_is_not_settled_by_a_post(
+        self, client, gang, kaustos, slot_type, default_pack
     ):
         """The picker re-derives its list on every submit, so a key typed
         into the form settles nothing. What an owner may still hand over
@@ -561,7 +561,7 @@ class TestChoosingAHouse:
         """
         from n26.library.authoring import create_pickable
 
-        stranger = create_pickable("Helmawr", domain)
+        stranger = create_pickable("Helmawr", slot_type)
 
         response = choose(client, gang, "Kaustos", stranger)
 
@@ -585,10 +585,10 @@ class TestAChoiceThatArrivesMade:
         assert card_of(gang, "Grendel").remarks == []
 
     def test_the_pick_answers_the_choice_that_brought_it(
-        self, client, gang, grendel, options
+        self, client, gang, grendel, pickables
     ):
         slot = Assignment.objects.get(slot__isnull=False, miniature_root=grendel)
-        pick = Assignment.objects.get(pickable=options[DEFAULT_HOUSE])
+        pick = Assignment.objects.get(pickable=pickables[DEFAULT_HOUSE])
 
         assert (pick.chosen_for, pick.caused_by) == (slot, slot)
         assert pick.miniature == grendel
@@ -604,22 +604,22 @@ class TestAChoiceThatArrivesMade:
         assert str(here) in stocked
 
     def test_rechoosing_swaps_it_and_the_list_follows(
-        self, client, gang, grendel, options
+        self, client, gang, grendel, pickables
     ):
-        choose(client, gang, "Grendel", options["Cawdor"])
+        choose(client, gang, "Grendel", pickables["Cawdor"])
 
         (line,) = card_of(gang, "Grendel").questions
         assert line.chosen == "Cawdor"
         assert lists_on(gang, "Grendel") == ["House Cawdor Equipment List"]
         assert not Assignment.objects.filter(
-            pickable=options[DEFAULT_HOUSE], archived=False
+            pickable=pickables[DEFAULT_HOUSE], archived=False
         ).exists()
         reconciled(gang)
 
     def test_the_swap_leaves_one_pick_and_one_choice(
-        self, client, gang, grendel, options
+        self, client, gang, grendel, pickables
     ):
-        choose(client, gang, "Grendel", options["Cawdor"])
+        choose(client, gang, "Grendel", pickables["Cawdor"])
 
         assert (
             Assignment.objects.filter(
@@ -636,13 +636,13 @@ class TestWhenTheChoiceGoes:
     retracts."""
 
     @pytest.fixture
-    def kaustos(self, client, gang, hunter, options):
+    def kaustos(self, client, gang, hunter, pickables):
         made = hire(client, gang, hunter, "Kaustos")
-        choose(client, gang, "Kaustos", options["Cawdor"])
+        choose(client, gang, "Kaustos", pickables["Cawdor"])
         return made
 
     def test_the_fighter_leaving_takes_his_legacy_with_him(
-        self, client, gang, kaustos, options
+        self, client, gang, kaustos, pickables
     ):
         """His membership is what carries the choice, so dismissing him
         must not leave a pick alive on the gang's books."""
@@ -650,7 +650,7 @@ class TestWhenTheChoiceGoes:
 
         assert response.status_code == 302
         assert not Assignment.objects.filter(
-            pickable=options["Cawdor"], archived=False
+            pickable=pickables["Cawdor"], archived=False
         ).exists()
         assert not Assignment.objects.filter(
             slot__isnull=False, archived=False, miniature_root=kaustos
@@ -676,12 +676,19 @@ class TestWhenTheChoiceGoes:
 
 
 class TestTheWholePageStaysFlat:
-    """The gang page is one fixed run of queries however wide the domain
-    grows: eight options behind a choice must not be eight round trips,
+    """The gang page is one fixed run of queries however wide the slot type
+    grows: eight pickables behind a choice must not be eight round trips,
     and neither must eighty."""
 
-    def test_more_options_do_not_mean_more_queries(
-        self, client, gang, hunter, domain, legacies, options, django_assert_num_queries
+    def test_more_pickables_do_not_mean_more_queries(
+        self,
+        client,
+        gang,
+        hunter,
+        slot_type,
+        legacies,
+        pickables,
+        django_assert_num_queries,
     ):
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
@@ -689,14 +696,14 @@ class TestTheWholePageStaysFlat:
         from n26.library.authoring import add_picklist_member, create_pickable
 
         hire(client, gang, hunter, "Kaustos")
-        choose(client, gang, "Kaustos", options["Cawdor"])
+        choose(client, gang, "Kaustos", pickables["Cawdor"])
         page = reverse("n26-gang", args=[gang.pk])
 
         with CaptureQueriesContext(connection) as few:
             assert client.get(page).status_code == 200
 
         for index in range(20):
-            add_picklist_member(legacies, create_pickable(f"House {index}", domain))
+            add_picklist_member(legacies, create_pickable(f"House {index}", slot_type))
 
         with django_assert_num_queries(len(few), exact=False):
             assert client.get(page).status_code == 200

@@ -1,9 +1,9 @@
 """Slots and picks — a choice made from a curated list, authored not coded.
 
-A new domain of choice is four rows and no code. A **slot type** names the
-domain (Gang Legacy, Affiliation, Archetype). **Pickables** are its
-options, each an ordinary assignable carrying ordinary modifiers. A
-**picklist** is the flat, ordered list of them a choice draws from. A
+A new slot type is four rows and no code. A **slot type** names what is
+chosen (Gang Legacy is the first). **Pickables** are what may
+be picked in it, each an ordinary assignable carrying ordinary modifiers.
+A **picklist** is the flat, ordered list of them a choice draws from. A
 **slot** is one named use of the type — a picklist, a label, how many
 picks, and where the pick lands — and it is an assignable, so putting the
 choice on a card is an ordinary assignment.
@@ -36,19 +36,19 @@ from n26.library.models.base import Content
 
 
 class SlotType(Content):
-    """A domain of choice: Gang Legacy, Affiliation, Archetype.
+    """What is chosen: Gang Legacy is the first, and new ones are authored, never coded.
 
-    Ties a slot, its picklist and its options together — all three name
+    Ties a slot, its picklist and its pickables together — all three name
     one of these, and authoring refuses a mismatch. Whether the same
-    option may be picked twice over is a fact about the domain, so it is
-    stated here once rather than on every slot.
+    pickable may be picked twice over is a fact about the slot type, so it
+    is stated here once rather than on every slot.
     """
 
     family = Family.CHOICE
 
     name = models.CharField(
         max_length=200,
-        help_text='The domain of the choice, e.g. "Gang Legacy".',
+        help_text='What is chosen, e.g. "Gang Legacy".',
     )
     plural_name = models.CharField(
         max_length=200,
@@ -61,7 +61,7 @@ class SlotType(Content):
     allows_repeats = models.BooleanField(
         default=True,
         help_text=(
-            "Whether one holder may pick the same option for two slots of "
+            "Whether one holder may pick the same pickable for two slots of "
             "this type. Turned off, the card says when they have — it never "
             "stops them."
         ),
@@ -87,7 +87,7 @@ class SlotType(Content):
 
 
 class Pickable(Content, Assignable):
-    """One option a choice offers: Cawdor, Aranthian, Outcast Leader.
+    """One pickable a choice offers: Cawdor, Aranthian, Outcast Leader.
 
     A named value of its slot type that carries whatever it means as
     ordinary modifiers — an equipment list opened, a subtype granted, a
@@ -95,7 +95,7 @@ class Pickable(Content, Assignable):
 
     It never draws a row of its own: it appears under its slot's choice
     row as the answer. **Without its slot it shows nothing and does
-    nothing** — an option nobody was offered is not a thing the holder
+    nothing** — a pickable nobody was offered is not a thing the holder
     has. So it arrives chosen, given, or as a slot's starting value, and
     never as a bare built-in.
     """
@@ -115,7 +115,7 @@ class Pickable(Content, Assignable):
         SlotType,
         on_delete=models.PROTECT,
         related_name="pickables",
-        help_text="The domain this is an option in.",
+        help_text="The slot type this pickable belongs to.",
     )
 
     class Meta:
@@ -134,13 +134,13 @@ class Pickable(Content, Assignable):
 
 
 class Picklist(Content):
-    """The options behind a choice: a flat, ordered list of pickables.
+    """The pickables behind a choice: a flat, ordered list of them.
 
     One slot type throughout, no headings and no prices — where a
     collection is a catalogue, this is a menu. Two slots may draw from one
-    picklist, and one slot type may have several: the Outcast archetypes
-    a leader chooses from and the ones a champion does are two lists over
-    the same type.
+    picklist, and one slot type may have several: the legacies a House
+    fighter chooses from and the one a Squat fighter does are two
+    picklists over one slot type.
     """
 
     family = Family.CHOICE
@@ -149,11 +149,11 @@ class Picklist(Content):
         SlotType,
         on_delete=models.PROTECT,
         related_name="picklists",
-        help_text="The domain these options belong to.",
+        help_text="The slot type these pickables belong to.",
     )
     name = models.CharField(
         max_length=200,
-        help_text='What this list of options is called, e.g. "Gang Legacies".',
+        help_text='What this picklist is called, e.g. "Gang Legacies".',
     )
 
     class Meta:
@@ -176,19 +176,19 @@ class Picklist(Content):
 
     @property
     def may_offer(self):
-        """The options this list may hold: its domain's, and no others.
+        """The pickables this list may hold: its slot type's, and no others.
 
         The picker on the page that adds a member reads this, so what an
         author is offered and what the list will accept are one
-        statement rather than two that can drift apart. Archived options
-        are left out, as at every other surface where something is newly
-        chosen — a list already naming one goes on naming it.
+        statement rather than two that can drift apart. Archived
+        pickables are left out, as at every other surface where something
+        is newly chosen — a list already naming one goes on naming it.
         """
         return self.slot_type.pickables.unarchived()
 
 
 class PicklistMember(Content):
-    """One option on one list, in its place.
+    """One pickable on one list, in its place.
 
     The pickable says what it is and what it does; this says that this
     list offers it, where in the order, and — where one list calls it
@@ -210,7 +210,7 @@ class PicklistMember(Content):
         blank=True,
         default="",
         help_text=(
-            "What this list calls the option, where that differs from its "
+            "What this list calls the pickable, where that differs from its "
             "own name. Blank uses the name."
         ),
     )
@@ -234,7 +234,7 @@ class PicklistMember(Content):
 
     @property
     def label(self):
-        """What this list calls the option."""
+        """What this list calls the pickable."""
         return self.label_override or str(self.pickable)
 
     def clean(self):
@@ -246,7 +246,7 @@ class PicklistMember(Content):
                         "pickable": (
                             f"{self.pickable} belongs to "
                             f"{self.pickable.slot_type}, and {self.picklist} "
-                            f"lists {self.picklist.slot_type} options."
+                            f"lists {self.picklist.slot_type} pickables."
                         )
                     }
                 )
@@ -297,13 +297,13 @@ class Slot(Content, Assignable):
         SlotType,
         on_delete=models.PROTECT,
         related_name="slots",
-        help_text="The domain this choice is in.",
+        help_text="The slot type this choice is in.",
     )
     picklist = models.ForeignKey(
         Picklist,
         on_delete=models.PROTECT,
         related_name="slots",
-        help_text="The list of options this choice offers.",
+        help_text="The picklist this choice draws on.",
     )
     label = models.CharField(
         max_length=200,
@@ -330,8 +330,9 @@ class Slot(Content, Assignable):
         choices=WillBeAssignedTo,
         default=WillBeAssignedTo.BEARER,
         help_text=(
-            "Where the pick lands. Almost always the bearer; a Leader's "
-            "archetype pick is carried by the gang, not the Leader."
+            "Where the pick lands. Almost always the bearer; assigned to "
+            "the gang, the pick is the gang's and is broadcast to every "
+            "member, whoever was asked."
         ),
     )
     hidden = models.BooleanField(
@@ -377,8 +378,8 @@ class Slot(Content, Assignable):
                     {
                         "picklist": (
                             f"{self.picklist} lists "
-                            f"{self.picklist.slot_type} options, and this is "
-                            f"a {self.slot_type} choice."
+                            f"{self.picklist.slot_type} pickables, and this "
+                            f"is a {self.slot_type} choice."
                         )
                     }
                 )

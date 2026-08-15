@@ -1,4 +1,4 @@
-"""The slot models' own contract: one domain throughout, and the words
+"""The slot models' own contract: one slot type throughout, and the words
 an author is turned away with.
 
 Everything here would still be true with no gang, no fighter and no
@@ -47,33 +47,35 @@ def legacies(legacy, cawdor):
     return create_picklist("Gang Legacies", legacy, members=[cawdor])
 
 
-class TestASlotTypeNamesItsDomain:
+class TestASlotTypeNamesWhatIsChosen:
     def test_the_plural_is_the_authors_where_they_gave_one(self, legacy):
         assert legacy.plural == "Gang Legacies"
 
     def test_an_s_stands_in_where_they_did_not(self, affiliation):
         assert affiliation.plural == "Affiliations"
 
-    def test_two_domains_of_one_name_are_refused(self, legacy):
+    def test_two_slot_types_of_one_name_are_refused(self, legacy):
         with pytest.raises(IntegrityError), transaction.atomic():
             create_slot_type("gang legacy")
 
 
-class TestOneDomainThroughout:
-    """A slot, its list and every option on it share one domain.
+class TestOneSlotTypeThroughout:
+    """A slot, its list and every pickable on it share one slot type.
 
     The check is an authoring sense check rather than a database one:
     the columns are each perfectly valid on their own, and only the row
     seeing both can tell they disagree.
     """
 
-    def test_a_list_refuses_an_option_of_another_domain(self, legacies, affiliation):
+    def test_a_list_refuses_a_pickable_of_another_slot_type(
+        self, legacies, affiliation
+    ):
         aranthian = create_pickable("Aranthian", affiliation)
         with pytest.raises(ValidationError, match="belongs to Affiliation"):
             add_picklist_member(legacies, aranthian)
 
-    def test_a_choice_refuses_a_list_of_another_domain(self, affiliation, legacies):
-        with pytest.raises(ValidationError, match="Gang Legacy options"):
+    def test_a_choice_refuses_a_list_of_another_slot_type(self, affiliation, legacies):
+        with pytest.raises(ValidationError, match="Gang Legacy pickables"):
             create_slot("Affiliation", affiliation, legacies)
 
     def test_the_model_says_it_too_where_a_verb_was_bypassed(
@@ -82,10 +84,10 @@ class TestOneDomainThroughout:
         """An importer writing rows straight through the ORM is caught by
         ``clean``, which is where cross-row sense checks live."""
         stray = Slot(name="Stray", slot_type=affiliation, picklist=legacies)
-        with pytest.raises(ValidationError, match="Gang Legacy options"):
+        with pytest.raises(ValidationError, match="Gang Legacy pickables"):
             stray.clean()
 
-    def test_an_option_is_listed_once_on_one_list(self, legacies, cawdor):
+    def test_a_pickable_is_listed_once_on_one_list(self, legacies, cawdor):
         with pytest.raises(IntegrityError), transaction.atomic():
             add_picklist_member(legacies, cawdor)
 
@@ -114,25 +116,25 @@ class TestWhatTheCardCallsAChoice:
             create_slot("Gang Legacy", legacy, legacies).choice_label == "Gang Legacy"
         )
 
-    def test_a_list_may_call_an_option_something_else(self, legacies, legacy):
+    def test_a_list_may_call_a_pickable_something_else(self, legacies, legacy):
         squats = create_pickable("Ironhead Squats", legacy)
         member = add_picklist_member(legacies, squats, label_override="Squats")
         assert member.label == "Squats"
 
 
 class TestWhatAListMayBeOffered:
-    """The picker on a list's page offers its domain's options — the ones
+    """The picker on a list's page offers its slot type's pickables — the ones
     still on offer. Archiving one takes it out of what may be *newly*
     listed; every list already naming it goes on naming it."""
 
-    def test_its_domains_options(self, legacies, cawdor):
+    def test_its_slot_types_pickables(self, legacies, cawdor):
         assert list(legacies.may_offer) == [cawdor]
 
-    def test_and_not_another_domains(self, legacies, affiliation):
+    def test_and_not_another_slot_types(self, legacies, affiliation):
         create_pickable("Aranthian", affiliation)
         assert list(legacies.may_offer) == list(legacies.slot_type.pickables.all())
 
-    def test_an_archived_option_is_not_offered_again(self, legacies, legacy):
+    def test_an_archived_pickable_is_not_offered_again(self, legacies, legacy):
         squats = create_pickable("Ironhead Squats", legacy)
         squats.archived = True
         squats.save()
@@ -147,7 +149,7 @@ class TestWhatAListMayBeOffered:
 
 
 class TestABarePickableIsRefused:
-    """An option built into something, with no choice behind it, would
+    """A pickable built into something, with no choice behind it, would
     sit in the library unread — so the verb turns it away in words,
     whoever is writing."""
 
@@ -191,7 +193,7 @@ class TestAStartingPickBelongsToItsChoice:
         with pytest.raises(ValidationError, match="A starting pick belongs to a slot"):
             add_default_member(kit, rule, default_pickable=cawdor)
 
-    def test_one_from_another_domain_is_refused(
+    def test_one_from_another_slot_type_is_refused(
         self, legacy, legacies, affiliation, default_pack
     ):
         slot = create_slot("Gang Legacy", legacy, legacies)

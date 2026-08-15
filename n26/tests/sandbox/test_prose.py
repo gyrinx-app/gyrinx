@@ -720,12 +720,12 @@ class TestBuiltInAndOptional:
         ]
 
 
-class TestADomainOfChoice:
-    """A choice and its options, explained: what a choice asks for, what
-    lists an option is on, and which choices could settle on it.
+class TestASlotTypeExplained:
+    """A slot and its pickables, explained: what a choice asks for, what
+    picklists a pickable is on, and which slots could settle on it.
 
-    An option is only ever reached through a choice, so the routes into
-    one are the lists that hold it and the choices that draw on those.
+    A pickable is only ever reached through a choice, so the routes into
+    one are the picklists that hold it and the slots that draw on those.
     """
 
     @pytest.fixture
@@ -795,25 +795,25 @@ class TestADomainOfChoice:
             "Built into the Hunter profile."
         ]
 
-    def test_an_option_says_which_lists_offer_it(self, cawdor, houses):
+    def test_a_pickable_says_which_lists_offer_it(self, cawdor, houses):
         assert texts(prose_for(cawdor).referenced_by) == ["Listed in House Legacies."]
 
-    def test_an_option_says_which_choices_could_settle_on_it(self, cawdor, choice):
+    def test_a_pickable_says_which_slots_could_settle_on_it(self, cawdor, choice):
         assert texts(prose_for(cawdor).referenced_by) == [
             "Listed in House Legacies.",
             "May be chosen for the House legacy slot.",
         ]
 
-    def test_an_option_no_list_holds_is_reached_by_nothing(self, cawdor, choice):
-        """A choice names a list, so an option nobody listed is on no
-        route at all — an owner may still hand it over."""
+    def test_a_pickable_no_list_holds_is_reached_by_nothing(self, cawdor, choice):
+        """A choice names a picklist, so a pickable nobody listed is on
+        no route at all — an owner may still hand it over."""
         from n26.library.models import PicklistMember
 
         PicklistMember.objects.all().delete()
 
         assert texts(prose_for(cawdor).referenced_by) == []
 
-    def test_an_option_a_choice_starts_with_says_so(
+    def test_a_pickable_a_choice_starts_with_says_so(
         self, cawdor, choice, escher, person_type
     ):
         squats = create_profile(
@@ -827,7 +827,7 @@ class TestADomainOfChoice:
             "May be chosen for the House legacy slot.",
         ]
 
-    def test_an_option_says_what_it_gives(self, cawdor, houses, default_pack):
+    def test_a_pickable_says_what_it_gives(self, cawdor, houses, default_pack):
         attach_modifiers_to(
             cawdor,
             [

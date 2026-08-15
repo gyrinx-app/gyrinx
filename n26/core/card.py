@@ -54,8 +54,8 @@ class Node:
     #: choice is read rather than guessed from what kind of thing it is.
     chosen_for_key: object = None
     #: Which of that line's choices this settles: the slot itself. One
-    #: line may ask more than once — a thing giving two choices of a
-    #: domain — and then this is what tells the answers apart.
+    #: line may ask more than once — a thing giving two choices of one
+    #: slot type — and then this is what tells the answers apart.
     chosen_for_slot_id: object = None
     #: The ledger's reason, for a line that has one.
     reason: str | None = None
@@ -424,9 +424,9 @@ def hydrate_rows(rows, with_statlines=False):
         # A chosen-mode placement reads the chosen token's home off
         # the assignment already in memory — never by a query.
         "skill_tree__category",
-        # Whether a domain of choice allows the same option twice is
-        # read while a card's notes are worked out, which may not query.
-        # The list behind the choice rides along for the picker, which
+        # Whether a slot type allows the same pickable twice is read
+        # while a card's notes are worked out, which may not query. The
+        # picklist behind the choice rides along for the picker, which
         # reads it off the card it was built from.
         "slot__slot_type",
         "slot__picklist",
@@ -819,8 +819,8 @@ def build_modifier_index(assignables, max_depth=3):
         "targets_miniature__has_pickable__pickables",
         "targets_weapons__has_traits__traits",
         # A given slot draws a choice row worked out by ``compute``,
-        # which may not query, and its domain decides what the row's
-        # notes may say. Its list rides along for the picker behind
+        # which may not query, and its slot type decides what the row's
+        # notes may say. Its picklist rides along for the picker behind
         # the row.
         "adds_assignable__slot__slot_type",
         "adds_assignable__slot__picklist",

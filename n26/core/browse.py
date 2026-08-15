@@ -76,9 +76,9 @@ class OfferedOption:
 
 @dataclass(frozen=True)
 class Listed:
-    """One option as the list offering it puts it.
+    """One pickable as the list offering it puts it.
 
-    A picklist may call an option something of its own, so what a picker
+    A picklist may call a pickable something of its own, so what a picker
     prints is the list's word and not always the thing's own name. The
     thing rides along because that is what a click settles on, and it is
     what every other surface goes on calling by its own name: the wording
@@ -711,8 +711,8 @@ def offered_by(slot, computed, terms=EQUIPMENT_LIST):
     button that cannot work is the harm.
 
     A choice borne by a ``Slot`` draws its picklist, in the list's own
-    order, each option under the wording that list gives it
-    (:class:`Listed`). No sections and no prices — the options behind a
+    order, each pickable under the wording that list gives it
+    (:class:`Listed`). No sections and no prices — the pickables behind a
     choice and nothing else — and the same rule holds: the list informs,
     and an owner may still hand over something off it.
     """
@@ -720,8 +720,8 @@ def offered_by(slot, computed, terms=EQUIPMENT_LIST):
         return [
             Listed(thing=member.pickable, name=member.label)
             # One query for the whole list: the wording is the member's
-            # and the identity is the option's, so a list of thirty
-            # options must not be thirty fetches.
+            # and the identity is the pickable's, so a list of thirty
+            # pickables must not be thirty fetches.
             for member in slot.slot.picklist.members.select_related("pickable")
         ]
     offer = slot.offer

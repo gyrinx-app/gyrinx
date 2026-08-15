@@ -1,13 +1,13 @@
 """Slots and picks: a choice made from a curated list.
 
-The shape a new domain of choice is authored in rather than coded: a
-slot type, its options, the list they are offered on, and the choice
+The shape a new slot type is authored in rather than coded: a
+slot type, its pickables, the list they are offered on, and the choice
 itself. Gang Legacy is the first use — eight houses, each opening that
 house's equipment list to whoever picks it.
 
 What this file holds still is the engine underneath: that assigning a
 slot asks the question, that the pick is read off ``chosen_for`` and
-nothing is inferred from kinds, that an option with no choice behind it
+nothing is inferred from kinds, that a pickable with no choice behind it
 does nothing at all, and that a choice a pick opens goes when that pick
 does. The screens are `test_choosing.py`'s.
 """
@@ -62,7 +62,7 @@ def owner(db):
 
 @pytest.fixture
 def legacy(default_pack):
-    """The domain. Nobody picks two legacies."""
+    """The slot type. Nobody picks two legacies."""
     return create_slot_type(
         "Gang Legacy", plural_name="Gang Legacies", allows_repeats=False
     )
@@ -73,14 +73,14 @@ def houses(legacy):
     """Three of the eight, each opening its own equipment list."""
     made = {}
     for name in ("Cawdor", "Escher", "Ironhead Squats"):
-        option = create_pickable(name, legacy)
+        pickable = create_pickable(name, legacy)
         modifier(
             f"{name}: its equipment list",
             targets_model(),
             ef_adds(create_collection(f"House {name} Equipment List")),
-            carried_by=option,
+            carried_by=pickable,
         )
-        made[name] = option
+        made[name] = pickable
     return made
 
 
@@ -211,7 +211,7 @@ class TestMakingTheChoice:
         assert gang.rating == before
         assert_reconciled(gang)
 
-    def test_a_pick_from_another_domain_settles_nothing_and_is_refused(
+    def test_a_pick_from_another_slot_type_settles_nothing_and_is_refused(
         self, gang, hunter, default_pack
     ):
         kaustos = hire(gang, hunter, "Kaustos", paid=100)
@@ -221,11 +221,11 @@ class TestMakingTheChoice:
         with pytest.raises(Refusal, match="Aranthian cannot settle Gang Legacy"):
             choose(open_slot.anchor.assignment, elsewhere)
 
-    def test_an_option_the_list_does_not_offer_is_still_the_owners_to_give(
+    def test_a_pickable_the_list_does_not_offer_is_still_the_owners_to_give(
         self, gang, hunter, legacy
     ):
         """The narrowing informs and never polices — an owner may hand
-        over an off-list option of the right domain."""
+        over an off-list pickable of the right slot type."""
         kaustos = hire(gang, hunter, "Kaustos", paid=100)
         (open_slot,) = choices_of(kaustos)
         unlisted = create_pickable("Delaque", legacy)
@@ -276,7 +276,7 @@ class TestASlotWithADefault:
         assert not still_asked.is_resolved
 
 
-class TestTwoChoicesOfOneDomain:
+class TestTwoChoicesOfOneSlotType:
     """Two slots of one type on one holder stay independent, because a
     pick names the assignment that asked and not the slot row."""
 
@@ -299,10 +299,10 @@ class TestTwoChoicesOfOneDomain:
         assert first.chosen_name == "Cawdor"
         assert second.chosen_name is None
 
-    def test_the_card_says_when_one_option_answers_both(
+    def test_the_card_says_when_one_pickable_answers_both(
         self, gang, twice_asked, houses
     ):
-        """The domain forbids repeats, so picking Cawdor twice is worth
+        """The slot type forbids repeats, so picking Cawdor twice is worth
         mentioning — on the model's own card, where the choices are."""
         kaustos = hire(gang, twice_asked, "Kaustos", paid=100)
         for slot in choices_of(kaustos):
@@ -314,27 +314,27 @@ class TestTwoChoicesOfOneDomain:
             note.text for note in drawn.remarks
         ]
 
-    def test_a_domain_that_allows_repeats_says_nothing(
+    def test_a_slot_type_that_allows_repeats_says_nothing(
         self, gang, person_type, gang_type, default_pack
     ):
-        domain = create_slot_type("Loadout", allows_repeats=True)
-        option = create_pickable("Heavy", domain)
-        picklist = create_picklist("Loadouts", domain, members=[option])
+        slot_type = create_slot_type("Loadout", allows_repeats=True)
+        pickable = create_pickable("Heavy", slot_type)
+        picklist = create_picklist("Loadouts", slot_type, members=[pickable])
         profile = create_profile("Twice-armed", person_type, gang_type, price=100)
-        add_built_in(profile, create_slot("Loadout 1", domain, picklist))
-        add_built_in(profile, create_slot("Loadout 2", domain, picklist))
+        add_built_in(profile, create_slot("Loadout 1", slot_type, picklist))
+        add_built_in(profile, create_slot("Loadout 2", slot_type, picklist))
 
         kaustos = hire(gang, profile, "Kaustos", paid=100)
         for slot in choices_of(kaustos):
-            choose(slot.anchor.assignment, option)
+            choose(slot.anchor.assignment, pickable)
 
         drawn = drawn_card(kaustos)
         assert [note.text for note in drawn.remarks] == []
 
 
 class TestThePickerMarksWhatIsTaken:
-    """Where the domain takes one option once, the picker says which of
-    its options this holder has already spent elsewhere.
+    """Where the slot type takes one pickable once, the picker says which of
+    its pickables this holder has already spent elsewhere.
 
     Marked and never withheld: the click still works, and what the card
     says about picking the same thing twice is said afterwards, on the
@@ -360,12 +360,12 @@ class TestThePickerMarksWhatIsTaken:
 
     def marks(self, offer):
         return {
-            option.name: option.taken_for
+            pickable.name: pickable.taken_for
             for group in offer.groups
-            for option in group.options
+            for pickable in group.options
         }
 
-    def test_the_option_the_other_choice_holds_is_marked(
+    def test_the_pickable_the_other_choice_holds_is_marked(
         self, gang, twice_asked, houses
     ):
         kaustos = hire(gang, twice_asked, "Kaustos", paid=100)
@@ -391,26 +391,26 @@ class TestThePickerMarksWhatIsTaken:
 
         here, _ = self.offers(kaustos)
         (cawdor,) = [
-            option
+            pickable
             for group in here.groups
-            for option in group.options
-            if option.name == "Cawdor"
+            for pickable in group.options
+            if pickable.name == "Cawdor"
         ]
 
         assert (cawdor.taken_for, cawdor.is_current) == ("", True)
 
-    def test_a_domain_that_allows_repeats_marks_nothing(
+    def test_a_slot_type_that_allows_repeats_marks_nothing(
         self, gang, person_type, gang_type, default_pack
     ):
-        domain = create_slot_type("Loadout", allows_repeats=True)
-        option = create_pickable("Heavy", domain)
-        picklist = create_picklist("Loadouts", domain, members=[option])
+        slot_type = create_slot_type("Loadout", allows_repeats=True)
+        pickable = create_pickable("Heavy", slot_type)
+        picklist = create_picklist("Loadouts", slot_type, members=[pickable])
         profile = create_profile("Twice-armed", person_type, gang_type, price=100)
-        add_built_in(profile, create_slot("Loadout 1", domain, picklist))
-        add_built_in(profile, create_slot("Loadout 2", domain, picklist))
+        add_built_in(profile, create_slot("Loadout 1", slot_type, picklist))
+        add_built_in(profile, create_slot("Loadout 2", slot_type, picklist))
         kaustos = hire(gang, profile, "Kaustos", paid=100)
         first, _ = sorted(choices_of(kaustos), key=lambda slot: slot.source)
-        choose(first.anchor.assignment, option)
+        choose(first.anchor.assignment, pickable)
 
         _, second = self.offers(kaustos)
 
@@ -435,29 +435,29 @@ class TestThePickerMarksWhatIsTaken:
         body = client.get(second.href).content.decode()
 
         assert "already chosen for Legacy 1" in body
-        # Marked, not locked: the option is still a control that works.
+        # Marked, not locked: the pickable is still a control that works.
         control = re.search(
             rf'<input[^>]*value="library.pickable:{houses["Cawdor"].pk}"[^>]*>', body
         )
         assert control and "disabled" not in control.group()
 
 
-class TestAnOptionWithNoChoiceBehindIt:
+class TestAnPickableWithNoChoiceBehindIt:
     """A pickable an owner hands over with no slot to answer shows
     nothing and does nothing — not a line, not a modifier, not a fact
     another rule can match on."""
 
     @pytest.fixture
     def loud(self, legacy, default_pack):
-        """An option that would be impossible to miss if it ran."""
-        option = create_pickable("Cawdor", legacy)
+        """A pickable that would be impossible to miss if it ran."""
+        pickable = create_pickable("Cawdor", legacy)
         modifier(
             "Cawdor: a rule",
             targets_model(),
             ef_adds(create_rule("House Cawdor")),
-            carried_by=option,
+            carried_by=pickable,
         )
-        return option
+        return pickable
 
     @pytest.fixture
     def plain_hunter(self, person_type, gang_type):
@@ -499,7 +499,7 @@ class TestAnOptionWithNoChoiceBehindIt:
 
         assert [line.name for line in computed.rules] == []
 
-    def test_the_same_option_chosen_properly_does_everything(
+    def test_the_same_pickable_chosen_properly_does_everything(
         self, gang, hunter, legacy
     ):
         loud = create_pickable("Delaque", legacy)
@@ -558,11 +558,11 @@ class TestAChoiceTheGangIsAsked:
 
     @pytest.fixture
     def gang_type_with_affiliation(self, default_pack):
-        domain = create_slot_type("Affiliation")
-        aranthian = create_pickable("Aranthian", domain)
-        picklist = create_picklist("Affiliations", domain, members=[aranthian])
+        slot_type = create_slot_type("Affiliation")
+        aranthian = create_pickable("Aranthian", slot_type)
+        picklist = create_picklist("Affiliations", slot_type, members=[aranthian])
         slot = create_slot(
-            "Affiliation", domain, picklist, assigned_to="gang", min_picks=1
+            "Affiliation", slot_type, picklist, assigned_to="gang", min_picks=1
         )
         made = create_gang_type("Outcasts")
         add_built_in(made, slot)
@@ -627,16 +627,16 @@ class TestALeaderAskedForTheGang:
 
     @pytest.fixture
     def leader(self, person_type, gang_type, ranks, default_pack):
-        domain = create_slot_type("Archetype", allows_repeats=False)
-        mutant = create_pickable("Mutant", domain)
+        slot_type = create_slot_type("Archetype", allows_repeats=False)
+        mutant = create_pickable("Mutant", slot_type)
         modifier(
             "Mutant: the gangers and the scum",
             targets_model_with(has_subtypes(ranks["ganger"], ranks["hive scum"])),
             ef_adds(create_rule("Unstable")),
             carried_by=mutant,
         )
-        picklist = create_picklist("Outcast Archetypes", domain, members=[mutant])
-        slot = create_slot("Archetype", domain, picklist, assigned_to="gang")
+        picklist = create_picklist("Outcast Archetypes", slot_type, members=[mutant])
+        slot = create_slot("Archetype", slot_type, picklist, assigned_to="gang")
         profile = create_profile("Outcast Leader", person_type, gang_type, price=120)
         add_built_in(profile, slot)
         return profile, mutant
@@ -699,21 +699,21 @@ class TestOneChoiceOpensAnother:
 
     @pytest.fixture
     def chained(self, person_type, gang_type, default_pack):
-        domain = create_slot_type("Affiliation")
-        houses_domain = create_slot_type("House")
-        cawdor = create_pickable("House Cawdor", houses_domain)
-        house_list = create_picklist("Clan Houses", houses_domain, members=[cawdor])
-        house_slot = create_slot("House", houses_domain, house_list)
+        slot_type = create_slot_type("Affiliation")
+        houses_slot_type = create_slot_type("House")
+        cawdor = create_pickable("House Cawdor", houses_slot_type)
+        house_list = create_picklist("Clan Houses", houses_slot_type, members=[cawdor])
+        house_slot = create_slot("House", houses_slot_type, house_list)
 
-        clan_house = create_pickable("Clan House", domain)
+        clan_house = create_pickable("Clan House", slot_type)
         modifier(
             "Clan House: which house",
             targets_model(),
             ef_adds(house_slot),
             carried_by=clan_house,
         )
-        affiliations = create_picklist("Affiliations", domain, members=[clan_house])
-        first = create_slot("Affiliation", domain, affiliations)
+        affiliations = create_picklist("Affiliations", slot_type, members=[clan_house])
+        first = create_slot("Affiliation", slot_type, affiliations)
         profile = create_profile("Outcast", person_type, gang_type, price=100)
         add_built_in(profile, first)
         return profile, clan_house, cawdor
@@ -853,18 +853,18 @@ class TestAPickTheGangHolds:
     """
 
     @pytest.fixture
-    def domain(self, default_pack):
+    def slot_type(self, default_pack):
         return create_slot_type("Archetype", allows_repeats=False)
 
     @pytest.fixture
-    def mutant(self, domain):
-        return create_pickable("Mutant", domain)
+    def mutant(self, slot_type):
+        return create_pickable("Mutant", slot_type)
 
     @pytest.fixture
-    def leader(self, person_type, gang_type, domain, mutant):
+    def leader(self, person_type, gang_type, slot_type, mutant):
         """A profile carrying a choice whose answer the gang holds."""
-        picklist = create_picklist("Outcast Archetypes", domain, members=[mutant])
-        slot = create_slot("Archetype", domain, picklist, assigned_to="gang")
+        picklist = create_picklist("Outcast Archetypes", slot_type, members=[mutant])
+        slot = create_slot("Archetype", slot_type, picklist, assigned_to="gang")
         profile = create_profile("Outcast Leader", person_type, gang_type, price=120)
         add_built_in(profile, slot)
         return profile
@@ -936,10 +936,10 @@ class TestAPickTheGangHolds:
         assert select.Has(mutant).matches(matchable)
         assert not select.Has(arsenal).matches(matchable)
 
-    def test_a_gang_held_option_with_no_choice_behind_it_says_nothing(
+    def test_a_gang_held_pickable_with_no_choice_behind_it_says_nothing(
         self, gang, leader, mutant
     ):
-        """The orphan rule holds wherever the option sits: nobody was
+        """The orphan rule holds wherever the pickable sits: nobody was
         offered it, so it is not a fact about anybody."""
         from n26.core import select
 
@@ -950,20 +950,20 @@ class TestAPickTheGangHolds:
 
 
 class TestTwoChoicesOneThingGave:
-    """One thing may open two choices of a domain. They share the
+    """One thing may open two choices of a slot type. They share the
     assignment that gave them, so only the slot each pick names keeps
     their answers apart."""
 
     @pytest.fixture
     def trees(self, default_pack):
-        domain = create_slot_type("Skill Tree")
-        options = {
-            name: create_pickable(name, domain)
+        slot_type = create_slot_type("Skill Tree")
+        pickables = {
+            name: create_pickable(name, slot_type)
             for name in ("Agility", "Brawn", "Cunning")
         }
-        picklist = create_picklist("Trees", domain, members=list(options.values()))
-        first = create_slot("Tree one", domain, picklist, label="Skill tree 1")
-        second = create_slot("Tree two", domain, picklist, label="Skill tree 2")
+        picklist = create_picklist("Trees", slot_type, members=list(pickables.values()))
+        first = create_slot("Tree one", slot_type, picklist, label="Skill tree 1")
+        second = create_slot("Tree two", slot_type, picklist, label="Skill tree 2")
         charter = create_wargear("Venator Charter")
         modifier(
             "Charter: the first tree",
@@ -977,7 +977,7 @@ class TestTwoChoicesOneThingGave:
             ef_adds(second),
             carried_by=charter,
         )
-        return charter, options
+        return charter, pickables
 
     @pytest.fixture
     def venator(self, person_type, gang_type, gang, trees):
@@ -991,17 +991,17 @@ class TestTwoChoicesOneThingGave:
         return {slot.kind_label: slot for slot in choices_of(miniature)}
 
     def test_each_choice_holds_only_its_own_pick(self, gang, venator, trees):
-        _, options = trees
+        _, pickables = trees
         asked = self.asked(venator)
 
         choose(
             asked["Skill tree 1"].anchor.assignment,
-            options["Agility"],
+            pickables["Agility"],
             slot=asked["Skill tree 1"].slot,
         )
         choose(
             asked["Skill tree 2"].anchor.assignment,
-            options["Brawn"],
+            pickables["Brawn"],
             slot=asked["Skill tree 2"].slot,
         )
 
@@ -1013,20 +1013,20 @@ class TestTwoChoicesOneThingGave:
         assert [len(slot.picks) for slot in settled.values()] == [1, 1]
 
     def test_changing_one_leaves_the_other_where_it_was(self, gang, venator, trees):
-        _, options = trees
+        _, pickables = trees
         asked = self.asked(venator)
-        for label, option in (("Skill tree 1", "Agility"), ("Skill tree 2", "Brawn")):
+        for label, pickable in (("Skill tree 1", "Agility"), ("Skill tree 2", "Brawn")):
             choose(
                 asked[label].anchor.assignment,
-                options[option],
+                pickables[pickable],
                 slot=asked[label].slot,
             )
 
-        remove(Assignment.objects.get(pickable=options["Agility"], archived=False))
+        remove(Assignment.objects.get(pickable=pickables["Agility"], archived=False))
         asked = self.asked(venator)
         choose(
             asked["Skill tree 1"].anchor.assignment,
-            options["Cunning"],
+            pickables["Cunning"],
             slot=asked["Skill tree 1"].slot,
         )
 
@@ -1105,8 +1105,8 @@ class TestWhereAGivenChoiceIsDrawn:
         assert [slot.kind_label for slot in choices_of(kaustos)] == ["Aa", "Zz"]
 
 
-class TestTheWordingAListGivesAnOption:
-    """A list may call an option something of its own. The wording is
+class TestTheWordingAListGivesAnPickable:
+    """A list may call a pickable something of its own. The wording is
     the list's, so it reaches the picker and stops there: the card
     prints what the thing is called."""
 
@@ -1129,11 +1129,11 @@ class TestTheWordingAListGivesAnOption:
 
         offer = build_choice_offer(slot, computed)
 
-        assert [option.name for group in offer.groups for option in group.options] == [
-            "House of Redemption"
-        ]
+        assert [
+            pickable.name for group in offer.groups for pickable in group.options
+        ] == ["House of Redemption"]
 
-    def test_the_card_says_the_options_own_name(self, gang, renamed, houses):
+    def test_the_card_says_the_pickables_own_name(self, gang, renamed, houses):
         kaustos = hire(gang, renamed, "Kaustos", paid=100)
         (slot,) = choices_of(kaustos)
 
@@ -1143,7 +1143,7 @@ class TestTheWordingAListGivesAnOption:
         assert_reconciled(gang)
 
 
-def option_key_of(pickable):
+def pickable_key_of(pickable):
     return f"library.pickable:{pickable.pk}"
 
 
@@ -1170,7 +1170,7 @@ def picker_href(gang):
 
 class TestAChoiceThatHoldsSeveral:
     """A choice of more than one is worked at rather than made in one stroke: each
-    option carries its own act, a click settles or unsettles that one,
+    pickable carries its own act, a click settles or unsettles that one,
     and the page comes back. Full, it stops offering the rest — the way
     to something else is to take a pick back, never to have one pushed
     out unasked."""
@@ -1203,9 +1203,9 @@ class TestAChoiceThatHoldsSeveral:
         self, gang, wanderer, houses, client
     ):
         href = picker_href(gang)
-        client.post(href, {"thing": option_key_of(houses["Cawdor"])})
+        client.post(href, {"thing": pickable_key_of(houses["Cawdor"])})
 
-        landed = client.post(href, {"thing": option_key_of(houses["Escher"])})
+        landed = client.post(href, {"thing": pickable_key_of(houses["Escher"])})
 
         (settled,) = choices_of(wanderer)
         assert sorted(node.name for node in settled.picks) == ["Cawdor", "Escher"]
@@ -1216,14 +1216,14 @@ class TestAChoiceThatHoldsSeveral:
     def test_everything_it_holds_draws_as_chosen(self, gang, wanderer, houses, client):
         href = picker_href(gang)
         for name in ("Cawdor", "Escher"):
-            client.post(href, {"thing": option_key_of(houses[name])})
+            client.post(href, {"thing": pickable_key_of(houses[name])})
 
         offer = self.offer_for(wanderer)
 
         assert [
-            (option.name, option.is_current, option.control)
+            (pickable.name, pickable.is_current, pickable.control)
             for group in offer.groups
-            for option in group.options
+            for pickable in group.options
         ] == [("Cawdor", True, "remove"), ("Escher", True, "remove")]
         assert_reconciled(gang)
 
@@ -1232,7 +1232,7 @@ class TestAChoiceThatHoldsSeveral:
     ):
         href = picker_href(gang)
         for name in ("Cawdor", "Escher"):
-            client.post(href, {"thing": option_key_of(houses[name])})
+            client.post(href, {"thing": pickable_key_of(houses[name])})
 
         body = client.get(href).content.decode()
 
@@ -1245,9 +1245,9 @@ class TestAChoiceThatHoldsSeveral:
     ):
         href = picker_href(gang)
         for name in ("Cawdor", "Escher"):
-            client.post(href, {"thing": option_key_of(houses[name])})
+            client.post(href, {"thing": pickable_key_of(houses[name])})
 
-        client.post(href, {"thing": option_key_of(houses["Ironhead Squats"])})
+        client.post(href, {"thing": pickable_key_of(houses["Ironhead Squats"])})
 
         (settled,) = choices_of(wanderer)
         assert sorted(node.name for node in settled.picks) == ["Cawdor", "Escher"]
@@ -1258,9 +1258,9 @@ class TestAChoiceThatHoldsSeveral:
     ):
         href = picker_href(gang)
         for name in ("Cawdor", "Escher"):
-            client.post(href, {"thing": option_key_of(houses[name])})
+            client.post(href, {"thing": pickable_key_of(houses[name])})
 
-        client.post(href, {"remove": option_key_of(houses["Cawdor"])})
+        client.post(href, {"remove": pickable_key_of(houses["Cawdor"])})
 
         (settled,) = choices_of(wanderer)
         assert [node.name for node in settled.picks] == ["Escher"]
@@ -1271,8 +1271,8 @@ class TestAChoiceThatHoldsSeveral:
     ):
         href = picker_href(gang)
         for name in ("Cawdor", "Escher"):
-            client.post(href, {"thing": option_key_of(houses[name])})
-        client.post(href, {"remove": option_key_of(houses["Escher"])})
+            client.post(href, {"thing": pickable_key_of(houses[name])})
+        client.post(href, {"remove": pickable_key_of(houses["Escher"])})
 
         body = client.get(href).content.decode()
 
@@ -1281,7 +1281,7 @@ class TestAChoiceThatHoldsSeveral:
         assert_reconciled(gang)
 
     def test_the_page_ends_with_no_save(self, gang, wanderer, client):
-        """Nothing is held back to be saved: every option's own act has
+        """Nothing is held back to be saved: every pickable's own act has
         already been taken or not."""
         said = button_labels(client.get(picker_href(gang)).content.decode())
 
@@ -1334,7 +1334,7 @@ class TestAChoiceThatHoldsNone:
         kaustos = hire(gang, asks_nothing, "Kaustos", paid=100)
         client.force_login(owner)
 
-        client.post(picker_href(gang), {"thing": option_key_of(houses["Cawdor"])})
+        client.post(picker_href(gang), {"thing": pickable_key_of(houses["Cawdor"])})
 
         assert choices_of(kaustos)[0].picks == []
         assert not Assignment.objects.filter(
@@ -1347,8 +1347,8 @@ class TestThePickerStaysFlatHoweverLongTheList:
     def test_the_page_reads_flat_as_the_list_grows(
         self, gang, hunter, legacy, legacies, client, owner, django_assert_num_queries
     ):
-        """Six options and twenty-six are the same page read twice: the
-        wording is the member's and the identity the option's, and both
+        """Six pickables and twenty-six are the same page read twice: the
+        wording is the member's and the identity the pickable's, and both
         come back with the list."""
         from django.db import connection
         from django.test.utils import CaptureQueriesContext

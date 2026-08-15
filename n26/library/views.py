@@ -143,14 +143,14 @@ def _describe_built_in(member):
 
 
 def _describe_picklist_member(member):
-    """One option on one list: what this list calls it, and — where that
-    is not the option's own name — what the option is called elsewhere.
+    """One pickable on one list: what this list calls it, and — where
+    that is not the pickable's own name — what it is called elsewhere.
 
     Its place in the order is not said: the rows are printed in it.
     """
     notes = []
     if member.label_override:
-        notes.append(f"the {member.pickable} option, under another name")
+        notes.append(f"the {member.pickable} pickable, under another name")
     return member.label, notes
 
 
@@ -267,22 +267,27 @@ DETAIL_KINDS = {
         "statline": False,
         "describe": _describe_picklist_member,
         "parts_hint": lambda parts: parts.select_related("pickable"),
-        "parts_label": "options",
+        # The row is the listing, but the name on it is the pickable's,
+        # and the pickable's page is where what it does is written.
+        "opens": lambda member: reverse(
+            "authoring-detail", args=["pickable", member.pickable_id]
+        ),
+        "parts_label": "pickables",
         # The part model's own name is accurate and nothing an author
-        # says; what they are adding is one more option to choose from.
-        "part_name": "option",
+        # says; what they are adding is one more pickable to choose from.
+        "part_name": "pickable",
         "parts_description": (
             "What a choice drawing on this list offers, in the order a "
             "player reads them. Taking one off changes only what is offered "
-            "next: the option itself stays in the library, and anyone who "
+            "next: the pickable itself stays in the library, and anyone who "
             "already picked it keeps it."
         ),
         "nothing_yet": (
-            "No options yet — a choice drawing on this list has nothing to offer."
+            "No pickables yet — a choice drawing on this list has nothing to offer."
         ),
-        # Taking an option off a list is a question asked at its own
+        # Taking a pickable off a list is a question asked at its own
         # address, like every other part: what the act reaches — the
-        # option itself, every other list offering it — cannot be read
+        # pickable itself, every other list offering it — cannot be read
         # off the row.
         "removes": "authoring-picklist-member-remove",
     },
@@ -431,13 +436,13 @@ def _part_sections(kind):
 
 
 def _narrow_a_slots_picklists(form, slot):
-    """A choice offers its own domain's lists and no others.
+    """A choice offers its own slot type's picklists and no others.
 
-    The page that *makes* a slot cannot narrow this — no domain has been
-    chosen at the moment the picker is drawn — but the page that
-    corrects one knows the domain already, and a picker offering lists
-    from another one is an invitation to write content whose options
-    could never settle the choice.
+    The page that *makes* a slot cannot narrow this — no slot type has
+    been chosen at the moment the picker is drawn — but the page that
+    corrects one knows the slot type already, and a picker offering
+    picklists from another one is an invitation to write content whose
+    pickables could never settle the choice.
     """
     form.fields["picklist"].queryset = slot.slot_type.picklists.all()
 
@@ -640,6 +645,21 @@ def _article_for(word):
     return "an" if str(word)[:1].lower() in "aeiou" else "a"
 
 
+def _opens_url(opens, part):
+    """Where a part's name leads, blank where it leads nowhere.
+
+    A URL name for a part with a page of its own, or a callable where
+    the row joins two things and the name is one of them: a picklist
+    member's name is a pickable's, and an author following it wants the
+    pickable rather than the listing row.
+    """
+    if not opens:
+        return ""
+    if callable(opens):
+        return opens(part)
+    return reverse(opens, args=[part.pk])
+
+
 def _label_for(row):
     """How an author reads one row.
 
@@ -721,43 +741,43 @@ def _describe_gang_type(gang_type):
 
 
 def _describe_slot_type(slot_type):
-    """How much has been built in this domain, and whether one holder
-    may pick the same option twice."""
+    """How much has been built in this slot type, and whether one
+    holder may pick the same pickable twice."""
     notes = [
-        f"{len(slot_type.pickables.all())} options",
-        f"{len(slot_type.picklists.all())} lists",
-        f"{len(slot_type.slots.all())} choices",
+        f"{len(slot_type.pickables.all())} pickables",
+        f"{len(slot_type.picklists.all())} picklists",
+        f"{len(slot_type.slots.all())} slots",
     ]
     if not slot_type.allows_repeats:
         notes.append("no repeats")
     return notes
 
 
-def _pickable_notes(option):
-    """How many lists offer one option.
+def _pickable_notes(pickable):
+    """How many picklists offer one pickable.
 
-    On no list at all is the state worth seeing: an option nothing
+    On no list at all is the state worth seeing: a pickable nothing
     offers can only be handed over by an owner.
     """
-    listed = len(option.listed_on.all())
+    listed = len(pickable.listed_on.all())
     return [
         f"on {listed} list{'' if listed == 1 else 's'}" if listed else "on no list yet"
     ]
 
 
 def _picklist_notes(picklist):
-    """How many options are on one list."""
+    """How many pickables are on one picklist."""
     offered = len(picklist.members.all())
-    return [f"{offered} option{'' if offered == 1 else 's'}"]
+    return [f"{offered} pickable{'' if offered == 1 else 's'}"]
 
 
-def _describe_pickable(option):
-    """The domain it is an option in, and how many lists offer it."""
-    return [option.slot_type.name, *_pickable_notes(option)]
+def _describe_pickable(pickable):
+    """The slot type it belongs to, and how many picklists offer it."""
+    return [pickable.slot_type.name, *_pickable_notes(pickable)]
 
 
 def _describe_picklist(picklist):
-    """The domain it offers, and how many options are on it."""
+    """The slot type it offers, and how many pickables are on it."""
     return [picklist.slot_type.name, *_picklist_notes(picklist)]
 
 
@@ -768,11 +788,15 @@ def _picks_said(slot):
     return f"{slot.min_picks} to {slot.max_picks} picks"
 
 
-def _slot_notes(slot):
-    """What the choice offers, how many picks it takes, and the two
-    things about it a reader would otherwise have to open it to learn:
-    that the gang holds what is picked, and that it draws no row."""
-    notes = [f"from {slot.picklist.name}", _picks_said(slot)]
+def _slot_terms(slot):
+    """How many picks a choice takes, and the two things about it a
+    reader would otherwise have to open it to learn: that the gang holds
+    what is picked, and that it draws no row.
+
+    Said apart from the picklist, because a page listing the slots that
+    draw on one list would print that list once a row.
+    """
+    notes = [_picks_said(slot)]
     if slot.assigned_to == slot.WillBeAssignedTo.GANG:
         notes.append("the gang holds the pick")
     if slot.hidden:
@@ -780,8 +804,13 @@ def _slot_notes(slot):
     return notes
 
 
+def _slot_notes(slot):
+    """What the choice offers, and everything it says about itself."""
+    return [f"from {slot.picklist.name}", *_slot_terms(slot)]
+
+
 def _describe_slot(slot):
-    """The domain, and everything the choice says about itself."""
+    """The slot type, and everything the choice says about itself."""
     return [slot.slot_type.name, *_slot_notes(slot)]
 
 
@@ -821,9 +850,9 @@ LEAF_LISTING_HINTS = {
     "profile": _profile_listing,
     # A category says itself as "section: name".
     "category": lambda rows: rows.select_related("section"),
-    # The choice kinds each read the domain they belong to, and two of
-    # them count a set as well — a query apiece, per listing rather than
-    # per row.
+    # The choice kinds each read the slot type they belong to, and two
+    # of them count a set as well — a query apiece, per listing rather
+    # than per row.
     "slot-type": lambda rows: rows.prefetch_related("pickables", "picklists", "slots"),
     "pickable": lambda rows: rows.select_related("slot_type").prefetch_related(
         "listed_on"
@@ -1305,6 +1334,71 @@ def _prose_addresses(prose):
     )
 
 
+#: Where a kind's page stands under another's, so the bar leads back to
+#: it. A picklist is made on its slot type's page and belongs to it for
+#: good — the field is settled once and never offered again, so without
+#: this the page never names the type at all.
+DETAIL_PARENTS = {
+    "picklist": ("slot-type", "slot_type"),
+    # The same fact on the other two pages of the family: slot_type is
+    # settled when the thing is made and dropped from the edit form, so
+    # the breadcrumb is where a reader learns it.
+    "pickable": ("slot-type", "slot_type"),
+    "slot": ("slot-type", "slot_type"),
+}
+
+
+#: Rows a page names but does not own: things made elsewhere that point
+#: at this one. Read-only, so each row is a name and a way to it; the
+#: thing itself is corrected where it was made.
+DETAIL_RELATED = {
+    "picklist": {
+        "kind": "slot",
+        "title": "Slots drawing on this picklist",
+        "description": (
+            "Every slot that offers this list. A picklist nothing draws on "
+            "is never put in front of a player."
+        ),
+        "nothing_yet": ("No slot draws on this picklist yet, so nothing offers it."),
+        "rows": lambda picklist: picklist.slots.all(),
+        "notes": _slot_terms,
+    },
+}
+
+
+def _parent_of(kind, thing):
+    """The thing this one is filed under, for the bar that says so."""
+    filed_under = DETAIL_PARENTS.get(kind)
+    if filed_under is None:
+        return None
+    parent_kind, attribute = filed_under
+    return {"kind": parent_kind, "thing": getattr(thing, attribute)}
+
+
+def _related_sections(kind, thing):
+    """The rows this page names but does not own, each with a way to it."""
+    described = DETAIL_RELATED.get(kind)
+    if described is None:
+        return []
+    return [
+        {
+            "title": described["title"],
+            "description": described["description"],
+            "nothing_yet": described["nothing_yet"],
+            "rows": [
+                {
+                    "label": _label_for(row),
+                    "notes": described["notes"](row),
+                    "url": reverse(
+                        "authoring-detail", args=[described["kind"], row.pk]
+                    ),
+                }
+                for row in described["rows"](thing)
+            ],
+        }
+    ]
+
+
 @staff_member_required
 def detail(request, kind, pk):
     """One thing, and the parts added to it over time.
@@ -1426,6 +1520,7 @@ def detail(request, kind, pk):
             statline_form = statline_class() if statline_class else None
         removes = section.get("removes")
         opens = section.get("opens")
+
         parts = []
         for part in section.get("parts_hint", lambda parts: parts)(
             getattr(thing, section["parts"]).all()
@@ -1437,7 +1532,7 @@ def detail(request, kind, pk):
                     "notes": notes,
                     # Blank for a kind whose parts have no page of their
                     # own; the row's name is then plain words.
-                    "href": reverse(opens, args=[part.pk]) if opens else "",
+                    "href": _opens_url(opens, part),
                     # Blank for a kind whose parts cannot be taken off
                     # here; the row simply draws no control.
                     "remove_url": reverse(removes, args=[part.pk]) if removes else "",
@@ -1487,6 +1582,8 @@ def detail(request, kind, pk):
         {
             "kind": kind,
             "thing": thing,
+            "parent": _parent_of(kind, thing),
+            "related_sections": _related_sections(kind, thing),
             "prose": said,
             "verbose_name": model._meta.verbose_name,
             "verbose_name_plural": model._meta.verbose_name_plural,
@@ -2821,12 +2918,12 @@ def collection_page(request, pk):
 
 @staff_member_required
 def picklist_member_remove(request, pk):
-    """The question asked before an option is taken off a list.
+    """The question asked before a pickable is taken off a list.
 
-    What goes is the *listing*. The option stays in the library, on
+    What goes is the *listing*. The pickable stays in the library, on
     every other list that offers it, and on every card that has already
     picked it — worth saying before anything happens, because a control
-    beside an option's name reads as one that deletes options.
+    beside a pickable's name reads as one that deletes pickables.
     """
     from n26.library import authoring
     from n26.library.models import PicklistMember
@@ -2895,73 +2992,79 @@ def entry_remove(request, pk):
     )
 
 
-#: What a domain of choice is built out of, in the order it is built:
-#: the options, the lists that offer them, the choices that draw on
-#: those lists. Each is a table of its own rows and a form that makes
-#: one more, and each names the kind whose page a row leads to.
+#: What a slot type is built out of, in the order it is built: the
+#: pickables, the picklists that offer them, the slots that draw on
+#: those picklists. Each is a table of its own rows and a form that
+#: makes one more, and each names the kind whose page a row leads to.
 #:
-#: The domain itself is not on any of the three forms. It is the page,
-#: so the field is taken off and the verb is handed the row instead —
-#: which is also what makes the narrowing honest: a choice's picker can
-#: only offer this domain's lists because the domain is already settled.
+#: The slot type itself is not on any of the three forms. It is the
+#: page, so the field is taken off and the verb is handed the row
+#: instead — which is also what makes the narrowing honest: a slot's
+#: picker can only offer this slot type's picklists because the slot
+#: type is already settled.
 SLOT_TYPE_PARTS = (
     {
         "act": "pickable",
         "verb": "create_pickable",
         "parts": "pickables",
         "kind": "pickable",
-        "title": "Options",
-        "part_name": "option",
+        "title": "Pickables",
+        "part_name": "pickable",
         "notes": _pickable_notes,
         "description": (
-            "The values a choice in this domain can settle on. An option "
-            "does nothing until a modifier hangs on it, which is done on "
-            "its own page."
+            "The values a choice of this slot type can settle on. A "
+            "pickable does nothing until a modifier hangs on it, which is "
+            "done on its own page."
         ),
-        "nothing_yet": "No options yet — a choice in this domain has nothing to offer.",
+        "nothing_yet": (
+            "No pickables yet — a choice of this slot type has nothing to offer."
+        ),
     },
     {
         "act": "picklist",
         "verb": "create_picklist",
         "parts": "picklists",
         "kind": "picklist",
-        "title": "Lists of options",
-        "part_name": "list",
+        "title": "Picklists",
+        "part_name": "picklist",
         "notes": _picklist_notes,
         "description": (
-            "The options behind one choice, in order. A domain may have "
-            "several lists: what a leader chooses from and what a champion "
-            "chooses from are two lists over one domain."
+            "The pickables behind one choice, in order. A slot type may "
+            "have several picklists: what a leader chooses from and what a "
+            "champion chooses from are two lists over one slot type."
         ),
-        "nothing_yet": "No lists yet — a choice draws its options from one of these.",
+        "nothing_yet": (
+            "No picklists yet — a choice draws its pickables from one of these."
+        ),
     },
     {
         "act": "slot",
         "verb": "create_slot",
         "parts": "slots",
         "kind": "slot",
-        "title": "Choices",
-        "part_name": "choice",
+        "title": "Slots",
+        "part_name": "slot",
         "notes": _slot_notes,
         "description": (
-            "One named use of this domain: a list, a label, and how many "
-            "picks. Building one into a profile is what puts the choice on "
-            "that fighter's card."
+            "One named use of this slot type: a picklist, a label, and how "
+            "many picks. Building one into a profile is what puts the "
+            "choice on that fighter's card."
         ),
         "nothing_yet": (
-            "No choices yet — nothing puts this domain's options in front of a player."
+            "No slots yet — nothing puts this slot type's pickables in front "
+            "of a player."
         ),
     },
 )
 
 
 def _slot_type_part_form(part, slot_type, posted=None):
-    """The form that adds one part to a domain of choice.
+    """The form that adds one part to a slot type.
 
-    The spec-generated create form for that kind, with the domain taken
-    off: the page is the domain, so asking again would be a box with one
-    right answer. Handed the domain as its carrier, which is what
-    narrows a choice's list picker to the lists this domain has.
+    The spec-generated create form for that kind, with the slot type
+    taken off: the page is the slot type, so asking again would be a box
+    with one right answer. Handed the slot type as its carrier, which is
+    what narrows a slot's picklist picker to the ones this slot type has.
     """
     spec = specs()[part["verb"]]
     form_class = generate_form(spec)
@@ -2976,13 +3079,13 @@ def _slot_type_part_form(part, slot_type, posted=None):
 
 @staff_member_required
 def slot_type_page(request, pk):
-    """A domain of choice: what it is, and everything built in it.
+    """A slot type: what it is, and everything built in it.
 
-    A slot type is a top-level kind and reads like one — its options,
-    its lists and its choices are all on this page, each a table and a
-    form. They only mean anything together: an option nothing lists is
-    unofferable, a list nothing draws on is unasked, and a choice is the
-    only one of the three a card ever sees.
+    A slot type is a top-level kind and reads like one — its pickables,
+    its picklists and its slots are all on this page, each a table and a
+    form. They only mean anything together: a pickable nothing lists is
+    unofferable, a picklist nothing draws on is unasked, and a slot is
+    the only one of the three a card ever sees.
 
     Its own parts rather than the generic parts page, which draws at
     most one section of a kind's own. Three acts, so a post says which
@@ -3062,11 +3165,11 @@ def slot_type_page(request, pk):
 
 
 def _slot_type_rows(slot_type, part):
-    """One of a domain's three sets of parts, with what its notes read.
+    """One of a slot type's three sets of parts, with what its notes read.
 
-    Each set is one query and its notes one more, whatever the domain
-    holds — a domain with eight options costs this page what a domain
-    with one costs it.
+    Each set is one query and its notes one more, whatever the slot type
+    holds — one with eight pickables costs this page what one with a
+    single pickable costs it.
     """
     rows = getattr(slot_type, part["parts"]).all()
     if part["act"] == "pickable":
