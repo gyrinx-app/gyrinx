@@ -220,7 +220,7 @@ class PicklistMember(Content):
     class Meta:
         verbose_name = "picklist member"
         verbose_name_plural = "picklist members"
-        ordering = ["picklist", "position"]
+        ordering = ["picklist", "position", "pickable__name"]
         constraints = [
             models.UniqueConstraint(
                 "picklist", "pickable", name="picklist_member_listed_once"
