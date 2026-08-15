@@ -10,7 +10,7 @@ default_language_version:
 
 repos:
   - repo: https://github.com/djlint/djLint
-    rev: v1.42.3
+    rev: v1.44.2
     hooks:
       # django-cotton component files are hand-formatted and byte-significant:
       # every one carries `djlint:off`, and djlint --reformat appends a trailing
@@ -33,7 +33,7 @@ repos:
         types: [jupyter]
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.16.0
+    rev: v0.16.2
     hooks:
       - id: ruff
         types_or: [python, pyi]
