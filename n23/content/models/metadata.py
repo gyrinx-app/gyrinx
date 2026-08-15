@@ -8,6 +8,7 @@ This module contains:
 - ContentPageRef: Page references to rulebooks
 """
 
+import hashlib
 from difflib import SequenceMatcher
 
 from django.core.cache import caches
@@ -223,7 +224,17 @@ class ContentPageRef(Content):
         cache = caches["content_page_ref_cache"]
         # Include the kwargs in the key: the same title looked up with and without
         # a category is two different questions with two different answers.
-        key = f"content_page_ref_cache:{title}:{sorted(kwargs.items())}"
+        #
+        # Hashed, because titles are free text: spaces and control characters in a
+        # raw key make Django emit a CacheKeyWarning on every single lookup (page
+        # ref titles like "The Path We Follow" did this on essentially every
+        # request). LocMemCache tolerates the characters, but the warning is real
+        # in the sense that this key would be invalid against memcached — hashing
+        # fixes the log noise and the latent backend constraint together.
+        digest = hashlib.md5(
+            f"{title}:{sorted(kwargs.items())}".encode(), usedforsecurity=False
+        ).hexdigest()
+        key = f"content_page_ref_cache:{digest}"
         # Sentinel rather than a truthiness test. An empty result is falsy, so
         # `if cached:` treated "we looked and there is nothing" as a cache miss —
         # meaning any title without a page ref re-ran an unindexable LIKE query on

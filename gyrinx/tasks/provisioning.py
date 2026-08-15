@@ -17,9 +17,12 @@ jobs from running.
 import json
 import logging
 import os
+import random
+import time
+from concurrent.futures import ThreadPoolExecutor
 
 from django.conf import settings
-from google.api_core.exceptions import AlreadyExists, NotFound
+from google.api_core.exceptions import Aborted, AlreadyExists, Conflict, NotFound
 from google.cloud import pubsub_v1, scheduler_v1
 from google.protobuf import duration_pb2
 
@@ -31,6 +34,16 @@ logger = logging.getLogger(__name__)
 
 # Prefix used for scheduler job names to identify jobs managed by this system
 SCHEDULER_JOB_PREFIX = "gyrinx-scheduler"
+
+# Tasks are provisioned concurrently: each one is ~3 blocking round trips to the
+# Pub/Sub admin API (~1.5s each), and run serially that was ~40s for 8 tasks.
+# They touch disjoint resources, so there is nothing to serialise for.
+PROVISION_MAX_WORKERS = 8
+
+# Two containers cold-starting together will both try to update the same
+# subscription, and one gets a 409. It is benign — the other process is writing
+# the identical config — so retry briefly rather than reporting a failure.
+CONFLICT_RETRIES = 2
 
 
 def get_service_url() -> str:
@@ -79,7 +92,7 @@ def provision_task_infrastructure():
     tasks = get_all_tasks()
     logger.info(f"Provisioning {len(tasks)} tasks (env={env})")
 
-    for route in tasks:
+    def _run(route: TaskRoute):
         try:
             _provision_task(
                 publisher=publisher,
@@ -94,6 +107,11 @@ def provision_task_infrastructure():
         except Exception as e:
             logger.error(f"Failed to provision {route.name}: {e}", exc_info=True)
             track("task_provisioning_failed", task_name=route.name, error=str(e))
+
+    # `_run` swallows its own exceptions, so the pool always drains and one bad
+    # task cannot take the rest of the provisioning down with it.
+    with ThreadPoolExecutor(max_workers=PROVISION_MAX_WORKERS) as pool:
+        list(pool.map(_run, tasks))
 
     # Provision Cloud Scheduler jobs for scheduled tasks
     _provision_scheduled_tasks(project_id=project_id, publisher=publisher, tasks=tasks)
@@ -132,10 +150,7 @@ def _provision_task(
     )
 
     # Configure retry policy from task route settings
-    retry_policy = pubsub_v1.types.RetryPolicy(
-        minimum_backoff=duration_pb2.Duration(seconds=route.min_retry_delay),
-        maximum_backoff=duration_pb2.Duration(seconds=route.max_retry_delay),
-    )
+    retry_policy = route_retry_policy(route)
 
     # Create subscription or update if it exists
     try:
@@ -151,20 +166,69 @@ def _provision_task(
         logger.info(f"Created subscription: {subscription_name}")
     except AlreadyExists:
         # Update existing subscription with current configuration
-        subscriber.update_subscription(
-            request={
-                "subscription": {
-                    "name": subscription_path,
-                    "push_config": push_config,
-                    "ack_deadline_seconds": route.ack_deadline,
-                    "retry_policy": retry_policy,
-                },
-                "update_mask": {
-                    "paths": ["push_config", "ack_deadline_seconds", "retry_policy"]
-                },
-            }
+        _update_subscription_tolerating_conflict(
+            subscriber=subscriber,
+            subscription_path=subscription_path,
+            subscription_name=subscription_name,
+            push_config=push_config,
+            route=route,
         )
-        logger.debug(f"Updated subscription: {subscription_name}")
+
+
+def _update_subscription_tolerating_conflict(
+    subscriber: pubsub_v1.SubscriberClient,
+    subscription_path: str,
+    subscription_name: str,
+    push_config,
+    route: TaskRoute,
+):
+    """
+    Update a subscription, retrying briefly if another process is writing it.
+
+    Two containers cold-starting at once both provision, and Pub/Sub rejects the
+    loser with 409 "The request raced with another user request". Both are
+    writing byte-identical config, so the conflict carries no information — but
+    it used to be logged at ERROR with a traceback for every task on every boot.
+    Retry with jitter, then settle for a WARNING: whichever writer won has
+    already put the correct config in place.
+    """
+    request = {
+        "subscription": {
+            "name": subscription_path,
+            "push_config": push_config,
+            "ack_deadline_seconds": route.ack_deadline,
+            "retry_policy": route_retry_policy(route),
+        },
+        "update_mask": {
+            "paths": ["push_config", "ack_deadline_seconds", "retry_policy"]
+        },
+    }
+
+    for attempt in range(CONFLICT_RETRIES + 1):
+        try:
+            subscriber.update_subscription(request=request)
+            logger.debug(f"Updated subscription: {subscription_name}")
+            return
+        except (Aborted, Conflict) as e:
+            if attempt == CONFLICT_RETRIES:
+                logger.warning(
+                    f"Subscription {subscription_name} is being updated concurrently "
+                    f"and did not settle after {CONFLICT_RETRIES + 1} attempts; "
+                    f"leaving the other writer's identical config in place ({e})"
+                )
+                track("task_provisioning_conflict", task_name=route.name)
+                return
+            # nosec B311 - backoff jitter to decorrelate two containers retrying
+            # in lockstep; nothing security-sensitive depends on it.
+            time.sleep(0.25 * (2**attempt) + random.uniform(0, 0.25))  # nosec B311
+
+
+def route_retry_policy(route: TaskRoute) -> pubsub_v1.types.RetryPolicy:
+    """Build the Pub/Sub retry policy for a route's backoff settings."""
+    return pubsub_v1.types.RetryPolicy(
+        minimum_backoff=duration_pb2.Duration(seconds=route.min_retry_delay),
+        maximum_backoff=duration_pb2.Duration(seconds=route.max_retry_delay),
+    )
 
 
 def _provision_scheduled_tasks(

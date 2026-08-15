@@ -1,12 +1,8 @@
 """
 Django app configuration for tasks.
-
-On Cloud Run startup, this auto-provisions Pub/Sub topics and subscriptions
-for all registered tasks.
 """
 
 import logging
-import os
 
 from django.apps import AppConfig
 
@@ -22,10 +18,19 @@ class TasksConfig(AppConfig):
 
     def ready(self):
         """
-        Initialize task infrastructure.
+        Register signal handlers for TaskExecution lifecycle management.
 
-        - Registers signal handlers for TaskExecution lifecycle management
-        - Auto-provisions Pub/Sub topics/subscriptions in Cloud Run
+        Pub/Sub provisioning deliberately does **not** happen here. `ready()` runs
+        in every Django process — every management command and every gunicorn
+        worker — and provisioning is a serial run of blocking Pub/Sub admin calls.
+        On Cloud Run that meant four runs per container (collectstatic,
+        ensuresuperuser, and once per worker), ~120s of a ~160s cold start, all of
+        it re-creating resources that already existed. Worse, the workers ran it
+        *after* gunicorn had bound the port, so Cloud Run's startup probe passed
+        and real requests were routed into processes still blocked in `ready()`.
+
+        Provisioning is now a background step in `docker/entrypoint.sh`
+        (`manage provision_tasks`), off the request path entirely.
         """
         # Import signal handlers to register them (works with any backend)
         from gyrinx.tasks import signals  # noqa: F401  # isort: skip
@@ -33,23 +38,3 @@ class TasksConfig(AppConfig):
         # Import the system check module so its @register() runs — enforces that
         # every @task is in the registry, in every environment (#1947).
         from gyrinx.tasks import checks  # noqa: F401  # isort: skip
-
-        # Only provision Pub/Sub in Cloud Run environment
-        if not os.getenv("K_SERVICE"):
-            logger.debug("Not in Cloud Run, skipping task provisioning")
-            return
-
-        # Don't provision during management commands
-        import sys
-
-        if len(sys.argv) > 1 and sys.argv[1] in ("migrate", "makemigrations", "test"):
-            logger.debug(f"Skipping provisioning during {sys.argv[1]}")
-            return
-
-        try:
-            from gyrinx.tasks.provisioning import provision_task_infrastructure
-
-            provision_task_infrastructure()
-        except Exception as e:
-            # Log but don't crash the app - topics might already exist
-            logger.error(f"Failed to provision task infrastructure: {e}", exc_info=True)

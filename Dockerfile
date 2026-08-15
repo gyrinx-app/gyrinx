@@ -59,6 +59,18 @@ RUN npm install
 # Build frontend
 RUN npm run build
 
+# Collect static at build time, not per container boot. The manifest and the
+# gzip/brotli variants that CompressedManifestStaticFilesStorage produces are a
+# pure function of the image's files, so recomputing them on every cold start
+# was ~50s of the critical path for no gain.
+#
+# settings_prod is required: it is what selects the WhiteNoise compressed-manifest
+# storage, so building under plain `settings` would emit an unhashed tree that
+# the manifest lookups then fail against at runtime. It needs no runtime
+# environment — no database, no secrets, no GCP credentials (tracing init catches
+# its own failures) — and K_SERVICE is unset here, so nothing tries to provision.
+RUN DJANGO_SETTINGS_MODULE=gyrinx.settings_prod manage collectstatic --noinput
+
 COPY docker/ /app/docker/
 
 EXPOSE $PORT
