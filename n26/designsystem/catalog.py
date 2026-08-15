@@ -1630,6 +1630,31 @@ GROUPS: list[Group] = [
                 ),
             ),
             Component(
+                slug="choice-picks",
+                tag="c-n26.choice-picks",
+                template="n26/choice_picks.html",
+                summary="A list of things to choose and unchoose one at a time.",
+                notes=(
+                    "The third way to draw the same structure, and a sibling of "
+                    "the other two for the reason they are siblings of each "
+                    "other: radios ask which one, boxes ask which of these, and "
+                    "a choice holding three picks asks neither. A mode of "
+                    "choice-offer is the obvious saving and the wrong one: the "
+                    "single selection a shared name keeps across the lot is "
+                    "exactly what must not happen here, so every branch in that "
+                    "template would be undoing what its radios do. Each option "
+                    "carries its own submit instead: the one that "
+                    "was clicked is the only one sent, which is how adding and "
+                    "taking back tell themselves apart with no script and no "
+                    "state to keep. What the choice holds draws with the act "
+                    "that takes it back; when it is full the rest are not listed "
+                    "at all, because the alternative is a click that silently "
+                    "drops a pick the reader made earlier. Which act an option "
+                    "gets is decided in Python and read off the option, so this "
+                    "never works out for itself what the choice is holding."
+                ),
+            ),
+            Component(
                 slug="tick-list",
                 tag="c-n26.tick-list",
                 template="n26/tick_list.html",

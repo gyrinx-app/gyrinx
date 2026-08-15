@@ -140,10 +140,14 @@ def choose(request, pk, slot):
     identity — and writes what was chosen as an assignment caused by the
     carrier's, so removing the carrier takes it with it.
 
-    A choice takes picks until it is full, and a click on a full one
-    changes the earliest — so a choice of one is changed the way it
-    always was, and a choice of several fills up before it starts
-    replacing.
+    A choice that holds one pick is settled in one go: the list is a set
+    of radios, clicking again replaces what was chosen, and the reader
+    lands back on the gang. One that holds several is worked at instead —
+    every option carries its own control, a click adds or takes back one
+    pick, and the page comes back so the next one is a click away. It
+    stops offering the rest when it is full: the way to something else is
+    to take a pick back, never to have one pushed out unasked. A choice
+    that holds none offers nothing and writes nothing.
 
     Nothing here withholds a pick. The list is short because the offer is
     narrow, and leaving the slot open costs nothing — the way back is the
@@ -154,7 +158,7 @@ def choose(request, pk, slot):
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.operations import Refusal, operation
-    from n26.core.render import build_choice_offer
+    from n26.core.render import build_choice_offer, option_key
 
     gang = _own_gang_or_404(request, pk)
     found = _find_slot(gang, slot)
@@ -162,7 +166,8 @@ def choose(request, pk, slot):
     back = reverse("n26-gang", args=[gang.pk])
 
     if request.method == "POST":
-        wanted = request.POST.get("thing", "")
+        dropped = request.POST.get("remove", "")
+        wanted = dropped or request.POST.get("thing", "")
         picked = next(
             (
                 option
@@ -172,23 +177,42 @@ def choose(request, pk, slot):
             ),
             None,
         )
-        if picked is None:
-            # Nothing on the list — a stale page, or a click with nothing
-            # selected. The list itself is the reply either way.
+        held = next(
+            (
+                pick
+                for pick in found.slot.picks
+                if option_key(pick.assignable) == wanted and pick.assignment is not None
+            ),
+            None,
+        )
+        if picked is None or (dropped and held is None):
+            # Nothing on the list, or nothing behind the option a click
+            # asked to take back — a stale page either way, and the list
+            # itself is the reply.
             messages.error(request, "That is not one of the things on offer.")
             return redirect(request.path)
+        # A worked-at choice comes back to itself; an answered one leaves.
+        landing = request.path if offer.takes_several else back
         try:
             with operation(gang, actor=request.user) as op:
-                if found.slot.is_full and found.slot.picks:
-                    held = found.slot.picks[0]
-                    if held.assignment is not None:
-                        op.remove(held.assignment)
-                op.choose(
-                    found.anchor,
-                    picked.thing,
-                    slot=found.slot.slot,
-                    **_host(found),
-                )
+                if dropped:
+                    op.remove(held.assignment)
+                else:
+                    if (
+                        not offer.takes_several
+                        and found.slot.is_full
+                        and found.slot.picks
+                    ):
+                        # One pick, already made: the new answer replaces it.
+                        standing = found.slot.picks[0]
+                        if standing.assignment is not None:
+                            op.remove(standing.assignment)
+                    op.choose(
+                        found.anchor,
+                        picked.thing,
+                        slot=found.slot.slot,
+                        **_host(found),
+                    )
         except Refusal as refusal:
             messages.error(request, str(refusal))
             return redirect(request.path)
@@ -199,13 +223,14 @@ def choose(request, pk, slot):
         record(
             request,
             N26Noun.CHOICE,
-            EventVerb.CONFIRM,
+            EventVerb.ARCHIVE if dropped else EventVerb.CONFIRM,
             gang,
             offer=offer.label,
             picked=picked.name,
         )
-        messages.success(request, f"Chose {picked.name} — {offer.label}.")
-        return redirect(back)
+        said = "Removed" if dropped else "Chose"
+        messages.success(request, f"{said} {picked.name} — {offer.label}.")
+        return redirect(landing)
 
     bearer = found.miniature.name if found.miniature is not None else gang.name
     return render(
@@ -217,6 +242,10 @@ def choose(request, pk, slot):
             "offer": offer,
             "bearer": bearer,
             "back": back,
+            # A choice worked at a pick at a time has no one act to end
+            # it: every option carries its own, and a Save at the bottom
+            # would be a second way to settle what is already settled.
+            "submit_label": "" if offer.takes_several else "Save",
             # Not "lead". A cotton slot is a context variable, and any
             # component on the page with a slot of that name — the site
             # footer's columns have one — draws whatever the page happens

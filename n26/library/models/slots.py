@@ -180,9 +180,11 @@ class Picklist(Content):
 
         The picker on the page that adds a member reads this, so what an
         author is offered and what the list will accept are one
-        statement rather than two that can drift apart.
+        statement rather than two that can drift apart. Archived options
+        are left out, as at every other surface where something is newly
+        chosen — a list already naming one goes on naming it.
         """
-        return self.slot_type.pickables
+        return self.slot_type.pickables.unarchived()
 
 
 class PicklistMember(Content):

@@ -13,6 +13,11 @@ and the server writes what was chosen. A reader who leaves without clicking Save
 changed nothing, which is the whole point of an open slot — so the footer offers
 the leaving, to the same place a save lands on. A page reached by clicking an
 open slot needs a way back to the sheet that is not the browser's chrome.
+
+A choice that holds several picks is not one of many, so it is not radios: each
+option carries its own act, a click settles or unsettles that one, and the page
+comes back. There is nothing to save at the end, so there is no Save — the view
+says which shape this is.
 {% endcomment %}
 {% block head_title %}{{ offer.label }} — {{ gang.name }}{% endblock head_title %}
 {% block nav_switcher %}
@@ -26,7 +31,7 @@ open slot needs a way back to the sheet that is not the browser's chrome.
     <c-n26.form-page action="{{ request.path }}"
                      title="{{ offer.label }}"
                      lead="{{ pick_lead }}"
-                     submit_label="Save"
+                     submit_label="{{ submit_label }}"
                      cancel_url="{{ back }}">
         {% comment %}
         A fighter's question gets the gang's other fighters beside it, the
@@ -68,11 +73,21 @@ open slot needs a way back to the sheet that is not the browser's chrome.
         an Outcast's Primary skills before the Leader has chosen an archetype —
         and the fix is elsewhere on the sheet, so the page says so and leaves.
         {% endcomment %}
-        <c-n26.choice-offer :offer="offer">
-            <c-slot name="empty">
-                Nothing is on offer here yet. This slot draws on lists that other
-                picks open up, so making those choices first fills it in.
-            </c-slot>
-        </c-n26.choice-offer>
+        {% if offer.takes_several %}
+            {% comment %}
+            No empty wording of its own. A choice that holds several draws from a
+            list somebody wrote out, so an empty one is an empty list — not the
+            tier a fighter has nothing placed in yet, which is what the sentence
+            below is about.
+            {% endcomment %}
+            <c-n26.choice-picks :offer="offer" />
+        {% else %}
+            <c-n26.choice-offer :offer="offer">
+                <c-slot name="empty">
+                    Nothing is on offer here yet. This slot draws on lists that other
+                    picks open up, so making those choices first fills it in.
+                </c-slot>
+            </c-n26.choice-offer>
+        {% endif %}
     </c-n26.form-page>
 {% endblock content %}

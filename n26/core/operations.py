@@ -206,6 +206,7 @@ class Operation:
         stash=None,
         caused_by=None,
         chosen_for=None,
+        chosen_for_slot=None,
         paid=0,
         list_price=None,
         discount=0,
@@ -227,6 +228,8 @@ class Operation:
         ``chosen_for`` names the choice this settles, where it settles
         one — the assignment that asked, so a card reads what was chosen
         rather than guessing from what kind of thing it is.
+        ``chosen_for_slot`` names which of that assignment's choices,
+        for the case where one asks more than once.
         """
         assignment = Assignment.objects.create(
             assignable=assignable,
@@ -236,6 +239,7 @@ class Operation:
             stash=stash,
             caused_by=caused_by,
             chosen_for=chosen_for,
+            chosen_for_slot=chosen_for_slot,
         )
         if list_price is None:
             list_price = paid + discount
@@ -772,8 +776,16 @@ class Operation:
             ):
                 kwargs |= {"gang": anchor.gang or anchor.gang_root}
             else:
+                # The same ladder _choose_for_slot climbs: a bearer where
+                # there is one, the stash for a stashed carrier, the gang
+                # last — never four empty hosts, whatever holds the anchor.
                 bearer = anchor.miniature or anchor.member_or_none()
-                kwargs |= {"miniature": bearer} if bearer else {"gang": anchor.gang}
+                if bearer:
+                    kwargs |= {"miniature": bearer}
+                elif anchor.stash_id or anchor.stash_root_id:
+                    kwargs |= {"stash": anchor.stash or anchor.stash_root}
+                else:
+                    kwargs |= {"gang": anchor.gang or anchor.gang_root}
         return self.assign(
             chosen,
             caused_by=anchor,
@@ -784,6 +796,10 @@ class Operation:
 
     def _choose_for_slot(self, anchor, slot, chosen, **kwargs):
         """Settle one slot: write the pick, pointing back at what asked.
+
+        The pick names both the assignment that asked and the slot it
+        settles. One assignment may ask twice — a thing giving two choices
+        of one domain — and the pair says which of them this answers.
 
         The one check is the domain — a Gang Legacy choice is settled by
         a Gang Legacy option and by nothing else, because the row reads
@@ -796,6 +812,11 @@ class Operation:
         the gang where the slot says so (the Leader is asked and the gang
         holds the answer). An explicit host wins over both, which is how
         a slot the gang holds is settled for one particular fighter.
+
+        A choice that arrived in the stash has no bearer to land on, and
+        its answer belongs with the item rather than with the gang: a
+        thing bought unassigned takes what was chosen for it along when
+        somebody finally carries it.
         """
         from n26.library.models import Pickable, Slot
 
@@ -813,11 +834,18 @@ class Operation:
                 kwargs |= {"gang": anchor.gang or anchor.gang_root}
             else:
                 bearer = anchor.miniature or anchor.member_or_none()
-                kwargs |= {"miniature": bearer} if bearer else {"gang": anchor.gang}
+                stash = anchor.stash or anchor.stash_root
+                if bearer is not None:
+                    kwargs |= {"miniature": bearer}
+                elif stash is not None:
+                    kwargs |= {"stash": stash}
+                else:
+                    kwargs |= {"gang": anchor.gang or anchor.gang_root}
         return self.assign(
             chosen,
             caused_by=anchor,
             chosen_for=anchor,
+            chosen_for_slot=slot,
             paid=0,
             reason=Reason.GRANTED,
             **kwargs,

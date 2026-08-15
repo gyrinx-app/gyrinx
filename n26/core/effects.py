@@ -688,23 +688,33 @@ def compute(card, index):
                     continue
                 step.outcome = "reached"
                 label, label_kind = str(step.source), kind_of(step.source)
+                if (
+                    isinstance(effect, AddsAssignable)
+                    and effect.slot_id is not None
+                    and not (
+                        step.echoed or (step.node is not None and step.node.broadcast)
+                    )
+                ):
+                    # A choice one thing opens by giving another: picking
+                    # Clan House opens the House choice. Once per grant
+                    # however many targets it reaches — the choice belongs
+                    # to whatever gave it, not to each thing it lands on.
+                    # It is asked where the giver is held: the gang's is
+                    # asked on the gang's own card, never again on each
+                    # member's.
+                    given = (
+                        effect.thing,
+                        anchors.get(source_key),
+                        label,
+                        label_kind,
+                    )
+                    given_slots.items.append(given)
+                    log.applied.append(
+                        _Applied(source_key, given_slots, "items", given)
+                    )
                 for target in targets:
                     if isinstance(effect, AddsAssignable):
                         thing = effect.thing
-                        if effect.slot_id is not None and not (
-                            step.echoed
-                            or (step.node is not None and step.node.broadcast)
-                        ):
-                            # A choice one thing opens by giving another:
-                            # picking Clan House opens the House choice.
-                            # It is asked where the giver is held — the
-                            # gang's is asked on the gang's own card,
-                            # never again on each member's.
-                            given = (thing, anchors.get(source_key), label, label_kind)
-                            given_slots.items.append(given)
-                            log.applied.append(
-                                _Applied(source_key, given_slots, "items", given)
-                            )
                         adds.append(
                             (
                                 target,
@@ -1250,8 +1260,10 @@ def _fill_slot_choices(computed, given, by_choice):
     how several things arrive together under one name.
 
     What answers it is read off ``chosen_for``: the picks naming this
-    choice's own assignment, in the order they were written. Two slots of
-    one type on one holder are two assignments and stay independent.
+    choice's own assignment, narrowed to the ones naming this slot, in
+    the order they were written. The pair is what keeps two choices
+    apart wherever one assignment asks both — two slots a single thing
+    gave share an anchor, and only the slot tells their picks apart.
 
     ``given`` holds the slots a modifier handed over, which have no
     assignment of their own — the choice they open is anchored on
@@ -1268,12 +1280,17 @@ def _fill_slot_choices(computed, given, by_choice):
         asked.append(
             (node.assignable, node, str(node.assignable), kind_of(node.assignable))
         )
-    asked.sort(key=lambda part: (part[0].position, part[0].name))
     asked.extend(
         (slot, anchor, source, source_kind)
         for slot, anchor, source, source_kind in given
         if anchor is not None
     )
+    # Ordered by what the author said, once the given ones are in: where
+    # a choice sits on the card is the slot's own business, and one
+    # handed over by a modifier does not belong at the bottom for that
+    # reason alone. Stable, so two slots of one position keep the order
+    # they arrived in.
+    asked.sort(key=lambda part: (part[0].position, part[0].name))
 
     for slot, anchor, source, source_kind in asked:
         if slot.hidden:
@@ -1281,7 +1298,7 @@ def _fill_slot_choices(computed, given, by_choice):
         picks = [
             node
             for node in by_choice.get(anchor.key, ())
-            if getattr(node.assignable, "slot_type_id", None) == slot.slot_type_id
+            if node.chosen_for_slot_id == slot.pk
         ]
         computed.choices.append(
             ChoiceSlot(

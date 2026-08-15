@@ -53,58 +53,76 @@ its slot is invisible and inert, so building one in can only be a mistake.
   payload reaches every model *except* Champions. The condition grammar
   carries a spoken negation for this ("every model except Champion").
 
-## Example A — Gang Legacy, with a default
+## Example A — Gang Legacy (per the maintainer's rule dump, 2026-08-15)
 
-Slot type *Gang Legacy* (repeats: no). Eight pickables — Cawdor, Escher,
-Goliath, Orlock, Van Saar, Delaque, Ironhead Squats, Ogryn — each carrying
-one modifier: *gives* that house's equipment list *to the bearer*. Picklist
-*Gang Legacies*, all eight. One Slot: (*Gang Legacy*, *Gang Legacies*,
-label "Gang Legacy", 1..1, assigned to bearer). Hunter profiles carry the
-Slot in their built-ins; the Ironhead Squats profile carries the
-slot-with-default (Slot, Ironhead Squats).
+Slot type *Gang Legacy* (repeats: no). Eight pickables — Cawdor, Delaque,
+Escher, Goliath, Orlock, Van Saar, Ironhead Squat, Ogryn — each carrying
+one modifier: *gives* that legacy's equipment list *to the bearer*.
+**Three picklists, keyed by the fighter's family**, at every rank
+(mutatis mutandis for leaders, champions and gangers):
 
-The exact option lists, and which profiles carry which slot or default,
-are the maintainer's to state before the scenario suites pin them.
+- *House Legacies* — the six House options
+- *Ogryn Legacy* — one member
+- *Ironhead Squat Legacy* — one member
 
-Kaustos, hired plain, chooses Cawdor:
+Three Slots share the type, one per picklist, each (label "Gang Legacy",
+1..1, assigned to bearer), built into the matching fighter datasheets. A
+one-member picklist is still a choice — the rules say *selects*, so
+nothing is pre-written. (The slot-with-default machinery exists and is
+proven in the suites; no legacy datasheet needs it.)
+
+Kaustos, hired from a House datasheet, chooses Cawdor:
 
     [Hunter profile]    host = the gang   cause = —               (the hire)
     [Gang Legacy slot]  host = Kaustos    cause = the membership
     [Cawdor]            host = Kaustos    cause = the slot's assignment
                         chosen_for = the slot's assignment
-    (no row)            House Cawdor Equipment List — computed give,
+    (no row)            Cawdor equipment list — computed give,
                         on his equip page at that list's own prices
 
-Grendel, hired from the Squats profile, arrives with the pick already
-made — same rows, [Ironhead Squats] written at hire. Changing it is the
-ordinary rechoose: the pick is replaced, the slot stays.
+Stated by the rules but later content work, not machinery: the legacy
+list is bought from when the fighter is added, not in the post-cycle
+sequence (a note, never a gate), and Leaders and Champions may also buy
+the Pets associated with their legacy (a rank-scoped give).
 
-## Example B — the Affiliation shape (grounded in prod's Outcast content)
+## Example B — Affiliation (per the maintainer's rule dump, 2026-08-15)
 
-Slot type *Affiliation*. Pickables shaped like the live content — Aranthian
-carrying *gives the Aranthian Equipment List to Champion, Ganger and
-Leader models*. Picklist *Affiliations*. One Slot: (*Affiliation*,
-*Affiliations*, label "Affiliation", 1..1, **assigned to the gang**),
-built into the **gang type** — exactly where prod's Outcast built-ins
-carry the Affiliation choice today. The choice row draws on the gang's
-card only; the pick, gang-hosted, applies its scoped gives to the ranks
-it names; no member card grows a row.
+Slot type *Affiliation*. Four pickables: **Clanless, Clan House,
+Aranthian, Mutant**. Aranthian carries *gives the Aranthian Equipment
+List to Leader and Champion models* (prod content currently also names
+Gangers — flagged for the maintainer's admin correction). Picklist
+*Affiliations*, the four. One Slot: (*Affiliation*, *Affiliations*,
+label "Affiliation", 1..1, **assigned to the gang**), built into the
+gang type, where prod's Outcast built-ins carry the choice today — the
+Leader chooses at creation, and what is chosen is the gang's. The choice
+row draws on the gang's card only; the pick applies its scoped gives to
+the ranks it names; no member card grows a row.
 
-Chained: a pickable may give another Slot (Clan House opening a choice of
-House), so making the first choice opens the second, and un-choosing
-retracts the chain through cause.
+Chained: a pickable may give another Slot (Clan House opening a choice
+of House), so making the first choice opens the second, and un-choosing
+retracts the chain through cause. The rules say the affiliation cannot
+be changed; the app informs rather than polices, so rechoosing stays
+possible and says what it is.
 
-## Example C — the Archetype shape (sandbox proof, not a migration)
+## Example C — Archetype (per the maintainer's rule dump, 2026-08-15)
 
-Slot type *Archetype* (repeats: no). Two Slots over one type:
+Slot type *Archetype*. Five pickables: Brawler, Gunslinger, Mastermind,
+Survivor, Wyrd. Two Slots over one type:
 
-- (*Archetype*, *Outcast Archetypes*, label "Archetype", 1..1, **assigned
-  to the gang**) — built into the leader profile. The choice row draws on
-  the leader's card (he is the host); the pick lands on the gang. Its
-  payload is scoped **to every model except Champions** — the spoken
-  negation the condition grammar carries.
-- (*Archetype*, *Champion Archetypes*, label "Archetype", 1..1, assigned
-  to bearer) — built into a champion profile. Same type, personal reach.
+- (*Archetype*, *Archetypes*, label "Archetype", 1..1, **assigned to the
+  gang**) — built into the leader datasheet; chosen when the Leader is
+  recruited. The choice row draws on the leader's card (he is the host);
+  the pick lands on the gang. Its skill payload is scoped **to all
+  models except Champions** — the rule's own wording ("determine the
+  skills available to all Outcast models except Champion"), said through
+  the condition grammar's spoken negation.
+- (*Archetype*, *Archetypes*, label "Archetype", 1..1, assigned to
+  bearer) — built into champion datasheets: a Champion may choose a
+  different archetype to their gang's Leader. Same type, same list,
+  personal reach.
+
+The Wyrd pickable additionally *places* Wyrd Powers as a Primary skill
+set and *gives* the Wyrd subtype — ordinary modifiers riding it.
 
 ## Out of scope
 

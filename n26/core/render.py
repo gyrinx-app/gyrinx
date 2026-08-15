@@ -312,6 +312,12 @@ class Choosable:
     #: never withheld: the owner may still pick it, and the card says so
     #: afterwards.
     taken_for: str = ""
+    #: What this option's own control does, where a choice is settled one
+    #: option at a time: ``"choose"`` adds it, ``"remove"`` takes back the
+    #: pick behind it, and empty draws no control at all. Empty
+    #: throughout on a choice that holds one, where the whole list is
+    #: settled in a single go.
+    control: str = ""
 
     @property
     def remark(self):
@@ -342,11 +348,20 @@ class ChoiceOffer:
     One structure whatever the offer names, which is the point: a skill, an
     archetype and an affiliation differ in the rows they list and in
     nothing else, so one page draws all three.
+
+    A choice holding several picks is settled a pick at a time —
+    ``takes_several`` — and each option carries its own control saying
+    what a click on it does. One that holds a single pick is the older
+    shape: the whole list is settled in a single go, and settling it
+    again replaces what was chosen.
     """
 
     label: str
     chosen: str | None = None
     groups: list[ChoosableGroup] = field(default_factory=list)
+    #: Whether the picker adds and removes one pick at a time rather than
+    #: settling the whole list in a single go.
+    takes_several: bool = False
 
     @property
     def is_empty(self):
@@ -798,8 +813,21 @@ def build_choice_offer(slot, computed):
     holder has already spent elsewhere are marked. Marked, not withheld:
     the list informs, the click still works, and the card says so
     afterwards.
+
+    A choice holding more than one pick is settled a pick at a time:
+    everything it holds is drawn chosen and carries the control that
+    takes that one back, and everything else carries the control that
+    adds it — until the choice is full, when the rest stop being offered.
+    Swapping the earliest for whatever was clicked is the behaviour of a
+    choice that holds exactly one, and only of that. A choice that holds
+    none offers nothing at all.
     """
-    from n26.core.browse import CollectionView, offered_by
+    from n26.core.browse import CollectionView, Listed, offered_by
+
+    if slot.max_picks == 0:
+        # A choice that holds nothing asks nothing: there is no pick a
+        # click here could write, so there is nothing to draw.
+        return ChoiceOffer(label=slot.kind_label, chosen=slot.chosen_name)
 
     offered = offered_by(slot, computed)
     current = slot.resolved_with.assignable if slot.resolved_with is not None else None
@@ -809,20 +837,35 @@ def build_choice_offer(slot, computed):
             offered, label=slot.kind_label, chosen=slot.chosen_name, current=current
         )
 
+    several = slot.max_picks > 1
+    held = {option_key(pick.assignable) for pick in slot.picks}
     taken = _taken_elsewhere(slot, computed)
-    groups = []
-    if offered is not None:
-        groups.append(
-            ChoosableGroup(
-                name="",
-                options=[_choosable(thing, current, taken=taken) for thing in offered],
+    options = []
+    for item in offered or ():
+        thing = item.thing if isinstance(item, Listed) else item
+        name = item.name if isinstance(item, Listed) else None
+        key = option_key(thing)
+        if several and key not in held and slot.is_full:
+            # Full: the way to something else is to take one back, not to
+            # push one out unasked.
+            continue
+        options.append(
+            _choosable(
+                thing,
+                current,
+                taken=taken,
+                name=name,
+                held=held,
+                control=("remove" if key in held else "choose") if several else "",
             )
         )
 
+    groups = [ChoosableGroup(name="", options=options)] if options else []
     return ChoiceOffer(
         label=slot.kind_label,
         chosen=slot.chosen_name,
-        groups=[group for group in groups if group.options],
+        groups=groups,
+        takes_several=several,
     )
 
 
@@ -890,17 +933,31 @@ def _taken_elsewhere(slot, computed):
         if other.slot.slot_type_id != slot.slot.slot_type_id:
             continue
         for pick in other.picks:
-            thing = pick.assignable
-            taken.setdefault(f"{thing._meta.label_lower}:{thing.pk}", other.source)
+            taken.setdefault(option_key(pick.assignable), other.source)
     return taken
 
 
-def _choosable(thing, current, notes=(), held=(), granted=None, taken=None):
-    key = f"{thing._meta.label_lower}:{thing.pk}"
+def option_key(thing):
+    """How a picker names one option in a form.
+
+    The model's label and its primary key, the same pair the equipment
+    listing keys its Buy buttons on: a bare key is ambiguous across the
+    assignable tables. Public because whoever reads a click back has to
+    key what is held the same way the page keyed what it drew.
+    """
+    return f"{thing._meta.label_lower}:{thing.pk}"
+
+
+def _choosable(
+    thing, current, notes=(), held=(), granted=None, taken=None, name=None, control=""
+):
+    key = option_key(thing)
     granted_by = (granted or {}).get(key, "")
     return Choosable(
         key=key,
-        name=str(thing),
+        # The wording a list gives an option, where it gives it one. The
+        # thing's own name everywhere else, and on every other surface.
+        name=name or str(thing),
         thing=thing,
         is_current=(current is not None and thing == current)
         or key in held
@@ -908,6 +965,7 @@ def _choosable(thing, current, notes=(), held=(), granted=None, taken=None):
         detail="; ".join(note.text for note in notes),
         granted_by=granted_by,
         taken_for=(taken or {}).get(key, ""),
+        control=control,
     )
 
 

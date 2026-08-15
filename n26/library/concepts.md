@@ -189,7 +189,7 @@ Within a collection, when displayed, items are grouped by collection section and
 
 Fields of its own: a **plural** (what several of them are called, so a page can say "Gang Legacies"), and **allows repeats** (whether one holder may pick the same option for two choices of this domain).
 
-Not an assignable: nothing holds a domain. It is what the other three name, and authoring refuses a mismatch between them — a list of Affiliations cannot sit behind a Gang Legacy choice. Its page is where the whole domain is built: its options, its lists, and the choices that draw on them.
+Not an assignable: nothing holds a domain. It is what the other three name, and authoring refuses a mismatch between them — a list of Affiliations cannot sit behind a Gang Legacy choice. Which domain an option, a list or a choice belongs to is settled when it is made and not offered again afterwards: moving one would leave a list offering options its choice could not take, and every pick already made answering nothing. Something in the wrong domain is a new one, made in the right one. Its page is where the whole domain is built: its options, its lists, and the choices that draw on them.
 
 ### Pickable
 
@@ -219,7 +219,7 @@ No sections, no placements, no prices — where a collection is a catalogue, thi
 
 Fields of its own: its **slot type** and **picklist**; the **label** the card calls the choice by; **min** and **max picks**; **assigned to** (whether the pick lands on the bearer or on the gang); **hidden**; and a position among the choices on one card.
 
-Assigning one is what puts the choice on a card — built into a profile, given by a modifier, or brought by an option when something is bought. The card draws the label with what has been picked, or a control to pick, on the holder's own card and nowhere else: a choice the gang holds is asked once rather than on every fighter. Fewer picks than the minimum is a note on the card, never a refusal, and the picker stops offering at the maximum. **Hidden** draws no choice row at all while what is picked still applies, which is how several things arrive together under one name.
+Assigning one is what puts the choice on a card — built into a profile, given by a modifier, or brought by an option when something is bought. The card draws the label with what has been picked, or a control to pick, on the holder's own card and nowhere else: a choice the gang holds is asked once rather than on every fighter. Fewer picks than the minimum is a note on the card, never a refusal, and the picker stops offering at the maximum. A choice of one is answered by picking, and picking again replaces the answer; a choice of several is made a pick at a time, each option on the picker adding or taking back its own — full, it offers the rest again once one has been taken back. A choice of nought asks nothing. **Hidden** draws no choice row at all while what is picked still applies, which is how several things arrive together under one name.
 
 ### Picks
 
@@ -227,7 +227,9 @@ Assigning one is what puts the choice on a card — built into a profile, given 
 
 *Not a type: the assignment that settles a choice.*
 
-Choosing writes an ordinary assignment — the option, hosted where the choice says it lands, caused by the choice's own assignment and pointing back at it. So removing the choice removes the pick and everything the option gave; two choices of one domain on one holder stay independent; and nothing is worked out from what kind of thing was chosen. A pick is free and adds nothing to any rating.
+Choosing writes an ordinary assignment — the option, hosted where the choice says it lands, caused by the choice's own assignment and pointing back at it, and naming the choice row it settles. So removing the choice removes the pick and everything the option gave; two choices of one domain on one holder stay independent, even where one thing opened both; and nothing is worked out from what kind of thing was chosen. A pick is free and adds nothing to any rating.
+
+A pick the gang holds is a fact about every model in it: a rule reaching "models with the Cawdor legacy" reaches them all, the fighter who was asked included.
 
 Where the domain takes one option once, the picker marks the options already spent on another choice, and the card says when one option has answered two. Marks and notes, never locks: the narrowing informs, and an owner may still hand over an option no list offered.
 

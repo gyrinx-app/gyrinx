@@ -167,6 +167,16 @@ class TestSettlingAChoice:
         chosen_for = Assignment._meta.get_field("chosen_for")
         assert chosen_for.remote_field.on_delete is cause.remote_field.on_delete
 
+    def test_the_slot_it_settles_cannot_be_deleted_under_it(self):
+        """The other half of the pair points at content, and content a
+        player's pick names must not vanish out from under them — the
+        rule every assignable column here already follows."""
+        from django.db.models.deletion import PROTECT
+
+        named = Assignment._meta.get_field("chosen_for_slot")
+        assert named.remote_field.on_delete is PROTECT
+        assert named.null is True
+
 
 class TestTheStartupCheck:
     def test_it_passes_as_things_stand(self):

@@ -256,6 +256,19 @@ class Assignment(NamesAnAssignable, Base, Archived):
         "self", on_delete=models.CASCADE, null=True, blank=True, related_name="picks"
     )
 
+    # Which slot this pick settles. One assignment may ask twice — a
+    # thing giving two skill-tree choices opens both from one line — so
+    # the asking assignment alone cannot say which choice a pick
+    # answers. PROTECT: a library row must not vanish out from under a
+    # player's pick.
+    chosen_for_slot = models.ForeignKey(
+        "library.Slot",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+
     # Denormalised roots, maintained in save().
     gang_root = models.ForeignKey(
         "n26.Gang",

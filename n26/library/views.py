@@ -959,10 +959,13 @@ def doc(request, slug):
     title, filename, _ = DOCS[slug]
     source = (Path(__file__).parent / filename).read_text(encoding="utf-8")
     rendered, contents = _recipe_page(source)
+    # Markdown committed to this repo, through the same renderer the kind
+    # help goes through: nothing a reader writes reaches this page.
+    document = mark_safe(rendered)  # nosec B703 B308 - our own markdown
     return render(
         request,
         "authoring/doc.html",
-        {"title": title, "document": mark_safe(rendered), "contents": contents},
+        {"title": title, "document": document, "contents": contents},
     )
 
 

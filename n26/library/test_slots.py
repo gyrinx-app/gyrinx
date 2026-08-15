@@ -120,6 +120,32 @@ class TestWhatTheCardCallsAChoice:
         assert member.label == "Squats"
 
 
+class TestWhatAListMayBeOffered:
+    """The picker on a list's page offers its domain's options — the ones
+    still on offer. Archiving one takes it out of what may be *newly*
+    listed; every list already naming it goes on naming it."""
+
+    def test_its_domains_options(self, legacies, cawdor):
+        assert list(legacies.may_offer) == [cawdor]
+
+    def test_and_not_another_domains(self, legacies, affiliation):
+        create_pickable("Aranthian", affiliation)
+        assert list(legacies.may_offer) == list(legacies.slot_type.pickables.all())
+
+    def test_an_archived_option_is_not_offered_again(self, legacies, legacy):
+        squats = create_pickable("Ironhead Squats", legacy)
+        squats.archived = True
+        squats.save()
+
+        assert squats not in legacies.may_offer
+
+    def test_a_list_that_already_names_one_goes_on_naming_it(self, legacies, cawdor):
+        cawdor.archived = True
+        cawdor.save()
+
+        assert [member.pickable for member in legacies.members.all()] == [cawdor]
+
+
 class TestABarePickableIsRefused:
     """An option built into something, with no choice behind it, would
     sit in the library unread — so the verb turns it away in words,

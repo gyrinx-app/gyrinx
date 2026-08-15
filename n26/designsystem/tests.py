@@ -96,6 +96,32 @@ class TestTheTickListPage:
         assert "disabled" in page
 
 
+class TestTheChoicePicksPage:
+    """Its props and both its demos reach the gallery drawn, not as a
+    polite fallback."""
+
+    def test_the_page_documents_the_props_declared_in_the_template(self, reader):
+        page = reader.get("/n26/design/c/choice-picks/").content.decode()
+        assert "offer" in page
+        assert "name" in page
+
+    def test_both_demos_draw_real_acts(self, reader):
+        page = reader.get("/n26/design/c/choice-picks/").content.decode()
+        assert "A choice part-way made" in page
+        assert "With no room left" in page
+        # From the markup the demos rendered, not from their titles: a
+        # demo directory the catalog cannot find yields "No examples yet".
+        assert 'name="remove"' in page
+        assert 'value="library.pickable:3"' in page
+
+    def test_an_option_names_itself_to_a_reader_who_hears_the_button(self, reader):
+        """Twenty-six buttons all called Choose are twenty-six unlabelled
+        buttons, so each act says what it acts on."""
+        page = reader.get("/n26/design/c/choice-picks/").content.decode()
+        assert 'aria-label="Remove Cawdor"' in page
+        assert 'aria-label="Choose Ironhead Squats"' in page
+
+
 class TestTheOwnedDialogsPage:
     """The two questions the panel grew reach the gallery drawn, not as a
     polite fallback."""

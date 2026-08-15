@@ -786,6 +786,10 @@ def context():
         "sorts": SORTS,
         "choice_offer": choice_offer(),
         "empty_choice_offer": ChoiceOffer(label="Primary skill"),
+        # A choice that holds several picks, part-way through and with no
+        # room left: the two states where its acts differ.
+        "choice_picks_offer": choice_picks_offer(),
+        "full_choice_picks_offer": choice_picks_offer(full=True),
         # The same list a fighter's edit page ticks: what they hold, and
         # the one thing a rule gives them that no click can clear.
         "tick_list_offer": tick_list_offer(),
@@ -912,6 +916,43 @@ def choice_offer():
                 ],
             ),
         ],
+    )
+
+
+def choice_picks_offer(full=False):
+    """A choice that holds several picks, part-way through being made.
+
+    One nameless group, because a picklist has no headings — it is the
+    options behind a choice and nothing else. Two of the three are held,
+    so both acts are on the page at once; ``full`` is the same choice with
+    no room left, where the ones it does not hold are not listed at all.
+    """
+    held = [
+        Choosable(
+            key="library.pickable:1",
+            name="Cawdor",
+            is_current=True,
+            control="remove",
+        ),
+        Choosable(
+            key="library.pickable:2",
+            name="Escher",
+            is_current=True,
+            control="remove",
+        ),
+    ]
+    rest = [
+        Choosable(
+            key="library.pickable:3",
+            name="Ironhead Squats",
+            control="choose",
+            taken_for="Second legacy",
+        ),
+    ]
+    return ChoiceOffer(
+        label="Gang Legacy",
+        takes_several=True,
+        groups=[ChoosableGroup(name="", options=held if full else [*held, *rest])],
     )
 
 

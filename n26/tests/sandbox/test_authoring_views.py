@@ -1046,6 +1046,84 @@ def affiliation(default_pack):
     return domain
 
 
+class TestADomainIsWhatAChoiceIs:
+    """Which domain an option, a list or a choice belongs to is settled
+    when it is made. Moved afterwards, a list would offer options the
+    choice could not take and every pick already made would answer
+    nothing — so the pages that correct one do not offer it, and a
+    submission naming it anyway writes nothing.
+    """
+
+    KINDS = ("pickable", "picklist", "slot")
+
+    def page(self, client, kind, row):
+        return client.get(f"/n26/authoring/{kind}/{row.pk}/").content.decode()
+
+    def test_no_page_that_corrects_one_offers_it(self, author, client, legacy):
+        from n26.library.models import Pickable, Picklist, Slot
+
+        for kind, model in zip(self.KINDS, (Pickable, Picklist, Slot), strict=True):
+            body = self.page(client, kind, model.objects.get())
+            # The edit form is drawn — it simply has no domain in it.
+            assert 'name="edit-name"' in body, kind
+            assert 'name="edit-slot_type"' not in body, kind
+
+    def test_the_page_that_makes_one_still_asks(self, author, client, default_pack):
+        for kind in self.KINDS:
+            body = client.get(f"/n26/authoring/{kind}/new/").content.decode()
+            assert 'name="slot_type"' in body, kind
+
+    def test_a_domain_posted_by_hand_does_not_land(
+        self, author, client, legacy, affiliation
+    ):
+        from n26.library.models import Slot
+
+        slot = Slot.objects.get()
+        response = client.post(
+            f"/n26/authoring/slot/{slot.pk}/",
+            {
+                "act": "edit",
+                "edit-name": slot.name,
+                "edit-slot_type": str(affiliation.pk),
+                "edit-picklist": str(slot.picklist_id),
+                "edit-label": slot.label,
+                "edit-min_picks": "1",
+                "edit-max_picks": "1",
+                "edit-assigned_to": slot.assigned_to,
+                "edit-position": "0",
+            },
+        )
+
+        assert response.status_code == 302
+        slot.refresh_from_db()
+        assert slot.slot_type == legacy
+
+    def test_the_rest_of_the_choice_still_saves(
+        self, author, client, legacy, affiliation
+    ):
+        """Fixing one field must not freeze the form: everything else on
+        a choice is still an author's to correct."""
+        from n26.library.models import Slot
+
+        slot = Slot.objects.get()
+        client.post(
+            f"/n26/authoring/slot/{slot.pk}/",
+            {
+                "act": "edit",
+                "edit-name": slot.name,
+                "edit-picklist": str(slot.picklist_id),
+                "edit-label": "Ancestry",
+                "edit-min_picks": "0",
+                "edit-max_picks": "2",
+                "edit-assigned_to": slot.assigned_to,
+                "edit-position": "0",
+            },
+        )
+
+        slot.refresh_from_db()
+        assert (slot.label, slot.min_picks, slot.max_picks) == ("Ancestry", 0, 2)
+
+
 class TestADomainOfChoiceReadsAsAKind:
     """A slot type is a top-level entry in the library, and its page is
     where the whole domain is built: the options, the lists that offer
