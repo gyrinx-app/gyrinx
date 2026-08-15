@@ -125,13 +125,14 @@ def test_update_subscription_retries_then_warns_when_config_matches(caplog):
     assert any(r.levelname == "WARNING" for r in caplog.records)
 
 
-def test_update_subscription_errors_when_the_winner_wrote_different_config(caplog):
+def test_update_subscription_names_the_settings_the_winner_changed(caplog):
     """
     A conflict is only benign if the winner wrote what we wanted.
 
     Two *different* revisions provisioning at once write different config, and
     the loser silently accepting that would leave the subscription on the other
-    revision's settings with nothing said about it.
+    revision's settings with nothing said about it. Said at WARNING, because a
+    rolling deploy produces this legitimately; the metric is what to alert on.
     """
     route = _route()
     live = SimpleNamespace(
@@ -152,10 +153,11 @@ def test_update_subscription_errors_when_the_winner_wrote_different_config(caplo
             route=route,
         )
 
-    errors = [r for r in caplog.records if r.levelname == "ERROR"]
-    assert len(errors) == 1
-    assert "push endpoint" in errors[0].message
-    assert "ack deadline" in errors[0].message
+    assert not [r for r in caplog.records if r.levelname == "ERROR"]
+    reported = [r for r in caplog.records if "differs from this revision" in r.message]
+    assert len(reported) == 1
+    assert "push endpoint" in reported[0].message
+    assert "ack deadline" in reported[0].message
 
 
 def test_update_subscription_warns_when_it_cannot_read_back(caplog):

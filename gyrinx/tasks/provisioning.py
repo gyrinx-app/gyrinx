@@ -292,7 +292,13 @@ def _report_unsettled_conflict(
     divergent = _diff_against_live(desired, live)
 
     if divergent:
-        logger.error(
+        # WARNING, not ERROR. A rolling deploy is exactly when two revisions
+        # provision at once, so a route whose config changed in that deploy will
+        # land here on the way through — an expected, self-correcting condition,
+        # and crying wolf about it in Cloud Logging is the habit this whole change
+        # is trying to break. The metric below is the thing worth alerting on:
+        # it firing repeatedly, long after a deploy has settled, is the signal.
+        logger.warning(
             f"Subscription {subscription_name} was written concurrently by another "
             f"process and now differs from this revision's config in "
             f"{', '.join(divergent)}. It will be corrected the next time a "

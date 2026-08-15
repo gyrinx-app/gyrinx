@@ -109,7 +109,12 @@ steps:
       # container binds $PORT, and pinning a number here would silently point
       # the probe at nothing if that ever changed — every deploy would then fail
       # to go ready with nothing naming the cause.
-      - "--startup-probe=httpGet.path=/healthz,periodSeconds=2,timeoutSeconds=2,failureThreshold=90"
+      #
+      # 2s × 120 is a 240s ceiling, matching the implicit TCP probe this
+      # replaces. `manage migrate` runs before gunicorn binds, so the ceiling is
+      # really the budget for a long migration, and the worst moment to be
+      # killed and restarted is midway through one.
+      - "--startup-probe=httpGet.path=/healthz,periodSeconds=2,timeoutSeconds=2,failureThreshold=120"
       - "--quiet"
     id: Deploy
     entrypoint: gcloud
