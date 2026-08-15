@@ -1169,7 +1169,7 @@ def picker_href(gang):
 
 
 class TestAChoiceThatHoldsSeveral:
-    """A choice of more than one is worked at rather than answered: each
+    """A choice of more than one is worked at rather than made in one stroke: each
     option carries its own act, a click settles or unsettles that one,
     and the page comes back. Full, it stops offering the rest — the way
     to something else is to take a pick back, never to have one pushed
@@ -1225,6 +1225,7 @@ class TestAChoiceThatHoldsSeveral:
             for group in offer.groups
             for option in group.options
         ] == [("Cawdor", True, "remove"), ("Escher", True, "remove")]
+        assert_reconciled(gang)
 
     def test_a_full_choice_stops_offering_the_rest(
         self, gang, wanderer, houses, client
@@ -1237,6 +1238,7 @@ class TestAChoiceThatHoldsSeveral:
 
         assert "Ironhead Squats" not in body
         assert button_labels(body).count("Remove") == 2
+        assert_reconciled(gang)
 
     def test_a_click_on_a_full_choice_writes_nothing(
         self, gang, wanderer, houses, client
@@ -1276,6 +1278,7 @@ class TestAChoiceThatHoldsSeveral:
 
         assert "Ironhead Squats" in body
         assert button_labels(body).count("Choose") == 2
+        assert_reconciled(gang)
 
     def test_the_page_ends_with_no_save(self, gang, wanderer, client):
         """Nothing is held back to be saved: every option's own act has
@@ -1284,6 +1287,7 @@ class TestAChoiceThatHoldsSeveral:
 
         assert "Save" not in said
         assert said.count("Choose") == 3
+        assert_reconciled(gang)
 
     def test_a_choice_of_one_still_ends_with_save(self, gang, hunter, client, owner):
         """The older shape is untouched: one list, one pick, one act at
@@ -1295,6 +1299,7 @@ class TestAChoiceThatHoldsSeveral:
 
         assert "Save" in said
         assert "Choose" not in said
+        assert_reconciled(gang)
 
 
 class TestAChoiceThatHoldsNone:
@@ -1321,6 +1326,7 @@ class TestAChoiceThatHoldsNone:
         (slot,) = computed.choices
 
         assert build_choice_offer(slot, computed).is_empty
+        assert_reconciled(gang)
 
     def test_a_click_that_reached_it_anyway_writes_nothing(
         self, gang, asks_nothing, houses, client, owner
@@ -1334,9 +1340,10 @@ class TestAChoiceThatHoldsNone:
         assert not Assignment.objects.filter(
             pickable__isnull=False, archived=False
         ).exists()
+        assert_reconciled(gang)
 
 
-class TestThePickerCostsTheSameHoweverLongTheList:
+class TestThePickerStaysFlatHoweverLongTheList:
     def test_the_page_reads_flat_as_the_list_grows(
         self, gang, hunter, legacy, legacies, client, owner, django_assert_num_queries
     ):
