@@ -52,6 +52,12 @@ from n26.library.models.base import Content
 #: member is an extra ammo type for a weapon arriving in the same hire —
 #: it materialises stacked on that weapon's assignment, mirroring
 #: ``buy_weapon_profile``.
+#: A slot is here so a thing can arrive already being asked — a fighter
+#: entry that comes with the Gang Legacy choice open. A **pickable** is
+#: deliberately absent: without its slot it shows nothing and does
+#: nothing, so building one in could only be a mistake. To arrive with
+#: the choice already made, name the slot and give it a starting pick
+#: (``default_pickable``).
 DEFAULT_ASSIGNABLE_FIELDS = (
     "weapon",
     "weapon_profile",
@@ -62,6 +68,7 @@ DEFAULT_ASSIGNABLE_FIELDS = (
     "hidden",
     "collection",
     "counter",
+    "slot",
 )
 
 
@@ -191,9 +198,27 @@ class DefaultAssignment(NamesAnAssignable, Content):
         blank=True,
         related_name="+",
     )
+    slot = models.ForeignKey(
+        "library.Slot",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
     amount = models.PositiveIntegerField(
         default=0,
         help_text='A counter\'s opening value — the 61 in "Starting XP 61".',
+    )
+    default_pickable = models.ForeignKey(
+        "library.Pickable",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+        help_text=(
+            "A slot's starting pick — what the choice arrives already "
+            "settled on. Changing it later is the ordinary rechoose."
+        ),
     )
     position = models.PositiveIntegerField(default=0)
 
@@ -210,6 +235,30 @@ class DefaultAssignment(NamesAnAssignable, Content):
 
     def __str__(self):
         return str(self.assignable) if self.assignable else "nothing"
+
+    def clean(self):
+        super().clean()
+        if self.default_pickable_id is None:
+            return
+        if self.slot_id is None:
+            raise ValidationError(
+                {
+                    "default_pickable": (
+                        "A starting pick belongs to a slot. Name the slot "
+                        "this pick settles."
+                    )
+                }
+            )
+        if self.default_pickable.slot_type_id != self.slot.slot_type_id:
+            raise ValidationError(
+                {
+                    "default_pickable": (
+                        f"{self.default_pickable} belongs to "
+                        f"{self.default_pickable.slot_type}, and "
+                        f"{self.slot} offers {self.slot.slot_type} options."
+                    )
+                }
+            )
 
     @property
     def dependent_members(self):

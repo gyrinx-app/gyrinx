@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from n26.core.effects import ModifierIndex
+from n26.core.effects import ModifierIndex, is_orphan_pick
 from n26.core.models import Assignment, Reason
 from n26.core.models.assignment import ASSIGNABLE_FIELDS
 from n26.library.models.modifier import GANG, MODEL
@@ -49,6 +49,10 @@ class Node:
     rating: int = 0
     #: The key of the node that brought this one, if any.
     caused_by_key: object = None
+    #: The key of the node whose choice this line settles — the slot's
+    #: own line. Set on a pick and on nothing else, so what answers a
+    #: choice is read rather than guessed from what kind of thing it is.
+    chosen_for_key: object = None
     #: The ledger's reason, for a line that has one.
     reason: str | None = None
     is_weapon_profile: bool = False
@@ -122,6 +126,7 @@ def node_for(assignment):
         key=assignment.pk,
         rating=assignment.rating,
         caused_by_key=assignment.caused_by_id,
+        chosen_for_key=assignment.chosen_for_id,
         reason=entry.reason if entry else None,
         is_weapon_profile=assignment.weapon_profile_id is not None,
         is_profile=assignment.profile_id is not None,
@@ -205,10 +210,12 @@ class Card:
 
         A specialisation counts as a possession for the same reason a
         subtype does: "(Gunner specialist only)" asks what this fighter
-        *is*, and what they chose says so.
+        *is*, and what they chose says so. A pick counts for the same
+        reason again — unless no slot stands behind it, in which case
+        nobody chose it and it says nothing about anyone.
         """
         from n26.core import select
-        from n26.library.models import Counter, Specialisation, Subtype
+        from n26.library.models import Counter, Pickable, Specialisation, Subtype
 
         profile = None
         possessions = []
@@ -223,10 +230,12 @@ class Card:
                 # reaching Leaders must not reach a fighter whose Leader
                 # assignment something cancelled.
                 continue
+            if is_orphan_pick(node):
+                continue
             if node.is_primary_profile:
                 profile = node.assignable
                 possessions.append(profile.profile_type)
-            elif isinstance(node.assignable, (Subtype, Specialisation)):
+            elif isinstance(node.assignable, (Subtype, Specialisation, Pickable)):
                 possessions.append(node.assignable)
             elif isinstance(node.assignable, Counter):
                 held = (
@@ -348,7 +357,7 @@ class GangCard:
         possessions = []
         counts = []
         for node in self.all_nodes():
-            if node.suppressed:
+            if node.suppressed or is_orphan_pick(node):
                 continue
             possessions.append(node.assignable)
             if isinstance(node.assignable, Counter):
@@ -402,6 +411,9 @@ def hydrate_rows(rows, with_statlines=False):
         # A chosen-mode placement reads the chosen token's home off
         # the assignment already in memory — never by a query.
         "skill_tree__category",
+        # Whether a domain of choice allows the same option twice is
+        # read while a card's notes are worked out, which may not query.
+        "slot__slot_type",
         # A firing line's home is its gun's, so a scope narrowed to a
         # category asks each profile for its weapon. Without this the
         # asking is a query per profile, from inside compute.
@@ -788,7 +800,12 @@ def build_modifier_index(assignables, max_depth=3):
             "targets_miniature__counter_at_least",
             queryset=CounterAtLeast.objects.select_related("counter"),
         ),
+        "targets_miniature__has_pickable__pickables",
         "targets_weapons__has_traits__traits",
+        # A given slot draws a choice row worked out by ``compute``,
+        # which may not query, and its domain decides what the row's
+        # notes may say.
+        "adds_assignable__slot__slot_type",
         "targets_weapons__in_categories__categories",
         "targets_weapons__is_one_of__weapons",
         # A granted weapon is put on the card as lines, statlines and all,

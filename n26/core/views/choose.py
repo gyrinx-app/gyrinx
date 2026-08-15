@@ -106,9 +106,9 @@ def _find_slot(gang, key):
 
     for slot in computed.choices:
         anchor = getattr(slot.anchor, "assignment", None)
-        if anchor is None or slot.offer is None:
+        if anchor is None or slot.identity is None:
             continue
-        if str(anchor.pk) == anchor_pk and str(slot.offer.pk) == offer_pk:
+        if str(anchor.pk) == anchor_pk and str(slot.identity.pk) == offer_pk:
             return _Found(
                 slot=slot, computed=computed, anchor=anchor, miniature=miniature
             )
@@ -140,9 +140,10 @@ def choose(request, pk, slot):
     identity — and writes what was chosen as an assignment caused by the
     carrier's, so removing the carrier takes it with it.
 
-    Changing your mind retires the old assignment in the same operation.
-    One slot holds one chosen thing; two assignments against one slot
-    would resolve it to whichever loaded first.
+    A choice takes picks until it is full, and a click on a full one
+    changes the earliest — so a choice of one is changed the way it
+    always was, and a choice of several fills up before it starts
+    replacing.
 
     Nothing here withholds a pick. The list is short because the offer is
     narrow, and leaving the slot open costs nothing — the way back is the
@@ -178,10 +179,16 @@ def choose(request, pk, slot):
             return redirect(request.path)
         try:
             with operation(gang, actor=request.user) as op:
-                held = found.slot.resolved_with
-                if held is not None and held.assignment is not None:
-                    op.remove(held.assignment)
-                op.choose(found.anchor, picked.thing, **_host(found))
+                if found.slot.is_full and found.slot.picks:
+                    held = found.slot.picks[0]
+                    if held.assignment is not None:
+                        op.remove(held.assignment)
+                op.choose(
+                    found.anchor,
+                    picked.thing,
+                    slot=found.slot.slot,
+                    **_host(found),
+                )
         except Refusal as refusal:
             messages.error(request, str(refusal))
             return redirect(request.path)

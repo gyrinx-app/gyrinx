@@ -165,12 +165,15 @@ class NotOnOffer(Refusal):
     stale page or a hand-made address rather than a choice worth writing.
     """
 
-    def __init__(self, anchor, chosen):
+    def __init__(self, anchor, chosen, message=""):
         self.anchor = anchor
         self.chosen = chosen
         super().__init__(
-            f"{anchor.assignable} does not offer a choice of "
-            f"{type(chosen)._meta.verbose_name}."
+            message
+            or (
+                f"{anchor.assignable} does not offer a choice of "
+                f"{type(chosen)._meta.verbose_name}."
+            )
         )
 
 
@@ -202,6 +205,7 @@ class Operation:
         parent=None,
         stash=None,
         caused_by=None,
+        chosen_for=None,
         paid=0,
         list_price=None,
         discount=0,
@@ -219,6 +223,10 @@ class Operation:
         what brought it, so removing the cause removes this too. The
         ledger entry and the opening event are written in the same breath,
         which is why nothing outside an operation may create one.
+
+        ``chosen_for`` names the choice this settles, where it settles
+        one — the assignment that asked, so a card reads what was chosen
+        rather than guessing from what kind of thing it is.
         """
         assignment = Assignment.objects.create(
             assignable=assignable,
@@ -227,6 +235,7 @@ class Operation:
             parent=parent,
             stash=stash,
             caused_by=caused_by,
+            chosen_for=chosen_for,
         )
         if list_price is None:
             list_price = paid + discount
@@ -611,6 +620,11 @@ class Operation:
         — and that weapon may arrive from any of these sets, so the ammo
         is granted after every weapon has been.
 
+        A slot member brings the choice open. Where the member also names
+        a starting pick, the pick is written in the same breath, settling
+        the slot exactly as a click would — changing it later is the
+        ordinary rechoose.
+
         ``kinds`` narrows what materialises — a Legacy profile brings its
         lists but not a second set of free kit.
         """
@@ -654,6 +668,13 @@ class Operation:
                 if isinstance(assignable, Weapon):
                     self._grant_free_profiles(assignable, assignment)
                     weapon_assignments[assignable.pk] = assignment
+                elif member.default_pickable_id is not None:
+                    # A slot arriving already settled. The pick goes
+                    # where the slot says, which need not be where the
+                    # slot itself landed.
+                    self._choose_for_slot(
+                        assignment, assignable, member.default_pickable
+                    )
                 elif member.counter_id is not None:
                     # A counter opens at its member's amount — Starting XP.
                     CounterValue.objects.create(
@@ -695,23 +716,36 @@ class Operation:
         for chosen in taken:
             ChosenProfileOption.objects.create(assignment=carrier, default_set=chosen)
 
-    def choose(self, anchor, chosen, **kwargs):
-        """Make a choice a modifier offered — pick a specialisation.
+    def choose(self, anchor, chosen, slot=None, **kwargs):
+        """Make a choice — pick a specialisation, pick a gang legacy.
 
-        ``anchor`` is the assignment whose assignable carries the offer (the
-        Specialist subtype's); what was chosen is a free assignment caused
-        by it, so removing the carrier takes it along, and the computed
-        slot reads as resolved because this assignment exists.
+        ``anchor`` is the assignment that asked: the one whose assignable
+        carries a modifier offering the choice (the Specialist subtype's),
+        or a **slot's** own assignment. What was chosen is a free
+        assignment caused by it, so removing what asked takes the answer
+        along, and it points back through ``chosen_for`` so the card reads
+        the choice as settled.
 
-        Something of a kind the offer does not name is refused
-        (:class:`NotOnOffer`), because it would settle nothing: the slot
+        ``slot`` names which choice is being settled where the anchor
+        cannot say: a slot a modifier *gave* has no assignment of its
+        own, so the thing that gave it is the anchor and the slot is
+        named here.
+
+        Something of a kind the choice does not name is refused
+        (:class:`NotOnOffer`), because it would settle nothing: the row
         resolves by the same match, so the choice would stay open with
         a stray assignment beside it. Within the kind nothing is checked — a
         narrowed offer shortens the list a picker draws and is not a rule,
         so an owner may still hand over something off-list.
         """
         from n26.core import select
+        from n26.library.models import Slot
         from n26.library.models.modifier import OffersChoice
+
+        if slot is None and isinstance(anchor.assignable, Slot):
+            slot = anchor.assignable
+        if slot is not None:
+            return self._choose_for_slot(anchor, slot, chosen, **kwargs)
 
         matched = [
             modifier.effect
@@ -743,6 +777,47 @@ class Operation:
         return self.assign(
             chosen,
             caused_by=anchor,
+            paid=0,
+            reason=Reason.GRANTED,
+            **kwargs,
+        )
+
+    def _choose_for_slot(self, anchor, slot, chosen, **kwargs):
+        """Settle one slot: write the pick, pointing back at what asked.
+
+        The one check is the domain — a Gang Legacy choice is settled by
+        a Gang Legacy option and by nothing else, because the row reads
+        as settled by the same match and anything else would leave the
+        choice open with a stray assignment beside it. Which options the
+        picklist offers is not checked: a shorter list informs, and an
+        owner may still hand over something off it.
+
+        Where the pick lands is the slot's own business — the bearer, or
+        the gang where the slot says so (the Leader is asked and the gang
+        holds the answer). An explicit host wins over both, which is how
+        a slot the gang holds is settled for one particular fighter.
+        """
+        from n26.library.models import Pickable, Slot
+
+        if not isinstance(chosen, Pickable) or chosen.slot_type_id != slot.slot_type_id:
+            raise NotOnOffer(
+                anchor,
+                chosen,
+                message=(
+                    f"{chosen} cannot settle {slot.choice_label} — that "
+                    f"choice takes {slot.slot_type} options."
+                ),
+            )
+        if not any(key in kwargs for key in ("miniature", "gang", "stash", "parent")):
+            if slot.assigned_to == Slot.WillBeAssignedTo.GANG:
+                kwargs |= {"gang": anchor.gang or anchor.gang_root}
+            else:
+                bearer = anchor.miniature or anchor.member_or_none()
+                kwargs |= {"miniature": bearer} if bearer else {"gang": anchor.gang}
+        return self.assign(
+            chosen,
+            caused_by=anchor,
+            chosen_for=anchor,
             paid=0,
             reason=Reason.GRANTED,
             **kwargs,

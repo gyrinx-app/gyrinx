@@ -13,17 +13,25 @@ number of queries regardless of how many models or how much kit — see
 from dataclasses import dataclass, field
 
 from n26.core.card import build_card
-from n26.core.effects import kind_of, limit_notes
+from n26.core.effects import choice_notes, kind_of, limit_notes
 from n26.library.models import (
     EMPTY_VALUE,
     Counter,
     Hidden,
+    Pickable,
     Rule,
+    Slot,
     Subtype,
     Weapon,
     WeaponProfile,
 )
 from n26.library.standard_content import XP_COUNTER
+
+#: The kinds that never draw a line of their own. A hidden carrier by
+#: definition; a slot because its line *is* its choice row; a pick
+#: because it appears as that row's answer. Their effects still show,
+#: named in whatever they changed.
+DRAWS_NO_LINE = (Hidden, Slot, Pickable)
 
 #: The book's weapon slots on one card. Each weapon takes its own
 #: ``slots`` against this budget — asterisked weapons two, grenades none.
@@ -702,9 +710,9 @@ def _slot_key(slot, host):
     nowhere to send a reader.
     """
     anchor = getattr(slot.anchor, "assignment", None)
-    if not host or anchor is None or slot.offer is None:
+    if not host or anchor is None or slot.identity is None:
         return ""
-    return f"{host}:{anchor.pk}:{slot.offer.pk}"
+    return f"{host}:{anchor.pk}:{slot.identity.pk}"
 
 
 def _choice_line(slot, host):
@@ -933,9 +941,10 @@ def card_to_model_card(
     # question stops being asked.
     chosen_keys = (
         {
-            slot.resolved_with.key
+            pick.key
             for slot in computed.choices
-            if slot.resolved_with is not None and question_row(slot) is None
+            for pick in slot.picks
+            if question_row(slot) is None
         }
         if computed
         else set()
@@ -1038,10 +1047,11 @@ def card_to_model_card(
             # has, and this is no longer part of it.
             continue
         thing = node.assignable
-        if isinstance(thing, Hidden):
-            # No row of its own — that is its whole kind. Its effects have
-            # already landed (a shifted stat cell names it), so skipping
-            # the row hides nothing the player needs.
+        if isinstance(thing, DRAWS_NO_LINE):
+            # No row of its own. A hidden carrier's effects have already
+            # landed (a shifted stat cell names it); a slot draws its
+            # choice row instead; a pick appears as that row's answer, or
+            # as nothing at all where no choice stands behind it.
             continue
         if getattr(thing, "card_row", None) is not None:
             # The kind said where its lines go — one declaration, read
@@ -1156,7 +1166,9 @@ def card_to_model_card(
             if computed
             else []
         ),
-        remarks=limit_notes(card, computed) if computed else [],
+        remarks=(
+            [*limit_notes(card, computed), *choice_notes(computed)] if computed else []
+        ),
         owned_by=owned_by,
         xp=xp if counted_xp is None else counted_xp,
         xp_target=xp_target,
@@ -1216,11 +1228,7 @@ def _gang_rows(gang_card, gang_computed):
     from n26.library.models import Counter
 
     chosen_keys = (
-        {
-            slot.resolved_with.key
-            for slot in gang_computed.choices
-            if slot.resolved_with is not None
-        }
+        {pick.key for slot in gang_computed.choices for pick in slot.picks}
         if gang_computed
         else set()
     )
@@ -1233,7 +1241,7 @@ def _gang_rows(gang_card, gang_computed):
         if node.suppressed:
             # Taken away by a modifier — the assignment stays, the line goes.
             continue
-        if isinstance(node.assignable, (Hidden, Counter)):
+        if isinstance(node.assignable, (*DRAWS_NO_LINE, Counter)):
             continue
         if isinstance(node.assignable, Rule):
             rules.append(AssignableLine(name=node.name, provenance=provenance_of(node)))
@@ -1422,7 +1430,7 @@ def stash_lines(gang_card):
         for node in gang_card.stash_roots
         # No row of its own is the kind's whole contract — a chosen
         # option's Hidden carrier rides the stash invisibly.
-        if not isinstance(node.assignable, Hidden)
+        if not isinstance(node.assignable, DRAWS_NO_LINE)
     ]
 
 

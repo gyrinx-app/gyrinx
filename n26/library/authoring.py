@@ -532,6 +532,131 @@ def create_affiliation(
     return carrier
 
 
+# --- Slots and picks: a domain of choice, authored ---------------------------
+
+
+def create_slot_type(name, plural_name="", allows_repeats=True, **kwargs):
+    """A domain of choice — Gang Legacy, Affiliation, Archetype.
+
+    The first thing built: its options, its lists and the choices
+    themselves all name it, and authoring refuses a mismatch.
+    """
+    from n26.library.models import SlotType
+
+    return SlotType.objects.create(
+        name=name,
+        plural_name=plural_name,
+        allows_repeats=allows_repeats,
+        **kwargs,
+    )
+
+
+def create_pickable(
+    name, slot_type, effects=(), qualifier="", library_author_help="", **kwargs
+):
+    """One option a choice offers; ``effects`` are (scope, effect) pairs.
+
+    Everything the option *means* rides it as ordinary modifiers — an
+    equipment list opened, a subtype granted, a further choice given.
+    """
+    from n26.library.models import Pickable
+
+    option = Pickable.objects.create(
+        name=name,
+        slot_type=slot_type,
+        qualifier=qualifier,
+        library_author_help=library_author_help,
+        **kwargs,
+    )
+    for scope, effect in effects:
+        modifier(name=f"{name}: {effect}", scope=scope, effect=effect, attach_to=option)
+    return option
+
+
+def create_picklist(name, slot_type, members=(), **kwargs):
+    """A flat, ordered list of options of one domain.
+
+    ``members`` are pickables, in order, or ``(pickable, "wording")``
+    where this list calls one of them something else.
+    """
+    from n26.library.models import Picklist
+
+    picklist = Picklist.objects.create(name=name, slot_type=slot_type, **kwargs)
+    for member in members:
+        pickable, label = member if isinstance(member, tuple) else (member, "")
+        add_picklist_member(picklist, pickable, label_override=label, **kwargs)
+    return picklist
+
+
+def add_picklist_member(picklist, pickable, label_override="", position=None, **kwargs):
+    """One more option on a list, at the end unless placed.
+
+    Refused where the option belongs to another domain: a list offers
+    one domain's options and a choice reading it has to be settleable by
+    every one of them.
+    """
+    from n26.library.models import PicklistMember
+
+    if pickable.slot_type_id != picklist.slot_type_id:
+        raise ValidationError(
+            f"{pickable} belongs to {pickable.slot_type}, and {picklist} "
+            f"lists {picklist.slot_type} options."
+        )
+    if position is None:
+        position = picklist.members.count()
+    return PicklistMember.objects.create(
+        picklist=picklist,
+        pickable=pickable,
+        label_override=label_override,
+        position=position,
+        **kwargs,
+    )
+
+
+def create_slot(
+    name,
+    slot_type,
+    picklist,
+    label="",
+    min_picks=1,
+    max_picks=1,
+    assigned_to="bearer",
+    hidden=False,
+    position=0,
+    qualifier="",
+    library_author_help="",
+    **kwargs,
+):
+    """One named use of a domain: the choice a card actually asks.
+
+    Assign one — built into a fighter entry, given by something else —
+    and the card draws ``label`` (or this slot's name) with what has been
+    picked. ``assigned_to="gang"`` is the Leader-picks-for-the-gang
+    arrow, and ``hidden=True`` asks nothing while the pick still applies.
+    """
+    from n26.library.models import Slot
+
+    if picklist.slot_type_id != slot_type.pk:
+        raise ValidationError(
+            f"{picklist} lists {picklist.slot_type} options, and this is a "
+            f"{slot_type} choice."
+        )
+    return Slot.objects.create(
+        name=name,
+        slot_type=slot_type,
+        picklist=picklist,
+        label=label,
+        min_picks=min_picks,
+        max_picks=max_picks,
+        assigned_to=assigned_to,
+        hidden=hidden,
+        position=position,
+        qualifier=qualifier,
+        library_author_help=library_author_help,
+        **kwargs,
+    )
+
+
 def create_trait(name, annotation="", qualifier="", library_author_help="", **kwargs):
     from n26.library.models import Trait
 
@@ -762,6 +887,7 @@ def create_default_set(name, members=(), price=0, **kwargs):
     default_set = DefaultAssignmentSet.objects.create(name=name, price=price, **kwargs)
     for position, member in enumerate(members):
         assignable, extras = member if isinstance(member, tuple) else (member, {})
+        _refuse_a_bare_pickable(assignable)
         DefaultAssignment.objects.create(
             default_set=default_set,
             assignable=assignable,
@@ -807,17 +933,24 @@ def _free_set_name(carrier, phrase="built-ins", **shared):
     return next(name for name in tries if not taken.filter(name__iexact=name).exists())
 
 
-def add_built_in(carrier, thing, amount=0, position=None, **kwargs):
+def add_built_in(
+    carrier, thing, amount=0, default_pickable=None, position=None, **kwargs
+):
     """Something ``carrier`` always comes with, materialised when it is
     acquired — a profile's equipment list, its starting kit, its
     opening XP. Founds the carrier's built-ins set on first use, so an
     author never makes the set by hand.
+
+    A **slot** built in is a choice the thing arrives asking;
+    ``default_pickable`` is the answer it arrives with, changed
+    afterwards by the ordinary rechoose.
 
     Refused for a kind that only ever arrives by being *chosen*: nothing
     acquires one, so nothing would ever hand the items over.
     """
     from n26.library.models import DefaultAssignmentSet
 
+    _refuse_a_bare_pickable(thing)
     if not getattr(carrier, "takes_built_ins", True):
         raise ValidationError(
             f"A {carrier._meta.verbose_name} is chosen rather than acquired, "
@@ -832,28 +965,61 @@ def add_built_in(carrier, thing, amount=0, position=None, **kwargs):
         )
         carrier.save()
     return add_default_member(
-        carrier.built_ins, thing, amount=amount, position=position, **kwargs
+        carrier.built_ins,
+        thing,
+        amount=amount,
+        default_pickable=default_pickable,
+        position=position,
+        **kwargs,
     )
 
 
-def add_default_member(default_set, thing, amount=0, position=None, **kwargs):
+def _refuse_a_bare_pickable(thing):
+    """An option built into something, with no choice behind it, in words.
+
+    It would sit in the library unread: a pick's slot is what puts it on
+    a card and what gives it its meaning.
+    """
+    from n26.library.models import Pickable
+
+    if isinstance(thing, Pickable):
+        raise ValidationError(
+            "A pickable without its slot shows nothing and does nothing. "
+            "Build in the slot, or a slot-with-default."
+        )
+
+
+def add_default_member(
+    default_set, thing, amount=0, default_pickable=None, position=None, **kwargs
+):
     """One more thing in a set of defaults, at the end unless placed.
 
     The set is named rather than the carrier, which is what a re-import
     of a fighter whose sheet has grown a rule needs: the set is already
     there and only the new member is missing.
+
+    ``default_pickable`` is a slot member's starting pick, and belongs to
+    nothing else.
     """
     from n26.library.models import DefaultAssignment
 
+    _refuse_a_bare_pickable(thing)
     if position is None:
         position = default_set.members.count()
-    return DefaultAssignment.objects.create(
+    member = DefaultAssignment(
         default_set=default_set,
         assignable=thing,
         amount=amount,
+        default_pickable=default_pickable,
         position=position,
         **kwargs,
     )
+    if default_pickable is not None:
+        # A starting pick has to belong to the slot beside it, and only
+        # this row knows both — the database cannot say it.
+        member.clean()
+    member.save()
+    return member
 
 
 def remove_default_member(member):
@@ -882,6 +1048,7 @@ def offer_option(
     price=0,
     thing=None,
     amount=0,
+    default_pickable=None,
     group=None,
     position=None,
     default_set=None,
@@ -906,9 +1073,9 @@ def offer_option(
     whichever set they join, so the first one an author adds to a
     pick-one set is the one taken unasked.
 
-    ``amount`` is what the thing being brought asks for where it asks
-    for anything — a counter's opening value — and reaches the member
-    rather than the option.
+    ``amount`` and ``default_pickable`` are what the thing being brought
+    asks for where it asks for anything — a counter's opening value, a
+    slot's starting pick — and reach the member rather than the option.
     """
     from n26.library.models import Option
 
@@ -927,7 +1094,13 @@ def offer_option(
         **kwargs,
     )
     if thing is not None:
-        add_default_member(default_set, thing, amount=amount, **kwargs)
+        add_default_member(
+            default_set,
+            thing,
+            amount=amount,
+            default_pickable=default_pickable,
+            **kwargs,
+        )
     return option
 
 
@@ -1183,23 +1356,41 @@ def create_trading_post(name="Trading Post", contains=None, entries=(), **kwargs
 # new condition model plus a verb here — the scope verbs don't change.
 
 
-def has_subtypes(*subtypes):
+def has_subtypes(*subtypes, negate=False):
     """Condition: the model has one of these subtypes — any-of within
-    the row. ``targets_model(has_subtypes(leader, champion))``."""
+    the row. ``targets_model(has_subtypes(leader, champion))``.
+
+    ``negate=True`` reads the row the other way: every model *except*
+    these, which is how the books scope as often as by inclusion."""
     from n26.library.models import HasSubtypes
 
-    condition = HasSubtypes()
+    condition = HasSubtypes(negate=negate)
     condition._pending_m2m = {"subtypes": subtypes}
     return condition
 
 
-def is_profile(*profiles):
+def is_profile(*profiles, negate=False):
     """Condition: the model is one of these profiles, named outright —
-    ``targets_model(is_profile(champion))``, or several for any-of."""
+    ``targets_model(is_profile(champion))``, or several for any-of.
+    ``negate=True`` reaches every entry except these."""
     from n26.library.models import IsProfile
 
-    condition = IsProfile()
+    condition = IsProfile(negate=negate)
     condition._pending_m2m = {"profiles": profiles}
+    return condition
+
+
+def has_pickable(*pickables, negate=False):
+    """Condition: the model has one of these picked —
+    ``targets_model(has_pickable(cawdor))`` for "models with the Cawdor
+    legacy". ``negate=True`` reaches everyone who picked something else.
+
+    One condition serving every domain of choice ever authored: what was
+    picked is an ordinary possession."""
+    from n26.library.models import HasPickable
+
+    condition = HasPickable(negate=negate)
+    condition._pending_m2m = {"pickables": pickables}
     return condition
 
 
@@ -1322,7 +1513,8 @@ def targets_gang():
 
 
 def ef_adds(thing):
-    """Grants the target a subtype, skill, trait, collection, rule or weapon.
+    """Grants the target a subtype, skill, trait, collection, rule, weapon
+    — or a further choice, which is how one pick opens the next.
 
     A granted weapon is free kit: it arrives with its free firing lines,
     adds nothing to the gang's rating, and goes when its granter goes.
@@ -1438,6 +1630,7 @@ def _assignable_kwarg(thing):
         Power,
         Rule,
         Skill,
+        Slot,
         Subtype,
         Trait,
         Weapon,
@@ -1452,6 +1645,7 @@ def _assignable_kwarg(thing):
         (Power, "power"),
         (Weapon, "weapon"),
         (Hidden, "hidden"),
+        (Slot, "slot"),
     )
     for model, name in kinds:
         if isinstance(thing, model):

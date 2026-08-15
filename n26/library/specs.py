@@ -322,6 +322,7 @@ def _build_registry():
         DefaultAssignment,
         DefaultAssignmentSet,
         GangType,
+        HasPickable,
         HasSubtypes,
         HasTraits,
         Hidden,
@@ -334,6 +335,9 @@ def _build_registry():
         OpChangesCounter,
         Option,
         OptionGroup,
+        Pickable,
+        Picklist,
+        PicklistMember,
         PlacesCategory,
         Power,
         Profile,
@@ -343,6 +347,8 @@ def _build_registry():
         Section,
         Skill,
         SkillTree,
+        Slot,
+        SlotType,
         Specialisation,
         Stat,
         StatlineType,
@@ -380,7 +386,12 @@ def _build_registry():
             authoring.targets_model,
             {
                 "conditions": Conditions(
-                    kinds=("has_subtypes", "is_profile", "counter_at_least")
+                    kinds=(
+                        "has_subtypes",
+                        "is_profile",
+                        "has_pickable",
+                        "counter_at_least",
+                    )
                 ),
                 "when_directly_assigned": Bool(
                     source=(TargetsMiniature, "when_directly_assigned")
@@ -396,11 +407,24 @@ def _build_registry():
         ),
         Spec(
             authoring.has_subtypes,
-            {"subtypes": Many(model=Subtype, source=(HasSubtypes, "subtypes"))},
+            {
+                "subtypes": Many(model=Subtype, source=(HasSubtypes, "subtypes")),
+                "negate": Bool(source=(HasSubtypes, "negate")),
+            },
         ),
         Spec(
             authoring.is_profile,
-            {"profiles": Many(model=Profile, source=(IsProfile, "profiles"))},
+            {
+                "profiles": Many(model=Profile, source=(IsProfile, "profiles")),
+                "negate": Bool(source=(IsProfile, "negate")),
+            },
+        ),
+        Spec(
+            authoring.has_pickable,
+            {
+                "pickables": Many(model=Pickable, source=(HasPickable, "pickables")),
+                "negate": Bool(source=(HasPickable, "negate")),
+            },
         ),
         Spec(
             authoring.counter_at_least,
@@ -902,6 +926,62 @@ def _build_registry():
                 "qualifier": Text(source=(SkillTree, "qualifier")),
                 "library_author_help": Text(
                     source=(SkillTree, "library_author_help"), long=True
+                ),
+            },
+        ),
+        # Slots and picks: a domain of choice, its options, the list they
+        # are offered on, and the choice itself. Four pages and no code,
+        # which is the whole point of the shape.
+        Spec(
+            authoring.create_slot_type,
+            {
+                "name": Text(source=(SlotType, "name")),
+                "plural_name": Text(source=(SlotType, "plural_name")),
+                "allows_repeats": Bool(source=(SlotType, "allows_repeats")),
+            },
+        ),
+        Spec(
+            authoring.create_pickable,
+            {
+                "name": Text(source=(Pickable, "name")),
+                "slot_type": One(model=SlotType, source=(Pickable, "slot_type")),
+                "qualifier": Text(source=(Pickable, "qualifier")),
+                "library_author_help": Text(
+                    source=(Pickable, "library_author_help"), long=True
+                ),
+            },
+        ),
+        Spec(
+            authoring.create_picklist,
+            {
+                "name": Text(source=(Picklist, "name")),
+                "slot_type": One(model=SlotType, source=(Picklist, "slot_type")),
+            },
+        ),
+        Spec(
+            authoring.add_picklist_member,
+            {
+                "pickable": One(model=Pickable, source=(PicklistMember, "pickable")),
+                "label_override": Text(source=(PicklistMember, "label_override")),
+                "position": Int(source=(PicklistMember, "position")),
+            },
+            model=PicklistMember,
+        ),
+        Spec(
+            authoring.create_slot,
+            {
+                "name": Text(source=(Slot, "name")),
+                "slot_type": One(model=SlotType, source=(Slot, "slot_type")),
+                "picklist": One(model=Picklist, source=(Slot, "picklist")),
+                "label": Text(source=(Slot, "label")),
+                "min_picks": Int(source=(Slot, "min_picks")),
+                "max_picks": Int(source=(Slot, "max_picks")),
+                "assigned_to": Choice(source=(Slot, "assigned_to")),
+                "hidden": Bool(source=(Slot, "hidden")),
+                "position": Int(source=(Slot, "position")),
+                "qualifier": Text(source=(Slot, "qualifier")),
+                "library_author_help": Text(
+                    source=(Slot, "library_author_help"), long=True
                 ),
             },
         ),

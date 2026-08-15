@@ -937,7 +937,7 @@ class TestTheQueryCountStaysFlat:
         table: "what carries this modifier" and "what holds this set" are
         each one query per kind, and there are twenty-odd kinds.
         """
-        with django_assert_num_queries(63):
+        with django_assert_num_queries(68):
             prose_for(much_used)
 
 

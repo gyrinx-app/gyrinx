@@ -43,6 +43,7 @@ from n26.library.models.modifier import (
     ChangesCategory,
     ChangesStat,
     CounterAtLeast,
+    HasPickable,
     HasSubtypes,
     HasTraits,
     InCategories,
@@ -62,6 +63,13 @@ from n26.library.models.modifier import (
 )
 from n26.library.models.pack import ContentPack, default_pack_id, get_default_pack
 from n26.library.models.profile import Profile, ProfileType
+from n26.library.models.slots import (
+    Pickable,
+    Picklist,
+    PicklistMember,
+    Slot,
+    SlotType,
+)
 from n26.library.models.statline import (
     EMPTY_VALUE,
     Stat,
@@ -90,6 +98,7 @@ __all__ = [
     "CollectionSection",
     "CollectionSelector",
     "Modifier",
+    "HasPickable",
     "HasSubtypes",
     "HasTraits",
     "InCategories",
@@ -118,9 +127,14 @@ __all__ = [
     "OffersChoice",
     "OpAddsMiniature",
     "OpChangesCounter",
+    "Pickable",
+    "Picklist",
+    "PicklistMember",
     "Power",
     "Profile",
     "ProfileType",
+    "Slot",
+    "SlotType",
     "RemovesAssignable",
     "RequiresCompanions",
     "AllowsAtMost",

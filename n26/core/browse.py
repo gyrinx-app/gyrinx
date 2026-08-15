@@ -694,7 +694,14 @@ def offered_by(slot, computed, terms=EQUIPMENT_LIST):
     skill is not settled by choosing a power — it would read as open
     whatever was chosen. Narrowing the list is not policing it; drawing a
     button that cannot work is the harm.
+
+    A choice borne by a ``Slot`` draws its picklist, in the list's own
+    order. No sections and no prices — the options behind a choice and
+    nothing else — and the same rule holds: the list informs, and an
+    owner may still hand over something off it.
     """
+    if slot.slot is not None:
+        return [member.pickable for member in slot.slot.picklist.members.all()]
     offer = slot.offer
     section = getattr(offer, "from_section", None) if offer is not None else None
     if section is None:

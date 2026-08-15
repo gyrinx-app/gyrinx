@@ -74,16 +74,31 @@ MAX_CHAIN_DEPTH = 5
 def kind_of(thing):
     """The plain name of what kind of thing this is: "skill", "wargear"…
 
-    Empty for a hidden carrier: its name is authored to be read ("Strength
-    rolled 6"), but its kind is the library's own plumbing, and a player's
-    tooltip must never say so. Every surface drawing a kind already draws
-    nothing when there is none.
+    Empty for the kinds a card never draws a row for — a hidden carrier,
+    a choice and what was chosen for it. Their names are authored to be
+    read ("Strength rolled 6", "Gang Legacy", "Cawdor"), but their kinds
+    are the library's own plumbing, and a player's tooltip must never say
+    so. Every surface drawing a kind already draws nothing when there is
+    none.
     """
-    from n26.library.models import Hidden
+    from n26.library.models import Hidden, Pickable, Slot
 
-    if isinstance(thing, Hidden):
+    if isinstance(thing, (Hidden, Slot, Pickable)):
         return ""
     return str(thing._meta.verbose_name)
+
+
+def is_orphan_pick(node):
+    """An option nobody was offered: a pick with no choice behind it.
+
+    Its slot is what puts it on a card and what gives it its meaning, so
+    without one it shows nothing and does nothing — not a line, not a
+    modifier, not a fact another rule can match on. An owner may still
+    hand one over; it simply waits for a choice to answer.
+    """
+    from n26.library.models import Pickable
+
+    return isinstance(node.assignable, Pickable) and node.chosen_for_key is None
 
 
 @dataclass(frozen=True)
@@ -130,30 +145,62 @@ class ComputedWeapon:
 
 @dataclass
 class ChoiceSlot:
-    """A choice a modifier offers, resolved or not.
+    """A choice on a card, resolved or not.
 
-    The slot is computed — present while its carrier is — and only what
-    was chosen is stored, as an assignment caused by the carrier's.
-    Unresolved is the absence of that assignment: nothing pending is written.
+    Two things ask one: a modifier that offers a choice of a kind, and a
+    ``Slot`` assigned to the holder. Either way the row is computed —
+    present while whatever asks it is — and only what was chosen is
+    stored. Unresolved is the absence of that assignment: nothing
+    pending is written.
+
+    A slot-borne choice may hold several picks and reads them off
+    ``Assignment.chosen_for``, which names the assignment that asked;
+    nothing is inferred from what kind of thing was chosen.
     """
 
     kind_label: str
     source: str
     source_kind: str
-    anchor: object  # the card node carrying the offer
-    resolved_with: object = None  # the card node chosen for it, if any
+    anchor: object  # the card node asking — the offer's carrier, or the slot
+    #: The card nodes chosen for it, in the order they were written.
+    picks: list = field(default_factory=list)
     #: The offer itself, so a picker can ask what this fighter may choose
     #: (``n26.core.browse.offered_by``). Its section narrowing needs the card,
     #: which the slot does not carry — hence asking rather than storing.
     offer: object = None
+    #: The ``Slot`` asking, where one is. None for a modifier's offer.
+    slot: object = None
+    #: How many picks the card expects, and how many it holds. A
+    #: modifier's offer is one and exactly one; a slot says for itself.
+    min_picks: int = 1
+    max_picks: int = 1
+
+    @property
+    def resolved_with(self):
+        """The first pick — what a surface drawing one thing shows."""
+        return self.picks[0] if self.picks else None
 
     @property
     def is_resolved(self):
-        return self.resolved_with is not None
+        return bool(self.picks)
+
+    @property
+    def is_full(self):
+        """Whether the choice holds all the picks it will take."""
+        return len(self.picks) >= self.max_picks
 
     @property
     def chosen_name(self):
-        return self.resolved_with.name if self.resolved_with else None
+        return ", ".join(node.name for node in self.picks) if self.picks else None
+
+    @property
+    def identity(self):
+        """What tells this choice from the others one anchor asks.
+
+        The offer or the slot behind it — one row of content either way,
+        which is what an address can name and find again.
+        """
+        return self.slot if self.slot is not None else self.offer
 
 
 @dataclass(frozen=True)
@@ -327,9 +374,10 @@ class _TakenAway:
 
 @dataclass
 class _Offers:
-    """The choice offers a run collected, before the slots are filled.
+    """The choices a run collected, before their rows are filled in —
+    the offers a modifier made, and the slots one gave.
 
-    A box rather than a bare list so a retracted offer is dropped by the
+    A box rather than a bare list so a retracted one is dropped by the
     same code that drops a retracted placement.
     """
 
@@ -505,6 +553,7 @@ def compute(card, index):
     }
     anchors = {ModifierIndex.key(node.assignable): node for node in card.all_nodes()}
     offers = _Offers()
+    given_slots = _Offers()
     log = _Log()
 
     # Chosen assignments by what caused them. What a choice settles on is
@@ -512,9 +561,13 @@ def compute(card, index):
     # the rounds: a chosen-mode placement in any round reads the same
     # settled assignment a slot does.
     by_cause = {}
+    #: Picks by the choice they settle, read off ``chosen_for``.
+    by_choice = {}
     for node in card.all_nodes():
         if node.caused_by_key is not None:
             by_cause.setdefault(node.caused_by_key, []).append(node)
+        if node.chosen_for_key is not None:
+            by_choice.setdefault(node.chosen_for_key, []).append(node)
 
     #: Plan-display order within a round; application order is fixed
     #: separately (adds settle before removes).
@@ -549,6 +602,10 @@ def compute(card, index):
     seen = set()
     for node in card.all_nodes():
         seen.add(ModifierIndex.key(node.assignable))
+        if is_orphan_pick(node):
+            # An option with no choice behind it does nothing at all —
+            # see ``is_orphan_pick``.
+            continue
         pending.extend(steps_for(node.assignable, False, 0, node=node))
 
     # What the gang holds by grant is dealt on here too. The gang-hosted
@@ -634,6 +691,20 @@ def compute(card, index):
                 for target in targets:
                     if isinstance(effect, AddsAssignable):
                         thing = effect.thing
+                        if effect.slot_id is not None and not (
+                            step.echoed
+                            or (step.node is not None and step.node.broadcast)
+                        ):
+                            # A choice one thing opens by giving another:
+                            # picking Clan House opens the House choice.
+                            # It is asked where the giver is held — the
+                            # gang's is asked on the gang's own card,
+                            # never again on each member's.
+                            given = (thing, anchors.get(source_key), label, label_kind)
+                            given_slots.items.append(given)
+                            log.applied.append(
+                                _Applied(source_key, given_slots, "items", given)
+                            )
                         adds.append(
                             (
                                 target,
@@ -755,6 +826,7 @@ def compute(card, index):
         if ModifierIndex.key(contribution.thing) not in dead
     ]
     _fill_choice_slots(computed, offers.items, by_cause)
+    _fill_slot_choices(computed, given_slots.items, by_choice)
     return computed
 
 
@@ -901,7 +973,7 @@ def compute_gang(gang_card, index):
         placements=computed.placements,
         effects=computed.stored_effects,
         notes=[
-            *_gang_notes(computed),
+            *choice_notes(computed),
             *_companion_notes(gang_card, computed),
             *_limit_notes(gang_card, computed),
         ],
@@ -1029,30 +1101,69 @@ def _over_the_limit(limits, tallies, holder):
     return notes
 
 
-def _gang_notes(computed):
-    """Incoherence worth mentioning, never blocking — inform, not police."""
+def choice_notes(computed):
+    """What a card has to say about its choices — said, never enforced.
+
+    Both halves belong on whichever card drew the choice row, so a
+    fighter asked for a legacy hears about it on their own card and the
+    gang hears about the gang's.
+    """
+    return [*_repeat_notes(computed), *_shortfall_notes(computed)]
+
+
+def _repeat_notes(computed):
+    """One thing picked for two choices, where the domain says no repeats.
+
+    A modifier's offer says nothing about repeats, so any two of them
+    settling on one thing is worth mentioning. A slot's domain decides:
+    where it allows repeats, picking the same option twice is the
+    content working as written.
+    """
     from n26.core.notes import WARNING, Note
 
     notes = []
     first_chosen_for = {}
     for slot in computed.choices:
-        if slot.resolved_with is None:
+        if slot.slot is not None and slot.slot.slot_type.allows_repeats:
             continue
-        thing = slot.resolved_with.assignable
-        held = first_chosen_for.get(ModifierIndex.key(thing))
-        if held is not None:
-            notes.append(
-                Note(
-                    text=(
-                        f"{thing} is chosen for both {held.source} and {slot.source}"
-                    ),
-                    about=thing,
-                    level=WARNING,
+        for pick in slot.picks:
+            thing = pick.assignable
+            held = first_chosen_for.get(ModifierIndex.key(thing))
+            if held is not None:
+                notes.append(
+                    Note(
+                        text=(
+                            f"{thing} is chosen for both {held.source} "
+                            f"and {slot.source}"
+                        ),
+                        about=thing,
+                        level=WARNING,
+                    )
                 )
-            )
-        else:
-            first_chosen_for[ModifierIndex.key(thing)] = slot
+            else:
+                first_chosen_for[ModifierIndex.key(thing)] = slot
     return notes
+
+
+def _shortfall_notes(computed):
+    """Where a choice holds fewer picks than it asks for.
+
+    A note, never a refusal: leaving a choice open costs nothing and
+    making it late costs nothing either. Only a slot states a number —
+    a modifier's offer asks for one and says nothing when it is open,
+    the row itself being the reminder.
+    """
+    from n26.core.notes import WARNING, Note
+
+    return [
+        Note(
+            text=f"{slot.kind_label} — {len(slot.picks)} of {slot.min_picks} chosen",
+            about=slot.slot,
+            level=WARNING,
+        )
+        for slot in computed.choices
+        if slot.slot is not None and len(slot.picks) < slot.min_picks
+    ]
 
 
 class _Facts:
@@ -1123,8 +1234,65 @@ def _fill_choice_slots(computed, offers, by_cause):
                 source=source,
                 source_kind=source_kind,
                 anchor=anchor,
-                resolved_with=resolved,
+                picks=[resolved] if resolved is not None else [],
                 offer=effect,
+            )
+        )
+
+
+def _fill_slot_choices(computed, given, by_choice):
+    """A choice row for every slot the card holds, and what answers it.
+
+    A slot asks on the card it is *hosted* on, so a gang's slot is asked
+    once on the gang's own card rather than again on every member's — the
+    same rule that keeps the gang's kit off their cards. A hidden slot
+    asks nothing at all: what is picked for it still applies, which is
+    how several things arrive together under one name.
+
+    What answers it is read off ``chosen_for``: the picks naming this
+    choice's own assignment, in the order they were written. Two slots of
+    one type on one holder are two assignments and stay independent.
+
+    ``given`` holds the slots a modifier handed over, which have no
+    assignment of their own — the choice they open is anchored on
+    whatever gave it, so un-choosing that retracts this one too.
+    """
+    from n26.library.models import Slot
+
+    asked = []
+    for node in computed.card.all_nodes():
+        if not isinstance(node.assignable, Slot):
+            continue
+        if node.broadcast or node.suppressed:
+            continue
+        asked.append(
+            (node.assignable, node, str(node.assignable), kind_of(node.assignable))
+        )
+    asked.sort(key=lambda part: (part[0].position, part[0].name))
+    asked.extend(
+        (slot, anchor, source, source_kind)
+        for slot, anchor, source, source_kind in given
+        if anchor is not None
+    )
+
+    for slot, anchor, source, source_kind in asked:
+        if slot.hidden:
+            continue
+        picks = [
+            node
+            for node in by_choice.get(anchor.key, ())
+            if getattr(node.assignable, "slot_type_id", None) == slot.slot_type_id
+        ]
+        computed.choices.append(
+            ChoiceSlot(
+                kind_label=slot.choice_label,
+                source=source,
+                source_kind=source_kind,
+                anchor=anchor,
+                picks=picks,
+                slot=slot,
+                min_picks=slot.min_picks,
+                max_picks=slot.max_picks,
             )
         )
 
