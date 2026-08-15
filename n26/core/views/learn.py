@@ -24,8 +24,8 @@ the switcher on the next fighter's screen can offer it without knowing
 which of them have a grid.
 
 What clicking writes is ``Operation.learn``: free, recorded, and caused
-by nothing, so what a fighter earned survives the row that opened the
-set up to them.
+by nothing, so what a fighter earned survives the assignment that opened
+the set up to them.
 
 The same listing is offered a second way, as a box to tick on the
 fighter's own edit page (``ticked_offer`` and ``apply_ticks``). One
@@ -62,17 +62,17 @@ def link_skills(*cards):
 
 
 def _key(thing):
-    """How a pick list keys its options: the table and the row, because a
+    """How a pick list keys its options: the table and the key, because a
     bare primary key is ambiguous across the assignable tables."""
     return f"{thing._meta.label_lower}:{thing.pk}"
 
 
 def _rows_on(card):
-    """The stored row behind each thing this model holds, keyed the way a
-    pick list keys its options — so a tick list can find what a cleared
-    box refers to.
+    """The stored assignment behind each thing this model holds, keyed the
+    way a pick list keys its options — so a tick list can find what a
+    cleared box refers to.
 
-    The model's own rows only: what the gang holds rides every member's
+    The model's own assignments only: what the gang holds rides every member's
     card and is not one fighter's to give up, and a line something has
     taken away is not held at all.
     """
@@ -89,7 +89,7 @@ def _grants_on(computed):
     powers alike, keyed the same way.
 
     Nothing stored is behind these, so a surface offering things to tick
-    draws them fixed rather than as rows an owner could clear.
+    draws them fixed rather than as boxes an owner could clear.
     """
     return {
         _key(contribution.thing): contribution.source
@@ -113,8 +113,8 @@ def ticked_offer(card, computed):
     grid reaches nothing in simply has no heading.
 
     Ticked where the model already holds the thing, by any route. What a
-    modifier grants says what grants it and is fixed: no row is behind
-    it, so there is nothing a click here could take away.
+    modifier grants says what grants it and is fixed: no assignment is
+    behind it, so there is nothing a click here could take away.
     """
     from n26.core.access import learnable_for
     from n26.core.browse import (
@@ -158,7 +158,7 @@ def apply_ticks(op, miniature, card, computed, ticked):
     The listing is derived again here rather than trusted from the page,
     so a stale form or a hand-made click can only name things that are on
     the list now. Nothing off the list is touched: a skill learned from a
-    set the grid has since stopped reaching keeps its row, because it is
+    set the grid has since stopped reaching keeps its assignment, because it is
     not being offered and so cannot have been cleared.
 
     A newly ticked thing is learned — free, and caused by nothing, the
@@ -166,8 +166,8 @@ def apply_ticks(op, miniature, card, computed, ticked):
     way anything is taken off a card: archived, with the ledger still
     saying it was there. Granted things are on neither side of the
     difference, because a fixed box submits nothing and reading its
-    silence as a clearing would take away the row of anything a modifier
-    also grants.
+    silence as a clearing would take away the assignment of anything a
+    modifier also grants.
     """
     offer = ticked_offer(card, computed)
     rows = _rows_on(card)

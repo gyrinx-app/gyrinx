@@ -1,7 +1,7 @@
 """Browsing a collection — one rendered shape, however it was defined.
 
 A curated collection (stored entries: an equipment list, a variant
-trading post) and a derived one (no rows: the default Trading
+trading post) and a derived one (no entries: the default Trading
 Post) both come out as the same structure — taxonomy groups of priced
 lines — so a browsing UI never learns which species it is looking at.
 Same move as the model card and the hire view.
@@ -94,7 +94,7 @@ class OfferedGroup:
 
 @dataclass(frozen=True)
 class PricedLine:
-    """One line of a collection's listing: the item, and what buying it *here* costs.
+    """One line of a collection's listing: the item, and its price *here*.
 
     A line is a complete purchase — ``Operation.buy`` takes one whole, so
     nothing is disassembled and reassembled when the purchase is made.
@@ -105,7 +105,7 @@ class PricedLine:
     trade_points: int
     is_exclusive: bool
     #: The entry that priced this line. None on a derived collection:
-    #: reference prices, no row anywhere.
+    #: reference prices, no entry anywhere.
     entry: object = None
     #: Whether buying here spends Trade Points. An equipment list never
     #: charges them; a trading post does. Rides the line so the purchase
@@ -187,7 +187,7 @@ def browse(collection, terms=EQUIPMENT_LIST):
     the criteria caught, ammo included: membership at a Trading Post is
     having a Trade Point price, and that is asked of a gun's rounds as
     much as of the gun. For a curated list it is the entries and nothing
-    else — including the ammo, which is the list's own row for that ammo
+    else — including the ammo, which is the list's own entry for that ammo
     at the list's own price. A gun's other profiles are not on the list
     and do not appear under it.
 
@@ -199,7 +199,7 @@ def browse(collection, terms=EQUIPMENT_LIST):
     numbers regardless — see ``shows_trade_points``.
 
     A fixed number of queries: the entries with their prefetches, plus
-    one per selector row — the count follows the collection's
+    one per selector — the count follows the collection's
     *definition*, never its size.
     """
     from n26.library.models import CollectionEntry
@@ -423,12 +423,12 @@ def _offered_choices(thing):
 def _ammo_by_weapon(entries):
     """The list's own profile entries, filed under the gun they belong to.
 
-    A profile a list names is that list's row for that ammo, and it
+    A profile a list names is that list's entry for that ammo, and it
     belongs under the gun rather than beside it — otherwise a reader
     cannot buy the two on one click, and the same thing can be priced
     twice on one page by two different routes.
 
-    A profile whose gun the list does not name keeps a row of its own:
+    A profile whose gun the list does not name keeps a line of its own:
     there is nothing to file it under, and dropping it would hide
     something the author wrote down. A blank profile is never filed —
     it *is* the weapon's own line, so it is bought with the gun.
@@ -449,7 +449,7 @@ def _entry_parts(entries, terms, shows_trade_points):
 
     Priced through the entry like every other line the list carries, so
     an author who reprices a round reprices the one the reader clicks.
-    Whether the profile costs anything of its own is beside the point —
+    Whether the profile has a price of its own is beside the point —
     a list naming a free profile at 15 credits is the list pricing it at
     15 credits.
     """
@@ -504,8 +504,8 @@ def placements_for(computed, collection):
     listing, folded from their card.
 
     ``{category: CategoryPlacement}`` — placements are **scoped**: a
-    placement aims at a section row, and section rows belong to a
-    collection, so a placement into some other collection's schema simply
+    placement aims at a collection section, and collection sections belong
+    to a collection, so a placement into some other collection's schema simply
     does not apply here. When two carriers place the same category, the
     **lowest section position wins** (a Psy-Gheist profile placing powers
     under Primary at 0 beats the Wyrd subtype's Secondary at 1) —
@@ -544,7 +544,7 @@ def _use_note(restricted, fighter, about, said):
     the entry offering it. Both are read through the same reader, because
     both are the same fact about a different thing, and ``said`` is how
     the sentence opens so a reader can tell which they are looking at.
-    The note points at the item either way: that is the row a surface
+    The note points at the item either way: that is the thing a surface
     hangs it on.
     """
     check = getattr(restricted, "is_usable_by", None)
@@ -616,7 +616,7 @@ def regrouped_by_placement(view, placements, fallback=None, name=None):
     *section* is dynamic: whatever the fighter's placements say
     ("Primary", "Secondary", or any section content invents), falling
     back for anything unplaced. ``fallback`` is the collection's own
-    default section row (``collection.default_section()``) — part of its
+    default section (``collection.default_section()``) — part of its
     schema, so its name and position are content too; a code-level
     "Other", last, is only the safety net for collections that never
     declared one. Section names live in content, not here, and this

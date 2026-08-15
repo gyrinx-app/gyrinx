@@ -61,7 +61,7 @@ def _own_assignment_or_404(request, pk):
     Scoped by ``gang_root``, which every assignment carries whatever it
     hangs off — so a weapon on a fighter, a sight on that weapon and a
     crate in the stash are all reached the same way, and none of them by
-    somebody else. Archived rows are out: a thing already sold is not
+    somebody else. Archived assignments are out: a thing already sold is not
     something to sell again, and a second click of a stale button must
     find nothing rather than charge the gang twice.
     """

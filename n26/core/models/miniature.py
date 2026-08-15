@@ -62,7 +62,7 @@ class Miniature(Base, Owned, Rated):
         return cause.miniature_root if cause else None
 
     def recompute_rating(self):
-        """What this model cost: the hire, plus everything on it."""
+        """What this model is worth: the hire, plus everything on it."""
         from n26.core.reconcile import sum_rating
 
         return sum_rating(miniature_root=self)

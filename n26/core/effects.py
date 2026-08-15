@@ -12,12 +12,12 @@ handed the mount's assignment, so nothing of the mount's is computed for
 it, and no amount of kit on a model changes the query count.
 
 A member's card is computed against the gang's holdings as well as its
-own. The gang's rows ride it as broadcast lines; what the gang holds **by
-grant** — a rule an alliance gave it, the hidden carrier a house's rules
-hang off — is dealt on beside them as the gang's *guests*. There is no
-difference between the two once effects are being applied, so a guest's
-modifiers reach the model exactly as a row's would; what a guest never
-does is draw a line, add a rating, or make its stored effects the
+own. The gang-hosted assignments ride it as broadcast lines; what the gang
+holds **by grant** — a rule an alliance gave it, the hidden carrier a
+house's rules hang off — is dealt on beside them as the gang's *guests*.
+There is no difference between the two once effects are being applied, so
+a guest's modifiers reach the model exactly as an assignment's would; what
+a guest never does is draw a line, add a rating, or make its stored effects the
 fighter's news. The gang's card settles first, so a bundle something took
 away from the gang is a guest on nobody's card.
 
@@ -50,9 +50,10 @@ live gives it, so cancelling it means dropping every granting edge — and
 then everything the thing itself was doing goes with it, down the chain,
 because what it granted has lost its giver too. A thing two carriers give
 survives losing one of them and changes hands to the survivor, which is
-why every edge is logged and not just the entry it wrote. A *stored* row
-is on the card because somebody wrote it down; a removal **suppresses**
-it — hides it from every reader, leaving the row exactly where it is — but
+why every edge is logged and not just the entry it wrote. A *stored*
+assignment is on the card because somebody wrote it down; a removal
+**suppresses** it — hides it from every reader, leaving the assignment
+exactly where it is — but
 only where nothing was paid for it and nothing paid hangs beneath it. A
 purchase is never taken away by a read, and nothing paid for is ever
 stranded. Removals settle as their round does, so a later round sees a
@@ -133,7 +134,7 @@ class ChoiceSlot:
 
     The slot is computed — present while its carrier is — and only what
     was chosen is stored, as an assignment caused by the carrier's.
-    Unresolved is the absence of that row: nothing pending is written.
+    Unresolved is the absence of that assignment: nothing pending is written.
     """
 
     kind_label: str
@@ -168,9 +169,9 @@ class CategoryPlacement:
     """
 
     category: object
-    #: The CollectionSection row — the collection's own schema, carrying
-    #: the tier's name, its position, and which collection this placement
-    #: is scoped to.
+    #: The collection section this places into — the collection's own
+    #: schema, carrying the section's name, its position, and which
+    #: collection this placement is scoped to.
     section: object
     source: str
     source_kind: str
@@ -180,7 +181,7 @@ class CategoryPlacement:
 class StoredEffect:
     """Something a card's kit does beyond adding a line to this card.
 
-    Stored effects write rows when the thing is assigned — a pet wargear
+    Stored effects write assignments when the thing arrives — a pet wargear
     brings a whole other model — so ``compute`` never runs them. It notes
     them instead, because "this brings a Cyber-mastiff" is worth reading
     both before you buy and after: on a preview it has not happened yet,
@@ -213,22 +214,23 @@ class PlannedStep:
     ran_in: int
     #: What became of it. ``reached`` the target, ``skipped`` it,
     #: ``noted`` (a stored effect, read but never run here — and never
-    #: retracted, because the rows it wrote are still there),
+    #: retracted, because the assignments it wrote are still there),
     #: ``retracted`` — it ran, and then whatever carried it was itself
     #: taken away, so its work was undone — or ``refused``, a removal
-    #: that found only rows somebody had paid for.
+    #: that found only assignments somebody had paid for.
     outcome: str = "pending"
     granted: tuple = ()
-    #: What a removal actually cancelled: a grant, a stored row, or both.
+    #: What a removal actually cancelled: a grant, a stored assignment, or
+    #: both.
     took_away: tuple = ()
     #: What a removal left alone because money stands behind it.
     refused: tuple = ()
     #: True when the carrier arrived via a grant rather than the card.
     discovered: bool = False
     #: True when the carrier is the gang's, dealt onto this card the way
-    #: the gang's rows are: the behaviour reaches this model, but the
-    #: thing itself is held by the gang, so nothing here draws it and its
-    #: stored effects are the gang's news, said once on the gang's card.
+    #: the gang-hosted assignments are: the behaviour reaches this model,
+    #: but the thing itself is held by the gang, so nothing here draws it
+    #: and its stored effects are the gang's news, said once on the gang's card.
     echoed: bool = False
     #: The card node carrying this modifier — None for discovered
     #: carriers. What "the weapon I am attached to" anchors on.
@@ -317,8 +319,8 @@ class _TakenAway:
     dropped: tuple = ()
     #: An entry put in — a weapon's removed trait — to be taken out again.
     added: object = None
-    #: Stored rows this hid, and stored rows it left alone because money
-    #: stands behind them.
+    #: Stored assignments this hid, and stored assignments it left alone
+    #: because money stands behind them.
     hidden: tuple = ()
     refused: tuple = ()
 
@@ -385,19 +387,19 @@ class ComputedCard:
     #: Composition ceilings (``AllowsAtMost``), collected here and folded
     #: against what is held by ``limit_notes``. A gang card gathers the
     #: ones aimed at the gang and counts the roster; a model's card
-    #: gathers the ones aimed at it and counts its own rows.
+    #: gathers the ones aimed at it and counts its own assignments.
     limits: list = field(default_factory=list)
     #: How many granted lines have been dealt. A line's key is built from
     #: it, so a key stays unique even where a grant was taken back and
     #: another dealt after it.
     granted_serial: int = 0
     #: What a modifier put on this card and nothing took back — what the
-    #: card holds by grant rather than by row, whether or not the grant
+    #: card holds by grant rather than by assignment, whether or not the grant
     #: drew anything. A gang's are dealt onto every member's card, where
     #: they arrive as ``echoed``.
     acquired: list[Contribution] = field(default_factory=list)
     #: What the *gang* holds by grant, riding this card the way the gang's
-    #: own rows do: its behaviour reaches this model, it draws no line
+    #: own assignments do: its behaviour reaches this model, it draws no line
     #: here, and it is worth nothing. Empty on a gang's own card, where
     #: the same things are ``acquired``.
     echoed: list[Contribution] = field(default_factory=list)
@@ -505,10 +507,10 @@ def compute(card, index):
     offers = _Offers()
     log = _Log()
 
-    # Chosen rows by what caused them. What a choice settles on is a
-    # stored row — a printed fact — so this is built once, before the
-    # rounds: a chosen-mode placement in any round reads the same
-    # settled row a slot does.
+    # Chosen assignments by what caused them. What a choice settles on is
+    # a stored assignment — a printed fact — so this is built once, before
+    # the rounds: a chosen-mode placement in any round reads the same
+    # settled assignment a slot does.
     by_cause = {}
     for node in card.all_nodes():
         if node.caused_by_key is not None:
@@ -549,14 +551,14 @@ def compute(card, index):
         seen.add(ModifierIndex.key(node.assignable))
         pending.extend(steps_for(node.assignable, False, 0, node=node))
 
-    # What the gang holds by grant is dealt on here too. The gang's own
-    # rows already ride the card; a thing the gang was *given* has no row
-    # to ride, and there is no difference between the two from the point
-    # of view of applying effects — so it arrives as the gang's guest,
-    # drawing nothing and worth nothing, and does everything it does.
-    # Something the card already carries is passed over: the row it
-    # stands on is the more direct telling, and one thing's modifiers run
-    # once however many ways it reaches the card.
+    # What the gang holds by grant is dealt on here too. The gang-hosted
+    # assignments already ride the card; a thing the gang was *given* has
+    # no assignment to ride, and there is no difference between the two
+    # from the point of view of applying effects — so it arrives as the
+    # gang's guest, drawing nothing and worth nothing, and does everything
+    # it does. Something the card already carries is passed over: the
+    # assignment it stands on is the more direct telling, and one thing's
+    # modifiers run once however many ways it reaches the card.
     echoed = [
         contribution
         for contribution in _from_the_gang(card, index)
@@ -587,13 +589,14 @@ def compute(card, index):
                 scope, effect = step.modifier.scope, step.modifier.effect
                 source_key = ModifierIndex.key(step.source)
                 if getattr(effect, "is_stored", False):
-                    # Stored effects write rows at assign time — running one
-                    # here would breed pets on every render. Noted, never
-                    # run — and noted **where the scope points**: a pet
-                    # collar's targets_model notes on its bearer's card, a
-                    # Justicar alliance's targets_gang notes once on the
-                    # gang. What the gang holds is never a member card's
-                    # news, whether it rides as a row or as a guest.
+                    # Stored effects write assignments at arrival — running
+                    # one here would breed pets on every render. Noted,
+                    # never run — and noted **where the scope points**: a
+                    # pet collar's targets_model notes on its bearer's
+                    # card, a Justicar alliance's targets_gang notes once
+                    # on the gang. What the gang holds is never a member
+                    # card's news, whether it rides as an assignment or as
+                    # a guest.
                     gang_held = step.echoed or (
                         step.node is not None and step.node.broadcast
                     )
@@ -608,8 +611,8 @@ def compute(card, index):
                         happened=is_assigned.get(source_key, False),
                     )
                     # Not in the retraction log, deliberately: this note is
-                    # about rows that were written when the thing was
-                    # assigned, and a removal is a read. The pet it brought
+                    # about assignments that were written when the thing
+                    # arrived, and a removal is a read. The pet it brought
                     # is still on the roster, so the card goes on saying
                     # where it came from.
                     computed.stored_effects.append(note)
@@ -759,13 +762,13 @@ def _from_the_gang(card, index):
     """What the card's gang holds by grant — this card's guests.
 
     Worked out from the gang's own card, and only once: every member asks
-    the same question of the same rows, so the answer is kept there
+    the same question of the same assignments, so the answer is kept there
     (``GangCard.acquired``). It is the **settled** answer, after the
     gang's own removals have run, so a bundle a corruption cancelled
     reaches nobody.
 
-    Query-free, like everything here: the gang's rows came back with this
-    card's own, and its card was assembled from them. A gang's own card
+    Query-free, like everything here: the gang's own assignments came back
+    with this card's, and its card was assembled from them. A gang's own card
     has no gang above it and so no guests.
     """
     gang_card = getattr(card, "gang_card", None)
@@ -779,7 +782,7 @@ def _from_the_gang(card, index):
 def _acquisitions(log, dead):
     """Every distinct thing a grant put on this card and nothing took back.
 
-    Read off the granting edges rather than the computed rows, because a
+    Read off the granting edges rather than the computed lines, because a
     grant need not draw one: a hidden carrier shows nothing and does
     everything, which is how a whole bundle of gang rules hangs off a
     single thing. Keyed by the thing, so what two carriers give is held
@@ -863,7 +866,8 @@ class ComputedGang:
 
 
 def counter_readings(card):
-    """Every counter on a card, with where it stands. Rows only."""
+    """Every counter on a card, with where it stands. Stored assignments
+    only."""
     from n26.library.models import Counter
 
     readings = []
@@ -910,9 +914,10 @@ def _held(nodes):
     What composition rules count: a member's rank and entry, and the gear
     the roster holds. Keyed by identity, so nothing compares names.
 
-    Two lines are passed over. The gang's own rows ride every member's
-    card, and counting a broadcast one would make the gang's kit read as
-    one copy per member. A suppressed row has been taken away — it stays
+    Two lines are passed over. The gang-hosted assignments ride every
+    member's card, and counting a broadcast one would make the gang's kit
+    read as one copy per member. A suppressed assignment has been taken
+    away — it stays
     in the database and is no longer part of what the card holds, so a
     rank a rule cancelled does not prop up a ratio or fill a quota.
     """
@@ -991,7 +996,7 @@ def limit_notes(card, computed):
     """Where one model is over a ceiling a rule states — the "each" half
     of ``AllowsAtMost``: "Leaders and Champions may be equipped with up
     to one Psychic Familiar each" is a limit on every model it reaches,
-    counted over that model's own rows.
+    counted over that model's own assignments.
 
     Breach-only, like the gang's census. Query-free, like everything
     downstream of ``compute``.
@@ -1099,7 +1104,8 @@ def _fill_choice_slots(computed, offers, by_cause):
     """Resolve each offered choice against what the anchor has caused.
 
     What is chosen is stored as an assignment caused by the carrier's; a
-    slot reads as resolved when such a row matches the offer's selector.
+    slot reads as resolved when such an assignment matches the offer's
+    selector.
     """
     from n26.core import select
 
@@ -1170,11 +1176,11 @@ def _take_away(computed, target, contribution, source_key, step):
     """Cancel one thing on one target, and say what that came to.
 
     Three things can be standing in the way of a thing being gone, and
-    this reaches all of them: a computed entry in a row, a granted weapon
-    and its lines, and a **stored row** — the fighter's built-in kit, a
-    rule that arrived with the gang type — which is hidden rather than
-    written to. What it did is returned as a record: the chain from here
-    is followed once, at the end, by ``_retract``.
+    this reaches all of them: a computed entry in a card row, a granted
+    weapon and its lines, and a **stored assignment** — the fighter's
+    built-in kit, a rule that arrived with the gang type — which is hidden
+    rather than written to. What it did is returned as a record: the chain
+    from here is followed once, at the end, by ``_retract``.
     """
     thing = contribution.thing
     record = _TakenAway(source_key=source_key, thing=thing, step=step, kind=target.kind)
@@ -1206,14 +1212,15 @@ def _take_away(computed, target, contribution, source_key, step):
 
 
 def _suppress(card, thing):
-    """Hide the stored rows of a thing a removal cancelled.
+    """Hide the stored assignments of a thing a removal cancelled.
 
-    Innate kit is a row nobody paid for — a fighter's built-in gun, a
-    rule the gang type brought — and a removal reaches it: the row stays
-    in the database and stops being drawn, so taking the remover away
-    brings it back on the next read.
+    Innate kit is an assignment nobody paid for — a fighter's built-in
+    gun, a rule the gang type brought — and a removal reaches it: the
+    assignment stays in the database and stops being drawn, so taking the
+    remover away brings it back on the next read.
 
-    Never a purchase, and never a row with a purchase hanging beneath it:
+    Never a purchase, and never an assignment with a purchase hanging
+    beneath it:
     an accessory somebody bought for a built-in gun would be stranded, so
     the gun stays. Answers with what it hid and what it left alone.
     """
@@ -1238,7 +1245,7 @@ def _retract(computed, log):
     category it placed, question it asked — and a thing it granted is
     itself gone unless something else still gives it, which carries on
     down the chain. A thing two carriers gave survives losing one, and
-    changes hands: the row keeps its place and names the survivor.
+    changes hands: the entry keeps its place and names the survivor.
 
     Removals are taken in the order they settled, so an earlier round's
     removal is never undone by a later one, and two things cancelling
@@ -1247,8 +1254,8 @@ def _retract(computed, log):
     cancelled never happened, and what it took is put back.
 
     Nothing here queries, and nothing here is written down: the card
-    keeps every row it had, and a card computed again from the same rows
-    comes out the same.
+    keeps every assignment it had, and a card computed again from the same
+    assignments comes out the same.
 
     Answers with the things that turned out not to be on the card at all,
     which is what a reader of what the card acquired must leave out.
@@ -1257,7 +1264,7 @@ def _retract(computed, log):
         return set()
 
     card = computed.card
-    #: Stored rows by the thing they name. Granted lines are the grants'
+    #: Stored assignments by the thing they name. Granted lines are the grants'
     #: own output and are retracted through the log instead.
     stored = {}
     for node in card.all_nodes():
@@ -1268,16 +1275,16 @@ def _retract(computed, log):
     for placed in log.placed:
         edges.setdefault(placed.thing_key, []).append(placed)
 
-    #: The gang's guests. Nothing gives them *here* and no row of theirs
-    #: stands here, so a removal that names one takes it away all the same
-    #: — everything it was doing on this card stops.
+    #: The gang's guests. Nothing gives them *here* and no assignment of
+    #: theirs stands here, so a removal that names one takes it away all
+    #: the same — everything it was doing on this card stops.
     guests = {ModifierIndex.key(c.thing) for c in computed.echoed}
 
     #: Things no longer on the card at all.
     dead = set()
 
     def gone(thing_key):
-        """Nothing gives this any more, and no row of it still stands."""
+        """Nothing gives this any more, and no assignment of it stands."""
         if any(not node.suppressed for node in stored.get(thing_key, ())):
             return False
         return all(placed.source_key in dead for placed in edges.get(thing_key, ()))
@@ -1306,7 +1313,7 @@ def _retract(computed, log):
         if record.refused:
             step.refused = (*step.refused, str(record.thing))
             if record.hidden:
-                # Held twice, once paid for: the free row goes, the
+                # Held twice, once paid for: the free assignment goes, the
                 # purchase stays — and so the thing is still on the card,
                 # doing everything it does.
                 step.took_away = (*step.took_away, str(record.thing))
@@ -1328,7 +1335,7 @@ def _retract(computed, log):
             _drop(applied.holder, applied.field, applied.payload)
 
     # A grant whose giver has gone, or whose thing has, is not there any
-    # more. Where a live giver of the same thing remains, the row keeps
+    # more. Where a live giver of the same thing remains, the entry keeps
     # its place and names that one instead.
     live = {id(placed) for placed in log.placed if _stands(placed, dead)}
     givers = {placed.thing_key: placed for placed in log.placed if id(placed) in live}
@@ -1369,7 +1376,7 @@ def _stands(placed, dead):
 
 def _drop(holder, field, payload, instead=None):
     """Take one entry out of a computed list by identity, optionally
-    putting another in its place — so the row keeps its position when a
+    putting another in its place — so the entry keeps its position when a
     thing simply changes hands."""
     standing = getattr(holder, field)
     kept = [entry for entry in standing if entry is not payload]
@@ -1447,8 +1454,8 @@ def _grant_weapon(computed, contribution, carrier):
 def _ungrant_weapon(computed, contribution):
     """Take back a granted weapon — every copy of it, whoever gave it.
 
-    A weapon the gang **bought** is a stored row, and one nobody paid for
-    is hidden rather than unbought (``_suppress``); either way this
+    A weapon the gang **bought** is a stored assignment, and one nobody
+    paid for is hidden rather than unbought (``_suppress``); either way this
     touches only the lines a grant put there. Answers with the lines it
     took, so a retracted removal can put them back.
     """

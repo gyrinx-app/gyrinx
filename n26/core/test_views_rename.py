@@ -90,7 +90,7 @@ class TestTheAct:
 
     def test_a_rename_moves_no_money(self, client, tester, gang, vex):
         """The name is the model's own and nothing the books watch: no
-        ledger row is written, so the gang's totals cannot drift."""
+        ledger entry is written, so the gang's totals cannot drift."""
         client.force_login(tester)
         before = LedgerEntry.objects.count()
         client.post(reverse("n26-rename-fighter", args=[vex.pk]), {"name": "Karn"})

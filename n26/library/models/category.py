@@ -18,10 +18,10 @@ the rulebook prints), and became a leaf model when authoring gave it a
 form: a free-text heading means "Ranged Weapons" and "ranged weapons"
 silently fork the taxonomy, where a pick list cannot.
 
-Not to be confused with ``CollectionSection`` — the *tiers* a
-collection is divided into (Primary, Secondary). A Section is a heading
-of the catalogue's taxonomy; a CollectionSection is a heading one list
-declares for itself.
+Not to be confused with ``CollectionSection`` — the *collection
+sections* one collection is divided into (Primary, Secondary). A
+Section is a heading of the catalogue's taxonomy; a collection section
+is a heading one list declares for itself.
 """
 
 from django.db import models
@@ -32,7 +32,11 @@ from n26.library.models.base import Content
 
 
 class Section(Content):
-    """One heading of the taxonomy — the level above categories."""
+    """A heading of the catalogue, above categories — "Ranged Weapons".
+
+    Never assigned, and it reaches nothing: it is where the gear
+    surfaces group what they show.
+    """
 
     family = Family.BASE
 
@@ -60,7 +64,12 @@ class Section(Content):
 
 
 class Category(Content):
-    """One home in the taxonomy: a category name inside a section."""
+    """Where an item always sorts: one named home inside a section.
+
+    Every collection groups an item the same way — an autogun is an
+    Auto/Stub Weapon everywhere. A category's effective section can be
+    changed for one model by a placement.
+    """
 
     family = Family.BASE
 

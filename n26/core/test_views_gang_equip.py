@@ -34,7 +34,7 @@ def tester(db):
 @pytest.fixture
 def gang(gang_type, tester):
     """A founded gang: founding writes the stash, so this is the shape the
-    app really serves rather than a bare row with no store."""
+    app really serves rather than a bare gang with no store."""
     gang = Gang.objects.create(
         name="The Ashen Choir",
         owner=tester,
@@ -580,8 +580,8 @@ class TestTheQueryBudget:
     ):
         client.force_login(tester)
 
-        # The reader and their session, the gang, its card — two row
-        # queries and one hydration pass per kind the rows name — which of
+        # The reader and their session, the gang, its card — two
+        # assignment queries and one hydration pass per kind they name — which of
         # its lists hold gear, and the browse of the one chosen with its
         # entries, their use lists and their offers. The page's own
         # furniture answers for the rest.

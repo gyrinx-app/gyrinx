@@ -14,7 +14,7 @@ The grammar (design/authoring-build-plan.md):
       targets_weapons(has_traits(melee))
 
 * **Effects** carry a prefix saying *when they happen*: ``ef_`` is
-  worked out at read time, ``op_`` writes rows at purchase time.
+  worked out at read time, ``op_`` writes once at purchase time.
 
 * **Glue**: ``modifier(name, scope, effect, attach_to=…)`` builds one
   rule; ``attach_modifiers_to(assignable, modifiers)`` hangs reusable
@@ -466,7 +466,8 @@ def create_rule(name, annotation="", qualifier="", library_author_help="", **kwa
 
 
 def create_hidden(name, effects=(), qualifier="", library_author_help="", **kwargs):
-    """An invisible effect carrier; ``effects`` are (scope, effect) pairs."""
+    """A carrier for effects that draws no row of its own; ``effects``
+    are (scope, effect) pairs."""
     from n26.library.models import Hidden
 
     carrier = Hidden.objects.create(
@@ -1010,7 +1011,8 @@ def create_category(section, name, position=0, **kwargs):
 
 
 def section_of(collection, name, position, is_default=False, **kwargs):
-    """One tier of a collection's schema — ``section_of(skills, "Primary", 0)``."""
+    """One of a collection's own sections —
+    ``section_of(skills, "Primary", 0)``."""
     from n26.library.models import CollectionSection
 
     return CollectionSection.objects.create(
@@ -1090,7 +1092,7 @@ def add_entry(
     position=None,
     **kwargs,
 ):
-    """One more item a collection lists — the curated row.
+    """One more item a collection lists — the curated entry.
 
     The overrides are what an entry may state; left blank, the item
     is priced at its own reference. New entries go to the end.
@@ -1127,13 +1129,13 @@ def add_entry(
 
 def remove_entry(entry):
     """Stop listing one item. The thing named stays in the library and
-    on every other list that names it — only this collection's row
+    on every other list that names it — only this collection's entry
     goes."""
     entry.delete()
 
 
 def add_section(collection, name, is_default=False, position=None, **kwargs):
-    """One more tier in a collection's schema — "Primary", "Affiliations".
+    """One more section of a collection's own — "Primary", "Affiliations".
 
     New sections go after the ones already there; ``is_default`` marks
     where unplaced categories fall, at most one per collection.
@@ -1267,7 +1269,7 @@ def targets_model(*conditions, when_directly_assigned=False):
 
     ``when_directly_assigned`` limits the scope to the model the carrier
     is directly assigned to, never reached through the gang's broadcast —
-    an archetype's Champion row applies to a Champion who picked it.
+    an archetype assigned to a Champion applies to that Champion alone.
     """
     from n26.library.models import TargetsMiniature
 
@@ -1377,7 +1379,7 @@ def ef_changes_category(category):
 
 
 def ef_places(category, section):
-    """For the bearer, that set sits under this tier of the section's
+    """For the bearer, that set sits under this section of its
     collection — ``ef_places(powers, skills_primary)``."""
     from n26.library.models import PlacesCategory
 
@@ -1386,7 +1388,8 @@ def ef_places(category, section):
 
 def ef_places_choice(section):
     """The carrier-relative placement: whatever set the carrier's chosen
-    thing is homed in sits under this tier — a Venator rank slot."""
+    thing is homed in sits under this collection section — a Venator
+    rank slot."""
     from n26.library.models import PlacesCategory
 
     return PlacesCategory.objects.create(the_chosen=True, section=section)
@@ -1406,7 +1409,7 @@ def ef_allows_at_most(at_most, thing):
     """A ceiling, said on the sheet and never enforced —
     ``ef_allows_at_most(2, aberrant)``, and ``ef_allows_at_most(0, brute)``
     for a ban. Aimed at the gang it counts the roster; aimed at a model it
-    counts that model's own rows."""
+    counts that model's own assignments."""
     from n26.library.models import AllowsAtMost
 
     return AllowsAtMost.objects.create(at_most=at_most, **_countable_kwarg(thing))

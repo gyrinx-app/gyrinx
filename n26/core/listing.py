@@ -4,7 +4,7 @@
 reading it — a taxonomy of priced lines, the same shape whether the
 collection was written out by hand or swept together by a selector.
 :mod:`n26.core.owned` reads the other half off the fighter's card: which
-copies of which content rows they are already carrying.
+copies of which content they are already carrying.
 
 A catalogue is the two joined. It is what a shopping screen draws, and
 it is a structure rather than a bag of dictionaries so that the join has
@@ -14,7 +14,7 @@ going through a request, and a gallery can build one without a database.
   --- owning something replaces its row ---
 
 A category holds :class:`Listing` or :class:`OwnedRow`, one or the
-other for a given content row, never both and never a flag on one type.
+other for a given piece of content, never both and never a flag on one type.
 Where the fighter holds one of the thing a row names, the row says so
 instead of offering another: the count stands where Buy would be and
 opens onto the copies themselves.
@@ -241,7 +241,7 @@ class OwnedCopyRow:
     name: str
     #: What this copy contributed on its own — its parts state theirs.
     #: Summing them is the caller's business; a sale prices itself from
-    #: the stored rows at the moment of selling.
+    #: the stored assignments at the moment of selling.
     rating: int
     parts: tuple[OwnedPartRow, ...]
     sell: Action

@@ -74,7 +74,8 @@ class Owned(models.Model):
 
 
 class Rated(models.Model):
-    """Something with a pinned rating — a sum of what it and its parts cost.
+    """Something with a pinned rating — a sum of what it and its parts are
+    worth.
 
     The number is a cache. It is rewritten at the end of every operation
     that touches the thing (see ``n26.operations``), and ``n26.reconcile``

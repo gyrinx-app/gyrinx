@@ -174,8 +174,8 @@ class Assignable(models.Model):
         ),
     )
 
-    #: What attaching a row of this kind asks for, beyond the pick: the
-    #: through row's columns that matter for this kind, keyed by the
+    #: What attaching something of this kind asks for, beyond the pick:
+    #: the through row's columns that matter for this kind, keyed by the
     #: through row's ``attachment_context`` (library/offers.py). The
     #: kind's own knowledge — no form enumerates kinds by hand. The
     #: default: anything purchasable may be repriced where a collection
@@ -191,20 +191,21 @@ class Assignable(models.Model):
     #: bespoke handling.
     card_row = None
 
-    #: Whether rows of this kind hang off a weapon's own row — what makes
-    #: "the weapon it's fitted to" a scope this kind's modifiers can
-    #: speak. The composer greys that scope on everything else, with the
-    #: reason on the card.
+    #: Whether assignments of this kind hang off a weapon's own
+    #: assignment — what makes "the weapon it's fitted to" a scope this
+    #: kind's modifiers can speak. The composer greys that scope on
+    #: everything else, with the reason on the card.
     attaches_to_weapons = False
 
     #: Whether a set of built-ins on this kind would ever come to
-    #: anything. A set is materialised when a row *arrives* — a model
-    #: hired, a gang founded, something bought — so a kind that only ever
-    #: arrives by being **chosen** runs nothing, and items built into one
-    #: would sit in the library unread. Such a kind says False, and what
-    #: it brings rides it as modifiers instead. The authoring pages read
-    #: this to decide whether to offer the attachment at all, and
-    #: ``add_built_in`` refuses one however it is written.
+    #: anything. A set is materialised when an assignment *arrives* — a
+    #: model hired, a gang founded, something bought — so a kind that
+    #: only ever arrives by being **chosen** runs nothing, and items
+    #: built into one would sit in the library unread. Such a kind says
+    #: False, and what it brings rides it as modifiers instead. The
+    #: authoring pages read this to decide whether to offer the
+    #: attachment at all, and ``add_built_in`` refuses one however it is
+    #: written.
     takes_built_ins = True
 
     class Meta:
@@ -225,8 +226,9 @@ class Assignable(models.Model):
 
     @property
     def built_in_members(self):
-        """What this always comes with, as rows — empty when it has no
-        built-ins set yet, so a page can list without checking first."""
+        """What this always comes with, as the members of its built-ins
+        set — empty when it has none yet, so a page can list without
+        checking first."""
         from n26.library.models.defaults import DefaultAssignment
 
         if self.built_ins_id is None:
@@ -352,8 +354,8 @@ class UsableBy(models.Model):
         """Who is allowed, as a phrase — empty where anyone is.
 
         The one place the four lists are read out for a reader, so a note
-        on a shop line, a mark on a card and a row on an authoring page
-        name them the same way and in the same order. Prefetch-aware,
+        on a listing's line, a mark on a card and a row on an authoring
+        page name them the same way and in the same order. Prefetch-aware,
         like the selector.
         """
         allowed = [
@@ -842,10 +844,12 @@ class LastingEffect(Content, Assignable):
 
 
 class Specialisation(Content, Assignable):
-    """The field a Specialist chooses, which grants them its skill.
+    """The field a Specialist picks, which grants them its skill.
 
-    Granted by an ordinary computed modifier — the choosing is the only
-    new thing here."""
+    The granting is an ordinary *gives* riding it, computed like any
+    other — being pickable is the only new thing about it. The
+    offers-a-choice modifiers that hand it out say "bearer", so it
+    reaches the one model that picked it."""
 
     family = Family.MODEL
 
@@ -902,6 +906,11 @@ class Rule(Content, Assignable):
     ``Trait``: a rule that comes in variants — a leash at several
     distances — is several rows sharing one printed name, not one row
     that cannot decide.
+
+    Normally it arrives built into something (a profile's kit, a gang
+    type) or given by a modifier. Reach follows the host: built into a
+    profile it prints on that model's card; held by the gang it is
+    broadcast to every member's card.
     """
 
     family = Family.BASE
@@ -924,7 +933,8 @@ class Rule(Content, Assignable):
 
 
 class Archetype(Content, Assignable):
-    """A named way of leading a gang, picked once and carried whole.
+    """A way of leading the gang, chosen once; its whole meaning rides as
+    modifiers.
 
     The Outcast shape (design/outcasts.md): the gang — or a Champion,
     individually — chooses one of several archetypes, and everything an
@@ -933,6 +943,9 @@ class Archetype(Content, Assignable):
     chosen ``SkillTree`` contributes one datum (its home), a chosen
     archetype knows its whole payload, so no indirection is involved.
     Its own kind so the card says "Archetype:".
+
+    Reach follows the host the choice lands on: the whole gang for the
+    Outcast shape, one model for a Champion's personal pick.
     """
 
     family = Family.GANG
@@ -955,14 +968,15 @@ class Archetype(Content, Assignable):
 
 
 class Affiliation(Content, Assignable):
-    """Where a gang's loyalties lie, picked once at creation.
+    """Who the gang sides with, chosen once when the gang is created.
 
     The same chosen-carrier shape as ``Archetype``, its own kind for the
     same reason. An affiliation's payload is typically *access* —
-    equipment lists opened to some ranks — and an affiliation may
+    equipment lists opened to some ranks, so its gives are scoped while
+    the affiliation itself rides gang-wide — and an affiliation may
     itself offer a further choice (Clan House's "choose one of the six
-    Houses"): what is chosen is an ordinary gang row, so a choice carried
-    on it simply computes into another slot.
+    Houses"): what is chosen is an ordinary assignment hosted on the
+    gang, so a choice carried on it simply computes into another slot.
     """
 
     family = Family.GANG
@@ -1035,10 +1049,13 @@ class Hidden(Content, Assignable):
     carrying the modifier.
 
     Being its own kind is the whole mechanism: no collection sweeps it in
-    (a sweep names kinds, and nobody stocks a shop with Hidden), and card
+    (a sweep names kinds, and no listing stocks Hidden), and card
     renderers skip its row. Its *effects* still show — a shifted stat
     names it in the cell's provenance — so nothing it does is secret,
     only its row. Fully visible in the content library.
+
+    Both givable and takeable-away, so one take-away cancels a whole
+    bundle.
     """
 
     family = Family.BASE

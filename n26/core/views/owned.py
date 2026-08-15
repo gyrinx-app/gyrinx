@@ -4,8 +4,8 @@ Five acts, five addresses, one shape each: a POST names the assignment
 in its path, an ``operation`` writes it, and the reader lands back where
 they clicked. They are addressed by *assignment* rather than by
 fighter, because that is what they are about — a weapon on a fighter, a
-sight on that weapon, a crate in the stash are all one row — and because
-the next screen that wants them (a gang sheet, a stash page) then needs
+sight on that weapon, a crate in the stash are all one assignment — and
+because the next screen that wants them (a gang sheet, a stash page) then needs
 no routes of its own.
 
 Which dialog is open is URL state on the screen that opened it
@@ -54,16 +54,16 @@ from n26.core.views.permissions import _own_assignment_or_404
 
 
 def _possession_or_404(request, pk):
-    """One of the viewer's own rows, and one these acts are *about*.
+    """One of the viewer's own assignments, and one these acts are *about*.
 
     ``_own_assignment_or_404`` answers who may act; this answers on what.
     Both are needed, because a gang holds a great deal that is not kit and
-    every bit of it is an assignment with a primary key: the row naming a
-    model's profile **is** the model, and selling it would take the
-    fighter off the roster and everything they carry with them, for half
-    the price of the profile and nothing for the kit. The row naming the
-    gang's type is the gang. Neither has any business arriving at a shop
-    row's Sell button.
+    every bit of it is an assignment with a primary key: the assignment
+    naming a model's profile **is** the model, and selling it would take
+    the fighter off the roster and everything they carry with them, for
+    half the price of the profile and nothing for the kit. The one naming
+    the gang's type is the gang. Neither has any business arriving at a
+    listing row's Sell button.
 
     A 404 rather than a message: no control anywhere draws these
     addresses, so a click that reaches here is a hand-made URL, and the
@@ -80,10 +80,10 @@ def _possession_or_404(request, pk):
 def _held(card, pk):
     """The stored possession ``pk`` names, if this card is carrying it.
 
-    The card is the fighter's own, so finding a row on it is the whole of
-    the permission check for drawing a dialog about it — and it is free,
-    where fetching the row again would be a query per click. The gang's
-    broadcast rows are skipped: they ride the card so gang-wide rules
+    The card is the fighter's own, so finding an assignment on it is the
+    whole of the permission check for drawing a dialog about it — and it is
+    free, where fetching it again would be a query per click. The gang's
+    broadcast assignments are skipped: they ride the card so gang-wide rules
     reach it, and they are not this fighter's to sell.
 
     The same kind test the routes apply, so a URL naming the fighter's own
@@ -124,7 +124,7 @@ def accessory_catalogue():
     hundreds.
 
     ``fits_category`` comes with it. Building an accessory's selector
-    reads that row, so leaving it to be fetched later would turn one
+    reads that category, so leaving it to be fetched later would turn one
     query into one per accessory.
     """
     from n26.library.models import WeaponAccessory
@@ -145,7 +145,7 @@ def fitting_accessories(weapon, catalogue=None):
     browse notes read. A shorter list is help, and a refusal would be a
     rule the book does not have.
 
-    ``catalogue`` is the rows to sift, for a caller asking this of
+    ``catalogue`` is the accessories to sift, for a caller asking this of
     several weapons; without one it reads them itself.
     """
     if catalogue is None:
@@ -158,7 +158,7 @@ def fitting_accessories(weapon, catalogue=None):
 
 
 def _asked(request):
-    """Which dialog this address is asking for, and about which row.
+    """Which dialog this address is asking for, and about which assignment.
 
     One at a time, in :data:`n26.core.owned.DIALOGS` order: a URL naming
     two is answered with whichever comes first there, because two open
@@ -191,14 +191,14 @@ def accessorise_dialogs(request, card, *, at):
     """The accessory question for every weapon on this card, all of them.
 
     Not only the one the URL names. A page draws the lot — closed, and
-    each one addressed by the id of the row it is about — so the click
+    each one addressed by the id of the assignment it is about — so the click
     that opens one is the browser showing a panel that is already there
     rather than a rebuild of a screen that can run to hundreds of rows.
     The address is still what says which is open: with no script the
     button is a link, and the one it names is the one drawn open here.
 
     Every weapon costs the same single read of the accessory table.
-    Fitting is then arithmetic on rows the card already holds, so a
+    Fitting is then arithmetic on what the card already holds, so a
     fighter carrying six guns asks the database exactly what a fighter
     carrying one does — and a fighter carrying none asks nothing.
     """
@@ -225,8 +225,8 @@ def accessorise_dialogs(request, card, *, at):
         dialogs.append(
             panel
             | {
-                # The row this is about, which is also what the control
-                # that opens it names.
+                # The assignment this is about, which is also what the
+                # control that opens it names.
                 "id": pk,
                 "open": kind == "accessorise" and named == pk,
                 "title": f"Add an accessory to {panel['name']}",
@@ -246,7 +246,7 @@ def owned_dialog(request, card, *, at, miniature, gang):
     """The dialog the URL says is open, as a template's worth of facts.
 
     One of the query parameters in :data:`n26.core.owned.DIALOGS`, naming
-    a row of this card. A name that is not on the card draws nothing at
+    an assignment on this card. A name that is not on the card draws nothing at
     all: a stale link is a page without a dialog, not an error worth a
     screen.
 
@@ -372,7 +372,7 @@ def owned_dialog(request, card, *, at, miniature, gang):
 def link_refits(sheet, at):
     """Point every stashed accessory at the dialog that fits it to a gun.
 
-    Costs no queries: the line already knows its own row and whether it
+    Costs no queries: the line already knows its own assignment and whether it
     is the sort of thing that goes on a weapon, and this only turns that
     into a URL. A line without one draws as a name with nothing to click,
     which is what a print-out wants.
@@ -383,11 +383,13 @@ def link_refits(sheet, at):
 
 
 def refit_dialog(request, gang, at):
-    """The "fit this to which gun?" panel, when ``?refit=`` names a stashed row.
+    """The "fit this to which gun?" panel, when ``?refit=`` names something
+    in the stash.
 
     The reverse of the equipment screen's accessory picker: there the
     weapon is known and the accessory chosen, here the accessory is known
-    and the weapon chosen. Both end with one row hanging off another.
+    and the weapon chosen. Both end with one assignment hanging off
+    another.
 
     Every gun the gang has is offered, not only the ones the accessory
     fits — the same rule as everywhere else, said the other way round.
@@ -546,7 +548,7 @@ def reassign_assignment(request, pk):
     rating it was pinned at, and only where it lives changes.
 
     Three destinations, told apart by ``to``. ``stash`` and a named
-    ``miniature`` are the two a fighter's own row offers. ``weapon``
+    ``miniature`` are the two a fighter's own listing row offers. ``weapon``
     names another assignment, which is how a stashed accessory is
     bolted back onto a gun — the same act, one level down the chain.
 
@@ -628,7 +630,7 @@ def accessorise_assignment(request, pk):
     """Bolt an accessory onto a weapon the gang already owns.
 
     An ordinary purchase at the reference price, hosted on the weapon's
-    own row rather than on the fighter — the same shape a gun's paid
+    own assignment rather than on the fighter — the same shape a gun's paid
     ammo is bought in, and for the same reason: an accessory belongs to
     one particular weapon. Selling the gun therefore reaches it, and its
     effects land on that gun's profiles rather than on every gun the

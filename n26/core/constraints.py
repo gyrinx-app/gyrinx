@@ -26,7 +26,7 @@ def exactly_one_of(fields):
 
 
 class NamesAnAssignable(models.Model):
-    """Mixin for a row that names exactly one assignable.
+    """Mixin for a model that names exactly one assignable.
 
     Subclasses declare their own foreign keys — the permitted kinds differ,
     since a player can be assigned a fighter profile but a profile cannot

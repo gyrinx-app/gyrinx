@@ -107,12 +107,17 @@ Concretely:
   player-facing structures (`n26/tests/sandbox/test_money_words.py`);
   the ban also applies where the test cannot see — class names, template
   props, sample data.
+- **An assignment is never called a "row".** Much of the code and docs
+  use "row" for an assignment, which is confusing and should not be
+  copied. If referring to an assignment, say assignment.
 - The Python class is `Miniature` (to avoid Django's `Model`); every
   user-facing word is "model".
 - "Profile" on its own means a hireable fighter entry. A weapon's firing
   line is a `WeaponProfile`.
-- Use the words in `n26/design/glossary.md`. If you need a term that is
-  not there, that is a design conversation, not a naming choice.
+- Use the words in `n26/design/glossary.md` and `n26/library/kinds.md` —
+  the latter is the rendered Core Concepts reference for what each kind
+  is. If you need a term that is in neither, that is a design
+  conversation, not a naming choice.
 - British spelling in prose and our own names (`colour`,
   `Specialisation`); names that mirror CSS or an installed package's API
   keep that spelling (`css_color`, a kit component's `color=` prop).

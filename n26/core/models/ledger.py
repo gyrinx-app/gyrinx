@@ -1,4 +1,4 @@
-"""The ledger — what a gang acquired, what it cost, and how it changed.
+"""The ledger — what a gang acquired, what it paid, and how it changed.
 
 Two halves, both kept:
 
@@ -29,7 +29,7 @@ class Reason(models.TextChoices):
 
 
 class LedgerEntry(Base):
-    """One row per assignment: what it was for and what it cost."""
+    """One entry per assignment: what it was for and what was paid."""
 
     assignment = models.OneToOneField(
         "n26.Assignment", on_delete=models.CASCADE, related_name="ledger_entry"

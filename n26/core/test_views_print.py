@@ -276,8 +276,8 @@ class TestThePrintPage:
 
     def test_the_page_fetches_the_gangs_rows_once(self, client, tester, gang, roster):
         """One derivation serves the header, the stash and every card:
-        the gang's assignments are fetched exactly twice — its own rows
-        and its stash's — not once per block that draws them."""
+        the gang's assignments are fetched exactly twice — its own and
+        its stash's — not once per block that draws them."""
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
 

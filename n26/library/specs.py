@@ -618,7 +618,7 @@ def _build_registry():
                 "gang's own list; one Familiar each."
             ),
         ),
-        # -- effects that write rows at purchase time -------------------
+        # -- effects written once, at purchase time ---------------------
         Spec(
             authoring.op_adds_model,
             {"profile": One(model=Profile, source=(OpAddsMiniature, "profile"))},
@@ -982,8 +982,8 @@ def _build_registry():
             },
             model=CollectionEntry,
         ),
-        # One tier of a collection's schema — where placements point and
-        # where a pick-list's options live.
+        # One of a collection's own sections — where placements point
+        # and where a pick-list's options live.
         Spec(
             authoring.add_section,
             {
@@ -1009,8 +1009,9 @@ def _build_registry():
             model=DefaultAssignment,
         ),
         # The choice a thing offers when it is acquired. No set appears
-        # here: the author says what the option is called, what it costs
-        # and what it brings, and the verb founds the set that holds it.
+        # here: the author says what the option is called, what it is
+        # priced at and what it brings, and the verb founds the set that
+        # holds it.
         Spec(
             authoring.offer_option,
             {

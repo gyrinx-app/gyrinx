@@ -263,7 +263,8 @@ class ChoiceLine:
     #: carrying the offer, and the offer itself. All three are needed — one
     #: carrier may offer two slots of the same kind, and a gang-held carrier
     #: puts a slot on every card it reaches. Empty when the card draws no
-    #: stored rows: a preview depicts nobody, so it has no slot to choose for.
+    #: stored assignments: a preview depicts nobody, so it has no slot to
+    #: choose for.
     key: str = ""
     #: Where a Choose control leads. Filled in by whoever knows the URL
     #: space, because this module knows what a slot *is* and not where a
@@ -294,8 +295,8 @@ class Choosable:
     #: never enforced; the list is an offer, not a rule.
     detail: str = ""
     #: What grants this, where the rules hand it over rather than an owner
-    #: taking it — "Keen-eyed". No row is behind such a thing, so a surface
-    #: offering things to tick draws it fixed: there is nothing a click
+    #: taking it — "Keen-eyed". No assignment is behind such a thing, so a
+    #: surface offering things to tick draws it fixed: there is nothing a click
     #: could take away.
     granted_by: str = ""
 
@@ -359,7 +360,7 @@ class ModelCard:
     #: link to".
     id: str = ""
     #: The library entry it was hired from — "Escher Gang Queen". Shared
-    #: content: many models across many gangs point at this one row.
+    #: content: many models across many gangs point at this one profile.
     #: Blank when there is no profile to name, which a header draws as
     #: nothing rather than as a dash.
     #:
@@ -489,8 +490,8 @@ class StashLine:
     kind: str = ""
     provenance: Provenance = field(default_factory=Provenance)
     #: The assignment's pk, as a string — what a control acting on this
-    #: line names. Every stash line has one; the stash holds stored rows
-    #: and nothing computed.
+    #: line names. Every stash line has one; the stash holds stored
+    #: assignments and nothing computed.
     id: str = ""
     #: Whether this is something that goes on a weapon rather than on a
     #: model, which is to say an accessory. That there is a control to
@@ -812,9 +813,9 @@ def offer_from_view(view, *, label, chosen=None, current=None, held=(), granted=
 
     ``held`` names by key what the model already has, so a surface that
     ticks rather than picks opens on the truth rather than on nothing.
-    ``granted`` maps a key to what grants it, for the ones no stored row
-    is behind: they are held too, and a surface must not offer to take
-    away something that would come straight back.
+    ``granted`` maps a key to what grants it, for the ones no stored
+    assignment is behind: they are held too, and a surface must not offer
+    to take away something that would come straight back.
     """
     # Which tier a set sits in is worth saying only where the list spans
     # several: a question narrowed to one has named it in the page's own
@@ -912,7 +913,7 @@ def card_to_model_card(
     primary = None
     equipment, weapons = [], []
     # The named line rows, keyed by the vocabulary the kinds declare
-    # (``card_row``). One mapping serves the walk over stored rows and
+    # (``card_row``). One mapping serves the walk over stored assignments and
     # the merge of computed grants below — the two can not disagree
     # about where a kind's lines go.
     line_rows = {
@@ -1028,12 +1029,12 @@ def card_to_model_card(
             continue
         if node.broadcast:
             # The gang's, not this model's. Its modifiers have already
-            # reached this card and name it as their source; the row
+            # reached this card and name it as their source; the line
             # itself belongs on the gang's sheet, not the fighter's.
             continue
         if node.suppressed:
-            # Something has taken this away. The row is still in the
-            # database and draws nothing: the card is what the fighter
+            # Something has taken this away. The assignment is still in
+            # the database and draws nothing: the card is what the fighter
             # has, and this is no longer part of it.
             continue
         thing = node.assignable
@@ -1230,7 +1231,7 @@ def _gang_rows(gang_card, gang_computed):
         if node.key in chosen_keys:
             continue
         if node.suppressed:
-            # Taken away by a modifier — the row stays, the line goes.
+            # Taken away by a modifier — the assignment stays, the line goes.
             continue
         if isinstance(node.assignable, (Hidden, Counter)):
             continue
@@ -1268,7 +1269,7 @@ def roster(gang):
     purchase brought in (a pet, a deployed platform) sorts directly
     after its owner, whatever its own rank: the book prints the beast
     with its keeper. One query, sorted here, because the owner half of a
-    key lives on another row of the same list.
+    key lives on another model in the same list.
     """
     from n26.core.models import Miniature
 
@@ -1372,8 +1373,8 @@ class RosterSummary:
 def summarise_roster(members):
     """Reduce the list :func:`roster` returns to a :class:`RosterSummary`.
 
-    Takes the members already fetched — their profile and its rank ride
-    the same rows — so this issues no queries of its own. The rating
+    Takes the members already fetched — their profile and its rank came
+    back with them — so this issues no queries of its own. The rating
     total is the sum of the models listed, which is what the tally's
     last row must equal: the gang's own rating figure also counts what
     no single model carries.

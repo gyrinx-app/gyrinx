@@ -1,6 +1,6 @@
 """Where a row sits under the catalogue's headings, and how rows gather there.
 
-An assignable's home is its own data: a ``Category`` row, inside a
+An assignable's home is its own data: a ``Category``, inside a
 ``Section`` heading. So every surface that shows rows under headings is
 grouping the same way — a shopping list, the gang list you hire from —
 and this is the one place that grouping is written down. What differs
@@ -36,7 +36,7 @@ def group_by_home(homed_rows, *, section, category, order):
     Sections are keyed by name, which is what a strip of tabs keys them
     by: two tabs reading alike is worse than a long one, and a section
     the strip cannot draw is a section whose rows are unreachable. Two
-    rows sharing a name are therefore one heading, ordered by the
+    sections sharing a name are therefore one heading, ordered by the
     earliest of them.
 
     Categories are keyed by identity, not by name. A category name is

@@ -62,8 +62,8 @@ def _print_rows(gang, gang_card, miniatures, weapon_ids=None):
         ).values_list("pk", flat=True)
         selection = _Selection(set(weapon_ids) | set(wargear))
 
-    # The selection re-deals the cards from rows already fetched, and one
-    # modifier index is shared by every card: a card build pays for its
+    # The selection re-deals the cards from assignments already fetched,
+    # and one modifier index is shared by every card: a card build pays for its
     # queries mostly in planning, so a print that built each model's card
     # alone would cost seconds on a full roster.
     cards = gang_card.members_under(selection)
@@ -76,8 +76,8 @@ def _print_rows(gang, gang_card, miniatures, weapon_ids=None):
     for miniature in miniatures:
         card = cards.get(miniature.pk)
         if card is None:
-            # A roster model with no rows of its own still gets a card —
-            # built alone, which is the rare path, not the norm.
+            # A roster model with no assignments of its own still gets a
+            # card — built alone, which is the rare path, not the norm.
             card = build_card(miniature, with_statlines=True, assignment_set=selection)
         model_card = build_model_card(
             miniature, card=card, computed=compute(card, index)

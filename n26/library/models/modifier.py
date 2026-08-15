@@ -1,7 +1,9 @@
 """Modifiers — what an assignable does once assigned.
 
-A modifier is a **scope** and an **effect**, each exactly one small typed
-row hanging off it::
+A modifier is attached to a specific assignable — its **carrier** —
+asserting who it reaches (its **scope**) and what it does (its
+**effect**). The thing an effect lands on is the **bearer**. Each of the
+two parts is exactly one small typed row hanging off the modifier::
 
     TargetsWeapons(with_trait=Melee)  +  AddsAssignable(trait=Backstab)
     TargetsMiniature()                +  AddsAssignable(subtype=Mounted)
@@ -38,7 +40,8 @@ SCOPE_FIELDS = (
     "targets_attached_weapon",
     "targets_gang",
 )
-#: Effects worked out at read time by ``n26.effects.compute``.
+#: Effects re-derived on every read by ``n26.effects.compute``, which
+#: vanish with their carrier.
 COMPUTED_EFFECT_FIELDS = (
     "adds_assignable",
     "removes_assignable",
@@ -50,8 +53,10 @@ COMPUTED_EFFECT_FIELDS = (
     "allows_at_most",
 )
 
-#: Effects that write rows, run by ``n26.operations`` when the carrier is
-#: assigned. Prefixed ``Op`` so the distinction is visible at the call site.
+#: Effects that write player data — an assignment, a ledger event — run
+#: once by ``n26.operations`` when the carrier arrives, and never undone
+#: by its removal. Prefixed ``Op`` so the distinction is visible at the
+#: call site.
 STORED_EFFECT_FIELDS = ("op_adds_miniature", "op_changes_counter")
 
 #: Kinds an OffersChoice may name. Growing this is one line plus deliberate
@@ -92,10 +97,10 @@ GRANTABLE_FIELDS = {
     "power": "library.Power",
     # Free kit: a beast's claws, a vehicle's fixed gun. The weapon and its
     # firing lines are worked out at read time, so they add nothing to the
-    # gang's rating, cost nothing, cannot be sold, and go when the thing
-    # that granted them goes. The only grantable kind with a price and
-    # with children of its own — see ``n26.core.effects``, which builds
-    # the card nodes a granted weapon needs.
+    # gang's rating, are never paid for, cannot be sold, and go when the
+    # thing that granted them goes. The only grantable kind with a price
+    # and with children of its own — see ``n26.core.effects``, which
+    # builds the card nodes a granted weapon needs.
     "weapon": "library.Weapon",
     # A carrier that draws no row, so naming one is naming a *bundle*:
     # everything the hidden thing does arrives or departs together. What
@@ -154,9 +159,9 @@ class TargetsMiniature(models.Model):
     CONDITIONS = ("has_subtypes", "is_profile", "counter_at_least")
 
     #: Positional, not factual — read off the carrier node, like
-    #: ``TargetsAttachedWeapon``. An archetype's Champion row applies to
-    #: a Champion who *picked* it, never to every Champion because the
-    #: gang did: same carrier, and where it is hosted decides.
+    #: ``TargetsAttachedWeapon``. An archetype assigned to a Champion
+    #: applies to that Champion, never to every Champion because the gang
+    #: holds one: same carrier, and the host decides.
     when_directly_assigned = models.BooleanField(
         default=False,
         help_text=(
@@ -226,9 +231,9 @@ class TargetsMiniature(models.Model):
         if getattr(card, "host_kind", MODEL) != MODEL:
             return []
         if self.when_directly_assigned and (carrier is None or carrier.broadcast):
-            # The gang's echo of this row reaches nobody; only the model
-            # whose own row this is. A discovered (granted) carrier hangs
-            # off no row at all, so it cannot be anyone's bearer.
+            # The gang's broadcast of this assignment reaches nobody; only
+            # the model it is hosted on. A discovered (granted) carrier
+            # hangs off no assignment at all, so it has no bearer.
             return []
         if self.as_selector().matches(facts.model()):
             return [Target(kind=MODEL)]
@@ -622,9 +627,9 @@ class TargetsGang(models.Model):
     echo onto ten fighters (design/gang-sheet.md). Symmetric with
     ``TargetsMiniature``'s guard: each targets only its own kind of
     card, read off ``card.host_kind``, so an unfiltered selector on one
-    never swallows the other. Modifiers reaching *members* from a
-    gang-hosted carrier keep using ``TargetsMiniature`` — the broadcast
-    is unchanged.
+    never swallows the other. A modifier reaching *members* from a
+    gang-hosted carrier uses ``TargetsMiniature`` instead; that is the
+    broadcast.
     """
 
     class Meta:
@@ -782,15 +787,15 @@ class RemovesAssignable(AssignableChoice):
 
     It reaches what another modifier **granted** and what the card holds
     **innately**: a built-in gun, a rule that arrived with the gang type.
-    A granted thing simply stops being given; an innate row is hidden —
-    nothing is deleted, and dropping whatever cancelled it brings the row
-    straight back on the next read.
+    A granted thing simply stops being given; an innate assignment is
+    hidden — nothing is deleted, and dropping whatever cancelled it
+    brings it straight back on the next read.
 
     Never what was paid for. A purchase is parted with by an operation,
-    not by reading a card, so a row carrying credits or a rating of its
-    own stays exactly where it is — and so does a free row with a
-    purchase hanging beneath it, because an accessory somebody bought for
-    a built-in gun must not be stranded.
+    not by reading a card, so an assignment carrying credits or a rating
+    of its own stays exactly where it is — and so does a free assignment
+    with a purchase hanging beneath it, because an accessory somebody
+    bought for a built-in gun must not be stranded.
 
     What the cancelled thing was itself doing goes with it, down the
     chain: name a hidden carrier and every rule it hands out departs
@@ -813,13 +818,14 @@ class RemovesAssignable(AssignableChoice):
 
 
 class OffersChoice(models.Model):
-    """The bearer may select one assignable of a given kind.
+    """Puts an open question on the card: the bearer chooses one
+    assignable of a given kind.
 
     Computed: the offer is a *slot* on the card, present while the carrier
     is; only what was chosen is ever stored (an assignment caused by the
-    carrier's). Unresolved is simply the absence of a resolution — nothing
-    pending is written, so nothing pending can go stale, and deferring the
-    pick costs nothing.
+    carrier's own). Unresolved is simply the absence of a resolution —
+    nothing pending is written, so nothing pending can go stale, and
+    deferring the pick costs nothing.
 
     ``of_kind`` is a plain foreign key to the ContentType row — a typed
     reference to a model *class*. This is not the content_type+object_id
@@ -845,11 +851,11 @@ class OffersChoice(models.Model):
         blank=True,
         related_name="+",
         help_text=(
-            'Narrow the offer to one tier of a collection: "a Skill from a '
-            'set that is Primary for this fighter". The tier is a row of '
-            "the collection's schema, the same row a placement aims at, so "
-            'the admin picks "Primary (Skills & Powers)" rather than '
-            "restating a name. Blank offers the whole kind."
+            'Narrow the offer to one section of a collection: "a Skill '
+            'from a set that is Primary for this fighter". That section is '
+            "part of the collection's own schema, the same row a placement "
+            'aims at, so the admin picks "Primary (Skills & Powers)" rather '
+            "than restating a name. Blank offers the whole kind."
         ),
     )
     label = models.CharField(
@@ -867,14 +873,14 @@ class OffersChoice(models.Model):
     )
 
     class WillBeAssignedTo(models.TextChoices):
-        #: The model (or gang) whose row carries the offered choice — the
-        #: ordinary case: a Specialist's specialisation rides them.
+        #: The model (or gang) whose assignment carries the offered choice
+        #: — the ordinary case: a Specialist's specialisation rides them.
         BEARER = "bearer", "the bearer"
         #: The Leader → Gang arrow:
         #: the Outcast Leader picks the archetype, but the pick belongs
-        #: to the gang — what is chosen lands as a gang row, radiates to
-        #: the members, and, being caused by the Leader's row, dies with
-        #: the Leader.
+        #: to the gang — what is chosen lands as a gang-hosted
+        #: assignment, is broadcast to the members, and, being caused by
+        #: the Leader's assignment, dies with the Leader.
         GANG = "gang", "the gang"
 
     will_be_assigned_to = models.CharField(
@@ -1032,8 +1038,8 @@ class PlacesCategory(models.Model):
         on_delete=models.PROTECT,
         related_name="+",
         help_text=(
-            "The tier it appears under for the bearer — a row of the "
-            "collection's schema, so the admin picks "
+            "The collection section it appears under for the bearer — one "
+            "of the collection's own sections, so the admin picks "
             '"Primary (Skills & Powers)" rather than restating a string '
             "and a number. Scopes the placement to that collection."
         ),
@@ -1110,8 +1116,8 @@ class AllowsAtMost(models.Model):
 
     What gets counted follows the scope. Aimed at the gang it is a census
     of the roster — members by rank, by entry, and the gear they hold
-    between them. Aimed at a model it is that model's own rows, which is
-    what "each" means in "up to one Familiar each".
+    between them. Aimed at a model it is that model's own assignments,
+    which is what "each" means in "up to one Familiar each".
     """
 
     is_stored = False
@@ -1165,7 +1171,8 @@ class AllowsAtMost(models.Model):
         return None
 
     def accepts(self, target_kind):
-        # A census over the roster, or a count of one model's own rows.
+        # A census over the roster, or a count of one model's own
+        # assignments.
         return target_kind in (MODEL, GANG)
 
 
@@ -1281,12 +1288,13 @@ class OpChangesCounter(models.Model):
         return target_kind in (MODEL, GANG)
 
     def perform(self, operation, assignment):
-        """Tally the bearer's counter, creating its row if they keep none.
+        """Tally the bearer's counter, assigning one if they keep none.
 
-        The bearer is whoever the carrier landed on. A created row is
-        caused by the carrier's, so a counter that only exists because of
-        this rule leaves when the rule's carrier does — but its tallies,
-        like all tallies, are history and stay written.
+        The bearer is whoever the carrier landed on. A counter assigned
+        here is caused by the carrier's assignment, so a counter that
+        only exists because of this rule leaves when the rule's carrier
+        does — but its tallies, like all tallies, are history and stay
+        written.
         """
         from n26.core.models import Assignment, Reason
 
@@ -1384,7 +1392,14 @@ class ChangesStat(models.Model):
 
 
 class Modifier(Content):
-    """One scope plus one effect. Computed onto cards; never stored."""
+    """One scope — who it reaches — plus one effect — what it does.
+
+    Shared by design: the same modifier may be carried by any number of
+    assignables, and editing it changes it everywhere it is carried. A
+    computed effect is re-derived on every read and vanishes with its
+    carrier; a written one runs once when the carrier arrives and is
+    never undone by removal.
+    """
 
     name = models.CharField(max_length=200)
 

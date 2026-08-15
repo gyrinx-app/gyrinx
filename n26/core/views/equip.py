@@ -520,8 +520,8 @@ def equip(request, pk):
             "chosen": chosen,
             "catalogue": catalogue,
             # The confirmation the URL says is open, if any: sell, move or
-            # remove one row of this fighter's card. A server state, so it
-            # is a link, it survives a reload, and it is drawn rather than
+            # remove one assignment on this fighter's card. A server state,
+            # so it is a link, it survives a reload, and it is drawn rather than
             # revealed by a script.
             "dialog": owned_dialog(
                 request, card, at=at, miniature=miniature, gang=gang

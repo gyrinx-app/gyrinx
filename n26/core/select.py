@@ -7,7 +7,7 @@ that needs one used to grow its own filter code. This module is the one
 vocabulary, usable in two contexts:
 
 ``selector.matches(target)``
-    In memory, against a wrapped thing — a card node, a content row.
+    In memory, against a wrapped thing — a card node, a piece of content.
 
 ``selector.as_q(for_model)``
     Compiled to a database filter, for discovery surfaces: pickers, shop
@@ -36,7 +36,7 @@ from django.db.models import Q
 
 
 def key(thing):
-    """A hashable identity for a content row: (model label, pk)."""
+    """A hashable identity for a piece of content: (model label, pk)."""
     return (thing._meta.label_lower, thing.pk)
 
 
@@ -62,8 +62,8 @@ class Matchable:
 
     ``assignables`` is a frozenset of :func:`key` results. What counts as
     possessed is the *adapter's* decision — a card builds targets whose
-    assignables are computed traits; ``matchable`` on a bare content row uses
-    what is printed.
+    assignables are computed traits; ``matchable`` on a bare piece of
+    content uses what is printed.
     """
 
     thing: object
@@ -90,11 +90,11 @@ class Matchable:
 
 
 def matchable(thing, assignables=()):
-    """The default adapter: a content row and, if relevant, its printed traits.
+    """The default adapter: a thing and, if relevant, its printed traits.
 
-    ``assignables`` are content rows the thing possesses beyond what the
+    ``assignables`` are the assignables the thing possesses beyond what the
     adapter can see for itself — a fighter's subtypes, say. Callers pass
-    rows; :func:`key` is internal.
+    the objects themselves; :func:`key` is internal.
     """
     owned = {key(assignable) for assignable in assignables}
     if hasattr(thing, "traits"):

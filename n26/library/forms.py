@@ -1177,7 +1177,7 @@ class ModifierComposerForm(forms.Form):
         scope is machinery; the narrowing half is the one fact telling
         two otherwise identical rows on one carrier apart. A skill grid
         hangs a row per rank off a single archetype and several ranks
-        put the same category in the same tier, so dropping the rank
+        put the same category in the same collection section, so dropping the rank
         would name both rows the same thing — and the second one would
         be refused by the unique-name constraint rather than merely read
         oddly.

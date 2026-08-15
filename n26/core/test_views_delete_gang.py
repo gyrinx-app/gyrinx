@@ -1,6 +1,6 @@
 """Deleting a gang: the question, the act, and what stops being there.
 
-Delete is archive. The row survives so the ledger under it stays a true
+Delete is archive. The gang survives so the ledger under it stays a true
 record, but nothing a player can reach shows the gang again and there is
 no way back from the app. These tests hold both halves of that: the
 surfaces really do stop naming it, and the money underneath really is

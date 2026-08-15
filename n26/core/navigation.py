@@ -8,7 +8,7 @@ switcher.
 A switcher is built as a plain structure here and drawn by
 ``<c-n26.quick-switcher.of>``; nothing in this module knows any HTML. Where
 the siblings come from differs per surface (your gangs, the kinds of content,
-the rows of one kind), so each surface builds its own list and what they share
+the items of one kind), so each surface builds its own list and what they share
 is the shape, the cap, and one rule: the thing you are on is in the list
 whatever the cap dropped.
 """
@@ -132,7 +132,7 @@ def owned_gangs(request):
 
     Memoised on the request because two parts of the same page want it:
     the drawer lists them, and the bar's switcher offers them on every
-    gang screen. Without the memo that is the same rows fetched twice per
+    gang screen. Without the memo that is the same gangs fetched twice per
     page. Anonymous readers get an empty list, which the drawer reads as
     "no section at all".
     """

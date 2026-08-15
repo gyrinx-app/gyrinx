@@ -19,7 +19,7 @@ has authored has no skills screen at all.
 * computed grants — a territory or alliance whose modifier adds a
   collection, present exactly while the granter is. A list granted to the
   *gang* is one of these too: it rides every member's card the way the
-  gang's own rows do.
+  gang-hosted assignments do.
 
 Access informs, never polices: this is what a buying UI *offers*, and
 ``Operation.buy`` deliberately never consults it.
@@ -91,17 +91,17 @@ def gang_collections(gang, card=None, computed=None):
 def _collections_on(card, computed, gang, gang_hosted=False):
     """The collections a computed card reaches — the shared walk.
 
-    Stored rows first, in the order the card holds them, then the computed
-    grants; first mention of a collection wins, so a list reached twice
-    collapses towards the more direct source. A list something has taken
+    Stored assignments first, in the order the card holds them, then the
+    computed grants; first mention of a collection wins, so a list reached
+    twice collapses towards the more direct source. A list something has taken
     away is not somewhere to shop: the card no longer shows it, so it
     opens nothing either.
 
     A held list names whatever brought it, which after founding is the
     gang *type*; assigned by hand it has no cause, so the gang itself
-    answers for it. ``gang_hosted`` says the card's own rows are the
-    gang's — true of a gang card, where a model's card marks the same rows
-    ``broadcast``.
+    answers for it. ``gang_hosted`` says the card's own assignments are
+    the gang's — true of a gang card, where a model's card marks the same
+    assignments ``broadcast``.
     """
     from n26.library.models import Collection
 
@@ -161,8 +161,8 @@ def placed_collections(computed):
     """The collections this fighter's grid reaches, by id.
 
     Pure reading of a computed card — no queries — because a placement
-    already carries the section row it aims at, and a section row
-    belongs to one collection.
+    already carries the collection section it aims at, and a collection
+    section belongs to one collection.
     """
     return {str(placement.section.collection_id) for placement in computed.placements}
 

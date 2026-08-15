@@ -301,8 +301,8 @@ class TestRefittingAStashedAccessory:
     def test_another_gangs_stash_is_not_reachable(
         self, client, tester, gang, kit, gang_type
     ):
-        """Scoped to this gang's own stash: the address names a row, and a
-        row belonging to somebody else is not on this sheet."""
+        """Scoped to this gang's own stash: the address names an assignment,
+        and one belonging to somebody else is not on this sheet."""
         from n26.core.models import Stash
         from n26.library.authoring import create_weapon_accessory
 

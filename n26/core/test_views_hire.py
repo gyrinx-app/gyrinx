@@ -554,7 +554,7 @@ def test_an_overspend_refuses_and_writes_nothing(client, tester, gang, make_prof
     response = client.post(
         hire_url(gang), {"profile": str(expensive.pk), "name": "Vesna"}
     )
-    # Back to the hire page with a message, and no half-written rows.
+    # Back to the hire page with a message, and nothing half-written.
     assert response.status_code == 302
     assert response.url == hire_url(gang)
     assert Miniature.objects.filter(membership__gang=gang).count() == 0

@@ -6,7 +6,7 @@ fighter can't use that skill", later "you're over three weapon slots",
 attached to a line or a card, pointing at what it concerns — so there is
 one shape for all of them, not a named boolean per rule.
 
-A note points at real rows (``about``), never at display strings, so
+A note points at real objects (``about``), never at display strings, so
 nothing downstream ever matches on text. Levels say how loudly to draw
 it; nothing anywhere blocks on one — we inform, never police.
 """
@@ -25,7 +25,7 @@ _LOUDNESS = {INFO: 0, WARNING: 1, ERROR: 2}
 class Note:
     """One remark: what it says, what it points at, how loud it is.
 
-    ``about`` is the actual content row the remark concerns — a Skill, a
+    ``about`` is the actual piece of content the remark concerns — a Skill, a
     Weapon — so consumers compare identities, never strings. ``text`` is
     for humans only.
     """

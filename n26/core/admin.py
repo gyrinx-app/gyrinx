@@ -1,15 +1,15 @@
 """The admin's window onto player data — and mostly a window.
 
-Player data is written by ``n26.operations`` and nowhere else: a row
-created or edited here would skip the ledger entry, the event and the
-repin, and nothing would notice until reconcile ran. So the
+Player data is written by ``n26.operations`` and nowhere else: an
+assignment created or edited here would skip the ledger entry, the event
+and the repin, and nothing would notice until reconcile ran. So the
 ledger-adjacent models — Assignment, LedgerEntry, LedgerEvent, Stash —
 are registered read-only: the admin is for finding and inspecting, not
 for writing what only an operation may write. The pinned caches on Gang
 and Miniature are read-only fields for the same reason.
 
 Display-only state (AssignmentSet, PrintConfig, StatOverride) is
-editable — it costs nothing, changes no rating and touches no ledger —
+editable — it moves no money, changes no rating and touches no ledger —
 though their selection M2Ms are managed in the app, where the choices
 are drawn with the context a bare multi-select cannot give.
 """
@@ -87,11 +87,11 @@ class GangAdmin(admin.ModelAdmin):
     def archive_gangs(self, request, queryset):
         """Put gangs away, one ``archive()`` each.
 
-        A soft delete: the rows stay, and the gang stops being listed,
-        founded from, or reachable by its address. Row by row rather
-        than one UPDATE, because archiving stamps the time it happened
-        and carries to anything a gang says goes with it — a bulk write
-        would set the flag and neither.
+        A soft delete: nothing is dropped, and the gang stops being
+        listed, founded from, or reachable by its address. One gang at a
+        time rather than one UPDATE, because archiving stamps the time it
+        happened and carries to anything a gang says goes with it — a bulk
+        write would set the flag and neither.
         """
         done = 0
         for gang in queryset.exclude(archived=True):

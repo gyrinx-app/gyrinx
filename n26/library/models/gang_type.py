@@ -11,7 +11,8 @@ from n26.library.models.base import Content
 
 
 class GangType(Content, Assignable):
-    """A kind of gang, e.g. Escher or Ironhead Squat Prospectors.
+    """A kind of gang — Escher, Ironhead Squats — assigned to the gang at
+    founding.
 
     Assignable, for the same reason a profile is: **founding a gang is a
     gang-hosted assignment naming its type**, exactly as hiring a model is
@@ -22,8 +23,8 @@ class GangType(Content, Assignable):
 
     What it carries is mostly *overrides and extras*, because most of what
     a gang list prints belongs elsewhere: the fighter entries are
-    ``Profile`` rows, and each entry's skill access is ``PlacesCategory``
-    modifiers on that profile. See design/gang-type.md.
+    profiles, and each entry's skill access rides that profile as
+    ``PlacesCategory`` modifiers. See design/gang-type.md.
 
     ``name`` comes from the mixin, as do the pricing fields — which stay
     at zero here, since nobody buys a gang type.

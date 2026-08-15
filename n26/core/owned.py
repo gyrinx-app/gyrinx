@@ -40,14 +40,14 @@ from urllib.parse import urlencode
 from n26.library.models.assignable import Family
 
 #: The dialogs a screen can have open, each a query parameter naming one
-#: row of the card. Both sides read this tuple: the rows that draw the
-#: controls and the view that answers the URL behind them, so neither can
-#: invent a question the other does not know.
+#: assignment on the card. Both sides read this tuple: the rows that draw
+#: the controls and the view that answers the URL behind them, so neither
+#: can invent a question the other does not know.
 #:
-#: Three of them confirm something about the row named. The fourth asks a
-#: question instead — which accessory to bolt onto the weapon named — and
-#: it sits here because it is the same sort of state: one row of this
-#: card, open because the address says so, closed by going back to the
+#: Three of them confirm something about the assignment named. The fourth
+#: asks a question instead — which accessory to bolt onto the weapon named
+#: — and it sits here because it is the same sort of state: one assignment
+#: on this card, open because the address says so, closed by going back to the
 #: address without it. A screen draws one at a time, so a URL naming two
 #: draws whichever comes first here.
 DIALOGS = ("sell", "reassign", "refund", "remove", "accessorise")
@@ -98,7 +98,7 @@ def is_detachable(thing):
 
 
 def thing_key(thing):
-    """One string naming a content row — what a form submits to name it.
+    """One string naming a piece of content — what a form submits to name it.
 
     Model label plus primary key, because a bare key is ambiguous across
     the assignable tables: a weapon and a wargear may share one.
@@ -114,7 +114,7 @@ class OwnedPart:
     """
 
     id: str
-    #: The content row this is one of, as :func:`thing_key` writes it —
+    #: The content this is one of, as :func:`thing_key` writes it —
     #: so a part can say what it is without being looked up in whatever
     #: is holding it.
     key: str
@@ -130,12 +130,12 @@ class OwnedThing:
     """One copy of something the model already holds."""
 
     id: str
-    #: The content row this is a copy of, as :func:`thing_key` writes it.
+    #: The content this is a copy of, as :func:`thing_key` writes it.
     key: str
     name: str
     #: What this copy contributes to the model's rating on its own. Its
     #: parts state theirs; what a sale returns is worked out from the
-    #: rows themselves at the moment of selling, never from here.
+    #: assignments themselves at the moment of selling, never from here.
     rating: int
     parts: tuple[OwnedPart, ...]
     sell_href: str
@@ -202,7 +202,7 @@ def owned_things(card, at):
     were reading is still the list underneath.
 
     Two of the same weapon are two entries under one key, never one entry
-    counted twice: each is its own row in the ledger, each may carry
+    counted twice: each is its own entry in the ledger, each may carry
     different ammo, and each is sold, moved and dropped on its own.
 
     Only what the model **owns** — see :func:`is_possession`. A card
@@ -211,8 +211,8 @@ def owned_things(card, at):
     fighter, their skills are what they know, their equipment lists are
     where they shop.
 
-    The gang's own rows are skipped for a second reason. They ride every
-    member's card so gang-wide rules reach them, but they are the gang's
+    The gang-hosted assignments are skipped for a second reason. They ride
+    every member's card so gang-wide rules reach them, but they are the gang's
     property and not this fighter's to sell.
 
     A **granted** weapon is skipped for a third: it is lent, not owned. A
@@ -237,8 +237,8 @@ def owned_things(card, at):
         if node.suppressed:
             # A modifier has taken this away, so the card says the fighter
             # does not have it — and a screen must not offer to sell
-            # something the card denies. The row is untouched underneath:
-            # drop whatever cancelled it and the controls come back.
+            # something the card denies. The assignment is untouched
+            # underneath: drop whatever cancelled it and the controls come back.
             continue
         if not is_possession(node.assignable):
             continue

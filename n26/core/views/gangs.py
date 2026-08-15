@@ -394,8 +394,8 @@ def _dismiss(request, pk, kind):
                         op.move(root, gang.stash, note=f"{was} left it behind")
                         moved += 1
             # What the whole departure returns, asked before anything is
-            # archived: refund_of skips archived rows, so asking afterwards
-            # would answer zero.
+            # archived: refund_of skips archived assignments, so asking
+            # afterwards would answer zero.
             in_hire = {membership.pk, *(row.pk for row in subtree(membership))}
             remaining = [
                 root for root in _kit_roots(miniature) if root.pk not in in_hire
@@ -439,7 +439,7 @@ def rename_fighter(request, pk):
     """Rename one model: the act behind the gang sheet's dialog.
 
     The name is the model's own and nothing the books watch — no rating
-    moves, no ledger row is written — so this is a plain save rather
+    moves, no ledger entry is written — so this is a plain save rather
     than an operation. GET reopens the dialog instead of acting, so the
     address can be followed, sent, or reloaded without renaming anyone.
     """
@@ -478,7 +478,7 @@ def rename_fighter(request, pk):
 def create_gang(request):
     """Found a gang: the design system's create form, wired to write.
 
-    POST founds for real — the Gang row, then its founding assignment
+    POST founds for real — the Gang itself, then its founding assignment
     and whatever the type's built-ins bring, in one operation — and
     lands back on the dashboard where the new gang is now a row.
     """
@@ -625,7 +625,7 @@ def delete_gang(request, pk):
     gang = _own_gang_or_404(request, pk)
     if request.method == "POST":
         gang.archive()
-        # Recorded as a deletion, which is what the player did. That the row
+        # Recorded as a deletion, which is what the player did. That the gang
         # survives is how the ledger stays true, not something they asked for.
         record(request, N26Noun.GANG, EventVerb.DELETE, gang)
         messages.success(request, f"Deleted {gang.name}.")

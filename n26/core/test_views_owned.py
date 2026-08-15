@@ -3,7 +3,8 @@
 The four routes are addressed by assignment rather than by fighter, so
 what is pinned here is the wiring around ``Operation.sell``, ``move``,
 ``refund`` and ``remove`` — that a click writes the right one, that the
-books still agree afterwards, that nobody reaches another player's rows,
+books still agree afterwards, that nobody reaches another player's
+assignments,
 and that a GET writes nothing at all.
 
 The arithmetic itself has its own tests, in the sandbox suite where the
@@ -117,7 +118,7 @@ class TestSelling:
     def test_a_second_click_of_a_stale_button_sells_nothing_twice(
         self, client, tester, gang, sword
     ):
-        """The archived row is gone as far as these routes are concerned,
+        """The archived assignment is gone as far as these routes are concerned,
         so a reloaded confirmation cannot pay the gang a second time."""
         client.force_login(tester)
         client.post(url("n26-sell", sword))
@@ -388,10 +389,10 @@ class TestWhatMayBeClickedOn:
     """These acts are about kit, and a gang holds a great deal that is not
     kit — every bit of it an assignment with a primary key of its own.
 
-    The row naming a model's profile *is* the model: selling it would take
-    the fighter off the roster with everything they carry, and pay half the
-    price of the profile for the lot. The row naming the gang's type is the
-    gang. A skill is what a fighter knows, an equipment list is where they
+    The assignment naming a model's profile *is* the model: selling it would
+    take the fighter off the roster with everything they carry, and pay half
+    the price of the profile for the lot. The one naming the gang's type is
+    the gang. A skill is what a fighter knows, an equipment list is where they
     shop. None of them is a possession, and none of these routes will touch
     one — whatever a hand-made URL says.
     """
@@ -423,8 +424,9 @@ class TestWhatMayBeClickedOn:
         "route", ["n26-sell", "n26-reassign", "n26-refund", "n26-remove"]
     )
     def test_the_gang_itself_is_not_kit(self, client, tester, gang, route):
-        """The founding row carries the gang's type, its equipment lists and
-        every gang-wide rule. Taking it away would take all of that."""
+        """The founding assignment carries the gang's type, its equipment
+        lists and every gang-wide rule. Taking it away would take all of
+        that."""
         from n26.core.operations import operation as write
 
         with write(gang, actor=tester) as op:
@@ -831,7 +833,7 @@ def house_list(gang, tester):
 def test_the_things_a_fighter_holds_are_counted_off_the_card(
     gang, fighter, tester, sword
 ):
-    """The count a listing row shows is of live rows on this fighter, read
+    """The count a listing row shows is of live assignments on this fighter, read
     from the card the page already built — no query per row."""
     from n26.core.card import build_card
     from n26.core.owned import owned_things, thing_key
@@ -845,7 +847,7 @@ def test_the_things_a_fighter_holds_are_counted_off_the_card(
 
     with operation(gang, actor=tester) as op:
         op.remove(sword)
-    # Archived rows are not held: the fighter has one sword, not two.
+    # Archived assignments are not held: the fighter has one sword, not two.
     assert len(owned_things(build_card(fighter), AT)[thing_key(sword.assignable)]) == 1
     assert_reconciled(gang)
 
@@ -1017,7 +1019,7 @@ class TestThePanelsAPageCarries:
     def test_the_gangs_own_guns_are_not_the_fighters_to_kit_out(
         self, gang, fighter, tester
     ):
-        """The gang's rows ride every member's card so gang-wide rules
+        """The gang's own assignments ride every member's card so gang-wide rules
         reach them. They are still the gang's, and no fighter's screen
         may offer to bolt something onto one."""
         from n26.library.authoring import create_weapon

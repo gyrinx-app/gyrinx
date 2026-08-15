@@ -24,6 +24,9 @@ underlying spec.
   `LedgerEvent` outside `operation(gang, actor=...)`.** A bare
   `objects.create()` skips the ledger entry, the event, and the repin;
   nothing notices until `reconcile` runs.
+- **Removing an assignment cascades down its cause chain.** Everything
+  `caused_by` the removed assignment goes too, recursively — hire,
+  built-ins, and grants all rely on this to unwind cleanly.
 - **Recompute, never delta.** `settle()` repins every touched total by
   recomputing it. If a new thing contributes to rating or credits, make
   sure `Operation.touched()` sees the affected model and
@@ -54,11 +57,12 @@ underlying spec.
   A new display fact is a new field, computed in Python.
 - Every assignable a card shows carries a `Provenance` saying where it
   came from.
-- **Mind the broadcast flag.** The gang's own rows ride every member's
-  card (marked `broadcast=True`) so gang-wide rules reach them — they
-  draw no line, and gang rows carry no rating of their own. Any new code
-  walking a card's nodes needs `if node.broadcast: continue` or it will
-  double-count the gang's kit onto every fighter.
+- **Host decides reach.** An assignment hosted on the gang is broadcast
+  to every member's card (marked `broadcast=True`) so gang-wide rules
+  reach them — they draw no line, and gang-hosted assignments carry no
+  rating of their own. Any new code walking a card's nodes needs
+  `if node.broadcast: continue` or it will double-count the gang's kit
+  onto every fighter.
 - **What the gang holds by *grant* rides too.** A thing a modifier gave
   the gang has no row to broadcast, so the gang's card is computed first
   and its acquisitions are dealt onto each member as that card's guests
@@ -82,7 +86,7 @@ underlying spec.
   or it raises `NotExpressibleAsQuery`.
 - **`Assignment.save()` derives the denormalised roots.**
   `objects.update()` / `bulk_update()` bypass it and the roots drift
-  silently — `Operation.move` re-saves every row in a subtree for
+  silently — `Operation.move` re-saves every assignment in a subtree for
   exactly this reason. Don't bulk-write assignments.
 - A membership assignment's `miniature_root` is set by hand in
   `Operation.hire`, not by `save()` — it is hosted on the gang but

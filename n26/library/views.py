@@ -70,7 +70,7 @@ LEAF_KINDS = {
 #: parts you add to it over time. ``kind -> the verb that adds a part``.
 def _describe_weapon_profile(profile):
     """A firing line, as the author needs to check it: what it is
-    called, the stats they typed, its traits, and what it costs.
+    called, the stats they typed, its traits, and its price.
 
     An unnamed line is the weapon's own, so it is labelled with the
     weapon and says so — a blank cell would read as a missing name
@@ -576,7 +576,7 @@ def _describe_row(row):
     """What a listing says about one row beyond its name.
 
     Generic on purpose: whatever a kind actually carries — where it
-    sorts, what it costs — rather than a column per kind. Kinds with
+    sorts, what it is priced at — rather than a column per kind. Kinds with
     something particular to say override below.
     """
     notes = []
@@ -1134,7 +1134,7 @@ def detail(request, kind, pk):
     """One thing, and the parts added to it over time.
 
     The shape everything above the leaves needs: a weapon and its
-    profiles today; a collection and its tiers, a carrier and its
+    profiles today; a collection and its sections, a carrier and its
     modifiers, next. The part form is spec-generated like any other,
     and where the part carries a statline the page composes one beside
     it — that form's fields come from the owner's statline type, which

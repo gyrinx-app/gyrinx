@@ -239,7 +239,7 @@ def test_the_strip_holds_this_fighters_list_and_no_other_houses(
     create_trading_post()
 
     # The built-in has to be on the profile before the hire: hiring is
-    # what turns a profile's built-ins into the fighter's own rows, and a
+    # what turns a profile's built-ins into the fighter's own assignments, and a
     # fighter hired before the list was attached never receives it.
     profile = make_profile("Charter Master", price=0)
     make_statline(profile, movement=4, weapon_skill=3, toughness=4)

@@ -3,7 +3,7 @@
 A config names a selection over the gang: which models get a card, which
 of each model's weapons show, and whether the gang header and the stash
 print at all. It is the print screen's memory, nothing more — pure
-display state, like ``AssignmentSet``, so it costs nothing, changes no
+display state, like ``AssignmentSet``, so it moves no money, changes no
 rating and never goes through ``n26.operations``.
 
 Selections are literal: a config prints exactly what was ticked, and

@@ -3,7 +3,7 @@
 The design system's gallery carries a twin of the create form
 (n26.designsystem.forms) built on a fixed list so it renders against an
 empty database. This is the real one: same fields, same words, but the
-gang types are the library's rows.
+gang types are the library's own.
 """
 
 from django import forms
@@ -30,7 +30,7 @@ class CreateGangForm(forms.Form):
     )
     # Narrowed to the types an author has left foundable, and narrowed here
     # rather than where the cards are built, so the field that validates the
-    # submission and the grid that offers it read the same rows. A type turned
+    # submission and the grid that offers it read the same types. A type turned
     # off is refused on POST too — a hidden card is still an id someone can
     # type. Only this screen narrows: a gang founded before a type was turned
     # off still names it everywhere it is drawn.
@@ -58,9 +58,9 @@ class CreateGangForm(forms.Form):
     )
 
     def gang_type_choices(self):
-        """The cards the view draws for ``gang_type``, one per row.
+        """The cards the view draws for ``gang_type``, one per type.
 
-        The same rows the field validates against, said once. Each is a
+        The same types the field validates against, said once. Each is a
         dict rather than a ``(value, label)`` pair because a card shows
         more than a select option can: the type's badge, and the budget
         it founds a gang with. ``checked`` is computed here and not in
@@ -97,8 +97,8 @@ class EditGangForm(forms.Form):
     """Editing a standing gang: its name, its colour, and the budget.
 
     The type is not here. It fixed who could be hired and what the
-    founding brought, and those rows exist — a changed type would claim
-    a history the ledger never wrote.
+    founding brought, and those assignments exist — a changed type would
+    claim a history the ledger never wrote.
 
     The budget's floor is the gang's wealth: everything it owns plus the
     cash it holds. A budget below that would say the gang owes money it

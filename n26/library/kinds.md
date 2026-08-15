@@ -7,30 +7,30 @@ its own, and its behaviour — reach and how it arrives.
 
 **An assignment has three components**: *what* is held (an **assignable** — a weapon, a skill, an affiliation…), *who it is assigned to* (the **host**), and *what brought it* (its **cause** — remove the cause and the assignment goes too). Nothing gets onto a card any other way; everything from a hired fighter's profile to a granted rule is one of these assignments.
 
-An **assignable** is typically very simple: an piece of data that, once assigned, can carry modifiers. Sometimes they have extra configuration. Affiliation, Rule and Skill are all assignables.
+An **assignable** is typically very simple: a piece of data that, once assigned, can carry modifiers. Sometimes they have extra configuration. Affiliation, Rule and Skill are all assignables.
 
-The **host** is the specific object the assignment sits on: a model, the gang, a parent item (a scope fitted to a gun), or the stash *only*. Host decides *reach*: a assignment hosted on a model is that model's; a assignment hosted on the gang is **brodcast** to every member's card.
+The **host** is the specific object the assignment sits on: a model, the gang, a parent item (a scope fitted to a gun), or the stash *only*. Host decides *reach*: an assignment hosted on a model is that model's; an assignment hosted on the gang is **broadcast** to every member's card.
 
-The **cause** is then the action that brought a particular assignment into existence, answer "why is this here?" Cause powers one important behaviour: **removal cascades down the cause chain**. Remove an assignment and everything caused by it (and caused by *those*, recursively) goes too. It's also where provenance comes from — the card can say "came with X" because the assignment knows its cause.
+The **cause** is then the action that brought a particular assignment into existence, answering "why is this here?" Cause powers one important behaviour: **removal cascades down the cause chain**. Remove an assignment and everything caused by it (and caused by *those*, recursively) goes too. It's also where provenance comes from — the card can say "came with X" because the assignment knows its cause.
 
 A **modifier** is attached to a specific instance of an assignable (e.g. Aranthian Affiliation) which we call the **carrier**, asserting who it reaches (**scope**), and what it does (**effect**). Conditions limit the scope — AND-ed across conditions, any-of within a single condition — to allowlist modifier effects only in certain contexts.
 
-Modifiers are shared by design: they can attach on any number of specific assignables ("carriers"), and editing the modifier.
+Modifiers are shared by design: they can attach on any number of specific assignables ("carriers"), and editing the modifier changes it everywhere it is carried.
 
 Effects are split by when they happen:
 
 - **computed** ones (gives, takes away, changes a stat, offers a choice, places a category, notes a limit) are re-derived on every read and vanish with their carrier
 - **written** ones (brings a model, moves a counter) run once at arrival and are never undone by removal.
 
-We use **carrier** as a library-side word for one specific piece of *content*, typically becuase they "carry" a modifer. A power maul carries its "+1 Strength" modifier; the Clan House affiliation carries a choice of affiliation from Clan Houses. Carrier is about authoring — edit the carrier's modifier and it changes everywhere that carrier appears.
+We use **carrier** as a library-side word for one specific piece of *content*, typically because they "carry" a modifier. A power maul carries its "+1 Strength" modifier; the Clan House affiliation carries a choice of affiliation from Clan Houses. Carrier is about authoring — edit the carrier's modifier and it changes everywhere that carrier appears.
 
-**Bearer** is use to describe the thing being affected by a modifier. The maul's modifier says "+1 Strength *to its bearer*" — whoever holds a *specific* maul, no name attached.
+**Bearer** is used to describe the thing being affected by a modifier. The maul's modifier says "+1 Strength *to its bearer*" — whoever holds a *specific* maul, no name attached.
 
-So: you buy a power maul for Vex. The purchase writes one assignment — **assignable**: the maul, **host**: Vex, **cause**: the purchase. The maul's assignments points at its underlying **assignable**, which is a **carrier** of a **modifier** which now applies to its **bearer** — Vex. When the maul **assignment** is reassigned, at which point the same row gets a new host and the modifier follows the maul, not Vex.
+So: you buy a power maul for Vex. The purchase writes one assignment — **assignable**: the maul, **host**: Vex, **cause**: the purchase. The maul's assignment points at its underlying **assignable**, which is a **carrier** of a **modifier** which now applies to its **bearer** — Vex. When the maul **assignment** is reassigned, the same assignment gets a new host and the modifier follows the maul, not Vex.
 
-Often the host and the bearer coincide. But when the Outcast Leader picks an Archetype, the resulting chosen Archetype is assigned *to the gang*. When the gang is the the host, every model sees it (and become the bearer), even though the Leader was the one asked:
+Often the host and the bearer coincide. But when the Outcast Leader picks an Archetype, the resulting chosen Archetype is assigned *to the gang*. When the gang is the host, every model sees it (and becomes the bearer), even though the Leader was the one asked:
 
-1. Leader's Profile (asignable) carries a modifier that offers an Archetype choice ("will be assigned to" = "the gang")
+1. Leader's Profile (assignable) carries a modifier that offers an Archetype choice ("will be assigned to" = "the gang")
 2. Choice made → one assignment row: assignable = the archetype, host = the gang, cause = the Leader
 3. Gang-hosted ⇒ broadcast to every model (but hidden, just used to apply modifiers)
 4. On each model, the archetype is the carrier of its modifiers, and they resolve against it as the bearer
@@ -38,13 +38,13 @@ Often the host and the bearer coincide. But when the Outcast Leader picks an Arc
 ## Hiring
 
 Hiring is a gang-hosted assignment which points at a specific profile, and which
-materialises its built-ins onto the new model ("minature" below, internal terminology):
+materialises its built-ins onto the new model ("miniature" below, internal terminology):
 
 What the hire operation actually does, in order:
 
 1. Writes a membership assignment: an assignment pointing at a profile, hosted on the gang, with the credits-paid information on it
-2. Creates the Miniature, pointing back at that assignment. The model shown in the Gan is this pairing: a membership assignment plus a name.
-3. Sets "miniature root" on the membership assignment, pointing at the miniature. The assignment is hosted on the gang — the fighter is assigned to the gang — but the profile on the assignment sets their base rating,
+2. Creates the Miniature, pointing back at that assignment. The model shown in the gang is this pairing: a membership assignment plus a name.
+3. Sets "miniature root" on the membership assignment, pointing at the miniature. The assignment is hosted on the gang — the fighter is assigned to the gang — but the profile on the assignment sets their base rating.
 4. Materialises the built-ins: the stub gun and the house list become free assignments, hosted directly on Vex (not the gang!), caused by the membership. Delete Vex and the subtree cascade takes his kit with him.
 
 > Note from Tom: I'm not convinced that steps 1-3 above are the simplest way we could do this, but it is how it works now.
@@ -96,7 +96,7 @@ Author note: we actually, mostly, don't want broadcast for gang rules. Instead w
 
 Fields of its own: none. The granting is an ordinary give riding it — being pickable is the only new thing about it.
 
-Typically chosen; the offers-a-choice modifiers say "bearer:, so it reaches is the one model that picked it.
+Typically chosen; the offers-a-choice modifiers say "bearer", so it reaches the one model that picked it.
 
 ### Gang type
 
@@ -118,7 +118,7 @@ The bundle mechanism: some printed rules are a side effect with no item behind t
 
 *A fighter or vehicle entry — the thing a model is hired as.*
 
-Fields of its own: **profile type** (Fighter or Vehicle — a closed set; Leader, Champion and Ganger are subtypes, not types), **gang type** (every profile belongs to one), and **offered for hire** (unticked for a model nobody hires directly — mostlys that means pet; a adds-a-model effect can still bring it in). It also takes option sets. Its statline shape follows its profile type. Its price is the fighter alone, to which its built-in sets' prices add at hire time.
+Fields of its own: **profile type** (Fighter or Vehicle — a closed set; Leader, Champion and Ganger are subtypes, not types), **gang type** (every profile belongs to one), and **offered for hire** (unticked for a model nobody hires directly — mostly that means a pet; an adds-a-model effect can still bring it in). It also takes option sets. Its statline shape follows its profile type. Its price is the fighter alone, to which its built-in sets' prices add at hire time.
 
 ### Collection
 
@@ -144,7 +144,7 @@ Within a collection, when displayed, items are grouped by collection section and
 
 ## Core types & concepts
 
-Hiding under a lot of the above is some shared underpinnings, which I've made reference to but might benefit from some more explaination.
+Hiding under a lot of the above is some shared underpinnings, which I've made reference to but might benefit from some more explanation.
 
 ### Assignable
 

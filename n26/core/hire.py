@@ -3,7 +3,8 @@
 A gang sheet shows the models a player owns; a hire view shows the ones
 they could buy. Both are lists of ``ModelCard`` — the same structure, from
 the same renderer — because a preview is built by the same machinery that
-builds a real card, just from library instead of stored rows.
+builds a real card, just from library content instead of stored
+assignments.
 
 That matters more than it sounds. The alternative is a second, parallel
 "what you'd get" renderer, which drifts from the real card the first time
@@ -49,7 +50,7 @@ class HireOption:
     name: str
     #: What this option adds on its own — the surcharge, not the total.
     price: int
-    #: What the hire costs with this option taken and all else default.
+    #: The price of the hire with this option taken and all else default.
     total_price: int
     is_default: bool
     #: None when the caller asked for a list without drawn cards — a
@@ -145,7 +146,7 @@ class HireEntry:
 
     @property
     def base_price(self):
-        """The advertised price — what the default selection costs."""
+        """The advertised price — the price of the default selection."""
         return self.default_option.total_price
 
     @property
@@ -185,19 +186,19 @@ class HireSection:
 class Offer:
     """One profile on the hire screen, and what put it there.
 
-    A plain row of a gang's own list is an offer with no collection behind
-    it. A collection the gang carries offers its own rows: the entry
+    A plain listing on a gang's own list is an offer with no collection
+    behind it. A collection the gang carries offers its own entries: the entry
     naming a profile prices it this collection's way, while a sweep
     ("every profile homed in Corrupted Beasts") offers it at reference
     like any listing.
     """
 
     profile: object
-    #: The curated row that offered this, when one did. A swept profile
+    #: The curated entry that offered this, when one did. A swept profile
     #: has none, exactly as a swept line in a browse has none.
     entry: object = None
     #: Which collection is offering. None for the gang's own list, whose
-    #: rows answer to no collection.
+    #: offers answer to no collection.
     collection: object = None
 
     @property
@@ -224,8 +225,8 @@ def build_hire_entry(profile, index=None, with_cards=True, base=None, entry=None
     serves cards on demand asks ``preview_model_card`` for each instead.
 
     ``base`` prices the fighter as an offering collection does, and
-    ``entry`` is the row that made the offer — carried on the entry so a
-    click can say which offer it answered.
+    ``entry`` is the collection entry that made the offer — carried on the
+    hire entry so a click can say which offer it answered.
     """
     grouped = profile.grouped_offers()
     if not grouped or grouped[0][0] is not None:
@@ -406,12 +407,12 @@ def collection_offers(collections):
         for sweep in sweeps:
             if sweep.collection_id != collection.pk:
                 continue
-            # The sweep is decided against the rows already fetched rather
-            # than by a query of its own, so a gang carrying six swept
-            # lists costs what one costs. A selector row can only ask
+            # The sweep is decided against the profiles already fetched
+            # rather than by a query of its own, so a gang carrying six
+            # swept lists costs what one costs. A selector can only ask
             # about a profile's kind, its home and its Trade Point price
-            # — facts printed on the row — so no possession is needed to
-            # answer it.
+            # — facts printed on the profile — so no possession is needed
+            # to answer it.
             selector = sweep.as_selector()
             for profile in found.values():
                 if profile.pk in taken:

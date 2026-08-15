@@ -49,7 +49,8 @@ def proceeds_for(rating):
 
 
 def sale_of(assignment, keeping=()):
-    """What selling this would move: the rows that go, and what comes back.
+    """What selling this would move: the assignments that go, and what
+    comes back.
 
     Asked before the act as well as during it, so the confirmation quotes
     the figure the sale will actually pay rather than a second arithmetic
@@ -95,7 +96,8 @@ def detachable_children(assignment):
 
 
 def refund_of(assignment):
-    """What refunding this would move: the rows that go, and what comes back.
+    """What refunding this would move: the assignments that go, and what
+    comes back.
 
     Asked before the act as well as during it, for the same reason
     :func:`sale_of` is — a confirmation that quotes its own arithmetic is
@@ -209,7 +211,15 @@ class Operation:
         bought_from=None,
         note="",
     ):
-        """Attach something, with its ledger entry and opening event."""
+        """Write one assignment: an assignable, a host, and a cause.
+
+        Those are the three components of every assignment. ``assignable``
+        is what is held; the host is the specific object it sits on — a
+        model, the gang, a parent item, or the stash — and ``caused_by`` is
+        what brought it, so removing the cause removes this too. The
+        ledger entry and the opening event are written in the same breath,
+        which is why nothing outside an operation may create one.
+        """
         assignment = Assignment.objects.create(
             assignable=assignable,
             gang=gang,
@@ -306,7 +316,7 @@ class Operation:
         Each refunded line's entry is settled to zero with a matching
         event, so folding the events still reproduces the entry and the
         gang's recomputed credits rise by exactly what was returned. Lines
-        that cost nothing are simply removed. Trade Points are recorded as
+        nobody paid for are simply removed. Trade Points are recorded as
         returned for the ledger's sake, but TP never outlives its session,
         so nothing is ever re-spendable.
         """
@@ -396,14 +406,21 @@ class Operation:
     # --- composites ------------------------------------------------------
 
     def hire(self, profile, model_name, paid=None, owner=None, option=None, **kwargs):
-        """Hire a model: a gang-hosted assignment of a profile, bringing a model.
+        """Hire a model: a gang-hosted assignment naming a profile.
+
+        That assignment is the membership — hosted on the gang, pointing
+        at the profile, carrying what was paid — and the model points back
+        at it. Its ``miniature_root`` says whose membership it is, so the
+        profile sets that model's base rating even though the gang is the
+        host.
 
         ``option`` names what was chosen — one set, or a list of sets when
         the profile offers several groups. Omitted, each one-of group's
         default applies and the any-of groups add nothing. The built-ins
-        and every chosen set materialise as free assignments caused by the
-        membership, and the sets' prices fold into the membership's line —
-        the items themselves cost nothing, the package carries the money.
+        and every chosen set materialise as free assignments hosted on the
+        new model and caused by the membership, and the sets' prices fold
+        into the membership's line — the items themselves are free, the
+        package carries the money.
         """
         taken = (
             profile.resolve_selection(option)
@@ -461,10 +478,11 @@ class Operation:
         already held is a no-op.
 
         The sets no longer taken leave the way a refund leaves: their
-        materialised rows archive, anything *paid* inside their subtrees
-        comes back, and anything they caused — a spawned model — goes
-        with them. The sets newly taken materialise exactly as at hire:
-        free rows caused by the carrier, the built-ins untouched.
+        materialised assignments archive, anything *paid* inside their
+        subtrees comes back, and anything they caused — a spawned model —
+        goes with them. The sets newly taken materialise exactly as at
+        hire: free assignments caused by the carrier, the built-ins
+        untouched.
 
         The price difference lands on the carrier's own entry as one
         amendment, on paid and list and rating alike — an option is a way
@@ -533,14 +551,14 @@ class Operation:
         return carrier
 
     def _granted_rows(self, carrier, default_set):
-        """The live rows one chosen set materialised, one per member.
+        """The live assignments one chosen set materialised, one per member.
 
         Most of a set's members landed caused by the carrier itself; an
-        ammo member landed caused by its weapon's own row, wherever that
-        weapon came from. Where the built-ins grant the same assignable
-        as the set, the set's copy is the newer row — the built-ins
-        materialise first — so the newest live match is taken, as many
-        as the set granted.
+        ammo member landed caused by its weapon's own assignment, wherever
+        that weapon came from. Where the built-ins grant the same
+        assignable as the set, the set's copy is the newer one — the
+        built-ins materialise first — so the newest live match is taken,
+        as many as the set granted.
         """
         from n26.core.models import Reason
         from n26.library.models import WeaponProfile
@@ -579,7 +597,7 @@ class Operation:
         model's membership, a bought mount's own assignment, a gang's
         founding. Everything created is **caused by** it and hosted
         alongside it, so removing the carrier removes all of it, and a
-        card draws the grants as ordinary rows with the carrier as their
+        card draws the grants as ordinary lines with the carrier as their
         source. Pass ``gang`` for a gang-hosted carrier, which has no
         model to hang things on.
 
@@ -646,7 +664,7 @@ class Operation:
             if gun is None:
                 # The weapon may already be there — a set chosen after the
                 # hire grants ammo for a gun the built-ins brought — so an
-                # existing live row on the same host takes it.
+                # existing live assignment on the same host takes it.
                 gun = (
                     Assignment.objects.filter(
                         weapon=weapon_profile.weapon,
@@ -683,12 +701,12 @@ class Operation:
         ``anchor`` is the assignment whose assignable carries the offer (the
         Specialist subtype's); what was chosen is a free assignment caused
         by it, so removing the carrier takes it along, and the computed
-        slot reads as resolved because this row exists.
+        slot reads as resolved because this assignment exists.
 
         Something of a kind the offer does not name is refused
         (:class:`NotOnOffer`), because it would settle nothing: the slot
         resolves by the same match, so the choice would stay open with
-        a stray row beside it. Within the kind nothing is checked — a
+        a stray assignment beside it. Within the kind nothing is checked — a
         narrowed offer shortens the list a picker draws and is not a rule,
         so an owner may still hand over something off-list.
         """
@@ -842,7 +860,7 @@ class Operation:
         if paid is None:
             if hasattr(thing, "price_with"):
                 # An entry overrides the item's own price; what it comes
-                # with still costs what it costs.
+                # with keeps its own.
                 override = entry.price_override if entry is not None else None
                 paid = thing.price_with(taken, base=override)
             elif line is not None:
@@ -877,7 +895,7 @@ class Operation:
         reference price, which is nothing for a skill the rules hand
         out and whatever content says for one that is worth something.
 
-        Nothing causes it. A skill is not a consequence of the row whose
+        Nothing causes it. A skill is not a consequence of the assignment whose
         grid placed the set it came from, so swapping a profile — or
         dropping the wargear that opened a set up — never unlearns
         anything. That is the difference between this and ``choose``,
@@ -919,7 +937,7 @@ class Operation:
 
         ``to`` is a model, the gang's stash, or **another assignment**,
         which is how an accessory is bolted onto a weapon: it hangs off
-        that weapon's row, so re-homing it is giving it a new parent
+        that weapon's assignment, so re-homing it is giving it a new parent
         rather than a new host. The same act either way — nothing is
         bought, nothing is charged, and what the thing is worth does not
         move with it.
@@ -979,7 +997,7 @@ class Operation:
 
         This is also where an overspend is refused: raising here unwinds
         the whole operation's transaction, so a too-expensive hire leaves
-        no half-written rows behind.
+        nothing half-written behind.
         """
         for miniature in self._miniatures.values():
             miniature.repin_rating()

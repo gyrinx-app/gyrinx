@@ -6,7 +6,7 @@ wargear show on one particular card. The rulebook calls these equipment
 sets — "all models can have multiple Model Cards, each representing a
 different set of equipment".
 
-The default card is **no row at all**: building a card without a set means
+The default card is **no set at all**: building a card without a set means
 everything the model owns, which is what the code always did.
 
 What is selectable is hard-coded for now: weapons and wargear hosted on the
@@ -14,7 +14,7 @@ model. Everything else — the profile, subtypes, skills, injuries — rides
 every card ("If the model suffers any Lasting Injuries… it should be
 recorded on all of their Model Cards"). A weapon's ammo follows the weapon.
 
-Sets are free, cost nothing, change no rating and touch no ledger — pure
+Sets are free, change no rating and touch no ledger — pure
 display state, so they do not go through ``n26.operations``.
 """
 

@@ -29,8 +29,8 @@ Three things matter structurally:
 
 ``price_of`` is the one effective-price function, used by curated
 collections (entry override → reference) and derived ones (reference
-alone: the default Trading Post has no rows at all) — one function, so
-the two species cannot drift.
+alone: the default Trading Post has no entries at all) — one function,
+so the two species cannot drift.
 """
 
 from dataclasses import dataclass
@@ -109,7 +109,7 @@ def price_of(assignable, entry=None):
     of stating.
     """
     # An override replaces the item's *own* price; anything it comes with
-    # still costs what it costs, so the composition happens after.
+    # keeps the price it has, so the composition happens after.
     override = entry.price_override if entry is not None else None
     credits = assignable.reference_price(base=override)
     trade_points = assignable.trade_point_price
@@ -132,7 +132,7 @@ TRADEABLE_PROFILES = "tradeable_profiles"
 
 
 def paid_profiles(with_trade_point_price=False):
-    """A weapon's named, paid profiles — the rows a listing prints under
+    """A weapon's named, paid profiles — the lines a listing prints under
     the gun.
 
     Named, because a blank profile is the weapon's own firing line rather
@@ -231,11 +231,14 @@ ENTRY_ASKS = ("price_override", "trade_point_override", *USABLE_BY_LISTS)
 
 
 class Collection(Content, Assignable):
-    """A named, directly addressable view onto the assignables.
+    """A named list of content: an equipment list, a trading post, a menu.
 
     Directly addressable is the point: a Venator profile says "I use
-    *this* equipment list" by putting the row in its built-ins; a filter
-    or a grant names the same row rather than redefining it.
+    *this* equipment list" by naming the collection in its built-ins; a
+    filter or a grant names the same collection rather than redefining
+    it. A collection arrives built into something (a profile's list, a
+    gang type's) or given by a modifier — held by the gang, every
+    fighter may browse it; held by or given to one model, theirs alone.
 
     A collection contains things two ways, and most use one or the other:
 
@@ -259,12 +262,12 @@ class Collection(Content, Assignable):
     card_row = "collections"
 
     #: What listing an entry here asks an author for, beyond the pick.
-    #: A shop's entries state prices and who the shop offers each item
-    #: to; a menu's — a pick list of affiliations behind a choice — have
-    #: nothing to state, so its entry form asks for nothing and its
-    #: preview prints no money. The seam every surface reads is
-    #: ``entry_asks()`` below, so a further flag with further asks
-    #: changes one function.
+    #: The entries of a list bought from state prices and who the list
+    #: offers each item to; a menu's — a pick list of affiliations behind
+    #: a choice — have nothing to state, so its entry form asks for
+    #: nothing and its preview prints no money. The seam every surface
+    #: reads is ``entry_asks()`` below, so a further flag with further
+    #: asks changes one function.
     prices_its_entries = models.BooleanField(
         default=True,
         verbose_name="Prices its entries",
@@ -286,7 +289,7 @@ class Collection(Content, Assignable):
         A collection that prices its entries is bought from, and both
         extras belong to an offer: what this list charges, and who this
         list offers the item to. A menu asks for neither. Its entries
-        are the answers to a question rather than things anybody
+        are what an open question offers rather than things anybody
         acquires, so there is no price to state — and nothing to narrow
         either: which models are asked the question at all is the
         modifier's business, decided by the scope that offers it.
@@ -318,15 +321,18 @@ class Collection(Content, Assignable):
 
 
 class CollectionSection(Content):
-    """One named tier of a collection: "Primary" in Skills & Powers, at 0.
+    """One of a collection's own sections: "Primary" in Skills & Powers,
+    at 0.
 
-    Defined once per collection and picked by name everywhere — the
-    section names, their order, and where the unplaced fall are the
-    collection's **schema**, never conventions restated per placement.
-    A ``PlacesCategory`` effect points at one of these rows, which is
-    what makes placements collection-scoped and gives the admin a
-    dropdown ("Primary (Skills & Powers)") instead of a string and a
-    magic number.
+    A collection section is the collection's own heading, not a Section
+    of the catalogue's taxonomy. Defined once per collection and picked
+    by name everywhere — the section names, their order, and where the
+    unplaced fall are the collection's **schema**, never conventions
+    restated per placement. A ``PlacesCategory`` effect points at one of
+    these rows, which is what makes placements collection-scoped and
+    gives the admin a dropdown ("Primary (Skills & Powers)") instead of
+    a string and a magic number. Placement only decides where a category
+    appears; what is *in* the collection is its entries and sweeps.
 
     ``position`` orders the sections in the view and resolves placement
     conflicts (lowest wins). ``is_default`` marks where unplaced
@@ -336,7 +342,9 @@ class CollectionSection(Content):
     collection = models.ForeignKey(
         Collection, on_delete=models.CASCADE, related_name="sections"
     )
-    name = models.CharField(max_length=200, help_text='The tier — "Primary".')
+    name = models.CharField(
+        max_length=200, help_text='This collection\'s own heading — "Primary".'
+    )
     position = models.PositiveIntegerField(
         default=0,
         help_text="Orders the sections; the lowest placement wins a conflict.",
@@ -464,7 +472,7 @@ class CollectionSelector(Content):
 
         A TP-narrowed sweep over weapons also prefetches each weapon's
         paid, TP-priced profiles to ``tradeable_profiles`` — the ammo
-        rows the Trading Post prints under the gun. One query for the
+        lines the Trading Post prints under the gun. One query for the
         whole sweep, so browsing stays a fixed number of queries.
         """
         from django.db.models import Prefetch

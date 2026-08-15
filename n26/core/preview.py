@@ -121,7 +121,7 @@ def _apply_creates(state):
 
 
 def _resolve(value, created):
-    """``"@Name"`` → the created row; anything else passes through."""
+    """``"@Name"`` → the thing created under it; anything else passes on."""
     if isinstance(value, str) and value.startswith("@"):
         name = value[1:]
         if name not in created:

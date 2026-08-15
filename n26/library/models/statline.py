@@ -17,9 +17,6 @@ Four layers, from definition to value:
     fighter ``Profile`` or a ``WeaponProfile``; in both cases its shape is
     read from one level up (the profile type, or the weapon), so it cannot
     drift out of step with what it is supposed to implement.
-
-Ported from gyrinx's ``library/models/statline.py``, dropping the history
-tables and the fighter-category defaults.
 """
 
 import re

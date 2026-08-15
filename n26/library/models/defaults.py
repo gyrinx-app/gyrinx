@@ -1,10 +1,8 @@
 """What a profile comes with, and what may be chosen instead.
 
-v1 modelled default equipment as an *inherited* assignment living on the
-profile-equivalent and overridden per fighter, which got messy: the default
-had to exist and then be suppressed. Here nothing is ever replaced —
-a choice decides which set **materialises at hire**, and the option not
-taken simply never comes into being.
+Nothing is ever replaced: a choice decides which set **materialises at
+hire**, and the option not taken simply never comes into being. No
+default has to exist and then be suppressed per fighter.
 
 Anything acquirable is ``(built_ins, [options])``, and the shape is the
 documentation:
@@ -29,11 +27,11 @@ rulebook's "one of the following" or "any of the following":
   default); ``ANY`` is the rulebook's "may select any of the below
   options" — take any number, none by default.
 
-Pricing is a sum: a hire costs ``profile.price`` plus the built-ins'
-price plus every chosen set's price. Usually only one of those carries
-the base number, and which one is the content manager's choice — put it
-all on ``built_ins`` and leave the profile's own ``price`` at zero, or
-the other way round.
+Pricing is a sum: a hire is priced at ``profile.price`` plus the
+built-ins' price plus every chosen set's price. Usually only one of
+those carries the base number, and which one is the content manager's
+choice — put it all on ``built_ins`` and leave the profile's own
+``price`` at zero, or the other way round.
 
 Picks that are genuinely entangled (the Sanctioner replaces its claw
 and/or baton with *one* pick) stay one-of, enumerated as combinations
@@ -68,7 +66,12 @@ DEFAULT_ASSIGNABLE_FIELDS = (
 
 
 class DefaultAssignmentSet(Content):
-    """A named set of things an assignable can come with."""
+    """A named set of things an assignable comes with, free, at arrival.
+
+    Materialised when the holder arrives — hired, founded or bought —
+    and caused by the holder, so removing the holder takes the set's
+    members along.
+    """
 
     name = models.CharField(max_length=200)
     price = models.PositiveIntegerField(
@@ -190,7 +193,7 @@ class DefaultAssignment(NamesAnAssignable, Content):
     )
     amount = models.PositiveIntegerField(
         default=0,
-        help_text=("The initial value for a counter"),
+        help_text='A counter\'s opening value — the 61 in "Starting XP 61".',
     )
     position = models.PositiveIntegerField(default=0)
 

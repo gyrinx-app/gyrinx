@@ -7,7 +7,7 @@ and nothing it does survives the request: the preview rolls its own
 transaction back.
 
 It answers for the authoring pages, so it wants the same account they
-do: the state it is handed names library rows, and the card it gives
+do: the state it is handed names library content, and the card it gives
 back is the whole of what they mean.
 """
 

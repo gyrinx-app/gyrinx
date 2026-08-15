@@ -79,8 +79,9 @@ class ProfileType(Content):
 class Profile(Content, Assignable, Optioned):
     """A fighter or vehicle entry — the thing a model is hired as.
 
-    Assignable: hiring is a gang-hosted assignment of a profile, and a
-    Venator's Legacy is a second profile assignment on the model.
+    Assignable: hiring is a gang-hosted assignment naming a profile, and
+    a Venator's Legacy is a second profile assignment on the model. Its
+    statline shape follows its profile type, and it takes option sets.
     """
 
     family = Family.GANG
@@ -96,15 +97,12 @@ class Profile(Content, Assignable, Optioned):
         Suggest("Subtypes", Subtype, many=True),
     )
 
-    #: The mixin's ``price`` is the fighter alone, before any sets —
-    #: additive with the sets' prices, so put the whole number here or on
-    #: ``built_ins``, whichever reads better. Hiring also buys the sets,
-    #: which is why ``reference_price`` composes rather than reads.
-    #:
-    #: This used to be two fields: the mixin's was removed and a ``rating``
-    #: declared beside it. That was the cost/rating muddle in miniature —
-    #: one of them had to be the fighter's price and the other a lie.
-    #: **
+    # The mixin's ``price`` is the fighter alone, before any sets —
+    # additive with the sets' prices, so put the whole number here or on
+    # ``built_ins``, whichever reads better. Hiring also buys the sets,
+    # which is why ``reference_price`` composes rather than reads. One
+    # number, not two: a price beside a rating on the same entry would
+    # make one of them a lie.
 
     profile_type = models.ForeignKey(
         ProfileType, on_delete=models.PROTECT, related_name="profiles"

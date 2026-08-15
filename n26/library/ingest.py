@@ -46,8 +46,8 @@ Three standing rules are load-bearing here:
   planned kind — :data:`PERFORM_ORDER`, :data:`SHEET_FIELDS`,
   :data:`CREATORS`, :data:`UPDATERS` — and perform reads the whole plan
   against them before writing anything, refusing by name if some of it
-  has nowhere to go. Forgetting one used to mean the rows were passed
-  over in silence and the upload reported success.
+  has nowhere to go. Forget one and the rows would otherwise be passed
+  over in silence while the upload reported success.
 
 **The sheets, and how they join.** Four of them, each with one job:
 
@@ -624,7 +624,7 @@ def _plan_equipment(plan, rows, statlined=frozenset()):
 
     Returns the prices found for named weapon profiles, keyed by ID: the
     profiles themselves are defined by their statlines, and this sheet
-    only says what they cost.
+    only says what they are priced at.
     """
     # Pass 1: which printed names does more than one item claim? Those
     # want the author-facing qualifier — a power fist is Exo kit

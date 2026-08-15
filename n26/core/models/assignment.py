@@ -12,6 +12,11 @@ exactly one is set. A startup check (``n26.checks``) refuses to boot if a
 kind of assignable exists with no column here, so the list cannot silently
 fall behind.
 
+Beside the host sits the **cause**: the assignment that brought this one —
+a membership bringing a fighter's built-in kit, a purchase bringing what
+came with it. Removal follows the cause chain down, and provenance ("came
+with the Cutter") is read off the same link.
+
 The payoff over a loose pointer: real referential integrity, and resolving
 a whole gang's assignments to their assignables is **one** query with a few
 left joins rather than one query per kind present.
@@ -332,5 +337,6 @@ class Assignment(NamesAnAssignable, Base, Archived):
         elif self.gang_id:
             self.gang_root_id = self.gang_id
             # miniature_root is left alone: a membership assignment is hosted on
-            # the gang but is *about* the model it brought in, so the hire cost
-            # counts towards that model's rating. n26.operations sets it.
+            # the gang but is *about* the model it brought in, so what the hire
+            # was worth counts towards that model's rating. n26.operations
+            # sets it.

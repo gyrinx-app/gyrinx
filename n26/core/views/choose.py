@@ -16,7 +16,7 @@ The address holds the slot::
     /gangs/<gang>/choose/<card>:<carrier>:<offer>/
 
 ``card`` is the model whose card was clicked, or ``gang`` for the gang's
-own row; ``carrier`` is the assignment offering the choice; ``offer`` is
+own card; ``carrier`` is the assignment offering the choice; ``offer`` is
 which of its offers. Everything the page needs is in the URL, so it is a
 link, it survives a reload, and it works with scripting off.
 """
@@ -36,7 +36,7 @@ from n26.core.views.permissions import _own_gang_or_404
 @dataclass(frozen=True)
 class _Found:
     """One slot, located: the computed slot, the card it sits on, and the
-    stored row carrying the offer."""
+    stored assignment carrying the offer."""
 
     slot: object
     computed: object
@@ -120,7 +120,7 @@ def _host(found):
 
     A carrier held by the gang and echoed onto a member's card offers the
     slot to that member — "Leaders and Champions each select a skill" —
-    and the row it echoed from belongs to nobody in particular, so what
+    and the assignment it echoed from belongs to nobody in particular, so what
     is chosen has to name the fighter whose card was clicked. Every other
     slot lets the offer decide: a fighter's own carrier lands on the
     fighter, and an offer that says the gang holds what is chosen still
@@ -140,9 +140,9 @@ def choose(request, pk, slot):
     identity — and writes what was chosen as an assignment caused by the
     carrier's, so removing the carrier takes it with it.
 
-    Changing your mind retires the old row in the same operation. One
-    slot holds one chosen thing; two rows against one slot would resolve
-    it to whichever loaded first.
+    Changing your mind retires the old assignment in the same operation.
+    One slot holds one chosen thing; two assignments against one slot
+    would resolve it to whichever loaded first.
 
     Nothing here withholds a pick. The list is short because the offer is
     narrow, and leaving the slot open costs nothing — the way back is the

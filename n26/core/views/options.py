@@ -60,7 +60,7 @@ def fighter_options(request, pk):
 
     The same groups the hire listing offered, checked from what the model
     currently takes, with one Save. POST resolves the picks exactly as
-    the hire did and hands them to ``op.rechoose``: rows swap, the price
+    the hire did and hands them to ``op.rechoose``: assignments swap, the price
     difference lands on the hire's own line in either direction, and an
     upgrade the gang cannot afford unwinds whole.
     """

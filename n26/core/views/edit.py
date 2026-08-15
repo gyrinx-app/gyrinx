@@ -24,13 +24,13 @@ def edit_fighter(request, pk):
     Three forms post here, and ``act`` says which was clicked. Notes are
     the owner's prose and characteristics they set are the owner's
     numbers; neither is a fact the books watch — no rating moves, no
-    ledger row is written — so both are plain saves rather than
+    ledger entry is written — so both are plain saves rather than
     operations. What the notes editor produced is stored as written and
     sanitised on the way out, so a tightened allowlist reaches old notes
     too.
 
     The skills a model holds are the third, and the one thing here the
-    books do watch: learning writes a row and clearing archives one, so
+    books do watch: learning writes an assignment and clearing archives one, so
     that form goes through an operation and the whole difference lands
     or none of it does.
 
@@ -127,7 +127,7 @@ def edit_fighter(request, pk):
         raise Http404("No such model")
 
     # The model's own card again, computed: the sheet hands back what to
-    # draw, and the tick list needs the rows and the grants behind it.
+    # draw, and the tick list needs the assignments and the grants behind it.
     # A fixed reading, however much this model knows.
     own = build_card(miniature)
     index = build_modifier_index([node.assignable for node in own.all_nodes()])
