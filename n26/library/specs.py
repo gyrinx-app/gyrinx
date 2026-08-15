@@ -961,7 +961,13 @@ def _build_registry():
         Spec(
             authoring.add_picklist_member,
             {
-                "pickable": One(model=Pickable, source=(PicklistMember, "pickable")),
+                # A list offers one domain's options, so the picker on
+                # its page offers that domain's and nothing else.
+                "pickable": One(
+                    model=Pickable,
+                    source=(PicklistMember, "pickable"),
+                    within="may_offer",
+                ),
                 "label_override": Text(source=(PicklistMember, "label_override")),
                 "position": Int(source=(PicklistMember, "position")),
             },
@@ -972,7 +978,15 @@ def _build_registry():
             {
                 "name": Text(source=(Slot, "name")),
                 "slot_type": One(model=SlotType, source=(Slot, "slot_type")),
-                "picklist": One(model=Picklist, source=(Slot, "picklist")),
+                # Narrowed where the domain is already settled — on its
+                # own page, where a choice is added to it. The page that
+                # makes a slot from scratch has no domain to narrow by
+                # and offers every list there is.
+                "picklist": One(
+                    model=Picklist,
+                    source=(Slot, "picklist"),
+                    within="picklists",
+                ),
                 "label": Text(source=(Slot, "label")),
                 "min_picks": Int(source=(Slot, "min_picks")),
                 "max_picks": Int(source=(Slot, "max_picks")),

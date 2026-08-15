@@ -21,6 +21,7 @@ from dataclasses import replace
 from django import forms
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
+from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
@@ -141,6 +142,18 @@ def _describe_built_in(member):
     return _label_for(thing), notes
 
 
+def _describe_picklist_member(member):
+    """One option on one list: what this list calls it, and — where that
+    is not the option's own name — what the option is called elsewhere.
+
+    Its place in the order is not said: the rows are printed in it.
+    """
+    notes = []
+    if member.label_override:
+        notes.append(f"the {member.pickable} option, under another name")
+    return member.label, notes
+
+
 def _weapon_parts(parts):
     """What ``_describe_weapon_profile`` reads, loaded for every line at
     once — unhinted, each profile fetches its weapon, its statline's
@@ -247,6 +260,31 @@ DETAIL_KINDS = {
         "statline": False,
         "describe": _describe_statline_stat,
         "parts_hint": lambda parts: parts.select_related("stat"),
+    },
+    "picklist": {
+        "verb": "add_picklist_member",
+        "parts": "members",
+        "statline": False,
+        "describe": _describe_picklist_member,
+        "parts_hint": lambda parts: parts.select_related("pickable"),
+        "parts_label": "options",
+        # The part model's own name is accurate and nothing an author
+        # says; what they are adding is one more option to choose from.
+        "part_name": "option",
+        "parts_description": (
+            "What a choice drawing on this list offers, in the order a "
+            "player reads them. Taking one off changes only what is offered "
+            "next: the option itself stays in the library, and anyone who "
+            "already picked it keeps it."
+        ),
+        "nothing_yet": (
+            "No options yet — a choice drawing on this list has nothing to offer."
+        ),
+        # Taking an option off a list is a question asked at its own
+        # address, like every other part: what the act reaches — the
+        # option itself, every other list offering it — cannot be read
+        # off the row.
+        "removes": "authoring-picklist-member-remove",
     },
 }
 
@@ -390,6 +428,33 @@ def _part_sections(kind):
     if _offers_options(kind):
         sections.extend([OPTIONS_PART, OPTION_SETS_PART])
     return sections
+
+
+def _narrow_a_slots_picklists(form, slot):
+    """A choice offers its own domain's lists and no others.
+
+    The page that *makes* a slot cannot narrow this — no domain has been
+    chosen at the moment the picker is drawn — but the page that
+    corrects one knows the domain already, and a picker offering lists
+    from another one is an invitation to write content whose options
+    could never settle the choice.
+    """
+    form.fields["picklist"].queryset = slot.slot_type.picklists.all()
+
+
+#: Where a kind's edit form narrows a picker to the rows that could
+#: possibly be right for the row in hand. Keyed by kind, because what
+#: narrows follows from what that row already says about itself, which
+#: is not something a spec field can reach.
+EDIT_NARROWING = {"slot": _narrow_a_slots_picklists}
+
+
+def _narrowed_for_editing(kind, thing, form):
+    """The edit form, with whatever its kind narrows narrowed."""
+    narrowing = EDIT_NARROWING.get(kind)
+    if narrowing is not None:
+        narrowing(form, thing)
+    return form
 
 
 def _statline_editor_for(thing):
@@ -565,6 +630,16 @@ def _holders_of(default_set):
     )
 
 
+def _article_for(word):
+    """ "a" or "an" in front of a word we chose ourselves.
+
+    The leading letter and nothing more, which is enough for the kind
+    names: they are the app's own words, not the books', so there is no
+    "a Unification Elder" here to get wrong.
+    """
+    return "an" if str(word)[:1].lower() in "aeiou" else "a"
+
+
 def _label_for(row):
     """How an author reads one row.
 
@@ -645,11 +720,80 @@ def _describe_gang_type(gang_type):
     return notes
 
 
+def _describe_slot_type(slot_type):
+    """How much has been built in this domain, and whether one holder
+    may pick the same option twice."""
+    notes = [
+        f"{len(slot_type.pickables.all())} options",
+        f"{len(slot_type.picklists.all())} lists",
+        f"{len(slot_type.slots.all())} choices",
+    ]
+    if not slot_type.allows_repeats:
+        notes.append("no repeats")
+    return notes
+
+
+def _pickable_notes(option):
+    """How many lists offer one option.
+
+    On no list at all is the state worth seeing: an option nothing
+    offers can only be handed over by an owner.
+    """
+    listed = len(option.listed_on.all())
+    return [
+        f"on {listed} list{'' if listed == 1 else 's'}" if listed else "on no list yet"
+    ]
+
+
+def _picklist_notes(picklist):
+    """How many options are on one list."""
+    offered = len(picklist.members.all())
+    return [f"{offered} option{'' if offered == 1 else 's'}"]
+
+
+def _describe_pickable(option):
+    """The domain it is an option in, and how many lists offer it."""
+    return [option.slot_type.name, *_pickable_notes(option)]
+
+
+def _describe_picklist(picklist):
+    """The domain it offers, and how many options are on it."""
+    return [picklist.slot_type.name, *_picklist_notes(picklist)]
+
+
+def _picks_said(slot):
+    """How many picks a choice takes, as a listing prints it."""
+    if slot.min_picks == slot.max_picks:
+        return "one pick" if slot.max_picks == 1 else f"{slot.max_picks} picks"
+    return f"{slot.min_picks} to {slot.max_picks} picks"
+
+
+def _slot_notes(slot):
+    """What the choice offers, how many picks it takes, and the two
+    things about it a reader would otherwise have to open it to learn:
+    that the gang holds what is picked, and that it draws no row."""
+    notes = [f"from {slot.picklist.name}", _picks_said(slot)]
+    if slot.assigned_to == slot.WillBeAssignedTo.GANG:
+        notes.append("the gang holds the pick")
+    if slot.hidden:
+        notes.append("draws no row")
+    return notes
+
+
+def _describe_slot(slot):
+    """The domain, and everything the choice says about itself."""
+    return [slot.slot_type.name, *_slot_notes(slot)]
+
+
 LEAF_DESCRIBE = {
     "skill": _describe_skill,
     "skill-tree": _describe_skill_tree,
     "profile": _describe_profile,
     "gang-type": _describe_gang_type,
+    "slot-type": _describe_slot_type,
+    "pickable": _describe_pickable,
+    "picklist": _describe_picklist,
+    "slot": _describe_slot,
 }
 
 
@@ -677,6 +821,17 @@ LEAF_LISTING_HINTS = {
     "profile": _profile_listing,
     # A category says itself as "section: name".
     "category": lambda rows: rows.select_related("section"),
+    # The choice kinds each read the domain they belong to, and two of
+    # them count a set as well — a query apiece, per listing rather than
+    # per row.
+    "slot-type": lambda rows: rows.prefetch_related("pickables", "picklists", "slots"),
+    "pickable": lambda rows: rows.select_related("slot_type").prefetch_related(
+        "listed_on"
+    ),
+    "picklist": lambda rows: rows.select_related("slot_type").prefetch_related(
+        "members"
+    ),
+    "slot": lambda rows: rows.select_related("slot_type", "picklist"),
 }
 
 
@@ -689,6 +844,13 @@ def _spec_for(kind):
 
 #: ``literal`` in a docstring, as the page should draw it.
 _LITERAL = re.compile(r"``([^`]+)``")
+
+#: **The load-bearing sentence** in a docstring, likewise. Docstrings
+#: are written for two readers and the emphasis is for both, so a page
+#: showing the asterisks is showing the author the punctuation instead
+#: of the point. A lone ``**kwargs`` has no closing pair and is left
+#: exactly as it was typed.
+_EMPHASIS = re.compile(r"\*\*([^*]+)\*\*")
 
 
 def kind_summary(model):
@@ -710,8 +872,11 @@ def kind_help(model):
     return [
         # Escape first, mark up second: a docstring is ours, but the
         # page must never depend on that to stay well-formed.
-        mark_safe(  # nosec B703 B308 - escape() runs first; only our ``code`` markup is added
-            _LITERAL.sub(r"<code>\1</code>", escape(" ".join(paragraph.split())))
+        mark_safe(  # nosec B703 B308 - escape() runs first; only our own markup is added
+            _EMPHASIS.sub(
+                r"<strong>\1</strong>",
+                _LITERAL.sub(r"<code>\1</code>", escape(" ".join(paragraph.split()))),
+            )
         )
         for paragraph in text.split("\n\n")
         if paragraph.strip()
@@ -929,6 +1094,12 @@ def create(request, kind):
                     created = form.compile()
                     if suggestions is not None:
                         suggestions.apply(created)
+            except ValidationError as refused:
+                # A verb that turns something away in words is turning
+                # away something an author typed — two boxes that make no
+                # sense together, most often. The words belong on the form
+                # they were typed into, not on an error page.
+                form.add_error(None, refused)
             except IntegrityError:
                 # Not every kind calls its name "name" — the spec says
                 # which field an author reads as one, so the refusal
@@ -982,8 +1153,6 @@ def _hire_options_context(request, kind, thing, drawn):
         """The set ``pk`` names on *this* carrier, else None — a stray
         or malformed pk (a hand-edited URL) is nobody's set, not an
         error page."""
-        from django.core.exceptions import ValidationError
-
         if not pk:
             return None
         try:
@@ -1188,7 +1357,9 @@ def detail(request, kind, pk):
     # in the same form: one click of Save writes both, or neither.
     statline_class = _statline_editor_for(thing)
     if request.method == "POST" and act == "edit":
-        edit_form = edit_class.opened_on(thing, request.POST, request.FILES)
+        edit_form = _narrowed_for_editing(
+            kind, thing, edit_class.opened_on(thing, request.POST, request.FILES)
+        )
         statline_edit = (
             statline_class.opened_on(thing, request.POST) if statline_class else None
         )
@@ -1209,7 +1380,7 @@ def detail(request, kind, pk):
                 messages.success(request, f"Saved {thing}.")
                 return redirect("authoring-detail", kind=kind, pk=pk)
     else:
-        edit_form = edit_class.opened_on(thing)
+        edit_form = _narrowed_for_editing(kind, thing, edit_class.opened_on(thing))
         statline_edit = statline_class.opened_on(thing) if statline_class else None
 
     drawn = []
@@ -1234,13 +1405,19 @@ def detail(request, kind, pk):
                 statline_form is None or statline_form.is_valid()
             )
             if forms_valid:
-                with transaction.atomic():
-                    part = part_spec.verb(thing, **form.verb_data())
-                    if statline_form is not None:
-                        statline_form.save(part)
-                said, _ = section["describe"](part)
-                messages.success(request, f"Added {said}.")
-                return redirect("authoring-detail", kind=kind, pk=pk)
+                try:
+                    with transaction.atomic():
+                        part = part_spec.verb(thing, **form.verb_data())
+                        if statline_form is not None:
+                            statline_form.save(part)
+                except ValidationError as refused:
+                    # A verb turning a part away in words says something
+                    # about what was typed, so it is said on the form.
+                    form.add_error(None, refused)
+                else:
+                    said, _ = section["describe"](part)
+                    messages.success(request, f"Added {said}.")
+                    return redirect("authoring-detail", kind=kind, pk=pk)
         else:
             form = form_class(carrier=thing)
             statline_form = statline_class() if statline_class else None
@@ -1263,12 +1440,15 @@ def detail(request, kind, pk):
                     "remove_url": reverse(removes, args=[part.pk]) if removes else "",
                 }
             )
+        part_name = str(section.get("part_name", part_model._meta.verbose_name))
         drawn.append(
             {
                 "act": section.get("act", ""),
-                "part_verbose_name": section.get(
-                    "part_name", part_model._meta.verbose_name
-                ),
+                "part_verbose_name": part_name,
+                # "Add an option", "Add a firing line". Worked out rather
+                # than written beside each name, so a kind renamed on its
+                # model never leaves the heading ungrammatical.
+                "part_article": _article_for(part_name),
                 "part_verbose_name_plural": section.get(
                     "parts_label", part_model._meta.verbose_name_plural
                 ),
@@ -2637,6 +2817,43 @@ def collection_page(request, pk):
 
 
 @staff_member_required
+def picklist_member_remove(request, pk):
+    """The question asked before an option is taken off a list.
+
+    What goes is the *listing*. The option stays in the library, on
+    every other list that offers it, and on every card that has already
+    picked it — worth saying before anything happens, because a control
+    beside an option's name reads as one that deletes options.
+    """
+    from n26.library import authoring
+    from n26.library.models import PicklistMember
+
+    member = get_object_or_404(
+        PicklistMember.objects.select_related("picklist", "pickable"), pk=pk
+    )
+    picklist = member.picklist
+    back = reverse("authoring-detail", args=["picklist", picklist.pk])
+
+    if request.method == "POST":
+        said = member.label
+        with transaction.atomic():
+            authoring.remove_picklist_member(member)
+        messages.success(request, f"{picklist} no longer offers {said}.")
+        return redirect(back)
+
+    return render(
+        request,
+        "authoring/picklist_member_remove.html",
+        {
+            "thing": member,
+            "label": member.label,
+            "picklist": picklist,
+            "back": back,
+        },
+    )
+
+
+@staff_member_required
 def entry_remove(request, pk):
     """The question asked before a listing row is taken off.
 
@@ -2675,9 +2892,190 @@ def entry_remove(request, pk):
     )
 
 
+#: What a domain of choice is built out of, in the order it is built:
+#: the options, the lists that offer them, the choices that draw on
+#: those lists. Each is a table of its own rows and a form that makes
+#: one more, and each names the kind whose page a row leads to.
+#:
+#: The domain itself is not on any of the three forms. It is the page,
+#: so the field is taken off and the verb is handed the row instead —
+#: which is also what makes the narrowing honest: a choice's picker can
+#: only offer this domain's lists because the domain is already settled.
+SLOT_TYPE_PARTS = (
+    {
+        "act": "pickable",
+        "verb": "create_pickable",
+        "parts": "pickables",
+        "kind": "pickable",
+        "title": "Options",
+        "part_name": "option",
+        "notes": _pickable_notes,
+        "description": (
+            "The values a choice in this domain can settle on. An option "
+            "does nothing until a modifier hangs on it, which is done on "
+            "its own page."
+        ),
+        "nothing_yet": "No options yet — a choice in this domain has nothing to offer.",
+    },
+    {
+        "act": "picklist",
+        "verb": "create_picklist",
+        "parts": "picklists",
+        "kind": "picklist",
+        "title": "Lists of options",
+        "part_name": "list",
+        "notes": _picklist_notes,
+        "description": (
+            "The options behind one choice, in order. A domain may have "
+            "several lists: what a leader chooses from and what a champion "
+            "chooses from are two lists over one domain."
+        ),
+        "nothing_yet": "No lists yet — a choice draws its options from one of these.",
+    },
+    {
+        "act": "slot",
+        "verb": "create_slot",
+        "parts": "slots",
+        "kind": "slot",
+        "title": "Choices",
+        "part_name": "choice",
+        "notes": _slot_notes,
+        "description": (
+            "One named use of this domain: a list, a label, and how many "
+            "picks. Building one into a profile is what puts the choice on "
+            "that fighter's card."
+        ),
+        "nothing_yet": (
+            "No choices yet — nothing puts this domain's options in front of a player."
+        ),
+    },
+)
+
+
+def _slot_type_part_form(part, slot_type, posted=None):
+    """The form that adds one part to a domain of choice.
+
+    The spec-generated create form for that kind, with the domain taken
+    off: the page is the domain, so asking again would be a box with one
+    right answer. Handed the domain as its carrier, which is what
+    narrows a choice's list picker to the lists this domain has.
+    """
+    spec = specs()[part["verb"]]
+    form_class = generate_form(spec)
+    form = (
+        form_class(posted, carrier=slot_type)
+        if posted is not None
+        else form_class(carrier=slot_type)
+    )
+    form.fields.pop("slot_type", None)
+    return spec, form
+
+
+@staff_member_required
+def slot_type_page(request, pk):
+    """A domain of choice: what it is, and everything built in it.
+
+    A slot type is a top-level kind and reads like one — its options,
+    its lists and its choices are all on this page, each a table and a
+    form. They only mean anything together: an option nothing lists is
+    unofferable, a list nothing draws on is unasked, and a choice is the
+    only one of the three a card ever sees.
+
+    Its own parts rather than the generic parts page, which draws at
+    most one section of a kind's own. Three acts, so a post says which
+    form was clicked.
+    """
+    from n26.library.models import SlotType
+
+    slot_type = get_object_or_404(SlotType, pk=pk)
+    edit_class = generate_form(_spec_for("slot-type"))
+    edit_form = edit_class.opened_on(slot_type)
+    act = request.POST.get("act", "") if request.method == "POST" else ""
+
+    if act == "edit":
+        edit_form = edit_class.opened_on(slot_type, request.POST)
+        if edit_form.is_valid():
+            try:
+                with transaction.atomic():
+                    edit_form.apply_to(slot_type)
+            except IntegrityError:
+                edit_form.add_error(
+                    "name",
+                    f"A slot type named “{edit_form.cleaned_data['name']}” "
+                    "already exists in this pack.",
+                )
+            else:
+                messages.success(request, f"Saved {slot_type}.")
+                return redirect("authoring-detail", kind="slot-type", pk=pk)
+
+    sections = []
+    for part in SLOT_TYPE_PARTS:
+        posted = request.POST if act == part["act"] else None
+        spec, form = _slot_type_part_form(part, slot_type, posted)
+        if posted is not None and form.is_valid():
+            try:
+                with transaction.atomic():
+                    made = spec.verb(slot_type=slot_type, **form.verb_data())
+            except IntegrityError:
+                form.add_error(
+                    spec.identity,
+                    f"{spec.creates._meta.verbose_name.capitalize()} "
+                    f"“{form.cleaned_data[spec.identity]}” already exists "
+                    "in this pack.",
+                )
+            except ValidationError as refused:
+                form.add_error(None, refused)
+            else:
+                messages.success(request, f"Created {made}.")
+                return redirect("authoring-detail", kind="slot-type", pk=pk)
+        rows = [
+            {
+                **_naming(row),
+                "url": reverse("authoring-detail", args=[part["kind"], row.pk]),
+                "notes": part["notes"](row),
+            }
+            for row in _slot_type_rows(slot_type, part)
+        ]
+        sections.append(
+            {
+                **part,
+                "rows": rows,
+                "form": form,
+                "part_article": _article_for(part["part_name"]),
+                "part_help": kind_help(spec.creates),
+            }
+        )
+
+    return render(
+        request,
+        "authoring/slot_type.html",
+        {
+            "thing": slot_type,
+            "kind": "slot-type",
+            "edit_form": edit_form,
+            "sections": sections,
+        },
+    )
+
+
+def _slot_type_rows(slot_type, part):
+    """One of a domain's three sets of parts, with what its notes read.
+
+    Each set is one query and its notes one more, whatever the domain
+    holds — a domain with eight options costs this page what a domain
+    with one costs it.
+    """
+    rows = getattr(slot_type, part["parts"]).all()
+    if part["act"] == "pickable":
+        return rows.prefetch_related("listed_on")
+    if part["act"] == "picklist":
+        return rows.prefetch_related("members")
+    return rows.select_related("picklist")
+
+
 #: Kinds whose detail page is its own view rather than the
 #: parts-and-add-form shape. Checked by ``detail`` before anything else.
-DETAIL_VIEWS = {"collection": collection_page}
+DETAIL_VIEWS = {"collection": collection_page, "slot-type": slot_type_page}
 
 
 @staff_member_required

@@ -1,0 +1,98 @@
+{% extends "authoring/base.html" %}
+{% load authoring_nav %}
+{% block head_title %}
+    {{ thing }}
+{% endblock head_title %}
+{% comment %}
+A domain of choice, and everything built in it: its options, the lists
+that offer them, and the choices that draw on those lists. Three tables
+and three forms on one page, because the three only mean anything
+together — an option nothing lists can never be offered, and a list
+nothing draws on is never asked.
+
+No nav_heading: the bar says where you are standing — Slot types,
+carried by its switcher's leading link — and the domain itself is the
+page heading's to name.
+{% endcomment %}
+{% block content %}
+    <c-n26.page-header title="{{ thing }}">
+        <c-slot name="trailing">
+            {% siblings_switcher 'slot-type' thing as siblings_ %}
+            <c-n26.quick-switcher.of :switcher="siblings_" hotkey="r" />
+        </c-slot>
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Content library</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-leaf' 'slot-type' %}">
+                    Slot types
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    {{ thing }}
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+    </c-n26.page-header>
+    {% if thing.library_author_help %}
+        <c-n26.prose class="mt-3 max-w-2xl">
+            <p>{{ thing.library_author_help }}</p>
+        </c-n26.prose>
+    {% endif %}
+    <c-n26.form-section title="This slot type" class="mt-8">
+        <form method="post" class="max-w-xl space-y-5">
+            {% csrf_token %}
+            <input type="hidden" name="act" value="edit">
+            {% include "authoring/_form.html" with form=edit_form %}
+            <c-n26.form-actions submit_label="Save changes" />
+        </form>
+        <div class="mt-4">
+            <c-n26.link href="{% url 'authoring-thing-delete' 'slot-type' thing.pk %}"
+                        tone="danger"
+                        class="text-sm">
+                Delete this slot type…
+            </c-n26.link>
+        </div>
+    </c-n26.form-section>
+    {% comment %}
+    The three sets of parts, in the order a domain is built. Each row's
+    name leads to that row's own page, which is where it is corrected —
+    and, for an option, where the modifier saying what it does hangs.
+    {% endcomment %}
+    {% for section in sections %}
+        <c-n26.form-section title="{{ section.title }}"
+                            description="{{ section.description }}"
+                            class="mt-10">
+            {% if section.rows %}
+                <c-ui.table>
+                    <tbody>
+                        {% for row in section.rows %}
+                            <tr>
+                                {% include "authoring/_name_cell.html" with row=row %}
+                                <td class="w-full text-muted">
+                                    {{ row.notes|join:" · " }}{% if row.notes and row.help %} · {% endif %}{{ row.help }}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </c-ui.table>
+            {% else %}
+                <c-ui.description>
+                    {{ section.nothing_yet }}
+                </c-ui.description>
+            {% endif %}
+        </c-n26.form-section>
+        <c-n26.form-section title="Add {{ section.part_article }} {{ section.part_name }}"
+                            class="mt-6">
+            {% if section.part_help %}
+                <c-n26.prose class="max-w-2xl">
+                    {% for paragraph in section.part_help %}<p>{{ paragraph }}</p>{% endfor %}
+                </c-n26.prose>
+            {% endif %}
+            <form method="post" class="max-w-xl space-y-5">
+                {% csrf_token %}
+                <input type="hidden" name="act" value="{{ section.act }}">
+                {% include "authoring/_form.html" with form=section.form %}
+                <c-n26.form-actions submit_label="Add {{ section.part_name }}" />
+            </form>
+        </c-n26.form-section>
+    {% endfor %}
+{% endblock content %}

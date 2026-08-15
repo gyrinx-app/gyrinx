@@ -176,7 +176,8 @@ thing twice, a line apart.
                         </c-ui.button>
                     </div>
                 {% else %}
-                    <c-n26.form-section title="Add a {{ section.part_verbose_name }}" class="mt-10">
+                    <c-n26.form-section title="Add {{ section.part_article }} {{ section.part_verbose_name }}"
+                                        class="mt-10">
                         {% if section.part_help %}
                             <c-n26.prose class="max-w-2xl">
                                 {% for paragraph in section.part_help %}<p>{{ paragraph }}</p>{% endfor %}

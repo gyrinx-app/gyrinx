@@ -51,11 +51,18 @@ without restating the rhythm would bunch every group against the next.
             <c-n26.radio-cards label="{{ group.name }}"
                                description="{{ group.caption }}"
                                name="{{ name }}">
+                {% comment %}
+                The muted line is whatever the option has to say about itself:
+                a remark about picking it, and — where the domain takes one
+                option once — the other choice that has already had it. Marked
+                and never disabled: the click still works, and the card says so
+                afterwards (n26.render.Choosable).
+                {% endcomment %}
                 {% for option in group.options %}
                     <c-n26.radio-cards.card name="{{ name }}"
                                             value="{{ option.key }}"
                                             label="{{ option.name }}"
-                                            description="{{ option.detail }}"
+                                            description="{{ option.remark }}"
                                             :checked="option.is_current" />
                 {% endfor %}
             </c-n26.radio-cards>

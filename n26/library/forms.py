@@ -373,12 +373,16 @@ class GeneratedForm(forms.Form):
         for name, kind in self.spec.fields.items():
             if isinstance(kind, One) and kind.within and self.carrier is not None:
                 picked = cleaned.get(name)
-                # The narrowed queryset has already refused a stray, so
-                # this is the case where nothing narrowed it: a form
-                # built without its carrier would otherwise accept an
-                # set of options belonging to somebody else's profile.
-                if picked is not None and picked.carrier != self.carrier:
-                    self.add_error(name, f"That belongs to {picked.carrier}.")
+                # Asked of the same accessor that narrowed the picker, so
+                # what is offered and what is accepted are one statement
+                # rather than two that can come to disagree — and one that
+                # holds for any kind, not only the ones whose rows can name
+                # what they belong to.
+                if (
+                    picked is not None
+                    and picked not in getattr(self.carrier, kind.within).all()
+                ):
+                    self.add_error(name, f"That does not belong to {self.carrier}.")
             if isinstance(kind, One) and "collection" in kind.filtered_by:
                 picked = cleaned.get(name)
                 if (

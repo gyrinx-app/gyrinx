@@ -877,8 +877,9 @@ def sample_about():
 
 
 def choice_offer():
-    """A pick list as a view hands it over: two headings, one of them
-    carrying a line of detail on an option.
+    """A pick list as a view hands it over: two headings, a line of
+    detail on one option and, on another, the other choice that has
+    already had it.
 
     Skill sets, because that is the case with headings worth showing —
     the same structure with one nameless group is what an offer naming a
@@ -898,7 +899,11 @@ def choice_offer():
             ChoosableGroup(
                 name="Cunning",
                 options=[
-                    Choosable(key="library.skill:4", name="Backstab"),
+                    Choosable(
+                        key="library.skill:4",
+                        name="Backstab",
+                        taken_for="Second skill",
+                    ),
                     Choosable(
                         key="library.skill:5",
                         name="Infiltrate",

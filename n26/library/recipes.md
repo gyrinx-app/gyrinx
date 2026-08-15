@@ -98,6 +98,56 @@ Everything the hidden item was handing out goes with it, and drop the
 corruption and it all comes back. Starting Skills and Skill Access live on
 the fighter entries, so they are untouched either way.
 
+## A Gang Legacy
+
+> Draft, for review. The shape below is the authoring one; everything in
+> square brackets is a fact about the rules rather than about the app,
+> and is still to be filled in.
+
+A gang legacy is a choice a fighter makes once, each option opening an
+equipment list to whoever picks it. The same six steps build any domain
+of choice; this one is worth writing down because it uses all of them.
+
+1. Create a **slot type** named "Gang Legacy" — a domain of choice —
+   and give it a plural, so a page can say several of them. Set *allows
+   repeats* to [whether one gang may hold the same legacy twice].
+   Everything below is built on its page.
+2. Add an **option** for each legacy: [the legacies the rules give].
+3. On each option's page, attach a **modifier**: targets the model,
+   *gives* that legacy's equipment list. The list is an ordinary
+   collection at its own prices, so a fighter who picks a legacy buys
+   from that list at that list's prices. [Anything else a legacy grants
+   — something scoped to a rank, something reaching the gang — is a
+   further modifier on the same option.]
+4. Add a **list of options** holding what a fighter may choose from.
+   Add more than one where [different fighters are offered different
+   legacies]: a domain may have as many lists as it needs, and a
+   fighter is offered exactly the one their choice draws on.
+5. Add a **choice** per list, labelled "Gang Legacy", taking [how many
+   picks], assigned to [the bearer — or the gang, where what is picked
+   belongs to the gang rather than to whoever was asked].
+6. Build the matching choice into each fighter entry that may take one.
+   An entry with no legacy carries no choice at all, and its card asks
+   nothing.
+
+A fighter hired from an entry carrying the choice arrives with an open
+"Gang Legacy" row on their card. Clicking it offers that list; picking
+one opens the legacy's equipment list on their equip page and changes
+nothing else. The pick is free and adds nothing to the gang's rating.
+
+A list with one option on it is still a choice: the row stays open until
+the player picks, and nothing is written for them.
+
+To have an entry arrive with its legacy already settled, build the
+choice in and name a **starting pick** beside it. The player changes it
+afterwards the way they would change any choice.
+
+Two things this build cannot do yet. A gang cannot be given something
+for one of its fighters holding a legacy — a condition reads what a
+model has, never what anyone in the gang has. And a list cannot say
+that it is only for a particular moment; it is open whenever the
+fighter's equip page is.
+
 ## An item one list restricts
 
 Some lists print a restriction beside a line that other lists print

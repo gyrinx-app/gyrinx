@@ -330,6 +330,116 @@ class TestTwoChoicesOfOneDomain:
         assert [note.text for note in drawn.remarks] == []
 
 
+class TestThePickerMarksWhatIsTaken:
+    """Where the domain takes one option once, the picker says which of
+    its options this holder has already spent elsewhere.
+
+    Marked and never withheld: the click still works, and what the card
+    says about picking the same thing twice is said afterwards, on the
+    card. The one hard refusal in the app is the founding budget.
+    """
+
+    @pytest.fixture
+    def twice_asked(self, person_type, gang_type, legacy, legacies):
+        profile = create_profile("Twice-born", person_type, gang_type, price=100)
+        add_built_in(profile, create_slot("Legacy 1", legacy, legacies))
+        add_built_in(profile, create_slot("Legacy 2", legacy, legacies))
+        return profile
+
+    def offers(self, miniature):
+        """Both pickers, in the order the slots are named."""
+        from n26.core.render import build_choice_offer
+
+        _, computed = card_of(miniature)
+        return [
+            build_choice_offer(slot, computed)
+            for slot in sorted(computed.choices, key=lambda slot: slot.source)
+        ]
+
+    def marks(self, offer):
+        return {
+            option.name: option.taken_for
+            for group in offer.groups
+            for option in group.options
+        }
+
+    def test_the_option_the_other_choice_holds_is_marked(
+        self, gang, twice_asked, houses
+    ):
+        kaustos = hire(gang, twice_asked, "Kaustos", paid=100)
+        first, _ = sorted(choices_of(kaustos), key=lambda slot: slot.source)
+        choose(first.anchor.assignment, houses["Cawdor"])
+
+        _, second = self.offers(kaustos)
+
+        assert self.marks(second) == {
+            "Cawdor": "Legacy 1",
+            "Escher": "",
+            "Ironhead Squats": "",
+        }
+
+    def test_the_choice_it_answers_calls_it_the_current_pick_instead(
+        self, gang, twice_asked, houses
+    ):
+        """A choice does not report itself: what is picked here is
+        already drawn as the answer, which is a different fact."""
+        kaustos = hire(gang, twice_asked, "Kaustos", paid=100)
+        first, _ = sorted(choices_of(kaustos), key=lambda slot: slot.source)
+        choose(first.anchor.assignment, houses["Cawdor"])
+
+        here, _ = self.offers(kaustos)
+        (cawdor,) = [
+            option
+            for group in here.groups
+            for option in group.options
+            if option.name == "Cawdor"
+        ]
+
+        assert (cawdor.taken_for, cawdor.is_current) == ("", True)
+
+    def test_a_domain_that_allows_repeats_marks_nothing(
+        self, gang, person_type, gang_type, default_pack
+    ):
+        domain = create_slot_type("Loadout", allows_repeats=True)
+        option = create_pickable("Heavy", domain)
+        picklist = create_picklist("Loadouts", domain, members=[option])
+        profile = create_profile("Twice-armed", person_type, gang_type, price=100)
+        add_built_in(profile, create_slot("Loadout 1", domain, picklist))
+        add_built_in(profile, create_slot("Loadout 2", domain, picklist))
+        kaustos = hire(gang, profile, "Kaustos", paid=100)
+        first, _ = sorted(choices_of(kaustos), key=lambda slot: slot.source)
+        choose(first.anchor.assignment, option)
+
+        _, second = self.offers(kaustos)
+
+        assert self.marks(second) == {"Heavy": ""}
+
+    def test_the_screen_says_so_and_still_offers_it(
+        self, gang, twice_asked, houses, client, owner
+    ):
+        import re
+
+        from n26.core.views.choose import link_slots
+
+        kaustos = hire(gang, twice_asked, "Kaustos", paid=100)
+        first, _ = sorted(choices_of(kaustos), key=lambda slot: slot.source)
+        choose(first.anchor.assignment, houses["Cawdor"])
+        client.force_login(owner)
+
+        sheet = render_gang(gang)
+        link_slots(gang, sheet, *sheet.models)
+        (card,) = sheet.models
+        second = sorted(card.questions, key=lambda line: line.kind_label)[1]
+        body = client.get(second.href).content.decode()
+
+        assert "already chosen for Legacy 1" in body
+        # Marked, not locked: the option is still a control that works.
+        control = re.search(
+            rf'<input[^>]*value="library.pickable:{houses["Cawdor"].pk}"[^>]*>', body
+        )
+        assert control and "disabled" not in control.group()
+
+
 class TestAnOptionWithNoChoiceBehindIt:
     """A pickable an owner hands over with no slot to answer shows
     nothing and does nothing — not a line, not a modifier, not a fact

@@ -307,6 +307,19 @@ class Choosable:
     #: surface offering things to tick draws it fixed: there is nothing a click
     #: could take away.
     granted_by: str = ""
+    #: The other choice on this holder that has already settled on it,
+    #: where the domain says one option answers one choice. Marked and
+    #: never withheld: the owner may still pick it, and the card says so
+    #: afterwards.
+    taken_for: str = ""
+
+    @property
+    def remark(self):
+        """The muted line under the option's name, whatever fills it."""
+        said = [self.detail] if self.detail else []
+        if self.taken_for:
+            said.append(f"already chosen for {self.taken_for}")
+        return " · ".join(said)
 
 
 @dataclass
@@ -780,6 +793,11 @@ def build_choice_offer(slot, computed):
     draws the whole kind, which is one heading-less group. Neither
     branch knows what kind of thing is being picked — that is what lets a
     skill, an archetype and an affiliation share a screen.
+
+    Where the domain of choice takes one option once, the options this
+    holder has already spent elsewhere are marked. Marked, not withheld:
+    the list informs, the click still works, and the card says so
+    afterwards.
     """
     from n26.core.browse import CollectionView, offered_by
 
@@ -791,12 +809,13 @@ def build_choice_offer(slot, computed):
             offered, label=slot.kind_label, chosen=slot.chosen_name, current=current
         )
 
+    taken = _taken_elsewhere(slot, computed)
     groups = []
     if offered is not None:
         groups.append(
             ChoosableGroup(
                 name="",
-                options=[_choosable(thing, current) for thing in offered],
+                options=[_choosable(thing, current, taken=taken) for thing in offered],
             )
         )
 
@@ -852,7 +871,31 @@ def offer_from_view(view, *, label, chosen=None, current=None, held=(), granted=
     )
 
 
-def _choosable(thing, current, notes=(), held=(), granted=None):
+def _taken_elsewhere(slot, computed):
+    """What this holder has already picked for another choice of the same
+    domain, keyed the way the picker keys its options.
+
+    Only where the domain takes one option once: where it allows
+    repeats, picking the same thing twice is the content working as
+    written and there is nothing to say. The choice being made is left
+    out of its own answer — what is already picked *here* is marked as
+    the current pick, which is a different fact.
+    """
+    if slot.slot is None or slot.slot.slot_type.allows_repeats:
+        return {}
+    taken = {}
+    for other in computed.choices:
+        if other is slot or other.slot is None:
+            continue
+        if other.slot.slot_type_id != slot.slot.slot_type_id:
+            continue
+        for pick in other.picks:
+            thing = pick.assignable
+            taken.setdefault(f"{thing._meta.label_lower}:{thing.pk}", other.source)
+    return taken
+
+
+def _choosable(thing, current, notes=(), held=(), granted=None, taken=None):
     key = f"{thing._meta.label_lower}:{thing.pk}"
     granted_by = (granted or {}).get(key, "")
     return Choosable(
@@ -864,6 +907,7 @@ def _choosable(thing, current, notes=(), held=(), granted=None):
         or bool(granted_by),
         detail="; ".join(note.text for note in notes),
         granted_by=granted_by,
+        taken_for=(taken or {}).get(key, ""),
     )
 
 

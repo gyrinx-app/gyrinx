@@ -181,6 +181,56 @@ Within a collection, when displayed, items are grouped by collection section and
 - Where it appears: when a fighter's view of a collection is built, everything unplaced falls into the collection's own default section (part of its schema, so its name and position are content too), or a code-level "Other", drawn last. So browsing Skills & Powers, an unplaced set ("category") is there, under Other.
 - But narrowing excludes it: a Primary-narrowed picker (e.g. used by the "offers a choice" modifier, by setting that the choice comes "from section") only shows categories *placed* within that section. An unplaced skill category lives in Other, not Primary, so it isn't offered. Same for the skills square on the edit page: that surface is the *fighter's* view — their placements — so a collection that hasn't been placed for them isn't shown.
 
+### Slot type
+
+> Draft, for review.
+
+*A domain of choice — Gang Legacy, Affiliation, Archetype — and everything authored in it.*
+
+Fields of its own: a **plural** (what several of them are called, so a page can say "Gang Legacies"), and **allows repeats** (whether one holder may pick the same option for two choices of this domain).
+
+Not an assignable: nothing holds a domain. It is what the other three name, and authoring refuses a mismatch between them — a list of Affiliations cannot sit behind a Gang Legacy choice. Its page is where the whole domain is built: its options, its lists, and the choices that draw on them.
+
+### Pickable
+
+> Draft, for review.
+
+*One option a choice offers: Cawdor, Clanless, Brawler.*
+
+Fields of its own: the **slot type** it is an option in — plus the shared assignable set, so whatever the option means rides it as ordinary modifiers.
+
+It never draws a row of its own: it appears under its choice's row as the answer. Without its choice it shows nothing and does nothing — an option nobody was offered is not something the holder has — so it arrives chosen, given, or as a choice's starting value, and the authoring form refuses one built in on its own. Reach: whatever its own modifiers say, from wherever the pick landed.
+
+### Picklist
+
+> Draft, for review.
+
+*The options behind a choice: a flat, ordered list of one domain's options.*
+
+Fields of its own: a **slot type** and a **name**. Each option on it carries its place in the order and, where this list calls the option something else, a wording of its own.
+
+No sections, no placements, no prices — where a collection is a catalogue, this is a menu. One domain may have several: what a leader chooses from and what a champion chooses from are two lists over one domain. Not an assignable; a choice names it.
+
+### Slot
+
+> Draft, for review.
+
+*A choice put on a card: a list of options, a label, and how many picks.*
+
+Fields of its own: its **slot type** and **picklist**; the **label** the card calls the choice by; **min** and **max picks**; **assigned to** (whether the pick lands on the bearer or on the gang); **hidden**; and a position among the choices on one card.
+
+Assigning one is what puts the choice on a card — built into a profile, given by a modifier, or brought by an option when something is bought. The card draws the label with what has been picked, or a control to pick, on the holder's own card and nowhere else: a choice the gang holds is asked once rather than on every fighter. Fewer picks than the minimum is a note on the card, never a refusal, and the picker stops offering at the maximum. **Hidden** draws no choice row at all while what is picked still applies, which is how several things arrive together under one name.
+
+### Picks
+
+> Draft, for review.
+
+*Not a type: the assignment that settles a choice.*
+
+Choosing writes an ordinary assignment — the option, hosted where the choice says it lands, caused by the choice's own assignment and pointing back at it. So removing the choice removes the pick and everything the option gave; two choices of one domain on one holder stay independent; and nothing is worked out from what kind of thing was chosen. A pick is free and adds nothing to any rating.
+
+Where the domain takes one option once, the picker marks the options already spent on another choice, and the card says when one option has answered two. Marks and notes, never locks: the narrowing informs, and an owner may still hand over an option no list offered.
+
 ---
 
 ## Core types & concepts

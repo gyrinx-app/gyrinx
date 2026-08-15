@@ -613,6 +613,62 @@ def _narrowed(who, scope):
     )
 
 
+def _picks_asked(slot):
+    """How many picks a choice takes, as a sentence says it."""
+    if slot.min_picks == slot.max_picks:
+        return "one" if slot.max_picks == 1 else str(slot.max_picks)
+    return f"{slot.min_picks} to {slot.max_picks}"
+
+
+def _asks(slot):
+    """What a choice does by being on a card: it asks.
+
+    Said before the modifiers a slot happens to carry, because this is
+    the whole of what a choice is for and everything else is beside it.
+    A hidden one asks nothing at all — the pick still arrives and still
+    does everything it does, which is how several things come under one
+    name.
+    """
+    count = _picks_asked(slot)
+    named = slot.slot_type.name if slot.max_picks == 1 else slot.slot_type.plural
+    bounds = (
+        f"Fewer than {slot.min_picks} is a note on the card, never a "
+        f"refusal, and the picker stops offering at {slot.max_picks}."
+    )
+    if slot.hidden:
+        return Sentence(
+            text=f"Holds {count} {named} from {slot.picklist}, and asks nothing.",
+            hint=(
+                "No choice row is drawn. What is picked still does "
+                "everything it does, which is how several things arrive "
+                "together under one name."
+            ),
+            key=_identity(slot.picklist),
+        )
+    said = f"Asks for {count} {named}, chosen from {slot.picklist}."
+    if slot.assigned_to == slot.WillBeAssignedTo.GANG:
+        said += " What is chosen belongs to the gang, not to whoever was asked."
+    return Sentence(
+        text=said,
+        hint=(
+            f"The choice stays on the card until it is made, and making it "
+            f"late costs nothing. {bounds}"
+        ),
+        key=_identity(slot.picklist),
+    )
+
+
+def _structural(thing):
+    """What a kind does by being what it is, before any modifier speaks.
+
+    Only a choice has anything to say here: everything else on a card
+    does what its modifiers do and nothing more.
+    """
+    from n26.library.models import Slot
+
+    return (_asks(thing),) if isinstance(thing, Slot) else ()
+
+
 def _does(thing, carriage):
     """Every modifier the thing carries, in the order the rules run them.
 
@@ -637,9 +693,12 @@ def _does(thing, carriage):
         modifiers,
         key=lambda modifier: select.specificity(modifier.scope.as_selector()),
     )
-    return tuple(
-        sentence_for(modifier, carriage, thing=thing, chain=chain)
-        for modifier in ordered
+    return (
+        *_structural(thing),
+        *(
+            sentence_for(modifier, carriage, thing=thing, chain=chain)
+            for modifier in ordered
+        ),
     )
 
 
@@ -899,10 +958,13 @@ def _referenced_by(edges):
     """
     said = [
         *_built_into(edges),
+        *_started_with(edges),
+        *_listed(edges),
         *_granted(edges),
         *_brought(edges),
         *_offered(edges),
         *_may_be_chosen(edges),
+        *_offered_by_a_choice(edges),
     ]
     return tuple(_once(said))
 
@@ -969,6 +1031,82 @@ def _built_into(edges):
             )
         )
     return said
+
+
+def _picklists_holding(edges):
+    """The lists offering the thing, by identity."""
+    lists = {}
+    for reference in of_kind(edges.references, "library.picklistmember", "pickable"):
+        lists[reference.row.picklist_id] = reference.row.picklist
+    return lists
+
+
+def _listed(edges):
+    """The lists that offer the thing.
+
+    A fact about each list rather than a route on its own: being on a
+    list is how an option comes to be offered, and which choices do the
+    offering is said further down.
+    """
+    return [
+        Sentence(
+            text=f"Listed in {picklist}.",
+            hint=(
+                "The options behind a choice. Everything on this list is "
+                "offered wherever a choice draws on it."
+            ),
+            key=_identity(picklist),
+        )
+        for picklist in sorted(_picklists_holding(edges).values(), key=str)
+    ]
+
+
+def _offered_by_a_choice(edges):
+    """The choices that draw on a list the thing is on — the "may" half.
+
+    A choice names a list, so nothing points at the option itself: every
+    choice drawing on a list that offers it is a way somebody could come
+    to have it. One query however many lists hold it.
+    """
+    from n26.library.models import Slot
+
+    lists = _picklists_holding(edges)
+    if not lists:
+        return []
+    return [
+        Sentence(
+            text=f"May be chosen for {_named(slot)}.",
+            hint=(
+                "The choice is on the card while whatever asks it is, and "
+                "this is one of the options it offers."
+            ),
+            key=_identity(slot),
+        )
+        for slot in Slot.objects.filter(picklist__in=lists).order_by("name")
+    ]
+
+
+def _started_with(edges):
+    """The choices this arrives already settling — a slot with a default.
+
+    A route of its own: nothing gives the option and nobody picks it, it
+    simply comes with the choice, changed afterwards by the ordinary
+    rechoose.
+    """
+    return [
+        Sentence(
+            text=f"Chosen from the start for {_named(reference.row.slot)}.",
+            hint=(
+                "Arrives already picked, the moment the choice does. "
+                "Changing it afterwards is the ordinary rechoose."
+            ),
+            key=_identity(reference.row.slot),
+        )
+        for reference in of_kind(
+            edges.references, "library.defaultassignment", "default_pickable"
+        )
+        if reference.row.slot_id is not None
+    ]
 
 
 def _granted(edges):

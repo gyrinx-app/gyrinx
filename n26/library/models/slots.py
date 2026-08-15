@@ -44,7 +44,7 @@ class SlotType(Content):
     stated here once rather than on every slot.
     """
 
-    family = Family.BASE
+    family = Family.CHOICE
 
     name = models.CharField(
         max_length=200,
@@ -100,13 +100,12 @@ class Pickable(Content, Assignable):
     never as a bare built-in.
     """
 
-    # BASE, the same family a hidden carrier takes: a pickable is
-    # plumbing every domain of choice reuses, not gear a fighter carries
-    # and not a gang-scale thing of its own. The family is read by more
-    # than the authoring menu — the Trading Post stocks itself by
-    # sweeping every GEAR kind — so a pickable filed as gear would go on
-    # sale, and one filed under the gang would claim to be a gang's own.
-    family = Family.BASE
+    # Filed with the rest of the choice machinery, which is where an
+    # author looks for it. The family is read by more than the authoring
+    # menu — the Trading Post stocks itself by sweeping every GEAR kind —
+    # so a pickable filed as gear would go on sale, and one filed under
+    # the gang would claim to be a gang's own.
+    family = Family.CHOICE
 
     # Chosen, given or a slot's starting value: nothing acquires one, so
     # nothing would ever hand over items built into it.
@@ -138,13 +137,13 @@ class Picklist(Content):
     """The options behind a choice: a flat, ordered list of pickables.
 
     One slot type throughout, no headings and no prices — where a
-    collection is a shop, this is a menu. Two slots may draw from one
+    collection is a catalogue, this is a menu. Two slots may draw from one
     picklist, and one slot type may have several: the Outcast archetypes
     a leader chooses from and the ones a champion does are two lists over
     the same type.
     """
 
-    family = Family.BASE
+    family = Family.CHOICE
 
     slot_type = models.ForeignKey(
         SlotType,
@@ -174,6 +173,16 @@ class Picklist(Content):
 
     def __str__(self):
         return self.name
+
+    @property
+    def may_offer(self):
+        """The options this list may hold: its domain's, and no others.
+
+        The picker on the page that adds a member reads this, so what an
+        author is offered and what the list will accept are one
+        statement rather than two that can drift apart.
+        """
+        return self.slot_type.pickables
 
 
 class PicklistMember(Content):
@@ -258,7 +267,7 @@ class Slot(Content, Assignable):
     given one name.
     """
 
-    family = Family.BASE
+    family = Family.CHOICE
 
     # Chosen for, never acquired in its own right: what a slot brings is
     # the pick, and the pick arrives through choosing.

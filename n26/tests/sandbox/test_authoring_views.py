@@ -890,7 +890,7 @@ class TestFamilies:
         # heading text where it lands, not the markup around it.
         positions = [
             re.search(rf'scope="colgroup".*?>\s*{label}\s*<', body, re.S).start()
-            for label in ("Base", "Model", "Gear", "Gang")
+            for label in ("Base", "Model", "Gear", "Gang", "Choices")
         ]
         assert positions == sorted(positions)
         # A kind sits under its family.
@@ -908,11 +908,15 @@ class TestFamilies:
             GangType,
             Hidden,
             LastingEffect,
+            Pickable,
+            Picklist,
             Profile,
             Rule,
             Section,
             Skill,
             SkillTree,
+            Slot,
+            SlotType,
             Subtype,
             Trait,
             Wargear,
@@ -933,6 +937,9 @@ class TestFamilies:
                 SkillTree,
                 Collection,
             ],
+            # A domain of choice and its three parts: they only mean
+            # anything together, so the menu keeps them together.
+            Family.CHOICE: [SlotType, Pickable, Picklist, Slot],
         }
         for family, models in by_family.items():
             for model in models:
@@ -1004,6 +1011,342 @@ class TestTheCarriers:
         assert not SkillTree.objects.filter(name="Nowhere").exists()
 
 
+@pytest.fixture
+def legacy(default_pack):
+    """A domain of choice with one of each of its three parts."""
+    from n26.library.authoring import (
+        create_pickable,
+        create_picklist,
+        create_slot,
+        create_slot_type,
+    )
+
+    domain = create_slot_type(
+        "Gang Legacy", plural_name="Gang Legacies", allows_repeats=False
+    )
+    cawdor = create_pickable("Cawdor", domain)
+    houses = create_picklist("House Legacies", domain, members=[cawdor])
+    create_slot("House legacy", domain, houses, label="Gang Legacy")
+    return domain
+
+
+@pytest.fixture
+def affiliation(default_pack):
+    """A second domain, so a page narrowing to one can be caught
+    offering the other's."""
+    from n26.library.authoring import (
+        create_pickable,
+        create_picklist,
+        create_slot_type,
+    )
+
+    domain = create_slot_type("Affiliation")
+    clanless = create_pickable("Clanless", domain)
+    create_picklist("Affiliations", domain, members=[clanless])
+    return domain
+
+
+class TestADomainOfChoiceReadsAsAKind:
+    """A slot type is a top-level entry in the library, and its page is
+    where the whole domain is built: the options, the lists that offer
+    them, and the choices that draw on those lists."""
+
+    def page(self, client, domain):
+        return client.get(f"/n26/authoring/slot-type/{domain.pk}/").content.decode()
+
+    def test_the_index_groups_the_choice_kinds_together(
+        self, author, client, default_pack
+    ):
+        body = client.get("/n26/authoring/").content.decode()
+        heading = re.search(r'scope="colgroup".*?>\s*Choices\s*<', body, re.S)
+        assert heading, "the index has no Choices group"
+        rest = body[heading.start() :].lower()
+        for kind in ("slot type", "pickable", "picklist", "slot"):
+            assert kind in rest, kind
+
+    def test_it_lists_the_domains_own_parts(self, author, client, legacy):
+        body = self.page(client, legacy)
+
+        assert "Cawdor" in body
+        assert "House Legacies" in body
+        assert "House legacy" in body
+
+    def test_every_part_leads_to_its_own_page(self, author, client, legacy):
+        from n26.library.models import Pickable, Picklist, Slot
+
+        body = self.page(client, legacy)
+
+        for kind, model in (
+            ("pickable", Pickable),
+            ("picklist", Picklist),
+            ("slot", Slot),
+        ):
+            row = model.objects.get()
+            assert f'href="/n26/authoring/{kind}/{row.pk}/"' in body, kind
+
+    def test_another_domains_parts_stay_off_it(
+        self, author, client, legacy, affiliation
+    ):
+        from n26.library.models import Pickable, Picklist
+
+        body = self.page(client, legacy)
+
+        # By identity, not by name: the bar names every kind in the
+        # library, and "Affiliations" is one of them.
+        assert str(Pickable.objects.get(name="Clanless").pk) not in body
+        assert str(Picklist.objects.get(name="Affiliations").pk) not in body
+
+    def test_the_bar_sits_under_slot_types(self, author, client, legacy):
+        """A bespoke page is still a row of its kind, so its bar names
+        the listing it came from."""
+        body = self.page(client, legacy)
+
+        assert ">Slot types</span>" in body
+        assert 'href="/n26/authoring/slot-type/"' in body
+
+    def test_it_answers_the_two_chords(self, author, client, legacy):
+        body = self.page(client, legacy)
+
+        assert 'aria-keyshortcuts="Alt+Shift+F"' in body
+        assert 'aria-keyshortcuts="Alt+Shift+R"' in body
+
+    def test_a_stranger_is_sent_to_log_in(self, client, legacy):
+        response = client.get(f"/n26/authoring/slot-type/{legacy.pk}/")
+
+        assert response.status_code == 302
+        assert "login" in response["Location"]
+
+
+class TestBuildingADomainFromItsOwnPage:
+    """The three forms make the three parts, and none of them asks which
+    domain: the page is the domain."""
+
+    def test_an_option_is_made_in_this_domain(self, author, client, legacy):
+        from n26.library.models import Pickable
+
+        response = client.post(
+            f"/n26/authoring/slot-type/{legacy.pk}/",
+            {"act": "pickable", "name": "Escher", "qualifier": ""},
+        )
+
+        assert response.status_code == 302
+        assert Pickable.objects.get(name="Escher").slot_type == legacy
+
+    def test_a_list_is_made_in_this_domain(self, author, client, legacy):
+        from n26.library.models import Picklist
+
+        client.post(
+            f"/n26/authoring/slot-type/{legacy.pk}/",
+            {"act": "picklist", "name": "Ogryn Legacy"},
+        )
+
+        assert Picklist.objects.get(name="Ogryn Legacy").slot_type == legacy
+
+    def test_a_choice_is_made_in_this_domain(self, author, client, legacy):
+        from n26.library.models import Picklist, Slot
+
+        houses = Picklist.objects.get(name="House Legacies")
+
+        client.post(
+            f"/n26/authoring/slot-type/{legacy.pk}/",
+            {
+                "act": "slot",
+                "name": "Second legacy",
+                "picklist": str(houses.pk),
+                "label": "Gang Legacy",
+                "min_picks": "1",
+                "max_picks": "1",
+                "assigned_to": "bearer",
+                "position": "0",
+            },
+        )
+
+        made = Slot.objects.get(name="Second legacy")
+        assert (made.slot_type, made.picklist) == (legacy, houses)
+
+    def test_the_choice_form_offers_this_domains_lists_and_no_others(
+        self, author, client, legacy, affiliation
+    ):
+        """Informing by narrowing: a choice settled by options of
+        another domain would settle nothing at all, so the picker never
+        offers one."""
+        from n26.library.models import Picklist
+
+        body = client.get(f"/n26/authoring/slot-type/{legacy.pk}/").content.decode()
+        elsewhere = Picklist.objects.get(name="Affiliations")
+
+        assert f'value="{Picklist.objects.get(name="House Legacies").pk}"' in body
+        assert f'value="{elsewhere.pk}"' not in body
+
+    def test_a_duplicate_name_refuses_in_words(self, author, client, legacy):
+        response = client.post(
+            f"/n26/authoring/slot-type/{legacy.pk}/",
+            {"act": "pickable", "name": "Cawdor"},
+        )
+
+        assert response.status_code == 200
+        assert "already exists in this pack" in response.content.decode()
+
+    def test_the_domain_itself_is_edited_here(self, author, client, legacy):
+        client.post(
+            f"/n26/authoring/slot-type/{legacy.pk}/",
+            {"act": "edit", "edit-name": "Gang Legacy", "edit-plural_name": "Legacies"},
+        )
+        legacy.refresh_from_db()
+
+        assert legacy.plural == "Legacies"
+        # The switch was left alone, which says off — repeats stay out.
+        assert not legacy.allows_repeats
+
+
+class TestMakingAChoiceFromScratch:
+    """The kind's own create page cannot narrow — no domain has been
+    chosen at the moment the picker is drawn — so the refusal has to be
+    words on the form rather than a page that falls over."""
+
+    def post(self, client, **fields):
+        return client.post(
+            "/n26/authoring/slot/new/",
+            {
+                "name": "Muddled",
+                "min_picks": "1",
+                "max_picks": "1",
+                "assigned_to": "bearer",
+                "position": "0",
+                **fields,
+            },
+        )
+
+    def test_a_choice_over_its_own_domains_list_is_made(
+        self, author, client, legacy, affiliation
+    ):
+        from n26.library.models import Picklist, Slot
+
+        houses = Picklist.objects.get(name="House Legacies")
+
+        response = self.post(client, slot_type=str(legacy.pk), picklist=str(houses.pk))
+
+        assert response.status_code == 302
+        assert Slot.objects.get(name="Muddled").picklist == houses
+
+    def test_a_choice_over_another_domains_list_is_refused_in_words(
+        self, author, client, legacy, affiliation
+    ):
+        from n26.library.models import Picklist, Slot
+
+        elsewhere = Picklist.objects.get(name="Affiliations")
+
+        response = self.post(
+            client, slot_type=str(legacy.pk), picklist=str(elsewhere.pk)
+        )
+
+        assert response.status_code == 200
+        assert (
+            "Affiliations lists Affiliation options, and this is a Gang "
+            "Legacy choice." in response.content.decode()
+        )
+        assert not Slot.objects.filter(name="Muddled").exists()
+
+    def test_correcting_one_offers_only_its_own_domains_lists(
+        self, author, client, legacy, affiliation
+    ):
+        """The page that corrects a choice knows the domain already, so
+        the picker it draws is the narrow one."""
+        from n26.library.models import Picklist, Slot
+
+        choice = Slot.objects.get()
+        body = client.get(f"/n26/authoring/slot/{choice.pk}/").content.decode()
+
+        assert f'value="{Picklist.objects.get(name="House Legacies").pk}"' in body
+        assert str(Picklist.objects.get(name="Affiliations").pk) not in body
+
+
+class TestTheAboutColumnPointsAtTheChoicePages:
+    """A sentence about a list or a choice leads to that row's page. The
+    compiler knows no URLs, so this is the half the view fills in — and
+    a sentence naming a kind with no page would quietly go flat."""
+
+    def test_an_options_page_leads_to_its_list_and_the_choice_offering_it(
+        self, author, client, legacy
+    ):
+        from n26.library.models import Pickable, Picklist, Slot
+
+        cawdor = Pickable.objects.get(name="Cawdor")
+        body = client.get(f"/n26/authoring/pickable/{cawdor.pk}/").content.decode()
+
+        assert "Listed in House Legacies." in body
+        assert f'href="/n26/authoring/picklist/{Picklist.objects.get().pk}/"' in body
+        assert f'href="/n26/authoring/slot/{Slot.objects.get().pk}/"' in body
+
+    def test_a_choices_page_says_what_it_asks_for(self, author, client, legacy):
+        from n26.library.models import Slot
+
+        choice = Slot.objects.get()
+        body = client.get(f"/n26/authoring/slot/{choice.pk}/").content.decode()
+
+        assert "Asks for one Gang Legacy, chosen from House Legacies." in body
+
+
+class TestALisOfOptions:
+    """A list's own page: what it offers, in order, and the two acts
+    that change it."""
+
+    def picklist(self):
+        from n26.library.models import Picklist
+
+        return Picklist.objects.get(name="House Legacies")
+
+    def test_it_lists_what_it_offers(self, author, client, legacy):
+        body = client.get(
+            f"/n26/authoring/picklist/{self.picklist().pk}/"
+        ).content.decode()
+
+        assert "Cawdor" in body
+        assert "Add an option" in body
+
+    def test_an_option_is_added_through_the_page(self, author, client, legacy):
+        from n26.library.authoring import create_pickable
+
+        escher = create_pickable("Escher", legacy)
+        houses = self.picklist()
+
+        client.post(
+            f"/n26/authoring/picklist/{houses.pk}/",
+            {"pickable": str(escher.pk), "label_override": "", "position": "1"},
+        )
+
+        assert [member.label for member in houses.members.all()] == ["Cawdor", "Escher"]
+
+    def test_only_this_domains_options_are_offered(
+        self, author, client, legacy, affiliation
+    ):
+        from n26.library.models import Pickable
+
+        body = client.get(
+            f"/n26/authoring/picklist/{self.picklist().pk}/"
+        ).content.decode()
+        elsewhere = Pickable.objects.get(name="Clanless")
+
+        assert f'value="{Pickable.objects.get(name="Cawdor").pk}"' in body
+        assert f'value="{elsewhere.pk}"' not in body
+
+    def test_an_option_is_taken_off_at_its_own_address(self, author, client, legacy):
+        from n26.library.models import Pickable, PicklistMember
+
+        member = PicklistMember.objects.get()
+        asked = client.get(
+            f"/n26/authoring/picklist-members/{member.pk}/remove/"
+        ).content.decode()
+
+        assert "Stop offering Cawdor?" in asked
+
+        client.post(f"/n26/authoring/picklist-members/{member.pk}/remove/")
+
+        assert not PicklistMember.objects.exists()
+        # The option itself is untouched — only what the list offers changed.
+        assert Pickable.objects.filter(name="Cawdor").exists()
+
+
 class TestKindHelp:
     """Each page explains what the kind *is* — sourced from the model's
     docstring, the same never-written rule the field help follows, one
@@ -1027,6 +1370,18 @@ class TestKindHelp:
         summary = kind_summary(_model_for(specs()[LEAF_KINDS[kind]]))
         assert summary.endswith("."), f"{kind}: not a sentence"
         assert len(summary) < 120, f"{kind}: too long for a menu row"
+
+    def test_the_emphasis_in_a_docstring_is_drawn_and_not_typed(self):
+        """A docstring is written for two readers and its emphasis is
+        for both. Left as punctuation, the page shows an author the
+        asterisks instead of the sentence they mark."""
+        from n26.library.models import Slot
+        from n26.library.views import kind_help
+
+        said = " ".join(kind_help(Slot))
+
+        assert "<strong>Hidden</strong>" in said
+        assert "**" not in said
 
     def test_the_menu_shows_the_definitions(self, author, client, default_pack):
         body = client.get("/n26/authoring/").content.decode()

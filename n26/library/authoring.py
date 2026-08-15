@@ -613,6 +613,16 @@ def add_picklist_member(picklist, pickable, label_override="", position=None, **
     )
 
 
+def remove_picklist_member(member):
+    """Stop offering one option on one list.
+
+    The option itself stays in the library and on every other list that
+    offers it; anyone who already picked it keeps it, because a pick is
+    an assignment and this is only what is offered next.
+    """
+    member.delete()
+
+
 def create_slot(
     name,
     slot_type,
