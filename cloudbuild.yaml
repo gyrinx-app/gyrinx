@@ -101,19 +101,18 @@ steps:
       # HTTP probe against the WSGI-level /healthz in gyrinx/wsgi.py, which only
       # answers once a gunicorn worker has fully imported the app. A TCP probe
       # passes as soon as the master binds the port, which lets Cloud Run send
-      # real traffic to workers that are still booting. Poll fast (2s) so a
-      # ready container starts serving promptly; failureThreshold 90 keeps the
-      # overall ceiling at ~3 minutes for a pathologically slow boot.
+      # real traffic to workers that are still booting.
+      #
+      # 2s polling so a ready container starts serving promptly, × 120 for a
+      # 240s ceiling — the same budget as the implicit TCP probe this replaces.
+      # `manage migrate` runs before gunicorn binds, so that ceiling is really
+      # the allowance for a long migration, and being killed and restarted
+      # midway through one is the worst version of this going wrong.
       #
       # The port is left off deliberately so it follows the container port. The
       # container binds $PORT, and pinning a number here would silently point
       # the probe at nothing if that ever changed — every deploy would then fail
       # to go ready with nothing naming the cause.
-      #
-      # 2s × 120 is a 240s ceiling, matching the implicit TCP probe this
-      # replaces. `manage migrate` runs before gunicorn binds, so the ceiling is
-      # really the budget for a long migration, and the worst moment to be
-      # killed and restarted is midway through one.
       - "--startup-probe=httpGet.path=/healthz,periodSeconds=2,timeoutSeconds=2,failureThreshold=120"
       - "--quiet"
     id: Deploy
