@@ -4,6 +4,14 @@ Companion to `n23-campaign-spec.md` (code-derived) and `n26-campaign-spec.md`
 (rules-derived). This document compares them and sets out the decisions that
 need your input.
 
+> **Superseded in part.** §5.1 below asks how much the app should compute rather
+> than record. That has since been answered: the generic system is the right
+> answer — Gyrinx informs, it doesn't police, and arbitrators improvise. See
+> **`platform-design.md`** for the follow-up, which asks the sharper question —
+> whether anything in n26 *undermines* the generic model — and sketches what the
+> platform for multiple campaign types looks like. The rest of this document
+> (the gap analysis, the rules holes, the smaller decisions) still stands.
+
 ---
 
 ## 1. The headline
