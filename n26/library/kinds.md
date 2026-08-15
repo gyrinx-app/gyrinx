@@ -102,7 +102,7 @@ Typically chosen; the offers-a-choice modifiers say "bearer", so it reaches the 
 
 *A kind of gang — Escher, Ironhead Squats — assigned to the gang at founding.*
 
-Fields of its own: an icon (stored artwork, drawn inline so it takes the text's colour; addresses resolve only against this site's storage).
+Fields of its own: an icon (stored artwork, drawn inline so it takes the text's colour; addresses resolve only against this site's storage); **starting credits** (a founding-budget override for gangs of this type); and **foundable** (whether a player may create one — off for a type that exists to be hired from or fought).
 
 Assignable for the same reason a profile is: founding is a gang-hosted assignment naming the type. That gives the gang's built-ins something to be caused by (the house list arrives this way), and gives gang-wide modifiers a carrier. Mostly overrides and extras — the fighter entries are profiles, and each entry's skill access rides that profile. Its pricing fields stay at zero; nobody buys a gang type.
 
@@ -120,13 +120,45 @@ The bundle mechanism: some printed rules are a side effect with no item behind t
 
 Fields of its own: **profile type** (Fighter or Vehicle — a closed set; Leader, Champion and Ganger are subtypes, not types), **gang type** (every profile belongs to one), and **offered for hire** (unticked for a model nobody hires directly — mostly that means a pet; an adds-a-model effect can still bring it in). It also takes option sets. Its statline shape follows its profile type. Its price is the fighter alone, to which its built-in sets' prices add at hire time.
 
+### Weapon
+
+*A weapon. Always has at least one firing line, the first of which is free.*
+
+Fields of its own: **slots** (weapon slots used on a card; asterisked weapons take 2) and a **statline shape** (SR, LR, Str, AP, L — set once on the weapon; every firing line reads it from there).
+
+A weapon's firing lines are assignables in their own right (WeaponProfile): the unnamed first line *is* the weapon, a named line is an ammo type, and buying one is an assignment hung off the weapon's assignment — so a stashed or reassigned weapon keeps its lines. Traits live on the lines, not the weapon; a weapon-level question ("has the Melee trait?") is derived from them.
+
+**Weapon accessories** — sights, suspensors, focusing crystals — are their own type: assigned to a *weapon* rather than a model, hanging off that weapon's assignment, their effects landing on its firing lines. The book's bracket restrictions ("Las Weapons Only", "Weapons Marked With * Only") are stored as data on the accessory, informing at browse and attach, policing nothing.
+
+### Wargear
+
+*Equipment that isn't a weapon — armour, grenades, pets, field gear.*
+
+Fields of its own: none — the shared set. It takes option sets (plain talons or razor-sharp). Carried by a model and priced like anything else. A thing that bolts onto a weapon is not wargear; that is a weapon accessory.
+
+### Skills and Powers
+
+*What a model has learned (skills) or manifests (powers), each homed in its set.*
+
+Fields of their own: none. A skill's set is its home category — the same catalogue every collection shares — and its D6 number in the book is its position within that category. A power is the same shape: its home is a category too, so it appears in the same fighter-sectioned views as the skill sets with no special casing (the book's own move: Wyrds treat the powers list as a Secondary Skill Set). A power's annotation carries what the book prints in brackets — "(Free), Continuous Effect" — never rules text.
+
+Both print on the card under their own headings. They arrive built in, given by a modifier, or chosen through an offered choice, and reach whoever holds them.
+
+### Other types
+
+- **Subtype** — *a model subtype: Leader, Ganger, Specialist, Mounted, Wyrd.* No fields of its own. Prints in the card's type line, and is what scopes match on ("Champion or Leader models").
+- **Trait** — *a weapon trait: Melee, Rapid Fire (1), Knockback (6+).* The parameter is the annotation, so Knockback (5+) and Knockback (6+) are two rows. Lives on firing lines, never on the weapon itself.
+- **Skill tree** — *"Agility" as a thing a gang can pick.* Most gangs never need one: a fixed skill set is just a category. Venators pick four and rank them, and a fact a gang owns has to be an assignment, which can only point at an assignable — this type fills that gap. Everything else about the set (its skills, where it sits for a fighter) belongs to the category. Chosen, so it takes no built-ins.
+- **Lasting effect** — *what the Lasting Injury and Lasting Damage tables deal out.* One type for both; the card calls it by the profile type's own word ("Injury" for fighters, "Damage" for vehicles). Recorded on all of a model's cards.
+- **Counter** — *a named tally a model keeps: XP, Kill Count.* The definition is content; who has one is ordinary assignment (XP rides fighter built-ins, with its opening value on the set's member — the 61 in "Starting XP 61"); the running value is player-side, changed only by tallying, which writes ledger events. The point of counters is that effects hang off values: "when XP is at least 5" reveals a promotion choice the moment the threshold is crossed, computed like everything else.
+
 ### Collection
 
 *A named list of content: an equipment list, a trading post, a menu.*
 
 One field of its own: **prices its entries** — turned off for a menu, where nothing is for sale and the entries are simply choices.
 
-It holds things two ways: manual **entry** (hand-picked rows, optionally at this list's own price) and **selectors** (sweeps like "every weapon", at their usual prices); an entry always beats a selector for the same item.
+It holds things two ways: manual **entry** (hand-picked rows, optionally at this list's own price, and optionally narrowed to who *this list* offers the item to — the "(Forge-born only)" case) and **selectors** (sweeps like "every weapon", at their usual prices); an entry always beats a selector for the same item.
 
 Collections arrive built into something (a profile's list, a gang type's) or given by a modifier. Reach: held by the gang, every fighter may browse it; held by or given to one model, theirs alone.
 
@@ -155,8 +187,9 @@ shared fields: name; annotation (printed in brackets after the name);
 qualifier (tells two same-named things apart for authors — a player never
 sees it); author help; price; Trade Point price; an exclusive flag
 (equipment-list only, never at the Trading Post); a home category (where
-it sorts in any list); built-ins (what arrives free with it); its
-modifiers.
+it sorts in any list); a position (its order within that category — a
+skill's D6 number in its set); built-ins (what arrives free with it);
+its modifiers.
 
 ### Category
 
@@ -210,6 +243,8 @@ settled by choosing a power)
 - an optional collection section that narrows what a picker shows
 - a **label** ("skill tree 1") naming the choice row on the card and picking which row it files into
 - **will be assigned to** — whether the chosen thing lands on the bearer or on the gang.
+
+(A minor third path exists: the code making the choice may name the host explicitly, which beats both — it is how a gang-carried offer that each fighter settles individually lands on the fighter who was clicked.)
 
 > Tom note: we probably want to extend these to support multiple different types
 
