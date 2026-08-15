@@ -6038,29 +6038,64 @@ class TestThePickersStillPostWhatTheySay:
         assert f'value="{rending.pk}"' in picker.group(0)
 
 
-class TestTheRecipes:
-    """The cookbook page: recipes.md rendered for authors, staff-only."""
+class TestTheDocumentation:
+    """The documentation section: the markdown files beside the views,
+    rendered for authors, staff-only."""
+
+    def test_the_index_names_both_pages_and_says_what_each_holds(
+        self, author, client, default_pack
+    ):
+        body = client.get("/n26/authoring/docs/").content.decode()
+        assert "/n26/authoring/docs/concepts/" in body
+        assert "/n26/authoring/docs/recipes/" in body
+        assert "Core Concepts" in body
+        assert "Recipes" in body
+        assert "one card per kind, with its fields and behaviour" in body
+
+    def test_the_library_index_points_at_the_documentation(
+        self, author, client, default_pack
+    ):
+        assert "/n26/authoring/docs/" in client.get("/n26/authoring/").content.decode()
 
     def test_an_author_reads_the_rendered_cookbook(self, author, client, default_pack):
-        body = client.get("/n26/authoring/recipes/").content.decode()
+        body = client.get("/n26/authoring/docs/recipes/").content.decode()
         assert "Corrupted gangs" in body
         # Rendered, not served raw: the markdown heading became a tag.
         assert "## Corrupted gangs" not in body
 
+    def test_an_author_reads_the_rendered_concepts(self, author, client, default_pack):
+        body = client.get("/n26/authoring/docs/concepts/").content.decode()
+        assert "Hiring" in body
+        assert "## Hiring" not in body
+        # The page names itself, whatever the file calls its own title.
+        assert re.search(r"<h1[^>]*>\s*Core Concepts", body)
+
     def test_the_file_title_yields_to_the_page_header(
         self, author, client, default_pack
     ):
-        """The file opens "# Recipes" so it reads whole as markdown; the
-        page supplies that heading itself, so exactly one is drawn."""
-        body = client.get("/n26/authoring/recipes/").content.decode()
+        """A file opens with its own title so it reads whole as markdown;
+        the page supplies that heading itself, so exactly one is drawn."""
+        body = client.get("/n26/authoring/docs/recipes/").content.decode()
         assert "<h1>Recipes</h1>" not in body
 
     def test_every_heading_is_an_anchor_that_links_to_itself(
         self, author, client, default_pack
     ):
-        body = client.get("/n26/authoring/recipes/").content.decode()
+        body = client.get("/n26/authoring/docs/recipes/").content.decode()
         assert '<h2 id="corrupted-gangs"><a href="#corrupted-gangs">' in body
         assert '<h3 id="the-choice"><a href="#the-choice">' in body
+
+    def test_the_concepts_headings_are_anchors_too(self, author, client, default_pack):
+        body = client.get("/n26/authoring/docs/concepts/").content.decode()
+        assert '<h2 id="hiring"><a href="#hiring">' in body
+
+    def test_the_contents_list_the_sections_of_the_page_being_read(
+        self, author, client, default_pack
+    ):
+        """The sidebar is built from the same walk as the anchors, so a
+        section named on it is a section the page can be scrolled to."""
+        body = client.get("/n26/authoring/docs/concepts/").content.decode()
+        assert 'href="#assignable-types"' in body
 
     def test_the_contents_nest_the_sections_under_their_recipe(
         self, author, client, default_pack
@@ -6074,16 +6109,24 @@ class TestTheRecipes:
         # Two sections sharing a name get their own addresses.
         assert contents[1]["children"][0]["slug"] == "inside-2"
 
-    def test_the_index_points_at_it(self, author, client, default_pack):
-        assert (
-            "/n26/authoring/recipes/" in client.get("/n26/authoring/").content.decode()
-        )
+    def test_the_cookbooks_own_address_still_leads_to_it(
+        self, author, client, default_pack
+    ):
+        """Links to the cookbook are out in the world, so its address
+        moves the reader on rather than dropping them."""
+        response = client.get("/n26/authoring/recipes/")
+        assert response.status_code == 301
+        assert response["Location"] == "/n26/authoring/docs/recipes/"
+
+    def test_a_page_nobody_wrote_is_not_found(self, author, client, default_pack):
+        assert client.get("/n26/authoring/docs/nonsense/").status_code == 404
 
     def test_a_plain_user_is_turned_away(self, client, default_pack):
         client.force_login(User.objects.create_user("cook"))
-        response = client.get("/n26/authoring/recipes/")
-        assert response.status_code == 302
-        assert "login" in response["Location"]
+        for address in ("/n26/authoring/docs/", "/n26/authoring/docs/recipes/"):
+            response = client.get(address)
+            assert response.status_code == 302
+            assert "login" in response["Location"]
 
 
 class TestTheAboutColumn:

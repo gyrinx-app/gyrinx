@@ -742,32 +742,71 @@ def index(request):
     return render(request, "authoring/index.html", {"families": families})
 
 
+#: The documentation the authoring pages carry: url slug → (title, the
+#: markdown file beside this module, the line the index reads). A page is
+#: prose in a file and a row here; there is no other machinery.
+DOCS = {
+    "concepts": (
+        "Core Concepts",
+        "kinds.md",
+        "What each kind is: one card per kind, with its fields and behaviour.",
+    ),
+    "recipes": (
+        "Recipes",
+        "recipes.md",
+        "Step-by-step walkthroughs of whole rulebook setups.",
+    ),
+}
+
+
 @staff_member_required
-def recipes(request):
-    """The cookbook: walkthroughs for building whole rulebook setups out
-    of the library's pieces.
-
-    The steps live in ``recipes.md`` beside this module and this page is
-    that file, rendered — so a recipe is edited as prose, reviewed as
-    prose, and never drifts from what the page shows. Written for
-    authors: the things to create and how to join them, no internals.
-    A recipe is added the day a setup's authoring flow is settled.
-    """
-    from pathlib import Path
-
-    source = (Path(__file__).parent / "recipes.md").read_text(encoding="utf-8")
-    rendered, contents = _recipe_page(source)
+def docs(request):
+    """What there is to read, and what each one holds."""
     return render(
         request,
-        "authoring/recipes.html",
-        {"recipes": mark_safe(rendered), "contents": contents},
+        "authoring/docs.html",
+        {
+            "pages": [
+                {"slug": slug, "title": title, "description": description}
+                for slug, (title, _, description) in DOCS.items()
+            ]
+        },
     )
 
 
-def _recipe_page(source):
-    """The recipes file rendered for its page, plus a table of contents.
+@staff_member_required
+def doc(request, slug):
+    """One documentation page: its markdown file, rendered.
 
-    The file opens with its own title so it reads whole as markdown; the
+    The prose lives beside this module, so a page is edited as prose,
+    reviewed as prose, and never drifts from what the page shows. The
+    cookbook is written for authors — the things to create and how to
+    join them; the concepts page states what each kind is.
+    """
+    from pathlib import Path
+
+    if slug not in DOCS:
+        raise Http404(f"No documentation page for {slug!r}")
+    title, filename, _ = DOCS[slug]
+    source = (Path(__file__).parent / filename).read_text(encoding="utf-8")
+    rendered, contents = _recipe_page(source)
+    return render(
+        request,
+        "authoring/doc.html",
+        {"title": title, "document": mark_safe(rendered), "contents": contents},
+    )
+
+
+def recipes(request):
+    """A second address for the cookbook, kept because links to it are
+    out in the world: it lands on the documentation page."""
+    return redirect("authoring-doc", slug="recipes", permanent=True)
+
+
+def _recipe_page(source):
+    """A documentation file rendered for its page, plus a table of contents.
+
+    Each file opens with its own title so it reads whole as markdown; the
     page supplies that heading itself, so the duplicate is dropped here.
     Every remaining heading gets an anchor and links to itself, and the
     contents nest the h3s under their h2 — one walk of the token stream

@@ -125,6 +125,21 @@ steps into that file.** The rules for what goes in it:
 - The maintainer reviews and edits this file directly — keep it prose
   they would happily rewrite, never generated output.
 
+## Core Concepts — what each kind is
+
+`kinds.md` (beside this file) is the second page of the documentation
+section, rendered staff-only at `/n26/authoring/docs/concepts/`; both
+are listed at `/n26/authoring/docs/`. It holds **fact-based specs of the
+kinds**: a short summary, the fields a kind has of its own, and its
+behaviour — how far it reaches and how it comes to be there.
+
+It is maintained exactly as the cookbook is. The maintainer reviews and
+edits it directly, so keep it prose they would happily rewrite. Say what
+a kind *is* rather than how the code arranges it, and when a kind gains
+a field or a behaviour, write that in.
+
+## Ingest — spreadsheets in, rows out
+
 Three stages: read (CSV → dicts), plan (→ an `IngestPlan` of frozen
 rows plus problems; reads the database, never writes), perform (executes
 exactly the plan, through the authoring verbs, in one transaction).

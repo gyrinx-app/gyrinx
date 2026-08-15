@@ -84,7 +84,19 @@ urlpatterns = [
     path("gangs/<str:pk>/print/", views.print_gang, name="n26-print"),
     path("design/", include("n26.designsystem.urls")),
     path("authoring/", authoring_views.index, name="authoring-index"),
-    # Before the kind routes: "recipes" would read as a kind slug.
+    # Before the kind routes: "docs" and "recipes" would read as kind slugs.
+    path(
+        "authoring/docs/",
+        authoring_views.docs,
+        name="authoring-docs",
+    ),
+    path(
+        "authoring/docs/<str:slug>/",
+        authoring_views.doc,
+        name="authoring-doc",
+    ),
+    # A second address for the cookbook, kept because links to it are
+    # out in the world: it redirects to the documentation page.
     path(
         "authoring/recipes/",
         authoring_views.recipes,

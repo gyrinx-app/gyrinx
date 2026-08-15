@@ -1,20 +1,31 @@
 {% extends "authoring/base.html" %}
 {% block head_title %}
-    Recipes
+    {{ title }}
 {% endblock head_title %}
 {% block nav_heading %}Authoring{% endblock nav_heading %}
 {% block content %}
-    <c-n26.page-header title="Recipes" />
+    <c-n26.page-header :title="title">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Content library</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-docs' %}">Documentation</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    {{ title }}
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+    </c-n26.page-header>
     {% comment %}
-    The whole page is one rendered document (n26/library/recipes.md) — the
-    view drops the file's own title, anchors every heading, and hands the
-    headings over as a contents list, so the sidebar and the anchors come
-    from one walk and cannot disagree. The prose component gives the body
-    the same typography as every other run of authored copy.
+    The whole page is one rendered document (a markdown file beside
+    n26/library/views.py) — the view drops the file's own title, anchors
+    every heading, and hands the headings over as a contents list, so the
+    sidebar and the anchors come from one walk and cannot disagree. The
+    prose component gives the body the same typography as every other run
+    of authored copy.
 
     The contents keep to a reading-width screen's left column and go with
     the flow on anything narrower: a long list of section names above the
-    document would be a page of chrome before the first recipe.
+    document would be a page of chrome before the first word of it.
     {% endcomment %}
     <div class="mt-6 grid items-start gap-8 lg:grid-cols-[15rem_minmax(0,1fr)]">
         <aside class="hidden lg:block">
@@ -32,7 +43,7 @@
             </c-ui.navlist>
         </aside>
         <c-n26.prose>
-            {{ recipes }}
+            {{ document }}
         </c-n26.prose>
     </div>
 {% endblock content %}

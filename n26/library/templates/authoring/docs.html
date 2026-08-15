@@ -1,0 +1,30 @@
+{% extends "authoring/base.html" %}
+{% block head_title %}
+    Documentation
+{% endblock head_title %}
+{% block nav_heading %}Authoring{% endblock nav_heading %}
+{% block content %}
+    <c-n26.page-header title="Documentation">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Content library</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Documentation
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+    </c-n26.page-header>
+    {% comment %}
+    A name and a line saying what is inside it, so an author can tell the
+    two apart without opening either. Each page is one markdown file, and
+    the line here is the only place it is described.
+    {% endcomment %}
+    <ul class="mt-8 flex flex-col gap-4">
+        {% for page in pages %}
+            <li>
+                <c-n26.link href="{% url 'authoring-doc' page.slug %}">{{ page.title }}</c-n26.link>
+                <p class="text-muted">{{ page.description }}</p>
+            </li>
+        {% endfor %}
+    </ul>
+{% endblock content %}
