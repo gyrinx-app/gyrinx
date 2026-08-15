@@ -748,7 +748,7 @@ def index(request):
 DOCS = {
     "concepts": (
         "Core Concepts",
-        "kinds.md",
+        "concepts.md",
         "What each kind is: one card per kind, with its fields and behaviour.",
     ),
     "recipes": (

@@ -1,7 +1,16 @@
 # N26 Core Types
 
-Fact-based specs: a summary under fifteen words, the fields a type has of
-its own, and its behaviour — reach and how it arrives.
+This should give you a solid grounding in how Gyrinx N26 fits together.
+
+If you take nothing else away:
+
+1. **To control who gets a thing, control where it lands — don't look for a per-type switch.** Want it gang-wide? Build it into the gang type, or have a choice whose "will be assigned to" field is "the gang". Want it on one model? Build it into the profile, or pick "the bearer". There is no "make this broadcast" setting on an archetype or a rule — reach is entirely a consequence of the **host**, so you aim content by choosing its arrival route.
+
+2. **Behaviour is always a modifier on a carrier — and modifiers are shared, so edit with care.** A rule, an archetype, an affiliation are just names; everything they do rides them as modifiers (scope + effect, conditions ANDed). Two practical consequences: to make content do something, attach the modifier to the thing that should carry it; and before editing an existing modifier, check its carriers — the change lands everywhere it's attached. Know the two effect families: computed effects (gives, takes away, stat changes, choices, placements, limits) come and go with their carrier and are safe to rework; written effects (brings a model, moves a counter) happen once and won't undo — author those as one-way doors.
+
+3. **Being in a collection and being offered from a section of it are two separate authoring acts.** Entries and sweeps decide **membership** of the collection; **placement** decides whether a particular category appears. If you narrow a choice "from section: Primary" and the skill's category hasn't been placed into Primary for that fighter, it will not be offered — it's sitting in "Other". So a working "choose a Primary skill" needs both halves authored: the content in the collection, and a placement putting its category in that section for the right models.
+
+4. **Use qualifiers and help text**. Assignables come with a qualifier is that is internal, for telling twins apart and disambiguation, and library text shows up next to objects in most places. Use it to make things clearer.
 
 ## Assignment
 

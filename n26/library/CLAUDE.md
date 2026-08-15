@@ -127,7 +127,7 @@ steps into that file.** The rules for what goes in it:
 
 ## Core Concepts — what each kind is
 
-`kinds.md` (beside this file) is the second page of the documentation
+`concepts.md` (beside this file) is the second page of the documentation
 section, rendered staff-only at `/n26/authoring/docs/concepts/`; both
 are listed at `/n26/authoring/docs/`. It holds **fact-based specs of the
 kinds**: a short summary, the fields a kind has of its own, and its
