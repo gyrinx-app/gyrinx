@@ -1,0 +1,159 @@
+# Slots and Picks
+
+A choice a holder makes from a curated list of options, where new domains of
+choice are authored, never coded. Supersedes the Hidden-carrying-an-offer
+pattern; first use is Gang Legacy. Migrating the existing chosen kinds
+(Affiliation, Archetype, SkillTree, Specialisation) is deliberately out of
+scope for the first build — the sandbox proves they *could* migrate.
+
+Vocabulary: it is always a **choice**, never a question. A slot's **label**
+is what the card calls its choice row. A built-in naming a slot and its
+starting pickable is a **slot-with-default**.
+
+## The types
+
+| Type | Summary | Fields of its own | Behaviour |
+|---|---|---|---|
+| **Slot type** | The domain of a choice: Gang Legacy, Affiliation, Archetype. | name, plural, allows repeats | A top-level entry in the content library: its authoring page lists its pickables, picklists and slots. Ties slot, picklist and pickables together; a mismatch is refused at authoring time. |
+| **Pickable** | One option: Cawdor. A named value that carries modifiers. | slot type — plus the shared assignable set (name, annotation, modifiers…) | Never draws a row of its own; it appears only under an assigned slot's choice row. **Without its slot present it shows nothing and its modifiers do not run.** Arrives chosen, or given, or as a slot-with-default's starting value — never as a bare built-in (the authoring form refuses one in words). |
+| **Picklist** | A flat, ordered list of pickables of one slot type. | name, slot type; members with an optional label override | No sections, no placement, no prices. The options behind a choice, nothing else. |
+| **Slot** | A named use of a slot type: (type, picklist, config). | slot type, picklist, **label**, min picks, max picks, **assigned to** (bearer or the gang — where the pick lands), **hidden**, position | An assignable. Its assignment puts the choice on its host, and the card draws its label with the pick(s) or a Choose control. The choice row draws **only on the host's card** — broadcast applies modifiers and never draws rows. A hidden slot draws nothing at all: the bundle mechanism, replacing the Hidden kind's second job. |
+| **Pick** | Not a type — the chosen pickable's assignment. | `chosen_for` → the slot's **assignment** (not the slot row), so repeated slots of one type stay independent | Host per the slot's *assigned to*; cause = the slot's assignment, so removing the slot removes the pick and everything the pickable gives. On the ledger free; carries provenance like any assignment. |
+
+Built-ins may name **a slot** (the choice arrives open) or **a
+slot-with-default** (arrives already chosen, changeable by the ordinary
+rechoose). A built-in naming a bare pickable is refused: a pickable without
+its slot is invisible and inert, so building one in can only be a mistake.
+
+## Rules
+
+- A slot, its picklist, and every member share one slot type; authoring
+  refuses a mismatch.
+- Choosing writes an ordinary assignment: assignable = the pickable, host
+  per the slot's *assigned to*, cause = the slot's assignment, `chosen_for`
+  = the slot's assignment. Resolution reads `chosen_for`; nothing is
+  inferred by kind-matching.
+- The number of picks a slot holds sits between its min and max. Under-min
+  is a note on the card ("Gang Legacy — 0 of 1 chosen"), never a refusal.
+  The picker stops offering at max.
+- Where a slot type refuses repeats: the picker marks options already
+  chosen for another slot of that type on the holder, and the card notes a
+  duplicate ("Agility is chosen for both skill tree 1 and skill tree 3").
+  Marks and notes, never locks — the one hard refusal in the app remains
+  the founding budget.
+- The narrowing informs and never polices: an owner may still hand over an
+  off-list pickable of the right slot type.
+- Scopes gain one condition: **has this pickable** — "models with the
+  Cawdor pick" — one condition serving every slot type ever authored.
+  Effects gain nothing: a pickable's payload is ordinary gives, and a
+  pickable may give a further **slot** (the chained choice: picking Clan
+  House opens the House choice; un-choosing retracts the chain through
+  cause).
+- Reach beyond the bearer is **positive inclusion**, which the grammar
+  already says: the rulebook's one gang-level archetype effect reads "if
+  the Leader has the Mutant Archetype, then Outcast Mutations will also
+  be available to Hive Scum in their gang" — a named rank added, never a
+  rank excluded. No negation mechanism is needed; an earlier draft's
+  "every model except Champions" was not in the rules.
+
+## Example A — Gang Legacy (Apocrypha: Bonedry and Broke, p7)
+
+Slot type *Gang Legacy* (repeats: no). Eight pickables — Cawdor, Delaque,
+Escher, Goliath, Orlock, Van Saar, Ironhead Squat, Ogryn — each carrying
+one modifier: *gives* the named fighter's equipment list *to the bearer*
+(Cawdor gives the Cawdor Word-Keeper list; purchases at that list's own
+prices). **Three picklists, keyed by profile family** — no fighter may
+ever choose from all eight:
+
+- *House Legacies* — the six House options, on House profiles' slots
+- *Ogryn Legacy* — one member, on Ogryn profiles' slots
+- *Squat Legacy* — one member, on Ironhead Squat profiles' slots
+
+Three Slots share the type, one per picklist, each (label "Gang Legacy",
+1..1, assigned to bearer), built into the matching profiles. Ratling and
+Beastman profiles carry no slot at all. A one-member picklist is still a
+choice — the rules say *may select*, so nothing is pre-written.
+
+Kaustos, hired from a House profile, chooses Cawdor:
+
+    [Hunter profile]    host = the gang   cause = —               (the hire)
+    [Gang Legacy slot]  host = Kaustos    cause = the membership
+    [Cawdor]            host = Kaustos    cause = the slot's assignment
+                        chosen_for = the slot's assignment
+    (no row)            Cawdor Word-Keeper equipment list — computed give,
+                        on his equip page at that list's own prices
+
+Grounded but out of the first build, recorded so the suites can note
+them: the list is recruitment-time access (a note, never a gate); Leaders
+and Champions may also buy their legacy's Status Items and Exotic Beasts
+(rank-scoped gives); and "if a Venator gang's Leader has a Gang Legacy
+then the gang may claim Enhanced Boons" — a gang-level consequence of a
+bearer-hosted pick, which wants the has-this-pickable condition read at
+gang level and is flagged as follow-on design.
+
+## Example B — the Affiliation shape (Book of the Outcast, p17-19)
+
+Slot type *Affiliation*. The five pickables: Clanless (a deliberately
+empty payload — grants nothing, a clean test case), Clan House, Merchant
+Guild, Criminal Organisation, Noble House. Picklist *Affiliations*. One
+Slot: (*Affiliation*, *Affiliations*, label "Affiliation", 1..1,
+**assigned to the gang**), built into the **Leader profile** — the rules
+say the Leader chooses at creation and the effects are gang-wide, so the
+choice row draws on the Leader's card and the pick lands on the gang.
+The same leader-chooses, gang-holds shape as the archetype.
+
+Chained — four of the five open a second choice: each of Clan House,
+Merchant Guild, Criminal Organisation and Noble House gives another Slot
+of its own slot type (label "House", "Guild", "Organisation"…), whose
+picklist holds that family's options. Un-choosing the first retracts the
+chain. Tests must not pin the sub-list lengths — the FAQ has already
+grown two of them.
+
+The grounded slot-with-default case lives here: a **Delegation** gang's
+Leader "must be given an Affiliation to match their Delegation type" —
+the Delegation leader profile carries the slot-with-default naming its
+matching affiliation.
+
+## Example C — the Archetype shape (Book of the Outcast, p18 and p26)
+
+Slot type *Archetype* (repeats allowed — a Leader and a Champion may both
+be Brawlers). Two Slots over one type, and **two pickable sets**, because
+the same archetype name carries a different skill grid at each rank
+(Brawler-as-Leader places three primary sets; Brawler-as-Champion one):
+
+- (*Archetype*, *Leader Archetypes*, label "Archetype", 1..1, assigned to
+  **bearer**) — built into the leader profile. The core payload is the
+  bearer's own skill access. The one genuine gang-level effect is
+  Mutant's, expressed as a positive inclusion: the Mutant pickable's
+  extra give is scoped *to Hive Scum models* and assigned to the gang —
+  wanting the leader-hosted pick to carry a gang-reaching give, the
+  case that grounds gives with their own landing spot.
+- (*Archetype*, *Champion Archetypes*, label "Archetype", 1..1, assigned
+  to bearer) — built into champion profiles. Same type, its own picklist,
+  its own pickables.
+
+Flagged, not built: Mutant's cross-slot constraint ("a Leader that takes
+the Mutant Archetype can only have the Clanless Affiliation") has no
+machinery; it is a note candidate for later.
+
+## Out of scope
+
+- Migrating Affiliation, Archetype, SkillTree, Specialisation. The sandbox
+  suites prove the shapes; the migrations come later, one kind at a time.
+- Replacing Hidden's bundle job in existing content (hidden slots make it
+  possible; nothing moves yet).
+- Any change to purchase-time option groups, which keep the word "pick"
+  for their own act. On these pages the act is *choose*; the noun Pick
+  names the resulting assignment.
+
+## Phasing
+
+0. This document.
+1. Fix the noted defects in the existing choice machinery that this build
+   subsumes: same-kind resolution inference, the duplicate note's
+   gang-card-only reach, the picker not marking taken options.
+2. The types, wiring, engine and authoring; Gang Legacy end to end.
+3. Sandbox suites for Examples A, B, C, grounded in the rulebook text.
+4. Later, separately: migrations of the existing chosen kinds; retiring
+   the replaced wirings; the broadcast-machinery clarity work (queued as
+   its own conversation).
