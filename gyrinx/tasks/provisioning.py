@@ -193,8 +193,8 @@ def _update_subscription_tolerating_conflict(
     Where the two writers are different revisions, though, they can be writing
     *different* config — and silently giving up would leave the subscription on
     the other revision's settings. So once the retries are exhausted, read the
-    subscription back and check: matching config is a WARNING, genuinely
-    divergent config is an ERROR worth chasing.
+    subscription back and say which of the two happened. Both are WARNINGs; the
+    `task_provisioning_diverged` metric is what distinguishes them for alerting.
     """
     desired = {
         "name": subscription_path,
