@@ -1360,7 +1360,7 @@ DETAIL_RELATED = {
             "is never put in front of a player."
         ),
         "nothing_yet": ("No slot draws on this picklist yet, so nothing offers it."),
-        "rows": lambda picklist: picklist.slots.all(),
+        "rows": lambda picklist: picklist.slots.select_related("picklist"),
         "notes": _slot_terms,
     },
 }

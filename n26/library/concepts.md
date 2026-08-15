@@ -219,7 +219,7 @@ No sections, no placements, no prices — where a collection is a catalogue, thi
 
 Fields of its own: its **slot type** and **picklist**; the **label** the card calls the choice by; **min** and **max picks**; **assigned to** (whether the pick lands on the bearer or on the gang); **hidden**; and a position among the slots on one card.
 
-Assigning one is what puts the choice on a card — built into a profile, given by a modifier, or brought by an option when something is bought. The card draws the label with what has been picked, or a control to pick, on the holder's own card and nowhere else: a choice the gang holds is asked once rather than on every fighter. Fewer picks than the minimum is a note on the card, never a refusal, and the picker stops offering at the maximum. A choice of one is answered by picking, and picking again replaces the answer; a choice of several is made a pick at a time, each pickable on the picker adding or taking back its own — full, it offers the rest again once one has been taken back. A choice of nought asks nothing. **Hidden** draws no choice row at all while what is picked still applies, which is how several things arrive together under one name.
+Assigning one is what puts the choice on a card — built into a profile, given by a modifier, or brought by an option when something is bought. The card draws the label with what has been picked, or a control to pick, on the holder's own card and nowhere else: a choice the gang holds is asked once rather than on every fighter. Fewer picks than the minimum is a note on the card, never a refusal (no page prints these notes yet), and the picker stops offering at the maximum. A choice of one is settled by picking, and picking again replaces the pick; a choice of several is made a pick at a time, each pickable on the picker adding or taking back its own — full, it offers the rest again once one has been taken back. A choice of nought asks nothing. **Hidden** draws no choice row at all while what is picked still applies, which is how several things arrive together under one name.
 
 ### Picks
 
@@ -231,7 +231,7 @@ Choosing writes an ordinary assignment — the pickable, hosted where the slot s
 
 A pick the gang holds is a fact about every model in it: a rule reaching "models with the Cawdor legacy" reaches them all, the fighter who was asked included.
 
-Where the slot type takes one pickable once, the picker marks the pickables already spent on another slot, and the card says when one pickable has answered two. Marks and notes, never locks: the narrowing informs, and an owner may still hand over a pickable no picklist offered.
+Where the slot type takes one pickable once, the picker marks the pickables already spent on another slot, and the card notes when one pickable is picked for two (no page prints these notes yet). Marks and notes, never locks: the narrowing informs, and an owner may still hand over a pickable no picklist offered.
 
 ---
 
