@@ -771,17 +771,37 @@ class TestOneLineAskingTwice:
         assert settled["Secondary role"].chosen_name == "Marksman"
         assert_reconciled(gang)
 
-    def test_a_pick_naming_no_question_is_still_read(self, gang, twice_asked, skills):
+    def test_a_pick_naming_no_question_settles_one_and_only_one(
+        self, gang, twice_asked, skills
+    ):
         """A pick written before questions could be named: the offers'
         own selectors are all there is to go on, so it settles the first
-        that matches rather than nothing at all."""
+        that matches rather than nothing at all — and only that one, so
+        the other question is still there to be answered."""
         vex = hire(gang, twice_asked, "Vex")
         rows = self.rows(vex)
 
-        choose(rows["Primary role"].anchor.assignment, skills["Berserker"])
+        choose(rows["Primary role"].anchor.assignment, skills["Marksman"])
 
-        assert (
-            Assignment.objects.get(skill=skills["Berserker"]).chosen_for_offer is None
-        )
-        assert self.rows(vex)["Primary role"].chosen_name == "Berserker"
+        assert Assignment.objects.get(skill=skills["Marksman"]).chosen_for_offer is None
+        settled = self.rows(vex)
+        # Marksman is on both menus, so both questions could claim it.
+        assert settled["Primary role"].chosen_name == "Marksman"
+        assert settled["Secondary role"].chosen_name is None
+        assert_reconciled(gang)
+
+    def test_an_unnamed_pick_leaves_the_other_question_answerable(
+        self, gang, twice_asked, skills
+    ):
+        """And the question it left open still answers for itself."""
+        vex = hire(gang, twice_asked, "Vex")
+        rows = self.rows(vex)
+        choose(rows["Primary role"].anchor.assignment, skills["Marksman"])
+
+        open_row = self.rows(vex)["Secondary role"]
+        choose(open_row.anchor.assignment, skills["Parry"], offer=open_row.offer)
+
+        settled = self.rows(vex)
+        assert settled["Primary role"].chosen_name == "Marksman"
+        assert settled["Secondary role"].chosen_name == "Parry"
         assert_reconciled(gang)

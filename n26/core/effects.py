@@ -1386,12 +1386,19 @@ def _fill_choice_slots(computed, offers, by_cause):
     What is chosen is stored as an assignment caused by the carrier's, and
     it names the question it answers — which is what keeps two choices of
     one kind on one line apart, a primary role and a secondary one being
-    settled by the same sort of thing. A pick naming no question is read
-    the only way left: the first offer whose selector matches it, which is
-    right wherever the line asks once and a guess wherever it asks twice.
+    settled by the same sort of thing.
+
+    A pick naming no question is read the only way left: the first offer
+    whose selector matches it takes it, and no other offer may. One answer
+    settles one question however it was written, so a line asking twice
+    with a single such pick has one question settled and one still open to
+    be answered, rather than two reading as answered from one click.
     """
     from n26.core import select
 
+    #: Answers already spoken for, so an unnamed one cannot settle a
+    #: second question as well.
+    claimed = set()
     for effect, source, source_kind, anchor in offers:
         resolved = None
         if anchor is not None:
@@ -1400,9 +1407,12 @@ def _fill_choice_slots(computed, offers, by_cause):
                 if node.chosen_for_offer_id is not None:
                     if node.chosen_for_offer_id != effect.pk:
                         continue
-                elif not selector.matches(select.matchable(node.assignable)):
+                elif node.key in claimed or not selector.matches(
+                    select.matchable(node.assignable)
+                ):
                     continue
                 resolved = node
+                claimed.add(node.key)
                 break
         computed.choices.append(
             ChoiceSlot(
