@@ -101,6 +101,32 @@ class TestTheStoryReadsPlainly:
         act = act_saying(gang, "returned Ganger for a refund")
         assert act.credits == 55
 
+    def test_what_went_with_a_refund_folds_beneath_it(self, gang, vex):
+        """Refunding the fighter takes his built-ins with him — one
+        line, not one per thing that rode along."""
+        refund(vex.membership, actor=gang.owner)
+        act = act_saying(gang, "returned Ganger for a refund")
+        assert {sub.name for sub in act.subs} == {"Loner", "Grit"}
+        assert not any("removed Loner" in line for line in sentences(gang))
+
+    def test_a_paid_firing_line_leaves_in_the_story_too(self, gang, vex):
+        """A free firing line is the weapon's own and never a line; a
+        bought one is money in the books, so it is named when it goes."""
+        from n26.library.authoring import add_weapon_profile
+        from n26.tests.sandbox.actions import buy_weapon_profile, sell
+
+        weapon = create_weapon("Autogun", profiles=[("Rapid fire", 0)], price=30)
+        blaze = add_weapon_profile(weapon, "Blaze rounds", price=15)
+        with edit(gang) as op:
+            held = op.assign(weapon, miniature=vex, paid=30)
+        buy_weapon_profile(held, blaze, actor=gang.owner)
+        act_saying(gang, "bought Blaze rounds")
+        sell(held, actor=gang.owner)
+        sold = act_saying(gang, "sold Autogun")
+        names = {sub.name for sub in sold.subs}
+        assert any("Blaze rounds" in name for name in names)
+        assert not any("Rapid fire" in name for name in names)
+
     def test_the_founding_folds_what_the_gang_type_brings(self, gang_type, owner):
         add_built_in(gang_type, create_rule("Law of the Blade"))
         gang = found_gang("The Blades", gang_type, owner=owner)
@@ -181,6 +207,43 @@ class TestUndoingReadsAsUndoing:
         assert turns == {"Agile": "removed", "Mounted": "back"}
 
 
+class TestWhenAGrantArrivesLater:
+    """A grant folds under its own act, never a different day's."""
+
+    def test_a_grant_in_a_later_act_is_its_own_line(self, gang, vex):
+        """Settled weeks after the hire, it belongs to its own date —
+        not folded back under the hire as if it had always been there."""
+        skill = create_rule("Ferocity")
+        with edit(gang) as op:
+            op.assign(
+                skill,
+                miniature=vex,
+                caused_by=vex.membership,
+                kind=history.Kind.GRANTED,
+            )
+        act = act_saying(gang, "gained Ferocity on Vex")
+        hired = act_saying(gang, "hired Vex")
+        assert "Ferocity" not in {sub.name for sub in hired.subs}
+        assert act.when > hired.when
+
+    def test_an_unmarked_grant_still_folds_through_its_cause(self, gang, vex):
+        """Records from before acts carried a mark: the recorded cause
+        is all there is, and it is enough."""
+        from n26.core.models import LedgerEvent
+
+        skill = create_rule("Ferocity")
+        with edit(gang) as op:
+            op.assign(
+                skill,
+                miniature=vex,
+                caused_by=vex.membership,
+                kind=history.Kind.GRANTED,
+            )
+        LedgerEvent.objects.update(batch=None)
+        hired = act_saying(gang, "hired Vex")
+        assert "Ferocity" in {sub.name for sub in hired.subs}
+
+
 class TestWhatAnActSaysAboutItself:
     """Who did it, what it was called before, which cell moved."""
 
@@ -206,6 +269,21 @@ class TestWhatAnActSaysAboutItself:
             op.set_stats(vex, form.changes())
         act = act_saying(gang, "set Vex's WS to 2+")
         assert "2+" in act.note
+
+    def test_a_cleared_characteristic_says_which(self, gang, vex):
+        from n26.core.forms import statline_override_form_for
+
+        form_class = statline_override_form_for(vex.membership.profile)
+        form = form_class.opened_on(vex, {"statline-weapon_skill": "2+"})
+        assert form.is_valid(), form.errors
+        with edit(gang) as op:
+            op.set_stats(vex, form.changes())
+        form = form_class.opened_on(vex, {"statline-weapon_skill": ""})
+        assert form.is_valid(), form.errors
+        with edit(gang) as op:
+            op.set_stats(vex, form.changes())
+        act = act_saying(gang, "cleared Vex's WS")
+        assert "prints again" in act.note
 
 
 class TestThePageIsTheOwners:

@@ -28,7 +28,8 @@ from dataclasses import dataclass, field
 
 from django.urls import reverse
 
-from n26.core.models import Assignment, LedgerEvent
+from n26.core.effects import kind_of
+from n26.core.models import Assignment, LedgerEvent, Reason
 
 Kind = LedgerEvent.Kind
 
@@ -63,6 +64,13 @@ class Sub:
     kind: str = ""
     note: str = ""
 
+    @property
+    def detail(self):
+        """What follows the name, ready to draw — either part may be
+        empty, and a rider whose kind the page never names shows only
+        which way it went."""
+        return ", ".join(part for part in (self.kind, self.note) if part)
+
 
 @dataclass
 class Act:
@@ -88,9 +96,10 @@ class Act:
 
     @property
     def search(self):
-        words = [span.text for span in self.spans]
-        words += [sub.name for sub in self.subs]
-        words.append(self.note)
+        # Spans carry their own spacing — joined with nothing, so a
+        # phrase that crosses a span boundary still matches.
+        told = "".join(span.text for span in self.spans)
+        words = [told, *(sub.name for sub in self.subs), self.note]
         return " ".join(words).casefold()
 
 
@@ -98,21 +107,31 @@ def build(gang, viewer=None):
     """Every act in this gang's history, oldest first.
 
     ``viewer`` names who is reading: their own acts say "You", anyone
-    else's say the actor's name. Three queries whatever the length —
-    the events, their records, and nothing per row.
+    else's say the actor's name. A fixed number of queries whatever the
+    length — the events, their records, the living — and nothing per
+    row.
     """
+    from n26.core.models import Miniature
+
     events = list(
         gang.ledger_events.select_related("miniature", "actor").order_by(
             "created", "id"
         )
     )
     rows = _rows_for(events)
+    # The history keeps the dead, but only the living have a page to
+    # link to — a departed model's name reads as words.
+    alive = set(
+        Miniature.objects.filter(
+            membership__gang=gang, membership__archived=False
+        ).values_list("pk", flat=True)
+    )
     acts = []
-    #: Where each thing's opening act landed, so what it caused can fold
-    #: under it rather than stand beside it.
+    #: Where each thing's opening act landed, so an old record's grant
+    #: can fold under it rather than stand beside it.
     act_of = {}
     for cluster in _clusters(events):
-        _tell_cluster(cluster, rows, acts, act_of, viewer)
+        _tell_cluster(cluster, rows, acts, act_of, viewer, alive)
     return acts
 
 
@@ -142,13 +161,21 @@ def _clusters(events):
     return grouped
 
 
-def _tell_cluster(cluster, rows, acts, act_of, viewer):
+def _tell_cluster(cluster, rows, acts, act_of, viewer, alive):
     """Turn one operation's events into acts, folding what folds.
 
-    A grant folds under the act of what caused it. Its cause usually
-    arrives in the same operation, written first but told last — so a
-    grant whose cause is here waits until the cluster's acts exist,
-    and only a grant whose cause never earns an act stands alone.
+    A rider folds under the act of the thing it rode: a grant under
+    what caused it, a cascaded removal, refund or sale under the thing
+    that took its subtree with it. The ridden thing's event arrives in
+    the same operation, written first but told last — so a rider waits
+    until the cluster's acts exist, and only one whose ride never earns
+    an act stands alone.
+
+    An unmarked grant may also fold under an act clusters back, through
+    its recorded cause: without the mark, its own group of one says
+    nothing about whose act it was. A *marked* grant never reaches back
+    — one that arrives without its cause (a choice settled later) is
+    its own act, on its own day.
     """
     here = {e.assignment_id for e in cluster if e.assignment_id is not None}
     standing = []
@@ -157,63 +184,92 @@ def _tell_cluster(cluster, rows, acts, act_of, viewer):
         row = rows.get(e.assignment_id)
         if _machinery(e, row):
             continue
-        if e.kind == Kind.GRANTED and row is not None:
-            home = act_of.get(row.caused_by_id)
-            if home is not None:
-                home.subs.append(Sub(name=_name(row), kind=_kindword(row)))
-                act_of.setdefault(row.pk, home)
+        ride = _rides(e, row)
+        if ride is not None:
+            if ride in here:
+                waiting.append((e, row, ride))
                 continue
-            if row.caused_by_id in here:
-                waiting.append((e, row))
-                continue
+            if e.kind == Kind.GRANTED and e.batch is None:
+                home = act_of.get(ride)
+                if home is not None:
+                    home.subs.append(Sub(name=_name(row), kind=_kindword(row)))
+                    act_of.setdefault(row.pk, home)
+                    continue
         standing.append((e, row))
 
-    if _one_edit_of_what_a_model_is(standing, rows):
-        act = _edits_as_one(standing, rows, viewer)
+    #: This cluster's act per record, so a rider folds under what its
+    #: thing did *here* — never under the act that first acquired it.
+    local = {}
+    if _one_edit_of_what_a_model_is(standing):
+        act = _edits_as_one(standing, viewer, alive)
         acts.append(act)
         for _, row in standing:
             if row is not None:
+                local[row.pk] = act
                 act_of.setdefault(row.pk, act)
     else:
         for e, row in standing:
-            act = _one_act(e, row, viewer)
+            act = _one_act(e, row, viewer, alive)
             acts.append(act)
-            if row is not None and e.kind in {
-                Kind.PURCHASED,
-                Kind.ADDED,
-                Kind.GRANTED,
-            }:
-                act_of.setdefault(row.pk, act)
+            if row is not None:
+                local[row.pk] = act
+                if e.kind in {Kind.PURCHASED, Kind.ADDED, Kind.GRANTED}:
+                    act_of.setdefault(row.pk, act)
 
-    # Causes come before their effects in the log, so a chain of grants
-    # settles in one pass: each finds its cause's act already mapped.
-    for e, row in waiting:
-        home = act_of.get(row.caused_by_id)
+    # Ridden things come before their riders in the log, so a chain
+    # settles in one pass: each rider finds its ride already mapped.
+    # A rider's own money lands on the act it folds under — one sale,
+    # one line, the whole of what moved.
+    for e, row, ride in waiting:
+        home = local.get(ride)
         if home is None:
-            acts.append(_one_act(e, row, viewer))
+            acts.append(_one_act(e, row, viewer, alive))
             continue
         home.subs.append(Sub(name=_name(row), kind=_kindword(row)))
-        act_of.setdefault(row.pk, home)
+        home.credits += -e.credits_delta
+        home.rating += e.rating_delta
+        local.setdefault(row.pk, home)
+        if e.kind == Kind.GRANTED:
+            act_of.setdefault(row.pk, home)
+
+
+def _rides(e, row):
+    """What this event rode in on: the record whose act it folds under,
+    or None where it stands for itself."""
+    if row is None:
+        return None
+    if e.kind == Kind.GRANTED:
+        return row.caused_by_id
+    if e.kind in {Kind.REMOVED, Kind.REFUNDED, Kind.SOLD} and not row.removes:
+        return row.parent_id or row.caused_by_id
+    return None
 
 
 def _machinery(e, row):
     """True for records a player never saw a thing for.
 
-    A bookkeeping entry has no name a player recognises; a weapon's
-    firing line is the weapon's own and folds into it wordlessly. Only
-    the free kind is silent — money is always shown, whatever it
-    bought.
+    A bookkeeping carrier has no name a player recognises; a weapon's
+    own firing line folds into the weapon wordlessly. A *paid* firing
+    line is the exception in every event it has — bought in the story,
+    it must also leave in it — so the test is what its record says was
+    ever priced, not what this one event moved.
     """
     if row is None:
         return False
     if row.hidden_id is not None:
         return True
-    return row.weapon_profile_id is not None and e.credits_delta == 0
+    if row.weapon_profile_id is None:
+        return False
+    entry = getattr(row, "ledger_entry", None)
+    return entry is None or entry.list_price == 0
 
 
-def _one_edit_of_what_a_model_is(standing, rows):
-    """True when one operation's records are all edits of one model's
-    subtypes and rules — the shape a section save or reset writes."""
+def _one_edit_of_what_a_model_is(standing):
+    """True when one operation's records are all the owner's own edits
+    of one model's subtypes and rules — the shape a section save or
+    reset writes. The reason is required: choices and grants can move
+    the same kinds in one breath, and those are not the owner saying
+    what a model is."""
     if len(standing) < 2:
         return False
     models = set()
@@ -222,11 +278,14 @@ def _one_edit_of_what_a_model_is(standing, rows):
             return False
         if e.kind not in {Kind.ADDED, Kind.TOOK_AWAY, Kind.REMOVED}:
             return False
+        entry = getattr(row, "ledger_entry", None)
+        if entry is None or entry.reason != Reason.EDITED:
+            return False
         models.add(row.miniature_root_id or row.miniature_id)
     return len(models) == 1
 
 
-def _edits_as_one(standing, rows, viewer):
+def _edits_as_one(standing, viewer, alive):
     """Several same-breath edits of what one model is, as one line."""
     first, first_row = standing[0]
     model = first_row.miniature_root or first_row.miniature
@@ -237,7 +296,7 @@ def _edits_as_one(standing, rows, viewer):
     return Act(
         when=first.created,
         actor=_actor(first, viewer),
-        spans=(Span(f"{verb} what "), _model_span(model), Span(" is")),
+        spans=(Span(f"{verb} what "), _model_span(model, alive), Span(" is")),
         subs=subs,
         category="model",
         miniature_pk=str(model.pk) if model else "",
@@ -256,8 +315,8 @@ def _turn(e, row):
     return "removed"
 
 
-def _one_act(e, row, viewer):
-    spans, category = _tell(e, row)
+def _one_act(e, row, viewer, alive):
+    spans, category = _tell(e, row, alive)
     model = _model_of(e, row)
     return Act(
         when=e.created,
@@ -272,7 +331,7 @@ def _one_act(e, row, viewer):
     )
 
 
-def _tell(e, row):
+def _tell(e, row, alive):
     """The sentence for one event, and which filter bucket it sits in.
 
     Spans start lowercase: the actor's name goes in front of them. The
@@ -282,7 +341,7 @@ def _tell(e, row):
     thing = Span(_name(row)) if row else Span("something")
     kind = Span(_kindword(row)) if row else Span("")
     model = _model_of(e, row)
-    at = _model_span(model)
+    at = _model_span(model, alive)
     identity = row is not None and (
         row.subtype_id is not None or row.rule_id is not None
     )
@@ -359,9 +418,12 @@ def _tell(e, row):
                 return (Span("set "), at, Span(f"'s {stat} to {now}")), "model"
             return (Span("set a characteristic of "), at), "model"
         case Kind.STAT_CLEARED:
-            said = e.note.split(" → ")[0]
-            stat = said.rpartition(" ")[0] or "a characteristic"
-            return (Span("cleared "), at, Span(f"'s {stat}")), "model"
+            # The note reads "WS 4+ cleared — 3+ prints again": the
+            # first word names the characteristic.
+            stat = e.note.split(" ")[0] if e.note else ""
+            if stat:
+                return (Span("cleared "), at, Span(f"'s {stat}")), "model"
+            return (Span("cleared a characteristic of "), at), "model"
     return (Span(e.get_kind_display().casefold()),), category
 
 
@@ -397,11 +459,12 @@ def _name(row):
 
 
 def _kindword(row):
-    """What sort of thing this is, in the library's own word."""
+    """What sort of thing this is, in the library's own word — empty
+    for the kinds a player's page never names."""
     thing = row.assignable if row else None
     if thing is None:
         return ""
-    return str(type(thing)._meta.verbose_name)
+    return kind_of(thing)
 
 
 def _model_of(e, row):
@@ -412,7 +475,10 @@ def _model_of(e, row):
     return None
 
 
-def _model_span(model):
+def _model_span(model, alive):
+    """The model's name, linked to its page only while it has one."""
     if model is None:
         return Span("")
+    if model.pk not in alive:
+        return Span(str(model))
     return Span(str(model), reverse("n26-equip", args=[model.pk]))

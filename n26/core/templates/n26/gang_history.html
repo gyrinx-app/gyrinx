@@ -61,9 +61,9 @@ that said it twice would be spending the width the name needs.
                         <c-ui.select.option value="">
                             Everything
                         </c-ui.select.option>
-                        {% for value, label in kinds.items %}
-                            <c-ui.select.option value="{{ value }}" :selected="kind == value">
-                                {{ label }}
+                        {% for option in kind_options %}
+                            <c-ui.select.option value="{{ option.value }}" :selected="option.selected">
+                                {{ option.label }}
                             </c-ui.select.option>
                         {% endfor %}
                     </c-ui.select.native>
@@ -74,9 +74,9 @@ that said it twice would be spending the width the name needs.
                         <c-ui.select.option value="">
                             Any model
                         </c-ui.select.option>
-                        {% for pk, name in models %}
-                            <c-ui.select.option value="{{ pk }}" :selected="model == pk">
-                                {{ name }}
+                        {% for option in model_options %}
+                            <c-ui.select.option value="{{ option.value }}" :selected="option.selected">
+                                {{ option.label }}
                             </c-ui.select.option>
                         {% endfor %}
                     </c-ui.select.native>
@@ -116,7 +116,7 @@ that said it twice would be spending the width the name needs.
                                                 {% for sub in act.subs %}
                                                     <li>
                                                         {{ sub.name }}
-                                                        <span class="opacity-75">— {{ sub.kind }}{% if sub.note %}, {{ sub.note }}{% endif %}</span>
+                                                        {% if sub.detail %}<span class="opacity-75">— {{ sub.detail }}</span>{% endif %}
                                                     </li>
                                                 {% endfor %}
                                             </ul>

@@ -135,11 +135,6 @@ that said it twice would be spending the width the name needs.
                                  href="{% url 'n26-print-setup' gang.pk %}">
                         Print
                     </c-ui.button>
-                    <c-ui.button size="sm"
-                                 variant="default"
-                                 href="{% url 'n26-gang-history' gang.pk %}">
-                        History
-                    </c-ui.button>
                     <c-ui.dropdown>
                         <c-slot name="trigger">
                             <c-ui.button size="sm" variant="default" aria-label="More actions">
@@ -149,6 +144,9 @@ that said it twice would be spending the width the name needs.
                                 </span>
                             </c-ui.button>
                         </c-slot>
+                        <c-ui.dropdown.item href="{% url 'n26-gang-history' gang.pk %}">
+                            History
+                        </c-ui.dropdown.item>
                         {% comment %}
                     A page that asks, not the act: following this link deletes
                     nothing, and the POST it leads to is the only thing that

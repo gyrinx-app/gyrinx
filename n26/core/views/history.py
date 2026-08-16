@@ -49,10 +49,19 @@ def gang_history(request, pk):
 
     #: Every model the history names, whether or not it is still on the
     #: roster — a filter that cannot find the dead cannot explain them.
-    models = sorted(
+    #: Which option is selected is decided here: the template only reads
+    #: flags.
+    named = sorted(
         {(a.miniature_pk, a.miniature_name) for a in acts if a.miniature_pk},
         key=lambda pair: pair[1].casefold(),
     )
+    model_options = [
+        {"value": pk, "label": name, "selected": pk == model} for pk, name in named
+    ]
+    kind_options = [
+        {"value": value, "label": label, "selected": value == kind}
+        for value, label in KINDS.items()
+    ]
 
     if query:
         want = query.casefold()
@@ -71,10 +80,8 @@ def gang_history(request, pk):
             "shown": len(acts),
             "total": total,
             "query": query,
-            "kind": kind,
-            "kinds": KINDS,
-            "model": model,
-            "models": models,
+            "kind_options": kind_options,
+            "model_options": model_options,
             "narrowed": bool(query or kind or model),
         },
     )
