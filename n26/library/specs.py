@@ -525,11 +525,7 @@ def _build_registry():
             authoring.targets_gang_alone,
             {},
             label="The gang carrying it",
-            blurb=(
-                "Lands on the gang and stays there: what this gives the "
-                "gang is the gang's alone, and rides no fighter's card. A "
-                "pick the gang stores is still the gang's fact either way."
-            ),
+            blurb="Applied only to the gang; does not reach the models.",
             example=(
                 "A rule that prints on the gang sheet without touching the "
                 "fighters, or a gang-level counter."

@@ -1542,8 +1542,8 @@ def targets_gang():
 
 
 def targets_gang_alone():
-    """The gang carrying it, and nobody else: what this gives the gang is
-    the gang's alone, and rides no fighter's card."""
+    """The gang carrying it: applied only to the gang, and what it gives
+    the gang does not reach the models."""
     from n26.library.models import TargetsGang
 
     return TargetsGang.objects.create(echoes=False)

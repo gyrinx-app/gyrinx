@@ -285,9 +285,9 @@ class TestTwoAims:
 
 
 class TestAGrantTheGangKeepsToItself:
-    """The gang carrying it, and nobody else: a grant whose scope says
-    the gang alone prints on the gang's card and rides no fighter's —
-    no guest, no echoed step, nothing to buy from."""
+    """The gang carrying it: applied only to the gang, and what it gives
+    the gang does not reach the models — no guest, no echoed step,
+    nothing to buy from."""
 
     @pytest.fixture
     def sealed(self, gang_type, matriarchy, knife):
