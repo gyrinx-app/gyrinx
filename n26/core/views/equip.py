@@ -65,12 +65,14 @@ def _parts_picked(data, key, line):
     return picked
 
 
-def _choices_picked(data, key, line):
-    """The alternatives a submission picked on this line, group by group.
+def _choices_picked(data, key, groups):
+    """The alternatives a submission picked, group by group.
 
     Values are indices into the sets the server has just re-derived, so a
-    tampered form can name nothing the line does not offer — and a group
-    the line does not draw has no field to pick from.
+    tampered form can name nothing the offer does not hold — and a group
+    that was not drawn has no field to pick from. The offer is passed in
+    rather than read off a line, because the same reading answers a row
+    being bought and a copy already held being changed.
 
     An empty value is a one-or-none set's "None": the reader took
     nothing, which is not a pick to pass on. A repeated index is refused
@@ -78,7 +80,7 @@ def _choices_picked(data, key, line):
     same swap.
     """
     picked = []
-    for index, group in enumerate(line.choices):
+    for index, group in enumerate(groups):
         seen = set()
         for value in data.getlist(_choice_field(key, index)):
             if value == "":
@@ -261,7 +263,7 @@ def _buy_clicked(request, gang, holder, view, back, *, into, collection, event=N
         messages.error(request, "That item is not on this list.")
         return redirect(back)
     picked = _parts_picked(request.POST, key, line)
-    picks = _choices_picked(request.POST, key, line)
+    picks = _choices_picked(request.POST, key, line.choices)
     surcharge = sum(option.surcharge for option in picks)
     # Every price the click carries, read and bounded before anything
     # is written: one bad box buys nothing at all, rather than a gun

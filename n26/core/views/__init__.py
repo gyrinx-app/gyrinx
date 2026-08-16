@@ -33,6 +33,7 @@ from n26.core.views.options import fighter_options
 from n26.core.views.owned import (
     accessorise_assignment,
     reassign_assignment,
+    rechoose_assignment,
     refund_assignment,
     remove_assignment,
     sell_assignment,
@@ -60,6 +61,7 @@ __all__ = [
     "print_gang",
     "print_setup",
     "reassign_assignment",
+    "rechoose_assignment",
     "refund_assignment",
     "refund_fighter",
     "remove_assignment",

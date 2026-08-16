@@ -44,13 +44,14 @@ from n26.library.models.assignable import Family
 #: the controls and the view that answers the URL behind them, so neither
 #: can invent a question the other does not know.
 #:
-#: Three of them confirm something about the assignment named. The fourth
-#: asks a question instead — which accessory to bolt onto the weapon named
-#: — and it sits here because it is the same sort of state: one assignment
-#: on this card, open because the address says so, closed by going back to the
-#: address without it. A screen draws one at a time, so a URL naming two
-#: draws whichever comes first here.
-DIALOGS = ("sell", "reassign", "refund", "remove", "accessorise")
+#: Three of them confirm something about the assignment named. The last
+#: two ask a question instead — which accessory to bolt onto the weapon
+#: named, and which of its alternatives a thing is taken with — and they
+#: sit here because they are the same sort of state: one assignment on
+#: this card, open because the address says so, closed by going back to
+#: the address without it. A screen draws one at a time, so a URL naming
+#: two draws whichever comes first here.
+DIALOGS = ("sell", "reassign", "refund", "remove", "accessorise", "rechoose")
 
 
 def with_query(url, **params):
@@ -146,11 +147,27 @@ class OwnedThing:
     #: an accessory hangs off the gun it changes, so nothing else on a
     #: card is somewhere to fit one.
     accessorise_href: str = ""
+    #: Where to go to take this with different options. Only something
+    #: whose content offers a choice has one: everything else would be a
+    #: click onto a panel with nothing to pick.
+    rechoose_href: str = ""
     #: What this copy was taken with, named as the buyer was offered it.
     #: Per copy and not per content: two of the same mount may carry
     #: different guns. Empty for anything that offered no choice, which
     #: is most of what a model owns.
     chosen: tuple[str, ...] = ()
+
+
+def _offers_a_choice(thing):
+    """Whether this content puts alternatives in front of anyone.
+
+    The same test the buying screen makes of a line, asked here of a copy
+    already held: a set with nothing to pick was taken unasked, and a way
+    to change it would open onto a panel offering one thing.
+    """
+    from n26.library.models.assignable import Optioned
+
+    return isinstance(thing, Optioned) and thing.offers_a_choice
 
 
 def _chosen_of(node):
@@ -286,6 +303,11 @@ def owned_things(card, at):
                 accessorise_href=(
                     with_query(at, accessorise=pk)
                     if isinstance(node.assignable, Weapon)
+                    else ""
+                ),
+                rechoose_href=(
+                    with_query(at, rechoose=pk)
+                    if _offers_a_choice(node.assignable)
                     else ""
                 ),
                 chosen=_chosen_of(node),
