@@ -322,23 +322,56 @@ class TestTheEditPage:
         assert "Subtypes &amp; Rules" in body
         assert 'value="library.subtype:' in body
         assert 'value="library.rule:' in body
-        # The held rule opens ticked; the unheld subtype does not. Read
-        # off the offers the view built rather than the markup, which is
-        # the structure the boxes are drawn from.
-        ticked = {
+        # Read off what the view built rather than the markup. The held
+        # rule is a box, opened ticked; the unheld subtype is not a box
+        # at all — it is an option in the select the section adds from.
+        boxed = {
             option.key: option.is_current
-            for offer in (
-                page.context["rule_edits"],
-                page.context["subtype_edits"],
-                page.context["rule_more"],
-                page.context["subtype_more"],
-            )
+            for offer in (page.context["rule_edits"], page.context["subtype_edits"])
             if offer
             for group in offer.groups
             for option in group.options
         }
-        assert ticked[f"library.rule:{gaunt.pk}"]
-        assert not ticked[f"library.subtype:{mounted.pk}"]
+        assert boxed[f"library.rule:{gaunt.pk}"]
+        assert f"library.subtype:{mounted.pk}" not in boxed
+        addable = {
+            option.key
+            for options in (page.context["rule_more"], page.context["subtype_more"])
+            for option in options
+        }
+        assert f"library.subtype:{mounted.pk}" in addable
+
+    def test_what_the_card_lacks_is_a_real_select_of_real_keys(self, client, yolanda):
+        """The rest of the library is a select rather than a list of
+        boxes, and it is rendered complete: a reader with no script gets
+        a working multiple select, and what it posts is the same key a
+        box would have posted."""
+        mounted = create_subtype("Mounted")
+        client.force_login(yolanda.membership.gang.owner)
+        body = self._page(client, yolanda).content.decode()
+        assert 'name="subtypes"' in body and "multiple" in body
+        # The option carries the key, not the name: a label cannot say
+        # which row was meant.
+        assert f'value="library.subtype:{mounted.pk}"' in body
+        # The unheld subtype is offered by the select, not as a box.
+        offered = [
+            option.key
+            for offer in [self._page(client, yolanda).context["subtype_more"]]
+            for option in offer
+        ]
+        assert f"library.subtype:{mounted.pk}" in offered
+
+    def test_choosing_from_the_select_adds_the_thing(self, client, yolanda):
+        """The select and the boxes share an input name, so a pick posts
+        exactly as a tick does."""
+        mounted = create_subtype("Mounted")
+        client.force_login(yolanda.membership.gang.owner)
+        self._post(
+            client,
+            yolanda,
+            {"act": "subtypes", "subtypes": [f"library.subtype:{mounted.pk}"]},
+        )
+        assert card_for(yolanda).type_line == "Fighter (Mounted)"
 
     def test_ticking_a_subtype_adds_it_in_the_owners_name(self, client, yolanda):
         mounted = create_subtype("Mounted")

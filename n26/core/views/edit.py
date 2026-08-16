@@ -71,13 +71,14 @@ def _edits_offer(own, computed, field, heading):
     archives that removal, so the content's own answer is always one
     click away.
 
-    Two offers rather than one, because the library runs to a hundred
-    rules and a wall of clear boxes buries the handful that matter: the
-    first holds what the card shows and what the owner has touched, the
-    second everything else, for the page to fold away. A ticked box in
-    the folded half still submits, so the split changes nothing about
-    what a save means. Both are None where the library offers nothing,
-    so the page can skip the section rather than draw an empty list.
+    Two answers, because the two halves are read differently. What the
+    card shows is a short list to check over, and comes back as a
+    ``ChoiceOffer`` for the boxes to tick. The rest of the library runs
+    to a hundred rules that nobody scans, so it comes back as bare
+    options for a searchable select to add from. Both feed inputs of the
+    same name, so the browser posts one list and the difference is taken
+    once; either is empty where the library has nothing to offer, and the
+    page draws neither.
     """
     from n26.core.render import ChoiceOffer, Choosable, ChoosableGroup
     from n26.core.views.learn import _key
@@ -110,18 +111,12 @@ def _edits_offer(own, computed, field, heading):
         else:
             rest.append(option)
 
-    def boxed(options, name):
-        if not options:
-            return None
-        return ChoiceOffer(
-            label="", groups=[ChoosableGroup(name=name, options=options)]
-        )
-
-    return (
-        boxed(current, heading),
-        boxed(rest, ""),
-        bool(own_adds or removed),
+    held = (
+        ChoiceOffer(label="", groups=[ChoosableGroup(name=heading, options=current)])
+        if current
+        else None
     )
+    return held, rest, bool(own_adds or removed)
 
 
 def _apply_edits(op, miniature, own, computed, field, ticked):
