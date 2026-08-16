@@ -197,8 +197,14 @@ class TestComputedGang:
         assert slot.is_resolved and slot.chosen_name == "Overwatch"
 
     def test_the_same_thing_chosen_twice_draws_a_note(self, gang, escherish):
-        """Two slots, one thing chosen — incoherent-ish, so it is *said*, never
-        blocked: the owner may do as they please (inform, not police)."""
+        """Two questions, the same thing answering each — incoherent-ish, so
+        it is *said*, never blocked: the owner may do as they please
+        (inform, not police).
+
+        Answered twice over, because an answer settles one question: one
+        Overwatch leaves the second question open and there is nothing
+        repeated to remark on.
+        """
         modifier(
             "The gang names a second skill",
             targets_gang(),
@@ -209,7 +215,8 @@ class TestComputedGang:
             row for row in gang.assignments.all() if row.assignable.name == "Escher"
         )
         overwatch = create_skill("Overwatch")
-        _choose(anchor, overwatch)
+        for slot in gang_computed(gang).choices:
+            _choose(anchor, overwatch, offer=slot.offer)
 
         computed = gang_computed(gang)
         assert [slot.is_resolved for slot in computed.choices] == [True, True]

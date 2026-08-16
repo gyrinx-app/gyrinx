@@ -214,6 +214,7 @@ class Operation:
         caused_by=None,
         chosen_for=None,
         chosen_for_slot=None,
+        chosen_for_offer=None,
         paid=0,
         list_price=None,
         discount=0,
@@ -237,8 +238,9 @@ class Operation:
         ``chosen_for`` names the choice this settles, where it settles
         one — the assignment that asked, so a card reads what was chosen
         rather than guessing from what kind of thing it is.
-        ``chosen_for_slot`` names which of that assignment's choices,
-        for the case where one asks more than once.
+        ``chosen_for_slot`` and ``chosen_for_offer`` name which of that
+        assignment's choices, for the case where one asks more than once —
+        the first for a slot's question, the second for an offer's.
         """
         assignment = Assignment.objects.create(
             assignable=assignable,
@@ -249,6 +251,7 @@ class Operation:
             caused_by=caused_by,
             chosen_for=chosen_for,
             chosen_for_slot=chosen_for_slot,
+            chosen_for_offer=chosen_for_offer,
             removes=removes,
         )
         if list_price is None:
@@ -931,6 +934,11 @@ class Operation:
         return self.assign(
             chosen,
             caused_by=anchor,
+            # Which question this answers. One line may ask twice over one
+            # kind, and nothing about the answer tells the two apart, so a
+            # caller that knows says — and where the line asks once there
+            # is only one question it can be.
+            chosen_for_offer=offer or (matched[0] if len(matched) == 1 else None),
             paid=0,
             reason=Reason.GRANTED,
             **kwargs,

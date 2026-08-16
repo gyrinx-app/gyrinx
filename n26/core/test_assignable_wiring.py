@@ -177,6 +177,17 @@ class TestSettlingAChoice:
         assert named.remote_field.on_delete is PROTECT
         assert named.null is True
 
+    def test_the_offer_it_settles_gives_way_instead(self):
+        """The other kind of question is part of a modifier, and composing
+        one writes it afresh — so holding the old row would make an author
+        who rewords a question fail for everyone who answered it. The link
+        goes and the answer stays, read by what it is."""
+        from django.db.models.deletion import SET_NULL
+
+        named = Assignment._meta.get_field("chosen_for_offer")
+        assert named.remote_field.on_delete is SET_NULL
+        assert named.null is True
+
 
 class TestTheStartupCheck:
     def test_it_passes_as_things_stand(self):

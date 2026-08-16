@@ -1383,20 +1383,55 @@ class _Facts:
 def _fill_choice_slots(computed, offers, by_cause):
     """Resolve each offered choice against what the anchor has caused.
 
-    What is chosen is stored as an assignment caused by the carrier's; a
-    slot reads as resolved when such an assignment matches the offer's
-    selector.
+    What is chosen is stored as an assignment caused by the carrier's, and
+    it names the question it answers — which is what keeps two choices of
+    one kind on one line apart, a primary role and a secondary one being
+    settled by the same sort of thing.
+
+    An answer naming no question is read the only way left: the first
+    question whose kind it fits takes it. One answer settles one question
+    however it was written, so a line asking twice with a single such
+    answer has one question settled and one still open to be answered,
+    rather than two reading as answered from one click.
+
+    Questions holding their own answers are settled before that, because
+    an answer given to one question must not be taken by another that
+    merely could have had it. And an answer naming a question this card no
+    longer asks is read like an unnamed one rather than lost: composing a
+    modifier writes its question afresh, and nobody's card should empty
+    because an author reworded it.
     """
     from n26.core import select
 
-    for effect, source, source_kind, anchor in offers:
-        resolved = None
-        if anchor is not None:
-            selector = effect.selector()
-            for node in by_cause.get(anchor.key, []):
-                if selector.matches(select.matchable(node.assignable)):
-                    resolved = node
-                    break
+    #: The questions this card asks, and the answers already spoken for —
+    #: an answer settles one question and no more.
+    asked = {effect.pk for effect, _, _, _ in offers}
+    claimed, settled = set(), {}
+
+    for order, (effect, _, _, anchor) in enumerate(offers):
+        if anchor is None:
+            continue
+        for node in by_cause.get(anchor.key, []):
+            if node.key not in claimed and node.chosen_for_offer_id == effect.pk:
+                settled[order] = node
+                claimed.add(node.key)
+                break
+
+    for order, (effect, _, _, anchor) in enumerate(offers):
+        if anchor is None or order in settled:
+            continue
+        selector = effect.selector()
+        for node in by_cause.get(anchor.key, []):
+            if node.key in claimed or node.chosen_for_offer_id in asked:
+                continue
+            if not selector.matches(select.matchable(node.assignable)):
+                continue
+            settled[order] = node
+            claimed.add(node.key)
+            break
+
+    for order, (effect, source, source_kind, anchor) in enumerate(offers):
+        resolved = settled.get(order)
         computed.choices.append(
             ChoiceSlot(
                 kind_label=effect.kind_label,
