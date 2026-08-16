@@ -3,7 +3,7 @@
 A slot is used to define new labels and values for gangs and models, and
 attach behaviour to them, without a code change.
 
-A **slot type** puts a name on one-or-more slots, and groups pickables.
+A **slot type** puts a name on one or more slots, and groups pickables.
 **Pickables** are what may be picked/chosen from the available options in
 the slot. Each is an ordinary assignable carrying ordinary modifiers.
 
@@ -43,7 +43,7 @@ from n26.library.models.base import Content
 class SlotType(Content):
     """What is chosen: Gang Legacy is the first, and new ones are authored.
 
-    Puts a name on one-or-more slots, and groups pickables. Ties a slot,
+    Puts a name on one or more slots, and groups pickables. Ties a slot,
     its picklist and its pickables together — all three name one of
     these, and authoring refuses a mismatch. Whether the same pickable
     may be picked twice over is a fact about the slot type, so it is

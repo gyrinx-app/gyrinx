@@ -189,7 +189,7 @@ Within a collection, when displayed, items are grouped by collection section and
 
 Fields of its own: a **plural** (what several of them are called, so a page can say "Gang Legacies"), and **allows repeats** (whether one holder may pick the same pickable for two slots of this type).
 
-A slot type puts a name on one-or-more slots, and groups pickables. It is not an assignable: nothing holds a slot type. Its slots, picklists and pickables all name it, and authoring refuses a mismatch — a picklist of one slot type cannot sit behind another type's slot. Which slot type something belongs to is settled when it is made and never changed afterwards; something in the wrong slot type is a new one, made in the right one. Its page is where the whole slot type is built: its pickables, its picklists, and its slots.
+A slot type puts a name on one or more slots, and groups pickables. It is not an assignable: nothing holds a slot type. Its slots, picklists and pickables all name it, and authoring refuses a mismatch — a picklist of one slot type cannot sit behind another type's slot. Which slot type something belongs to is settled when it is made and never changed afterwards; something in the wrong slot type is a new one, made in the right one. Its page is where the whole slot type is built: its pickables, its picklists, and its slots.
 
 ### Pickable
 
@@ -219,7 +219,7 @@ A set of pickables available in a slot. One slot type throughout, no headings an
 
 Fields of its own: its **slot type** and **picklist**; the **label** shown on the card; **min** and **max picks**; **assigned to** (whether the pick lands on the bearer or on the gang); **hidden**; and a position among the slots on one card.
 
-One specific, named use of a slot type. Assigning one to a model or gang — built into a profile, given by a modifier, or brought by an option when something is bought — causes the slot to show up. The card draws the label with what has been picked by the player, or what's set by default, or a control to pick, on the holder's own card and nowhere else: a slot the gang holds is asked once rather than on every fighter. Picking under the minimum adds a note on the card, never a refusal (no page prints these notes yet), and the picker stops offering at the maximum. A slot of one pick is settled by picking, and picking again replaces the pick; a slot of several is made a pick at a time, each option on the picker adding or taking back its own. Nought picks asks nothing. **Hidden** makes the slot invisible while the pick still does everything it does — grouped hidden assignables, under one name.
+One specific, named use of a slot type. Assigning one to a model or gang — built into a profile, given by a modifier, or brought by an option when something is bought — causes the slot to show up. The card draws the label with what has been picked by the player, or what's set by default, or a control to pick, on the holder's own card and nowhere else: a slot the gang holds is asked once rather than on every fighter. Picking under the minimum adds a note on the card, never a refusal (no page prints these notes yet), and the picker stops offering at the maximum. A slot of one pick is settled by picking, and picking again replaces the pick; a slot of several is made a pick at a time, each option on the picker adding or taking back its own. A slot of nought picks asks nothing. **Hidden** makes the slot invisible while the pick still does everything it does — grouped hidden assignables, under one name.
 
 ### Picks
 
