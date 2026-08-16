@@ -20,9 +20,13 @@ def convert(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
+    # A conversion migration runs live code, so it must order itself
+    # after every migration that code's queries need — the heads at the
+    # time it was written, not merely the columns it touches. A stale
+    # database otherwise runs it too early and crashes mid-graph.
     dependencies = [
         ("library", "0061_reach_is_said_not_implied"),
-        ("n26", "0012_a_pick_names_the_slot_it_settles"),
+        ("n26", "0014_the_owner_edits_what_a_model_is"),
     ]
 
     operations = [
