@@ -283,6 +283,118 @@ class TestReset:
         assert removed.count() == 1
 
 
+class TestTheEditPage:
+    """The Subtypes & Rules box on the model's edit page, end to end."""
+
+    def _page(self, client, miniature):
+        from django.urls import reverse
+
+        return client.get(reverse("n26-edit-fighter", args=[miniature.pk]))
+
+    def _post(self, client, miniature, data):
+        from django.urls import reverse
+
+        return client.post(reverse("n26-edit-fighter", args=[miniature.pk]), data)
+
+    def test_the_box_offers_the_library_ticked_where_held(self, client, yolanda):
+        create_subtype("Mounted")
+        gaunt = create_rule("Gaunt")
+        assign(gaunt, miniature=yolanda, paid=0)
+        client.force_login(yolanda.membership.gang.owner)
+        body = self._page(client, yolanda).content.decode()
+        assert "Subtypes &amp; Rules" in body
+        assert 'value="library.subtype:' in body
+        assert 'value="library.rule:' in body
+        # The held rule opens ticked; the unheld subtype does not.
+        rule_box = body.split('value="library.rule:')[1][:200]
+        assert "checked" in rule_box
+
+    def test_ticking_a_subtype_adds_it_in_the_owners_name(self, client, yolanda):
+        mounted = create_subtype("Mounted")
+        client.force_login(yolanda.membership.gang.owner)
+        self._post(
+            client,
+            yolanda,
+            {"act": "subtypes", "subtypes": [f"library.subtype:{mounted.pk}"]},
+        )
+        assert card_for(yolanda).type_line == "Fighter (Mounted)"
+        added = Assignment.objects.get(
+            miniature_root=yolanda, subtype=mounted, archived=False
+        )
+        assert added.ledger_entry.reason == Reason.EDITED
+
+    def test_clearing_a_granted_subtype_stores_a_removal(self, client, yolanda):
+        mounted = create_subtype("Mounted")
+        cutter = create_wargear("Cutter")
+        modifier(
+            "Cutter grants Mounted", targets_model(), adds(mounted), carried_by=cutter
+        )
+        assign(cutter, miniature=yolanda, paid=75)
+        assert card_for(yolanda).type_line == "Fighter (Mounted)"
+        client.force_login(yolanda.membership.gang.owner)
+        self._post(client, yolanda, {"act": "subtypes"})
+        assert card_for(yolanda).type_line == "Fighter"
+        assert Assignment.objects.filter(
+            miniature_root=yolanda, subtype=mounted, removes=True, archived=False
+        ).exists()
+
+    def test_ticking_a_taken_away_thing_restores_it(self, client, yolanda):
+        gaunt = create_rule("Gaunt")
+        add_built_in(yolanda.membership.profile, gaunt)
+        rehired = hire(
+            yolanda.membership.gang, yolanda.membership.profile, "Sump-Sister", paid=55
+        )
+        client.force_login(rehired.membership.gang.owner)
+        self._post(client, rehired, {"act": "rules"})
+        assert [line.name for line in card_for(rehired).rules] == []
+        self._post(
+            client, rehired, {"act": "rules", "rules": [f"library.rule:{gaunt.pk}"]}
+        )
+        assert [line.name for line in card_for(rehired).rules] == ["Gaunt"]
+
+    def test_a_paid_for_thing_is_said_to_stay(self, client, yolanda):
+        mounted = create_subtype("Mounted")
+        assign(mounted, miniature=yolanda, paid=75)
+        client.force_login(yolanda.membership.gang.owner)
+        response = self._post(
+            client,
+            yolanda,
+            {"act": "subtypes"},
+        )
+        page = client.get(response.url)
+        body = page.content.decode()
+        assert "Mounted stays on the card — it was paid for." in body
+
+    def test_reset_posts_per_section(self, client, yolanda):
+        mounted = create_subtype("Mounted")
+        keeled = create_rule("Keeled")
+        client.force_login(yolanda.membership.gang.owner)
+        self._post(
+            client,
+            yolanda,
+            {"act": "subtypes", "subtypes": [f"library.subtype:{mounted.pk}"]},
+        )
+        self._post(
+            client, yolanda, {"act": "rules", "rules": [f"library.rule:{keeled.pk}"]}
+        )
+        self._post(client, yolanda, {"act": "reset-edits", "kind": "subtype"})
+        card = card_for(yolanda)
+        assert card.type_line == "Fighter"
+        assert [line.name for line in card.rules] == ["Keeled"]
+
+    def test_a_stranger_cannot_post_edits(self, client, yolanda):
+        mounted = create_subtype("Mounted")
+        stranger = User.objects.create_user("stranger")
+        client.force_login(stranger)
+        response = self._post(
+            client,
+            yolanda,
+            {"act": "subtypes", "subtypes": [f"library.subtype:{mounted.pk}"]},
+        )
+        assert response.status_code == 404
+        assert card_for(yolanda).type_line == "Fighter"
+
+
 class TestTheBooksStayHonest:
     """Edits price nothing, move nothing, and reconcile stays clean."""
 

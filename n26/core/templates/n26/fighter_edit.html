@@ -93,6 +93,93 @@ is named by the page's own heading directly below.
             </form>
         </c-slot>
         {% comment %}
+        What the model is — its subtypes and its special rules, ticked
+        where the card shows them by any route. Clearing a box takes the
+        thing away however it arrived (a paid-for one stays, and the
+        page says so); ticking an absent one adds it in the owner's
+        name. Reset per section archives the owner's edits, so the
+        content's own answer is always one act away — which is why Reset
+        is drawn only while there are edits to undo.
+        {% endcomment %}
+        <c-slot name="edits">
+            {% if subtype_edits or subtype_more or rule_edits or rule_more %}
+                <div class="space-y-5">
+                    {% if subtype_edits or subtype_more %}
+                        <div>
+                            <form method="post" action="{{ edit_url }}">
+                                {% csrf_token %}
+                                <input type="hidden" name="act" value="subtypes">
+                                {% if subtype_edits %}
+                                    <c-n26.tick-list :offer="subtype_edits" name="subtypes" />
+                                {% endif %}
+                                {% if subtype_more %}
+                                    <details {% if subtype_edits %}class="mt-2"{% endif %}>
+                                        <summary class="cursor-pointer text-sm text-ink-500 dark:text-ink-400">All subtypes</summary>
+                                        <div class="mt-2">
+                                            <c-n26.tick-list :offer="subtype_more" name="subtypes" />
+                                        </div>
+                                    </details>
+                                {% endif %}
+                                <div class="mt-3 flex items-center justify-end gap-2">
+                                    {% if subtype_edits_dirty %}
+                                        <c-ui.button type="submit" form="reset-subtypes" variant="secondary" size="sm">
+                                            Reset
+                                        </c-ui.button>
+                                    {% endif %}
+                                    <c-ui.button type="submit" variant="success" size="sm">
+                                        Save subtypes
+                                    </c-ui.button>
+                                </div>
+                            </form>
+                            {% if subtype_edits_dirty %}
+                                <form id="reset-subtypes" method="post" action="{{ edit_url }}">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="act" value="reset-edits">
+                                    <input type="hidden" name="kind" value="subtype">
+                                </form>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                    {% if rule_edits or rule_more %}
+                        <div>
+                            <form method="post" action="{{ edit_url }}">
+                                {% csrf_token %}
+                                <input type="hidden" name="act" value="rules">
+                                {% if rule_edits %}
+                                    <c-n26.tick-list :offer="rule_edits" name="rules" />
+                                {% endif %}
+                                {% if rule_more %}
+                                    <details {% if rule_edits %}class="mt-2"{% endif %}>
+                                        <summary class="cursor-pointer text-sm text-ink-500 dark:text-ink-400">All special rules</summary>
+                                        <div class="mt-2">
+                                            <c-n26.tick-list :offer="rule_more" name="rules" />
+                                        </div>
+                                    </details>
+                                {% endif %}
+                                <div class="mt-3 flex items-center justify-end gap-2">
+                                    {% if rule_edits_dirty %}
+                                        <c-ui.button type="submit" form="reset-rules" variant="secondary" size="sm">
+                                            Reset
+                                        </c-ui.button>
+                                    {% endif %}
+                                    <c-ui.button type="submit" variant="success" size="sm">
+                                        Save rules
+                                    </c-ui.button>
+                                </div>
+                            </form>
+                            {% if rule_edits_dirty %}
+                                <form id="reset-rules" method="post" action="{{ edit_url }}">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="act" value="reset-edits">
+                                    <input type="hidden" name="kind" value="rule">
+                                </form>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                </div>
+            {% endif %}
+        </c-slot>
+        {% comment %}
         Everything this model's grid puts within reach, ticked where they
         have it. Ticking learns and clearing takes away, in one click and
         one operation — which is why Save is green here as it is above.

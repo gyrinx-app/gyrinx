@@ -21,6 +21,8 @@ sits and what its heading says.
     built from pk.
   :card — the model's n26.render.ModelCard.
   lead — the model's rank, under the name.
+  edits — the subtypes and rules forms. Without it no box is drawn. Sits before
+    the skills box: what a model is reads before what it has learned.
   skills — the skills form. Without it no box is drawn at all, so a model whose
     grid reaches no set is not asked rather than shown an empty list.
   statline — the characteristics form. Without it, nothing is drawn. Full width
@@ -35,6 +37,7 @@ sits and what its heading says.
     actions=""
     name_action=""
     notes=""
+    edits=""
     skills=""
     statline=""
     class=""
@@ -71,6 +74,15 @@ sits and what its heading says.
             </c-slot>
             {{ notes }}
         </c-ui.card>
+
+        {% if edits.strip %}
+            <c-ui.card>
+                <c-slot name="header">
+                    <span class="font-semibold">Subtypes &amp; Rules</span>
+                </c-slot>
+                {{ edits }}
+            </c-ui.card>
+        {% endif %}
 
         {% if skills.strip %}
             <c-ui.card>
