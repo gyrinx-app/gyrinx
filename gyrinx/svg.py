@@ -90,6 +90,9 @@ _PRESENTATION_ATTRS = [
     "opacity",
     "transform",
     "class",
+    # Pixel art needs "crispEdges" to survive, or the browser antialiases every
+    # edge and a 24x24 drawing turns to mush. Purely a rendering hint.
+    "shape-rendering",
 ]
 
 # Non-href attributes permitted on <use>; href is handled by _use_attr_allowed.
@@ -133,14 +136,56 @@ _SCRIPT_STYLE_RE = re.compile(
 # currentColor and the icon would render in its baked-in colour.
 _COLOR_ATTR_RE = re.compile(r'\b(fill|stroke)\s*=\s*"([^"]*)"', re.IGNORECASE)
 
+# What a fill/stroke may look like once we agree to keep it. Deliberately narrow:
+# hex, rgb()/hsl() functions, and the CSS colour keywords are all covered by
+# these characters, and nothing here can close an attribute or open a tag.
+_COLOR_VALUE_RE = re.compile(r"^[#a-zA-Z0-9(),.%\s/-]+$")
+
+# The rendering hints SVG defines. An allowlist rather than a pattern because
+# the value is written straight back into the root tag.
+_SHAPE_RENDERING_VALUES = {
+    "auto",
+    "optimizespeed",
+    "crispedges",
+    "geometricprecision",
+    "inherit",
+}
+
+
+def _is_local_paint_ref(value: str) -> bool:
+    """True for ``url(#…)`` — a paint server defined in this same document.
+
+    An external reference (``url(https://…)``) would make the client fetch
+    third-party content when the inline artwork renders, so it is never kept,
+    on either the monochrome or the colour-preserving path.
+    """
+    return value.startswith("url(#")
+
 
 def _normalise_color(match):
     value = match.group(2).strip().lower()
-    # Preserve "none" (intentionally unpainted) and url(#…) paint-server refs;
+    # Preserve "none" (intentionally unpainted) and same-document paint refs;
     # any concrete colour becomes currentColor.
-    if value == "none" or value.startswith("url("):
+    if value == "none" or _is_local_paint_ref(value):
         return match.group(0)
     return f'{match.group(1)}="currentColor"'
+
+
+def _keep_color(match):
+    """Colour-preserving counterpart to ``_normalise_color``.
+
+    Concrete colours stay exactly as the artist drew them. Only two things are
+    rewritten: an external paint reference, and anything whose value does not
+    look like a colour at all — both become ``currentColor``, so the artwork
+    still draws rather than vanishing.
+    """
+    value = match.group(2).strip()
+    lowered = value.lower()
+    if lowered == "none" or _is_local_paint_ref(lowered):
+        return match.group(0)
+    if lowered.startswith("url(") or not _COLOR_VALUE_RE.match(value):
+        return f'{match.group(1)}="currentColor"'
+    return match.group(0)
 
 
 def _find_attr(attrs, name):
@@ -153,7 +198,11 @@ def _find_attr(attrs, name):
 
 
 def sanitize_inline_svg(
-    raw: str, *, root_class: str = "", extra_classes: str = ""
+    raw: str,
+    *,
+    root_class: str = "",
+    extra_classes: str = "",
+    preserve_colour: bool = False,
 ) -> str:
     """Return inline-safe SVG markup, or ``""`` if the input is unusable.
 
@@ -162,6 +211,13 @@ def sanitize_inline_svg(
     CSS sizing wins), guarantees a ``viewBox`` for correct scaling, applies
     ``fill="currentColor"`` so the icon matches surrounding text, and marks it
     ``aria-hidden="true"`` — the artwork repeats a name the page already says.
+
+    ``preserve_colour`` keeps the artwork's own palette instead of flattening it
+    to the surrounding text colour. Colour is not a security property — the
+    attribute allowlist is what holds the line, and ``style`` is not on it — so
+    this only changes how the drawing looks. Use it where the artwork *is* the
+    identity (a badge) rather than an icon that should read as text (a gang type
+    icon, which must recolour to match the heading it sits in).
 
     ``root_class`` is the caller's own hook for styling the artwork it stores;
     ``extra_classes`` is per-call. Both land on the root tag, which is rebuilt
@@ -188,7 +244,10 @@ def sanitize_inline_svg(
 
     # Recolour concrete fills/strokes to currentColor so the whole icon takes the
     # surrounding text colour (root fill alone doesn't cascade past child fills).
-    cleaned = _COLOR_ATTR_RE.sub(_normalise_color, cleaned)
+    # With preserve_colour the palette stays, but external paint refs still go.
+    cleaned = _COLOR_ATTR_RE.sub(
+        _keep_color if preserve_colour else _normalise_color, cleaned
+    )
 
     match = _SVG_START_TAG_RE.search(cleaned)
     if not match:
@@ -212,16 +271,42 @@ def sanitize_inline_svg(
 
     preserve = _find_attr(attrs, "preserveAspectRatio")
 
+    # The root tag is rebuilt, so anything on it that the artwork needs has to be
+    # carried across explicitly — being in the attribute allowlist only saves it
+    # on child elements. "crispEdges" lives on the root of every pixel-art
+    # drawing we have, which is why it kept disappearing.
+    shape_rendering = _find_attr(attrs, "shape-rendering")
+    if (
+        shape_rendering
+        and shape_rendering.strip().lower() not in _SHAPE_RENDERING_VALUES
+    ):
+        shape_rendering = None
+
+    # Root fill: normally currentColor so the icon reads as text. When the
+    # palette is being kept, the artwork's own root fill wins if it has one and
+    # it looks like a colour.
+    root_fill = "currentColor"
+    if preserve_colour:
+        source_fill = (_find_attr(attrs, "fill") or "").strip()
+        if (
+            source_fill
+            and not source_fill.lower().startswith("url(")
+            and _COLOR_VALUE_RE.match(source_fill)
+        ):
+            root_fill = source_fill
+
     # Rebuild the root start tag with a curated attribute set. Width/height are
     # intentionally dropped (CSS controls size); fill/class/role/aria are set
     # here so the stored markup cannot override them.
     parts = [
         f'xmlns="{_SVG_NS}"',
         f'viewBox="{view_box}"',
-        'fill="currentColor"',
+        f'fill="{root_fill}"',
         'role="img"',
         'aria-hidden="true"',
     ]
+    if shape_rendering:
+        parts.insert(2, f'shape-rendering="{shape_rendering.strip()}"')
     if classes:
         parts.insert(2, f'class="{" ".join(classes)}"')
     if preserve:

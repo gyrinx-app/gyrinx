@@ -12,7 +12,7 @@ views.py         the staff authoring pages, driven by small registries
 ingest.py        spreadsheets in → a previewable plan → rows out
 standard_content.py  the seed rows nobody authors, planted idempotently
 offers.py        what a kind declares about itself; forms derive the rest
-artwork.py       uploaded drawings: where they go, and which addresses resolve
+artwork.py       uploaded drawings: binds this edition's folder onto gyrinx.artwork
 ```
 
 Read `models/base.py` (107 lines) first — it states the app's governing

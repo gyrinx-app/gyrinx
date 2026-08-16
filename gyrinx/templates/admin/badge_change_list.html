@@ -1,0 +1,7 @@
+{% extends "admin/change_list.html" %}
+{% block object-tools-items %}
+    <li>
+        <a href="{% url 'admin:accounts_badge_grant_to_list' %}">Grant to a list of people</a>
+    </li>
+    {{ block.super }}
+{% endblock object-tools-items %}

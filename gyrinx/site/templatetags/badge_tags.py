@@ -8,45 +8,23 @@ registry and the eligibility rules stay platform-owned, so a new tier reaches
 every edition without either of them changing.
 """
 
-from hashlib import sha256
-
 from django import template
-from django.contrib.staticfiles import finders
-from django.core.cache import cache
 from django.core.exceptions import ObjectDoesNotExist
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 
-from gyrinx.badges import BadgeDef, badge_by_slug
+from gyrinx.badges import badge_by_slug
 
 register = template.Library()
 
 
-def _badge_svg(badge: BadgeDef) -> str:
-    """Read a badge's static SVG, cached by slug.
+def _badge_svg(badge) -> str:
+    """The artwork for a badge, ready to inline, or ``""``.
 
-    The committed SVGs are already inline-ready (``viewBox``, ``aria-hidden``;
-    the Patreon badges also use ``currentColor`` outlines, the staff badge is
-    fixed-colour), so there's nothing to sanitise — they're trusted repo assets,
-    not user uploads. Failures cache as an empty string so a missing/broken file
-    doesn't re-hit the filesystem every render.
+    Which of the two kinds of badge this is — one that ships with the app or
+    one somebody uploaded — is the badge's own business; both answer this.
     """
-    cache_key = f"badge_svg:{sha256(badge.slug.encode('utf-8')).hexdigest()}"
-    cached = cache.get(cache_key)
-    if cached is not None:
-        return cached
-
-    svg = ""
-    path = finders.find(badge.svg)
-    if path:
-        try:
-            with open(path, encoding="utf-8") as fh:
-                svg = fh.read()
-        except OSError:
-            svg = ""
-
-    cache.set(cache_key, svg)
-    return svg
+    return badge.inline_svg()
 
 
 @register.simple_tag
@@ -60,8 +38,10 @@ def badge_for(profile_user):
         {% badge_for gang.owner as badge %}
 
     ``None`` for an anonymous viewer, a user with no profile, and anyone whose
-    selection has lapsed. Reads the profile, so call sites rendering this over a
-    queryset of users MUST ``select_related("…__profile")``.
+    selection has lapsed. Reads the profile and the user's badge grants, so call
+    sites rendering this over a queryset of users MUST
+    ``select_related("…__profile").prefetch_related("…__badge_grants")`` —
+    without the prefetch this is a query per row.
     """
     if profile_user is None:
         return None
@@ -91,7 +71,8 @@ def badge_svg(badge):
     if badge is None:
         return ""
 
-    # A trusted static repo asset (no user input), pre-sanitised at commit time.
+    # Committed artwork is a trusted repo asset; uploaded artwork has been
+    # through the platform's SVG allowlist on the way out of storage.
     return mark_safe(_badge_svg(badge))  # nosec B308 B703
 
 
@@ -112,8 +93,7 @@ def badge_icon(badge, extra_classes=""):
         return ""
 
     classes = f"badge-icon {extra_classes}".strip()
-    # svg is a trusted static repo asset (no user input), pre-sanitised at commit
-    # time — safe to mark_safe.
+    # Either committed and trusted, or uploaded and already sanitised.
     return format_html(
         '<span class="{}" role="img" aria-label="{}">{}</span>',
         classes,
@@ -131,7 +111,8 @@ def user_badge(profile_user, extra_classes=""):
     badge visibility is a property of the profile owner, not the viewer.
 
     Call sites that render this over a queryset of users MUST
-    ``select_related("…__profile")`` to avoid a query per row.
+    ``select_related("…__profile").prefetch_related("…__badge_grants")`` to
+    avoid a query per row.
     """
     badge = badge_for(profile_user)
     if badge is None:
@@ -145,7 +126,7 @@ def user_badge(profile_user, extra_classes=""):
     # Bootstrap tooltip (initialised globally in index.js) shows the short,
     # user-facing description on hover. No underline — the badge is an icon-only
     # span, so we deliberately avoid the `.tooltipped` link styling.
-    # svg is a trusted static repo asset (no user input) — safe to mark_safe.
+    # Either committed and trusted, or uploaded and already sanitised.
     return format_html(
         '<span class="{}" data-bs-toggle="tooltip" data-bs-title="{}" '
         'role="img" aria-label="{}">{}</span>',

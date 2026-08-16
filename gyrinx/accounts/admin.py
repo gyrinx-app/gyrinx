@@ -3,15 +3,23 @@ import csv
 from allauth.account.admin import EmailAddressAdmin as AllauthEmailAddressAdmin
 from allauth.account.internal.flows.email_verification import get_email_verification_url
 from allauth.account.models import EmailAddress
+from django import forms
 from django.contrib import admin, messages
 from django.contrib.auth.admin import GroupAdmin as BaseGroupAdmin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.models import Group, User
 from django.http import HttpResponse
 from django.shortcuts import render
+from django.urls import path
+from django.utils.html import format_html
+from django.utils.safestring import mark_safe
 from django.utils.translation import gettext as _
 
-from gyrinx.accounts.models import UserProfile
+from gyrinx import artwork
+from gyrinx.accounts.models import Badge, BadgeGrant, UserProfile
+
+#: Where uploaded badge artwork lands in the site's storage.
+BADGE_UPLOAD_PREFIX = "badges/"
 
 
 @admin.action(description="Add selected users to group")
@@ -243,9 +251,236 @@ def add_profiles_to_group(modeladmin, request, queryset):
     return render(request, "core/admin/add_users_to_group.html", context)
 
 
+def _grant_badge(modeladmin, request, users, selected, action_name):
+    """Grant one badge to a set of people, behind a confirmation page.
+
+    Shared by the action on people and the one on profiles, because the only
+    thing that differs between them is how the selection was made.
+
+    Re-granting is not an error: the second run reports how many already had it
+    rather than refusing the lot, which is what makes it safe to run again after
+    adding a few more names to the list.
+    """
+    if request.POST.get("post") == "yes":
+        badge = Badge.objects.filter(pk=request.POST.get("badge")).first()
+        if badge is None:
+            modeladmin.message_user(
+                request, "That badge does not exist.", messages.ERROR
+            )
+            return None
+
+        reason = (request.POST.get("reason") or "").strip()
+        granted = 0
+        for user in users:
+            # Matches the partial unique constraint exactly — a lookup that
+            # missed a row would trip the constraint instead of being a no-op.
+            _, created = BadgeGrant.objects.get_or_create(
+                badge=badge,
+                user=user,
+                audience=BadgeGrant.Audience.USER,
+                defaults={"granted_by": request.user, "reason": reason},
+            )
+            granted += 1 if created else 0
+
+        already = len(users) - granted
+        modeladmin.message_user(
+            request,
+            f"Granted {badge.title} to {granted} person(s) ({already} already had it).",
+            messages.SUCCESS if granted else messages.INFO,
+        )
+        return None
+
+    context = {
+        **modeladmin.admin_site.each_context(request),
+        "title": "Grant a badge",
+        "subtitle": "Choose the badge to grant to the selected people",
+        "users": users,
+        "badges": Badge.objects.filter(archived=False).order_by("title"),
+        "action_name": action_name,
+        "selected": selected,
+    }
+    request.current_app = modeladmin.admin_site.name
+    return render(request, "admin/grant_badge.html", context)
+
+
+@admin.action(description="Grant a badge to selected users")
+def grant_badge_to_users(modeladmin, request, queryset):
+    selected = list(queryset.values_list("pk", flat=True))
+    users = list(User.objects.filter(pk__in=selected).order_by("username"))
+    return _grant_badge(modeladmin, request, users, selected, "grant_badge_to_users")
+
+
+@admin.action(description="Grant a badge to selected users")
+def grant_badge_to_profiles(modeladmin, request, queryset):
+    selected = list(queryset.values_list("pk", flat=True))
+    users = list(User.objects.filter(profile__pk__in=selected).order_by("username"))
+    return _grant_badge(modeladmin, request, users, selected, "grant_badge_to_profiles")
+
+
+class BadgeForm(forms.ModelForm):
+    """The badge's two ways to artwork: upload a drawing, or name one.
+
+    The upload control stores nothing of its own — it puts the file in the
+    site's storage and writes the resulting address into ``artwork_url``, which
+    is the only thing the row keeps.
+    """
+
+    artwork_upload = forms.FileField(
+        required=False,
+        label="Upload a drawing",
+        help_text=(
+            "An SVG file. Uploading one stores it and fills in the address "
+            "above, replacing whatever is there."
+        ),
+        widget=forms.ClearableFileInput(attrs={"accept": ".svg,image/svg+xml"}),
+    )
+
+    class Meta:
+        model = Badge
+        fields = "__all__"
+
+    def clean(self):
+        cleaned = super().clean()
+        artwork.clean_onto(
+            self,
+            cleaned,
+            "artwork_url",
+            "artwork_upload",
+            prefix=BADGE_UPLOAD_PREFIX,
+        )
+        return cleaned
+
+
+def resolve_people(text):
+    """Split pasted text into the people it names, and what it didn't match.
+
+    Takes usernames or email addresses, one per line or comma-separated, and
+    matches either case-insensitively. Returns the people found and the lines
+    that found nobody — reporting the misses matters more than it sounds,
+    because a mistyped name in a pasted list would otherwise be a person who
+    quietly never gets their badge.
+    """
+    identifiers = [
+        part.strip()
+        for line in (text or "").splitlines()
+        for part in line.split(",")
+        if part.strip()
+    ]
+
+    people, missing = [], []
+    seen = set()
+    for identifier in identifiers:
+        person = User.objects.filter(username__iexact=identifier).first()
+        if person is None:
+            person = User.objects.filter(email__iexact=identifier).first()
+        if person is None:
+            missing.append(identifier)
+        elif person.pk not in seen:
+            seen.add(person.pk)
+            people.append(person)
+    return people, missing
+
+
+@admin.register(Badge)
+class BadgeAdmin(admin.ModelAdmin):
+    form = BadgeForm
+    list_display = ["preview", "title", "slug", "rank", "auto_display", "held_by"]
+    list_display_links = ["title"]
+    list_filter = ["archived", "auto_display"]
+    search_fields = ["title", "slug", "description"]
+    prepopulated_fields = {"slug": ["title"]}
+    change_list_template = "admin/badge_change_list.html"
+
+    def get_urls(self):
+        return [
+            path(
+                "grant-to-list/",
+                self.admin_site.admin_view(self.grant_to_list_view),
+                name="accounts_badge_grant_to_list",
+            ),
+            *super().get_urls(),
+        ]
+
+    def grant_to_list_view(self, request):
+        """Grant a badge to a pasted list of people.
+
+        The selection-based action needs every recipient found and ticked in the
+        changelist, which does not fit a cohort that arrives as a list of names
+        from somewhere else entirely.
+        """
+        granted, already, missing, people = 0, 0, [], []
+        pasted = ""
+
+        if request.method == "POST":
+            pasted = request.POST.get("people", "")
+            badge = Badge.objects.filter(pk=request.POST.get("badge")).first()
+            reason = (request.POST.get("reason") or "").strip()
+            people, missing = resolve_people(pasted)
+
+            if badge is None:
+                self.message_user(request, "Choose a badge.", messages.ERROR)
+            else:
+                for person in people:
+                    _, created = BadgeGrant.objects.get_or_create(
+                        badge=badge,
+                        user=person,
+                        audience=BadgeGrant.Audience.USER,
+                        defaults={"granted_by": request.user, "reason": reason},
+                    )
+                    granted += 1 if created else 0
+                already = len(people) - granted
+                self.message_user(
+                    request,
+                    f"Granted {badge.title} to {granted} person(s)"
+                    f" ({already} already had it, {len(missing)} not found).",
+                    messages.SUCCESS if granted else messages.WARNING,
+                )
+
+        context = {
+            **self.admin_site.each_context(request),
+            "title": "Grant a badge to a list of people",
+            "badges": Badge.objects.filter(archived=False).order_by("title"),
+            "missing": missing,
+            "pasted": pasted,
+            "opts": self.model._meta,
+        }
+        return render(request, "admin/grant_badge_to_list.html", context)
+
+    @admin.display(description="Badge")
+    def preview(self, obj):
+        """The artwork itself — an address tells a reader nothing."""
+        svg = obj.as_def().inline_svg()
+        if not svg:
+            return "—"
+        return format_html(
+            '<span style="display:inline-block;width:1.5rem;height:1.5rem">{}</span>',
+            mark_safe(svg),  # nosec B308 B703 - sanitised by as_def().inline_svg()
+        )
+
+    @admin.display(description="Granted to")
+    def held_by(self, obj):
+        if obj.grants.filter(audience=BadgeGrant.Audience.EVERYONE).exists():
+            return "Everyone"
+        return obj.grants.filter(audience=BadgeGrant.Audience.USER).count()
+
+
+@admin.register(BadgeGrant)
+class BadgeGrantAdmin(admin.ModelAdmin):
+    list_display = ["badge", "audience", "user", "created", "granted_by"]
+    list_filter = ["audience", "badge"]
+    search_fields = ["user__username", "user__email", "badge__title"]
+    autocomplete_fields = ["user", "granted_by"]
+    list_select_related = ["badge", "user", "granted_by"]
+
+    def save_model(self, request, obj, form, change):
+        if not change and obj.granted_by_id is None:
+            obj.granted_by = request.user
+        super().save_model(request, obj, form, change)
+
+
 @admin.register(UserProfile)
 class UserProfileAdmin(admin.ModelAdmin):
-    actions = [add_profiles_to_group]
+    actions = [add_profiles_to_group, grant_badge_to_profiles]
     list_display = [
         "user",
         "user_email",
@@ -283,6 +518,7 @@ class UserAdmin(BaseUserAdmin):
     actions = list(BaseUserAdmin.actions) + [
         add_users_to_group,
         remove_users_from_group,
+        grant_badge_to_users,
     ]
 
 

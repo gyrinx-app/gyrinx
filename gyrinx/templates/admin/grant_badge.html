@@ -1,0 +1,46 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+{% block content %}
+    <div class="module">
+        <h2>{{ title }}</h2>
+        {% if subtitle %}<p>{{ subtitle }}</p>{% endif %}
+        {% if not badges %}
+            <p>There are no badges to grant yet. Create one first, then come back.</p>
+        {% else %}
+            <form method="post">
+                {% csrf_token %}
+                <div class="form-row">
+                    <label for="id_badge" class="required">Badge:</label>
+                    <select name="badge" id="id_badge" required>
+                        <option value="">---------</option>
+                        {% for badge in badges %}<option value="{{ badge.pk }}">{{ badge.title }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="form-row">
+                    <label for="id_reason">Reason (internal note):</label>
+                    <input type="text" name="reason" id="id_reason" maxlength="200" size="60" />
+                </div>
+                <div class="module">
+                    <h3>People to be granted the badge ({{ users|length }})</h3>
+                    <ul>
+                        {% for user in users %}
+                            <li>
+                                {{ user.username }}
+                                {% if user.email %}({{ user.email }}){% endif %}
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% for pk in selected %}<input type="hidden" name="_selected_action" value="{{ pk }}" />{% endfor %}
+                <input type="hidden" name="action" value="{{ action_name }}" />
+                <input type="hidden" name="post" value="yes" />
+                <div class="submit-row">
+                    <button type="submit" class="default">{% trans "Grant badge" %}</button>
+                    <a href="#"
+                       onclick="window.history.back(); return false;"
+                       class="button cancel-link">{% trans "Cancel" %}</a>
+                </div>
+            </form>
+        {% endif %}
+    </div>
+{% endblock content %}

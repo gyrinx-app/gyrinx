@@ -27,12 +27,13 @@ The dependency direction is: `library` holds content, `core` reads it.
 Concretely:
 
 - **No app code in `n26/` imports `n23.*` or `gyrinx.*`.** n26 is a
-  parallel edition, not a layer on the old one. Five deliberate
+  parallel edition, not a layer on the old one. Six deliberate
   exceptions: the dashboard reads `gyrinx.site.models.ChangelogEntry`,
   deferred inside the view; the gangs view searches with
   `gyrinx.querysets.search_queryset`; the artwork tag cleans SVG with
-  `gyrinx.svg.sanitize_inline_svg`; `n26/analytics.py` records events
-  through `gyrinx.analytics`; and `n26/tests/` may import platform
+  `gyrinx.svg.sanitize_inline_svg`; `n26/library/artwork.py` stores and
+  reads uploads through `gyrinx.artwork`; `n26/analytics.py` records
+  events through `gyrinx.analytics`; and `n26/tests/` may import platform
   pieces to test the seam. Do not add others.
 - **`n26/analytics.py` is the third platform module n26 may call, and
   the only file allowed to.** Activity tracking is the site's: one
@@ -46,7 +47,7 @@ Concretely:
   belongs to exactly one edition, so a gang here is never filed under
   n23's "list", and the edition of a row follows from its noun with no
   argument for a call site to forget.
-- **`gyrinx.querysets` is the first of the two platform modules n26 code
+- **`gyrinx.querysets` is the first of the four platform modules n26 code
   may call.** It is model-agnostic — full text plus a substring fallback over
   whatever fields it is handed, knowing nothing about either edition,
   in the way the ORM does not. What crosses is a queryset of n26's own
@@ -55,7 +56,7 @@ Concretely:
   disagree about what "scav" matches. This does not extend to the rest
   of `gyrinx.*`: a helper qualifies only if it would read the same
   written against any model in any edition.
-- **`gyrinx.svg` is the second, and the security one.** Sanitising
+- **`gyrinx.svg` is the second, and the other security one.** Sanitising
   stored SVG before drawing it inline is a property of SVG and of the
   browser, not of a content model — it would read the same written
   against any edition's rows, which is the test. It is also the one kind
@@ -66,6 +67,15 @@ Concretely:
   same directory: `richtext.py` is a *copy* of the platform's rich-text
   sanitiser, so there are already two allowlists to keep in step. Do not
   make a third.
+- **`gyrinx.artwork` is the fourth, and travels with `gyrinx.svg` for
+  the same reason.** Which addresses resolve to this site's own storage is a
+  property of the site, not of a content model — it would read the same
+  written against any edition's rows. It is also security code: two
+  implementations of "is this address ours" drift, and the loose one is
+  what lets a pasted address make the server fetch an internal service.
+  This edition keeps only the folder its uploads land in
+  (`n26/library/artwork.py` binds the prefix); every rule about what may
+  be stored and what an address may name lives in the platform module.
 - **Templates may `{% load %}` a platform tag library** where the thing
   it answers is genuinely the platform's and not an edition's — today
   that is `badge_tags`, because which badge a person shows follows from

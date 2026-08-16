@@ -224,14 +224,15 @@ class Battle(AppBase):
         """
         # owner__profile, not just owner: the participants pane renders
         # {% user_badge %} per row, and that tag reads the profile — one query
-        # per gang without it (see badge_tags.user_badge).
+        # per gang without it (see badge_tags.user_badge). The badge grants go
+        # the same way, for the same reason.
         return self.participant_entries.select_related(
             "list",
             "list__owner",
             "list__owner__profile",
             "role_option",
             "role_option__role",
-        )
+        ).prefetch_related("list__owner__badge_grants")
 
     def set_participants(self, lists):
         """

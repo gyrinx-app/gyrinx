@@ -1,8 +1,13 @@
 """Tests for the supporter badge registry, eligibility logic, and render tag."""
 
 import pytest
+from django.core.exceptions import ValidationError
+from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
+from django.db.utils import IntegrityError
+from django.urls import reverse
 
-from gyrinx.accounts.models import PatreonStatus, UserProfile
+from gyrinx.accounts.models import Badge, BadgeGrant, PatreonStatus, UserProfile
 from gyrinx.badges import (
     ALL_BADGES,
     HIDE_BADGE,
@@ -10,6 +15,7 @@ from gyrinx.badges import (
     STAFF_BADGE,
     badge_by_slug,
     badge_choices,
+    invalidate_granted_badges,
     rank_for_tier_title,
 )
 from gyrinx.site.templatetags.badge_tags import badge_icon, user_badge
@@ -64,7 +70,10 @@ def test_badge_choices_appends_hide_option():
     assert ("", "No badge") not in choices
 
 
+@pytest.mark.django_db
 def test_badge_by_slug():
+    # Needs the database: a slug that names no built-in badge is looked for
+    # among the granted ones before the answer is "no such badge".
     assert badge_by_slug("guilder").title == "Guilder"
     assert badge_by_slug("") is None
     assert badge_by_slug("nope") is None
@@ -236,6 +245,7 @@ def test_badge_icon_renders_inline_svg():
     assert 'aria-label="Scummer"' in html
 
 
+@pytest.mark.django_db
 def test_badge_icon_empty_for_unknown():
     assert badge_icon("nope") == ""
     assert badge_icon("") == ""
@@ -285,3 +295,250 @@ def test_user_badge_empty_without_profile(user):
 
 def test_user_badge_empty_for_none():
     assert user_badge(None) == ""
+
+
+# --- Granted badges (Badge / BadgeGrant) ---
+#
+# The badge table is cached per process, and these tests rewrite it constantly.
+# Production tolerates a stale entry for the timeout; a test cannot, so each one
+# clears it.
+
+
+@pytest.fixture
+def clear_badge_cache():
+    invalidate_granted_badges()
+    yield
+    invalidate_granted_badges()
+
+
+def _badge(slug="playtester", **kwargs):
+    defaults = {
+        "title": slug.title(),
+        "description": f"The {slug} badge",
+    }
+    badge = Badge.objects.create(slug=slug, **{**defaults, **kwargs})
+    invalidate_granted_badges()
+    return badge
+
+
+def _reloaded(profile):
+    """A fresh profile: ``display_badge`` is cached on the instance."""
+    return UserProfile.objects.get(pk=profile.pk)
+
+
+@pytest.mark.django_db
+def test_a_granted_badge_becomes_available(user, clear_badge_cache):
+    profile = _profile(user)
+    badge = _badge()
+    BadgeGrant.objects.create(badge=badge, user=user)
+    assert profile.eligible_badge_slugs == {"playtester"}
+
+
+@pytest.mark.django_db
+def test_a_badge_nobody_granted_is_not_available(user, clear_badge_cache):
+    profile = _profile(user)
+    _badge()
+    assert profile.eligible_badge_slugs == set()
+
+
+@pytest.mark.django_db
+def test_revoking_a_grant_takes_the_badge_away(user, clear_badge_cache):
+    profile = _profile(user, selected_badge="playtester")
+    badge = _badge(auto_display=True)
+    grant = BadgeGrant.objects.create(badge=badge, user=user)
+    assert profile.display_badge.slug == "playtester"
+
+    grant.delete()
+    invalidate_granted_badges()
+    assert _reloaded(profile).display_badge is None
+
+
+@pytest.mark.django_db
+def test_archiving_a_badge_takes_it_away_from_everyone(user, clear_badge_cache):
+    profile = _profile(user)
+    badge = _badge(auto_display=True)
+    BadgeGrant.objects.create(badge=badge, user=user)
+
+    badge.archived = True
+    badge.save()
+    invalidate_granted_badges()
+    assert _reloaded(profile).display_badge is None
+
+
+@pytest.mark.django_db
+def test_a_grant_to_everyone_reaches_someone_with_no_grant_of_their_own(
+    user, clear_badge_cache
+):
+    profile = _profile(user)
+    badge = _badge()
+    BadgeGrant.objects.create(badge=badge, audience=BadgeGrant.Audience.EVERYONE)
+    assert profile.eligible_badge_slugs == {"playtester"}
+
+
+@pytest.mark.django_db
+def test_a_grant_to_everyone_changes_nobodys_displayed_badge(user, clear_badge_cache):
+    """The whole reason auto_display defaults off: granting widely is safe."""
+    profile = _profile(user)
+    badge = _badge(auto_display=False)
+    BadgeGrant.objects.create(badge=badge, audience=BadgeGrant.Audience.EVERYONE)
+
+    assert badge.slug in profile.eligible_badge_slugs
+    assert profile.display_badge is None
+    assert user_badge(user) == ""
+
+
+@pytest.mark.django_db
+def test_an_opt_in_badge_still_shows_once_it_is_picked(user, clear_badge_cache):
+    profile = _profile(user, selected_badge="playtester")
+    badge = _badge(auto_display=False)
+    BadgeGrant.objects.create(badge=badge, user=user)
+    assert profile.display_badge.slug == "playtester"
+
+
+@pytest.mark.django_db
+def test_a_supporter_who_is_also_granted_a_badge_keeps_showing_the_tier(
+    user, clear_badge_cache
+):
+    """Rank decides the default, and a granted badge ranks below the tiers."""
+    profile = _profile(
+        user, patreon_status=PatreonStatus.ACTIVE, patreon_tier="Guilder"
+    )
+    badge = _badge(auto_display=True)
+    BadgeGrant.objects.create(badge=badge, user=user)
+
+    assert profile.eligible_badge_slugs == {"scummer", "guilder", "playtester"}
+    assert profile.display_badge.slug == "guilder"
+
+
+@pytest.mark.django_db
+def test_a_badge_may_not_take_a_built_in_slug(clear_badge_cache):
+    """The two kinds share a namespace, because a profile stores a bare slug."""
+    with pytest.raises(ValidationError) as refusal:
+        Badge(slug="staff", title="Staff", description="Not this one").full_clean()
+    assert "slug" in refusal.value.message_dict
+
+
+@pytest.mark.django_db
+def test_a_grant_to_everyone_names_nobody(clear_badge_cache, make_user):
+    badge = _badge()
+    with pytest.raises(ValidationError):
+        BadgeGrant(
+            badge=badge,
+            audience=BadgeGrant.Audience.EVERYONE,
+            user=make_user("somebody", "password"),
+        ).full_clean()
+
+
+@pytest.mark.django_db
+def test_a_grant_to_one_person_names_them(clear_badge_cache):
+    badge = _badge()
+    with pytest.raises(ValidationError):
+        BadgeGrant(badge=badge, audience=BadgeGrant.Audience.USER).full_clean()
+
+
+@pytest.mark.django_db
+def test_the_same_person_cannot_be_granted_one_badge_twice(user, clear_badge_cache):
+    badge = _badge()
+    BadgeGrant.objects.create(badge=badge, user=user)
+    with pytest.raises(IntegrityError):
+        BadgeGrant.objects.create(badge=badge, user=user)
+
+
+@pytest.mark.django_db
+def test_a_badge_can_only_be_granted_to_everyone_once(clear_badge_cache):
+    badge = _badge()
+    BadgeGrant.objects.create(badge=badge, audience=BadgeGrant.Audience.EVERYONE)
+    with pytest.raises(IntegrityError):
+        BadgeGrant.objects.create(badge=badge, audience=BadgeGrant.Audience.EVERYONE)
+
+
+# --- Uploaded artwork ---
+
+
+def _stored(markup):
+    """Put markup in the site's storage and return its address."""
+    name = default_storage.save("badges/test.svg", ContentFile(markup.encode()))
+    return default_storage.url(name)
+
+
+@pytest.mark.django_db
+def test_uploaded_artwork_keeps_its_colours(user, clear_badge_cache):
+    """A badge is identity artwork, so it is not flattened to the text colour."""
+    address = _stored(
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2 2" '
+        'shape-rendering="crispEdges">'
+        '<rect width="2" height="2" fill="#B1873F"/></svg>'
+    )
+    badge = _badge(artwork_url=address, auto_display=True)
+    BadgeGrant.objects.create(badge=badge, user=user)
+    _profile(user)
+
+    html = user_badge(user)
+    assert "#B1873F" in html
+    assert 'shape-rendering="crispEdges"' in html
+
+
+@pytest.mark.django_db
+def test_uploaded_artwork_cannot_carry_script_into_a_page(user, clear_badge_cache):
+    """Uploaded artwork is untrusted however staff-only the upload form was."""
+    address = _stored(
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2 2">'
+        "<script>steal()</script>"
+        "<foreignObject><b>hello</b></foreignObject>"
+        '<rect width="2" height="2" fill="#abc" onclick="steal()"/></svg>'
+    )
+    badge = _badge(artwork_url=address, auto_display=True)
+    BadgeGrant.objects.create(badge=badge, user=user)
+    _profile(user)
+
+    html = user_badge(user)
+    assert "<script" not in html.lower()
+    assert "onclick" not in html.lower()
+    assert "foreignobject" not in html.lower()
+    assert 'fill="#abc"' in html
+
+
+@pytest.mark.django_db
+def test_a_badge_with_no_artwork_draws_nothing_at_all(user, clear_badge_cache):
+    """No artwork means no markup — not an empty span holding space."""
+    badge = _badge(auto_display=True)
+    BadgeGrant.objects.create(badge=badge, user=user)
+    _profile(user)
+    assert user_badge(user) == ""
+
+
+# --- What drawing a badge per row costs ---
+
+
+@pytest.mark.django_db
+def test_the_gang_index_does_not_query_per_owner(
+    client, make_user, make_list, django_assert_max_num_queries, clear_badge_cache
+):
+    """A badge beside every name must not mean a query for every name.
+
+    The badge tag reads each owner's grants, so without the prefetch on the
+    index queryset this grows with the number of distinct owners — the kind of
+    regression that is invisible in development and only shows up under load.
+    The count is a ceiling rather than an equality so that unrelated work on the
+    page does not have to come back and edit this number.
+    """
+    owners = [make_user(f"owner{n}", "password") for n in range(6)]
+    badge = _badge(auto_display=True)
+    for owner in owners:
+        UserProfile.objects.create(user=owner)
+        BadgeGrant.objects.create(badge=badge, user=owner)
+        make_list(f"Gang {owner.username}", owner=owner)
+
+    # Warm anything cached per process, so this measures the page and not the
+    # first-render cost of the badge table.
+    client.get(reverse("core:lists") + "?my=0")
+
+    with django_assert_max_num_queries(20) as captured:
+        response = client.get(reverse("core:lists") + "?my=0")
+
+    assert response.status_code == 200
+    grant_queries = [
+        q for q in captured.captured_queries if "badgegrant" in q["sql"].lower()
+    ]
+    # One prefetch for the whole page, not one lookup per owner.
+    assert len(grant_queries) <= 1, grant_queries
