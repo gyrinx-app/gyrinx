@@ -1,0 +1,19 @@
+{
+  "name": "Gyrinx",
+  "user": "ubuntu",
+  "install": "bash .cursor/install.sh",
+  "start": "bash .cursor/start.sh",
+  "terminals": [
+    {
+      "name": "dev-server",
+      "command": "bash /workspace/.cursor/start.sh && cd /workspace && source .venv/bin/activate && export PATH=\"$HOME/.local/bin:$PATH\" && manage runserver 0.0.0.0:8000",
+      "description": "Django development server (gyrinx.settings_dev) on http://localhost:8000. Ensures PostgreSQL is up first (start.sh is idempotent) so the server has a database even if the per-boot start step has not run yet."
+    }
+  ],
+  "ports": [
+    {
+      "name": "web",
+      "port": 8000
+    }
+  ]
+}
