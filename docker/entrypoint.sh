@@ -32,7 +32,9 @@ manage ensuresuperuser --no-input
 # Deploys adding a task should confirm provisioning finished before relying on
 # it.
 { manage provision_tasks || true; } &
-# 2 workers: one busy core each on the 2-vCPU Cloud Run instances (GIL).
+# 2 workers: the instances are 1 vCPU, so the pair shares a core (GIL) — which
+#   the measured demand leaves ample room for (0.36 vCPU at p95). Two rather
+#   than one for availability, not throughput: see --max-requests below.
 # 20 threads each: 2 × 20 = 40 matches the service's containerConcurrency.
 # --timeout 0: gthread heartbeats are per-worker (not per-request), so the
 #   default 30s would never kill a slow page — but Cloud Run throttles CPU
