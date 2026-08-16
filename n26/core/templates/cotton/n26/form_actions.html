@@ -6,53 +6,26 @@
     <c-n26.form-actions submit_label="Delete gang" submit_variant="danger"
                         cancel_url="/gangs/1/" />
 
-Every form on the site ends the same way, and this is where that is decided
-once. <c-n26.form-page> draws its footer with this, so a full-page form gets it
-by filling in props; anything that is not a form-page — a dialog, or one of
-several forms on a page — writes the tag itself. Two hosts, one definition, and
-no screen composing a footer of its own.
+<c-n26.form-page> draws its footer with this, so a full-page form gets one by
+filling in props; anything that is not a form-page — a dialog, or one of several
+forms on a page — writes the tag itself.
 
-  --- the order and the alignment are not props ---
+The order and the alignment are not props: the way out first, the act last,
+right-aligned. Cancel is a plain href rather than a submit or a scripted step
+back through history, so a reader who clicks it lands where they already were.
 
-The way out sits first, the act last, and the row is right-aligned where the
-eye finishes the last field. The act comes last because it is what the form is
-for, and a reader running down the fields meets every alternative — the way
-out, then any lesser act — on the way to it. Neither is a choice a call site
-can make: buttons that swap places between screens are buttons a reader has to
-read before clicking.
-
-  --- cancel is a link, and it is quiet ---
-
-Cancel navigates. It is an href — never a submit, and never a scripted step back
-through history — because leaving is not a submission, and a reader who clicks
-it should land where they already were rather than wherever this form would have
-sent them. It is drawn only when it has somewhere to lead: a form with nowhere
-to go back to leaves cancel_url out and gets no cancel at all, which is better
-than one that goes somewhere arbitrary.
-
-Ghost, so the two do not compete. The act carries the colour that says what it
-does — green brings something into existence, red takes it away — and a cancel
-of equal weight beside it makes a reader stop and read both to find the one they
-want. Text at rest and a button under the pointer is the right weight for a
-control that is only wanted when the answer is no.
-
-  --- a form with two acts ---
-
-Only the submit that was clicked is sent, which is how a form offering two acts
-tells them apart: the second one goes in the slot carrying its own name and
-value, and the act at the end needs no name, because its click is the one that
-sends nothing extra.
+A form offering two acts puts the second in the slot with a name and value of
+its own. Only the clicked submit is sent, which is how the view tells the two
+apart, and the act at the end needs no name because its click sends nothing
+extra.
 
   submit_label — the act's wording. Without one no submit is drawn.
   submit_variant — the act's colour. `success` by default, because the button
-    that ends a form usually brings a thing into existence; `danger` where it
-    takes one away, `primary` where it only carries on.
-  cancel_url — where the way out leads. Without one there is no cancel.
-  cancel_label — the way out's wording. "Cancel" by default.
+    ending a form usually brings a thing into existence; `danger` where it takes
+    one away, `primary` where it only carries on.
+  cancel_url — where the way out leads. Without one there is no cancel, which is
+    better than one leading somewhere arbitrary.
   size — both buttons' size, for a footer that ends a step rather than a screen.
-  slot — further controls, drawn between the way out and the act. For the rare
-    form answering in more than one way: the reader still meets Cancel first
-    and the form's own act still ends the row.
 {% endcomment %}
 <c-vars
     submit_label=""
@@ -64,9 +37,8 @@ sends nothing extra.
 />
 
 {% comment %}
-Wrapping rather than shrinking: on a narrow screen two buttons that will not fit
-on one line drop onto two, still right-aligned, rather than squeezing their
-wording to nothing.
+Wrapping rather than shrinking: two buttons that will not fit on one line drop
+onto two, still right-aligned, rather than squeezing their wording to nothing.
 {% endcomment %}
 <div {{ attrs }} class="flex flex-wrap items-center justify-end gap-2 {{ class }}">
     {% if cancel_url %}

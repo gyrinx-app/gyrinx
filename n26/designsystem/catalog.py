@@ -1,13 +1,9 @@
-"""The gallery's table of contents.
+"""The gallery's table of contents: what exists, how it is grouped, what it is for.
 
-Deliberately thin: this file says what exists, how it is grouped and what it is
-*for*. It does not restate any component's props — those are read from the
-installed package at runtime (see :mod:`designsystem.introspect`), so they cannot
-fall out of date with the version you have installed.
-
-Every public component in django-cotton-ui appears here. The internal ``impl.html``
-templates do not: they have no public tag, and their props are documented on the
-wrapper that forwards to them.
+Props are never restated here — they are read from each component's own
+``<c-vars>`` block at runtime (see :mod:`designsystem.introspect`). Internal
+``impl.html`` templates get no entry: they have no public tag, and their props are
+documented on the wrapper that forwards to them.
 """
 
 from __future__ import annotations
@@ -80,10 +76,8 @@ class Group:
         """Its components' search terms as a JSON array.
 
         The sidebar hides a whole group when the filter excludes every component
-        in it. Handing the group its members' terms lets that be one predicate
-        over data, rather than the group inspecting the DOM to see how many
-        children are still visible — which couples it to how the children happen
-        to be hidden.
+        in it. Handing the group its members' terms keeps that one predicate over
+        data, rather than the group inspecting the DOM.
         """
         return json.dumps([component.search_term for component in self.components])
 
@@ -109,14 +103,9 @@ GROUPS: list[Group] = [
                     "no disabled prop — pass disabled as a plain attribute; the styles "
                     'for it already exist. type="button" is hardcoded, but because {{ '
                     'attrs }} is emitted first, your own type="submit" still wins. '
-                    "The seventh variant, success, is this repository's: three of the "
-                    "fills carry a meaning rather than a mood — success makes "
-                    "something, danger destroys something, primary does neither — so "
-                    "the button that creates a gang or hires a fighter is always the "
-                    "green one and can be found without reading it. Added through a "
-                    "local override of the kit's template, which is also why the "
-                    "shadow rule in app.css lists .bg-green-700 alongside the other "
-                    "solid fills."
+                    "The success variant is a local override of the kit's template, "
+                    "so app.css must list .bg-green-700 alongside the other solid "
+                    "fills for the shadow rule to reach it."
                 ),
             ),
             Component(
@@ -824,11 +813,11 @@ GROUPS: list[Group] = [
                 ),
                 needs=(ALPINE, KIT_JS),
                 notes=(
-                    "A development tool rather than a UI primitive: drop it once, and "
-                    "it edits the tokens on <html> so the page you are already looking "
-                    "at is the preview. It is mounted on every page of this gallery — "
-                    "the paintbrush, bottom right. Copy the CSS it generates into your "
-                    "own stylesheet to keep a theme."
+                    "A development tool rather than a UI primitive: drop it once and "
+                    "it edits the tokens on <html>, so the page you are looking at is "
+                    "the preview. It is mounted on every page of this gallery — the "
+                    "paintbrush, bottom right. Nothing is stored: copy the CSS it "
+                    "generates into your own stylesheet to keep a theme."
                 ),
             ),
         ],
@@ -837,10 +826,8 @@ GROUPS: list[Group] = [
         "Compositions",
         (
             "This project's own components, in templates/cotton/n26/ rather than the "
-            "kit. Most are assembled from the primitives above and add no "
-            "JavaScript of their own — where they need behaviour, they drive the "
-            "Alpine scope a kit component already provides. The exception is icon, "
-            "which is a primitive: the kit ships none, so we keep our own."
+            "kit. Most are assembled from the primitives above and add no JavaScript "
+            "of their own, driving the Alpine scope a kit component already provides."
         ),
         [
             Component(
@@ -849,23 +836,13 @@ GROUPS: list[Group] = [
                 template="n26/icon.html",
                 summary="The whole icon set, from one named registry.",
                 notes=(
-                    "django-cotton-ui ships no icons at all, so until this existed "
-                    "every SVG was pasted inline where it was wanted — one chevron in "
-                    "five templates, one pencil in four, and nothing anywhere that "
-                    "listed what the project already had. The drawings are Heroicons "
-                    "v2 outline, on a 24x24 canvas with round caps and no fill, which "
-                    "is uniform enough that the registry in core/icons.py can be path "
-                    "data alone and this component supplies everything else. The brand "
-                    "marks are what that uniformity costs: a logo is a filled shape "
-                    "rather than a line drawing, and one of them is published on a "
-                    "1080 canvas, so the registry names which are solid and which keep "
-                    "a canvas of their own — rescaling a mark's numbers by hand would "
-                    "be redrawing it. Four are "
-                    "our own redrawings, kept as they are because naming a set should "
-                    "not silently redraw it; the gallery marks them. Colour is never a "
-                    "prop — currentColor means an icon is the colour of its text — and "
-                    "stroke weight is, because weight is a function of rendered size "
-                    "rather than of the drawing."
+                    "The drawings live in the registry at n26/core/icons.py as path "
+                    "data alone — Heroicons v2 outline, 24x24, round caps, no fill — "
+                    "and this component supplies everything else. Brand marks break "
+                    "that uniformity, so the registry says which are solid fills and "
+                    "which keep a canvas of their own. There is no colour prop: an "
+                    "icon draws in currentColor. Stroke weight is a prop, weight being "
+                    "a function of rendered size rather than of the drawing."
                 ),
             ),
             Component(
@@ -874,15 +851,12 @@ GROUPS: list[Group] = [
                 template="n26/search_bar.html",
                 summary="A search field, with its submit button beside it.",
                 notes=(
-                    "The field and its icon are one joined control, which the kit has "
-                    "no input group for: the wrapper owns the border, radius and focus "
-                    "ring, and the field is a plain <input> carrying the kit's own "
-                    "token classes, because c-ui.input would put a second border "
-                    "inside this one. The submit is deliberately *not* in that group — "
-                    "joined and filled it fought the group's border, joined and "
-                    "outlined it drew a second box inside it, both symptoms of a "
-                    "primary action not wanting to be a segment of the control it acts "
-                    "on. It is a real form, so it submits without JavaScript."
+                    "The field and its icon are one joined control: the wrapper owns "
+                    "the border, radius and focus ring, and the field is a plain "
+                    "<input> carrying the kit's own token classes — c-ui.input would "
+                    "draw a second border inside this one. The submit button sits "
+                    "outside that group. It is a real form, so it submits without "
+                    "JavaScript."
                 ),
             ),
             Component(
@@ -895,13 +869,12 @@ GROUPS: list[Group] = [
                 ),
                 needs=(ALPINE, KIT_JS, FOCUS),
                 notes=(
-                    "No new state. The checkbox group keeps its selection in a plain, "
-                    "assignable values array and the dropdown exposes close(), both "
-                    "above this content in the scope chain — so All, None and only are "
-                    "one assignment each. The group wraps the whole dropdown rather "
-                    "than sitting in its panel, which is what lets the trigger show a "
-                    "count while the panel is shut. Cancel reverts to a snapshot taken "
-                    "when the panel opened."
+                    "No state of its own: All, None and the per-row only are single "
+                    "assignments into the checkbox group's values array, with the "
+                    "dropdown's close() from the same scope chain. The group wraps the "
+                    "whole dropdown rather than sitting in its panel, which is what "
+                    "lets the trigger show a count while the panel is shut. Cancel "
+                    "reverts to a snapshot taken when the panel opened."
                 ),
             ),
             Component(
@@ -913,23 +886,17 @@ GROUPS: list[Group] = [
                 ),
                 needs=(ALPINE, KIT_JS),
                 notes=(
-                    "The numeric member of the menu family, after filter-menu (many "
-                    "of a set) and choice-menu (one of a set). A slider is the wrong "
-                    "shape for a toolbar — it wants width — and the right shape for "
-                    "'how much', because the useful gesture is drag-until-the-list-"
-                    "looks-right rather than typing a number; a dropdown gives it "
-                    "width when open and leaves a button behind when shut. The "
-                    "trigger states the bound rather than the label, so a bar can be "
-                    "read without opening anything, and swaps in a word at either end "
-                    "for the cases where the number does not say what it means. Pass "
-                    "model_min and model_max instead of model and it becomes a "
-                    "two-thumb range. No OK or Cancel, unlike filter-menu: you are "
-                    "watching the list respond as you drag, and confirming something "
-                    "you have already seen happen is a step for nothing. The slider "
-                    "underneath is c-n26.range-slider, not c-ui.range: the kit's "
-                    "binds with x-modelable, which carries a drag out to the caller "
-                    "but will not carry a programmatic change back in — so Clear "
-                    "moved the model and left the filled track behind."
+                    "The numeric member of the menu family, beside filter-menu (many "
+                    "of a set) and choice-menu (one of a set). Pass model_min and "
+                    "model_max instead of model and it becomes a two-thumb range. The "
+                    "trigger states the bound rather than the label, and swaps in a "
+                    "word at either end where the number does not say what it means. "
+                    "No OK or Cancel, unlike filter-menu — the list responds as you "
+                    "drag. The slider underneath is c-n26.range-slider, not "
+                    "c-ui.range: the kit's binds with x-modelable, which carries a "
+                    "drag out to the caller but will not carry a programmatic change "
+                    "back in, so Clear moves the model and leaves the filled track "
+                    "behind."
                 ),
                 parts=(
                     Part(
@@ -944,20 +911,14 @@ GROUPS: list[Group] = [
                 slug="tab-links",
                 tag="c-n26.tab-links",
                 template="n26/tab_links.html",
-                summary="A tab strip whose tabs are links, for a choice the server answers.",
+                summary="A tab strip whose tabs are links, for a choice the server makes.",
                 notes=(
-                    "The other kind of tab. c-ui.tabs switches panels already on the "
-                    "page; these navigate, because what is behind one is a whole "
-                    "render — which makes the choice a URL, so it is linkable, in the "
-                    "history and available to a browser that has run no JavaScript. "
-                    "That is also why a tab carries no count: only the current one has "
-                    "been fetched, and numbering the rest would cost a query per tab "
-                    "on a strip whose whole job is to offer more of them. Drawn as a "
-                    "nav with aria-current rather than role=tablist, which promises "
-                    "arrow keys and a panel that swaps underneath. It wraps rather "
-                    "than scrolling sideways, because names come from content and a "
-                    "horizontal scroller hides tabs past the edge of a phone behind a "
-                    "gesture nobody is told about."
+                    "These navigate — c-ui.tabs is the one that switches panels "
+                    "already on the page — so the choice is a URL, linkable and in "
+                    "the history. Only the current tab has been rendered, so a tab "
+                    "carries no count. Drawn as a nav with aria-current rather than "
+                    "role=tablist, which would promise arrow keys and a panel swapping "
+                    "underneath. The strip wraps rather than scrolling sideways."
                 ),
             ),
             Component(
@@ -971,24 +932,12 @@ GROUPS: list[Group] = [
                 needs=(ALPINE,),
                 notes=(
                     "For the heavy tail of a page: detail behind a disclosure "
-                    "that most readers never open. A hire list prices hundreds "
-                    "of options, and shipping every option's drawn card makes "
-                    "the document megabytes and the render minutes — where a "
-                    "card fetched on the first open costs one small request, "
-                    "for exactly the rows somebody reads. The fetch happens on "
-                    "this component's own init, so the call site chooses the "
-                    "moment by placement: inside a template x-if it fetches "
-                    "when the template first instantiates. The alternative — "
-                    "an IntersectionObserver watching for visibility — answers "
-                    "a different question (near the viewport, not asked for) "
-                    "and fires for everything as a reader scrolls a long list. "
-                    "Given follows, the address becomes a question the page "
-                    "keeps answering: a hire row rebuilds it from the options "
-                    "ticked on it and the fragment is fetched again, with the "
-                    "card already drawn staying up until the new one lands. "
-                    "That is how a surface follows a choice with too many "
-                    "combinations to ship — the address says which one, and "
-                    "the server draws the one that was asked for."
+                    "that most readers never open. The fetch happens on this "
+                    "component's own init, so the call site chooses the moment "
+                    "by placement — inside a template x-if it fetches when the "
+                    "template first instantiates. With follows set, a change of "
+                    "address fetches again and the fragment already drawn stays "
+                    "up until the new one lands."
                 ),
             ),
             Component(
@@ -1001,42 +950,21 @@ GROUPS: list[Group] = [
                 ),
                 needs=(ALPINE, KIT_JS, COLLAPSE),
                 notes=(
-                    "The filter bar sticks, because a filter you have to scroll back "
-                    "up to reach is one you use once — and everything a reader steers "
-                    "with sticks in the same box: the filters slot, the readout and "
-                    "the section strip. One box rather than several, because each "
-                    "sticky band after the first would have to be told how tall the "
-                    "ones above it are, and a wrong number either overlaps a band or "
-                    "leaves a stripe of scrolling list wedged between two. Stacked "
-                    "inside one box they just follow each other and the page sets a "
-                    "single offset. The section strip comes in two shapes and the "
-                    "width picks one: from sm up every section is a tab, below it "
-                    "the section on screen stands alone with the rest behind a "
-                    "chevron. A breakpoint rather than a measurement — how many "
-                    "names fit is a fact about these names at this width, but not "
-                    "one worth a ResizeObserver and a ghost copy of the strip. They "
-                    "are two blocks of markup rather than one that adapts, because "
-                    "what they do differs: a full strip must not move when a tab is "
-                    "clicked, and a strip of one is the current section followed by "
-                    "the way to the others. One block serving both pulled the active "
-                    "tab to the front, which is the second shape's rule imposed on "
-                    "the first, where it reorders the whole row on every click. "
-                    "Categories collapse, because "
-                    "thirty rows is a lot of thumb; and every control applies on "
-                    "touch, so the loop is filter, look, adjust rather than filter, "
-                    "wait, go back. Items register their own facets on init, so the "
-                    "counts, the readout and each group's visibility are one array "
-                    "read three ways and no total can fall out of date — and the "
-                    "readout counts what the tab strip is showing rather than "
-                    "everything registered, because a total spanning the sections a "
-                    "tab is hiding is a number that contradicts the list under it. "
-                    "An empty "
-                    "category hides itself rather than leaving a header behind, and a "
-                    "search forces every group open without overwriting what the "
-                    "reader had chosen. The controls are not built in: they go in a "
-                    "slot and write to this component's state by name, which is why "
-                    "the same shell serves a trading post and anything else long "
-                    "enough to need one."
+                    "Everything a reader steers with sits in one sticky box — the "
+                    "filters slot, the readout and the section strip — so the page "
+                    "sets a single offset rather than each band having to be told "
+                    "how tall the ones above it are. The section strip is two "
+                    "blocks of markup switched at the sm breakpoint: every section "
+                    "as a tab above it, the section on screen standing alone with "
+                    "the rest behind a chevron below it. Items register their own "
+                    "facets on init, so the counts, the readout and each group's "
+                    "visibility are one array read three ways; the readout counts "
+                    "what the section strip is showing rather than everything "
+                    "registered. An empty category hides itself rather than leaving "
+                    "a header behind, and a search forces every group open without "
+                    "overwriting what the reader had collapsed. The controls are "
+                    "not built in: they go in a slot and write to this component's "
+                    "state by name."
                 ),
                 parts=(
                     Part(
@@ -1055,7 +983,7 @@ GROUPS: list[Group] = [
                     Part(
                         "c-n26.collection-picker.item",
                         "n26/collection_picker/item.html",
-                        "One row: name, cost, rarity and its buttons. One line at "
+                        "One row: name, price, rarity and its buttons. One line at "
                         "every width.",
                         required=True,
                     ),
@@ -1071,23 +999,14 @@ GROUPS: list[Group] = [
                 ),
                 needs=(ALPINE, KIT_JS, COLLAPSE, FOCUS),
                 notes=(
-                    "The same screen as the trading post, because it is the same "
-                    "kind of screen — Profile is an Assignable, so a gang list is "
-                    "a collection like any other, and this is "
-                    "c-n26.collection-picker with hiring's vocabulary on it. "
-                    "Which keeps it thin: it sets the noun, drops the filters "
-                    "that mean nothing here (nothing you hire has a trade-points "
-                    "price or an Exclusive flag), and adds the one thing the "
-                    "shell has no business knowing — the composition limit. That "
-                    "limit is stated and never enforced, for three reasons "
-                    "pointing the same way: the rulebook treats going over as "
-                    "something to correct in the Post-cycle rather than "
-                    "something that cannot happen, n26.notes is explicit that "
-                    "nothing blocks on a note, and refusing belongs at the "
-                    "operation boundary where main puts overspend. Options are "
-                    "behind the disclosure only — a split button on the row "
-                    "would put a second decision in front of a reader who has "
-                    "not decided to hire at all."
+                    "c-n26.collection-picker with hiring's vocabulary on it: it "
+                    "sets the noun, drops the filters that mean nothing here "
+                    "(nothing you hire has a trade-points price or an Exclusive "
+                    "flag), and adds the composition limit, which the shell has "
+                    "no business knowing about. That limit is stated and never "
+                    "enforced — nothing blocks on a note, and refusing belongs "
+                    "at the operation boundary. A row's options are behind its "
+                    "disclosure only."
                 ),
                 parts=(
                     Part(
@@ -1105,28 +1024,20 @@ GROUPS: list[Group] = [
                 slug="server-dialog",
                 tag="c-n26.dialog",
                 template="n26/dialog.html",
-                summary="A question the server decided to ask, and the form that answers it.",
+                summary="A dialog the server decided to open, and the form inside it.",
                 needs=(ALPINE,),
                 notes=(
                     "The panel every server-decided dialog is built from, and "
-                    "the only kind of dialog here whose open state is a server "
-                    "state: the page draws it when the URL says so, which is "
-                    "what makes it a link, makes it survive a reload, and makes "
-                    "the click that opened it work with scripting off. "
-                    "c-ui.dialog is the other shape — a trigger beside content "
-                    "teleported into a <template> and revealed by Alpine — and "
-                    "with the answer already decided by the server and no "
-                    "script running it draws nothing at all. So this is a "
-                    "native <dialog open>: a panel in the flow of the page on "
-                    "its own, promoted to a real modal by showModal() where "
-                    "Alpine is there to call it, which brings the top layer, "
-                    "the backdrop, Escape and a focus trap without any of them "
-                    "being written here. Dismissing navigates rather than "
-                    "hiding, because a dialog closed in place would leave the "
-                    "page on screen while the URL still named what it was "
-                    "asking about. It was two copies of that dance before this "
-                    "existed — hiring's and the equip page's — which is one copy more "
-                    "than a promotion this fiddly can survive."
+                    "the only dialog here whose open state is server state: the "
+                    "page draws it when the URL says so, which is what makes it "
+                    "a link, makes it survive a reload, and makes the click that "
+                    "opened it work with scripting off. It is a native <dialog "
+                    "open> — a panel in the flow of the page, promoted to a real "
+                    "modal by showModal() where Alpine is there to call it, "
+                    "which brings the top layer, the backdrop, Escape and a "
+                    "focus trap with it. Dismissing navigates rather than "
+                    "hiding: closing in place would leave the page on screen "
+                    "while the URL still named what the dialog was asking about."
                 ),
             ),
             Component(
@@ -1139,25 +1050,16 @@ GROUPS: list[Group] = [
                 ),
                 needs=(ALPINE,),
                 notes=(
-                    "c-n26.dialog with hiring's questions in it. What is left "
-                    "here is the questions and the fields under them: the "
-                    "profile and its options are hidden fields rather than "
-                    "controls, because they were picked on the listing that "
-                    "was clicked and the way to change them is to go back to "
-                    "it. The price in the lead is everything the listing was "
-                    "configured to and not the advertised one — an option "
-                    "ticked upstairs is charged here, so it is named here. "
-                    "The box under the price is the edition's one place a "
-                    "rating can be argued with: gear haggled down still counts "
-                    "at the quote, while a fighter taken on cheap may be a "
-                    "bargain or may be worth less than the book asks, and only "
-                    "the table knows which. It starts ticked, because typing a "
-                    "price over the quote is most of the way to saying what "
-                    "the fighter is worth and the bargain reading is the one "
-                    "worth an extra click. It is drawn whether or not the "
-                    "price has been typed over, because a control that appears "
-                    "under the reader's hands is one they did not know was "
-                    "coming."
+                    "c-n26.dialog with hiring's questions in it. The profile "
+                    "and its options are hidden fields rather than controls: "
+                    "they were picked on the listing that was clicked, and the "
+                    "way to change them is to go back to it. The price in the "
+                    "lead is what the listing was configured to, not the "
+                    "advertised one — an option ticked upstairs is charged "
+                    "here, so it is named here. The box under the price decides "
+                    "whether a price typed over the quote also becomes the "
+                    "fighter's rating; it starts ticked, and is drawn whether "
+                    "or not the price has been typed over."
                 ),
             ),
             Component(
@@ -1172,37 +1074,19 @@ GROUPS: list[Group] = [
                 ),
                 needs=(ALPINE,),
                 notes=(
-                    "One panel for six questions, because the difference "
-                    "between them is a sentence and, for half of them, one "
-                    "control — six files "
-                    "would be six copies of the same dialog drifting apart a "
-                    "fix at a time. Each says the thing a reader cannot work "
-                    "out from the page: a sale states its arithmetic, because "
-                    "the figure comes from rows nobody can see and it is money; "
-                    "a move states what it does not do, since the question "
-                    "anyone moving a gun between fighters has is whether it "
-                    "costs anything; a removal states that the money stays "
-                    "spent, because the Sell button directly above it says "
-                    "otherwise; and a refund names what was paid, which is the "
-                    "one number that tells it apart from the other two acts "
-                    "that also take the thing away. The stash is a button and the roster a select "
-                    "because they are not the same kind of choice — one place "
-                    "that is always there, against a list that may be long — "
-                    "and only the clicked submit is sent, which is the whole of "
-                    "how the view tells the two apart. Selling a gun with "
-                    "something bolted to it is two sales at two prices, so the "
-                    "answers carry a figure each rather than the lead carrying "
-                    "one; and fitting an accessory is the question here that "
-                    "confirms nothing, sharing the panel because it is the same "
-                    "sort of state — one row of a card, open because the "
-                    "address says so. Changing what a thing was bought with "
-                    "is the second of those, and it draws the buying row's "
-                    "own controls rather than a second set: one set of "
-                    "alternatives asked about in two places is one place "
-                    "where the asking is written, with the loader deciding "
-                    "which control starts picked — a buyer is handed the "
-                    "standard one, and somebody changing a thing starts on "
-                    "what it holds."
+                    "One panel for six questions: sell, move, refund, remove, "
+                    "fit an accessory, and change what a thing was bought with. "
+                    "Each states what a reader cannot work out from the page — "
+                    "a sale states its arithmetic, a move that it charges "
+                    "nothing, a removal that the money stays spent, a refund "
+                    "what was paid. The stash is a button and the roster a "
+                    "select, and only the clicked submit is sent, which is the "
+                    "whole of how the view tells those two apart. Selling "
+                    "something with a part bolted to it is two sales at two "
+                    "prices, so each option carries its own figure rather than "
+                    "the lead carrying one. Changing what a thing was bought "
+                    "with draws the buying row's own controls rather than a "
+                    "second set, with the loader deciding which starts picked."
                 ),
             ),
             Component(
@@ -1211,23 +1095,19 @@ GROUPS: list[Group] = [
                 template="n26/owned_lines.html",
                 summary="What a model is already carrying, and what can happen to it.",
                 notes=(
-                    "The inside of an equip row for something the fighter already "
-                    "has. Drawn the way a card draws the same rows — the thing, "
-                    "what it contributed, its parts indented under it — so a "
-                    "reader recognises what they are looking at; the weapon's "
-                    "own firing line is not among them for the same reason the "
-                    "card gives it no row, which is that it *is* the weapon. "
-                    "Sell leads, because it is what anybody came here to do, "
-                    "and the rarer acts share a chevron. Which of them is red "
-                    "is the row's own word rather than this component's, so an "
-                    "act added to the structure appears here in the right "
-                    "colour with nothing edited. A part offers no move: "
-                    "it belongs to the thing it hangs off, and Operation.move "
-                    "refuses an assignment with a parent, so a control for it "
-                    "would be a click that cannot work. Every control is a link "
-                    "to a real address — the dialog is a server state, and the "
-                    "catalogue's own form wraps every row on the page, so a form "
-                    "in here would be a form inside a form."
+                    "The inside of an equip row for something the fighter "
+                    "already has, drawn the way a card draws the same lines — "
+                    "the thing, what it contributed, its parts indented under "
+                    "it. The weapon's own firing line is not among them: it "
+                    "*is* the weapon. Which act is red comes from the structure "
+                    "rather than from this component, so an act added there "
+                    "appears here in the right colour with nothing edited. A "
+                    "part offers no move — Operation.move refuses an assignment "
+                    "with a parent, so the control would be a click that cannot "
+                    "work. Every control is a link to a real address: the "
+                    "dialog is a server state, and the catalogue's own form "
+                    "already wraps every row on the page, so a form in here "
+                    "would be a form inside a form."
                 ),
             ),
             Component(
@@ -1240,12 +1120,11 @@ GROUPS: list[Group] = [
                 needs=(ALPINE, KIT_JS, FOCUS),
                 notes=(
                     "For the things that are never several at once — a sort order "
-                    "being the obvious one. All / None and the per-row only go with "
-                    "the checkboxes, since they only mean anything when more than one "
-                    "row can be on; what is left is the list and OK / Cancel. The "
-                    "trigger shows the chosen label rather than a count, a count "
-                    "always being one. If you want a menu that commits the moment you "
-                    "pick, the kit's own c-ui.menu is the better fit."
+                    "being the obvious one. All / None and the per-row only belong "
+                    "to the checkboxes and are absent here; what is left is the list "
+                    "and OK / Cancel. The trigger shows the chosen label rather than "
+                    "a count. For a menu that commits the moment you pick, use the "
+                    "kit's own c-ui.menu."
                 ),
             ),
             Component(
@@ -1271,9 +1150,9 @@ GROUPS: list[Group] = [
                 notes=(
                     'The kit has no link — c-ui.button variant="text" is still a '
                     "button — so this is the plain one, and what the link-ish "
-                    "components are built from. Colour is a prop rather than a class "
-                    'because class="text-muted" against a default of text-accent is '
-                    "two utilities of equal specificity, and which wins depends on the "
+                    "components are built from. Colour is a prop rather than a class: "
+                    'class="text-muted" against a default of text-accent is two '
+                    "utilities of equal specificity, and which wins depends on the "
                     "order Tailwind emitted them. Without an href it renders a span, "
                     "not a dead anchor. The text sits in its own span, so the trailing "
                     "slot stays outside the underline."
@@ -1285,21 +1164,14 @@ GROUPS: list[Group] = [
                 template="n26/color_swatch.html",
                 summary="A colour, as a small round mark before a name.",
                 notes=(
-                    "One component for the mark a gang's colour makes, because the "
-                    "gang table, the gang's own heading and the drawer would "
-                    "otherwise each answer three questions for themselves and come "
-                    "to different answers. One prop takes the colour whether it is a "
-                    "literal or a theme name: a hex is frozen because someone chose "
-                    "it, while a token resolves through var() and follows a theme "
-                    "change. It has to be a style attribute — Tailwind reads class "
-                    "names as literal strings, so a class built from a variable is "
-                    "one it never emits, while every --color-* variable is emitted "
-                    "for exactly this lookup. No colour draws nothing at all: a "
-                    "reserved space would be an empty gutter down a list where most "
-                    "gangs have none, and a neutral ring would be indistinguishable "
-                    "from a gang that picked ink. Aria-hidden unless given a label, "
-                    "because a colour on its own tells a reader who cannot see it "
-                    "nothing they can use and the name is already beside it."
+                    "One prop takes the colour whether it is a literal or a theme "
+                    "name: a hex is frozen, while a token resolves through var() and "
+                    "follows a theme change. It has to be a style attribute — "
+                    "Tailwind reads class names as literal strings, so a class built "
+                    "from a variable is one it never emits, while every --color-* "
+                    "variable is emitted for exactly this lookup. With no colour it "
+                    "draws nothing at all rather than reserving space. Aria-hidden "
+                    "unless given a label."
                 ),
             ),
             Component(
@@ -1308,13 +1180,10 @@ GROUPS: list[Group] = [
                 template="n26/color_link.html",
                 summary="Text with a colour swatch in front of it.",
                 notes=(
-                    "The sibling of flair-link: both are c-n26.link with something "
-                    "in a slot that sits outside the underline — a swatch before the "
-                    "text here, a badge after it there. The swatch is "
-                    "c-n26.color-swatch, so this owns only the placing of it; a "
-                    "heading or a drawer row that already has an anchor of its own "
-                    "draws the swatch directly rather than taking a link it does not "
-                    "want."
+                    "c-n26.link with a c-n26.color-swatch in a leading slot, outside "
+                    "the underline; the sibling of c-n26.flair-link, which puts a "
+                    "badge in the trailing one. Somewhere that already has an anchor "
+                    "of its own draws the swatch directly instead."
                 ),
             ),
             Component(
@@ -1325,18 +1194,17 @@ GROUPS: list[Group] = [
                 notes=(
                     "c-n26.link with a badge in its trailing slot, so everything about "
                     "being a link lives there and this only owns the badge. The "
-                    "trailing slot is outside the underline, which is the point — a "
-                    "rule running under the artwork reads as a mistake. The badge is "
-                    "sized in em rather than px, so one component works in a table "
-                    "cell and in a heading with no size prop, and the rule is applied "
-                    "to descendant svg because the artwork belongs to the caller."
+                    "trailing slot sits outside the underline. The badge is sized in "
+                    "em rather than px, so one component works in a table cell and in "
+                    "a heading with no size prop, and the sizing is applied to "
+                    "descendant svg because the artwork belongs to the caller."
                 ),
                 parts=(
                     Part(
                         "c-n26.flair.staff",
                         "n26/flair/staff.html",
-                        "The pixel-art staff badge, drawn from the platform's own "
-                        "badge asset. Fixed palette by design.",
+                        "The pixel-art staff badge, from the platform's own badge "
+                        "asset. Fixed palette.",
                     ),
                     Part(
                         "c-n26.flair.house",
@@ -1347,10 +1215,9 @@ GROUPS: list[Group] = [
                     Part(
                         "c-n26.flair.gang-type",
                         "n26/flair/gang_type.html",
-                        "A gang type's own artwork, sanitised on the way out. The "
-                        "only badge here that is content rather than a drawing we "
-                        "ship — so the only one that can be absent, and the only "
-                        "one that is untrusted.",
+                        "A gang type's own artwork, sanitised on the way out. "
+                        "Content rather than a drawing we ship, so it is the one "
+                        "badge that may be absent and the one that is untrusted.",
                     ),
                 ),
             ),
@@ -1360,17 +1227,13 @@ GROUPS: list[Group] = [
                 template="n26/user_link.html",
                 summary="A person's name with the badge they actually hold.",
                 notes=(
-                    "flair-link with the badge decided rather than passed in, "
-                    "because the alternative is every page deciding for itself and "
-                    "the pages disagreeing. Which mark someone shows belongs to the "
-                    "person, not to the screen they appear on: it is derived from "
-                    "their live supporter standing and staff flag against the "
-                    "platform's registry, plus their own pick among what that "
-                    "leaves them. Drawing it from is_staff — which one page did — "
-                    "gives every supporter no badge at all. There is no label prop "
-                    "for the same reason: the wording comes from the registry, so a "
-                    "call site cannot guess wrong about what someone else's badge "
-                    "means, and a new tier needs no edition change."
+                    "c-n26.flair-link with the badge derived rather than passed in: "
+                    "which mark someone shows comes from their live supporter "
+                    "standing and staff flag against the platform's registry, plus "
+                    "their own pick among what that leaves them. Drawing it from "
+                    "is_staff instead gives every supporter no badge at all. There "
+                    "is no label prop — the wording comes from the registry, so a "
+                    "new tier needs no edition change."
                 ),
             ),
             Component(
@@ -1379,16 +1242,12 @@ GROUPS: list[Group] = [
                 template="n26/page_header.html",
                 summary="What this page is, at the top of it.",
                 notes=(
-                    "Exists because two screens had already disagreed: the gang "
-                    "sheet set its name at text-2xl and the hire form set its at "
-                    "text-xl, for no reason either template could have told you. "
-                    "One scale, decided here. The trail, the lead and the page's "
-                    "controls are all optional and compose around it. The lead "
-                    "takes one name for either shape — pass a string for a few "
-                    "words or open a slot for markup — because `.strip` is a "
-                    "method on a string as much as on slot content, so the "
-                    "template never has to know which it got, and the common case "
-                    "stays a bare attribute."
+                    "One scale for a page's name, so screens cannot disagree "
+                    "about it. The trail, the lead and the page's controls are "
+                    "all optional and compose around it. The lead takes one name "
+                    "for either shape — a string for a few words, or a slot for "
+                    "markup — since `.strip` is a method on a string as much as "
+                    "on slot content."
                 ),
             ),
             Component(
@@ -1402,11 +1261,10 @@ GROUPS: list[Group] = [
                     "referenced (built into, given by, offered by…), what it "
                     "does in the order the rules apply it, and how much of the "
                     "player side is assigned to it. Each sentence's hint sits "
-                    "behind a hover or keyboard focus, CSS-only, with the "
-                    "browser's title as the touch fallback; a sentence whose "
-                    "subject has a page is a link, and one without is plain "
-                    "words, which is an answer rather than a gap. Views fill "
-                    "the addresses in — the compiler knows no URLs."
+                    "behind hover or keyboard focus, CSS-only, with the "
+                    "browser's title as the touch fallback. Views fill the "
+                    "addresses in — the compiler knows no URLs, so a sentence "
+                    "whose subject has no page renders as plain words."
                 ),
                 parts=(
                     Part(
@@ -1424,18 +1282,12 @@ GROUPS: list[Group] = [
                 template="n26/prose.html",
                 summary="A run of authored copy: headings, paragraphs, lists.",
                 notes=(
-                    "For prose a template writes, where c-n26.rich-text is for "
-                    "prose a database stores. The library had one and not the "
-                    "other, so anything hand-written in a page fell back to "
-                    "whatever utilities its author reached for — which is how two "
-                    "screens ended up with two heading scales. Both go through the "
-                    "same .rich-text rules, so a page's own copy and a description "
-                    "typed into the editor are the same typography. Plain HTML "
-                    "inside, not components: the tags are the vocabulary, a "
-                    "paragraph component would be a paragraph with extra steps, "
-                    "and the styling reaches them by descendant selector precisely "
-                    "so an author can write ordinary markup. Capped at max-w-prose "
-                    "unless something else already constrains the width."
+                    "For prose a template writes; c-n26.rich-text is for prose a "
+                    "database stores. Both go through the same .rich-text rules, so "
+                    "a page's own copy and a description typed into the editor are "
+                    "the same typography. Write plain HTML inside, not components — "
+                    "the styling reaches the tags by descendant selector. Capped at "
+                    "max-w-prose unless something else already constrains the width."
                 ),
             ),
             Component(
@@ -1444,24 +1296,14 @@ GROUPS: list[Group] = [
                 template="n26/form_actions.html",
                 summary="How a form ends: the way out, then the act.",
                 notes=(
-                    "Every form's footer, decided once. The screens had already "
-                    "disagreed — an outlined Cancel beside a green Hire here, a "
-                    "text link after a red Delete there — and none of that was "
-                    "anybody's decision; it was four footers written by hand. "
-                    "So the order and the alignment are not props: the way out "
-                    "is left of the act, the pair is right-aligned where the "
-                    "eye finishes the last field, and the act is last because "
-                    "it is what the form is for. Cancel is an href and never a "
-                    "submit, because leaving is not a submission and a reader "
-                    "clicking it should land where they already were; a form "
-                    "with nowhere to go back to passes no cancel_url and gets "
-                    "no cancel, which beats one that leads somewhere "
-                    "arbitrary. It is ghost so the two do not compete — the act "
-                    "carries the colour that says what it does, and a cancel of "
-                    "equal weight beside it makes a reader read both to find "
-                    "the one they want. c-n26.form-page draws its footer with "
-                    "this rather than repeating it, so a page form and a dialog "
-                    "end the same way."
+                    "Every form's footer. The order and the alignment are not "
+                    "props: the way out is left of the act, the pair is "
+                    "right-aligned, and the act is last. Cancel is an href and "
+                    "never a submit; a form with nowhere to go back to passes no "
+                    "cancel_url and gets no cancel at all. It is ghost, so only "
+                    "the act carries a colour. c-n26.form-page draws its footer "
+                    "with this rather than repeating it, so a page form and a "
+                    "dialog end the same way."
                 ),
             ),
             Component(
@@ -1470,37 +1312,17 @@ GROUPS: list[Group] = [
                 template="n26/form_page.html",
                 summary="The wrapper every form screen shares.",
                 notes=(
-                    "There is one of these and every form uses it, which is the "
-                    "whole point: there were briefly two, and create-gang had "
-                    "drifted to max-w-2xl with space-y-8 while hire was "
-                    "max-w-3xl with space-y-4. Nobody decided that — they were "
-                    "written a week apart. So the measure, the vertical rhythm, "
-                    "the header and the footer live here and a form view "
-                    "supplies its fields and nothing about the frame. The "
-                    "measure is about 42em, because a text input a foot wide is "
-                    "harder to aim at and harder to read back than one the width "
-                    "of a paragraph; the gap between sections is visibly larger "
-                    "than the gap between fields, which is what makes a group "
-                    "read as a group without a box round it. The footer is "
-                    "optional: a form whose submit lives elsewhere passes no "
-                    "submit_label and gets none, which is how the hire screen "
-                    "avoids a Create button under a list of Hire buttons. What "
-                    "it does draw is c-n26.form-actions, so the wrapper owns "
-                    "the rule above the footer and nothing about the footer "
-                    "itself — a form that is a section of somebody else's page "
-                    "reaches for the same component and ends identically. The "
-                    "heading is c-n26.page-header, and everything that header "
-                    "takes is handed on rather than reinvented: the trail, a "
-                    "mark before the title, the page's own controls, and a "
-                    "switcher on the title's line — because a form screen is a "
-                    "page and a reader on one of five fighters' skills wants "
-                    "the same way to the next that the kit screen gives them. "
-                    "The one prop that had to be renamed is the header's "
-                    "`actions`, which arrives as `header_actions`: this "
-                    "wrapper already had an `actions` meaning the extra "
-                    "control beside the submit, and the two are a screen "
-                    "apart. Every one of them is declared, which is the whole "
-                    "of the mechanism — a slot this wrapper did not declare "
+                    "The measure, the vertical rhythm, the header and the footer "
+                    "live here; a form view supplies its fields and nothing about "
+                    "the frame. The footer is optional — a form whose submit "
+                    "lives elsewhere passes no submit_label and gets none, which "
+                    "is how the hire screen avoids a Create button under a list "
+                    "of Hire buttons. It draws c-n26.form-actions for the footer "
+                    "and c-n26.page-header for the heading, handing on everything "
+                    "that header takes; the header's `actions` arrives here as "
+                    "`header_actions`, this wrapper's own `actions` being the "
+                    "extra control beside the submit. Every slot is declared, "
+                    "which is load-bearing: a slot this wrapper did not declare "
                     "would not be empty when nobody filled it, it would be "
                     "whatever the page happened to hold under that name."
                 ),
@@ -1511,18 +1333,12 @@ GROUPS: list[Group] = [
                 template="n26/form_section.html",
                 summary="A titled group of fields inside a form.",
                 notes=(
-                    "The unit a form is built from. Eight fields in one run is a "
-                    "wall; the same eight under two headings is two short "
-                    "questions, and a reader can tell before starting which "
-                    "parts they can skip. Separated by space and a heading "
-                    "rather than boxed — four lines around every group makes a "
-                    "short form look like a settings screen, and the gap after "
-                    "the last field is already saying where the group ended. "
-                    "c-ui.card is there for the cases that genuinely want a "
-                    "container. The title renders as an h2, so a form of these "
-                    "has a real document outline rather than a run of bold "
-                    "text. A description is better absent than restating the "
-                    "labels underneath it."
+                    "The unit a form is built from, separated by space and a "
+                    "heading rather than boxed — c-ui.card is there for the cases "
+                    "that genuinely want a container. The title renders as an h2, "
+                    "so a form of these has a real document outline rather than a "
+                    "run of bold text. A description is better absent than "
+                    "restating the labels underneath it."
                 ),
             ),
             Component(
@@ -1531,22 +1347,16 @@ GROUPS: list[Group] = [
                 template="n26/colour_picker.html",
                 summary="Pick a colour from the palette, or none.",
                 notes=(
-                    "Radios and not a select, because the question is entirely "
-                    "'which of these looks right' and a dropdown makes you open "
-                    "it, read twenty words and close it again to compare two. "
-                    "Each radio is sr-only with the swatch styled through "
-                    "peer-checked, so it is a real input in a real label: "
-                    "keyboard-reachable, arrow-keys between options, submits "
-                    "with no JavaScript, and reads its colour's name aloud. "
+                    "Each radio is sr-only with its swatch styled through "
+                    "peer-checked, so it stays a real input in a real label: "
+                    "keyboard-reachable, arrow keys between options, submitting "
+                    "with no JavaScript, and reading its colour's name aloud. "
                     "None is the first swatch and a real value rather than the "
-                    "absence of one — a picker defaulting to nothing-selected "
-                    "cannot be returned to nothing once touched, and cannot "
-                    "tell 'no colour' from 'not answered yet' when a form comes "
-                    "back after an error. The swatch classes are a lookup "
-                    "because Tailwind reads class names as literal strings and "
-                    "never emits one built from a variable. The grid is "
-                    "auto-fill, so how many fit a row is not a decision anybody "
-                    "has to maintain."
+                    "absence of one, so a picker can be returned to nothing once "
+                    "touched and a form coming back after an error can tell 'no "
+                    "colour' from 'not chosen yet'. The swatch classes are a "
+                    "lookup — Tailwind reads class names as literal strings and "
+                    "never emits one built from a variable. The grid is auto-fill."
                 ),
             ),
             Component(
@@ -1556,20 +1366,15 @@ GROUPS: list[Group] = [
                 summary="A long select, with a box to search it.",
                 needs=(ALPINE,),
                 notes=(
-                    "Wraps a real <select> rather than replacing it. The kit's "
-                    "own c-ui.combobox was the obvious thing to reach for and "
-                    "cannot be used here: it submits through a <select> whose "
-                    "name is an Alpine binding and whose options are a "
-                    "<template>, so with scripting off it has neither a name "
-                    "nor an option and posts nothing — and the options it does "
-                    "render carry their label text as their value, which cannot "
-                    "say which row an author picked. Here the select handed in "
-                    "is what posts, untouched, and the panel sets selectedIndex "
-                    "on it; turn scripting off and you get the plain select, "
-                    "working. Short lists are left alone, counted in the "
-                    "browser because the options are already on the page — "
-                    "asking the database means a COUNT per picker, and an "
-                    "authoring form draws about a dozen."
+                    "Wraps a real <select> rather than replacing it: the select "
+                    "handed in is what posts, untouched, and the panel sets "
+                    "selectedIndex on it, so with scripting off you get the plain "
+                    "select, working. The kit's c-ui.combobox cannot serve here — "
+                    "its name is an Alpine binding and its options are a "
+                    "<template>, so unscripted it posts nothing, and the options "
+                    "it renders carry their label text as their value. Short "
+                    "lists are left alone, counted in the browser from the "
+                    "options already on the page."
                 ),
             ),
             Component(
@@ -1586,25 +1391,14 @@ GROUPS: list[Group] = [
                     ),
                 ),
                 notes=(
-                    "A sibling of checkbox-card rather than a mode of it. That "
-                    "card dims and inerts its body while unticked, because "
-                    "choices inside an unselected card are choices about "
-                    "something that is not happening — but in a group where "
-                    "exactly one thing is picked, every card but one is "
-                    "unpicked at all times, so the same treatment would grey "
-                    "out the options the reader is trying to compare and make "
-                    "the whole group read as disabled. It also cannot own its "
-                    "state: one-of-many is the browser's rule over a shared "
-                    "name, not something a card decides about itself. Cards "
-                    "and not a select for the colour picker's reason — a "
-                    "dropdown makes you open it, read the options and close it "
-                    "again to weigh two of them — and because an option is one "
-                    "string, so a badge and a line of detail have nowhere to "
-                    "go. Selected state is has-[:checked] on the label rather "
-                    "than script, so the page is right before anything runs "
-                    "and stays right if nothing ever does. The grid is "
-                    "auto-fill off a track floor, so how many fit a row "
-                    "follows from how wide a card has to be to stay readable."
+                    "A sibling of c-n26.checkbox-card rather than a mode of it: "
+                    "that card dims and inerts its body while unticked, which "
+                    "here would grey out every card but the one picked. A card "
+                    "cannot own its state either — one-of-many is the browser's "
+                    "rule over a shared name. Selected state is has-[:checked] on "
+                    "the label rather than script, so the page is right before "
+                    "anything runs and stays right if nothing ever does. The grid "
+                    "is auto-fill off a track floor."
                 ),
             ),
             Component(
@@ -1621,20 +1415,15 @@ GROUPS: list[Group] = [
                     ),
                 ),
                 notes=(
-                    "The pick screen, minus the page. It exists because two "
-                    "screens draw the same list for different reasons — "
-                    "choosing for a slot a rule offered, and browsing everything "
-                    "a fighter may learn — and the alternative was a second "
-                    "template that looked identical and would drift the first "
-                    "time one of them grew a badge. Every group shares one input "
-                    "name, so the browser keeps a single selection across the lot: "
-                    "the headings are how the list is read, not four separate "
-                    "questions. Nothing here knows what is being picked; the "
-                    "view has already flattened it into groups and options, "
-                    "which is what lets a skill, an archetype and an affiliation "
-                    "share a screen. An empty list is a thing to say rather than "
-                    "a page to hide, and what to say is the caller's — why it is "
-                    "empty is something the page knows and this does not."
+                    "The pick screen, minus the page. Every group shares one "
+                    "input name, so the browser keeps a single selection across "
+                    "the lot: the headings are how the list is read, not separate "
+                    "questions. Nothing here knows what is being picked — the "
+                    "view has already flattened it into groups and options, which "
+                    "is what lets a skill, an archetype and an affiliation share "
+                    "a screen. What to say when the list is empty is the "
+                    "caller's; why it is empty is something the page knows and "
+                    "this does not."
                 ),
             ),
             Component(
@@ -1650,8 +1439,8 @@ GROUPS: list[Group] = [
                     "listed. Plain submit buttons and no script: the page "
                     "wraps this in its own form, and only the clicked button "
                     "is sent, so the view knows which option to add or take "
-                    "back. Use choice-offer for a single-pick choice; use "
-                    "this where a choice holds several picks."
+                    "back. Use c-n26.choice-offer for a single-pick choice; "
+                    "use this where a choice holds several picks."
                 ),
             ),
             Component(
@@ -1660,22 +1449,15 @@ GROUPS: list[Group] = [
                 template="n26/tick_list.html",
                 summary="A list of things to tick, grouped under its headings.",
                 notes=(
-                    "The same structure choice-offer draws, and a sibling of it "
-                    "rather than a mode: one of many is the browser's rule over a "
-                    "shared name, any number is the absence of that rule, and the "
-                    "two say different things about what leaving a box alone "
-                    "means. Rows and not cards, because this draws in a box beside "
-                    "a model's card where a grid of cards would be a second page — "
-                    "and a list read down a column is how a set of ticks is read. "
-                    "Checkboxes and no script: what arrives ticked is what the "
-                    "server said, so the form is right before anything runs. An "
-                    "option a rule grants is drawn ticked and fixed, saying what "
-                    "grants it, because nothing stored is behind it and a click "
-                    "could not take it away; a fixed box submits nothing, which is "
-                    "why whatever applies the difference must leave granted things "
-                    "out of it rather than read their silence as a clearing. An "
-                    "empty offer draws nothing — why it is empty is the page's to "
-                    "say, not this component's."
+                    "The structure c-n26.choice-offer draws, ticked any number of "
+                    "times rather than once. Checkboxes and no script: what "
+                    "arrives ticked is what the server said, so the form is right "
+                    "before anything runs. An option a rule grants is drawn ticked "
+                    "and fixed, saying what grants it — and a fixed box submits "
+                    "nothing, so whatever applies the difference must leave "
+                    "granted things out of it rather than read their silence as a "
+                    "clearing. An empty offer draws nothing; why it is empty is "
+                    "the page's to say."
                 ),
             ),
             Component(
@@ -1686,17 +1468,12 @@ GROUPS: list[Group] = [
                 needs=(ALPINE,),
                 notes=(
                     "The kit's checkbox cards make the whole surface the toggle, "
-                    "which is right up until the card holds controls of its own — "
-                    "then a click on any of them would toggle the card. This one "
-                    "confines the toggle to its header and keeps the body live, "
-                    "which is the difference that justifies a second component; "
-                    "the presentation is deliberately the kit's, so the two read "
-                    "as one family. While unticked the body is dimmed and inert — "
-                    "choices inside an unselected card are choices about something "
-                    "that is not happening. inert stops interaction and focus but "
-                    "not submission, so an input that must not submit while the "
-                    "card is unticked binds :disabled to the `picked` the card "
-                    "puts in scope."
+                    "so a click on a control inside one toggles the card. This one "
+                    "confines the toggle to its header and keeps the body live. "
+                    "While unticked the body is dimmed and inert — and inert stops "
+                    "interaction and focus but not submission, so an input that "
+                    "must not submit while the card is unticked binds :disabled to "
+                    "the `picked` the card puts in scope."
                 ),
             ),
             Component(
@@ -1705,16 +1482,13 @@ GROUPS: list[Group] = [
                 template="n26/divider.html",
                 summary="A rule with words in it, saying why it separates.",
                 notes=(
-                    "A bare rule between two blocks makes a reader work out the "
-                    'relationship; this one states it — "or …" marks the block '
-                    "below as an alternative to the one above, not a continuation. "
-                    "The lines are flex spans rather than a styled <hr>, so the "
-                    "label sits in the rule without a background patch over a line "
-                    "— the trick that breaks the moment the page behind it is not "
-                    "one flat colour. Muted and small on purpose: a divider is "
-                    "wayfinding, not content, and one that draws the eye competes "
-                    "with the headings it sits between. With nothing to say it "
-                    "degrades to a plain rule."
+                    'A rule that states the relationship it marks — "or …" makes '
+                    "the block below an alternative to the one above, not a "
+                    "continuation. The lines are flex spans rather than a styled "
+                    "<hr>, so the label sits in the rule without a background "
+                    "patch over a line, which breaks the moment the page behind it "
+                    "is not one flat colour. With nothing to say it degrades to a "
+                    "plain rule."
                 ),
             ),
             Component(
@@ -1723,17 +1497,10 @@ GROUPS: list[Group] = [
                 template="n26/coming_soon.html",
                 summary="A section that exists but is not built yet.",
                 notes=(
-                    "Not an empty state, and the difference is the whole point of "
-                    "having both. A table's empty slot says the reader can fix this "
-                    "by searching for something else; this says there is nothing to "
-                    "fix and no reason to come back today. Wiring a tab to one of "
-                    "these is how a nav gets to be honest about what is coming "
-                    "without the tab having to appear later and surprise people. "
-                    "Deliberately plain — no illustration, no button, nothing "
-                    "actionable — because a placeholder that draws the eye draws it "
-                    "again on every load. Body copy at the normal size: it is read "
-                    "once and then skipped, which is the right outcome, and small "
-                    "print would only make that one reading harder."
+                    "Not an empty state: a table's empty slot says the reader can "
+                    "fix this by searching for something else, and this says there "
+                    "is nothing to fix. Deliberately plain — no illustration, no "
+                    "button, nothing actionable — and body copy at the normal size."
                 ),
             ),
             Component(
@@ -1742,23 +1509,19 @@ GROUPS: list[Group] = [
                 template="n26/statline/index.html",
                 summary="A set of characteristics as a compact strip.",
                 notes=(
-                    "One component for two jobs, because build_statline() in "
-                    "core/render.py serves a fighter profile and a weapon profile "
-                    "alike. The divider and the tint come from is_first_of_group and "
-                    "is_highlighted on StatlineTypeStat, so where a row breaks is "
-                    "content rather than a decision in the template. Header and "
-                    "cells are separate parts that emit cells rather than rows, "
-                    "which is what lets the weapon table put a name column in front "
-                    "of the same stats. Not built on c-ui.table: a statline is a "
-                    "centred strip where that is a left-aligned data grid, and its "
-                    "descendant-variant styling outranks any class on a cell, so it "
-                    "cannot be adjusted from the call site. The editor is a fourth "
-                    "template rather than a mode on this one: a card is drawn in its "
-                    "hundreds on a gang sheet and carries no form, so sharing would "
-                    "put a branch in every cell of the hot path to serve the one page "
-                    "that edits. It reuses the header unchanged, which is what keeps "
-                    "the columns, the divider and the tint identical to the card "
-                    "being edited."
+                    "One component for two jobs: build_statline() in "
+                    "n26/core/render.py serves a fighter profile and a weapon "
+                    "profile alike. The divider and the tint come from "
+                    "is_first_of_group and is_highlighted on StatlineTypeStat, so "
+                    "where a row breaks is content rather than a decision in the "
+                    "template. Header and cells are separate parts emitting cells "
+                    "rather than rows, which is what lets the weapon table put a "
+                    "name column in front of the same stats. Not built on "
+                    "c-ui.table, whose descendant-variant styling outranks any "
+                    "class on a cell and so cannot be adjusted from the call site. "
+                    "The editor is a fourth template rather than a mode on this "
+                    "one, reusing the header unchanged so the columns, the divider "
+                    "and the tint match the card being edited."
                 ),
                 needs=(ALPINE, KIT_JS),
                 parts=(
@@ -1771,7 +1534,7 @@ GROUPS: list[Group] = [
                     Part(
                         "c-n26.statline.cells",
                         "n26/statline/cells.html",
-                        "The <td> cells. Marks a modified value and names what "
+                        "The <td> cells. Marks a modified value and says what "
                         "changed it.",
                         required=True,
                     ),
@@ -1796,21 +1559,16 @@ GROUPS: list[Group] = [
                     ),
                 ),
                 notes=(
-                    "Called a table because that is what it is to a reader, and "
-                    "built as a list of grid rows because a real one cannot "
-                    "survive a phone: four columns, one of them a four-figure "
-                    "wealth strip and one a pair of buttons, is more than 390px "
-                    "holds, and the usual escape — display:block on the cells — "
-                    "throws away the alignment that made it a table. A grid keeps "
-                    "both, and drops nothing at either width. The whole row is one "
-                    "link by way of exactly one real <a>, on the name, whose "
-                    "::after is stretched over the row: wrapping the row in an "
-                    "anchor would put two buttons inside a link, and a click "
-                    "handler on a div would lose the URL, middle-click and "
-                    "keyboard focus. The buttons are lifted above the stretch, "
-                    "which is the row's decision and so lives on the markup. Type "
-                    "is a plain select rather than c-n26.filter-menu: one question "
-                    "with one answer does not need Apply and Cancel."
+                    "A list of grid rows rather than a real table: four columns do "
+                    "not fit 390px, and the usual escape — display:block on the "
+                    "cells — throws away the alignment that made it a table. The "
+                    "whole row is one link by way of exactly one real <a>, on the "
+                    "name, whose ::after is stretched over the row; wrapping the "
+                    "row in an anchor would put two buttons inside a link, and a "
+                    "click handler on a div would lose the URL, middle-click and "
+                    "keyboard focus. The buttons are lifted above that stretch in "
+                    "the row's own markup. Type is a plain select rather than "
+                    "c-n26.filter-menu, one choice needing no Apply and Cancel."
                 ),
             ),
             Component(
@@ -1826,16 +1584,12 @@ GROUPS: list[Group] = [
                     ),
                 ),
                 notes=(
-                    "A list, not a feed: nothing loads more, and the point of it "
-                    "on a dashboard is seeing at a glance whether anything has "
-                    "happened since last time. Summaries clamp at two lines — one "
-                    "is a headline and the entry already has a headline, and the "
-                    "full text is a click away, so it cuts where reading it here "
-                    "stops being cheaper than opening it. The way through to "
-                    "everything is in the heading rather than a last row: a row "
-                    "that opens an index is the one row in a list that does not "
-                    "behave like the list. Rows are clickable by the same means "
-                    "the gang table uses."
+                    "A list, not a feed: nothing loads more. Summaries clamp at "
+                    "two lines, the full text being a click away. The way through "
+                    "to everything is in the heading rather than a last row, which "
+                    "would be the one row in the list that does not behave like "
+                    "the list. Rows are clickable by the same stretched-anchor "
+                    "means c-n26.gang-table uses."
                 ),
             ),
             Component(
@@ -1855,18 +1609,13 @@ GROUPS: list[Group] = [
                     "Four figures in the order they answer questions about each "
                     "other — rating is what the gang fields, credits what is left, "
                     "stash what the gang owns and nobody carries, wealth the three "
-                    "added up — so "
-                    "reading left to right is reading the sum. Badges would put "
-                    "them in no relation at all. Takes the whole GangSheet rather "
-                    "than four numbers, because four positional integers in the "
-                    "same units are four chances to swap two and never find out. "
-                    "A definition list, not a table: a table needs its headers and "
-                    "values in separate rows, so each label and figure would be "
-                    "written twice and kept in step by hand. Real tooltips here "
-                    "where the statline uses a title attribute — that component "
-                    "spends nothing per cell because a gang sheet carries "
-                    "hundreds, and this strip is four cells once on a page, so it "
-                    "can afford the thing that works without a mouse."
+                    "added up — so reading left to right is reading the sum. It "
+                    "takes the whole GangSheet rather than four numbers, since "
+                    "four positional integers in the same units are four chances "
+                    "to swap two and never find out. A definition list, not a "
+                    "table. Real tooltips here where c-n26.statline uses a title "
+                    "attribute: four cells drawn once on a page can afford what a "
+                    "cell drawn hundreds of times cannot."
                 ),
             ),
             Component(
@@ -1879,17 +1628,12 @@ GROUPS: list[Group] = [
                 ),
                 needs=(ALPINE, KIT_JS),
                 notes=(
-                    "The hire list draws this above its rows and the model "
-                    "screens keep it in their header's far corner, because "
-                    "hiring and buying are decided against how many models the "
-                    "gang fields and what it has left to spend — and a reader "
-                    "mid-decision should not have to go back to the sheet to "
-                    "check. The count wears the wealth strip's own cell so the "
-                    "row reads as one system, but it is not wealth, so it "
-                    "stands in a strip of its own with the money fenced off "
-                    "behind the rule. It takes no ¢, being a count — the one "
-                    "place the figure cell's unit is turned off rather than "
-                    "assumed."
+                    "Drawn above the hire list's rows and in the far corner of "
+                    "the model screens' header, where a spending decision is "
+                    "being made. The count wears the wealth strip's own cell but "
+                    "stands in a strip of its own, with the money fenced off "
+                    "behind a rule. Being a count it takes no ¢ — the one place "
+                    "the figure cell's unit is turned off rather than assumed."
                 ),
             ),
             Component(
@@ -1899,20 +1643,13 @@ GROUPS: list[Group] = [
                 summary="The roster's arithmetic behind a calculator: counts and ratings.",
                 needs=(ALPINE, KIT_JS),
                 notes=(
-                    "The two sums a player does on their fingers mid-decision: "
-                    "which profiles at which ranks and how many of each, and "
-                    "every model with its pinned rating, totalled. A dropdown "
-                    "beside the gang's figures rather than a block of the page, "
-                    "because these are numbers checked in passing — a page that "
-                    "printed the whole tally would spend a screen of every "
-                    "visit on what most visits skim. Two small tabs of one "
-                    "panel, because they are two readings of one list; both "
-                    "keep the roster's own order, pets after their keepers, so "
-                    "the tally reads down the way the sheet does. The totals "
-                    "row is the check: the count is the M figure beside the "
-                    "trigger, and the ratings total is the sum of the models "
-                    "listed — which the gang's own rating figure need not "
-                    "equal, since a gang can carry worth no single model does."
+                    "Two readings of one list, in two tabs of a dropdown beside "
+                    "the gang's figures: which profiles at which ranks and how "
+                    "many of each, and every model with its pinned rating, "
+                    "totalled. Both keep the roster's own order, pets after their "
+                    "keepers. The ratings total is the sum of the models listed, "
+                    "which the gang's own rating figure need not equal — a gang "
+                    "can carry worth no single model does."
                 ),
             ),
             Component(
@@ -1929,20 +1666,15 @@ GROUPS: list[Group] = [
                     ),
                 ),
                 notes=(
-                    "A gang has a dozen small standing facts and every one of them "
-                    "is something you can change, so the value is also the way to "
-                    "edit it. One control however much it holds: three skill trees "
-                    "are one choice, and three buttons would "
-                    "say there were three questions. Built along action-links' "
-                    "lines — the rhythm belongs to the container, so hiding a row "
-                    "behind a permission check cannot leave a gap — but with no "
-                    "separator between pairs, because a mark between one pair and "
-                    "the next reads as being inside the pair. Flex wrap rather "
-                    "than a grid: a grid aligns every value to the widest label on "
-                    "the sheet, which spends most of a phone on nothing. The "
-                    "control keeps its border, because a ghost button is a value "
-                    "that only looks clickable once you are already pointing at "
-                    "it, which on a phone is never."
+                    "Labelled facts where the value is also the way to edit it, "
+                    "and one control however much it holds — three skill trees are "
+                    "one choice, and three buttons would say there were three "
+                    "questions. The rhythm belongs to the container, so hiding a "
+                    "row behind a permission check cannot leave a gap. Flex wrap "
+                    "rather than a grid, which would align every value to the "
+                    "widest label on the sheet. The control keeps its border "
+                    "rather than going ghost, which on a phone would look "
+                    "clickable to nobody."
                 ),
             ),
             Component(
@@ -1953,18 +1685,14 @@ GROUPS: list[Group] = [
                 needs=(ALPINE, KIT_JS, FOCUS),
                 notes=(
                     "Rows rather than a container of its own, so a gang's choices "
-                    "and its counters sit in one detail list. Two containers side "
-                    "by side would set one run of labelled facts at two rhythms "
-                    "with a gap between them that means nothing. Settled and "
-                    "open are the same control leading to the same page, "
-                    "because they are the same question — clicking a settled "
-                    "slot is how you change your mind, and giving it a different "
-                    "shape would say it could not be revisited. An open one is "
-                    "never marked as missing: nothing counts it, nothing refuses "
-                    "to proceed without it. A line with no address — a card built "
-                    "from a profile's default equipment has real offers and no "
-                    "rows to choose against — draws as text with an em dash "
-                    "rather than as a button that goes nowhere."
+                    "and its counters sit in one c-n26.detail-list at one rhythm. "
+                    "Settled and open are the same control leading to the same "
+                    "page — clicking a settled slot is how you change your mind. "
+                    "An open one is never marked as missing: nothing counts it and "
+                    "nothing refuses to proceed without it. A line with no address "
+                    "— a card built from a profile's default equipment has real "
+                    "offers and nothing to choose against — draws as text with an "
+                    "em dash rather than a button that goes nowhere."
                 ),
             ),
             Component(
@@ -1980,25 +1708,16 @@ GROUPS: list[Group] = [
                     ),
                 ),
                 notes=(
-                    "A card among the fighters' cards, because the stash is a "
-                    "place gear lives the way a fighter is: it takes the grid's "
-                    "first slot, so what the gang holds and who holds what read "
-                    "as one layout, and moving something between a card and the "
-                    "stash is a move between two like things on one screen. "
-                    "Grouped by what kind each item is, because that is the "
-                    "question actually asked of a stash: you scan it for "
-                    "armour, not for the thing called Mesh armour, and a flat "
-                    "alphabetical list makes that a read of every line. Items run "
-                    "on and wrap rather than taking a row each — the stash is a "
-                    "footnote on a gang sheet, not the point of it — and ratings "
-                    "sit against their own item, since nothing is being compared "
-                    "down a stash. The total sits on the header line, where a "
-                    "fighter's card puts its rating and for the same reason. An "
-                    "empty stash still draws the card: it holds a grid slot "
-                    "either way, and a slot that comes and goes with the "
-                    "contents moves every fighter after it around the grid. "
-                    "Drawn through c-n26.assignable-lines, so something a "
-                    "modifier put there carries the mark it would on a card."
+                    "A card among the fighters' cards, taking the roster grid's "
+                    "first slot, so moving something between a card and the stash "
+                    "is a move between two like things on one screen. Items are "
+                    "grouped by kind, run on and wrap rather than taking a row "
+                    "each, with each rating against its own item and the total on "
+                    "the header line. An empty stash still draws the card — a slot "
+                    "that came and went with the contents would move every fighter "
+                    "after it around the grid. Drawn through "
+                    "c-n26.assignable-lines, so something a modifier put there "
+                    "carries the mark it would on a card."
                 ),
             ),
             Component(
@@ -2008,18 +1727,13 @@ GROUPS: list[Group] = [
                 summary="One model's name and rank, and the tabs of their screens.",
                 needs=(ALPINE, FOCUS),
                 notes=(
-                    "The one header every per-model screen wears. Edit and Equip "
-                    "are two faces of the same model, so they share a header and "
-                    "read as tabs of one place — a component rather than a "
-                    "convention, because two screens each writing the same header "
-                    "by hand are two screens free to drift about what a model's "
-                    "page looks like. The title is the model's name plain, not "
-                    "the verb: the tab strip already says which face is open, and "
-                    "a title that repeated it would say it twice while making the "
-                    "name harder to scan for. The tab strip is built by the "
-                    "model_screen_tabs tag rather than passed in, so a screen "
-                    "cannot invent a strip of its own; adding a screen to a model "
-                    "is one edit to n26.core.navigation."
+                    "The one header every per-model screen wears, so Edit and "
+                    "Equip read as tabs of one place. The title is the model's "
+                    "name plain, not the verb — the tab strip already says which "
+                    "face is open. The strip is built by the model_screen_tabs tag "
+                    "rather than passed in, so a screen cannot invent one of its "
+                    "own; adding a screen to a model is one edit to "
+                    "n26.core.navigation."
                 ),
             ),
             Component(
@@ -2028,38 +1742,22 @@ GROUPS: list[Group] = [
                 template="n26/model_card/index.html",
                 summary="A fighter's card: characteristics, weapons, skills, gear, XP.",
                 notes=(
-                    "Renders a n26.render.ModelCard, which the backend already "
-                    "assembles in one query — the template computes nothing. It "
-                    "follows the rulebook's Model Card anatomy and then keeps going "
-                    "where digital allows: every line on the card carries its "
-                    "provenance, so a modified characteristic says what changed it "
-                    "and a granted skill or trait is marked apart from a bought one. "
-                    "Paid ammo is priced under its weapon, and a choice draws as its "
-                    "own row — resolved or not, because an open one is "
-                    "information rather than an error. Read-only about the fighter's "
-                    "numbers: nothing here changes a statline or a weapon. Three rows "
-                    "carry controls, each because it is the row a reader is already "
-                    "looking at for the thing it does — Notes and lore take an Edit "
-                    "each, being the only parts of a card a player writes rather than "
-                    "earns, and Skills takes two: the question a rule asked, and the "
-                    "way to what this fighter may learn. A skill question is drawn "
-                    "there rather than among the other slots because a skill has a "
-                    "row already; filed with the archetype it reads as one more "
-                    "field to fill in. Every control is drawn from an href on the "
-                    "structure, so a print sheet and a hire preview draw none of "
-                    "them without asking. Almost nothing is greyed "
-                    "out: hierarchy is weight and size, and an empty value is an "
-                    "em dash. The two exceptions are captions rather than "
-                    "content — the profile name under the model's, and the XP "
-                    "target beside the current one. The card renders in one of "
-                    "two modes: gang, the sheet's — dense, read-mostly, the open "
-                    "questions shown but their buttons held back, because eleven "
-                    "cards abreast should not be eleven rows of controls — and "
-                    "edit, the model's own page, where the choice buttons come "
-                    "out outlined and the Gear and Weapons rows carry the way to "
-                    "the Equip tab. Inside the template a mode-only region is a "
-                    "wrap in c-n26.model-card.mode, not a flag threaded through "
-                    "every region between it and the call site."
+                    "Renders a n26.render.ModelCard, which the backend assembles "
+                    "in one query — the template computes nothing, and nothing "
+                    "here changes a statline or a weapon. Every line carries its "
+                    "provenance: a modified characteristic says what changed it, "
+                    "and a granted skill or trait is marked apart from a bought "
+                    "one. A choice draws as its own row whether or not it has been "
+                    "settled, an open one being information rather than an error. "
+                    "Every control is drawn from an href on the structure, so a "
+                    "print sheet and a hire preview draw none of them without "
+                    "asking. Two modes: gang, the sheet's — dense, with the open "
+                    "questions shown but their buttons held back — and edit, the "
+                    "model's own page, where those buttons come out outlined and "
+                    "the Gear and Weapons rows carry the way to the Equip tab. A "
+                    "mode-only region is a wrap in c-n26.model-card.mode, not a "
+                    "flag threaded through every region between it and the call "
+                    "site."
                 ),
                 needs=(ALPINE, KIT_JS),
                 parts=(
@@ -2094,17 +1792,15 @@ GROUPS: list[Group] = [
                 ),
                 needs=(ALPINE, "TinyMCE", "form.media"),
                 notes=(
-                    "Two modes because they are two views of the same content: pass a "
-                    "bound field for the editor with an Edit / Preview switch, or just "
-                    "a value for the rendered article. Wrapped in c-ui.field, so "
-                    "label, "
-                    "description and errors work as they do on c-ui.input. Rendering "
-                    "always goes through safe_rich_text — editor output is user input "
-                    "that has been round-tripped through a database, so it is "
-                    "sanitised on the way out rather than trusted. You must render "
-                    "{{ form.media }} once on the page or no editor appears; the "
-                    "widget "
-                    "is only a textarea until that script runs."
+                    "Two views of the same content: pass a bound field for the "
+                    "editor with an Edit / Preview switch, or just a value for the "
+                    "rendered article. Wrapped in c-ui.field, so label, description "
+                    "and errors work as they do on c-ui.input. Rendering always "
+                    "goes through safe_rich_text — editor output is user input "
+                    "round-tripped through a database, so it is sanitised on the "
+                    "way out rather than trusted. You must render {{ form.media }} "
+                    "once on the page or no editor appears; the widget is only a "
+                    "textarea until that script runs."
                 ),
             ),
             Component(
@@ -2117,11 +1813,8 @@ GROUPS: list[Group] = [
                 notes=(
                     "Layout only: a wrapping flex row keeping controls of differing "
                     "heights on one centre line, with a trailing slot pushed to the "
-                    "far end. This was filter-bar, which was the same row under a "
-                    "narrower name — filtering is an action, and two components with "
-                    "identical markup is how a design system starts drifting. "
-                    ":surface puts it on a tinted strip, for a secondary bar inside a "
-                    "card rather than at the top of a page."
+                    "far end. :surface puts it on a tinted strip, for a secondary "
+                    "bar inside a card rather than at the top of a page."
                 ),
             ),
             Component(
@@ -2150,63 +1843,31 @@ GROUPS: list[Group] = [
                 ),
                 needs=(ALPINE, KIT_JS, FOCUS),
                 notes=(
-                    "One component in two shapes — a lone chevron, or a ghost "
-                    "button group with the linked thing in front of it — and the "
-                    "leading button being optional is the whole shape of the API: "
-                    "half the places that want a switcher already name the current "
-                    "thing in a heading a foot away, and repeating it in a button "
-                    "is furniture. With no label the chevron is the only child of "
-                    "the group, which rounds both its ends rather than leaving a "
-                    "shape cut in half. Ghost, both halves, and that carries the "
-                    "affordance: at rest they are the text colour of whatever they "
-                    "sit in, so the control reads as words in a bar rather than as "
-                    "furniture competing with the page's own name, and the hover "
-                    "fill is what says a half can be clicked — the name is the way "
-                    "to the thing, the chevron the way to the rest. The padding is "
-                    "cut well below what a button this size asks for so nothing "
-                    "sits between the halves, but the text is not: a name should "
-                    "be the size of the words around it. The panel is the "
-                    "kit's dropdown, so the outside click and the placement are "
-                    "its. A native <details> was "
-                    "the alternative — it opens with no script and would need no "
-                    "second copy of the list — and it was not taken because the "
-                    "joining is done by CSS matching button and a, and a <summary> "
-                    "is neither: the chevron would take none of the group's radius "
-                    "or border handling, and everything the dropdown gets right "
-                    "would have to be rebuilt beside it. The price of that choice "
-                    "is a <noscript> strip drawing the same destinations flat, "
-                    "which is what the navigation drawer already does. Filtering "
-                    "narrows rows that are already on the page and never asks the "
-                    "server; the rows register their own text, so the count behind "
-                    "the empty message and the list itself are one array. Focus "
-                    "lands in that box on open and never leaves it: Down and Up "
-                    "move a highlight, Enter goes to the highlighted row, and "
-                    "Escape empties a filter that has something in it before a "
-                    "second click closes the panel. The highlight walks only the "
-                    "rows the filter is showing — a position in the whole list "
-                    "counts rows nobody can see and lands on one of them — and it "
-                    "is a tint plus a name, because the box carries "
-                    "aria-activedescendant and so announces the row it is on. "
-                    "Real focus was the alternative and is the wrong one here: "
-                    "moving focus to a row takes the caret out of the box, and "
-                    "the next letter typed goes nowhere. The pointer moves the "
-                    "highlight as well, so there is only ever one answer on "
-                    "screen to where Enter goes. Rows "
+                    "Two shapes: a lone chevron, or a ghost button group with the "
+                    "linked thing in front of it. With no label the chevron is the "
+                    "only child of the group and rounds both its ends. The panel "
+                    "is the kit's dropdown, so the outside click and the placement "
+                    "are its — which means the panel is built from a <template> "
+                    "and does not exist without script, so a <noscript> strip "
+                    "draws the same destinations flat. Filtering narrows rows "
+                    "already on the page and never asks the server; the rows "
+                    "register their own text, so the count behind the empty "
+                    "message and the list itself are one array. Focus lands in the "
+                    "filter box on open and never leaves it: Down and Up move a "
+                    "highlight over the rows the filter is showing, Enter goes to "
+                    "the highlighted row, and Escape empties a filter with "
+                    "something in it before a second Escape closes the panel. The "
+                    "highlight is a tint plus aria-activedescendant rather than "
+                    "real focus, which would take the caret out of the box. Rows "
                     "carry their own bottom rule rather than the list dividing "
-                    "between them, because a divide counts hidden rows and the "
-                    "first one left showing would draw a rule under nothing. The "
-                    "panel is kept inside the window whatever the trigger is doing: "
-                    "CSS caps its width at the window less a gutter, and a margin "
-                    "the kit's placement never touches nudges it back in from "
-                    "whichever edge it crosses. Nudged rather than flipped to the "
-                    "trigger's other side, because flipping helps a trigger near an "
-                    "edge and does nothing for one in the middle of a phone with a "
-                    "panel wider than either side of it. A hotkey letter turns on "
-                    "a page-wide chord — ⌥⇧ plus it opens the panel from wherever "
-                    "focus is, with the caret landing in the filter — and the "
-                    "chevron's tooltip and aria-keyshortcuts both say so. The "
-                    "application spends two: ⌥⇧F for the bar's switcher on every "
-                    "screen, ⌥⇧R for the one beside a page's own heading."
+                    "between them, since a divide counts hidden rows and would "
+                    "draw a rule under nothing. The panel is kept inside the "
+                    "window by a CSS width cap and a margin the kit's placement "
+                    "never touches. A hotkey letter turns on a page-wide ⌥⇧ chord "
+                    "that opens the panel with the caret in the filter, named in "
+                    "the chevron's tooltip and aria-keyshortcuts; the application "
+                    "spends ⌥⇧F on the bar's switcher and ⌥⇧R on the one beside a "
+                    "page's own heading."
                 ),
                 parts=(
                     Part(
@@ -2219,9 +1880,9 @@ GROUPS: list[Group] = [
                     Part(
                         "c-n26.quick-switcher.choice",
                         "n26/quick_switcher/choice.html",
-                        "One answer rather than one destination: a button that "
-                        "reports its own label, for a switcher whose "
-                        "alternatives are states of the page.",
+                        "One state of the page rather than one destination: a "
+                        "button that reports its own label, for a switcher whose "
+                        "alternatives are states rather than places.",
                     ),
                     Part(
                         "c-n26.quick-switcher.of",
@@ -2257,14 +1918,10 @@ GROUPS: list[Group] = [
     Group(
         "Print",
         (
-            "Paper, which is a different medium and behaves like one. These are the "
-            "only components in the library that are not about a screen, and the "
-            "constraints are much tighter: fixed physical sizes in millimetres, a "
-            "page fold you do not control, and engines — iOS Safari above all — that "
-            "quietly ignore the layout you asked for. The rule that governs the whole "
-            "family is that a printed grid must not be a CSS grid, or a flexbox: "
-            "neither takes part in WebKit page fragmentation, so break-inside: avoid "
-            "is discarded without a word and a card comes off the printer in two "
+            "Paper: fixed physical sizes in millimetres and a page fold you do not "
+            "control. A printed grid must not be a CSS grid or a flexbox — neither "
+            "takes part in WebKit page fragmentation, so break-inside: avoid is "
+            "discarded without a word and a card comes off the printer in two "
             "halves. Read the top of print.css before changing any of it."
         ),
         [
@@ -2281,13 +1938,11 @@ GROUPS: list[Group] = [
                     "element to scope it to, so a second sheet's page size silently "
                     "wins for both. It publishes the printable area as custom "
                     "properties, which is what lets the grid derive a cell width that "
-                    "cannot overflow the paper — v1 kept a hardcoded 204mm in step "
-                    "with a 3mm margin by hand, two numbers for one fact. The sheet "
-                    "renders at true physical size on screen as well, so the preview "
-                    "is the artefact rather than an impression of it; that costs a "
-                    "sideways scroll on a phone and is worth it. Its palette is "
-                    "deliberately not the app's theme tokens — there is no dark mode "
-                    "on a sheet of paper."
+                    "cannot overflow the paper. The sheet renders at true physical "
+                    "size on screen as well, so the preview is the artefact rather "
+                    "than an impression of it — which means a sideways scroll on a "
+                    "phone. Its palette is deliberately not the app's theme tokens; "
+                    "there is no dark mode on a sheet of paper."
                 ),
                 parts=(
                     Part(
@@ -2358,11 +2013,8 @@ GROUPS: list[Group] = [
         (
             "The frame around an application rather than anything inside one: a "
             "bar across the top saying one thing, the navigation under it, and "
-            "the footer at the bottom. Rebuilt from Gyrinx v1, which is where "
-            "the shape of each comes from. They share one container, which is "
-            "the least interesting and most load-bearing thing about them — "
-            "three separate max-widths is how a logo ends up two pixels off the "
-            "heading below it."
+            "the footer at the bottom. They share one container — three separate "
+            "max-widths is how a logo ends up two pixels off the heading below it."
         ),
         [
             Component(
@@ -2372,19 +2024,12 @@ GROUPS: list[Group] = [
                 summary="A bar across the top of the site, saying one thing.",
                 needs=(ALPINE,),
                 notes=(
-                    "Above the nav rather than below it, because it is about the "
-                    "site rather than the page, and a bar that pushes the whole "
-                    "application down is harder to ignore than one tucked inside "
-                    "it — which is the point of the thing. It does not remember "
-                    "being dismissed, deliberately: persistence is a decision "
-                    "only the application can make, and the two reasonable "
-                    "answers pull opposite ways. A server that stores the "
-                    "dismissal can also count it, which is what you want if the "
-                    "bar is advertising something; a localStorage flag cannot be "
-                    "counted but survives a logged-out visitor. on_dismiss is "
-                    "where either goes. Tone sets the colours and the icon "
-                    "together, because they say the same thing and a red bar "
-                    "with no icon reads as an unexplained mistake."
+                    "Sits above the nav rather than inside it, so it pushes the "
+                    "whole application down. It does not remember being "
+                    "dismissed: persistence is a decision only the application "
+                    "can make, and on_dismiss is where a server call or a "
+                    "localStorage flag goes. Tone sets the colours and the icon "
+                    "together."
                 ),
             ),
             Component(
@@ -2397,36 +2042,22 @@ GROUPS: list[Group] = [
                 ),
                 needs=(ALPINE, KIT_JS, FOCUS),
                 notes=(
-                    "The links are in the drawer and nowhere else, which is what "
-                    "buys the bar its one good idea: the space beside the brand "
-                    "belongs to the page, so every page can say its own name "
-                    "there after a middle dot. A bar that held both had to choose, "
-                    "and the page that most needed naming — a half-filled form, "
-                    "whose title is the first thing to scroll away — was exactly "
-                    "the page whose links then went missing. The burger is the "
+                    "The links live in the drawer and nowhere else, which is what "
+                    "leaves the space beside the brand to the page: every page "
+                    "says its own name there after a middle dot. The burger is the "
                     "last thing in the bar, past the account menu with a hairline "
-                    'between them — they are the bar\'s two "more" controls, and '
-                    "side by side with nothing between them they read as one — "
-                    "and the panel arrives from the right, the side its control "
-                    "lives on. It is the same control at every width rather than "
-                    "one that appears below md: a burger is only predictable if "
-                    "you already know the window is narrow. Items stay the kit's c-ui.navbar.item "
-                    "— a bare <a> its container styles, which is what lets one "
-                    "list be drawn in the drawer and again in the noscript strip "
-                    "under the bar. That strip is not decoration: Alpine builds "
-                    "the drawer out of a <template>, so with no script the panel "
-                    "does not exist and the links would be nowhere. What narrows "
-                    "away is the wordmark, not the page: the mark beside it is "
-                    "still a link home, and a word naming the site on every screen "
-                    "of the site is the least of what a phone's bar can hold — so "
-                    "the page's name, and the switcher that acts on it, survive to "
-                    "the narrowest width. The colour scheme lives in the account "
-                    "menu for the same reason: it is clicked once in a reader's "
-                    "life, and a bar's one row of space is wanted by the page on "
-                    "every screen. It is a segmented control of three there, not "
-                    "three rows — three rows would carry the weight of the places "
-                    "the menu leads to, and cost the panel half its height again "
-                    "on a phone."
+                    "between them, and the drawer arrives from the right — the "
+                    "same control at every width rather than one appearing below "
+                    "md. Items stay the kit's c-ui.navbar.item, a bare <a> its "
+                    "container styles, which is what lets one list be drawn in the "
+                    "drawer and again in the noscript strip under the bar. That "
+                    "strip is load-bearing: Alpine builds the drawer out of a "
+                    "<template>, so with no script the panel does not exist and "
+                    "the links would be nowhere. What narrows away is the "
+                    "wordmark, not the page's name or the switcher beside it; the "
+                    "mark is still a link home. The colour scheme is a segmented "
+                    "control of three in the account menu, where it takes no room "
+                    "the page wants."
                 ),
                 parts=(
                     Part(
@@ -2450,14 +2081,11 @@ GROUPS: list[Group] = [
                 notes=(
                     "A two-segment pill: the filled segment is the edition this "
                     "bar belongs to, the hollow one is a plain link to the "
-                    "other's front page — nothing toggles in place, because "
-                    "changing edition is going somewhere, and two links need no "
-                    "script. Quiet on purpose: the filled half is a fact rather "
-                    "than a control competing with the page, and the hollow half "
-                    "only says it can be clicked when the pointer is on it. It "
-                    "is drawn only where a reader can follow both links — both "
-                    "editions want a signed-in account, so the classic bar's "
-                    "copy asks for one before drawing the pill."
+                    "other's front page. Nothing toggles in place — changing "
+                    "edition is going somewhere, and two links need no script. It "
+                    "is drawn only where a reader can follow both links; both "
+                    "editions want a signed-in account, so the classic bar's copy "
+                    "asks for one before drawing the pill."
                 ),
             ),
             Component(
@@ -2468,20 +2096,16 @@ GROUPS: list[Group] = [
                     "The bottom of every page: columns of links, and the odd one out."
                 ),
                 notes=(
-                    "Columns rather than a links prop taking a list, because "
-                    "footers are where the odd one out lives — two columns of "
-                    "tidy links and a third holding a picture. A data-driven "
-                    "footer handles the two and grows an escape hatch for the "
-                    "third, and the escape hatch is this. Three across on a wide "
+                    "Columns rather than a links prop taking a list, because a "
+                    "footer is where the odd one out lives — two columns of tidy "
+                    "links and a third holding a picture. Three across on a wide "
                     "screen and one down on a phone, from the grid rather than "
                     "from anything the caller says, so a two-column footer and a "
                     "three-column one still line up with the nav. The Patreon "
-                    "card carries .n26-img-tilt, the one piece of deliberate fun "
-                    "on the page: it lifts and turns towards the pointer as if "
-                    "it were a physical thing on the desk. The transform is on "
-                    "the image and the hover on the link, so the target does not "
-                    "move out from under the pointer, and anyone who has asked "
-                    "for reduced motion gets the shadow without the tilt."
+                    "card carries .n26-img-tilt: the transform is on the image "
+                    "and the hover on the link, so the target does not move out "
+                    "from under the pointer, and anyone who has asked for reduced "
+                    "motion gets the shadow without the tilt."
                 ),
                 parts=(
                     Part(
@@ -2499,11 +2123,9 @@ GROUPS: list[Group] = [
         "Views",
         (
             "Whole screens, assembled from everything above. Not pages — no "
-            "chrome, no routing, just the part between the nav and the footer — "
-            "because the questions a screen raises are not the ones a component "
-            "raises. How much fits above the fold on a phone, whether two "
-            "components repeat each other, where the submit button went: none "
-            "of those can be answered by looking at either piece on its own."
+            "chrome, no routing, just the part between the nav and the footer. "
+            "How much fits above the fold on a phone, and whether two components "
+            "repeat each other, cannot be seen from either piece on its own."
         ),
         [
             Component(
@@ -2517,23 +2139,17 @@ GROUPS: list[Group] = [
                     "gang and where am I, what is it called, what kind, what is it "
                     "worth, what are its standing facts, what can I do to it, what "
                     "is in the stash, who is in it. Everything above the fighters "
-                    "is a header, small and over quickly, because every row of it "
-                    "is a row of fighters you cannot see. Two action runs and not "
-                    "one: hiring is what the screen is for and it is safe, "
-                    "printing is a detour, deleting is irreversible — and one row "
-                    "would sort them by nothing while putting a Delete in thumb "
-                    "range of a Hire. The dropboard around Delete is not "
-                    "decoration; it is the second deliberate click an irreversible "
-                    "thing should cost. The cards are a CSS grid to three columns, "
-                    "because a card holds a fixed amount of information: as the "
-                    "screen widens the answer is more cards abreast, not one wide "
-                    "column setting a statline's M and Sv a hand's width apart. "
-                    "The switcher beside the name is a slot rather than something "
-                    "the view builds: which other gangs there are is a question "
-                    "about the reader, and this component knows about one gang. It "
-                    "sits after the name and not before it, because the mark "
-                    "before a title is inside the h1 and is read out as part of "
-                    "the page's name — which a control must not be."
+                    "is a header, small and over quickly. Two action runs rather "
+                    "than one, so Delete is not in thumb range of Hire, and it "
+                    "takes a second deliberate click. The cards are a CSS grid to "
+                    "three columns — as the screen widens the answer is more cards "
+                    "abreast, not one wide column setting a statline's M and Sv a "
+                    "hand's width apart. The switcher beside the name is a slot "
+                    "rather than something the view builds, since which other "
+                    "gangs there are is a question about the reader. It sits after "
+                    "the name because the mark before a title is inside the h1 and "
+                    "is read out as part of the page's name, which a control must "
+                    "not be."
                 ),
             ),
             Component(
@@ -2546,28 +2162,16 @@ GROUPS: list[Group] = [
                     "The Edit face of a model's own page; Equip is the same "
                     "header's second tab, so the two screens read as one place. "
                     "Under the header, a grid that is one column on a phone: the "
-                    "card first, in edit mode — the same card the sheet draws, "
-                    "same structure and renderer, so the two screens cannot "
-                    "disagree about what the model is — and the notes box after "
-                    "it. Notes are a box of the grid rather than a section of "
-                    "the card because they are a form: a card is read in "
-                    "numbers, and a paragraph being written wants elbow room "
-                    "beside it rather than a slot inside it. Save is the page's "
-                    "only filled commit, which is why the card's own controls "
-                    "are outlined: on a page that edits, the thing that ends the "
-                    "form should be findable without reading any button's words. "
-                    "The form arrives as a slot, fields and submit together, "
-                    "because saving is the page's business and the gallery has "
-                    "no database to save to. The skills are a square of the grid "
-                    "beside the notes, because a list of things to tick is read "
-                    "down a column and one stretched across the page would set a "
-                    "set's name a hand's width from its own boxes. The "
-                    "characteristics an owner sets "
-                    "by hand sit under the grid, full width and in the same "
-                    "columns the card's own strip draws: a strip squeezed into "
-                    "half the page would wrap where the card's does not, and it "
-                    "belongs below the card because it is read against it — "
-                    "what is set shows there, marked as changed."
+                    "card in edit mode — the same card, structure and renderer "
+                    "the gang sheet draws — then the notes box, with the skills "
+                    "beside it. The form arrives as a slot, fields and submit "
+                    "together, because saving is the page's business and the "
+                    "gallery has no database to save to. Save is the page's only "
+                    "filled commit, which is why the card's own controls are "
+                    "outlined. The characteristics an owner sets by hand sit "
+                    "under the grid, full width and in the same columns the "
+                    "card's own strip draws, since what is set shows there "
+                    "marked as changed."
                 ),
             ),
             Component(
@@ -2578,23 +2182,14 @@ GROUPS: list[Group] = [
                 needs=(ALPINE, KIT_JS),
                 notes=(
                     "Two things, in the order they matter: what you own, and what "
-                    "has changed since you last looked. A dashboard that tries to "
-                    "summarise everything is a page nobody reads twice. The "
-                    "greeting states a fact rather than asking a question — no "
-                    "prompt, no exclamation mark: someone came here to get on with "
-                    "something, and a page that opens by asking how they are is "
-                    "one they learn to scroll past. Founding a gang is the only "
-                    "primary button on the screen, because everything else here is "
-                    "a way to reach something that already exists. The gangs get no "
-                    "heading of their own — they are what the page is — where the "
-                    "changelog needs one, since a reader has to be told the list "
-                    "has stopped being about them. The Patreon and Discord marks "
-                    "sit in the same row as the buttons, quiet and at the height "
-                    "of their text: the footer holds both already, but the footer "
-                    "is a scroll away from the screen someone is actually on when "
-                    "they go looking. They lead the row at width and follow the "
-                    "buttons once it wraps, so the primary is never the second "
-                    "thing on a phone."
+                    "has changed since you last looked. The greeting states a fact "
+                    "rather than asking a question. Founding a gang is the only "
+                    "primary button on the screen, everything else being a way to "
+                    "reach something that already exists. The gangs get no heading "
+                    "of their own — they are what the page is — where the "
+                    "changelog needs one. The Patreon and Discord marks lead the "
+                    "button row at width and follow the buttons once it wraps, so "
+                    "the primary is never the second thing on a phone."
                 ),
             ),
             Component(
@@ -2604,25 +2199,15 @@ GROUPS: list[Group] = [
                 summary="Pick what a fighter is, one click at a time.",
                 needs=(ALPINE, KIT_JS, COLLAPSE, FOCUS),
                 notes=(
-                    "Optimised for finding the profile and nothing else. "
-                    "Everything above the list is there under protest, because "
-                    "on a phone every row of chrome is a row of fighters you "
-                    "cannot see — so the screen is a list, and nothing above it "
-                    "asks a question the reader has not reached yet. Naming is "
-                    "one of those questions: it is asked after the click, by "
-                    "c-n26.hire-dialog, because a name field at the top is a "
-                    "field answered once and then in the way, and blocking a "
-                    "hire on it would slow the common case, which is buying "
-                    "three Gangers and naming them once they have done "
-                    "something worth naming. There is no submit button. Every "
-                    "Hire in the list is this form's submit, carrying which "
-                    "profile or which option was clicked, which is what the "
-                    "row's `value` is for — and the form should not grow a "
-                    "primary action of its own, because a Hire at the bottom of "
-                    "a list of Hire buttons is a second answer to a question "
-                    "already answered. A hire lands back here rather than on "
-                    "the gang sheet, so the notice slot draws the confirmation "
-                    "beside the list it was clicked in."
+                    "A list, with as little above it as the screen can manage: "
+                    "nothing up there asks a question the reader has not reached "
+                    "yet. Naming is one of those questions, asked after the click "
+                    "by c-n26.hire-dialog. There is no submit button — every Hire "
+                    "in the list is this form's submit, carrying which profile or "
+                    "which option was clicked, which is what the row's `value` is "
+                    "for. A hire lands back here rather than on the gang sheet, so "
+                    "the notice slot draws the confirmation beside the list it was "
+                    "clicked in."
                 ),
             ),
             Component(
@@ -2631,25 +2216,16 @@ GROUPS: list[Group] = [
                 template="n26/view/create_gang.html",
                 summary="Found a gang: name it, say what it is, and start.",
                 notes=(
-                    "The library's form pattern, and the one the others should "
-                    "follow: a heading, a line of help under it, fields in "
-                    "titled groups, one primary action at the end. Every field "
-                    "is c-ui.field over a kit control, so the label, the help "
-                    "text and the error come from one place rather than being "
-                    "rebuilt per screen. Two groups rather than one run of four, "
-                    "split by required and optional — a reader can stop after "
-                    "the first and have a gang, and saying that with a heading "
-                    "is cheaper than saying it four times in four labels. "
-                    "Required is marked with an asterisk and stated once at the "
-                    "top; marking the optional ones instead would leave the "
-                    "mandatory fields bare and teach the reader nothing. No "
-                    "Cancel beside Create: leaving is what the back button is "
-                    "for, and a button whose job is to discard what somebody "
-                    "typed does not belong a thumb-width from the one that "
-                    "keeps it. Blank starting credits means no limit, which is "
-                    "the one place where leaving something out is a decision "
-                    "rather than a deferral — so it is the one the help text "
-                    "explains."
+                    "The form pattern the other screens should follow: a heading, "
+                    "a line of help under it, fields in titled groups, one primary "
+                    "action at the end. Every field is c-ui.field over a kit "
+                    "control, so the label, the help text and the error come from "
+                    "one place. Two groups split by required and optional, so a "
+                    "reader can stop after the first and have a gang; required is "
+                    "marked with an asterisk and stated once at the top. No Cancel "
+                    "beside Create — leaving is what the back button is for. Blank "
+                    "starting credits means no limit, which is why that is the "
+                    "field the help text explains."
                 ),
             ),
         ],

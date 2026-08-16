@@ -14,18 +14,13 @@
         </c-n26.site.footer.column>
     </c-n26.site.footer>
 
-Columns rather than a `links` prop taking a list, because footers are where the
-odd one out lives: two columns of tidy links and a third holding a picture, a
-paragraph and a couple of social icons. A data-driven footer handles the two and
-has to grow an escape hatch for the third, and the escape hatch is this.
+Columns are written as children rather than passed as a list of links, because a
+column may as readily hold a picture or a paragraph.
 
-Three across on a wide screen, one down on a phone — from the grid, not from
-anything the caller says, so a footer with two columns and a footer with three
-still line up with the nav above them and with each other.
-
-It carries the same container as <c-n26.site.nav> and
-<c-n26.site.announcement>, which is what puts the logo in the footer under the
-logo in the header rather than two pixels off it.
+The grid decides the count — three across on a wide screen, one down on a phone
+— so a footer of two columns and a footer of three still line up. It carries the
+same container as <c-n26.site.nav> and <c-n26.site.announcement>, which is what
+puts the logo at the bottom of the page under the logo at the top.
 {% endcomment %}
 <c-vars class="" />
 

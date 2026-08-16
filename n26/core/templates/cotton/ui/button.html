@@ -1,55 +1,14 @@
 {% comment %}
-OVERRIDE of django_cotton_ui's cotton/ui/button.html. Identical to the shipped
-template except for one added variant, `success`, in both maps.
+<c-ui.button> — overrides the kit's button to add a `success` variant.
 
-  --- why the library needs it ---
+Colour carries meaning, which is why this is a variant and not a class at the
+call site: `success` brings something into existence, `danger` destroys
+something, `primary` does neither.
 
-House rule: the button that actually creates something is green. Create a gang,
-found a campaign, add a fighter — the control that brings a thing into existence
-is marked differently from the control that merely goes somewhere or saves an
-edit, so a reader can find the committing action on a form without reading the
-words on the buttons.
-
-It is the counterpart to `danger`, and the pair is the whole reason this is a
-variant rather than a class at the call site. Green and red mean "this makes
-something" and "this destroys something"; a screen that reached for bg-green-600
-directly would get the colour and none of the meaning, and nothing would stop the
-next screen picking a different green.
-
-  --- the shades ---
-
-green-700 solid rather than green-600, which is what a straight read of `danger`
-(bg-red-500) would suggest. White on green-600 is about 3.1:1, under the 4.5
-these buttons want at their size; green-700 clears it. Dark mode lifts to
-green-600, where the surround is dark and the same shade would sink into it.
-
-`danger` has no dark-mode pair and probably should — not fixed here, because
-changing an existing variant's colours is a separate decision from adding one.
-
-The same arithmetic decides which accent token a variant reaches for. `primary`
-solid is a *fill*, so it takes bg-accent with the dark label accent-foreground
-gives it. `text` and the outlined `primary` draw words instead, so they take
-text-accent-text — the accent at a shade that can be read on the page, which the
-fill's shade cannot. Neither shifts colour on hover: the underline and the tint
-are the change, and moving the shade would cost contrast at the moment the
-pointer arrives.
-
-  --- keeping the shadow ---
-
-app.css gives solid buttons their inset shadow by matching background utilities
-by name (`:is(.bg-accent, .bg-red-500, .bg-ink-100)`), because layer order beats
-specificity and there is no prop to reach. `.bg-green-700` is on that list too;
-adding a variant here without adding it there produces a button that is subtly
-flatter than every other button, which is the kind of difference nobody spots
-and everybody feels.
-
-  --- upstream ---
-
-No test watches this one. The error and label overrides beside it are shims for
-an upstream bug and should be deleted when the kit fixes it; this is an addition
-the kit does not have and is not going to grow on our behalf. If a future kit
-ships its own `success`, this file should be re-reconciled by hand — check the
-shipped variants against these before deleting anything.
+app.css gives solid buttons their inset shadow by matching background utility
+classes by name (`:is(.bg-accent, .bg-red-500, .bg-ink-100, .bg-green-700)`).
+A new solid variant must be added to that list there too, or its button
+renders flatter than every other button.
 {% endcomment %}
 <c-vars
     variant="default"
@@ -85,10 +44,6 @@ shipped variants against these before deleting anything.
     class
 />
 
-{% comment %}
-Renders a <button> by default, or an <a> styled as a button when `href` is set
-(for link actions like CTAs, avoiding an invalid button-inside-anchor).
-{% endcomment %}
 {% if href %}
 <a
     {{ attrs }}

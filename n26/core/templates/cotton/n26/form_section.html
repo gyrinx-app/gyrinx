@@ -5,28 +5,13 @@
         …fields…
     </c-n26.form-section>
 
-The unit a form is built from. A form of eight fields in one run is a wall; the
-same eight under two headings is two short questions, and a reader can tell
-before they start which parts they can skip.
+The unit a form is built from. Sections are separated by space and a heading and
+never boxed — <c-ui.card> is there for the cases that want a container.
 
-  --- heading, help, then the fields ---
-
-The heading says what the group is for and the description says what a reader
-needs to know before answering — not what the fields are, which the labels
-already say. A description that reads "Enter the name and type" is a caption on
-a photograph of itself, and the section is better with none.
-
-  --- no card, no border ---
-
-Sections are separated by space and a heading, not boxed. Boxing each one draws
-four lines around every group and makes a short form look like a settings screen;
-the heading is already doing the work, and the gap after it is what says the
-group ended. c-ui.card is there for the cases that genuinely want a container.
-
-  title — the group's heading. Renders as an h2, so a form of these has a
-    real outline rather than a run of bold text.
-  description — the line under it. Optional, and better absent than restating
-    the labels below.
+  title — the group's heading. Renders as an h2, so a form of these has a real
+    outline rather than a run of bold text.
+  description — what a reader needs before answering, not a restatement of the
+    labels below. Better absent than that.
 {% endcomment %}
 <c-vars title="" description="" class="" />
 
@@ -43,7 +28,7 @@ group ended. c-ui.card is there for the cases that genuinely want a container.
     {% endif %}
 
     {% comment %}
-    space-y rather than a gap on a flex column, so a caller can drop a field in
+    space-y rather than a gap on a flex column, so a caller can draw a field
     conditionally without an empty div collecting a gap on either side of it.
     {% endcomment %}
     <div class="space-y-5">{{ slot }}</div>

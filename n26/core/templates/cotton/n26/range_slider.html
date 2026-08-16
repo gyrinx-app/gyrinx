@@ -11,37 +11,21 @@
         <c-n26.range-slider model_min="lo" model_max="hi" min="0" max="200" step="5" />
     </div>
 
-Ours rather than c-ui.range, for a reason worth writing down. The kit's slider
-binds with x-modelable, which carries a *drag* outward to the caller's variable
-but does not carry a programmatic change back in: set the model from a Clear
-button and the input's thumb moves while the filled part of the track — drawn
-from a copy of the number the component keeps privately — stays where it was.
-A filter bar has Clear, presets and a URL to restore from, so it needs a control
-it can drive, not only one a finger can.
+There is no private copy of the value: the caller's variables are the only
+state, so no direction can go stale. That is what c-ui.range cannot offer — it
+binds with x-modelable, which carries a drag outward to the caller but not a
+programmatic change back in, so a Clear button moves the thumb while the filled
+part of the track stays where it was.
 
-Which is the whole design here: **there is no private copy**. The caller's
-variables are the only state. The inputs render from them and write straight
-back, so there is nothing to keep in step and no direction that can go stale.
-An earlier version did keep its own lo/hi and reconcile them with an x-effect,
-and that reconciliation raced the drag — it read the old published value, decided
-the thumb had drifted, and put it back, which looked exactly like a slider that
-would not move.
+Real <input type="range"> elements, so the step, the keyboard and the slider
+role come for free. The two overlap exactly and only their thumbs take pointer
+events, which is geometry .n26-range-slider in app.css owns — the two files have
+to agree. The ends clamp against each other rather than swapping places, so a
+thumb dragged past its partner stops instead of handing the pointer the other
+one.
 
-Real <input type="range"> elements, not a div with drag handlers: a range input
-is keyboard-operable, announced as a slider, and respects the step, all of which
-a reimplementation would have to earn back. For two thumbs they overlap exactly
-and only the thumbs take pointer events, so a click lands on whichever is
-nearest. See .n26-range-slider in app.css.
-
-The two ends clamp against each other rather than swapping places. Swapping
-keeps a fast drag moving, but it hands the pointer a different thumb halfway
-through — you grab the floor, and past the ceiling you are suddenly dragging the
-ceiling. Stopping is the duller behaviour and the one that matches what the
-hand is doing.
-
-  model — one Alpine expression: the value. Ignored if the pair is given.
-  model_min, model_max — two expressions, for the two-thumb form.
-  min, max, step — the track's range.
+`model` is a single Alpine expression, ignored when the model_min/model_max
+pair is given.
 {% endcomment %}
 <c-vars
     model=""
@@ -54,9 +38,9 @@ hand is doing.
 />
 
 {% comment %}
-Only the geometry lives here — the ends of the track, and the two percentages
-the fill is drawn between. Both read the caller's variables, so the bar and the
-thumbs cannot disagree: they are the same number rendered twice.
+Only geometry: the ends of the track and the two percentages the fill is drawn
+between. Both read the caller's variables, so the bar and the thumbs are the
+same number rendered twice and cannot disagree.
 {% endcomment %}
 <div {{ attrs }}
      class="n26-range-slider {{ class }}"
@@ -77,11 +61,11 @@ thumbs cannot disagree: they are the same number rendered twice.
          :style="`left: ${lowPct}%; right: ${100 - highPct}%`"></div>
 
     {% comment %}
-    :value rather than x-model, deliberately. x-model owns the element and would
-    write the raw dragged number back before the clamp could look at it; binding
-    the value and handling input directly means the caller's variable is set
-    once, already clamped, and the input re-renders from it — so a thumb pushed
-    past its partner visibly stops instead of overshooting and springing back.
+    :value rather than x-model: x-model owns the element and would write the raw
+    dragged number back before the clamp could look at it. Binding the value and
+    handling input directly sets the caller's variable once, already clamped, so
+    a thumb pushed past its partner stops instead of overshooting and springing
+    back.
     {% endcomment %}
     {% if model_min and model_max %}
         <input type="range" aria-label="Minimum"

@@ -3,57 +3,39 @@
 
     <c-n26.tab-links label="Equipment lists" :tabs="collection_tabs" />
 
-A tab strip for a choice the server answers. Each tab is an <a>, so the choice
-is a URL: linkable, in the history, and made by a browser that has run no
-JavaScript. The kit's c-ui.tabs is the other kind — panels already on the page,
-switched in the hand — and cannot be this, because the thing behind a tab here
-is a whole render.
+Each tab is an <a>, so the choice is a URL: linkable, in the history, and made
+without JavaScript. Behind a tab here is a whole render, which is what separates
+this from the kit's c-ui.tabs — panels already on the page, switched in the
+hand. It is also why a tab carries no count: only the chosen tab's contents have
+been built, and numbering the rest would mean building all of them on every
+load. Counting belongs inside whatever the chosen tab drew.
 
-Which is also why a tab carries no count. Only the current tab's contents have
-been fetched; a number on the others would mean building them too, and a strip
-that costs a query per tab is a strip that gets worse the more choices it
-offers. Counting belongs inside whatever the chosen tab drew.
+A nav rather than role="tablist", because these navigate; a reader told "tab" by
+a screen reader expects arrow keys and a panel swapping underneath.
+aria-current="page" says which one they are on.
 
-Drawn as a nav rather than with role="tablist": these navigate, and a reader
-told "tab" by a screen reader expects arrow keys and a panel that swaps under
-them. aria-current="page" says which one they are on.
+The strip wraps rather than scrolling sideways, since tab names come from
+content and can be long, and a name too long for the width truncates rather than
+pushing the strip wider than the page.
 
-It wraps rather than scrolling sideways. Names come from content and can be
-long, and a horizontal scroller on a phone hides the tabs past the edge behind
-a gesture nobody is told about — two rows of tabs are plainer than one row with
-something off the end. A single name too long for the width truncates instead
-of pushing the strip wider than the page.
-
-The rule under the strip is drawn by the tabs themselves: every tab carries the
-same 2px bottom border and the row makes them one height, so the borders land
-on the same pixels as one continuous line — accent under the current tab, box
-border everywhere else. The trailing span carries it across the width the tabs
-do not fill.
+The rule under the strip is the tabs' own bottom borders, which the row makes
+one height so they meet as a continuous line; the trailing span carries it
+across the width the tabs do not fill.
 
   :tabs — [{label, href, current, title}]. `title` is optional and is the full
     name when `label` has been shortened to fit; it becomes the link's tooltip.
   label — what the strip is choosing between, as its accessible name.
-  speculate — ask the browser to start on the other tabs before they are
-    clicked, so a strip whose every choice is a whole page-build answers
-    a click with the expensive part already paid. "prefetch" fetches the
-    HTML — the server's work, which is most of the wait — and holds only
-    bytes; the click still parses and boots the page. "prerender" builds
-    the whole hidden page, so the click is instant — but each one is a
-    full document, DOM, scripts and all, held in memory behind the page
-    being read, and a strip of heavy pages can hold several pages'
-    worth. Prefetch is the safe spelling; reach for prerender only where
-    the pages are light. Off by default: only a call site knows whether
-    its pages are worth paying for before anyone asks. Browsers without
-    speculation rules ignore the hint — the tabs are ordinary links
-    either way. The speculative request reaches the server with a
-    `Sec-Purpose: prefetch…` header, which analytics already ignores;
-    these tabs must stay side-effect-free GETs, which they already had
-    to be to be links.
-  eagerness — when to start. "moderate" (the default) waits for intent —
-    hover, or touch-down — so nothing is fetched for a tab nobody moves
-    towards; "immediate" starts as soon as the page settles, which buys
-    the most head start and spends the most server work on pages that
-    may never be opened.
+  speculate — "prefetch" or "prerender", asking the browser to start on the
+    other tabs before they are clicked. Prefetch holds the HTML only and the
+    click still parses and boots the page; prerender builds the whole hidden
+    page for an instant click but keeps a full document per tab in memory, so
+    reach for it only where the pages are light. Off by default. Browsers with
+    no speculation rules ignore it and the tabs stay ordinary links. Every
+    linked page must be a side-effect-free GET, since the browser may fetch it
+    before anyone chooses it.
+  eagerness — when to start. "moderate" (the default) waits for hover or
+    touch-down; "immediate" starts as soon as the page settles, buying the most
+    head start on pages that may never be opened.
 {% endcomment %}
 <c-vars :tabs="[]" label="" speculate="" eagerness="moderate" class="" />
 
@@ -75,9 +57,9 @@ do not fill.
 </nav>
 {% if speculate %}
     {% comment %}
-    A document rule keyed on this strip's own nav, so two strips on one
-    page can ask for different treatment. The current tab is excluded:
-    it is this page, and speculating on it would build it twice.
+    The rule is keyed on this strip's own nav, so two strips on one page
+    can ask for different treatment. The current tab is excluded: it is
+    this page, and speculating on it would build it twice.
     {% endcomment %}
     <script type="speculationrules">
         {"{{ speculate }}": [{

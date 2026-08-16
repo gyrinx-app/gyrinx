@@ -6,58 +6,20 @@
         <c-slot name="members">…model cards…</c-slot>
     </c-n26.view.gang-sheet>
 
-The order down the page answers a reader's questions in the order they ask them:
-whose gang and where am I, what is it called, what kind is it, what is it worth,
-what are its standing facts, what can I do to it, what is in the stash, who is in
-it. Everything above the fighters is a header — small, dense, and over quickly —
-because the fighters are what the page is for and every row above them is a row of
-the gang you cannot see.
+The caller builds the breadcrumb's owner, the detail list, the action buttons and
+the fighter cards; this component decides only where each of them goes. The stash
+is drawn as the first card of the grid, ahead of `members`.
 
-  --- primary and secondary ---
-
-Two runs, not one. Hiring is what this screen is for and it is safe; printing is a
-detour and deleting is irreversible. Putting them in one row would sort them by
-nothing, and a Delete adjacent to a Hire is a mis-tap with a gang behind it. So the
-irreversible one is inside a dropdown, which is not decoration: it costs a
-deliberate second click, and that is the whole reason it is there.
-
-  --- the fighters ---
-
-CSS grid, up to three columns, one on a phone. A card is a fixed amount of
-information, so as the screen widens the right answer is more cards side by side
-rather than one wide column of stretched cards — a statline set in a 1200px row
-puts its M and its Sv a hand's width apart.
-
-`auto-rows-min` so a short card does not inherit the height of the tallest in its
-row, which is what makes an eleven-fighter gang read as a wall.
-
-  :sheet — a n26.render.GangSheet. Its four figures are drawn opposite the name,
-    in the header's own actions slot.
-  switcher — a control beside the gang's name, for the reader's other gangs. The
-    view takes it as a slot rather than building it, because which gangs those
-    are is a question about the reader and this component only knows about one
-    gang.
-  owner — whose gang it is, for the breadcrumb.
-  owner_href — where the owner's name goes. Without it the name is plain text.
-  owner_flair — a badge to sit after the owner's name: <c-n26.flair.staff />.
-  owner_flair_label — what that badge means, for a screen reader and as its title.
-    Left empty the badge is aria-hidden, which is right when it repeats the text.
-  type_flair, type_flair_label — the same, for the house beside the gang's type.
-  gangs_href — where the breadcrumb's "Gangs" goes.
-  details — the detail list. The caller builds it, because which facts a gang has
-    and what each one opens is the gang's business, not the layout's.
-  actions — the primary run: Hire Fighters, Hire vehicle. What the screen is for.
-  secondary_actions — the detours and the dangerous ones: Print, and a dropdown
-    holding Delete. Kept apart from the primary run rather than sorted in with it.
-  members — the fighter cards, drawn straight into the grid.
+  :sheet — a n26.render.GangSheet. Its wealth strip is drawn opposite the name.
+  owner_flair_label, type_flair_label — what each badge means, for a screen
+    reader and as its title. Left empty the badge is aria-hidden, which is right
+    when it only repeats the text beside it.
+  secondary_actions — Print, and a dropdown holding Delete. A run of its own,
+    after the primary actions rather than sorted in among them.
   stash_empty — what to say when the stash is empty.
 {% endcomment %}
-{% comment %}
-`switcher` is declared for the reason `actions` is declared on the page header:
-an undeclared slot name is not empty when nobody fills it — it is whatever the
-enclosing scope happens to have under that name, and a page that builds one
-into a variable of its own would find it drawn here as well.
-{% endcomment %}
+{# The slots are declared: an undeclared slot name is not empty when nobody #}
+{# fills it — it resolves to the caller's own variable of that name. #}
 <c-vars
     :sheet="None"
     owner=""
@@ -78,23 +40,11 @@ into a variable of its own would find it drawn here as well.
 
 <div class="flex flex-col gap-4 {{ class }}">
 
-    {% comment %}
-    The user first, then the collection, then this gang: the trail a reader
-    actually walked. The name is the current page and carries aria-current, so the
-    breadcrumb is also the answer to "which gang is this" for anything reading the
-    page aloud — which is why the h1 below can be the plain name and nothing else.
-    {% endcomment %}
-    {% comment %}
-    <c-n26.page-header> owns the scale. It used to be set here at text-2xl and in
-    the hire form at text-xl, which is two answers to a question neither template
-    was asking.
-    {% endcomment %}
     <c-n26.page-header title="{{ sheet.name }}">
         {% comment %}
-        The gang's own colour, before its name and inside the h1, so the sheet
-        and the row that opened it are marked the same way. Drawn only where
-        there is one — see <c-n26.color-swatch> for why an unset colour draws
-        nothing rather than holding the space.
+        The gang's colour, inside the h1, so the sheet and the row that opened
+        it are marked the same way. Drawn only where there is one — see
+        <c-n26.color-swatch> for why an unset colour holds no space.
         {% endcomment %}
         {% if sheet.colour %}
             <c-slot name="leading">
@@ -103,19 +53,16 @@ into a variable of its own would find it drawn here as well.
         {% endif %}
         {% comment %}
         Trailing rather than leading: the leading slot is inside the h1 and is
-        read out as part of the page's name, which a control must not be. This
-        one sits after the name, on its baseline, and is the reader's way from
-        this gang to the next.
+        read out as part of the page's name, which a control must not be.
         {% endcomment %}
         {% if switcher.strip %}
             <c-slot name="trailing">{{ switcher }}</c-slot>
         {% endif %}
         <c-slot name="breadcrumb">
             {% comment %}
-            The user first, then the collection, then this gang: the trail a reader
-            actually walked. The name is the current page and carries aria-current,
-            so the breadcrumb is also the answer to "which gang is this" for
-            anything reading the page aloud.
+            The gang is the current item and so carries aria-current, which
+            makes the trail the answer to "which gang is this" for anything
+            reading the page aloud.
             {% endcomment %}
             <c-ui.breadcrumbs>
                 <c-ui.breadcrumbs.item>
@@ -127,10 +74,9 @@ into a variable of its own would find it drawn here as well.
         </c-slot>
 
         {% comment %}
-        The house icon rides along through flair-link, which sizes it in em and
-        lets it inherit the lead's muted colour — so it shrinks with the line
-        rather than being a fixed-size mark stuck beside smaller text. No href:
-        flair-link renders a span, because a gang's own type is not somewhere to go.
+        The house icon is drawn through flair-link, which sizes it in em and lets
+        it inherit the lead's muted colour. No href, so flair-link draws a span
+        rather than a link: a gang's own type is not somewhere to go.
         {% endcomment %}
         <c-slot name="lead">
             <c-n26.flair-link text="{{ sheet.gang_type }}" tone="current"
@@ -138,18 +84,10 @@ into a variable of its own would find it drawn here as well.
         </c-slot>
 
         {% comment %}
-        What the gang is worth, opposite its name. It is the number a reader came
-        back for, and beside the title it is answered before the eye has travelled
-        anywhere — where a line of its own below pushed everything else down for a
-        figure that fits in the space already going spare. The header wraps it
-        under the title on a phone, which is the same behaviour any other set of
-        page actions gets.
-
-        This slot must be filled even if it were empty. c-n26.page-header renders
-        `{% if actions %}`, and this view *also* has a slot called `actions` — so
-        with nothing passed here the child resolved the parent's variable of the
-        same name and drew the gang's Hire Fighters a second time, up beside the
-        title. Cotton slots are context variables, and a name is a name.
+        This slot must be filled, even were there nothing to put in it. Cotton
+        slots are context variables, and this view has an `actions` slot of its
+        own: left unfilled here, the header resolves that one instead and draws
+        the gang's Hire Fighters a second time, up beside the title.
         {% endcomment %}
         <c-slot name="actions">
             <c-n26.wealth :sheet="sheet" />
@@ -157,23 +95,10 @@ into a variable of its own would find it drawn here as well.
     </c-n26.page-header>
 
     {% comment %}
-    The standing facts and the buttons share a line where there is room:
-    both are header furniture, small and over quickly, and each on its own
-    row spends two lines of every fighter's screen on one line's worth of
-    content. On a phone they stack — facts first, then actions — because a
-    shared row that wrapped mid-list would interleave the two.
-
-    Wraps rather than scrolls, and the secondary run drops under the primary one on
-    a phone. A row of actions that scrolls sideways hides the destructive one behind
-    an edge, which is the wrong thing to hide behind an edge — better it wraps and
-    the page gets a line taller.
-
-    The buttons keep the right edge (ml-auto, so a gang with no details
-    still puts them there), matching where the page keeps its other
-    figures: the wealth strip sits at the header's far end, and the
-    buttons line up under it rather than hanging off the title's edge with
-    the width of the page between them. shrink-0 so squeezing the row
-    wraps the facts, never squashes a button.
+    Wraps rather than scrolls: a row of actions that scrolls sideways hides the
+    irreversible one behind an edge. ml-auto keeps the buttons at the right edge
+    even for a gang with no details, under the wealth strip above them, and
+    shrink-0 makes a squeezed row wrap the facts rather than squash a button.
     {% endcomment %}
     <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         {% if details %}{{ details }}{% endif %}
@@ -190,12 +115,8 @@ into a variable of its own would find it drawn here as well.
     </div>
 
     {% comment %}
-    Fighters last and given the whole width. auto-rows-min keeps a short card
-    short; items-start would only align them, not stop them stretching.
-
-    The stash leads the grid — the first slot, where v1's printed roster put
-    it — as a card among the cards: a place gear lives, beside the people
-    who carry the rest of it.
+    auto-rows-min keeps a short card short; items-start would only align the
+    cards, not stop them stretching to the tallest in the row.
     {% endcomment %}
     <div class="grid auto-rows-min grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         <c-n26.stash :lines="sheet.stash" :total="sheet.stash_rating">

@@ -7,19 +7,14 @@
         <c-ui.button>Print</c-ui.button>
     </c-n26.button-group>
 
-The kit has no button group, so the joining is done here: the group owns the outer
-radius, its children give up their own, and each one after the first pulls left by
-a pixel so touching borders read as one line instead of two.
+The joining is done in app.css, by `.n26-button-group > :is(button, a)`: the
+group owns the outer radius, its children give up their own, and each one after
+the first pulls left a pixel so touching borders read as one line. That selector
+outranks the `rounded-button` utility the buttons already carry — passing a
+`rounded-none` class down instead would tie the result to the order Tailwind
+happened to emit two equal-specificity utilities in.
 
-Done in CSS rather than by passing classes down, because `rounded-none` on a
-c-ui.button would be a second `border-radius` utility of equal specificity to the
-`rounded-button` already there — and which of two equal declarations wins depends
-on the order Tailwind emitted them, which is not something to build on. A
-`.n26-button-group > :is(button, a)` selector outranks a single class outright.
-See app.css.
-
-Anything can go inside: a dropdown's trigger joins the run like any other button,
-which is how you get the split "⋮ ▾" at the end of a toolbar.
+Anything can go inside; a dropdown's trigger joins the run like any other button.
 {% endcomment %}
 <c-vars
     class=""

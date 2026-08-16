@@ -12,14 +12,10 @@
         {% endcomment %}
         <c-ui.mode-toggle.head storage_key="n26-theme" default="system" />
         {% comment %}
-    Mynor, from Typekit. The two hints go first and cost nothing: dns-prefetch for
-    browsers that will not act on preconnect, preconnect to open the TLS connection
-    while the rest of the head is still parsing. crossorigin is required — fonts are
-    fetched anonymously, and without it the browser opens a second connection and
-    the preconnect is wasted.
-
-    This is the one asset the gallery loads from the network; everything else,
-    Alpine included, is vendored. Offline you get the fallback stack in app.css.
+    Mynor, from Typekit — the one asset the gallery fetches from the network;
+    everything else, Alpine included, is vendored, and offline you get the fallback
+    stack in app.css. crossorigin on the preconnect is required: fonts are fetched
+    anonymously, and without it the browser opens a second connection.
         {% endcomment %}
         <link rel="dns-prefetch" href="https://use.typekit.net">
         <link rel="preconnect" href="https://use.typekit.net" crossorigin>
@@ -27,14 +23,10 @@
         <link rel="stylesheet" href="{% static 'designsystem/app.css' %}">
         {% if needs_rich_text %}
             {% comment %}
-        Order matters. richtext.js registers a DOMContentLoaded listener that
-        rewrites each editor's config with the skin for the current mode; loading
-        it before form.media means that listener is registered — and so runs —
-        before django-tinymce's own initialiser reads the config.
-
-        form.media goes in once for the page, not once per editor: it is the same
-        two scripts however many fields there are, and Django would emit them
-        repeatedly if each field rendered its own.
+        Order matters: richtext.js registers a DOMContentLoaded listener that
+        rewrites each editor's config with the skin for the current mode, and it
+        must run before django-tinymce's own initialiser reads that config.
+        form.media goes in once for the page, not once per editor.
             {% endcomment %}
             <script src="{% static 'n26/richtext.js' %}"></script>
             {{ rich_text_form.media }}
@@ -48,7 +40,6 @@
             Skip to content
         </a>
         <div class="mx-auto flex max-w-[1600px]">
-            {# ---------------------------------------------------------------- sidebar #}
             {# djlint:off H037 — Alpine @event.window modifiers, not duplicate attributes #}
             <aside x-data="sidebar({{ all_search_terms }})"
                    @toggle-sidebar.window="open = !open"
@@ -72,11 +63,7 @@
                            class="w-full rounded-control border border-box-border bg-input-bg px-3 py-1.5 text-sm placeholder:text-muted focus-ring">
                 </div>
                 <nav class="flex-1 overflow-y-auto px-3 py-4 text-sm">
-                    {% comment %}
-            nav-current is defined in app.css, where the reasoning lives: the
-            marker is a neutral tint and ink text, because the accent is a fill
-            token with no guaranteed contrast against the page.
-                    {% endcomment %}
+                    {# nav-current is defined in app.css: a neutral tint and ink text, the accent being a fill token with no guaranteed contrast against the page. #}
                     {% with current="nav-current" %}
                         {% with here=request.resolver_match.url_name %}
                             <ul class="mb-5 space-y-0.5" x-show="!query">
@@ -89,15 +76,10 @@
                                 <li><a href="{% url 'designsystem:print_lab' %}"
    class="block rounded-control px-3 py-1.5 font-medium hover:bg-ink-500/10 {% if here == 'print_lab' %}{{ current }}{% endif %}">Print lab</a></li>
                                 {% comment %}
-                    The only link here that leaves the gallery. The shell extends
-                    the app's own base rather than this one, so there is no sidebar
-                    on the other side and no `here` to match — a current-state
-                    conditional on this row would be a branch that can never run.
-
-                    The arrow says as much, which its siblings do not need to. Not
-                    target="_blank" though: it is a page in the same project, and a
-                    new tab for something the back button handles is a tab the
-                    reader has to close.
+                    The only link here that leaves the gallery, which is what the
+                    arrow says. The shell extends the app's own base rather than
+                    this one, so there is no `here` to match and a current-state
+                    conditional on this row could never run.
                                 {% endcomment %}
                                 <li>
                                     <a href="{% url 'designsystem:shell_home' %}"
@@ -112,10 +94,7 @@
                         {% endwith %}
                         {% for group in groups %}
                             <div class="mb-5" x-show="groupMatches({{ group.search_terms }})">
-                                {% comment %}
-                    The heading links to the group's section on the overview, so a
-                    category is somewhere you can go rather than just a label.
-                                {% endcomment %}
+                                {# The heading links to the group's section on the overview, so a category is somewhere to go rather than a label. #}
                                 <a href="{% url 'designsystem:index' %}#{{ group.anchor }}"
                                    class="flex items-center gap-1.5 rounded-control px-3 pb-1.5 pt-1 text-[11px] font-semibold uppercase tracking-wider hover:text-ink-900 dark:hover:text-ink-100 {% if component.group == group.name %}text-ink-900 dark:text-ink-100{% else %}text-muted{% endif %}">
                                     {{ group.name }}
@@ -146,12 +125,11 @@
                 <div class="border-t border-box-border px-5 py-3 text-xs text-muted">{{ component_count }} components</div>
             </aside>
             {# djlint:on #}
-            {# ------------------------------------------------------------------- main #}
             {% comment %}
     The header below is sticky, so anything else on the page that sticks has to
-    start beneath it — see --n26-sticky-top in <c-n26.collection-picker>. Declared here
-    rather than in app.css so the offset and the thing it clears stay in view of
-    each other, and it goes back to zero at lg, where the header does not exist.
+    start beneath it — see --n26-sticky-top in <c-n26.collection-picker>. It is
+    declared here rather than in app.css so the offset and the header it clears
+    stay in view of each other, and returns to zero at lg, where the header is gone.
             {% endcomment %}
             <div class="min-w-0 flex-1 [--n26-sticky-top:3.9375rem] lg:[--n26-sticky-top:0px]">
                 <header class="sticky top-0 z-30 flex items-center gap-3 border-b border-box-border bg-surface/80 px-5 py-3 backdrop-blur lg:hidden">
@@ -181,9 +159,8 @@ document.addEventListener('alpine:init', () => {
         allTerms,
 
         init() {
-            // On a deep link the current component can be far down a 41-item list,
-            // so bring it into view — but only within the nav, never by scrolling
-            // the page itself.
+            // On a deep link the current component can be far down the list, so
+            // bring it into view — within the nav only, never by scrolling the page.
             const current = this.$el.querySelector('[data-current]');
             if (current) current.scrollIntoView({ block: 'nearest' });
         },

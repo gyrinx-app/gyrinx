@@ -7,37 +7,26 @@
         <c-slot name="meta">6 entries</c-slot>
     </c-n26.radio-cards.card>
 
-A sibling of <c-n26.checkbox-card> rather than a mode of it, because the two
-differ where it counts. A checkbox card's body goes dim and inert while the card
-is unticked — choices inside an unselected card are choices about something that
-is not happening. In a group where exactly one thing is picked, every card but
-one is unpicked at all times, so the same treatment would grey out every option
-the reader is trying to compare and make the group read as disabled. This card
-has no dependent body and nothing goes dim: an option not yet chosen is not off.
+Unlike <c-n26.checkbox-card>, nothing here dims while unpicked and there is no
+dependent body: in a one-of-many group every card but one is unpicked at any
+moment, so dimming would grey out the very options a reader is comparing.
 
-It also cannot own its state the way the checkbox card does. One-of-many is the
-browser's rule over a shared `name`, not something a card can decide about
-itself — which is the other half of why this is its own component, and why there
-is no JavaScript here at all. The whole card is the label, so a click anywhere on
-it selects; the radio stays visible, because a group of cards with no controls in
-them does not look like a question.
+There is no JavaScript. One-of-many is the browser's rule over a shared `name`,
+not something a card can decide about itself. The whole card is the label, so a
+click anywhere selects; the radio itself stays visible, or a grid of cards does
+not read as a question.
 
   name — shared across every card in the group. This is what makes it a group.
   value — what this card submits.
-  checked — whether this is the chosen one. The server decides; on a redisplay
-    it is whatever came back.
+  checked — whether this is the chosen one. The server decides.
   label — the option's name.
   description — the muted line under it. Optional.
   wrap — let the label and description run to several lines instead of
-    truncating. A gang type's name and one-line detail want the
-    ellipsis; a verb's name and the sentence explaining it want to be
-    read whole.
-  example — a concrete case, revealed by hovering the small icon after
-    the description. CSS-only, so it works before and without script;
-    also the icon's title, so a touch reader gets the browser's own
-    fallback. Optional.
-  disabled — the option cannot be picked here: the radio is disabled and
-    the card dims. The server decides, exactly as it decides checked.
+    truncating, for options whose detail is a sentence rather than a phrase.
+  example — a concrete case, revealed on hover or keyboard focus of the small
+    icon after the description, and set as its title for touch. Optional.
+  disabled — the option cannot be picked here: the radio is disabled and the
+    card dims. The server decides, exactly as it decides checked.
   reason — the sentence saying why, drawn on a disabled card in the
     description's place. A greyed option with no reason reads as broken.
   flair — a badge after the label, sized in em by <c-n26.flair-link>. Optional.
@@ -59,10 +48,9 @@ them does not look like a question.
 />
 
 {% comment %}
-has-[:checked] rather than Alpine: the selected card is styled from the state of
-the real input inside it, so the page is correct before any script runs and stays
-correct if none ever does. The accent border and tint are the kit's checkbox-card
-presentation, so a form using both reads as one family.
+has-[:checked] rather than Alpine: the card is styled from the state of the real
+input inside it, so it is right before any script runs and without one. The
+accent border and tint match the kit's checkbox cards.
 {% endcomment %}
 <label {{ attrs }}
        class="flex items-start gap-3 rounded-box border-2 border-ink-200 p-4
@@ -78,10 +66,9 @@ presentation, so a form using both reads as one family.
            class="mt-0.5 size-5 shrink-0 accent-[var(--color-accent)] focus-ring">
     <span class="min-w-0 flex-1">
         {% comment %}
-        The badge rides through flair-link, which sizes it in em and keeps it out
-        of the underline — the same placement it gets in a heading or a table
-        cell, so a gang type looks the same here as it does on the gang's sheet.
-        tone="current" because the card's title has already picked its colour.
+        The badge goes through flair-link, which sizes it in em and gives it the
+        same placement it has in a heading or a table cell. tone="current"
+        because the card's title has already set its colour.
         {% endcomment %}
         <span class="block {% if not wrap %}truncate{% endif %} text-base font-semibold text-ink-900 dark:text-ink-100"><c-n26.flair-link text="{{ label }}" tone="current">{{ flair }}</c-n26.flair-link></span>
         {% if disabled and reason %}
@@ -91,11 +78,9 @@ presentation, so a form using both reads as one family.
         {% endif %}
         {% if example and not disabled %}
             {% comment %}
-            The example, behind a small icon rather than on the card:
-            ten cards each carrying three sentences is a wall, and the
-            example is for the moment of doubt, not every read. Shown on
-            hover or keyboard focus with no script — and set as the
-            icon's title too, so a touch gets the browser's own tooltip.
+            The example sits behind a small icon rather than on the card,
+            shown on hover or keyboard focus with no script, and set as
+            the icon's title so touch gets the browser's own tooltip.
             {% endcomment %}
             <span class="group/eg relative mt-1 inline-flex" tabindex="0" title="{{ example }}">
                 <c-n26.icon name="information-circle" class="size-4 text-muted" />

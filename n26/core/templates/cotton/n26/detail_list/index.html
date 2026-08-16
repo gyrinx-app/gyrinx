@@ -8,25 +8,17 @@
         </c-n26.detail-list.row>
     </c-n26.detail-list>
 
-A gang has a dozen small standing facts — its house list, its ranked skill trees,
-its counters — and every one of them is something you can change. That is the shape
-this exists for: a label, and a value that is also the way to edit it.
+For the dozen small standing facts a gang carries — its house list, its ranked
+skill trees, its counters — each of which is also something to change.
 
-Built along the same lines as <c-n26.action-links>: the rhythm belongs to the
-container, not the call site, so adding a row or hiding one behind a permission
-check cannot leave a gap or a stray separator behind. Unlike action-links there is
-no dot between items — these are not a run of one kind of thing, they are pairs,
-and a separator between a pair and the next pair reads as being inside the pair.
+The spacing belongs to the container, as in <c-n26.action-links>, so hiding a
+row behind a permission check cannot leave a gap behind. No separator between
+items, unlike action-links: these are pairs, and a mark between one pair and the
+next reads as sitting inside a pair.
 
-  --- the layout ---
-
-Rows are a flex wrap, not a grid and not a two-column table, so a row takes only
-the width its value needs and several short pairs share a line. A grid would align
-every value to the widest label on the sheet, which on "Skill trees" versus
-"Founding" is most of a phone's width spent on nothing.
-
-The label is the quiet half. It is a fixed piece of vocabulary a reader learns
-once; the value is what they came to read and what they click.
+Rows are a flex wrap rather than a grid or a two-column table, so each takes only
+the width its value needs and short pairs share a line. A grid would align every
+value to the widest label on the sheet.
 
   class — extra classes on the container.
 {% endcomment %}

@@ -5,47 +5,19 @@
         <c-n26.site.nav.theme storage_key="theme" />
     </c-ui.dropdown.group>
 
-One segmented control in the account menu rather than a control in the bar.
-Picking a colour scheme is something a reader does once and then never again,
-and the top bar has one row of space that a page's own name and its switcher
-want every time.
+Three named states rather than a two-way flip, because a toggle cannot say "the
+same as everything else on this machine" — which is the state most readers are
+already in, and the only one that keeps following the machine afterwards.
+System's accessible name says which scheme the machine is currently asking for.
 
-  --- one object, not three destinations ---
+Built on the kit's headless mode-toggle rather than its menu variant, which is
+itself a dropdown: a dropdown opened inside a dropdown leaves two panels
+fighting over the same outside click.
 
-Three full-width rows in the menu would each carry the weight of "Your account"
-and the staff doors, which are places to go, and would make the panel half as
-tall again on the screen where height is scarcest. A segment is a third of one
-row: the choice reads as a single object, and the two positions the reader is
-not on are visibly the alternatives to the one they are.
-
-The kit's own menu variant is a dropdown, and a dropdown opened from inside a
-dropdown is two panels fighting over the same outside click. So the segments
-are written out here on top of the kit's headless form, which is the same
-behaviour with none of the controls.
-
-  --- three named states, not a flip ---
-
-A two-way toggle can say "dark" but cannot say "the same as everything else on
-this machine", which is the state most readers are already in and the only one
-that keeps following the machine after the choice. So there is a third segment,
-and each says which it is instead of the reader having to work out what
-clicking would do.
-
-Each carries its own drawing — a sun, a moon, a screen. One icon for the group
-could only picture whichever scheme is current, and which one is current is
-what this control exists to show. System's accessible name also says which
-scheme the machine is asking for, because the screen icon tells it apart from
-the two concrete choices but not from the one it is behaving as.
-
-`menuitemradio` because that is what these are: one of three, inside a menu,
-with the current one announced as checked. The raised pill is drawn from
-`aria-checked` itself rather than from a second piece of Alpine state, so what
-the control looks like and what it announces cannot come apart. The weight of
-the label changes with it: a fill is a colour, and a colour on its own is not a
-state.
-
-The menu is left open on a click. A reader picking a scheme is usually
-comparing, and closing the panel would mean reopening it to see the other one.
+The segments are `menuitemradio`s, and the raised pill is drawn from
+`aria-checked` rather than from a second piece of Alpine state, so what the
+control looks like and what it announces cannot come apart. The menu is left
+open on a click, since a reader picking a scheme is usually comparing.
 
   storage_key — where the choice is kept. Must match the <c-ui.mode-toggle.head>
     in the page's head, or the first paint disagrees with the stored choice.
@@ -53,17 +25,15 @@ comparing, and closing the panel would mean reopening it to see the other one.
 <c-vars storage_key="theme" class="" />
 
 {% comment %}
-The kit's toggle in its headless form: none of its own controls, but all of
-its behaviour — the stored choice, the media query it follows in system mode,
-and the class on <html> every other part of the page reads. `mode`, `mq` and
-`set()` below live in its scope.
+The headless toggle carries all the behaviour and none of the controls: the
+stored choice, the media query it follows in system mode, and the class on
+<html> the rest of the page reads. `mode`, `mq` and `set()` live in its scope.
 {% endcomment %}
 <c-ui.mode-toggle variant="headless" storage_key="{{ storage_key }}">
     {% comment %}
-    A flex row of three rather than a three-column grid: a grid column may be
-    narrower than what is in it, and the segment would then wrap "System" onto
-    two lines. Flex items refuse to shrink below their content, so the panel
-    widens to fit the control instead.
+    A flex row rather than a three-column grid: a grid column may be narrower
+    than its content, which wraps "System" onto two lines. Flex items refuse to
+    shrink below theirs, so the panel widens to fit the control instead.
     {% endcomment %}
     <div {{ attrs }}
          role="group"

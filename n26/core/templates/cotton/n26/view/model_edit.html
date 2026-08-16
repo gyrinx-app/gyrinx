@@ -2,53 +2,29 @@
 <c-n26.view.model-edit> — one model, whole: their card, editable, and the notes.
 
     <c-n26.view.model-edit :miniature="miniature" :card="card" lead="Leader">
-        <c-slot name="switcher">…quick-switcher…</c-slot>
         <c-slot name="breadcrumb">…breadcrumbs…</c-slot>
-        <c-slot name="name_action">…rename pencil…</c-slot>
         <c-slot name="notes">…the notes form…</c-slot>
-        <c-slot name="skills">…the skills form…</c-slot>
         <c-slot name="statline">…the characteristics form…</c-slot>
     </c-n26.view.model-edit>
 
-The Edit face of a model's own page — the header names the model and offers the
-Equip tab; see <c-n26.model-header>. Under it, a grid that is one column on a
-phone: the card first, everything else a box after it.
+The Edit face of a model's own page: the header (see <c-n26.model-header>), then
+a grid holding the card and the forms, one column on a phone.
 
-The card draws in ``edit`` mode, which is where its controls come out — the
-choice buttons the gang sheet holds back, outlined, and an Equip beside the two
-rows equipping changes. The card is still the sheet's card: same structure,
-same renderer, so what this page says about a model is what the sheet says.
+The card is drawn in `edit` mode, which is where its controls come out. It is
+otherwise the same card the gang sheet draws, from the same renderer.
 
-The notes box is a box of the grid rather than the card's own Notes section,
-because it is a form: a card is read in numbers and a paragraph being written
-wants elbow room beside it, not a slot inside it. The form arrives as a slot —
-fields, submit and all — because saving is the page's business; this component
-only decides where the box sits. The box's heading is drawn here so every
-caller's notes box is called the same thing.
+Saving is the caller's business. Notes, skills and statline arrive as whole
+forms — fields, submit and all — and this component only decides where each box
+sits and what its heading says.
 
-The skills box is a square of the grid like the notes: a list of things to tick
-is read down a column, and one stretched across the page would set a set's name
-a hand's width from its own boxes. It draws nothing without the slot, so a model
-whose grid reaches no set is simply not asked — a heading over an empty square
-would read as a list that failed to load.
-
-The characteristics form sits under the grid rather than in it, and full width:
-it is a row of boxes drawn to the same columns as the card's own strip, and a
-strip squeezed into half the page would wrap where the card's does not. Below
-the card, too, because it is read against it — a value set by hand shows on the
-card above, marked as changed.
-
-  :miniature — the model. The header reads pk and name; the Equip links are
+  :miniature — the model. The header reads pk and name, and the Equip link is
     built from pk.
   :card — the model's n26.render.ModelCard.
   lead — the model's rank, under the name.
-  switcher — a control after the name, for the gang's other models.
-  breadcrumb — the trail above the name.
-  actions — the header's far end: the gang's figures and the roster tally.
-  name_action — a control on the name's own line: the rename pencil.
-  notes — the notes form, whole.
-  skills — the skills form, whole. Nothing is drawn without it.
-  statline — the characteristics form, whole. Nothing is drawn without it.
+  skills — the skills form. Without it no box is drawn at all, so a model whose
+    grid reaches no set is not asked rather than shown an empty list.
+  statline — the characteristics form. Without it, nothing is drawn. Full width
+    under the grid, so its boxes line up with the card's own strip.
 {% endcomment %}
 <c-vars
     :miniature="None"
@@ -78,9 +54,8 @@ card above, marked as changed.
     </c-n26.model-header>
 
     {% comment %}
-    Two columns from md up, one on a phone. auto-rows-min so the notes box
-    keeps its own height rather than inheriting the card's; the card is
-    almost always the taller of the two.
+    auto-rows-min so the notes box keeps its own height rather than stretching
+    to the card's, which is almost always the taller of the two.
     {% endcomment %}
     <div class="grid auto-rows-min grid-cols-1 gap-4 md:grid-cols-2">
         {% url 'n26-equip' miniature.pk as equip_href_ %}

@@ -1,5 +1,5 @@
 {# title: A gang, whole #}
-{# note: The whole screen: who owns it, what it is called and what kind, what it is worth, its standing facts, what you can do to it, the stash, then the fighters. Everything above the cards is a header — every row of it is a row of fighters you cannot see. Narrow the window: the cards go from three columns to one, and Delete stays behind a second click at every width. #}
+{# note: The whole screen: who owns it, what it is called and what kind, what it is worth, its standing facts, what you can do to it, the stash, then the fighters. Everything above the cards is a header, since every line of it is a line of fighters you cannot see. Narrow the window: the cards go from three columns to one, and Delete stays behind a second click at every width. #}
 {# layout: full #}
 <c-n26.view.gang-sheet :sheet="gang"
                        owner="{{ gang_owner }}"
@@ -60,8 +60,9 @@
         you can do to this gang that are not hiring".
 
         Delete lives behind the click rather than beside Hire. The dropdown is not
-        decoration: it is the second deliberate action an irreversible thing should
-        cost, and it keeps a destructive control out of thumb range of a safe one.
+        decoration: it is the second deliberate click an irreversible thing should
+        ask for, and it keeps a destructive control out of thumb range of a safe
+        one.
         {% endcomment %}
         <c-n26.button-group>
             <c-ui.button size="sm" variant="default" href="#">
@@ -123,8 +124,7 @@
 
                     Cards and Delete share the dropdown because neither is
                     frequent and one is irreversible — the second click a
-                    destructive act should cost, which is the same reasoning as
-                    Delete gang above.
+                    destructive act should ask for, as with Delete gang above.
                     {% endcomment %}
                     <c-ui.button size="xs" variant="primary" href="#">
                         Equip

@@ -7,30 +7,25 @@
         </c-n26.collection-picker.category>
     </c-n26.collection-picker.section>
 
-The coarse tier, and the only thing that collapses. Sections are a collection's
-own tiers — content, per library.CollectionSection, whose whole point is that the
-tiers are the collection's schema rather than a convention restated per item. So
-this draws them and decides nothing about what they are.
+The coarse tier. Sections are the collection's own, per
+library.CollectionSection; this draws them and decides nothing about what they
+are. Under `tabs` the strip is the disclosure and the header is not drawn.
 
 It hides itself when nothing under it matches, counting through the category
-filter as well as the search: a section whose every category has been filtered
-away is a header with nothing inside, which is most of a phone screen wasted.
+filter as well as the search.
 
-Items may sit straight inside one, with no category in between. Then the
-section's name is what they register as their category, so a one-level list is
-this component used on its own rather than a second component to learn.
+Items may sit straight inside one, with no category between. They then register
+the section's name as their category, which is how a one-level list is built.
 
-  name — the tier's name. Also the string an item registers against when there
-    is no category between them.
+  name — the tier's name, and what an item with no category registers against.
   :open — start expanded. Usually true for the first section only.
 {% endcomment %}
 <c-vars name="" :open="False" />
 
 {% comment %}
-`categoryName: null` is declared here, not only in the category, so an item can
-read it unconditionally. Alpine resolves up the scope chain, so without a default
-an item outside a category would be reaching for a name that exists nowhere — and
-`categoryName || sectionName` is a plainer thing to write than a typeof guard.
+`categoryName: null` is declared here as well as in the category, so an item
+sitting straight in a section is not reaching up the Alpine scope chain for a
+name that exists nowhere.
 {% endcomment %}
 <div x-data="{ open: {{ open|lower }}, sectionName: {{ name|json_dumps }}, categoryName: null }"
      x-show="countInSection(sectionName) > 0 && sectionIsActive(sectionName)"
@@ -38,15 +33,10 @@ an item outside a category would be reaching for a name that exists nowhere — 
      x-cloak>
 
     {% comment %}
-    A search forces the panel open without touching `open`, so clearing the
-    search returns each section to whatever the reader had chosen. That is also
-    why the chevron reads the same expression rather than `open`: it has to
-    describe what the panel is doing now, not what it will do later.
-    {% endcomment %}
-    {% comment %}
-    Hidden under `tabs`: the tab strip is the disclosure, and a header that also
-    collapses would be a second control for the same section — click the tab to
-    see it, then click its header to hide it again.
+    A search forces the panel open without writing to `open`, so clearing the
+    search returns each section to what the reader last chose. The chevron
+    reads the same expression rather than `open`, so that it describes what the
+    panel is doing now.
     {% endcomment %}
     <button type="button" @click="open = !open" x-show="!tabbed"
             :aria-expanded="open || query.length > 0 ? 'true' : 'false'"
@@ -60,9 +50,8 @@ an item outside a category would be reaching for a name that exists nowhere — 
         <span class="min-w-0 flex-1 truncate font-semibold text-ink-900 dark:text-ink-100">{{ name }}</span>
 
         {% comment %}
-        The count is the reason to open or skip a section, so it goes at the far
-        end where the eye lands after the name — and it is the *matching* count,
-        not the total, so filtering visibly empties sections out.
+        The matching count, not the total, so filtering visibly empties a
+        section out.
         {% endcomment %}
         <span class="shrink-0 rounded-full bg-ink-500/10 px-2 py-0.5 text-xs tabular-nums text-ink-900 dark:text-ink-100"
               x-text="countInSection(sectionName)"></span>

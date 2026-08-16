@@ -7,60 +7,28 @@
                               :sheet="sheet" href="/gangs/1/" print_href="/gangs/1/print/" />
     </c-n26.gang-table>
 
-  --- it is not a <table> ---
-
 Called a table because that is what it is to a reader, and built as a list of
-grid rows because a real one cannot survive a phone. Four columns, one of them a
-four-figure wealth strip and one a pair of buttons, is more than 390px holds; the
-usual escape is `display: block` on the cells, which throws away the alignment
-that made it a table in the first place.
+grid rows because a real one cannot survive a phone: one column with each row's
+parts stacked when narrow, columns that line up down the page when wide.
 
-A grid keeps both: one column on a phone with the row's parts stacked, and at md
-the same rows snap into columns that line up down the page. Nothing is hidden at
-either width — a gang's worth is why you are looking.
+One box, two searches. Typing narrows what is already on the page; clicking
+Search asks the server, which can reach gangs this page never carried. While the
+box still holds the query the server answered, the in-page filter passes every
+row — the rows on the page are that answer, and narrowing by the same query
+again would hide any the server matched by means a substring search has not (a
+word stem, a field the row does not print).
 
-  --- the controls ---
-
-The same bar <c-n26.collection-picker> uses, and the same components: the search
-takes its own line and the menus wrap under it. Whatever a reader learns about
-filtering the trading post is true here, which is the entire argument for not
-inventing a second arrangement for the second list on the site.
-
-Type is a <c-n26.filter-menu>, the same multi-select the equipment screens
-refine their lists with — tick the types worth seeing, exactly as Category
-works there. Rows register their facets on init and show themselves only
-while those pass, so the count and the list are computed from one object
-and cannot disagree.
-
-  --- two searches, one box ---
-
-The box narrows what is on the page as you type; clicking Search asks the server,
-which can reach gangs this page never carried. Given an `action` it does both:
-typing is the fast answer to a question the page can already answer, submitting
-is for when it cannot.
-
-`query` is what the server was asked, and the box opens holding it. That is also
-what keeps the two out of each other's way: while the box still reads what the
-server answered, the in-page filter passes every row, because the rows on the
-page *are* the answer — narrowing by that query again would hide any row the
-server matched by means a substring does not have (a word stem, a field the row
-does not print). Type something else and it narrows from there as usual.
-
+  :query — the query the server answered, echoed back into the box. Pass it as
+    an expression: through an attribute it is escaped twice, and a quote in the
+    query comes back as its own entity.
   :type_options — [{value, label}] of every gang type present. Drawn only when
     there are two or more: a filter with one option filters nothing.
-  noun — what the count counts, and its singular for a count of one.
-    "gangs"/"gang" by default.
-  singular — see noun.
-  action — where Search submits, as a GET. Without one there is nowhere to go
-    and the submit does nothing; the box still narrows in place.
-  :query — the query the server answered, echoed back into the box. Pass it as
-    an expression: through an attribute it is escaped twice and a quote in the
-    query comes back as `&amp;quot;`.
-  empty — what to show when a search matches nothing.
-  total — how many the whole answer holds, where the rows are one page of
-    it. Drawn as "8 of 143 gangs"; omitted, the count stands alone.
-  shown — how many rows were handed over, for a reader with no script. The
-    live count replaces it the moment Alpine runs.
+  action — where Search submits, as a GET. Without one the submit does nothing;
+    the box still narrows in place.
+  total — how many the whole answer holds, where these rows are one page of it.
+    Drawn as "8 of 143 gangs"; omitted, the count stands alone.
+  shown — how many rows were handed over, for a reader with no script. The live
+    count replaces it the moment Alpine runs.
   filters — controls that ask the server for different rows, drawn beside the
     type menu. A link or a form: clicking one reloads the page.
 {% endcomment %}
@@ -91,26 +59,24 @@ does not print). Type something else and it narrows from there as usual.
         get shown() { return this.rows.filter(f => this.matches(f)).length },
      }"
      {% comment %}
-     The menu publishes its choice on the window, the way filter-menu does, so the
-     control and the list never hold a reference to each other.
+     The menu publishes its choice on the window, so the control and the list
+     never hold a reference to each other.
      {% endcomment %}
      @filter-apply.window="if ($event.detail.name === 'type') types = $event.detail.values"
      class="flex flex-col gap-3 {{ class }}">
 
     {% comment %}
-    Both passed as expressions, not as "{{ … }}" strings: a value written into an
-    attribute is escaped on the way in and escaped again on the way out, so a
-    query containing a quote comes back into the box as `&quot;`.
+    Passed as expressions rather than "{{ … }}" strings: a value written into an
+    attribute is escaped on the way in and again on the way out, so a query
+    containing a quote comes back into the box as an entity.
     {% endcomment %}
     <c-n26.search-bar :live="True" model="query" :action="action"
                       :value="query" placeholder="Search {{ noun }}" />
 
     {% comment %}
-    The type menu narrows the rows already on the page; anything in the
-    `filters` slot is a control that asks the server for different rows —
-    whose gangs these are, say — so it reloads rather than filtering in
-    place. They share a line because a reader reads them as one bar of
-    ways to change what is listed.
+    The type menu narrows the rows already on the page; anything in `filters`
+    asks the server for different rows and so reloads. They share a line
+    because a reader reads them as one bar of ways to change what is listed.
     {% endcomment %}
     {% if type_options|length > 1 or filters %}
         <div class="flex flex-wrap items-center gap-2">
@@ -124,14 +90,10 @@ does not print). Type something else and it narrows from there as usual.
     <p class="text-sm text-muted">
         <span class="font-semibold text-ink-900 tabular-nums dark:text-ink-100" x-text="shown">{{ shown }}</span>
         {% comment %}
-        The word follows the number — "1 gang", "3 gangs" — and the
-        plural is the scriptless answer, since a list worth filtering
-        rarely holds one thing.
-        {% endcomment %}
-        {% comment %}
-        Where the list is one page of a longer answer, the count says so:
-        the number beside it is what this page holds, and a reader
-        filtering in place should not be told that is all there is.
+        Where the rows are one page of a longer answer the count says so, since
+        a reader filtering in place must not be told that is all there is. The
+        plural is what a reader with no script gets, a list worth filtering
+        rarely holding one thing.
         {% endcomment %}
         {% if total %}
             of {{ total }} {{ noun }}
@@ -141,11 +103,10 @@ does not print). Type something else and it narrows from there as usual.
     </p>
 
     {% comment %}
-    A query container, so a row lays itself out by the width it actually has
-    rather than by the width of the window. The dashboard puts this list in a
-    two-thirds column at lg, where a viewport-based `md:` would tell the row it
-    has 1024px while it really has 640 — the fixed tracks would overrun and the
-    name would be squeezed to nothing.
+    A query container, so a row lays itself out by the width it has rather than
+    the window's. The dashboard puts this list in a two-thirds column, where a
+    viewport-based `md:` would tell a row it has 1024px while it really has 640,
+    overrunning the fixed tracks and squeezing the name to nothing.
     {% endcomment %}
     <div class="@container divide-y divide-box-border border-y border-box-border">{{ slot }}</div>
 

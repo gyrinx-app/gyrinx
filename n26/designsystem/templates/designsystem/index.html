@@ -25,12 +25,7 @@
                 </div>
             {% endfor %}
         </dl>
-        {% comment %}
-    The compositions doing their actual job, before the catalogue of names below.
-    A list of tags tells you what exists; it does not tell you whether the pieces
-    look like they belong together, which is the only question a design system has
-    to answer. Every control here is live.
-        {% endcomment %}
+        {# The compositions at work, before the catalogue of names. Every control here is live. #}
         <section class="mb-14">
             <h2 class="text-xl font-semibold">In context</h2>
             <p class="mb-5 mt-1 max-w-3xl text-sm text-muted">
@@ -146,10 +141,7 @@
                             {% endfor %}
                         </tbody>
                     </c-ui.table>
-                    {% comment %}
-                Rendered rich text — the reader's half of c-n26.rich-text. It needs
-                no form.media, since nothing here is editable.
-                    {% endcomment %}
+                    {# The reader's half of c-n26.rich-text: nothing here is editable, so it needs no form.media. #}
                     <div class="border-t border-box-border pt-4">
                         <c-n26.rich-text :value="showcase_body" />
                         <c-n26.action-links class="mt-3 text-sm">
@@ -219,21 +211,18 @@
                     that destroys something is
                     <code class="rounded bg-ink-500/10 px-1.5 py-0.5 text-xs">danger</code>. Three
                     colours for three kinds of consequence, so the committing action on a form can be
-                    found without reading the words on the buttons. It is a variant and not a class at
-                    the call site on purpose: a screen reaching for
+                    found without reading the words on the buttons. Use the variant, never the
+                    utility class: a screen reaching for
                     <code class="rounded bg-ink-500/10 px-1.5 py-0.5 text-xs">bg-green-600</code>
-                    directly gets the colour and none of the meaning, and nothing then stops the next
-                    screen picking a different green.
+                    gets the colour and none of the meaning.
                 </p>
                 <p>
                     <strong class="font-medium text-ink-800 dark:text-ink-200">Help text is body size.</strong>
                     A label, a lead, a field's help and a section's description are all set at the
                     page's own size and made quiet with colour instead. Small text is for what a
                     reader is meant to scan <em>past</em> — a column header, a unit, a caption on a
-                    number that already speaks for itself. Help text is the opposite: it is the
-                    sentence somebody needs in order to answer correctly, and setting it smaller
-                    than the words around it makes the one thing they cannot skip the hardest thing
-                    to read. This is a house rule and it overrides the kit, which sets
+                    number that already speaks for itself. This is a house rule and it overrides
+                    the kit, which sets
                     <code class="rounded bg-ink-500/10 px-1.5 py-0.5 text-xs">c-ui.description</code>
                     at <code class="rounded bg-ink-500/10 px-1.5 py-0.5 text-xs">text-sm</code> — see
                     the override in

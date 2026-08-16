@@ -5,19 +5,14 @@
     <c-n26.divider label="printed earlier" icon="printer" />
     <c-n26.divider />
 
-A separator that says why it separates. A bare rule between two blocks makes a
-reader work out the relationship; this one states it — "or …" is the usual
-shape, marking the second block as an alternative to the first rather than a
-continuation of it.
+A separator that says why it separates: "or …" marks the block below as an
+alternative to the one above rather than a continuation of it.
 
-The lines are flex-1 spans rather than an <hr> styled sideways, so the label
-sits in the rule without absolute positioning or a background patch over a
-line — which is the trick that breaks the moment the page behind it is not one
-flat colour.
+The lines are flex-1 spans rather than an <hr>, so the label sits in the gap
+without a background patch masking the rule — a patch only works over a flat
+background.
 
-Muted and small on purpose: a divider is wayfinding, not content, and one that
-draws the eye competes with the headings it sits between. With no label and no
-icons it degrades to a plain rule.
+With no label and no icons it draws as a plain rule.
 
   label — the words in the gap. Optional.
   icon — an icon before the label, by n26.icons name. Optional.
@@ -26,8 +21,8 @@ icons it degrades to a plain rule.
 <c-vars label="" icon="" icon_after="" class="" />
 
 {% comment %}
-The gap only exists when something sits in it — with nothing to say, two
-gapped spans would draw a rule with a hole where the words were not.
+The gap only exists when something sits in it; otherwise the two spans would
+draw a rule with a hole in the middle.
 {% endcomment %}
 <div {{ attrs }}
      role="separator"

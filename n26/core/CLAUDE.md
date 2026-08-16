@@ -139,6 +139,10 @@ underlying spec.
   (the kit's `c-ui.badge`, for one) renders a *second* class attribute
   via `{{ attrs }}` — the browser keeps the first and silently drops
   the component's entire styling.
+  A `{% comment %}` inside a `<c-vars>` block is tokenised with the
+  attributes, so its prose must carry no quote marks, apostrophes, or
+  angle brackets — one unpaired apostrophe silently swallows every
+  declaration after it and the component renders empty.
 
 ## Tests
 

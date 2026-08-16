@@ -1,5 +1,5 @@
 {% comment %}
-<c-n26.dialog> — a question the server decided to ask, and the form that answers it.
+<c-n26.dialog> — the panel every server-decided dialog is built from.
 
     <c-n26.dialog title="Sell the Meltagun?" action="/n26/assignments/1/sell/"
                   cancel_url="/n26/fighters/2/equip/?list=3"
@@ -8,83 +8,20 @@
         {% csrf_token %}
     </c-n26.dialog>
 
-The panel every server-decided dialog in the edition is built from: the shell,
-the heading, the promotion to a real modal, and the footer. What differs
-between one and the next is the question and the fields under it, and those are
-the slot.
+Open state lives in the URL: the server renders it open. It is a native
+<dialog open> in the page's flow, promoted to a modal by showModal() where
+Alpine runs, so with no script the panel is still there and still works.
+Dismissing navigates to cancel_url; without one there is no way out but the
+act.
 
-  --- open is a server state ---
+A caller may instead draw it closed (open="") and open it with
+$dispatch('n26-dialog-open', { id, url }), which writes `url` through
+history.replaceState rather than navigating; dismissal puts the address back
+the same way. Every such panel needs its own `id` — the event carries it, and
+the heading's id is derived from it.
 
-The page draws this only when the URL says so, so there is no trigger, no toggle
-and no client-side open flag — the dialog is in the HTML or it is not. That is
-what makes a click work with scripting off, and what makes an open dialog a link
-somebody can send.
-
-The kit's c-ui.dialog is the other shape: a trigger beside content teleported
-into a <template> and revealed by Alpine. With the open state already decided by
-the server and no script running, it would draw nothing at all. So this is a
-native <dialog open> — a panel in the page's flow on its own, promoted to a real
-modal (top layer, backdrop, Escape, trapped focus) by showModal() where Alpine
-is there to call it. `static m-0` is what it degrades to: a panel sits in the
-flow at the top of the page, and both classes come off at the moment the
-promotion succeeds, because a modal is placed by the browser's own inset and
-needs `margin: auto` to sit in the middle of the screen rather than in its
-top-left corner.
-
-Escape closes a modal by itself, which would leave the page on screen while the
-URL still named the thing being asked about. So dismissing navigates: the close
-event and Cancel both go to cancel_url, and the address bar keeps agreeing with
-the page. (A panel the page opened for itself puts the address back without the
-journey — the next section.)
-
-  --- a panel that waits on the page ---
-
-One question a screen asks is not a confirmation but an offer — which accessory
-to fit — and rebuilding a catalogue of hundreds of rows to put it on screen is
-seconds a reader spends on a panel the page could already be holding. So a
-caller may draw the panel closed (`open=""`) and open it with a click:
-$dispatch('n26-dialog-open', { id, url }) reaches whichever one carries that id.
-
-The address still says which is open, and it is still the server that decides
-what a request draws: the control is a link to the same address, so with no
-script the page comes back with that panel open and nothing here is needed. What
-the click adds is that the same address is reached without the page being built
-again — history.replaceState writes it, so a reload lands on the open panel and
-the link is still one somebody can send.
-
-A dismissal then answers the way it was opened. A panel the server drew open is
-left by going somewhere: the URL names it, and only a request can take the name
-off. One this page opened is left by putting the address back — no navigation,
-because nothing on the page needs rebuilding to close a panel it never rebuilt
-to open. Cancel is the same act said with a link, so inside such a panel it
-closes rather than travels.
-
-  --- one at a time, unless they are waiting ---
-
-The ids are the caller's: a page drawing one panel needs none and the default
-serves, while a page holding several must name them, because that is how a click
-says which. The heading takes its id from the same word, so two panels on one
-page do not both claim to be the thing a screen reader announces.
-
-  title — the question, as the heading.
-  lead — a sentence under it: what clicking will do, what it will pay, what it
-    will take away. A slot, so a caller can compose it from figures.
-  action — where the answer posts.
-  cancel_url — where Cancel and a dismissed dialog go. Without one there is no
-    way out but the act, so give it one.
-  submit_label / submit_variant — the act's wording and colour, as
-    <c-n26.form-actions> takes them: danger where it destroys something.
-  actions — further controls, drawn after Cancel by the footer. A second
-    submit here is how a dialog offers two acts; see <c-n26.form-actions>.
-  modal — promote to the top layer. On by default; off draws the panel in the
-    page's flow, which is what a reader without scripting sees.
-  open — the server says this one is open. On by default, which is every
-    confirmation: they are drawn only when the URL asks for them. Off draws the
-    panel closed, waiting for a click to name it.
-  id — the element's id, which is also what a click names and what the heading
-    builds its own id from. Only a page holding several needs to set it.
-  slot — the csrf token, the hidden fields, and whatever the question needs
-    answering with. A component has no request and renders no token itself.
+The slot carries the csrf token and the question's own fields: a component has
+no request and renders none itself.
 {% endcomment %}
 <c-vars
     title=""
@@ -101,34 +38,18 @@ page do not both claim to be the thing a screen reader announces.
 />
 
 {% comment %}
-The promotion takes the `open` attribute off before calling showModal(),
-because showModal() on a dialog that already has it throws instead of
-upgrading it.
+showModal() throws on a dialog that already carries `open`, so the attribute
+comes off first — removed rather than close()d, because close() fires the
+`close` event and the handler below responds to it by navigating to cancel_url.
 
-It takes the attribute off rather than calling close(). close() is a
-dismissal — it fires a `close` event, and the handler below answers a close by
-navigating away, so a promotion that closed the dialog first would send the
-reader off this page on the way to opening the modal. Removing the attribute
-hides the panel without dismissing anything.
+A method rather than an expression in x-init: Alpine compiles a directive's
+value in expression position, where `try` is a syntax error, and it skips the
+directive instead of failing visibly. A promotion that does throw puts the
+attribute back, leaving the reader the in-flow panel the server drew.
 
-The work is a method on the data rather than an expression in x-init because
-Alpine compiles a directive's value in expression position, where a `try`
-statement is a syntax error. Alpine reports that to the console and skips the
-directive, so a statement written inline is not a promotion that fails — it is
-a promotion that never runs, leaving the panel sitting above the page with
-nothing to say why.
-
-A promotion that does fail must not cost the reader the fallback: the server
-decided this dialog is open, and the panel in the page's flow is the whole of
-it with no script. So the attribute goes back on, `promoted` stays false, the
-panel keeps its in-flow presentation, and the exception is logged rather than
-swallowed.
-
-A click opens a waiting panel the same way, and a promotion that fails there
-has a better answer than a panel below the fold: the click named an address
-that draws this open, so it goes there. `clicked` is what the closing half
-reads — a panel this page opened is closed by putting the address back, where
-one the server drew open can only be left by asking for a page without it.
+`clicked` separates the two ways a panel opened. One this page opened is closed
+by putting the address back; one the server drew open can only be left by
+asking for a page without it.
 {% endcomment %}
 <dialog {% if open %}open{% endif %}
         id="{{ id }}"
@@ -193,12 +114,6 @@ one the server drew open can only be left by asking for a page without it.
 
         {{ slot }}
 
-        {% comment %}
-        The same footer a form page ends with, drawn by the same component: this
-        dialog is a form, and there is no reason a form inside a panel should end
-        differently from one filling a screen. Cancel goes somewhere — this page
-        with nothing named in its URL — and nothing it does needs a form.
-        {% endcomment %}
         <c-n26.form-actions submit_label="{{ submit_label }}"
                             submit_variant="{{ submit_variant }}"
                             cancel_url="{{ cancel_url }}"

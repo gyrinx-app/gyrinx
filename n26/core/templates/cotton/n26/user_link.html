@@ -3,26 +3,20 @@
 
     <c-n26.user-link :user="gang.owner" href="{% url 'n26-dashboard' %}" tone="current" />
 
-<c-n26.flair-link> with the badge decided rather than passed in. Which badge
-someone shows is not this edition's answer to give: badges belong to the person,
-not to the gang or the edition they are looking at, and eligibility is derived
-from their live Patreon standing and staff flag against the platform's registry,
-with their own pick among the ones they are entitled to. A page that drew the
-staff badge from is_staff would show a supporter no mark at all, and would go
-wrong again the next time a tier is added.
+A <c-n26.flair-link> whose badge is decided rather than passed in. A badge
+belongs to the person, not to the gang or the edition being read: which one they
+show follows from their supporter standing, their staff flag, and their own pick
+among the marks they hold, all of which the platform's badge registry knows and
+this edition does not.
 
-Both halves come from that registry — the artwork and the wording — so a new
-badge appears here with nothing in this edition changing. The wording is the
-accessible name and the tooltip, which is why there is no label prop: a hand
-written label would be this edition's guess at what someone else's badge means.
+Artwork and wording both come from that registry, so a new badge appears here
+with nothing changing in this edition. The wording is the accessible name and
+the tooltip — hence no label prop. Someone holding no badge gets their name
+alone, with no empty span leaving a gap after it.
 
-Someone entitled to nothing gets their name and no badge: flair-link draws the
-trailing slot only when there is something in it, so there is no empty span to
-leave a gap after the name.
-
-Boundaries are cramped and the file ends without a newline for the same reason as
-<c-n26.link>: this renders inline, and any whitespace the template emits around
-its markup collapses into a space in the surrounding sentence.
+This renders inline, so the tags are packed tight and the file ends without a
+newline: any whitespace emitted around the markup becomes a space in the
+surrounding sentence.
 
   user — the person. Their username is the text.
   href, underline, tone, class — passed straight to <c-n26.flair-link>.

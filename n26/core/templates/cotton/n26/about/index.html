@@ -4,18 +4,13 @@ have it, in sentences.
 
     <c-n26.about :prose="prose" />
 
-The authoring pages' explanation column. ``prose`` is the structure
-n26.library.prose compiles — sentences with a hover hint and, where the
-subject has a page of its own, an address. The column draws three runs:
-how the thing is referenced (built into, given by, offered by…), what it
-does in the order the rules apply it, and how much of the player side is
-assigned to it.
+The authoring pages' explanation column. `prose` is the structure
+n26.library.prose compiles, drawn as three runs: how the thing is
+referenced, what it does in the order the rules apply it, and how much of
+the player side is assigned to it.
 
-Each sentence's hint sits behind a hover or a keyboard focus, CSS-only,
-with the browser's own title as the fallback — the same pattern as a
-kind card's example. A sentence with an address is a link to the row it
-describes; one without is plain words, which is an answer rather than a
-gap.
+A sentence whose subject has a page of its own links to it; one without is
+plain words.
 
   :prose — the compiled structure: .referenced_by, .does, .assigned_to.
 {% endcomment %}
@@ -46,9 +41,8 @@ gap.
         {% if prose.assigned_to %}
             <h3 class="mt-6 text-xs font-semibold tracking-wide text-muted uppercase">Assigned to</h3>
             {% comment %}
-            The tally answers "is anyone using this?" before a change is
-            weighed. Zero is said in words — a dash under a heading reads
-            as the page failing, where "no gang yet" is the fact.
+            Zero is said in words: a dash under a heading reads as the
+            page having failed to load rather than as a fact.
             {% endcomment %}
             <p class="mt-2 text-ink-900 dark:text-ink-100">
                 {% if prose.assigned_to.gangs %}

@@ -5,27 +5,18 @@
         <c-n26.collection-picker.item name="Autopistol" :price="10" />
     </c-n26.collection-picker.category>
 
-Collapsible, like the section above it, and starting at the same left edge.
-Nesting each level further right spends the width three times over on saying
-what type and colour already say — so the hierarchy is carried by weight and
-tone, and the chevrons stack in one column down the left.
+The fine tier, collapsible like the section and starting at the same left edge:
+the hierarchy is carried by weight and tone, so all the chevrons stack in one
+column. Open by default, unlike the section.
 
-Open by default, which is the difference between this and the section: the
-section is the coarse cut a reader makes, and opening one only to find a stack
-of headings would make it two taps to reach anything. Expand all and Collapse
-all reach both levels.
+A category is the stable half of the pair — Pistols is Pistols for everyone,
+while library.PlacesCategory files the same category under different sections
+for different models — which is why the category filter keys off this one.
 
-Why a category at all, rather than one flat level: a category is *fundamental* —
-Pistols is Pistols for everyone — where a section is not. library.PlacesCategory
-puts the same category under different sections for different fighters, so the
-two levels are different kinds of fact, and the filter menu keys off this one
-because it is the stable one.
+It hides itself at zero matches, so filtering leaves no labelled gaps.
 
-It hides itself at zero matches, like the section, so filtering empties the list
-rather than leaving labelled gaps.
-
-  name — the category's name. What items register against, and what the category
-    filter matches.
+  name — the category's name: what items register against, and what the
+    category filter matches.
   :open — start expanded. True by default.
 {% endcomment %}
 <c-vars name="" :open="True" />
@@ -36,13 +27,8 @@ rather than leaving labelled gaps.
      x-cloak>
 
     {% comment %}
-    Small caps and muted, against the section's weight above and the rows' plain
-    text below — three levels told apart by type rather than by position, which
-    is what buys the width back.
-
-    aria-hidden on the count: it is the same number the row list itself conveys,
-    and a screen reader announcing "Pistols, 6" before six items reads as a
-    correction rather than a summary.
+    aria-hidden on the count: the list itself already conveys the number, and
+    announcing "Pistols, 6" before six items reads as a correction.
     {% endcomment %}
     <button type="button" @click="open = !open"
             :aria-expanded="open || query.length > 0 ? 'true' : 'false'"

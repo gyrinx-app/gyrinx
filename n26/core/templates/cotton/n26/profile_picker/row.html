@@ -3,76 +3,33 @@
 
     <c-n26.profile-picker.row :entry="entry" limited="1" value="ganger" />
 
-You hire a fighter, not a piece of wargear. So there is exactly one Hire on this
-row, and everything under it is configuration for that one hire: a needle pistol
-is not a thing you buy from this screen, it is a way the Gang Queen you are
-buying can be built.
+Takes a n26.hire.HireEntry. There is exactly one Hire here, and everything
+under it configures that one hire. Which control a set of options gets is
+decided by n26.hire and not here: a group's `choose` is "one" or "any", which
+is radios or checkboxes, and the default of every one-of group is already
+marked. A set is never named — the structure carries no label to name it with.
 
-That makes the options form controls, and which control is not a style choice —
-n26.hire hands us the answer. A group's `choose` is "one" or "any", which is
-radios or checkboxes, and the data layer has already marked the default of every
-one-of group. We render what it says rather than deciding again here.
+The live price and the card's address are both recomputed from the checked
+inputs on every bubbled `change`, reading `data-total` and `data-set` off the
+DOM rather than a table mirrored into Alpine. Recomputed rather than derived,
+because a getter that reads the DOM is not reactive. The sum holds because
+n26.hire prices each option against an otherwise-default selection, so a one-of
+group's default contributes zero. It is a preview: options price additively
+here, and the server prices the hire that is actually made.
 
-A set of options is never named on this row. The content carries a label for
-one, but it is the author's word for their own page and a player is here to
-pick — so the grouping is shown as grouping (the controls together, a rule
-between sets, a line saying how many to take) and never as a heading naming
-the set. The structure does not carry the label at all, which is what makes
-that certain.
-
-The price on the row is the price of the configuration currently on screen, and
-it moves as the controls move. A fixed price beside controls that change it is
-worse than no price: it is a number that quietly stops being true.
-
-  --- how the total is worked out ---
-
-Each input carries the total for its own option, and the sum is the base plus
-every checked input's distance from it. That works because of what n26.hire
-builds: each option's card is that option taken *against an otherwise-default
-selection*, so `total_price - base_price` is one option's contribution, and the
-default of a one-of group contributes zero by construction.
-
-Read off the DOM rather than from a table of prices mirrored into Alpine. The
-numbers are already on the page, next to the inputs that decide whether they
-count, and a second copy in JavaScript is a second thing to keep in step. It is
-recomputed on the bubbled `change` rather than derived, because a getter that
-reads the DOM is not reactive — nothing tells Alpine to look again.
-
-This is a preview, not a quote. Options price additively here; anything with an
-interaction gets its real number from the server when the hire is made, the same
-way overspend is the operation's job rather than the form's.
-
-  --- how the card address is worked out ---
-
-The card behind the row is the fighter as configured, so its address names every
-ticked option. It is composed the same way and at the same moment as the total:
-the row's own base address, plus one `option` for each checked input that stands
-for a set. Which sets those are is on the inputs — the same place the option
-indices the form submits are — so nothing mirrors the content into JavaScript.
-
-The address is the whole of what the card is. That keeps it linkable, keeps the
-fragment cacheable, and keeps the drawing on the server where every other card
-is drawn: the page never composes a card, it only says which one it wants.
-
-  :entry — a n26.hire.HireEntry.
-  limited — mark this row as counting against the composition limit. The mark is
-    a note, not a gate: refusing is the operation's job, and the rulebook's limit
-    is a thing to correct in the Post-cycle rather than a thing to prevent.
-  value — what this profile submits as, which turns Hire into a submit button for
-    the surrounding form and scopes this row's field names. Without it the row is
-    still a working set of controls, for a call site to wire up itself.
-  field — the name Hire submits under, "hire" by default. The button says what
-    was clicked, not what to do with it: the hire page answers a click with the
-    same page and this profile's name dialog open on it.
+  limited — mark this line as counting against the composition limit. A note,
+    not a gate; refusing is the operation's job.
+  value — what this profile submits as, which turns Hire into a submit button
+    for the surrounding form and scopes this line's field names. Without it the
+    controls still work, for a call site to wire up itself.
 {% endcomment %}
 <c-vars :entry="None" limited="" value="" field="hire" class="" />
 
 {% comment %}
-Every field on the row is scoped by the profile, because one form holds the whole
-list: without it, the second fighter's radios would join the first fighter's
-group and picking one would silently unpick the other. The server reads the
-scope belonging to the profile that was actually submitted and ignores the rest.
-The composed name is a sketch — a real app has an id here.
+Every field is scoped by the profile, because one form holds the whole listing:
+without it the second fighter's radios would join the first fighter's group and
+picking one would silently unpick the other. The server reads the scope
+belonging to the profile that was submitted and ignores the rest.
 {% endcomment %}
 {% with scope=value|default:entry.name|slugify %}
 <c-n26.collection-picker.item
@@ -97,18 +54,6 @@ The composed name is a sketch — a real app has an id here.
            }"
     class="{{ class }}">
 
-    {% comment %}
-    A single-option profile still gets a disclosure, because the card behind it
-    is the point — "inspect before you buy" is not a thing only fighters with
-    choices deserve.
-    {% endcomment %}
-    {% comment %}
-    The mark is the one thing on the row that changes whether a reader should
-    click the button beside it, so it stays at every width — hiding it on the
-    screen most people will use would be hiding it. The slot is passed only when
-    there is a mark, so unmarked rows do not carry an empty span between the name
-    and the price.
-    {% endcomment %}
     {% if limited %}
         <c-slot name="meta">
             <span class="text-xs text-muted"
@@ -117,31 +62,21 @@ The composed name is a sketch — a real app has an id here.
     {% endif %}
 
     {% comment %}
-    The live total, in the same column a fixed price would occupy. tabular-nums
-    so the digits do not jitter as it changes — a number that shifts sideways
-    while you read it draws attention to the wrong thing.
+    The live total, in the column a fixed price would occupy. tabular-nums so
+    the digits do not jitter as it changes.
     {% endcomment %}
     <c-slot name="price_control">
         <span class="tabular-nums" x-text="total + '¢'">{{ entry.base_price }}¢</span>
     </c-slot>
 
     {% comment %}
-    A submit button when the row knows what it submits as, and a plain one
-    otherwise. `type` passes through the kit's {{ attrs }}, which it renders
-    *before* its own hardcoded type="button" — and HTML takes the first of a
-    duplicate pair, so this wins. Verified rather than assumed; it is the kind of
-    thing that would silently do nothing.
+    `type` passes through the kit's {{ attrs }}, which it renders before its own
+    hardcoded type="button"; HTML takes the first of a duplicate pair, so this
+    one wins and the button submits.
 
-    The condition is inside the quoted value rather than wrapping the whole
-    attribute. Cotton parses a component's attribute list itself, before Django
-    ever sees the template, and keeping template tags out of the list entirely is
-    the reliable way to stay out of its way.
-    {% endcomment %}
-    {% comment %}
-    Green: this is the button that brings a fighter into existence, and the
-    library marks the committing action apart from one that navigates or saves.
-    It is also this form's only submit, so the colour and the consequence are the
-    same thing here.
+    The condition sits inside the quoted value rather than wrapping the
+    attribute: cotton parses a component's attribute list itself, before Django
+    sees the template, so template tags must stay out of the list.
     {% endcomment %}
     <c-slot name="actions">
         <c-ui.button size="sm" variant="success"
@@ -152,31 +87,16 @@ The composed name is a sketch — a real app has an id here.
     {% if entry.offers_a_choice %}
         <c-slot name="rows">
             {% comment %}
-            One change listener for the whole block rather than one per input:
-            `change` bubbles, and forty rows of individually-bound handlers is
-            forty times the work for the same answer.
+            One listener for the whole block rather than one per input: `change`
+            bubbles.
             {% endcomment %}
             <div @change="retotal($el)">
                 {% for group in entry.groups %}
-                    {% comment %}
-                    A group with one option is not a choice — the entry's own
-                    structure says which sets are worth asking about. Drawing a
-                    lone radio beside "As standard" asks a reader to consider
-                    something they cannot change.
-                    {% endcomment %}
                     {% if group.offers_a_choice %}
                         {% comment %}
-                        What a set is called is the author's label for their
-                        own page, and a player is being shown the options — so
-                        the heading says how many of them to take and nothing
-                        else. The second and later sets are ruled off from the
-                        one above, which is the whole of how a reader is told
-                        these options go together.
-
-                        The first set gets no rule and no heading beyond its
-                        controls: the fighter's own row is directly above it,
-                        saying what is being configured, and radios that are
-                        plainly one group need no label to say so.
+                        The heading says how many options to take and never
+                        shows the set's label. The first set gets neither heading nor
+                        rule: the fighter's own line is directly above it.
                         {% endcomment %}
                         {% if not forloop.first %}
                             <div class="mt-1 flex min-h-8 items-center gap-2 border-t border-box-border pt-2">
@@ -194,18 +114,11 @@ The composed name is a sketch — a real app has an id here.
 
                         {% for option in group.options %}
                             {% comment %}
-                            The whole line is the label, so the hit target is the
-                            row rather than a control the width of a fingertip —
-                            this list is read on a phone.
-
-                            The surcharge follows the name rather than sitting in
-                            the price column on the right. It cannot line up with
-                            the total above it — that column is followed by a
-                            Hire button and this line is not — and a number an
-                            inch out from the one it modifies reads as a mistake.
-                            It is also a different kind of number: "+30¢" is what
-                            this option adds, and the only figure anyone is
-                            charged is the fighter's total on the row.
+                            The whole line is the label, so the hit target is
+                            the line rather than a control the width of a
+                            fingertip. The surcharge follows the name rather
+                            than sitting in the price column: it is what this
+                            option adds, not a figure anybody is charged.
                             {% endcomment %}
                             <label class="flex min-h-9 cursor-pointer items-center gap-2 rounded-control py-0.5 hover:bg-ink-500/5">
                                 <input type="{% if group.choose == 'any' %}checkbox{% else %}radio{% endif %}"
@@ -222,13 +135,12 @@ The composed name is a sketch — a real app has an id here.
                             </label>
                         {% endfor %}
                         {% comment %}
-                        A one-or-none set starts with nothing taken, and a
-                        radio group with nothing checked cannot say so — once
-                        one is checked, radios cannot be unchecked. "None" is
-                        the row that makes taking nothing pickable, checked from the
-                        start, contributing nothing to the total (its
-                        data-total is the base, a zero delta). Its empty value
-                        is what the submission parser skips.
+                        A radio cannot be unchecked once one in the group is
+                        checked, so a one-or-none set needs "None" as a real
+                        option to make taking nothing pickable. It is checked
+                        from the start, its data-total is the base so it adds
+                        nothing, and its empty value is what the submission
+                        parser skips.
                         {% endcomment %}
                         {% if group.choose == "one-or-none" %}
                             <label class="flex min-h-9 cursor-pointer items-center gap-2 rounded-control py-0.5 hover:bg-ink-500/5">
@@ -249,25 +161,14 @@ The composed name is a sketch — a real app has an id here.
     {% endif %}
 
     {% comment %}
-    The card of the fighter as currently configured — every ticked option
-    on it, not just the main pick. Tick "rolled a 6" for two of a Chaos
-    Spawn's characteristics and the card shows both, because the thing a
-    reader is deciding about is the fighter they would get, and a card
-    answering one group while ignoring the rest is a picture of a fighter
-    nobody is buying.
+    The card of the fighter as currently configured, which is a card per
+    *combination* — too many to draw up front, so it is fetched from the
+    address rebuilt by retotal() above.
 
-    That is a card per *combination*, which is exactly what a list may not
-    draw — enumerating them is the explosion the groups exist to avoid —
-    so it is fetched instead: one address, rebuilt from the controls, and
-    the server draws the one combination somebody actually asked for. The
-    address is the whole answer, so it is linkable and the response is
-    cacheable; going back to a selection costs no second build.
-
-    A row whose options carry no card_url has no endpoint to fetch from —
-    the gallery's sample rows — and carries the cards the entry was built
-    with instead. Those are one per main-pick option, so that is as far as
-    such a row can follow: it shows the picked one and the further sets
-    stay off it.
+    An entry whose options carry no card_url has nothing to fetch from (the
+    gallery's sample data) and falls back to the cards the entry was built
+    with. Those are one per main-pick option, so further sets do not show on
+    such a line.
     {% endcomment %}
     <c-slot name="details">
         {% if entry.card_url %}

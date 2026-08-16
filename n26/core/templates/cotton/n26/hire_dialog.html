@@ -7,33 +7,18 @@
         {% csrf_token %}
     </c-n26.hire-dialog>
 
-The last step of a hire and the only one that asks anything. Which profile and
-which options were picked on the listing that was clicked, so they arrive here as
-hidden fields rather than as controls: changing them means going back to the
-listing. What is left is a name, and the price the picks add up to.
+The last step of a hire and the only one that asks anything. The profile and
+the options picked on the listing arrive as hidden `fields` — {name, value}
+pairs — rather than as controls, since changing them means going back to the
+listing. What is left is a name and a price.
 
-The panel, the promotion and the footer are <c-n26.dialog>, which every
-server-decided dialog in the edition is built from — this is that shell with
-hiring's one question in it. What is worth knowing about how the open state
-works is documented there.
+The price may be typed over, and `rate_at_paid` says whether the typed figure
+becomes the fighter's rating too. It starts ticked, and a redrawn dialog hands
+back what was answered, so an untick survives a name the field would not take.
 
-  action — where the name posts. The hire page itself.
-  profile — the profile clicked, named in the title.
-  price — what this hire will charge, in credits.
-  choices — the options ticked on the listing, listed so a reader can see what
-    they are confirming.
-  fields — the hidden inputs carrying those picks, as {name, value} pairs.
-  cancel_url — where Cancel and a dismissed dialog go: this page with no
-    profile named.
-  form — the Django form carrying the name field. c-ui.field reads its label,
-    help text and errors.
-  rate_at_paid — whether the rating box starts ticked. On by default, so a
-    typed price is what the fighter is worth unless a reader says otherwise.
-    A redrawn dialog hands back what was answered, so an untick survives a
-    name the field would not take.
-  modal — promote to the top layer. On by default; off draws the panel in the
-    page's flow, which is what a reader without scripting sees.
-  slot — the csrf token. A component has no request and renders none itself.
+The panel is <c-n26.dialog>, where the open-state rules are written down. The
+slot carries the csrf token: a component has no request and renders none
+itself.
 {% endcomment %}
 <c-vars
     action=""
@@ -55,20 +40,14 @@ works is documented there.
               :modal="modal"
               class="{{ class }}">
     {% comment %}
-    The price is everything the listing was configured to, not the advertised
-    one — an option ticked upstairs is charged here, so it is named here too.
-    A slot rather than an attribute, because a set's name may hold an ampersand
-    and an attribute would carry it here already escaped.
+    A slot rather than an attribute: an option's name may hold an ampersand,
+    which an attribute would carry here already escaped.
     {% endcomment %}
     <c-slot name="lead">{{ price }}¢{% if choices %} — {{ choices|join:", " }}{% endif %}</c-slot>
 
     {{ slot }}
     {% for field in fields %}<input type="hidden" name="{{ field.name }}" value="{{ field.value }}">{% endfor %}
 
-    {% comment %}
-    Autofocus, because the dialog exists to be typed in: a modal that opens
-    with the cursor nowhere makes a reader click before they can answer.
-    {% endcomment %}
     <c-ui.field label="Name"
                 description="Optional — you can name them later."
                 error="x"
@@ -80,10 +59,9 @@ works is documented there.
     </c-ui.field>
 
     {% comment %}
-    The same typed-over price an equip page's listing offers, in the same control: what
-    is agreed at the table is what leaves the bank, while the quote stays
-    the list price and the rating — a haggled fighter is not a lesser
-    fighter. The scope holds the pair the include compares.
+    The same typed-over price an equip page's listing offers, in the same
+    control. The include compares the typed figure against the quote and reads
+    both from this scope.
     {% endcomment %}
     <c-ui.field label="Price"
                 description="What the gang pays. The box below decides what they are worth."
@@ -95,27 +73,12 @@ works is documented there.
     </c-ui.field>
 
     {% comment %}
-    The one place the edition lets a rating be argued with, and it is here
-    because hiring is the one purchase where the two readings of a lower
-    price are both true: a fighter taken on cheap may be a bargain — worth
-    every credit of the quote — or may genuinely be worth less than the
-    book asks. Gear is not ambiguous that way, so the equipment listing
-    settles it without asking (n26/core/views/equip.py, _charge).
+    The one place the edition lets a rating be argued with; equipment settles
+    it without asking (n26/core/views/equip.py, _charge).
 
-    Ticked to begin with, because typing a price over the quote is already
-    the answer most of the way: someone who says this fighter is 30¢
-    usually means they are worth 30¢, and the reading where the gang got a
-    bargain is the one worth an extra click. Untouched it changes nothing
-    either way — the price and the quote are the same number.
-
-    Drawn whatever the box above says, rather than revealed when the two
-    figures differ: what a form offers is the server's to decide, and a
-    control that appears under the reader's hands is one they did not know
-    was coming.
-
-    A plain input, as the print setup's toggles are: the kit's checkbox is
-    wired for its own group scope, and a dialog that must answer with
-    scripting off cannot have its answer depend on Alpine.
+    A plain input rather than the kit's checkbox, which is wired for its own
+    group scope: this dialog has to be answerable with scripting off, so its
+    answer cannot depend on Alpine.
     {% endcomment %}
     <label class="flex cursor-pointer items-start gap-2.5">
         <input type="checkbox"

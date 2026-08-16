@@ -3,26 +3,16 @@
 
     <c-n26.site.edition-toggle />
 
-A two-segment pill for the bar: N23 and N26, the segment you are in filled,
-the other a way out. Nothing toggles in place — changing edition is going
-somewhere, so both segments are plain links to their edition's front page and
-the pill works with no script.
+Two segments, the edition you are in filled and the other a way out. Nothing
+toggles in place — changing edition is going somewhere — so both are plain links
+to an edition's front page and the pill works with no script.
 
-Drawn only where the reader can follow both links. Both editions are open to
-anyone signed in, so this edition's bar draws it unconditionally and the
-classic app's bar draws its own copy for anyone with an account — a signed-out
-reader is offered no pill, having nowhere yet to be sent.
+The N23 half is written as a path rather than a route name. Reversing the other
+edition's URLs here would cross the boundary n26/CLAUDE.md draws, and the site
+root is the one address that belongs to neither edition.
 
-The N23 link is the site root, written as a path: naming the other edition's
-route here would import its URL names across the editions' boundary, and the
-root is the one address that is the site's own rather than either edition's —
-today the classic app answers it.
-
-Ghost-quiet, like the switcher beside the page's name: the filled segment is
-a fact, not a control competing with the page, and the hollow one only says
-it can be clicked when the pointer is on it.
-
-  class — extra classes on the pill.
+Draw it only where the reader can follow both links: a signed-out visitor has
+nowhere yet to be sent.
 {% endcomment %}
 <c-vars class="" />
 <span {{ attrs }}

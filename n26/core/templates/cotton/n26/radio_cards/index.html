@@ -11,26 +11,16 @@
         {% endfor %}
     </c-n26.radio-cards>
 
-A grid of radios and not a select, for the same reason <c-n26.colour-picker> is:
-the question is "which of these", and a dropdown makes you open it, read the
-options and close it again to compare two of them. A card has room for a badge
-and a line of detail, which a select option does not — an option is one string,
-so anything a reader might want to weigh has to be crammed into it or left out.
+A grid rather than a select, so options can carry a badge and a line of detail
+and be compared side by side. Drawn to match <c-n26.colour-picker>, the other
+radio group on these forms.
 
-The two radio groups on a form should look like one another, so this draws its
-legend and its grid the way the colour picker draws its.
+A fieldset with a legend, not a label: the group is what is being named, and a
+<label> would have to point at one card and announce nothing for the rest.
 
-  --- it is a fieldset, and the label is a legend ---
-
-The group is the thing being named; no single card in it is. A <label> here
-would have to point at one card, and would then announce the question for that
-one and nothing for the rest.
-
-  --- and it is plain HTML ---
-
-Native radios sharing a name. One selection is the browser's rule, not ours;
-the form submits without a line of JavaScript, and a redisplay after a failed
-submit re-checks the right card because the server said which.
+Native radios sharing a name, so one-of-many is the browser's rule, the form
+submits without JavaScript, and a redisplay after a failed submit re-checks
+whichever card the server says.
 
   label — the question, as the fieldset's legend. Optional.
   description — the line under it. Optional.
@@ -57,10 +47,8 @@ submit re-checks the right card because the server said which.
     {% endif %}
 
     {% comment %}
-    auto-fill rather than a column count per breakpoint: how many cards fit a row
-    follows from how wide a card has to be to stay readable, which is one number
-    rather than a decision at every size. The track floor is a prop because a set
-    of two-word labels and a set of sentence-long ones do not want the same one.
+    auto-fill rather than a column count per breakpoint: how many cards fit a
+    row follows from the one number saying how narrow a card may get.
     {% endcomment %}
     <div class="grid gap-3" style="grid-template-columns: repeat(auto-fill, minmax({{ min }}, 1fr));">
         {{ slot }}

@@ -1,5 +1,5 @@
 {# title: One model's screens #}
-{# note: The header every per-model screen wears: the model's name and rank, the gang's other fighters behind the chevron, and the screens the model owns as tabs. active picks the tab; the equip screen passes "equip" and everything else is identical, which is the point of it being one component. #}
+{# note: The header every per-model screen draws: the model's name and rank, the gang's other models behind the chevron, and the model's screens as tabs. active picks the tab — the equip screen passes "equip" and nothing else differs. #}
 {# layout: full #}
 <c-n26.model-header :miniature="sample_miniature" lead="Leader" active="edit">
     <c-slot name="switcher">

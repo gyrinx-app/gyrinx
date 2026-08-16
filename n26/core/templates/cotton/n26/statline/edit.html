@@ -3,41 +3,27 @@
 
     <c-n26.statline.edit :cells="statline_cells" />
 
-The writing half of <c-n26.statline>. It draws the same header from the same
-component, so the column order, the group dividers and the tint on the psychology
-stats are the content's decision here exactly as they are on a card. Only the row
-beneath differs: inputs instead of values.
+The writing half of <c-n26.statline>, drawing the same header from the same
+component so column order, group dividers and tints stay the content's decision;
+only the row beneath differs, inputs for values. Separate from the display
+component rather than a mode on it: a gang sheet draws hundreds of statlines and
+none of them carries a form.
 
-A separate component rather than a mode on the display one. A card is drawn in
-their hundreds on a gang sheet and carries no form; sharing one template would put
-a branch inside every cell of the hot path to serve the one page that edits.
+Takes EditableStatCells, not a Django form. Pairing a statline type with a bound
+form is display logic and belongs in Python, and the gallery has to render these
+against an empty database, which a real form cannot do. Values are shown as
+stored, and nothing here formats anything or decides what an empty box means;
+both belong to whatever saves the form.
 
-Takes EditableStatCells, not a Django form, for three reasons: the pairing of a
-statline type with a bound form is display logic and belongs in Python; the gallery
-must render on an empty database, which a real form cannot; and a component in this
-app has no business knowing what the authoring forms look like.
+The boxes are built from the kit's input tokens rather than from c-ui.input,
+which writes its own class attribute: a class from the call site would land as a
+second attribute and the browser keeps only the first, losing either the
+centring and narrow width or the rest of the styling.
 
-Values are shown as they are stored, which is canonical — a Movement of four reads
-4" in the box as well as on the card. Nothing here formats anything, and nothing
-here decides what an empty box means; both belong to whatever saves the form.
-
-The boxes are built from the kit's input tokens rather than from c-ui.input, for
-the reason this family does not build on c-ui.table either: the control writes its
-own class attribute, so a class from the call site lands as a second one and the
-browser keeps whichever it reads first — there is no way to centre the text or
-narrow the box without losing the rest of the styling. Both matter here. A
-characteristic is read by looking at the letter and down, so a value at the left
-edge of a wide box no longer sits under its own header; and thirteen boxes at the
-kit's default width overflow a desktop, where the strip they are editing does not.
-
-Scrolls horizontally rather than wrapping, for the same reason the display strip
-does: thirteen boxes do not fit a phone, and a statline that reflows stops reading
-as a row.
-
-Errors sit under the table, one line each, because a characteristic cell is a few
-characters wide and there is nowhere in the row to put a sentence. Each message
-names the characteristic it is about, and the box it belongs to is marked so the
-two can be matched by eye.
+Errors sit under the table, one line each — a characteristic cell is a few
+characters wide with nowhere to put a sentence — each saying which
+characteristic it is about, with the box marked so the two can be matched by
+eye.
 
   :cells — a list of n26.render.EditableStatCell.
 {% endcomment %}

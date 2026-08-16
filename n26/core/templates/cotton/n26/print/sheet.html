@@ -1,52 +1,27 @@
 {% comment %}
-<c-n26.print.sheet> — the paper everything else is printed on.
+<c-n26.print.sheet> — the page everything else is printed on.
 
     <c-n26.print.sheet page="a4" orientation="portrait" margin="6mm">
-        <c-n26.print.grid columns="2">
-            <c-n26.print.card>…</c-n26.print.card>
-        </c-n26.print.grid>
+        <c-n26.print.grid columns="2">…</c-n26.print.grid>
     </c-n26.print.sheet>
 
-The root of the print family, and the only one that knows how big a page is. It
-publishes the geometry as custom properties — --print-content-w and
---print-content-h — which the grid divides into cells, the guides draw folds
-from, and @media print pins the width to. One set of numbers, read by everything
-downstream, so a change to the margin cannot leave a hardcoded width behind.
-That is not hypothetical: v1 carried a `width: 204mm` that had to be kept in
-step by hand with `@page { margin: 3mm }`, two numbers for one fact.
+Exactly one sheet per document. @page is a document-level rule with no element
+to scope it to, so a second sheet's @page silently wins for both; pass
+owns_page="" for a sheet that is only a preview inside a larger document.
 
-**Exactly one sheet per document.** @page is a document-level rule with no
-element to scope it to, so a component that claims to own the page has to be
-the only one making the claim. Two sheets on a page means the second one's @page
-silently wins for both. Where you genuinely need several — a gallery showing
-sheets as examples — `owns_page=""` turns the rule off and leaves a sheet that
-is only a correctly-measured box. It is then a preview of paper rather than
-paper, which is exactly why the print lab puts the real thing in an iframe: its
-own document, its own page.
+The sheet is the only component that knows how big a page is. It publishes the
+geometry as --print-content-w and --print-content-h, which the grid divides
+into cells and the fold guides measure from, and it renders at true physical
+size on screen as well as on paper.
 
-The sheet renders at its true physical size on screen as well as on paper, so
-what you see is the artefact rather than an impression of it. That costs a
-horizontal scroll on a phone (see `scroll`) and is worth it: v1 laid the screen
-out with flexbox and printed with inline-blocks — two layout algorithms for one
-design, which is how "it looked fine in the preview" happens.
-
-  page — a4 | a5 | letter. Sizes live in print.css, one rule each, because a
-    stylesheet can say "A4 turned on its side" and a Django template cannot.
-  orientation — portrait | landscape.
-  margin — the @page margin, any CSS length. The printable area is the page
-    less twice this.
-  paged — draw a fold line every page-height down the sheet. Screen only.
-  grid — overlay a 10mm grid, for lining up a fixed-size card. Screen only.
-  scroll — let a sheet wider than the viewport scroll itself rather than the
-    page. Screen only, and off by default: it establishes a new formatting
-    context, and an overflow container can suppress fragmentation, so it is
-    something you opt into for a preview rather than something a sheet has.
-  fit — load the shrink-to-fit script, which reduces the type in any element
-    marked data-print-fit until its content stops overflowing. Progressive
-    enhancement: without it, long content in a fixed-size box clips.
-  auto_print — open the print dialog once the page has loaded.
-  owns_page — emit the @page rule. On by default; turn it off for a sheet that
-    is a preview inside a larger document rather than the document itself.
+  page, orientation, margin — the @page rule. Page sizes live in print.css.
+  paged / grid — fold guides and a 10mm overlay. Screen only.
+  scroll — screen only, and off by default: an overflow container establishes a
+    new formatting context, which can suppress fragmentation.
+  fit — load the shrink-to-fit script, which reduces the type in elements marked
+    data-print-fit until they stop overflowing. Without it, long content in a
+    fixed-size box clips.
+  auto_print — open the print dialogue once the page has loaded.
 {% endcomment %}
 <c-vars
     page="a4"
@@ -61,15 +36,7 @@ design, which is how "it looked fine in the preview" happens.
     class=""
 />
 
-{% comment %}
-@page cannot be set from an element, so the size and margin props have nowhere
-to go but a stylesheet. A <style> in the body is the price of making them props
-at all; the alternative is a fixed page size baked into app.css and two of these
-three props quietly doing nothing.
-
-`size` takes the page keyword and the orientation as written — CSS matches both
-case-insensitively, so a4/letter/portrait pass through unchanged.
-{% endcomment %}
+{# @page cannot be set from an element, so these props need a stylesheet. #}
 {% if owns_page %}<style>@page { size: {{ page }} {{ orientation }}; margin: {{ margin }}; }</style>{% endif %}
 
 <div {{ attrs }}

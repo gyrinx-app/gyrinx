@@ -1,6 +1,6 @@
 {# title: A table that crosses pages #}
 {# layout: full #}
-{# note: The header is a real thead, so it repeats at the top of every page the table reaches — written as an ordinary first row it appears once and every later page is unlabelled numbers. Rows carry break-inside: avoid, which tables honour, being block containers rather than flex items. Column widths are fixed so a table split across the fold does not come out differently aligned on each side. #}
+{# note: The header is a real thead, so it repeats at the top of every page the table reaches; written as an ordinary first row it would appear once and leave every later page a wall of unlabelled numbers. Column widths are fixed so a table split across the fold is not aligned differently either side of it. #}
 <c-n26.print.sheet page="a5" margin="6mm" owns_page="" scroll="1">
     <c-n26.print.table>
         <c-slot name="head">

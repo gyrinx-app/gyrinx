@@ -6,15 +6,13 @@
         Attributes
     </c-n26.action-link>
 
-The third of the link family, after color-link and flair-link, and built the same
-way: <c-n26.link> with something in the `leading` slot, so the icon sits outside
-the span carrying the underline and the rule runs under the words alone.
+Wraps <c-n26.link>, putting the icon in the `leading` slot so it sits outside
+the span carrying the underline and the rule runs under the words alone. The
+icon is sized in em, so it fits a table's small print and a page heading alike
+with no size prop.
 
-The icon is sized in em, so an action row in a table's small print and one under a
-page heading both look right with no size prop.
-
-tone="danger" is here rather than on c-n26.link because a destructive action in a
-row of ordinary ones is the case that actually comes up — "… · Delete".
+`tone="danger"` exists here and not on <c-n26.link>, for a destructive action
+sitting in a run of ordinary ones.
 
   href, underline — passed to <c-n26.link>.
   tone — accent (default), muted, current, or danger.
@@ -30,8 +28,8 @@ row of ordinary ones is the case that actually comes up — "… · Delete".
 
 {% if tone == "danger" %}
     {% comment %}
-    c-n26.link has no danger tone — red is not a theme token the way accent and
-    muted are — so it is applied here with tone="current" letting it through.
+    Red is not a theme token, so c-n26.link has no danger tone; tone="current"
+    lets the classes set here through.
     {% endcomment %}
     <c-n26.link href="{{ href }}" underline="{{ underline }}" tone="current"
                 class="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 {{ class }}">

@@ -1,5 +1,5 @@
 {# title: A trading post #}
-{# note: A real n26.browse.CollectionView, not a list of dicts — the same shape browse() returns, so the component is typed against what the server actually sends. Narrow the window to see what it is for. Type in the field and the groups open themselves; drag either slider and the counts fall as you go; a category that empties out disappears rather than leaving a header behind. Narrow trade points and the two Exclusive items vanish, because "E" answers no numeric question — the rule n26.browse.narrow follows. Drag the window narrower and the whole bar stays put as the rows scroll under it, while the section strip swaps shape: wide, every section is a tab and clicking one moves the accent and nothing else; narrow, the section you are on stands alone and the rest are behind the chevron beside it, counted. Widen it again and they come back as tabs. #}
+{# note: A real n26.browse.CollectionView, the same shape browse() returns, so the component is typed against what the server sends. Type in the field and the groups open themselves; drag either slider and the counts fall as you go; a category that empties out disappears rather than leaving a header behind. Narrow the trade points and the two Exclusive items go with them, since "E" is not a point on that scale — the rule n26.browse.narrow follows. Narrow the window and the filter bar stays put as the rows scroll under it, while the section strip swaps shape: wide, every section is a tab; narrow, the section you are on stands alone with the rest behind the chevron beside it. #}
 {# layout: full #}
 <c-n26.collection-picker :categories="trading_post_categories"
                          :sections="trading_post_sections"
@@ -18,10 +18,9 @@
                                name="category"
                                :options="trading_post_category_options" />
             {% comment %}
-            Cost takes both ends, because "between 20 and 80" is a real question
-            here and a ceiling alone cannot ask it. Trade points keep one thumb:
-            the useful question there is only ever how hard to find you will
-            tolerate.
+            Price takes both ends, because "between 20 and 80" is a real
+            question here. Trade points keep one thumb: the only question there
+            is how hard to find you will tolerate.
             {% endcomment %}
             <c-n26.range-menu label="Price"
                               model_min="minPrice"
@@ -40,16 +39,13 @@
                               at_min_label="Freely available"
                               at_max_label="Any" />
             {% comment %}
-            A toggle for the case the slider cannot express: Exclusive items are
-            in or out, never nearer or further. It only means anything while the
-            slider is wide open, because narrowing it drops them regardless.
+            Exclusive items are in or out, never nearer or further, so they get
+            a toggle. It means anything only while the trade-points slider is
+            wide open, since narrowing that drops them regardless.
 
-            Listened to rather than bound. The kit's switch keeps its own state
-            and offers nothing to drive it from outside, so a `model` prop here
-            could only ever be one-way — the trap <c-n26.range-slider> documents
-            at length. Its hidden checkbox emits a change event that bubbles to
-            this label, so the call site reads it and writes the filter itself,
-            and there is only ever one copy of the answer.
+            Listened to rather than bound: the kit's switch keeps its own state
+            and offers no way to drive it from outside, so the call site reads
+            the change event its checkbox bubbles and writes the filter itself.
             {% endcomment %}
             <c-n26.toggle label="Exclusive"
                           :checked="True"
@@ -57,10 +53,8 @@
         </div>
     </c-slot>
     {% comment %}
-    Both of the view's levels, drawn as they come: sections collapse, categories
-    are headings inside them. Two sections rather than six, and the fine structure
-    is there once the coarse one is open — which is what the CollectionView had
-    all along and this demo used to flatten away.
+    Both of the view's levels, drawn as they come: sections collapse, and
+    categories are headings inside them.
     {% endcomment %}
     {% for section_row in trading_post_section_rows %}
         <c-n26.collection-picker.section name="{{ section_row.section.name }}" :open="section_row.first">

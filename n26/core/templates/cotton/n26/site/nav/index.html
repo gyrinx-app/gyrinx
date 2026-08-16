@@ -3,96 +3,32 @@
 its burger.
 
     <c-n26.site.nav title="Gyrinx" href="/" user_label="tom">
-        <c-slot name="logo"><img src="…" alt="" width="24" height="24"></c-slot>
-        <c-slot name="heading">Create a gang</c-slot>
-
-        <c-ui.navbar.item href="/" current="1">Home</c-ui.navbar.item>
         <c-ui.navbar.item href="/gangs/">Gangs</c-ui.navbar.item>
-
-        <c-slot name="gangs">
-            <c-n26.site.nav.gang href="/gangs/1/" name="The Ashen Choir" type="Escher" />
-        </c-slot>
-
-        <c-slot name="actions">
-            <c-ui.mode-toggle storage_key="theme" size="sm" />
-        </c-slot>
-        <c-slot name="menu">
-            <c-ui.dropdown.item href="/accounts/">Your account</c-ui.dropdown.item>
-        </c-slot>
+        <c-slot name="heading">Create a gang</c-slot>
+        <c-slot name="gangs">…c-n26.site.nav.gang…</c-slot>
+        <c-slot name="menu">…c-ui.dropdown.item…</c-slot>
     </c-n26.site.nav>
 
-  --- the bar names the page; the drawer holds the places ---
+The links live only in the drawer, at every width, so the space beside the brand
+belongs to the page's own name. A <noscript> strip under the bar draws the same
+list flat, the drawer's panel being built by Alpine and absent without it.
 
-The bar reads left to right as one sentence: the brand, then the page's own
-name. Every page can name itself there, because the name competes with
-nothing — the links live in the drawer, so the space beside the brand is the
-page's for good rather than on loan.
+`heading` is a slot rather than an attribute because the base template fills it
+from a {% block %}, and a block inside a Cotton attribute never runs. It is
+tested with `.strip`: an empty block still passes the newlines around it, and
+Django counts whitespace as truthy. `switcher` is a slot of its own rather than
+more of `heading` because the name sits in a box that hides its overflow — that
+is what truncates it — and a panel opening inside such a box is clipped to
+nothing.
 
-The burger is the last thing in the bar, past the account menu, and its panel
-comes from the right edge — a control that opens something belongs on the side
-the thing arrives from. It is the same control at every width, not one that
-appears below md: a burger is only predictable if you already know the window
-is narrow, so someone who learns where the links live on a phone would have to
-learn again on a laptop. A hairline separates it from the account menu, because
-the two are the bar's two "more" controls and side by side with nothing between
-them they read as one.
+`user_label` is the account menu's trigger, and with no name there is no menu.
+It takes either shape: an attribute for a plain name, or a slot for markup such
+as a <c-n26.user-link>. An attribute is escaped, so markup passed that way
+prints as source; pass both and the attribute wins, silently.
 
-The account menu keeps the right-hand group with the burger, where signing in
-or out — which adds and removes buttons — cannot shift either. That group is
-also where the controls a reader touches once and never again live, the colour
-scheme among them: the bar's one row of horizontal space belongs to what the
-page is.
-
-  --- what it kept from the kit ---
-
-<c-ui.drawer> for the panel and <c-ui.dropdown> for the account menu, which
-bring the focus trap, the escape handling, the outside click and the placement
-— the parts that are tedious and easy to get subtly wrong. The links inside are
-<c-ui.navbar.item>, a bare <a> that lets its container style it, which is what
-lets one list of links be rendered in the drawer and again for a reader with no
-script.
-
-  --- with no script ---
-
-The drawer's panel is Alpine's, and Alpine builds it out of a <template> that
-never runs. A <noscript> under the bar draws the same links flat, so the places
-the app has are reachable however the page arrived. The gangs are not repeated
-there: the Gangs link in that same list is the whole roster.
-
-  title — the wordmark beside the logo.
-  href — where the brand links to.
-  logo — a slot, for a mark beside the title. Drawn in the bar and again at the
-    top of the drawer. Optional.
-  heading — a slot: the page's own name, after a middle dot, and whatever
-    control belongs to it — a switcher to the page's siblings goes here. A slot
-    rather than an attribute because the base template fills it from a block,
-    and a block inside a Cotton attribute never runs. Tested with `.strip`,
-    because a page leaving the block empty still passes the newlines around it
-    and Django counts whitespace as truthy.
-  switcher — a slot beside the name, for a control that belongs to it: a
-    switcher to the page's siblings is what it exists for. Its own slot rather
-    than more of `heading`, because the name is drawn in a box that hides its
-    overflow — that is what truncates it — and a panel opening from inside such
-    a box is clipped away to nothing.
-  slot — the drawer's links, as <c-ui.navbar.item>. Whichever area the page
-    belongs to supplies its own; the current one marks itself.
-  gangs — a slot under the links, for the reader's own gangs as
-    <c-n26.site.nav.gang>. Its heading and the rule above it are drawn only
-    when something is in it, so a signed-out reader gets no empty section.
-  actions — the right-hand controls: theme toggle, sign in. They sit to the
-    left of the account menu, which stays outermost.
-  user_label — a signed-in user's name. It is the account menu's trigger, and
-    with no name there is no menu: a visitor has no account to open. Either
-    shape: an attribute for a plain name, or a `user_label` slot when the name
-    carries markup — a badge after it, as a <c-n26.user-link>. An attribute is
-    escaped, so markup passed that way is printed as source; pass both and the
-    attribute wins, silently.
-  menu — the account items, rendered in that menu as <c-ui.dropdown.item>. The
-    caller draws its own separators, so a section only staff see cannot leave a
-    rule behind for everyone else.
-  menu_label — the account trigger's accessible name, and its tooltip.
-  drawer_label — the burger's accessible name, and its tooltip.
-  sticky — keep the bar at the top of the window as the page scrolls.
+  slot — the drawer's links, as <c-ui.navbar.item>; the current one marks itself.
+  menu — the account items, as <c-ui.dropdown.item>. The caller draws its own
+    separators, so a section only staff see leaves no rule behind for others.
 {% endcomment %}
 <c-vars
     title=""
@@ -114,41 +50,31 @@ there: the Gangs link in that same list is the whole roster.
                            z-40 w-full border-b border-ink-200 dark:border-ink-800 {{ class }}">
     <div class="flex h-14 items-center gap-2 px-4">
         {% comment %}
-        The wordmark is what goes when the window narrows, and the mark beside
-        it stays. Below sm the bar is: a logo that is still a link home, and
-        then the page — which is where the reader is and what the switcher
-        beside it acts on. A word that says the name of the site on every
-        screen of the site is the least of what a phone's bar can hold.
+        Below sm the wordmark goes and the mark stays, so a phone's bar is a
+        logo that is still a link home, and then the page.
         {% endcomment %}
         <a href="{{ href }}" class="n26-site-brand shrink-0 focus-ring">
             {% if logo %}{{ logo }}{% endif %}
             {% if title %}<span class="hidden sm:inline">{{ title }}</span>{% endif %}
         </a>
 
-        {% comment %}
-        Truncates rather than wraps or pushes: the bar is a fixed 14 units tall,
-        and a long page name should lose its end rather than move the controls.
-
-        {% endcomment %}
         {% if heading.strip or switcher.strip %}
             <span class="flex min-w-0 items-center gap-2">
                 {% comment %}
-                The name is truncated inside a box of its own and the control
-                is outside it. Truncating means hiding the overflow, and a
-                panel that opens from inside a box that hides its overflow is
-                a panel with nothing in it — worse, focusing the filter scrolls
-                the box, and the bar's contents slide out of the window.
+                The name truncates inside a box of its own and the control sits
+                outside it. Truncating means hiding the overflow, and a panel
+                opening inside a box that hides its overflow comes out empty —
+                worse, focusing its filter scrolls the box and slides the bar's
+                contents out of the window.
                 {% endcomment %}
                 {% if heading.strip %}
                     <span class="min-w-0 truncate text-ink-600 dark:text-ink-400">{{ heading }}</span>
                 {% endif %}
                 {% comment %}
                 A switcher draws its destinations again, flat, for a reader
-                whose browser ran no script — and a flat panel inside a row
-                fixed at 14 units tall spills over the page beneath it. Hidden
-                here, and only here: the page that lists all of them is a click
-                away in the strip under this bar, which is the same distance
-                the drawer keeps the reader's gangs at.
+                with no script — and a flat panel inside a row fixed at 14
+                units tall spills over the page beneath it. Hidden here only:
+                the noscript strip under this bar reaches the same pages.
                 {% endcomment %}
                 {% if switcher.strip %}
                     <span class="shrink-0 [&_noscript]:hidden">{{ switcher }}</span>
@@ -160,18 +86,13 @@ there: the Gangs link in that same list is the whole roster.
             {{ actions }}
 
             {% comment %}
-            align="end" so the panel hangs from the right edge of the window
-            rather than running off it — the trigger is the last thing in the
-            bar, so a panel aligned to its start would open into the margin.
+            align="end" so the panel hangs from the right edge of the window:
+            the trigger is near the end of the bar, and a panel aligned to its
+            start would open into the margin.
             {% endcomment %}
             {% if user_label %}
                 <c-ui.dropdown align="end">
                     <c-slot name="trigger">
-                        {% comment %}
-                        The ellipsis-and-chevron pair is the app's one spelling
-                        of "this button opens more" — the gang sheet's overflow
-                        and the model cards' draw it the same way.
-                        {% endcomment %}
                         <button type="button"
                                 aria-label="{{ menu_label }}"
                                 title="{{ menu_label }}"
@@ -179,20 +100,11 @@ there: the Gangs link in that same list is the whole roster.
                                        text-sm font-medium text-ink-600 hover:bg-ink-100 focus-ring
                                        dark:text-ink-300 dark:hover:bg-ink-800">
                             {% comment %}
-                            The reader's name goes the way the wordmark goes,
-                            and for the same reason: on a phone the bar's width
-                            belongs to the page. Whatever the name carries goes
-                            with it — a badge after it is inside this box, so it
-                            leaves with the name rather than standing in the bar
-                            on its own. The ellipsis and chevron still say the
-                            control opens something, and its accessible name
-                            says what.
-
-                            The width is capped and the overflow cut: the bar is
-                            one row, and a name long enough to reach the page's
-                            own title should lose its end rather than push
-                            anything. A name that long loses its badge with it,
-                            which is the right thing to drop of the two.
+                            The name goes below sm, and whatever it carries goes
+                            with it: a badge after it is inside this box rather
+                            than standing in the bar on its own. The ellipsis
+                            and chevron are left saying the control opens
+                            something, and the accessible name says what.
                             {% endcomment %}
                             <span class="hidden max-w-40 truncate sm:inline">{{ user_label }}</span>
                             <span class="n26-icon-only gap-0.5">
@@ -206,19 +118,17 @@ there: the Gangs link in that same list is the whole roster.
             {% endif %}
 
             {% comment %}
-            A hairline between the account menu and the burger: they are
-            the bar's two "more" controls, and with nothing between them
-            they read as one. Decorative, so it says nothing aloud.
+            A hairline between the two controls that open something, which
+            side by side read as one. Decorative, so it says nothing aloud.
             {% endcomment %}
             <span aria-hidden="true" class="h-6 w-px shrink-0 bg-ink-200 dark:bg-ink-700"></span>
 
             {% comment %}
-            The drawer's root is display:contents, so the burger sits in
-            this row as if the drawer were not wrapped around it. The
-            panel teleports to the body, which also takes it out of this
-            header's `dark` subtree — the bar stays dark in both modes,
-            the drawer follows the reader's theme. It comes from the
-            right, which is where the control that opens it now lives.
+            The drawer's root is display:contents, so the burger sits in this
+            row as if the drawer were not wrapped around it. The panel
+            teleports to the body, which takes it out of this header's `dark`
+            subtree: the bar stays dark in both modes and the drawer follows
+            the reader's theme.
             {% endcomment %}
             <c-ui.drawer side="right" size="sm">
                 <button type="button"
@@ -242,14 +152,8 @@ there: the Gangs link in that same list is the whole roster.
                     what lets the same list be drawn here and in the noscript
                     strip below: a navbar item is a bare <a> carrying an
                     is-current marker, and whatever holds it decides the look.
-
-                    A place with no page yet is a <span> rather than an <a>, so
-                    it is in the list without being a door that opens on
-                    nothing.
-
-                    The current page keeps the accent and takes the weight with
-                    it — it is the one row here that is a state rather than a
-                    destination.
+                    A place with no page yet is a <span>, so it is in the list
+                    without being a door that opens on nothing.
                     {% endcomment %}
                     <nav class="-mx-2 flex flex-col
                                 [&>a]:flex [&>a]:items-center [&>a]:gap-3
@@ -276,9 +180,8 @@ there: the Gangs link in that same list is the whole roster.
 
     {% comment %}
     The same list the drawer holds, drawn flat for a reader whose browser ran
-    no script and therefore has no drawer to open. A row that wraps rather
-    than a stack: it is under a bar the reader can see, and a column of links
-    at the top of every page would push the page itself off the screen.
+    no script and so has no drawer to open. A wrapping row rather than a stack:
+    a column of links at the top of every page would push the page off screen.
     {% endcomment %}
     <noscript>
         <nav class="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-ink-200 px-4 py-2

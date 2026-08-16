@@ -1,5 +1,5 @@
 {% comment %}
-<c-n26.filter-menu> — a multi-select filter in a dropdown.
+<c-n26.filter-menu> — many of a set, as a dropdown with checkboxes.
 
     <c-n26.filter-menu
         label="House"
@@ -7,35 +7,20 @@
         :options="[{'value': 'escher', 'label': 'Escher (HoB)'},
                    {'value': 'goliath', 'label': 'Goliath (HoC)'}]" />
 
-For single choice — a sort order, say — use <c-n26.choice-menu>, which is the
-same panel with radios and no All / None or only.
+For one of a set — a sort order, say — use <c-n26.choice-menu>, the same panel
+with radios and no All / None or only.
 
-A composition, not a new primitive. The dropdown, the checkbox group and every
-button below are the kit's; the only thing added is a two-key x-data holding the
-list of all values and the snapshot Cancel reverts to.
+OK dispatches `filter-apply` with {name, values}; Cancel restores the selection
+as it was when the panel opened and dispatches nothing. The menu owns its
+selection, so a "clear all" elsewhere on the page reaches it by dispatching
+`filter-reset` under the same name. `select_all` ticks everything when
+`selected` is empty, an untouched filter usually meaning no filter.
 
-That is possible because the pieces already expose what is needed. The checkbox
-group's Alpine scope keeps its selection in a plain, assignable `values` array,
-so All / None / only are one assignment each. The dropdown's scope exposes
-`dropdownMenu` and `close()`. Both sit above this content in the scope chain, so
-template expressions here can read and write them directly.
-
-The checkbox group wraps the whole dropdown rather than sitting inside its panel,
-which is what lets the trigger show a count while the panel is shut.
-
-  label — trigger text.
-  name — submitted field name; also the `name` on the applied event.
-  :options — [{value, label}].
-  :selected — initially ticked values.
-  :select_all — tick everything when `selected` is empty (default True), since an
-    untouched filter usually means "no filter".
-  apply_label / cancel_label — footer button text.
-  size — the trigger's button size. Default sm, a notch under the kit's; a bar
-    sitting under a long list rather than under a search field wants xs.
-  align, position, min_width — passed through to the dropdown.
-
-Applying dispatches `filter-apply` with {name, values}; cancelling restores the
-selection as it was when the panel opened and dispatches nothing.
+The checkbox group wraps the whole dropdown rather than sitting inside the
+panel, which is what lets the trigger show a count while shut. Its scope keeps
+the selection in an assignable `values` array and the dropdown's exposes
+`close()`, both above this content, so All / None / only are one assignment
+each.
 {% endcomment %}
 <c-vars
     label="Filter"
@@ -56,9 +41,8 @@ selection as it was when the panel opened and dispatches nothing.
         x-data="{ allValues: {{ options|json_dumps }}.map(o => o.value), snapshot: [] }"
         {% if select_all %}x-init="if (!values.length) values = allValues.slice()"{% endif %}
         {% comment %}
-        The mirror of filter-apply: this menu owns its selection, so a "clear
-        all filters" elsewhere on the page cannot reach in and set it. Listening
-        by name means it can be told, using the same name it reports under.
+        The mirror of filter-apply: nothing outside can set this menu's
+        selection, so it listens under the same name it reports under.
         {% endcomment %}
         @filter-reset.window="if ($event.detail.name === {{ name|json_dumps }}) values = allValues.slice()"
         class="inline-block"
@@ -67,17 +51,9 @@ selection as it was when the panel opened and dispatches nothing.
         <c-ui.dropdown align="{{ align }}" position="{{ position }}" min_width="{{ min_width }}">
             <c-slot name="trigger">
                 {% comment %}
-                sm by default, a notch under the kit's. This sits in the row
-                beneath a search bar, refining what the search returned — the
-                search is the control a reader reaches for, and a row of
-                full-size buttons under a full-size field reads as two bars of
-                chrome before the list gets a pixel. A screen that is mostly
-                list takes it a notch further with size="xs".
-                {% endcomment %}
-                {% comment %}
-                default, not primary: this refines a list that is already
-                on screen, and a bar of filled accent buttons above it
-                reads as the page's main acts rather than its filters.
+                sm and `default`: this sits in a bar under a search field,
+                refining a list rather than acting on the page. A screen that is
+                mostly list takes size="xs".
                 {% endcomment %}
                 <c-ui.button size="{{ size }}" variant="default">
                     <span class="flex items-center justify-center gap-1.5">
@@ -92,8 +68,8 @@ selection as it was when the panel opened and dispatches nothing.
             </c-slot>
 
             {% comment %}
-            Snapshot on open rather than on init, so Cancel reverts to how things
-            were when this panel was opened — not to how the page first loaded.
+            Snapshot on open rather than on init, so Cancel reverts to how
+            things were when the panel was opened, not to the page's first load.
             {% endcomment %}
             <div class="p-3"
                  x-init="$watch('dropdownMenu', open => { if (open) snapshot = values.slice() })">

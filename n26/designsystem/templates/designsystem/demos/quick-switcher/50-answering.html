@@ -1,4 +1,4 @@
-{# title: Rows that answer instead of going somewhere #}
+{# title: Rows that choose instead of going somewhere #}
 {# note: The same panel, filled with c-n26.quick-switcher.choice. Clicking a row reports its label as a bubbling quick-switcher-choose, and the caller — the box around all this — writes it down; the tick follows, because what is current is bound rather than fixed at render. This is what lets a tab strip too wide for a phone keep the tab you are on and put the rest behind the chevron. Careful what you name things around one: the panel has state of its own, and a name it also uses is read from the panel rather than from you. #}
 <div x-data="{ section: 'Wargear' }"
      @quick-switcher-choose="section = $event.detail.value"

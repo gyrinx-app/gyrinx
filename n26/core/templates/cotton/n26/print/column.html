@@ -6,16 +6,15 @@
         <c-n26.print.field label="Gear" />
     </c-n26.print.column>
 
-Equal width, whatever is in it, and it stretches to the height of the block
-rather than to its own content — which is what lets `spread` mean anything.
+Equal width whatever is in it, and it stretches to the height of the block
+rather than to its own content, which is what lets `spread` mean anything.
 
-Never render an empty one. Each column is a flex item claiming an equal share of
-the width, so an empty second column is not nothing: it is half the block, held
-open. balance_columns already drops empties for this reason.
+Never render an empty one: each column is a flex item claiming an equal share
+of the width, so an empty second column holds half the block open.
+balance_columns already drops empties.
 
   spread — space the children down the full height instead of stacking them at
-    the top. For a worksheet column of write-in boxes, where the point is to use
-    the paper rather than to sit compactly at the top of it.
+    the top. For a worksheet column of write-in boxes.
 {% endcomment %}
 <c-vars spread="" class="" />
 

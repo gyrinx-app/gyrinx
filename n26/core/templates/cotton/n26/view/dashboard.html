@@ -1,95 +1,27 @@
 {% comment %}
-<c-n26.view.dashboard> — the page you land on: your gangs, and what changed.
+<c-n26.view.dashboard> — the screen you land on: the gangs you own, and what
+changed.
 
-    <c-n26.view.dashboard username="tom"
-                          new_gang_href="/gangs/new/"
-                          new_campaign_href="/campaigns/new/">
+    <c-n26.view.dashboard username="tom" new_gang_href="/gangs/new/">
         <c-slot name="gangs">…c-n26.gang-table…</c-slot>
         <c-slot name="changelog">…c-n26.changelog…</c-slot>
     </c-n26.view.dashboard>
 
-    <c-n26.view.dashboard new_gang_href="/gangs/new/">
-        <c-slot name="username"><c-n26.user-link :user="user" tone="current" underline="none" /></c-slot>
-        …
-    </c-n26.view.dashboard>
+The reader's name takes either shape: a `username` attribute for plain text, or
+a `username` slot for markup, which is how a <c-n26.user-link> gets in. An
+attribute is escaped, so markup passed that way prints as source; pass both and
+the attribute wins, silently.
 
-Two things, in the order they matter: what you own, and what has changed since you
-last looked. Nothing else — a dashboard that tries to be a summary of everything
-is a page nobody reads twice.
+The changelog sits beside the tab strip rather than inside a tab, so it stays on
+screen whichever tab is showing.
 
-  --- the tabs ---
-
-What you own is three kinds of thing — gangs, campaigns, content packs — and they
-are alternatives rather than a list to scroll. Tabs, then, and not three stacked
-sections: a reader here is looking for one of the three, and stacking them makes
-two of those readers scroll past the ones they did not want every single visit.
-
-They sit in the gangs column rather than across the page, which is what keeps the
-changelog on screen whichever tab is showing. What changed is worth seeing while
-you look at any of the three, and a tab strip spanning the page would have said
-the changelog belonged to the gangs tab alone.
-
-Campaigns and content packs fall back to <c-n26.coming-soon> when their slots are
-empty, so the tabs are real now and filling them later changes nothing structural.
-
-Side by side from lg, two thirds to the gangs and one to the updates; stacked
-below it. A gang row spends most of a wide screen on its figures and its buttons,
-so handed the whole width the list gets a name column with nothing in it and the
-changelog sits a screenful below where nobody scrolls.
-
-  --- the greeting ---
-
-"Hello, tom", and nothing under it. Not a prompt, not a question, and nothing
-with an exclamation mark: the reader came here to get on with something, and a
-page that opens by asking them how they are is a page they learn to scroll past.
-
-There was a line of facts here — how many gangs, when one was last touched — on
-the grounds that a greeting may as well be useful. It went, and the argument for
-it was weaker than it looked: the count is on the tab and in the list directly
-below, and "last edited yesterday" is a thing you learn once and then read past
-forever. A summary of what is visible two inches lower is not information.
-
-Making something is the header's action, so it sits beside the greeting at width
-and wraps under it on a phone. Creating a gang is the primary and creating a
-campaign is not: they are both starts, but one is what nearly everyone came here
-to do and the other needs gangs to exist first. Two primaries side by side would
-have made the reader choose between them, which is a decision they do not have.
-
-Gang first, so that when they wrap on a phone the main action is the one at the
-top rather than the one you reach after reading past another.
-
-Patreon and Discord ride in the same row, which is the one thing here that is
-not about this reader's own gangs. They are quiet marks at the height of the
-buttons' text rather than labelled links: someone who wants either knows the
-logo, and spelling them out would put two more phrases beside the only action
-the page is really offering. On a wide row they sit ahead of the buttons; on a
-phone, where the row wraps under the greeting, they fall behind them.
-
-The name in it takes either shape: `username="tom"` for a plain string, or a
-`username` slot for markup — which is how the reader's badge gets in, as a
-<c-n26.user-link>. Whose badge someone shows is not this page's answer to give,
-so the slot carries whatever the caller drew rather than this component deriving
-it. The badge is sized in em, so it follows the heading with no size passed to
-it. Pass both shapes and the attribute wins, silently — pick one.
-
-  username — who is reading. The greeting is the page's h1. A slot of the same
-    name replaces it with markup.
-  new_gang_href — where the primary button goes. Without one, no button.
-  new_gang_label — its wording. "Create Gang" by default.
-  new_campaign_href — where the second button goes. Without one, no button.
-  new_campaign_label — its wording. "Create Campaign" by default.
-  gangs — the gang table. The first tab.
-  campaigns — the campaigns tab. Falls back to a coming-soon panel.
-  content_packs — the content packs tab. Falls back the same way.
-  changelog — the changelog list, beside the tabs and outside them.
+  new_gang_href, new_campaign_href — each draws its button only when given.
+  campaigns, content_packs — left empty, each tab falls back to
+    <c-n26.coming-soon>, so the strip holds three tabs either way.
 {% endcomment %}
-{% comment %}
-The four content slots are declared even though they are only ever filled as
-slots. An undeclared slot name is not empty when nobody fills it — it is
-whatever the enclosing scope happens to have under that name, and these names
-are exactly what a view calls the rows it hands this page: a context holding
-`gangs` or `changelog` would be drawn here whether or not the page passed it.
-{% endcomment %}
+{# The slots are declared: an undeclared slot name is not empty when nobody #}
+{# fills it — it resolves to the caller's own variable of that name, and a #}
+{# view filling this page calls its context `gangs` and `changelog` too. #}
 <c-vars
     username=""
     new_gang_href=""
@@ -105,34 +37,17 @@ are exactly what a view calls the rows it hands this page: a context holding
 
 <div class="flex flex-col gap-8 {{ class }}">
     {% comment %}
-    The greeting goes in as a slot rather than a title attribute, because the
-    name in it may be markup — an attribute is escaped, and a badge passed
-    through one arrives as its own source code printed on the page.
+    A slot rather than a title attribute: the name may be markup, and an
+    attribute is escaped, so a badge passed through one prints as source.
     {% endcomment %}
     <c-n26.page-header>
         <c-slot name="title">Hello, {{ username }}</c-slot>
         <c-slot name="actions">
             {% comment %}
-            The two places the project lives outside the app, up beside the
-            page's actions rather than only in the footer — the footer is a
-            scroll away, and this is the screen a reader is on when they want
-            either of them. They belong to the page rather than to the buttons,
-            so they draw whether or not this dashboard was given anywhere to
-            create something.
-
-            Position is `order`, not source order, and the two ends differ: on a
-            wide screen the marks sit before the buttons, so the action a reader
-            came for is the last thing on the row; wrapped onto a phone the
-            buttons come first, because the primary should be what sits under
-            the greeting rather than something to read past. Source order is the
-            phone's, and sm: puts the marks back in front.
-
-            Sized in em against the buttons' own text — the row is text-sm, so a
-            1.25em mark stands the height of the label beside it and keeps doing
-            so if that scale moves. Neither mark carries a colour: the drawings
-            are currentColor and the links take the page's ink, so both follow
-            the theme, and hovering lifts them to the strongest ink the way the
-            bar's other quiet controls do.
+            Source order is the phone's — the buttons first, under the greeting
+            — and `order` puts these marks back in front on a wide row. Sized in
+            em against the row's own text, and carrying no colour of their own,
+            so both follow the page's ink and the theme.
             {% endcomment %}
             <div class="order-last flex items-center gap-3 text-sm sm:order-first">
                 <c-n26.link href="https://www.patreon.com/c/Gyrinx"
@@ -164,33 +79,12 @@ are exactly what a view calls the rows it hands this page: a context holding
     </c-n26.page-header>
 
     {% comment %}
-    Two thirds and one third from lg up, stacked below it.
-
-    The split is not decoration. A gang row needs its name, a four-figure strip
-    and two buttons on one line, which is most of a wide screen — so given the
-    whole width the list gets a name column with nothing in it and the changelog
-    sits a screenful further down where nobody scrolls. Side by side, the gangs
-    get the width they actually use and the updates get read.
-
-    lg, not md: at md the two thirds left over is 500px, which is less than the
-    strip and the buttons want before the name gets a character. Below that they
-    stack, in the order they matter — what you own, then what changed.
-
-    items-start so the changelog keeps its own height instead of stretching to
-    match a list of five gangs.
+    Two thirds and one third from lg up, stacked below it: a gang row needs its
+    name, a four-figure wealth strip and two buttons on one line, and the two
+    thirds left at md is narrower than that. items-start so the changelog keeps
+    its own height rather than stretching to a list of five gangs.
     {% endcomment %}
     <div class="grid grid-cols-1 items-start gap-8 lg:grid-cols-3">
-        {% comment %}
-        The gangs get no heading of their own — the tab is the heading, and a "Your
-        gangs" under a tab reading "Gangs" says it twice. The changelog does need
-        one, because it is the second thing and a reader has to be told the list
-        has stopped being about them.
-
-        The tab strip renders whether or not there are gangs to put in it: the
-        other two tabs are the reason it is there, and a dashboard that hides
-        Campaigns until you own a gang hides it from exactly the person who has
-        not started yet.
-        {% endcomment %}
         <div class="min-w-0 lg:col-span-2">
             <c-ui.tabs default_tab="Gangs">
                 <c-ui.tabs.tab name="Gangs">{{ gangs }}</c-ui.tabs.tab>

@@ -12,29 +12,20 @@
         {% endfor %}
     </c-n26.print.columns>
 
-The thing to know is what this is instead of. CSS multi-column layout is the
-obvious tool and it does not survive printing on WebKit, which has no support
-for a multicol container nested inside another fragmentation context — and when
-printing, the page *is* a fragmentation context. iOS Safari collapses a
-`columns: 2` block to one full-width column, so the two-column layout exists on
-your desktop and nowhere else. Chrome fails differently and more quietly: v1
-watched it drop the last group off the end of a card.
+CSS multi-column layout is the obvious tool and it does not survive printing:
+when printing, the page is itself a fragmentation context, and WebKit collapses
+a nested `columns: 2` block to one full-width column. So the split happens in
+Python before the HTML does — `n26.printing.balance_columns` cuts the groups at
+the point that minimises the taller side, deterministically and in every engine.
 
-So the split happens before the HTML does. `n26.printing.balance_columns` takes
-your groups and returns the columns, cutting once at the point that minimises
-the taller side, which is what multicol's balancing was doing anyway — only now
-it is deterministic, identical in every engine, and unit-testable.
-
-Flex is safe here and only here. These columns are meant to live inside a
-<c-n26.print.card>, which is atomic and never fragments, so the flex layout is
-resolved wholly within one page. Put a tall one straight onto a sheet and it
-will be sliced with no regard for its contents, which is the same trap in a
-different costume.
+Flex is safe here because these columns belong inside a <c-n26.print.card>,
+which is atomic and resolves wholly within one page. Put a tall one straight
+onto a sheet and it will be sliced with no regard for its contents.
 
   gap — between columns.
-  fill — take the height left in a fixed-height card instead of sizing to the
-    content. What <c-n26.print.column spread> needs before it can spread
-    anything: with no definite height to divide, there is no slack to share.
+  fill — take the height left in a fixed-height card rather than sizing to the
+    content. <c-n26.print.column spread> needs this: with no definite height,
+    there is no slack to share out.
 {% endcomment %}
 <c-vars gap="3mm" fill="" class="" />
 

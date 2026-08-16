@@ -3,180 +3,45 @@
 siblings.
 
     <c-n26.quick-switcher label="The Ashen Choir" href="/n26/gangs/1/"
-                          icon="star" heading="Switch gang"
-                          placeholder="Search gangs">
-        <c-n26.quick-switcher.item label="The Ashen Choir" href="/n26/gangs/1/"
-                                   :current="True" />
+                          heading="Switch gang" placeholder="Search gangs">
         <c-n26.quick-switcher.item label="Pit of Teeth" href="/n26/gangs/2/" />
     </c-n26.quick-switcher>
 
-A ghost button group: a button holding the name of the thing you are on and
-linking to it, joined to a chevron button that opens the list of everything you
-could be on instead. The pair reads as a single object — this thing, and the
-others like it — which is what a switcher is. A breadcrumb tells you where you
-are; this tells you where you are and offers the alternatives in the same
-gesture.
+A ghost button group: a link to the thing you are on, joined to a chevron that
+opens the rest. Without a `label` only the chevron is drawn, which is the shape
+for a placement whose heading already says what is current.
 
-  --- quiet at rest, a button under the pointer ---
+The panel is the kit's dropdown and stays hidden until Alpine runs, so the same
+rows are drawn again in a <noscript> strip below. Every row is a real <a>
+either way: the filter narrows what is already on the page and fetches nothing.
 
-Both halves take the text colour of whatever they sit in and carry no fill and
-no rule, so the control reads as words in a bar or beside a heading rather than
-as furniture competing with the page's own name. The hover fill is the whole of
-the affordance, and it is per half: hover the name and it is the way to the
-thing, hover the chevron and it is the way to the rest. The chevron also turns
-over while the panel is open, and says so through aria-expanded.
+fit() places the panel itself, fixed and clamped inside the window, against the
+rectangle of the [data-quick-switcher] root — so anything wrapped around this
+component must leave that root reachable. The kit writes offsets of its own on
+open, scroll and resize and they are wrong for a fixed box; these listeners are
+registered after the kit's and both run on a frame, so the fit lands after each
+of its writes and before the frame is drawn.
 
-They are as narrow as they can be while staying clickable. The padding is cut
-well below what a button this size asks for, so nothing sits between the two
-halves and the pair sits close to whatever it was put beside.
+Focus lands in the filter box and never leaves it: Down and Up move a
+highlight, Enter clicks the highlighted row, Escape clears the filter before it
+closes the panel, and the box points at the highlighted row with
+aria-activedescendant so the tinted row and the spoken one agree.
 
-  --- two shapes, one component ---
-
-Drop `label` and only the chevron renders. Some places already name the current
-thing a line above, in a heading a switcher would only repeat; others sit in a
-row of controls where the name has nowhere to go. So the identifier is a
-variant, not a fixture, and the chevron alone is a whole control: with one
-child, the button group rounds both its ends rather than leaving a shape cut in
-half. Every placement — the top bar, a page's heading, an authoring header —
-calls this component and picks its shape by passing a label or not. Anything a
-placement needs that this cannot say is a prop to add here, not a reason to
-write the markup again somewhere else.
-
-  --- with no script ---
-
-The panel is the kit's dropdown, which Alpine reveals; until it runs, the panel
-is hidden. So the same items are drawn again in a <noscript> strip beneath, as
-the navigation drawer does. Every destination in the list is a real <a> in the
-HTML either way — the filter only narrows what is already on the page, and
-nothing here is fetched.
-
-A native <details> would open on its own and need no second copy. It was not
-used because the joining is: the button group's rules match `button` and `a`,
-and a <summary> is neither, so the chevron would take none of the radius or
-border handling and this component would have to re-implement it — along with
-Escape and the outside click, which the dropdown already has right. The strip
-is the cheaper of the two prices.
-
-  --- staying on the screen ---
-
-The panel is placed against the trigger, and a trigger can sit anywhere — the
-middle of a phone's top bar, the end of a toolbar. Hung from the trigger's edge
-and left alone, a panel wider than the space beside it runs off the window and
-the far half of the list is unreachable.
-
-The kit hangs its panel absolutely inside a wrapper the size of the chevron,
-and that wrapper is the trouble: an absolutely positioned box is offered its
-containing block's width, so every measurement made in there is made against a
-box a couple of dozen pixels wide, and anything that shifts the panel — an
-offset, a margin — feeds back into the width being measured. The fix is to
-take the panel out of that box altogether: `fit` makes it fixed, so the window
-itself is the containing block, and places it outright — an explicit left and
-top computed from the switcher's own rectangle and clamped into the window
-with a small gutter. A fixed box is also outside every scrolling ancestor's
-overflow, so a panel mid-placement can never widen the page or hand it a
-horizontal scrollbar.
-
-Clamped in from whichever edge it crosses, rather than flipped to the
-trigger's other side: flipping only helps a trigger near an edge, and does
-nothing for one in the middle of a narrow screen with a panel wider than
-either side of it. Clamping covers both. Vertically the panel does flip —
-above the trigger when there is no room below and more room above — because
-covering the trigger is worse than swapping sides, and sideways there is no
-second side to swap to.
-
-The width is measured with the panel parked at the gutter, where the window
-offers it all the room the clamp could ever leave it, so the number read is
-the content's own and not an artefact of where the last fit put the panel.
-It is capped at the window less the gutters; `min_width` is capped the same
-way, because a minimum wider than the window would beat the cap.
-
-The kit still writes its own offsets — on open, on scroll, on resize — and
-they are wrong for a fixed box. They are also never painted: every event that
-makes the kit write is an event this component refits on, its listeners are
-registered after the kit's, and both ride a frame — so the fit lands after
-the kit's write, inside the same frame, before the frame is drawn.
-
-What the placement does need is a panel that has been laid out at all. A
-click that lands in a frame before that has happened finds a box of no width;
-the placement comes back a frame later rather than giving up. Until it has
-been placed once, the panel is kept invisible — the moments between gaining
-layout and being placed would otherwise show it wherever the kit left it.
-
-  --- filtering ---
-
-The box narrows the rows already in the panel and nothing else: no request, no
-change to what the server would have rendered. Items register their own facets
-on init and show themselves only while those pass, so the empty message and the
-list are computed from one array and cannot disagree — the same arrangement the
-gang table uses.
-
-The query is cleared each time the panel opens, because a switcher is opened to
-go somewhere and the list you left behind is not the list you want next.
-
-  --- moving through it from the keyboard ---
-
-Focus lands in the filter box on open and never leaves it. Down and Up move a
-highlight through the rows; Enter goes to the highlighted one; Escape empties a
-filter that has something in it, and closes the panel when it has not. So open,
-two letters, Down, Enter is the whole journey without the reader's hands
-leaving where they were typing.
-
-Nothing is highlighted when the panel opens. The top row is usually the thing
-you are already on, so a highlight sitting there offers Enter as a way back to
-where you already are — and it competes with the tick and tint already saying
-which row that is. The first Down is what starts the highlight, and it starts
-it on the first row still showing.
-
-The highlight is an id, not a position, and it is looked up in the rows that
-pass the filter rather than in all of them. A position counts hidden rows, and
-lands the highlight on one; an id that has just been filtered out is dropped,
-so Enter can never reach a row that is not on the screen. Moving it scrolls it
-into view, because the list is short and the rows are not.
-
-It is a tint the reader can see and a name the reader can hear: the filter box
-carries aria-activedescendant, so the highlighted row is announced by the
-control that has focus. A tint on its own would be a highlight only sighted
-readers have. Real focus was the alternative, and it is the wrong one here —
-moving focus to a row takes the caret out of the box, and the next letter typed
-would go nowhere.
-
-The pointer moves the highlight as well, so hovering a row and pressing Enter
-goes to the row under the pointer. Two rows marked at once — one under the
-pointer, one under the arrow keys — would leave nothing on the screen saying
-where Enter goes.
-
-None of this is how the list is reached. Every row is a real link, tabbable in
-order, and Tab-then-Enter works with the panel's script and without it.
-
-  label — the current thing's name, on the leading link. Empty draws no link and
-    leaves the chevron on its own.
-  href — where that link goes.
-  icon — a c-n26.icon name drawn before the label.
-  heading — what the panel is for. Spoken, not drawn: it is the chevron's
-    accessible name unless menu_label says otherwise, and appears nowhere on
-    screen.
-  menu_label — the chevron's accessible name and tooltip. It needs its own,
-    because on its own the chevron has no words beside it to borrow.
+  label, href, icon — the leading link. Without a label there is no link.
+  heading — what the panel is for. Spoken as the chevron's accessible name,
+    never drawn. menu_label overrides it and is what a chevron standing alone
+    has instead of a neighbour's words.
   placeholder — the filter's placeholder, and its accessible name.
   empty — what to show when the filter matches nothing.
-  hotkey — a single letter. ⌥⇧ plus it opens the panel from anywhere on
-    the page and puts the caret in the filter; pressed again it closes.
-    The chevron's tooltip and aria-keyshortcuts say so, because a chord
-    nothing on the screen mentions is one nobody finds. Matched on the
-    physical key (event.code), so a layout that types another glyph on
-    that key still lands the chord. One letter per page: two controls
-    answering one chord would both open, and the reader gets whichever
-    panel the other happens to cover.
+  hotkey — a single letter; ⌥⇧ with it opens and closes the panel from
+    anywhere on the page, and the tooltip and aria-keyshortcuts say so. Matched
+    on the physical key. One letter per page: two controls sharing a chord both
+    open.
   align — which edge of the switcher the panel hangs from: start or end.
-    Either way the panel is kept inside the window.
-  min_width — the panel's minimum width, as a CSS length. Capped at the width of
-    the window.
-  trigger_words — a slot: words drawn inside the chevron's own button, before
-    the glyph. For a control whose panel needs announcing where no label link
-    belongs — "3 tabs" on a collapsed strip. Markup, so a caller can bind the
-    words with x-text. Drawn small and muted whatever the caller passes: they
-    describe the panel rather than name a place, and a strip that has just run
-    out of room is the last row on the screen to spend ink on.
+  min_width — the panel's minimum width, as a CSS length. Capped at the
+    window's width, which a wider minimum would otherwise beat.
+  trigger_words — markup inside the chevron's own button, before the glyph, for
+    a switcher with no label link. Drawn small and muted whatever is passed.
   slot — the destinations, as <c-n26.quick-switcher.item>.
 {% endcomment %}
 <c-vars label=""
@@ -194,18 +59,9 @@ order, and Tab-then-Enter works with the panel's script and without it.
 <div {{ attrs }} data-quick-switcher class="inline-block max-w-full {{ class }}">
     <c-n26.button-group>
         {% comment %}
-        Ghost, both halves. A switcher sits beside a page's own name, where a
-        filled or bordered pair would read as the loudest thing on the screen;
-        ghost keeps the clickable area and gives the ink back to the heading.
-        The two hover fills meet with no seam because the group has already
-        squared the corners between them.
-
         The padding is overridden rather than taken from a smaller size, which
-        would shrink the text with it: the name belongs to the row it sits in
-        and should be the size of the words around it. An important modifier,
-        because the size the button is asking for and the one wanted here are
-        both plain padding utilities — which of two of those wins is decided by
-        the order Tailwind emitted them, and that is not something to build on.
+        would shrink the text with it. Marked important: two plain padding
+        utilities are settled by the order Tailwind emitted them.
         {% endcomment %}
         {% if label %}
             <c-ui.button variant="ghost" size="sm" class="px-2!" href="{{ href }}">
@@ -222,36 +78,12 @@ order, and Tab-then-Enter works with the panel's script and without it.
                        min_width="min({{ min_width }}, calc(100vw - 1rem))">
             <c-slot name="trigger">
                 {% comment %}
-                The chevron is named rather than left to the label beside it:
-                the label is optional, and a control whose accessible name
-                disappears with a neighbour is a control that is sometimes just
-                "button".
+                The chevron carries an accessible name of its own, because the
+                label beside it is optional. aria-expanded is bound, because
+                the open state lives in the dropdown's Alpine scope.
 
-                aria-expanded is bound rather than written, because the panel's
-                open state lives in the dropdown's Alpine scope and a static
-                attribute would say "closed" forever.
-                {% endcomment %}
-                {% comment %}
-                shrink-0, because the switcher is put in rows that run out of
-                room — a top bar on a phone among them. Everything else in the
-                group can give ground and the label truncates, but a chevron
-                squeezed to a sliver is a control nobody can click.
-
-                Narrower than the name and by more, because there is only a
-                glyph to hold: the padding comes down to what keeps the square
-                clickable.
-
-                The glyph itself is drawn at the size the account menu's
-                chevron uses, weight included. A bar carrying two chevrons that
-                disagree about how big a chevron is looks like a mistake, and
-                this is the one that has to give — the account menu's sits
-                alone at the far end with nothing to match it to.
-                {% endcomment %}
-                {% comment %}
-                The tooltip and aria-keyshortcuts carry the chord when there
-                is one: a shortcut nothing on the screen mentions is one
-                nobody finds, and the chevron is the control the chord
-                stands in for.
+                shrink-0: the switcher goes in rows that run out of room, and
+                the label is what gives ground.
                 {% endcomment %}
                 <c-ui.button variant="ghost"
                              size="sm"
@@ -262,18 +94,10 @@ order, and Tab-then-Enter works with the panel's script and without it.
                              aria-haspopup="menu"
                              ::aria-expanded="dropdownMenu">
                     {% comment %}
-                    Words inside the chevron's own button, when the caller has
-                    some — "3 tabs" on a collapsed strip. They open the panel,
-                    not a page: a place to go is what the `label` half is for,
-                    and these are a description of what the panel holds. So
-                    they are drawn a size down and in the muted ink, quieter
-                    than the tab beside them, which is the thing being named.
-
-                    The button becomes a flex row to hold them. The glyph is
-                    .n26-icon-only, which is display:flex — a block-level box
-                    among inline content, so in a button laid out as text it
-                    starts a line of its own and the words end up stacked above
-                    the chevron. It is also what makes `gap` mean anything.
+                    The button becomes a flex row to hold these words: the
+                    glyph's .n26-icon-only is display:flex, so among inline
+                    content it starts a line of its own and the words end up
+                    stacked above the chevron.
                     {% endcomment %}
                     {% if trigger_words.strip %}<span class="text-xs text-muted">{{ trigger_words }}</span>{% endif %}
                     <span class="n26-icon-only">
@@ -285,25 +109,12 @@ order, and Tab-then-Enter works with the panel's script and without it.
                 </c-ui.button>
             </c-slot>
             {% comment %}
-            The panel's own scope. `matches` is read by every item and `shown`
-            by the empty message, so what the list does and what the message
-            says are one computation.
+            The panel's own scope. Every row reads `matches` and the empty
+            message reads `shown`, so the list and the message are one
+            computation.
 
-            Focus moves to the filter as the panel opens: a switcher is opened
-            because you know roughly what you are looking for, and the first
-            keystroke should narrow the list rather than land nowhere. It then
-            stays there — see the key handling below.
-
-            `fit` places the panel. It reaches one element up, because the
-            panel is the box this scope sits inside, and out to the component's
-            own root — marked data-quick-switcher — for the rectangle the panel
-            is placed against; anything wrapped around this div must keep both
-            reachable. The window listeners ride a frame so they land after the
-            kit's own repositioning, which takes one too. A hidden panel has no
-            width to measure and nowhere to be, so it is left alone.
-
-            The ids are minted from one x-id root so that the box and the rows
-            agree on them: `$id` counts per element otherwise, and the box
+            The ids are minted from one x-id root so the filter box and the
+            rows agree on them: $id otherwise counts per element, and the box
             would point at a list id nothing has.
             {% endcomment %}
             <div x-id="['n26-switcher']"
@@ -324,10 +135,9 @@ order, and Tab-then-Enter works with the panel's script and without it.
                          const q = this.query.trim().toLowerCase();
                          return !q || facets.search.includes(q);
                      },
-                     // The highlight is worked out from the rows the filter
-                     // lets through, never from all of them: a position in
-                     // the whole list counts rows nobody can see, and lands
-                     // the highlight on one of them.
+                     // The highlight walks the rows the filter lets through,
+                     // never all of them: a position in the whole list counts
+                     // rows nobody can see and lands on one of them.
                      get visible() { return this.items.filter(row => this.matches(row)) },
                      get shown() { return this.visible.length },
                      highlight(id) { this.active = id },
@@ -343,10 +153,10 @@ order, and Tab-then-Enter works with the panel's script and without it.
                      },
                      keys(event) {
                          if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-                             // The panel around this box answers an arrow key
+                             // The panel around this box handles an arrow key
                              // by putting real focus on a row, which would
                              // take the caret out of the box mid-word. Kept
-                             // from it, and answered by moving the highlight.
+                             // from it; the highlight moves instead.
                              event.preventDefault();
                              event.stopPropagation();
                              this.move(event.key === 'ArrowDown' ? 1 : -1);
@@ -358,29 +168,27 @@ order, and Tab-then-Enter works with the panel's script and without it.
                              const row = this.items.find(r => r.id === this.active);
                              if (!row) return;
                              event.preventDefault();
-                             // A real click on a real link, so the panel
-                             // closes and the browser navigates by the path
-                             // the pointer takes.
+                             // A real click on a real row, so the panel closes
+                             // and the browser navigates by the same path the
+                             // pointer takes.
                              row.el.click();
                          } else if (event.key === 'Escape') {
                              // Kept from the window listener that closes the
                              // panel: a filter with something in it is the
-                             // smaller thing to undo, and a second press
-                             // still leaves.
+                             // smaller thing to undo, and Escape again still
+                             // leaves.
                              event.stopPropagation();
                              if (this.query) { this.query = ''; this.active = '' } else { this.close() }
                          }
                      },
                      fit() {
                          const panel = this.$el.parentElement;
-                         // A panel that is still opening has no width to
-                         // measure. Coming back next frame rather than giving
-                         // up is what places it the FIRST time it opens: give
-                         // up and it is only ever placed on the second open,
-                         // once a previous open has left it with layout.
-                         // Bounded, and only while open, so a panel that never
-                         // gains width cannot spin. Invisible until placed, so
-                         // the frames spent waiting never show it wherever the
+                         // A panel still opening has no width to measure, and
+                         // coming back next frame rather than giving up is
+                         // what places it the first time it opens. Bounded,
+                         // and only while open, so a panel that never gains
+                         // width cannot spin; invisible until placed, so the
+                         // frames spent waiting do not show it wherever the
                          // kit's own writes left it.
                          if (!panel.offsetWidth) {
                              if (this.dropdownMenu && this.tries < 30) {
@@ -398,11 +206,9 @@ order, and Tab-then-Enter works with the panel's script and without it.
                          const drop = document.documentElement.clientHeight;
                          const anchor = panel.closest('[data-quick-switcher]').getBoundingClientRect();
                          // Fixed, so the window is the panel's containing
-                         // block: the width it is offered no longer depends on
+                         // block: the width it is offered does not depend on
                          // where it sits, and a box mid-placement cannot widen
-                         // the page. The kit's own offsets are overwritten
-                         // outright — every event that makes it write is one
-                         // this refits on, afterwards, in the same frame.
+                         // the page or add a horizontal scrollbar.
                          panel.style.position = 'fixed';
                          // The cap uses the same measured width as the clamp:
                          // 100vw counts a scrollbar the window's usable width
@@ -421,10 +227,7 @@ order, and Tab-then-Enter works with the panel's script and without it.
                          const width = panel.offsetWidth;
                          const at = '{{ align }}' === 'end' ? anchor.right - width : anchor.left;
                          panel.style.left = Math.max(this.gutter, Math.min(at, room - this.gutter - width)) + 'px';
-                         // Below the switcher, unless only above has the room:
-                         // sideways the panel is clamped, but vertically there
-                         // is a whole second side to use before covering
-                         // anything.
+                         // Below the switcher, unless only above has the room.
                          const height = panel.offsetHeight;
                          const below = drop - anchor.bottom - gap;
                          const above = anchor.top - gap;
@@ -452,16 +255,14 @@ order, and Tab-then-Enter works with the panel's script and without it.
                          window.addEventListener('resize', this.refit);
                          window.addEventListener('scroll', this.refit, true);
                          {% if hotkey %}
-                         // The chord listens on the window, capture phase:
-                         // it is for reaching this control from wherever
-                         // focus happens to be, and on the way up any
-                         // handler could stop the event before it arrived.
-                         // The letter is matched two ways because neither
-                         // covers everyone alone — with ⌥ held, event.key
-                         // is whatever glyph the layout types there, never
-                         // the letter. event.code is the physical key,
-                         // which a remapped layout (Dvorak) moves; keyCode
-                         // follows the letter wherever the layout put it.
+                         // On the window, capture phase: the chord has to
+                         // reach this control from wherever focus is, and on
+                         // the way up any handler could stop it first. The
+                         // letter is matched two ways because neither covers
+                         // everyone: with ⌥ held, event.key is whatever glyph
+                         // the layout types; event.code is the physical key,
+                         // which a remapped layout moves, and keyCode follows
+                         // the letter wherever the layout put it.
                          this.chord = (event) => {
                              if (!event.altKey || !event.shiftKey || event.metaKey || event.ctrlKey) return;
                              if (event.code !== 'Key{{ hotkey|upper }}' && event.keyCode !== '{{ hotkey|upper }}'.charCodeAt(0)) return;
@@ -481,20 +282,12 @@ order, and Tab-then-Enter works with the panel's script and without it.
                  }"
                  class="flex max-w-[calc(100vw-1rem)] flex-col">
                 {% comment %}
-                No title strip. The panel is already named by the trigger it
-                hangs from and by the placeholder in its own filter, so a line
-                repeating the same words costs a row of the list to say what
-                the reader just clicked. `heading` still names the chevron for
-                anything reading the page aloud — it is spoken, not drawn.
-                {% endcomment %}
-                {% comment %}
-                The box owns the arrow keys, because the box is where focus
-                is. It never gives focus up: it names the highlighted row
-                with aria-activedescendant instead, so what is spoken and
-                what is tinted are the same row and the caret stays in the
-                words being typed. aria-controls is what makes that legal —
-                the row it names is not inside the box, so the box has to say
-                which list it is naming rows in.
+                The filter box owns the arrow keys and never gives focus up:
+                it points at the highlighted row with aria-activedescendant
+                instead, so the caret stays in the words being typed.
+                aria-controls is what makes that legal — the row it points at sits
+                outside the box, so the box has to say which list it is naming
+                a row in.
                 {% endcomment %}
                 <div class="border-b border-box-border p-2">
                     <c-ui.input type="search"
@@ -513,16 +306,10 @@ order, and Tab-then-Enter works with the panel's script and without it.
                     </c-ui.input>
                 </div>
                 {% comment %}
-                No negative bottom margin here, however tidy it would make
-                the last row's rule: a negative margin shrinks the box's
-                layout height but not the scrollable overflow it leaves in
-                the panel around it, so the panel becomes a scroll container
-                with exactly one pixel of scroll — a scrollbar and a wheel
-                jiggle on a list that fits. The last visible row's own rule
-                sitting a pixel inside the panel's edge is the cheaper of
-                the two. Each row draws its own rule (see the item), which
-                is what keeps filtering from stranding one at the top of
-                the list.
+                No negative bottom margin here, however tidy it would make the
+                last row's rule: it shrinks this box's layout height but not
+                the overflow it leaves in the panel, so a list that fits gains
+                a scrollbar and one pixel of scroll.
                 {% endcomment %}
                 <div :id="$id('n26-switcher') + '-list'" class="max-h-72 overflow-y-auto">{{ slot }}</div>
                 {% comment %}
@@ -537,11 +324,8 @@ order, and Tab-then-Enter works with the panel's script and without it.
     </c-n26.button-group>
     {% comment %}
     The same destinations, drawn flat for a reader whose browser ran no script
-    and therefore has no panel to open. No filter box with them: a filter that
-    cannot filter is a field that swallows typing and does nothing.
-
-    It gives up its width on a screen too narrow for it, for the same reason the
-    panel is clamped: a strip that runs past the edge is a list you cannot read.
+    and so has no panel to open. No filter box with them: a filter that cannot
+    filter is a field that swallows typing and does nothing.
     {% endcomment %}
     <noscript>
         <div class="mt-2 w-72 max-w-full overflow-hidden rounded-box border border-box-border">

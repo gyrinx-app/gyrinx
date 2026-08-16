@@ -9,56 +9,27 @@
         <c-slot name="actions"><c-ui.button>Edit</c-ui.button></c-slot>
     </c-n26.page-header>
 
-Exists because two screens had already disagreed. The gang sheet set its name at
-text-2xl/sm:text-3xl and the hire form set its at text-xl/sm:text-2xl, for no
-reason either of them could have told you — a page title is a page title, and the
-size of one should not depend on which template a person happened to be editing.
+One heading scale for every page in the app, decided here.
 
-One scale, chosen here once. Everything else about a header is optional and
-composes: the trail above it, a quiet line under it, and controls that belong to
-the page rather than to anything on it.
+`title` and `lead` each take either shape: an attribute for plain words, or a
+slot of the same name for markup — a reader's badge after their username, say.
+An attribute is escaped, so markup passed that way is printed as source; pass
+both and the attribute wins, silently. Both are tested with `.strip`, which
+works on a string and on slot content alike.
 
-  --- the lead ---
-
-One name, either shape: pass `lead="…"` for a few words or open a `lead` slot for
-markup, and the same test works for both — `.strip` is a method on a string as
-much as it is on slot content, so the template does not have to know which it got.
-That is what lets the common case stay a bare attribute instead of taxing every
-caller with a slot to write three words in.
-
-Quiet, and directly under the title with no gap of its own — it is what the thing
-*is* rather than what it is called, and a reader needs it once. Same relationship
-a fighter card draws between a name and its type line.
-
-  title — the page's name. Rendered as the h1; there should be one per page.
-    Either shape, the same way `lead` is: an attribute for plain words, or a
-    `title` slot when the name carries markup — a reader's badge after their
-    username, say. An attribute is escaped, so markup passed that way is
-    printed as source. Pass both and the attribute wins, silently.
-  trailing — a control immediately after the title, on its line and outside the
-    h1: a switcher to the page's siblings is the case it exists for. Outside,
-    because what goes here is a control rather than part of the page's name,
-    and inside the h1 it would be read out as one.
-  leading — a mark before the title, inside the h1 and on its line: a gang's
-    colour swatch, and nothing that carries meaning of its own, because whatever
-    goes here is read out as part of the page's name. A slot rather than a
-    colour prop — where the mark comes from is the page's business, and a header
-    that knows what a gang is would be a header that knows too much.
-  lead — a line under it. Ignored if the lead slot has content.
-  breadcrumb — the trail above the title, if the page has one.
-  actions — controls for the page as a whole. Wraps under the title on a phone
-    rather than squeezing it: a title that truncates to make room for a button is
-    the wrong thing to have shortened.
+  title — the page's name, as its h1. There should be one per page.
+  leading — a mark before the title and inside the h1: a gang's colour swatch,
+    and nothing that carries meaning, since whatever is here is read out as part
+    of the page's name.
+  trailing — a control after the title, on its line but outside the h1, where it
+    would otherwise be read out as part of the name. A switcher to the page's
+    siblings is the case it exists for.
+  actions — controls for the page as a whole. They wrap under the title on a
+    narrow screen rather than squeezing it.
 {% endcomment %}
-{% comment %}
-Every slot is declared even though they are only ever filled as slots. An
-undeclared slot name is not empty when nobody fills it — it is whatever the
-enclosing scope happens to have under that name, so a wrapper component with an
-`actions` slot of its own has it drawn up here as well as wherever the wrapper
-meant to put it, and a page holding a `breadcrumb` for its own reasons grows a
-trail it never asked for. Declaring them gives the unfilled case a real default
-of "".
-{% endcomment %}
+{# The slots are declared: an undeclared slot name is not empty when nobody #}
+{# fills it — it resolves to the caller's own variable of that name, and a #}
+{# wrapper drawing this header usually has an `actions` slot of its own. #}
 <c-vars
     title=""
     lead=""
@@ -80,10 +51,6 @@ of "".
             space on top of whatever gap the mark already carries. |safe puts
             back the marking .strip drops, so markup in the slot survives.
             {% endcomment %}
-            {% comment %}
-            The trailing control shares the title's row, centred on it. It wraps
-            under the title on a narrow screen instead of shortening it.
-            {% endcomment %}
             {% if trailing.strip %}
                 <div class="flex flex-wrap items-center gap-2">
                     <h1 class="text-2xl font-semibold text-ink-900 dark:text-ink-100 sm:text-3xl">{{ leading.strip|safe }}{{ title }}</h1>
@@ -93,15 +60,13 @@ of "".
                 <h1 class="text-2xl font-semibold text-ink-900 dark:text-ink-100 sm:text-3xl">{{ leading.strip|safe }}{{ title }}</h1>
             {% endif %}
             {% comment %}
-            slot.strip, not slot: a header written across several lines with only
-            named slots inside it still has a default slot holding the newlines
-            between them, and Django counts whitespace as truthy.
-            {% endcomment %}
-            {% comment %}
-            Body size. Quiet comes from the colour, not from shrinking it: the
-            lead is usually the sentence that says what the page is for, and a
-            reader who needs it is worse off reading it at 14px. Small text is
-            for what a reader is meant to scan past.
+            lead.strip, not lead: a header written across several lines with
+            only named slots inside it still passes the newlines between them,
+            and Django counts whitespace as truthy.
+
+            Body size, quiet from its colour rather than from shrinking: the
+            lead is usually the sentence saying what the page is for, and small
+            text is for what a reader is meant to scan past.
             {% endcomment %}
             {% if lead.strip %}<p class="text-muted">{{ lead }}</p>{% endif %}
         </div>
