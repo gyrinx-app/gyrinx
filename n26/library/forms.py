@@ -942,6 +942,24 @@ def scope_kind_cards(picked="", carrier=None):
     return cards
 
 
+def chosen_kind_cards(modifier):
+    """The two cards this modifier's kinds were picked from — label and
+    blurb only, for a page that shows the settled kinds rather than
+    offering them again. The kinds are what a modifier *is*, so the page
+    that corrects one states them and never asks."""
+    scope_kind, effect_kind = _scope_verb(modifier.scope), _effect_verb(modifier.effect)
+    return (
+        {
+            "label": _verb_label(scope_kind, SCOPE_MODELS.get(scope_kind)),
+            "blurb": specs()[scope_kind].blurb,
+        },
+        {
+            "label": _verb_label(effect_kind, EFFECT_MODELS.get(effect_kind)),
+            "blurb": specs()[effect_kind].blurb,
+        },
+    )
+
+
 def effect_kind_cards(picked=""):
     """The WHAT picker as cards, each carrying the target kinds it can
     apply to — the client greys it the moment the picked scope produces

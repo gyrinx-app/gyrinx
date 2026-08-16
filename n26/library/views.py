@@ -2597,7 +2597,7 @@ def modifier_page(request, pk):
     The kinds are not editable here (``ModifierComposerForm.opened_on``
     says why); everything inside them is, conditions included.
     """
-    from n26.library.forms import ModifierComposerForm
+    from n26.library.forms import ModifierComposerForm, chosen_kind_cards
 
     modifier = _modifier_or_404(pk)
 
@@ -2644,11 +2644,17 @@ def modifier_page(request, pk):
         )
 
     carriers = _carriers(modifier)
+    who_card, what_card = chosen_kind_cards(modifier)
     return render(
         request,
         "authoring/modifier.html",
         {
             "thing": modifier,
+            # The cards the kinds were picked from, restated read-only:
+            # a correction is made against what the kind means, and the
+            # page that offered that meaning is long gone.
+            "who_card": who_card,
+            "what_card": what_card,
             "sentence": f"{modifier.scope}: {modifier.effect}",
             "prose": _what_it_does(modifier),
             "carriers": carriers,

@@ -4775,6 +4775,18 @@ class TestAModifiersOwnPage:
         assert "Beast Handler" in body
         assert "Outrider" in body
 
+    def test_the_page_states_the_settled_kinds_in_their_own_words(self, shared, client):
+        """The kinds are not offered again on this page, so each pane
+        leads with the card its kind was picked from — the correction is
+        made against what the kind means, read-only."""
+        made, _ = shared
+        body = client.get(f"/n26/authoring/modifiers/{made.pk}/").content.decode()
+
+        assert "The model carrying it" in body
+        assert "Whoever has the item carrying this modifier on their card." in body
+        assert "Gives something" in body
+        assert "The target gains a subtype" in body
+
     def test_a_modifier_nothing_carries_says_so(self, mounted, client):
         from n26.library.authoring import ef_adds, modifier, targets_model
 
