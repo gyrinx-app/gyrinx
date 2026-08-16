@@ -813,6 +813,10 @@ def context():
         # The same list a fighter's edit page ticks: what they hold, and
         # the one thing a rule gives them that no click can clear.
         "tick_list_offer": tick_list_offer(),
+        # The two halves a pick list draws: what is held, and the rest of
+        # the library its panel offers.
+        "pick_list_held": pick_list_held(),
+        "pick_list_addable": pick_list_addable(),
         "editable_statline": editable_statline(),
         # A profile nobody has typed a statline for yet, and one where a
         # value was refused: the two states the editor has that a card
@@ -974,6 +978,71 @@ def choice_picks_offer(full=False):
         takes_several=True,
         groups=[ChoosableGroup(name="", options=held if full else [*held, *rest])],
     )
+
+
+def pick_list_held():
+    """What the thing has, as a pick list draws it: one the owner added,
+    one a rule gives that no click can clear, and one money stands behind
+    that a removal would leave exactly where it is."""
+    return ChoiceOffer(
+        label="",
+        groups=[
+            ChoosableGroup(
+                name="Skills",
+                options=[
+                    Choosable(
+                        key="library.skill:1",
+                        name="Catfall",
+                        is_current=True,
+                        detail="added by you",
+                    ),
+                    Choosable(
+                        key="library.skill:3",
+                        name="Dodge",
+                        is_current=True,
+                        granted_by="Keen-eyed",
+                    ),
+                    Choosable(
+                        key="library.skill:9",
+                        name="Sprint",
+                        is_current=True,
+                        fixed_because="bought — sell it to take it away",
+                    ),
+                ],
+            )
+        ],
+    )
+
+
+def pick_list_addable():
+    """The rest of the library the panel offers — enough rows that the
+    filter box is the way through them rather than the eye."""
+    names = [
+        "Backstab",
+        "Ballistic Expert",
+        "Berserker",
+        "Bull Charge",
+        "Clamber",
+        "Combat Master",
+        "Escape Artist",
+        "Fearsome",
+        "Gunfighter",
+        "Headbutt",
+        "Infiltrate",
+        "Iron Jaw",
+        "Lie Low",
+        "Mighty Leap",
+        "Nerves of Steel",
+        "Overwatch",
+        "Parry",
+        "Precision Shot",
+        "Spring Up",
+        "Unstoppable",
+    ]
+    return [
+        Choosable(key=f"library.skill:{100 + at}", name=name)
+        for at, name in enumerate(names)
+    ]
 
 
 def tick_list_offer():

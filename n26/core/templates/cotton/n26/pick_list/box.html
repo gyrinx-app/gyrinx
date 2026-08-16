@@ -1,0 +1,40 @@
+{% comment %}
+<c-n26.pick-list.box> — one option of a pick list, as a box to tick.
+
+    <c-n26.pick-list.box :option="option" name="subtypes" />
+
+The row <c-n26.pick-list> draws, whether the thing is held or is one of the
+hundred the panel offers — one definition, so the two runs cannot come to look
+different. Binds to `picked` above it in the Alpine scope, which is what lets
+the panel tick a box and the list read what is ticked.
+
+Every line states its own size: `text-muted` is a colour and carries none, so a
+muted line without one inherits whatever it sits in and can come out larger
+than the name it belongs under.
+
+  :option — a n26.render.Choosable.
+  name — the input name this box submits under.
+{% endcomment %}
+<c-vars :option="None" name="thing" class="" />
+
+<label {{ attrs }}
+       class="flex items-start gap-2 py-0.5 {% if option.granted_by or option.fixed_because %}cursor-not-allowed opacity-60{% else %}cursor-pointer{% endif %} {{ class }}"
+       {% if option.granted_by %}title="From {{ option.granted_by }}"{% elif option.fixed_because %}title="{{ option.fixed_because }}"{% endif %}>
+    <input type="checkbox"
+           name="{{ name }}"
+           value="{{ option.key }}"
+           x-model="picked"
+           {% if option.is_current %}checked{% endif %}
+           {% if option.granted_by or option.fixed_because %}disabled{% endif %}
+           class="mt-1 size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
+    <span class="min-w-0 flex-1">
+        <span class="block text-base text-ink-900 dark:text-ink-100">{{ option.name }}</span>
+        {% if option.granted_by %}
+            <span class="block text-sm text-muted">From {{ option.granted_by }}</span>
+        {% elif option.fixed_because %}
+            <span class="block text-sm text-muted">{{ option.fixed_because }}</span>
+        {% elif option.detail %}
+            <span class="block text-sm text-muted">{{ option.detail }}</span>
+        {% endif %}
+    </span>
+</label>

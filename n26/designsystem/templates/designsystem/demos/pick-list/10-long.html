@@ -1,0 +1,18 @@
+{# title: What it has, and a way to add #}
+{# note: The held things are boxes; the button opens the rest as a searchable panel, the same shape as the quick switcher elsewhere. Click a row and its box appears above, ticked; clear a box and the row is offered again. Nothing reloads — every box was already on the page, and the panel only ticks them. Save is disabled until the ticked set differs from the one the page opened with. #}
+{# layout: col #}
+<form>
+    <c-n26.pick-list :offer="pick_list_held"
+                     :addable="pick_list_addable"
+                     name="skills"
+                     add_label="Add a skill"
+                     placeholder="Search skills">
+        <c-slot name="actions">
+            <div class="flex items-center justify-end gap-2">
+                <c-ui.button type="submit" variant="success" size="sm" ::disabled="!dirty">
+                    Save skills
+                </c-ui.button>
+            </div>
+        </c-slot>
+    </c-n26.pick-list>
+</form>

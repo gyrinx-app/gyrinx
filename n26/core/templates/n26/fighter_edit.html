@@ -93,60 +93,46 @@ is named by the page's own heading directly below.
             </form>
         </c-slot>
         {% comment %}
-        What the model is — its subtypes and its special rules. What the
-        card shows is a short list of boxes: clearing one takes the thing
-        away however it arrived (a paid-for one stays, and the page says
-        so). The rest of the library is a hundred rules nobody scans, so
-        it is a select with a filter box over it rather than a list —
-        picking from it adds in the owner's name.
-
-        The boxes and the select share an input name, so the browser
-        posts one list however a thing was chosen and the difference is
-        taken once. Both work with no script: the select renders as the
-        plain multiple select it is.
+        What the model is — its subtypes and its special rules, each the
+        whole library as boxes with what the card shows gathered on top
+        (see <c-n26.pick-list>). Ticking one adds it in the owner's name;
+        clearing one takes it away however it arrived. A thing money
+        stands behind is drawn fixed and says so, because a removal would
+        leave it exactly where it is — the equip screen's sale is the way
+        to be rid of it.
 
         Reset per section archives the owner's edits, so the content's
         own answer is always one act away — which is why Reset is drawn
-        only while there are edits to undo.
+        only while there are edits to undo. Save says whether there is
+        anything to save.
         {% endcomment %}
         <c-slot name="edits">
             {% if subtype_edits or subtype_more or rule_edits or rule_more %}
                 <div class="space-y-5">
                     {% if subtype_edits or subtype_more %}
                         <div>
+                            <h3 class="mb-1 text-base font-semibold text-ink-900 dark:text-ink-100">Subtypes</h3>
                             <form method="post" action="{{ edit_url }}">
                                 {% csrf_token %}
                                 <input type="hidden" name="act" value="subtypes">
-                                {% if subtype_edits %}
-                                    <c-n26.tick-list :offer="subtype_edits" name="subtypes" />
-                                {% endif %}
-                                {% if subtype_more %}
-                                    <div class="{% if subtype_edits %}mt-3{% endif %}">
-                                        <label for="add-subtype"
-                                               class="mb-1 block text-sm font-medium text-ink-700 dark:text-ink-300">
-                                            Add a subtype
-                                        </label>
-                                        <c-n26.filter-select placeholder="Type to filter subtypes">
-                                            <c-ui.select.native name="subtypes" id="add-subtype" placeholder="" multiple>
-                                                {% for option in subtype_more %}
-                                                    <c-ui.select.option value="{{ option.key }}">
-                                                        {{ option.name }}
-                                                    </c-ui.select.option>
-                                                {% endfor %}
-                                            </c-ui.select.native>
-                                        </c-n26.filter-select>
-                                    </div>
-                                {% endif %}
-                                <div class="mt-3 flex items-center justify-end gap-2">
-                                    {% if subtype_edits_dirty %}
-                                        <c-ui.button type="submit" form="reset-subtypes" variant="subtle" size="sm">
-                                            Reset
-                                        </c-ui.button>
-                                    {% endif %}
-                                    <c-ui.button type="submit" variant="success" size="sm">
-                                        Save subtypes
-                                    </c-ui.button>
-                                </div>
+                                <c-n26.pick-list :offer="subtype_edits"
+                                                 :addable="subtype_more"
+                                                 name="subtypes"
+                                                 add_label="Add a subtype"
+                                                 placeholder="Search subtypes">
+                                    <c-slot name="actions">
+                                        <div class="flex items-center justify-end gap-2">
+                                            {% if subtype_edits_dirty %}
+                                                <c-ui.button type="submit" form="reset-subtypes" variant="subtle" size="sm">
+                                                    Reset
+                                                </c-ui.button>
+                                            {% endif %}
+                                            <c-ui.button type="submit" variant="success" size="sm" ::disabled="!dirty">
+                                                Save subtypes
+                                            </c-ui.button>
+                                        </div>
+                                    </c-slot>
+                                </c-n26.pick-list>
                             </form>
                             {% if subtype_edits_dirty %}
                                 <form id="reset-subtypes" method="post" action="{{ edit_url }}">
@@ -159,39 +145,28 @@ is named by the page's own heading directly below.
                     {% endif %}
                     {% if rule_edits or rule_more %}
                         <div>
+                            <h3 class="mb-1 text-base font-semibold text-ink-900 dark:text-ink-100">Special rules</h3>
                             <form method="post" action="{{ edit_url }}">
                                 {% csrf_token %}
                                 <input type="hidden" name="act" value="rules">
-                                {% if rule_edits %}
-                                    <c-n26.tick-list :offer="rule_edits" name="rules" />
-                                {% endif %}
-                                {% if rule_more %}
-                                    <div class="{% if rule_edits %}mt-3{% endif %}">
-                                        <label for="add-rule"
-                                               class="mb-1 block text-sm font-medium text-ink-700 dark:text-ink-300">
-                                            Add a special rule
-                                        </label>
-                                        <c-n26.filter-select placeholder="Type to filter special rules">
-                                            <c-ui.select.native name="rules" id="add-rule" placeholder="" multiple>
-                                                {% for option in rule_more %}
-                                                    <c-ui.select.option value="{{ option.key }}">
-                                                        {{ option.name }}
-                                                    </c-ui.select.option>
-                                                {% endfor %}
-                                            </c-ui.select.native>
-                                        </c-n26.filter-select>
-                                    </div>
-                                {% endif %}
-                                <div class="mt-3 flex items-center justify-end gap-2">
-                                    {% if rule_edits_dirty %}
-                                        <c-ui.button type="submit" form="reset-rules" variant="subtle" size="sm">
-                                            Reset
-                                        </c-ui.button>
-                                    {% endif %}
-                                    <c-ui.button type="submit" variant="success" size="sm">
-                                        Save rules
-                                    </c-ui.button>
-                                </div>
+                                <c-n26.pick-list :offer="rule_edits"
+                                                 :addable="rule_more"
+                                                 name="rules"
+                                                 add_label="Add a special rule"
+                                                 placeholder="Search special rules">
+                                    <c-slot name="actions">
+                                        <div class="flex items-center justify-end gap-2">
+                                            {% if rule_edits_dirty %}
+                                                <c-ui.button type="submit" form="reset-rules" variant="subtle" size="sm">
+                                                    Reset
+                                                </c-ui.button>
+                                            {% endif %}
+                                            <c-ui.button type="submit" variant="success" size="sm" ::disabled="!dirty">
+                                                Save rules
+                                            </c-ui.button>
+                                        </div>
+                                    </c-slot>
+                                </c-n26.pick-list>
                             </form>
                             {% if rule_edits_dirty %}
                                 <form id="reset-rules" method="post" action="{{ edit_url }}">

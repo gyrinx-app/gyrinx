@@ -1,0 +1,137 @@
+{% comment %}
+<c-n26.pick-list> — what a thing has, and a searchable way to add to it.
+
+    <c-n26.pick-list :offer="held" :addable="rest" name="subtypes"
+                     add_label="Add a subtype" placeholder="Search subtypes">
+        <c-slot name="actions">…Reset and Save…</c-slot>
+    </c-n26.pick-list>
+
+A list of ticked boxes, and a button that opens the rest of the library as a
+searchable panel. Click a row in the panel and its box appears in the list
+above, already ticked; clear a box and the row is offered again. Nothing is
+fetched and nothing reloads, because every box was already on the page.
+
+The panel is <c-n26.quick-switcher>, which is where a reader has already met
+this shape — a chevron, a filter box, arrow keys, Enter on the highlighted row.
+Its rows are <c-n26.quick-switcher.choice>, which report a value rather than
+navigate; the value is the option's key, because two rows can read alike and
+mean different rows.
+
+  --- the boxes are the control ---
+
+Every option is a real checkbox with the same name, ticked or not by the
+server, and the form posts exactly what it always did. The panel only ticks
+them: it adds no input of its own, so there is nothing to post that nobody
+chose, and no value can arrive that was not already on the page.
+
+  --- with no script ---
+
+The addable boxes are hidden by an inline style and shown again by a <noscript>
+rule, so a reader with no script gets one plain list of every option — the
+whole library, ticked where it is held — and the form works. The panel is
+cloaked, because a filter box and a chevron that do nothing are worse than no
+control at all. With script the same style keeps the hundred unticked boxes
+from flashing up before Alpine folds them away.
+
+  --- Save says whether there is anything to save ---
+
+With script, Save is disabled until the ticked set differs from the one the
+page arrived with. The `actions` slot renders inside this component's Alpine
+scope, which is what lets a caller bind `::disabled="!dirty"` on its own
+button. Without script `dirty` is nothing, the attribute is never added, and
+Save stays live.
+
+  --- what a fixed box means ---
+
+An option the offer marks granted, or otherwise fixed, is drawn ticked and
+disabled saying why — as <c-n26.tick-list> draws them. A disabled box submits
+nothing, so whatever applies the difference must leave those out rather than
+read their silence as a clearing.
+
+  :offer — a n26.render.ChoiceOffer: what the thing has, and anything the owner
+    has touched. Always drawn, so a row saying "taken away by you" stays where
+    it can be put back.
+  :addable — the rest of the library, as n26.render.Choosable options. Each is
+    a box that appears once ticked, and a row in the panel until it is.
+  name — the input name every box submits under.
+  add_label — the panel's heading, and the words on the button that opens it.
+  placeholder — the filter's placeholder, and its accessible name.
+  actions — the form's buttons. Rendered inside the Alpine scope, so they may
+    read `dirty`.
+{% endcomment %}
+<c-vars :offer="None"
+        :addable="None"
+        name="thing"
+        add_label="Add"
+        placeholder="Search"
+        actions=""
+        class="" />
+
+{% comment %}
+`picked` is the ticked set and every box binds to it, so the boxes are the truth
+and this only reads them. `opened` is the set the page arrived with, kept so
+Save can say whether anything moved.
+{% endcomment %}
+<div {{ attrs }}
+     x-data="{
+         picked: [],
+         opened: [],
+         init() {
+             this.picked = Array.from(
+                 this.$root.querySelectorAll('input[type=checkbox]:checked')
+             ).map(box => box.value);
+             this.opened = [...this.picked];
+         },
+         isPicked(key) { return this.picked.includes(key) },
+         pick(key) { if (!this.isPicked(key)) this.picked.push(key) },
+         get dirty() {
+             return this.picked.length !== this.opened.length
+                 || this.picked.some(key => !this.opened.includes(key));
+         },
+     }"
+     @quick-switcher-choose="pick($event.detail.value)"
+     class="{{ class }}">
+    <noscript>
+        <style>.n26-addable { display: flex !important; }</style>
+    </noscript>
+    <div class="flex flex-col">
+        {% for group in offer.groups %}
+            {% for option in group.options %}
+                <c-n26.pick-list.box :option="option" name="{{ name }}" />
+            {% endfor %}
+        {% endfor %}
+        {% comment %}
+        Hidden until ticked, and hidden by a style rather than by x-show alone
+        so a hundred boxes do not flash up before Alpine folds them away. The
+        noscript rule above puts them back for a reader with no script, for
+        whom this list is the only way to add anything.
+        {% endcomment %}
+        {% for option in addable %}
+            <c-n26.pick-list.box :option="option"
+                                 name="{{ name }}"
+                                 class="n26-addable"
+                                 style="display: none"
+                                 x-show="isPicked('{{ option.key }}')" />
+        {% endfor %}
+    </div>
+    {% if addable %}
+        {% comment %}
+        Cloaked: without Alpine the panel cannot filter and its rows cannot
+        tick anything, and the full list of boxes above is the way in.
+        {% endcomment %}
+        <div x-cloak class="mt-2">
+            <c-n26.quick-switcher heading="{{ add_label }}"
+                                  menu_label="{{ add_label }}"
+                                  trigger_words="{{ add_label }}"
+                                  placeholder="{{ placeholder }}"
+                                  min_width="20rem">
+                {% for option in addable %}
+                    <c-n26.quick-switcher.choice label="{{ option.name }}"
+                                                 value="{{ option.key }}"
+                                                 available="!isPicked('{{ option.key }}')" />
+                {% endfor %}
+            </c-n26.quick-switcher>
+        </div>
+    {% endif %}
+    {% if actions.strip %}<div class="mt-3">{{ actions }}</div>{% endif %}
+</div>
