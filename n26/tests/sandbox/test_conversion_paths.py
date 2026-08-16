@@ -222,6 +222,59 @@ class TestTheRefusals:
         stray.refresh_from_db()
         assert stray.affiliation == paths["Path of the Fanatic"]
 
+    def test_a_shared_offer_is_a_problem_not_a_silent_detach(
+        self, gangs, prod_shape, default_pack
+    ):
+        """The offer modifier is deleted, so a second carrier would
+        silently lose its question — and its gangs sit outside the
+        proof. Shared is refused."""
+        from n26.library.authoring import attach_modifiers_to
+
+        _, carrier, _ = prod_shape
+        offer = next(
+            m
+            for m in carrier.modifiers.all()
+            if getattr(m, "offers_choice", None) is not None
+        )
+        attach_modifiers_to(create_hidden("Another door"), [offer])
+
+        plan = plan_paths()
+
+        assert not plan.ok
+        assert "shared" in plan.problems[0]
+
+
+class TestAGangThatSwitchedItsPath:
+    """A taken-back pick is archived, not deleted, and still names the
+    affiliation — left behind it would PROTECT the retirement. It is
+    rewritten like the live one, so the history stays coherent."""
+
+    def test_the_archived_pick_is_rewritten_and_the_retirement_lands(
+        self, gangs, prod_shape
+    ):
+        settled, _ = gangs
+        _, carrier, paths = prod_shape
+        anchor = Assignment.objects.get(hidden=carrier, gang=settled)
+        remove(Assignment.objects.get(affiliation__isnull=False, gang=settled))
+        choose(anchor, paths["Path of the Fanatic"])
+        archived = Assignment.objects.get(
+            affiliation__name="Path of the Pious", gang=settled, archived=True
+        )
+
+        report = apply(plan_paths())
+
+        assert not Affiliation.objects.filter(name__startswith="Path of").exists()
+        archived.refresh_from_db()
+        assert archived.affiliation_id is None
+        assert archived.pickable == Pickable.objects.get(name="Path of the Pious")
+        assert archived.archived is True
+        live = Assignment.objects.get(pickable__isnull=False, archived=False)
+        assert live.pickable.name == "Path of the Fanatic"
+        assert report[-1] == "[paths] applied; every page reads the same"
+        assert_reconciled(settled)
+
+
+class TestNothingToConvert:
     def test_an_empty_world_is_nothing_to_convert(self, default_pack):
         plan = plan_paths()
 

@@ -24,6 +24,11 @@ def _names(lines):
     return sorted(str(line.name) for line in lines)
 
 
+def _rated(lines):
+    """Lines whose printed figure matters as much as their name."""
+    return sorted((str(line.name), line.rating) for line in lines)
+
+
 def _choices(lines):
     """Each question as (what the card calls it, what settled it)."""
     return sorted((line.kind_label, line.chosen or "") for line in lines)
@@ -37,10 +42,17 @@ def _weapons(lines):
     return sorted(
         (
             weapon.name,
+            weapon.base_rating,
             tuple(
-                (profile.name, tuple(sorted(t.name for t in profile.traits)))
+                (
+                    profile.name,
+                    profile.rating,
+                    _statline(profile.statline),
+                    tuple(sorted(t.name for t in profile.traits)),
+                )
                 for profile in weapon.profiles
             ),
+            tuple(sorted(a.name for a in weapon.accessories)),
         )
         for weapon in lines
     )
@@ -62,11 +74,12 @@ def _model_state(card):
         "skills": _names(card.skills),
         "powers": _names(card.powers),
         "rules": _names(card.rules),
-        "equipment": _names(card.equipment),
+        "equipment": _rated(card.equipment),
         "collections": _names(card.collections),
         "choices": _choices([*card.choices, *card.skill_choices, *card.power_choices]),
         "remarks": _remarks(card.remarks),
         "xp": card.xp,
+        "xp_target": card.xp_target,
     }
 
 
@@ -86,7 +99,7 @@ def gang_state(gang):
         "counters": sorted(
             (str(counter.name), str(counter.value)) for counter in sheet.counters
         ),
-        "stash": _names(sheet.stash),
+        "stash": _rated(sheet.stash),
         "stash_rating": sheet.stash_rating,
         "notes": _remarks(sheet.notes),
         "models": {card.id: _model_state(card) for card in sheet.models},

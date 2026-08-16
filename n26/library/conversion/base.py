@@ -29,6 +29,20 @@ from dataclasses import dataclass, field
 from django.db import transaction
 
 
+def carriers_of(modifier):
+    """Everything carrying this modifier, across every library kind — a
+    plan that detaches or deletes one must know it is not shared."""
+    from django.apps import apps as django_apps
+
+    found = []
+    for model in django_apps.get_app_config("library").get_models():
+        if not any(f.name == "modifiers" for f in model._meta.many_to_many):
+            continue
+        for row in model.objects.filter(modifiers=modifier):
+            found.append((model.__name__, row))
+    return found
+
+
 class ConversionRefused(Exception):
     """The apply found the world changed by its own hand — or not shaped
     the way the plan promised — and unwound. The message says exactly
@@ -283,11 +297,24 @@ def apply(plan):
 
     report = list(plan.preview())
     with transaction.atomic():
-        gangs = list(Gang.objects.filter(pk__in=plan.gang_ids))
-        before = {str(gang.pk): gang_state(gang) for gang in gangs}
+        before = {
+            str(gang.pk): gang_state(gang)
+            for gang in Gang.objects.filter(pk__in=plan.gang_ids)
+        }
         made = _Made()
         for step in plan.steps:
-            step.perform(made)
+            try:
+                step.perform(made)
+            except Exception as failed:
+                # A step that cannot be performed is a refusal too: the
+                # command and the migration both promise words, never a
+                # traceback, and the transaction unwinds either way.
+                raise ConversionRefused(
+                    f"[{plan.system}] failed at “{step.say()}”: {failed}"
+                ) from failed
+        # Fresh instances: the steps may have moved column-backed facts,
+        # and a stale row would compare stale with stale.
+        gangs = list(Gang.objects.filter(pk__in=plan.gang_ids))
         after = {str(gang.pk): gang_state(gang) for gang in gangs}
         changed = differences(before, after)
         if changed:
@@ -296,6 +323,11 @@ def apply(plan):
                 + "\n  ".join(changed)
             )
         for gang in gangs:
-            assert_reconciled(gang)
+            try:
+                assert_reconciled(gang)
+            except Exception as failed:
+                raise ConversionRefused(
+                    f"[{plan.system}] refused — {gang} no longer reconciles: {failed}"
+                ) from failed
     report.append(f"[{plan.system}] applied; every page reads the same")
     return report

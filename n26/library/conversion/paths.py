@@ -34,11 +34,11 @@ def plan_paths():
 
     problems = []
 
-    if SlotType.objects.filter(name=SLOT_TYPE).exists():
+    if SlotType.objects.filter(name=SLOT_TYPE, archived=False).exists():
         # Applied already — the slot type is this conversion's own mark.
         return Plan(system="paths", nothing_here=True)
 
-    hiddens = list(Hidden.objects.filter(name=CARRIER_NAME))
+    hiddens = list(Hidden.objects.filter(name=CARRIER_NAME, archived=False))
     if not hiddens:
         return Plan(system="paths", nothing_here=True)
     if len(hiddens) > 1:
@@ -63,6 +63,21 @@ def plan_paths():
             ),
         )
     offer = offers[0]
+    from n26.library.conversion.base import carriers_of
+
+    other_carriers = [
+        f"{kind} “{row}”"
+        for kind, row in carriers_of(offer)
+        if not (kind == "Hidden" and row.pk == carrier.pk)
+    ]
+    if other_carriers:
+        return Plan(
+            system="paths",
+            problems=(
+                "the Path offer is shared — also carried by "
+                + ", ".join(other_carriers),
+            ),
+        )
     section = offer.offers_choice.from_section
     if section is None:
         return Plan(
@@ -82,8 +97,11 @@ def plan_paths():
             f"the “{menu.name}” menu lists {len(old_paths)} affiliations — expected exactly the two paths"
         )
 
+    # Archived picks too: a gang that switched its path keeps the row it
+    # took back, still naming the affiliation — left behind, it would
+    # PROTECT the retirement. The same rewrite keeps the history coherent.
     picks = list(
-        Assignment.objects.filter(archived=False, affiliation__in=old_paths)
+        Assignment.objects.filter(affiliation__in=old_paths)
         .select_related("affiliation", "gang_root")
         .order_by("created")
     )
