@@ -177,3 +177,18 @@ def test_track_banner_click_invalid_banner_id():
 
     # Should get 404
     assert response.status_code == 404
+
+
+@pytest.mark.django_db
+def test_track_banner_click_id_that_is_not_an_id():
+    """A hand-typed address is a 404, not a server error.
+
+    The view looks the banner up by primary key. Handed something that is
+    not a UUID, that lookup raises instead of answering "no such banner",
+    so the address has to fail to route in the first place.
+    """
+    client = Client()
+
+    response = client.get("/banner/nonsense/click/")
+
+    assert response.status_code == 404

@@ -43,9 +43,13 @@ patterns = [
         n23.core.views.dismiss_banner,
         name="dismiss-banner",
     ),
-    # Banner click tracking
+    # Banner click tracking. The id is matched as a UUID so that anything
+    # else fails to route: the view looks the banner up by primary key, and
+    # a lookup handed something that is not a UUID raises rather than
+    # answering "no such banner" — a hand-typed address should be a 404, not
+    # a server error.
     path(
-        "banner/<id>/click/",
+        "banner/<uuid:id>/click/",
         n23.core.views.track_banner_click,
         name="track-banner-click",
     ),
