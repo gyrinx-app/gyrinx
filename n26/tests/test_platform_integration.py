@@ -924,6 +924,51 @@ class TestTheSiteBanner:
         assert "N26 support is coming." in bar
         assert skills_url not in bar
 
+    def test_closing_the_bar_is_remembered(
+        self, tester, client, default_pack, live_banner
+    ):
+        """A reader closed the bar, it went away, and it was back on the
+        next page they opened.
+
+        The component hides itself and stops there on purpose: where a
+        dismissal is remembered is the application's decision, not the
+        bar's, and the shell has to say. It says the session key the
+        site's own context processor reads before it hands the shell a
+        banner at all, so a bar closed in either edition stays closed in
+        both.
+
+        The close button is an Alpine expression rather than a form, so
+        the request under test is read out of the page and made here —
+        a shell that says nothing has nothing to read.
+        """
+        import json
+        import re
+
+        from django.urls import reverse
+
+        banner = live_banner()
+
+        body = client.get("/n26/").content.decode()
+        assert "N26 support is coming." in body
+
+        bar = body[body.index("n26-announcement") : body.index("</aside>")]
+        dismiss_url = reverse("core:dismiss-banner")
+        assert dismiss_url in bar
+        # The id the expression posts, not merely the one in the wrapper's
+        # own id attribute.
+        assert re.search(
+            rf"{re.escape(dismiss_url)}.*{re.escape(str(banner.id))}", bar, re.S
+        )
+
+        dismissed = client.post(
+            dismiss_url,
+            data=json.dumps({"banner_id": str(banner.id)}),
+            content_type="application/json",
+        )
+        assert dismissed.status_code == 200
+
+        assert "N26 support is coming." not in client.get("/n26/").content.decode()
+
 
 class TestTheSharedIconKeys:
     """gyrinx/site/icons.py names an n26 icon for every key, as a string,
