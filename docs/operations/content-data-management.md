@@ -99,6 +99,7 @@ When you first set up Gyrinx locally:
 gsutil cp gs://gyrinx-app-bootstrap-dump/latest.json .
 
 # Import it
+manage migrate
 manage loaddata_overwrite latest.json --verbose
 ```
 
@@ -111,6 +112,7 @@ Need to investigate a content issue from production?
 gsutil cp gs://gyrinx-app-bootstrap-dump/latest.json .
 
 # Import with verbose output to see what's happening
+manage migrate
 manage loaddata_overwrite latest.json --verbose
 
 # Poke around
