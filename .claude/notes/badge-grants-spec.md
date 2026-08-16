@@ -1,7 +1,11 @@
 # Badges the content team can define, upload artwork for, and grant
 
-Status: spec, not built. Written 2026-08-16, revised the same day to make badges
-admin-authored rather than code-defined.
+Status: **built**. Written 2026-08-16, revised the same day to make badges
+admin-authored rather than code-defined, then implemented.
+
+Decisions taken while building: granted badges rank below the Patreon tiers, so
+somebody who is both a supporter and a playtester keeps showing their supporter badge;
+grants do not expire; the tester cohort is compiled by hand and pasted into the admin.
 
 ## Why
 
@@ -96,7 +100,7 @@ class Badge(Base):
     title = models.CharField(max_length=100)
     description = models.CharField(max_length=200)   # the hover tooltip
     artwork_url = models.CharField(max_length=500, blank=True, default="")
-    rank = models.IntegerField(default=10)
+    rank = models.IntegerField(default=0)   # below the Patreon tiers
     auto_display = models.BooleanField(default=False)
     archived = ...          # from Archived, so a retired badge stops appearing
     history = HistoricalRecords()
@@ -118,7 +122,6 @@ class BadgeGrant(Base):
                                    on_delete=models.SET_NULL,
                                    related_name="badges_granted")
     reason = models.TextField(blank=True, default="")   # internal note, never rendered
-    expires_at = models.DateTimeField(null=True, blank=True)
 
     history = HistoricalRecords()
 ```
@@ -180,8 +183,8 @@ def available_badges(self):
     return badges
 ```
 
-`active_badge_grants` = this user's grants plus every EVERYONE grant, excluding expired
-ones and grants whose badge is archived.
+`active_badge_grants` = this user's grants plus every EVERYONE grant, excluding any
+whose badge is archived. Grants do not expire, so there is no clock in the read path.
 
 `display_badge` needs one change — the default pick considers only auto-display badges:
 
@@ -297,7 +300,7 @@ Cases worth pinning:
 - With `preserve_colour`, concrete fills survive and `shape-rendering` survives; without
   it, existing behaviour is unchanged. A `fill="url(https://…)"` is refused on the
   colour-preserving path.
-- An expired grant, and a grant whose badge is archived, grant nothing.
+- A grant whose badge is archived grants nothing.
 - An EVERYONE grant with `auto_display=False` widens the picker and changes no rendered
   page.
 - Revoking a grant that was the selected badge falls back to the default rather than
@@ -305,11 +308,15 @@ Cases worth pinning:
 - A `Badge` slug colliding with a code-registry slug is rejected.
 - Query count on a list index does not scale with row count.
 
-## Open questions
+## What is left
 
-- Should a tester badge outrank the Patreon tiers for someone who is both? Rank decides it,
-  and it is easier to pick now than after people have seen it.
-- Is `expires_at` wanted in the first cut? Cheap now, awkward to retrofit, but it adds a
-  clause to every read.
-- Where does the list of n26 testers come from? Nothing in the schema records "tested n26",
-  so the cohort has to be assembled from whatever tracked it.
+Nothing in the code. The remaining steps are content work, done in the admin:
+
+1. Create the playtester badge and upload its artwork.
+2. Set `auto_display` on it, so testers see it without finding the picker.
+3. Paste the tester list into "Grant to a list of people".
+
+One thing worth knowing: an "N26 Testers" group already exists, planted by the data
+migration `accounts/0002_n26_testers_group`, and nothing reads it. If the cohort is
+already in it, the changelist can be filtered by that group and the selection-based
+action used instead of pasting.

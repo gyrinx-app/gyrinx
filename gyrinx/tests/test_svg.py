@@ -225,3 +225,75 @@ def test_unclosed_script_tag_still_loses_the_script_element():
     svg = '<svg viewBox="0 0 2 2"><script>alert(1)</svg>'
     out = sanitize_inline_svg(svg)
     assert "<script" not in out.lower()
+
+
+# --- Keeping the artwork's own colours ---
+
+
+COLOURED_SVG = (
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2 2" '
+    'shape-rendering="crispEdges">'
+    '<rect width="1" height="1" fill="#B1873F"/>'
+    '<rect width="1" height="1" x="1" stroke="rebeccapurple" fill="none"/>'
+    "</svg>"
+)
+
+
+def test_colours_are_flattened_by_default():
+    out = sanitize_inline_svg(COLOURED_SVG)
+    assert "#B1873F" not in out
+    assert "rebeccapurple" not in out
+    assert 'fill="currentColor"' in out
+
+
+def test_preserve_colour_keeps_the_palette():
+    out = sanitize_inline_svg(COLOURED_SVG, preserve_colour=True)
+    assert 'fill="#B1873F"' in out
+    assert 'stroke="rebeccapurple"' in out
+    # "none" means deliberately unpainted and is not a colour to keep or drop.
+    assert 'fill="none"' in out
+
+
+def test_shape_rendering_survives_the_root_tag_rebuild():
+    # The root tag is rebuilt from a curated list, so an attribute being in the
+    # allowlist is not enough on its own — pixel art keeps its hard edges only
+    # if this is carried across explicitly.
+    assert 'shape-rendering="crispEdges"' in sanitize_inline_svg(COLOURED_SVG)
+    assert 'shape-rendering="crispEdges"' in sanitize_inline_svg(
+        COLOURED_SVG, preserve_colour=True
+    )
+
+
+def test_a_made_up_shape_rendering_value_is_dropped():
+    svg = '<svg viewBox="0 0 2 2" shape-rendering="javascript:x"><path d="M0 0"/></svg>'
+    assert "javascript" not in sanitize_inline_svg(svg)
+
+
+def test_preserve_colour_still_refuses_an_external_paint_server():
+    svg = (
+        '<svg viewBox="0 0 2 2">'
+        '<rect width="1" height="1" fill="url(https://evil.example/x#a)"/>'
+        "</svg>"
+    )
+    out = sanitize_inline_svg(svg, preserve_colour=True)
+    assert "evil.example" not in out
+
+
+def test_preserve_colour_keeps_a_same_document_paint_server():
+    svg = (
+        '<svg viewBox="0 0 2 2"><defs><linearGradient id="g">'
+        '<stop offset="0" stop-color="#fff"/></linearGradient></defs>'
+        '<rect width="1" height="1" fill="url(#g)"/></svg>'
+    )
+    assert 'fill="url(#g)"' in sanitize_inline_svg(svg, preserve_colour=True)
+
+
+def test_preserve_colour_does_not_reopen_the_script_hole():
+    svg = (
+        '<svg viewBox="0 0 2 2"><script>alert(1)</script>'
+        '<rect width="1" height="1" fill="#abc" onclick="steal()"/></svg>'
+    )
+    out = sanitize_inline_svg(svg, preserve_colour=True)
+    assert "<script" not in out.lower()
+    assert "onclick" not in out.lower()
+    assert 'fill="#abc"' in out

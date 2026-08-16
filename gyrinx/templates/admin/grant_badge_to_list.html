@@ -1,0 +1,46 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+{% block content %}
+    <div class="module">
+        <h2>{{ title }}</h2>
+        {% if missing %}
+            <ul class="errorlist">
+                <li>
+                    No account matched these, so nobody was granted a badge for them:
+                    <strong>{{ missing|join:", " }}</strong>
+                </li>
+            </ul>
+        {% endif %}
+        {% if not badges %}
+            <p>There are no badges to grant yet. Create one first, then come back.</p>
+        {% else %}
+            <form method="post">
+                {% csrf_token %}
+                <div class="form-row">
+                    <label for="id_badge" class="required">Badge:</label>
+                    <select name="badge" id="id_badge" required>
+                        <option value="">---------</option>
+                        {% for badge in badges %}<option value="{{ badge.pk }}">{{ badge.title }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="form-row">
+                    <label for="id_people" class="required">People:</label>
+                    <textarea name="people" id="id_people" rows="12" cols="50" required>{{ pasted }}</textarea>
+                    <p class="help">
+                        Usernames or email addresses, one per line or separated by commas.
+                        Anything that matches no account is listed back rather than skipped
+                        quietly. Granting the same badge twice does nothing the second time,
+                        so it is safe to paste a longer list later.
+                    </p>
+                </div>
+                <div class="form-row">
+                    <label for="id_reason">Reason (internal note):</label>
+                    <input type="text" name="reason" id="id_reason" maxlength="200" size="60" />
+                </div>
+                <div class="submit-row">
+                    <button type="submit" class="default">{% trans "Grant badge" %}</button>
+                </div>
+            </form>
+        {% endif %}
+    </div>
+{% endblock content %}

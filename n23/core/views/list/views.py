@@ -65,8 +65,10 @@ class ListsListView(generic.ListView):
         Campaign mode lists are only visible within their campaigns.
         Archived lists are excluded from this view unless requested.
         """
-        queryset = List.objects.all().select_related(
-            "content_house", "owner", "owner__profile", "campaign"
+        queryset = (
+            List.objects.all()
+            .select_related("content_house", "owner", "owner__profile", "campaign")
+            .prefetch_related("owner__badge_grants")
         )
 
         # Apply "Your Lists" filter (default on if user is authenticated)
@@ -176,6 +178,7 @@ class ListsListView(generic.ListView):
             context["pinned_lists"] = (
                 self.request.user.pinned_lists.filter(archived=False)
                 .select_related("content_house", "owner", "owner__profile", "campaign")
+                .prefetch_related("owner__badge_grants")
                 .annotate(star_count=Count("starred_by", distinct=True))
                 .order_by("name")
             )
@@ -273,10 +276,10 @@ class ListDetailView(generic.DetailView):
         list_id = self.kwargs["id"]
         packs = CustomContentPack.objects.filter(subscribed_lists__id=list_id)
         return get_clean_list_or_404(
-            # owner__profile is for the breadcrumb supporter badge.
-            List.objects.with_related_data(
-                with_fighters=True, packs=packs
-            ).select_related("owner__profile"),
+            # owner__profile and the grants are for the breadcrumb supporter badge.
+            List.objects.with_related_data(with_fighters=True, packs=packs)
+            .select_related("owner__profile")
+            .prefetch_related("owner__badge_grants"),
             id=list_id,
         )
 

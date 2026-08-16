@@ -579,8 +579,10 @@ class PacksView(generic.ListView):
     paginate_by = 20
 
     def get_queryset(self):
-        queryset = CustomContentPack.objects.filter(archived=False).select_related(
-            "owner", "owner__profile"
+        queryset = (
+            CustomContentPack.objects.filter(archived=False)
+            .select_related("owner", "owner__profile")
+            .prefetch_related("owner__badge_grants")
         )
         user = self.request.user
 
@@ -638,9 +640,10 @@ class PackDetailView(generic.DetailView):
     def get_object(self):
         pack = get_object_or_404(
             CustomContentPack.objects.filter(archived=False)
-            # owner__profile is for the breadcrumb supporter badge.
+            # owner__profile and the grants are for the breadcrumb supporter badge.
             .select_related("owner", "owner__profile")
             .prefetch_related(
+                "owner__badge_grants",
                 "items__content_type",
                 Prefetch(
                     "attachments",

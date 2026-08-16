@@ -34,7 +34,7 @@ class Campaigns(generic.ListView):
         queryset = (
             Campaign.objects.all()
             .select_related("owner", "owner__profile")
-            .prefetch_related("lists")
+            .prefetch_related("lists", "owner__badge_grants")
         )
 
         # Apply "Your Campaigns Only" filter - default to user's campaigns if authenticated
@@ -116,7 +116,7 @@ class Campaigns(generic.ListView):
             context["pinned_campaigns"] = (
                 self.request.user.pinned_campaigns.filter(archived=False)
                 .select_related("owner", "owner__profile")
-                .prefetch_related("lists")
+                .prefetch_related("lists", "owner__badge_grants")
                 .annotate(star_count=Count("starred_by", distinct=True))
                 .order_by("name")
             )
@@ -150,9 +150,10 @@ class CampaignDetailView(generic.DetailView):
         return get_object_or_404(
             Campaign.objects.select_related(
                 "group_attribute_type",
-                # owner__profile is for the breadcrumb supporter badge.
+                # owner__profile and the grants are for the breadcrumb badge.
                 "owner__profile",
             ).prefetch_related(
+                "owner__badge_grants",
                 "packs",
                 "lists",
                 "admins",

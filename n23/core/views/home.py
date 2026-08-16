@@ -171,6 +171,7 @@ def index(request):
     featured_packs = (
         CustomContentPack.objects.filter(featured=True, listed=True, archived=False)
         .select_related("owner", "owner__profile")
+        .prefetch_related("owner__badge_grants")
         .order_by("?")[:3]
     )
 
