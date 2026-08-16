@@ -325,6 +325,7 @@ class TestTheApply:
 
         assert plan.ok
         assert bystander.pk in plan.gang_ids
+        assert_reconciled(bystander)
 
     def test_rechoosing_works_on_the_new_machinery(self, world, prod_shape):
         specialist, _, _, _ = prod_shape
