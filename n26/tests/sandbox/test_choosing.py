@@ -40,6 +40,7 @@ from n26.tests.sandbox.actions import (
     create_subtype,
     found_gang,
     has_subtypes,
+    hire,
     hire_with_option,
     modifier,
     offers_choice,
@@ -702,3 +703,85 @@ class TestTheStripCostsNothing:
         for name in ("Ash", "Kite", "Vex"):
             hire_with_option(gang, profiles["leader"], name)
         assert len(budget().models) == 5
+
+
+class TestOneLineAskingTwice:
+    """A line may ask two questions of one kind — a primary role and a
+    secondary one — and the answers stay apart.
+
+    Nothing about a pick says which question it settles: both are
+    answered by the same sort of thing, and a narrow menu's answer is on
+    the wide menu too. So the pick names the question, exactly as a slot's
+    pick names its slot. Before that, answering one made both read as
+    settled and the player lost a question they had never answered.
+    """
+
+    @pytest.fixture
+    def twice_asked(self, person_type, gang_list, skills_collection):
+        """One subtype, two questions over one kind: a skill from the
+        wide tier, and one from the narrow tier beside it."""
+        _, tiers = skills_collection
+        carrier = create_subtype("Twice Asked")
+        for label, section in [
+            ("Primary role", tiers["other"]),
+            ("Secondary role", tiers["primary"]),
+        ]:
+            modifier(
+                f"Twice Asked: {label}",
+                targets_model(),
+                offers_choice(Skill, from_section=section, label=label),
+                carried_by=carrier,
+            )
+        profile = create_profile("Twice Asked", person_type, gang_list, price=0)
+        profile.built_ins = create_default_set("Twice Asked kit", members=[carrier])
+        profile.save()
+        return profile
+
+    def rows(self, fighter):
+        return {row.kind_label: row for row in fighter_computed(fighter).choices}
+
+    def test_answering_one_leaves_the_other_open(self, gang, twice_asked, skills):
+        vex = hire(gang, twice_asked, "Vex")
+        rows = self.rows(vex)
+
+        choose(
+            rows["Primary role"].anchor.assignment,
+            skills["Berserker"],
+            offer=rows["Primary role"].offer,
+        )
+
+        settled = self.rows(vex)
+        assert settled["Primary role"].chosen_name == "Berserker"
+        assert settled["Secondary role"].chosen_name is None
+        assert_reconciled(gang)
+
+    def test_each_question_holds_its_own_answer(self, gang, twice_asked, skills):
+        vex = hire(gang, twice_asked, "Vex")
+        rows = self.rows(vex)
+        for label, skill in [
+            ("Primary role", "Berserker"),
+            ("Secondary role", "Marksman"),
+        ]:
+            choose(
+                rows[label].anchor.assignment, skills[skill], offer=rows[label].offer
+            )
+
+        settled = self.rows(vex)
+        assert settled["Primary role"].chosen_name == "Berserker"
+        assert settled["Secondary role"].chosen_name == "Marksman"
+        assert_reconciled(gang)
+
+    def test_a_pick_naming_no_question_is_still_read(self, gang, twice_asked, skills):
+        """A pick written before questions could be named: the offers'
+        own selectors are all there is to go on, so it settles the first
+        that matches rather than nothing at all."""
+        vex = hire(gang, twice_asked, "Vex")
+        rows = self.rows(vex)
+
+        choose(rows["Primary role"].anchor.assignment, skills["Berserker"])
+
+        assert (
+            Assignment.objects.get(skill=skills["Berserker"]).chosen_for_offer is None
+        )
+        assert self.rows(vex)["Primary role"].chosen_name == "Berserker"
+        assert_reconciled(gang)

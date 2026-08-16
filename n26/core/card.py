@@ -58,6 +58,11 @@ class Node:
     #: line may ask more than once — a thing giving two choices of one
     #: slot type — and then this is what tells the answers apart.
     chosen_for_slot_id: object = None
+    #: The same, for the other way a choice is asked: the offer this pick
+    #: settles. Unset on a pick written before the question could be
+    #: named, and then what it answers is read from the offers' own
+    #: selectors instead.
+    chosen_for_offer_id: object = None
     #: The ledger's reason, for a line that has one.
     reason: str | None = None
     is_weapon_profile: bool = False
@@ -133,6 +138,7 @@ def node_for(assignment):
         caused_by_key=assignment.caused_by_id,
         chosen_for_key=assignment.chosen_for_id,
         chosen_for_slot_id=assignment.chosen_for_slot_id,
+        chosen_for_offer_id=assignment.chosen_for_offer_id,
         reason=entry.reason if entry else None,
         is_weapon_profile=assignment.weapon_profile_id is not None,
         is_profile=assignment.profile_id is not None,

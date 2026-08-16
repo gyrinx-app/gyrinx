@@ -1383,9 +1383,12 @@ class _Facts:
 def _fill_choice_slots(computed, offers, by_cause):
     """Resolve each offered choice against what the anchor has caused.
 
-    What is chosen is stored as an assignment caused by the carrier's; a
-    slot reads as resolved when such an assignment matches the offer's
-    selector.
+    What is chosen is stored as an assignment caused by the carrier's, and
+    it names the question it answers — which is what keeps two choices of
+    one kind on one line apart, a primary role and a secondary one being
+    settled by the same sort of thing. A pick naming no question is read
+    the only way left: the first offer whose selector matches it, which is
+    right wherever the line asks once and a guess wherever it asks twice.
     """
     from n26.core import select
 
@@ -1394,9 +1397,13 @@ def _fill_choice_slots(computed, offers, by_cause):
         if anchor is not None:
             selector = effect.selector()
             for node in by_cause.get(anchor.key, []):
-                if selector.matches(select.matchable(node.assignable)):
-                    resolved = node
-                    break
+                if node.chosen_for_offer_id is not None:
+                    if node.chosen_for_offer_id != effect.pk:
+                        continue
+                elif not selector.matches(select.matchable(node.assignable)):
+                    continue
+                resolved = node
+                break
         computed.choices.append(
             ChoiceSlot(
                 kind_label=effect.kind_label,

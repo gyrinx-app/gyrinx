@@ -276,6 +276,21 @@ class Assignment(NamesAnAssignable, Base, Archived):
         related_name="+",
     )
 
+    # Which offer this pick settles, for the other way a choice is asked.
+    # The same reasoning as ``chosen_for_slot``, and the same need: one
+    # line may offer two choices of a kind — a primary role and a
+    # secondary one — and both are answered by the same kind of thing, so
+    # nothing about the answer says which question it was. Unset on a pick
+    # written before the question could be named, where the offer's own
+    # selector is the only thing left to go on.
+    chosen_for_offer = models.ForeignKey(
+        "library.OffersChoice",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+
     # Denormalised roots, maintained in save().
     gang_root = models.ForeignKey(
         "n26.Gang",
