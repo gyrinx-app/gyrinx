@@ -860,6 +860,14 @@ def build_choice_offer(slot, computed):
             )
         )
 
+    if not several and slot.slot is not None and slot.min_picks == 0 and options:
+        # A choice expecting no picks may be settled on nothing: the
+        # None row resets it, and reads as current while nothing is
+        # picked. Only where one pick is held in a single go — a choice
+        # worked at a pick at a time already resets through each pick's
+        # own Remove.
+        options.append(Choosable(key=NONE_KEY, name="None", is_current=not slot.picks))
+
     groups = [ChoosableGroup(name="", options=options)] if options else []
     return ChoiceOffer(
         label=slot.kind_label,
@@ -935,6 +943,13 @@ def _taken_elsewhere(slot, computed):
         for pick in other.picks:
             taken.setdefault(option_key(pick.assignable), other.source)
     return taken
+
+
+#: The key the None row submits — the reset on a choice expecting no
+#: picks. No stored thing is behind it, so the key is its own word
+#: rather than a ``label:pk`` pair, which no real option can collide
+#: with.
+NONE_KEY = "none"
 
 
 def option_key(thing):

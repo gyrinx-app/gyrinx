@@ -158,7 +158,7 @@ def choose(request, pk, slot):
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.operations import Refusal, operation
-    from n26.core.render import build_choice_offer, option_key
+    from n26.core.render import NONE_KEY, build_choice_offer, option_key
 
     gang = _own_gang_or_404(request, pk)
     found = _find_slot(gang, slot)
@@ -168,6 +168,37 @@ def choose(request, pk, slot):
     if request.method == "POST":
         dropped = request.POST.get("remove", "")
         wanted = dropped or request.POST.get("thing", "")
+        if wanted == NONE_KEY and not dropped:
+            # The None row on an optional choice: nothing is written —
+            # the standing pick, if any, is taken back, and the choice
+            # reads open again. Only honoured where the page drew the
+            # row, so a hand-built post cannot reset a required choice.
+            offered_none = any(
+                option.key == NONE_KEY
+                for group in offer.groups
+                for option in group.options
+            )
+            if not offered_none:
+                messages.error(
+                    request, "That is not one of the things available to pick."
+                )
+                return redirect(request.path)
+            standing = [
+                pick for pick in found.slot.picks if pick.assignment is not None
+            ]
+            with operation(gang, actor=request.user) as op:
+                for pick in standing:
+                    op.remove(pick.assignment)
+            record(
+                request,
+                N26Noun.CHOICE,
+                EventVerb.ARCHIVE,
+                gang,
+                offer=offer.label,
+                picked="None",
+            )
+            messages.success(request, f"Chose None — {offer.label}.")
+            return redirect(back)
         picked = next(
             (
                 option

@@ -821,9 +821,7 @@ class TestTheScreenBehindTheRow:
         assert choices_of(kaustos)[0].chosen_name == "Escher"
         assert_reconciled(gang)
 
-    def test_clicking_again_changes_the_answer(
-        self, gang, hunter, houses, client, owner
-    ):
+    def test_clicking_again_changes_the_pick(self, gang, hunter, houses, client, owner):
         kaustos = hire(gang, hunter, "Kaustos", paid=100)
         client.force_login(owner)
         client.post(
@@ -840,6 +838,108 @@ class TestTheScreenBehindTheRow:
         assert settled.chosen_name == "Cawdor"
         assert len(settled.picks) == 1
         assert_reconciled(gang)
+
+
+class TestAnOptionalChoiceOffersNone:
+    """A choice expecting no picks ends its list with a None row, which
+    takes the standing pick back and leaves the choice open. A choice
+    that expects one offers no such row — leaving it open is already
+    free, and there is nothing None would say."""
+
+    @pytest.fixture
+    def optional_hunter(self, person_type, gang_type, legacy, legacies):
+        slot = create_slot("Optional legacy", legacy, legacies, min_picks=0)
+        profile = create_profile("Wanderer", person_type, gang_type, price=100)
+        add_built_in(profile, slot)
+        return profile
+
+    def slot_line(self, gang):
+        from n26.core.views.choose import link_slots
+
+        sheet = render_gang(gang)
+        link_slots(gang, sheet, *sheet.models)
+        (card,) = sheet.models
+        (line,) = card.questions
+        return line
+
+    def test_the_list_ends_with_a_none_row(self, gang, optional_hunter, client, owner):
+        hire(gang, optional_hunter, "Kaustos", paid=100)
+        client.force_login(owner)
+
+        body = client.get(self.slot_line(gang).href).content.decode()
+
+        assert 'value="none"' in body
+        assert "None" in body
+
+    def test_a_required_choice_offers_no_none(self, gang, hunter, client, owner):
+        hire(gang, hunter, "Kaustos", paid=100)
+        client.force_login(owner)
+
+        assert (
+            'value="none"' not in client.get(self.slot_line(gang).href).content.decode()
+        )
+
+    def test_clicking_none_takes_the_pick_back(
+        self, gang, optional_hunter, houses, client, owner
+    ):
+        kaustos = hire(gang, optional_hunter, "Kaustos", paid=100)
+        client.force_login(owner)
+        href = self.slot_line(gang).href
+        client.post(href, {"thing": f"library.pickable:{houses['Escher'].pk}"})
+
+        response = client.post(href, {"thing": "none"})
+
+        assert response.status_code == 302
+        (line,) = choices_of(kaustos)
+        assert line.chosen_name is None
+        assert not Assignment.objects.filter(
+            pickable__isnull=False, archived=False
+        ).exists()
+        assert_reconciled(gang)
+
+    def test_none_with_nothing_standing_settles_quietly(
+        self, gang, optional_hunter, client, owner
+    ):
+        kaustos = hire(gang, optional_hunter, "Kaustos", paid=100)
+        client.force_login(owner)
+
+        response = client.post(self.slot_line(gang).href, {"thing": "none"})
+
+        assert response.status_code == 302
+        (line,) = choices_of(kaustos)
+        assert line.chosen_name is None
+        assert_reconciled(gang)
+
+    def test_a_post_cannot_reset_a_required_choice(
+        self, gang, hunter, houses, client, owner
+    ):
+        """The page did not draw the row, so a hand-built post is a
+        stale click, and the pick stands."""
+        kaustos = hire(gang, hunter, "Kaustos", paid=100)
+        client.force_login(owner)
+        href = self.slot_line(gang).href
+        client.post(href, {"thing": f"library.pickable:{houses['Escher'].pk}"})
+
+        response = client.post(href, {"thing": "none"})
+
+        assert response.status_code == 302
+        assert response.headers["Location"] == href
+        (line,) = choices_of(kaustos)
+        assert line.chosen_name == "Escher"
+
+    def test_a_choice_worked_at_a_pick_at_a_time_has_no_none_row(
+        self, gang, person_type, gang_type, legacy, legacies, client, owner
+    ):
+        """Each pick already carries its own Remove, which is the reset."""
+        slot = create_slot("Two legacies", legacy, legacies, min_picks=0, max_picks=2)
+        profile = create_profile("Wanderer", person_type, gang_type, price=100)
+        add_built_in(profile, slot)
+        hire(gang, profile, "Kaustos", paid=100)
+        client.force_login(owner)
+
+        assert (
+            'value="none"' not in client.get(self.slot_line(gang).href).content.decode()
+        )
 
 
 class TestAPickTheGangHolds:
