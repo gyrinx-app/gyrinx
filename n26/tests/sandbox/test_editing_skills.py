@@ -305,6 +305,31 @@ class TestWhatTheSquareShows:
         assert "disabled" in drawn
         assert 'title="From Keen-eyed"' in page
 
+    def test_a_granted_skill_reads_without_a_space_before_its_comma(
+        self, client, player, yolanda, library
+    ):
+        """A granted skill's name sits inside a tooltip component that
+        carries line breaks of its own; the run joining it to the next
+        skill must swallow those, not let one land beside the comma as a
+        visible gap before the mark."""
+        keen = create_subtype("Keen-eyed")
+        modifier(
+            "Keen-eyed knows how to fall",
+            targets_model(),
+            adds(library["skills"]["Catfall"]),
+            carried_by=keen,
+        )
+        assign(keen, miniature=yolanda)
+        learn(yolanda, library["skills"]["Connected"])
+        client.force_login(player)
+        page = client.get(edit_url(yolanda)).content.decode()
+
+        start = page.index(">Skills<")
+        row = page[start : page.index(">Gear<", start)]
+        assert " ," not in row
+        assert ",&nbsp;" in row
+        assert "Catfall" in row and "Connected" in row
+
     def test_a_restricted_skill_keeps_its_place_with_a_note(
         self, client, player, yolanda, library
     ):
