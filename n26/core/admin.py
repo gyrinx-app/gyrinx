@@ -192,14 +192,15 @@ class LedgerEntryAdmin(ReadOnlyAdmin):
 class LedgerEventAdmin(ReadOnlyAdmin):
     list_display = [
         "kind",
-        "assignment",
+        "about",
+        "gang",
         "actor",
         "credits_delta",
         "rating_delta",
         "created",
     ]
     list_filter = ["kind"]
-    search_fields = ["assignment__gang_root__name", "note"]
+    search_fields = ["gang__name", "note"]
 
     def get_queryset(self, request):
         return (
@@ -210,6 +211,8 @@ class LedgerEventAdmin(ReadOnlyAdmin):
                 "assignment__gang",
                 "assignment__miniature",
                 "assignment__stash",
+                "miniature",
+                "gang",
                 "actor",
             )
         )

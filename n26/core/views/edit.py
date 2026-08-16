@@ -8,6 +8,166 @@ from django.urls import reverse
 
 from n26.core.views.permissions import _own_miniature_or_404
 
+#: The kinds an owner edits by hand on this page: the assignable column
+#: each section writes, the input name its form posts, and the heading
+#: over its boxes.
+EDITABLE_KINDS = {"subtypes": "subtype", "rules": "rule"}
+
+
+def _edit_state(own, computed, field):
+    """What the card currently says for one editable kind, keyed the way
+    a tick list keys its options.
+
+    Six answers, because the diff needs to know not just whether a
+    thing is held but *how*: any stored assignment showing it, which of
+    those are the gang's riding this card, the subset that are the
+    owner's own additions, what a modifier grants, and the owner's
+    standing removals. A suppressed line is held by nobody — it has
+    been taken away, and the box for it opens clear.
+    """
+    from n26.core.models import Assignment, Reason
+    from n26.core.views.learn import _key
+
+    kind_class = Assignment._meta.get_field(field).related_model
+    # The live library, as every player-facing offer reads it — an
+    # archived subtype is not a box to tick.
+    offered = list(kind_class.objects.selectable())
+    stored, own_adds, gang_held = {}, {}, set()
+    for node in own.all_nodes():
+        if node.suppressed or node.assignment is None:
+            continue
+        if not isinstance(node.assignable, kind_class):
+            continue
+        key = _key(node.assignable)
+        stored.setdefault(key, node.assignment)
+        if node.broadcast:
+            # The gang's, riding this card: it applies to this model —
+            # which is what a tick says — and clearing it takes it away
+            # from this model alone.
+            gang_held.add(key)
+            continue
+        entry = getattr(node.assignment, "ledger_entry", None)
+        if entry is not None and entry.reason == Reason.EDITED:
+            own_adds.setdefault(key, node.assignment)
+    granted = {
+        _key(contribution.thing): contribution.source
+        for contribution in getattr(computed, f"{field}s")
+    }
+    removed = {
+        _key(row.assignable): row
+        for row in own.removals
+        if isinstance(row.assignable, kind_class)
+    }
+    return offered, stored, own_adds, gang_held, granted, removed
+
+
+def _edits_offer(own, computed, field, heading):
+    """One section of the edits box, split into what the card shows and
+    the rest of the library.
+
+    Nothing is drawn fixed — that is the section's whole point. A
+    granted thing says what grants it, but its box still clears: the
+    owner's clearing becomes a stored removal, and ticking it again
+    archives that removal, so the content's own answer is always one
+    click away.
+
+    Two offers rather than one, because the library runs to a hundred
+    rules and a wall of clear boxes buries the handful that matter: the
+    first holds what the card shows and what the owner has touched, the
+    second everything else, for the page to fold away. A ticked box in
+    the folded half still submits, so the split changes nothing about
+    what a save means. Both are None where the library offers nothing,
+    so the page can skip the section rather than draw an empty list.
+    """
+    from n26.core.render import ChoiceOffer, Choosable, ChoosableGroup
+    from n26.core.views.learn import _key
+
+    offered, stored, own_adds, gang_held, granted, removed = _edit_state(
+        own, computed, field
+    )
+    current, rest = [], []
+    for thing in offered:
+        key = _key(thing)
+        if key in own_adds:
+            detail = "added by you"
+        elif key in removed:
+            detail = "taken away by you"
+        elif key in granted and key not in stored:
+            detail = f"from {granted[key]}"
+        elif key in gang_held:
+            detail = "the gang's"
+        else:
+            detail = ""
+        option = Choosable(
+            key=key,
+            name=str(thing),
+            thing=thing,
+            is_current=key in stored or key in granted,
+            detail=detail,
+        )
+        if option.is_current or detail:
+            current.append(option)
+        else:
+            rest.append(option)
+
+    def boxed(options, name):
+        if not options:
+            return None
+        return ChoiceOffer(
+            label="", groups=[ChoosableGroup(name=name, options=options)]
+        )
+
+    return (
+        boxed(current, heading),
+        boxed(rest, ""),
+        bool(own_adds or removed),
+    )
+
+
+def _apply_edits(op, miniature, own, computed, field, ticked):
+    """Make what the card shows match what was ticked, and say what moved.
+
+    The state is derived again here rather than trusted from the page,
+    so a stale form can only name things the library offers now. Each
+    box's difference picks its own write: a cleared owner-addition is
+    archived, any other cleared held thing gains a stored removal, a
+    ticked standing removal is archived so the thing comes back, and a
+    ticked absence is added in the owner's name.
+    """
+    from n26.core.models import Reason
+    from n26.core.views.learn import _key
+
+    offered, stored, own_adds, _gang_held, granted, removed = _edit_state(
+        own, computed, field
+    )
+    added, taken, restored = [], [], []
+    for thing in offered:
+        key = _key(thing)
+        # A standing removal the money refused: the thing still shows,
+        # its box opens ticked, and saving the section untouched must
+        # move nothing — neither restoring the removal nor stacking a
+        # second one.
+        shown = key in stored or key in granted
+        if key in ticked:
+            if key in removed and not shown:
+                op.remove(removed[key], note="restored")
+                restored.append(str(thing))
+            elif not shown and key not in removed:
+                op.assign(thing, miniature=miniature, paid=0, reason=Reason.EDITED)
+                added.append(str(thing))
+        elif key in own_adds:
+            op.remove(own_adds[key])
+            if key in granted and key not in removed:
+                # A grant also supplies it, and archiving the owner's
+                # addition leaves that standing — clearing means gone by
+                # every route, so the grant is cancelled too.
+                op.take_away(miniature, thing)
+            taken.append(str(thing))
+        elif shown and key not in removed:
+            op.take_away(miniature, thing)
+            taken.append(str(thing))
+    return added, taken, restored
+
 
 @login_required
 def edit_fighter(request, pk):
@@ -21,18 +181,21 @@ def edit_fighter(request, pk):
     are offered here, outlined, and the Gear and Weapons rows carry the
     way to the Equip tab.
 
-    Three forms post here, and ``act`` says which was clicked. Notes are
-    the owner's prose and characteristics they set are the owner's
-    numbers; neither is a fact the books watch — no rating moves, no
-    ledger entry is written — so both are plain saves rather than
-    operations. What the notes editor produced is stored as written and
-    sanitised on the way out, so a tightened allowlist reaches old notes
-    too.
+    Several forms post here, and ``act`` says which was clicked. Every
+    one goes through an operation: notes and characteristics price
+    nothing and move no rating, but they are part of the gang's story,
+    so each writes a journal event and the history can say what the
+    owner did. What the notes editor produced is stored as written and
+    sanitised on the way out, so a tightened allowlist reaches old
+    notes too.
 
-    The skills a model holds are the third, and the one thing here the
-    books do watch: learning writes an assignment and clearing archives one, so
-    that form goes through an operation and the whole difference lands
-    or none of it does.
+    The subtypes and rules box edits what the model *is*: ticking adds
+    in the owner's name, clearing stores a removal whatever route the
+    thing arrived by, and each section's Reset archives the owner's
+    edits so the content's own answer returns. The skills a model
+    holds post the same way, and learning writes an assignment while
+    clearing archives one, so the whole difference lands or none of it
+    does.
 
     A refused characteristic redraws the page with the boxes as typed
     and the complaint under them; anything saved lands back here.
@@ -59,7 +222,8 @@ def edit_fighter(request, pk):
         if statline_class is not None:
             statline_edit = statline_class.opened_on(miniature, request.POST)
             if statline_edit.is_valid():
-                statline_edit.save(miniature)
+                with operation(gang, actor=request.user) as op:
+                    op.set_stats(miniature, statline_edit.changes())
                 record(
                     request, N26Noun.MODEL, EventVerb.UPDATE, miniature, statline=True
                 )
@@ -103,13 +267,97 @@ def edit_fighter(request, pk):
             f"{miniature.name} {' and '.join(moved)}." if moved else "Skills saved.",
         )
         return redirect("n26-edit-fighter", pk=miniature.pk)
+    elif request.method == "POST" and request.POST.get("act") in EDITABLE_KINDS:
+        field = EDITABLE_KINDS[request.POST["act"]]
+        own = build_card(miniature)
+        index = build_modifier_index([node.assignable for node in own.all_nodes()])
+        try:
+            with operation(gang, actor=request.user) as op:
+                added, taken, restored = _apply_edits(
+                    op,
+                    miniature,
+                    own,
+                    compute(own, index),
+                    field,
+                    set(request.POST.getlist(request.POST["act"])),
+                )
+        except Refusal as refusal:
+            messages.error(request, str(refusal))
+            return redirect("n26-edit-fighter", pk=miniature.pk)
+        record(
+            request,
+            N26Noun.MODEL,
+            EventVerb.UPDATE,
+            miniature,
+            edits=field,
+            added=len(added),
+            taken=len(taken),
+            restored=len(restored),
+        )
+        # A paid-for thing is never hidden by a removal, so its box
+        # would silently re-tick on the redraw — find those out first,
+        # say why each stays, and keep them out of the sentence saying
+        # what was lost: a message claiming a loss the card denies would
+        # be worse than no message at all.
+        refused = set()
+        if taken:
+            fresh = build_card(miniature)
+            fresh_index = build_modifier_index(
+                [node.assignable for node in fresh.all_nodes()]
+            )
+            refused = {
+                name
+                for step in compute(fresh, fresh_index).plan
+                for name in step.refused
+            }
+        lost = [name for name in taken if name not in refused]
+        moved = [
+            phrase
+            for phrase in (
+                f"gained {', '.join(added)}" if added else "",
+                f"lost {', '.join(lost)}" if lost else "",
+                f"got {', '.join(restored)} back" if restored else "",
+            )
+            if phrase
+        ]
+        messages.success(
+            request,
+            f"{miniature.name} {' and '.join(moved)}." if moved else "Saved.",
+        )
+        for name in [name for name in taken if name in refused]:
+            messages.warning(request, f"{name} stays on the card — it was paid for.")
+        return redirect("n26-edit-fighter", pk=miniature.pk)
+    elif request.method == "POST" and request.POST.get("act") == "reset-edits":
+        field = request.POST.get("kind")
+        if field in EDITABLE_KINDS.values():
+            try:
+                with operation(gang, actor=request.user) as op:
+                    undone = op.reset_edits(miniature, field)
+            except Refusal as refusal:
+                messages.error(request, str(refusal))
+                return redirect("n26-edit-fighter", pk=miniature.pk)
+            record(
+                request,
+                N26Noun.MODEL,
+                EventVerb.UPDATE,
+                miniature,
+                reset=field,
+                undone=len(undone),
+            )
+            messages.success(
+                request,
+                f"{miniature.name}'s {field} edits are undone."
+                if undone
+                else "Nothing to reset.",
+            )
+        return redirect("n26-edit-fighter", pk=miniature.pk)
     elif request.method == "POST":
         form = FighterNotesForm(request.POST)
         # The one field is optional, so the form cannot fail — kept as a
         # form anyway, because that is where a second field will land.
         if form.is_valid():
-            miniature.notes = form.cleaned_data["notes"]
-            miniature.save(update_fields=["notes"])
+            with operation(gang, actor=request.user) as op:
+                op.edit_notes(miniature, form.cleaned_data["notes"])
             record(request, N26Noun.MODEL, EventVerb.UPDATE, miniature, notes=True)
             messages.success(request, "Notes saved.")
         return redirect("n26-edit-fighter", pk=miniature.pk)
@@ -131,7 +379,14 @@ def edit_fighter(request, pk):
     # A fixed reading, however much this model knows.
     own = build_card(miniature)
     index = build_modifier_index([node.assignable for node in own.all_nodes()])
-    skills = ticked_offer(own, compute(own, index))
+    computed = compute(own, index)
+    skills = ticked_offer(own, computed)
+    subtype_edits, subtype_more, subtype_edits_dirty = _edits_offer(
+        own, computed, "subtype", "Subtypes"
+    )
+    rule_edits, rule_more, rule_edits_dirty = _edits_offer(
+        own, computed, "rule", "Special rules"
+    )
 
     # The header's far corner: the gang's figures and the roster tally,
     # the same numbers the equip face keeps there. One query.
@@ -161,6 +416,16 @@ def edit_fighter(request, pk):
             # square would read as a list that failed to load. The card's
             # own Skills row still leads to the screen that says why.
             "skills": None if skills.is_empty else skills,
+            # The same rule for the edits box: a library offering no
+            # subtypes and no rules is not asked about either. Each
+            # section carries its own Reset, drawn only while the owner
+            # has edits of that kind to undo.
+            "subtype_edits": subtype_edits,
+            "subtype_more": subtype_more,
+            "subtype_edits_dirty": subtype_edits_dirty,
+            "rule_edits": rule_edits,
+            "rule_more": rule_more,
+            "rule_edits_dirty": rule_edits_dirty,
             "renaming": _fighter_named(request, gang, "rename"),
             "edit_url": reverse("n26-edit-fighter", args=[miniature.pk]),
         },

@@ -13,6 +13,13 @@ the moment a code path forgets one and nothing notices for months; a
 recompute at the boundary is right by construction, and ``n26.reconcile``
 still catches anything that bypassed the boundary entirely.
 
+Not every operation moves money. A rename, a notes edit, a
+characteristic set by hand price nothing — they go through here anyway,
+because they are part of the gang's story and each writes a journal
+event, so the history can say who did what and when. The line is the
+story, not the money: device preferences (a print config, a display
+set) are nobody's history and stay plain saves.
+
 Use it as a context manager::
 
     with operation(gang, actor=player) as op:
@@ -215,6 +222,8 @@ class Operation:
         reason=None,
         bought_from=None,
         note="",
+        removes=False,
+        kind=None,
     ):
         """Write one assignment: an assignable, a host, and a cause.
 
@@ -240,6 +249,7 @@ class Operation:
             caused_by=caused_by,
             chosen_for=chosen_for,
             chosen_for_slot=chosen_for_slot,
+            removes=removes,
         )
         if list_price is None:
             list_price = paid + discount
@@ -266,14 +276,17 @@ class Operation:
         )
         self.event(
             assignment,
-            _kind_for(paid, caused_by),
+            kind if kind is not None else _kind_for(paid, caused_by),
             credits_delta=paid,
             trade_points_delta=trade_points,
             rating_delta=rating,
             note=note,
         )
         self.touched(assignment.miniature_root)
-        self._run_stored_effects(assignment, assignable)
+        # A removal is not an arrival: the thing named is being taken
+        # away, so nothing it would write on arrival may run.
+        if not removes:
+            self._run_stored_effects(assignment, assignable)
         return assignment
 
     def _run_stored_effects(self, assignment, assignable):
@@ -294,11 +307,127 @@ class Operation:
         finally:
             self._effect_depth -= 1
 
-    def event(self, assignment, kind, **deltas):
-        """Append to the log. Nothing already written is ever altered."""
+    def event(self, about, kind, **deltas):
+        """Append to the log. Nothing already written is ever altered.
+
+        ``about`` is the assignment or the model the record concerns —
+        or ``None``, for an act on the gang itself. Every event is
+        pinned to its gang, so a gang's whole history is one query, in
+        order: this operation's gang, or — opened without one — the
+        gang at the top of the assignment's own chain.
+        """
+        assignment = about if isinstance(about, Assignment) else None
+        gang = self.gang
+        if gang is None and assignment is not None:
+            gang = assignment.gang_root
+        if gang is None and isinstance(about, Miniature):
+            membership = getattr(about, "membership", None)
+            gang = membership.gang if membership else None
         return LedgerEvent.objects.create(
-            assignment=assignment, kind=kind, actor=self.actor, **deltas
+            assignment=assignment,
+            miniature=about if isinstance(about, Miniature) else None,
+            gang=gang,
+            kind=kind,
+            actor=self.actor,
+            **deltas,
         )
+
+    def rename(self, miniature, name):
+        """Give one model a new name, and say so in the history.
+
+        The name is the owner's prose, so nothing here is priced — the
+        event stands alone, no entry behind it. The note keeps both
+        names, which is the whole of what a reader of the history wants
+        from a rename.
+        """
+        was = miniature.name
+        if was == name:
+            return miniature
+        miniature.name = name
+        miniature.save(update_fields=["name", "modified"])
+        self.event(miniature, LedgerEvent.Kind.RENAMED, note=f"{was} → {name}"[:255])
+        return miniature
+
+    def edit_notes(self, miniature, notes):
+        """Store the owner's notes as written, and say they changed.
+
+        The history records that the notes moved and never what they
+        say: the words are the owner's, and the journal is a list of
+        acts, not a copy of the prose.
+        """
+        if miniature.notes == notes:
+            return miniature
+        miniature.notes = notes
+        miniature.save(update_fields=["notes", "modified"])
+        self.event(miniature, LedgerEvent.Kind.NOTED)
+        return miniature
+
+    def set_stats(self, miniature, changes):
+        """Set or clear the characteristics an owner has taken over.
+
+        ``changes`` is what the form worked out actually moved — each a
+        ``(type_stat, value, said)``, where an empty value clears the
+        override so the entry's own print stands again, and ``said`` is
+        the sentence the history keeps. Nothing here is priced: the
+        override replaces a printed value, and what the gang is worth
+        never followed from a characteristic.
+        """
+        from n26.core.models import StatOverride
+
+        for type_stat, value, said in changes:
+            held = StatOverride.objects.filter(
+                miniature=miniature, statline_type_stat=type_stat
+            )
+            if not value:
+                held.delete()
+                self.event(miniature, LedgerEvent.Kind.STAT_CLEARED, note=said)
+                continue
+            override = held.first() or StatOverride(
+                miniature=miniature, statline_type_stat=type_stat
+            )
+            override.value = value
+            override.save()
+            self.event(miniature, LedgerEvent.Kind.STAT_SET, note=said)
+        return miniature
+
+    def take_away(self, miniature, thing):
+        """The owner removes a subtype or rule from what the model shows.
+
+        Stored as an assignment with ``removes`` set — the carrier of
+        the owner's decision, ledgered like any acquisition — and
+        compiled at read time to an unconditional removal, so what it
+        cancels is suppressed rather than written to. Archiving this
+        assignment brings the thing back; a purchase in the thing's
+        name is never hidden by it (``n26.core.effects``).
+        """
+        return self.assign(
+            thing,
+            miniature=miniature,
+            paid=0,
+            reason=Reason.EDITED,
+            removes=True,
+            kind=LedgerEvent.Kind.TOOK_AWAY,
+        )
+
+    def reset_edits(self, miniature, field):
+        """Archive the owner's own edits of one kind, adds and removals
+        both, so the model reads as the content says again.
+
+        ``field`` is the assignable column the section holds —
+        ``"subtype"`` or ``"rule"``. Each archive writes its own event,
+        so the reset is in the history like everything else.
+        """
+        edits = list(
+            Assignment.objects.filter(
+                miniature_root=miniature,
+                archived=False,
+                ledger_entry__reason=Reason.EDITED,
+                **{f"{field}__isnull": False},
+            )
+        )
+        for assignment in edits:
+            self.remove(assignment, note="reset")
+        return edits
 
     def remove(self, assignment, note=""):
         """Take something away — and everything it brought with it.

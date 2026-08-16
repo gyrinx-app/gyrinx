@@ -15,9 +15,12 @@ anything computed folds on top: a rule that improves a Weapon Skill
 improves what the owner set, not what the entry prints.
 
 Nothing here is bought, and setting a characteristic leaves what the
-gang is worth alone, so these are written plainly rather than through
-``n26.operations`` — as ``AssignmentSet`` and ``PrintConfig`` are. The
-line operations draw is money and rating; an override crosses neither.
+gang is worth alone — but it is part of the gang's story, so the rows
+are written through ``Operation.set_stats`` and each change lands in
+the history as a journal event. The line operations draw is the gang's
+story, not only its money: what a reader of the gang's log would want
+said goes through that one door, while device preferences
+(``AssignmentSet``, ``PrintConfig``) stay plain saves.
 """
 
 from django.db import models

@@ -246,6 +246,13 @@ class Assignment(NamesAnAssignable, Base, Archived):
         "self", on_delete=models.CASCADE, null=True, blank=True, related_name="caused"
     )
 
+    # An assignment that takes its assignable away rather than holding
+    # it: the owner's own removal of a subtype or rule. Never a line on
+    # a card — it is compiled at read time to an unconditional removal,
+    # so what it cancels is suppressed rather than written to, and comes
+    # back the moment this assignment is archived.
+    removes = models.BooleanField(default=False)
+
     # Which choice this settles: the slot's own assignment, not the slot
     # row — so two slots of one type on one holder stay independent and a
     # card reads what was chosen without inferring anything from kinds.
@@ -306,6 +313,19 @@ class Assignment(NamesAnAssignable, Base, Archived):
             models.CheckConstraint(
                 condition=exactly_one_of(ASSIGNABLE_FIELDS),
                 name="assignment_exactly_one_assignable",
+            ),
+            # A removal names what it takes away, and only the kinds an
+            # owner edits by hand may be taken away this way — hosted on
+            # the model it edits, because assembly compiles removals off
+            # a model's own rows and a gang-hosted one would broadcast
+            # as a held line instead.
+            models.CheckConstraint(
+                condition=models.Q(removes=False)
+                | (
+                    models.Q(miniature__isnull=False)
+                    & (models.Q(subtype__isnull=False) | models.Q(rule__isnull=False))
+                ),
+                name="assignment_removes_names_subtype_or_rule",
             ),
         ]
         indexes = [

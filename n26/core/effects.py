@@ -310,6 +310,79 @@ class PlannedStep:
         )
 
 
+class _OwnersRemoval:
+    """Stands where a modifier would in an owner-removal's plan step.
+
+    The step never runs through a scope — its targets are fixed by
+    construction — so only the two sentences are ever read, and the plan
+    stays one shape whoever authored the line.
+    """
+
+    def __init__(self, thing):
+        self.thing = thing
+        self.name = ""
+
+    @property
+    def scope(self):
+        return "the model"
+
+    @property
+    def effect(self):
+        return f"takes away {self.thing}"
+
+
+class _TheOwner:
+    """The source an owner's own step names.
+
+    Keyed like an assignable so every retraction pass can ask, and keyed
+    off all of them: the owner is never granted, so never cancelled.
+    """
+
+    class _meta:
+        label_lower = "owner"
+
+    pk = None
+
+    def __str__(self):
+        return "your edits"
+
+
+THE_OWNER = _TheOwner()
+
+
+def _own_removals(card):
+    """The owner's removals, ready to settle with round 0.
+
+    Each is an assignment with ``removes`` set, carried on the card as
+    machinery (``Card.removals``) rather than as a line. Settling with
+    round 0 gives them exactly an unconditional content removal's
+    reach: conditional scopes then ask their questions of a world where
+    the thing is already gone, and a later round's grant of it stays
+    cancelled all the same (``_retract`` keeps the dead dead).
+    """
+    from n26.library.models.modifier import MODEL, Target
+
+    prepared = []
+    for assignment in getattr(card, "removals", ()):
+        thing = assignment.assignable
+        step = PlannedStep(
+            source=THE_OWNER,
+            modifier=_OwnersRemoval(thing),
+            round=0,
+            ran_in=0,
+        )
+        step.outcome = "reached"
+        prepared.append(
+            (
+                Target(MODEL),
+                Contribution(thing=thing, source=str(THE_OWNER)),
+                ("edit", assignment.pk),
+                step,
+            )
+        )
+    return prepared
+
+
 @dataclass
 class _Placed:
     """One granting edge, as the retraction pass remembers it.
@@ -630,10 +703,17 @@ def compute(card, index):
         seen.add(ModifierIndex.key(contribution.thing))
         pending.extend(steps_for(contribution.thing, True, 0, echoed=True))
 
+    edits = _own_removals(card)
     round_no = 0
-    while pending and round_no <= MAX_CHAIN_DEPTH:
+    while (pending or edits) and round_no <= MAX_CHAIN_DEPTH:
         facts = _Facts(card, computed)  # the snapshot every scope in this round sees
         adds, removes = [], []
+        # The owner's removals settle with round 0, the reach an
+        # unconditional content removal has.
+        for edit in edits:
+            computed.plan.append(edit[3])
+            removes.append(edit)
+        edits = []
 
         for _ in range(MAX_CHAIN_DEPTH):
             batch = [step for step in pending if step.ran_in <= round_no]

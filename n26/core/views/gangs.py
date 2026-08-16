@@ -438,13 +438,14 @@ def _dismiss(request, pk, kind):
 def rename_fighter(request, pk):
     """Rename one model: the act behind the gang sheet's dialog.
 
-    The name is the model's own and nothing the books watch — no rating
-    moves, no ledger entry is written — so this is a plain save rather
-    than an operation. GET reopens the dialog instead of acting, so the
+    No rating moves and nothing is priced, but a rename is part of the
+    gang's story, so it goes through an operation and the history keeps
+    both names. GET reopens the dialog instead of acting, so the
     address can be followed, sent, or reloaded without renaming anyone.
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.forms import RenameFighterForm
+    from n26.core.operations import operation
     from n26.core.views.permissions import _own_miniature_or_404
 
     miniature = _own_miniature_or_404(request, pk)
@@ -465,10 +466,11 @@ def rename_fighter(request, pk):
         return redirect(f"{back_url}?rename={miniature.pk}")
 
     was = miniature.name
-    miniature.name = form.cleaned_data["name"]
-    if miniature.name == was:
+    name = form.cleaned_data["name"]
+    if name == was:
         return redirect(back_url)
-    miniature.save(update_fields=["name"])
+    with operation(miniature.membership.gang, actor=request.user) as op:
+        op.rename(miniature, name)
     record(request, N26Noun.MODEL, EventVerb.UPDATE, miniature, renamed_from=was)
     messages.success(request, f"Renamed {was} to {miniature.name}.")
     return redirect(back_url)

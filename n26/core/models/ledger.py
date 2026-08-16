@@ -10,6 +10,14 @@ Two halves, both kept:
 
 The invariant that keeps them honest: folding an entry's events reproduces
 the entry. ``n26.reconcile`` checks it.
+
+An event may also stand alone — about a model or the gang itself rather
+than an assignment — for acts the books do not price: a rename, a note,
+a characteristic set by hand. The invariant is quantified over entries,
+so a standalone event is outside it by construction: it has no entry to
+fold into and carries no deltas to fold. Together the events are the
+gang's history, and every one is pinned to its gang so the whole story
+reads in one query, in order.
 """
 
 from django.db import models
@@ -26,6 +34,10 @@ class Reason(models.TextChoices):
     GRANTED = "granted", "Granted by something else"
     REWARD = "reward", "Reward"
     FREE = "free", "Free"
+    # The owner's own change to what the model is — a subtype or rule
+    # they added or took away themselves. Priced at nothing, and what a
+    # per-section reset archives.
+    EDITED = "edited", "Edited by the owner"
 
 
 class LedgerEntry(Base):
@@ -80,7 +92,13 @@ class LedgerEntry(Base):
 
 
 class LedgerEvent(Base):
-    """One append-only record of a change, with who made it."""
+    """One append-only record of a change, with who made it.
+
+    About an assignment where money or kit moved; about a model or the
+    gang itself for what the books do not price — a rename, a note, a
+    characteristic set by hand. Whatever it is about, it is pinned to
+    its gang, so a gang's whole history is one indexed query.
+    """
 
     class Kind(models.TextChoices):
         PURCHASED = "purchased", "Purchased"
@@ -98,9 +116,40 @@ class LedgerEvent(Base):
         # — by a reader, and by anyone reconciling the books — and only a
         # kind of its own can answer.
         SOLD = "sold", "Sold"
+        # The arrival of an owner's removal: "Took away: Mounted" is
+        # what happened, where the plain ``added`` would read as the
+        # opposite of what the owner did.
+        TOOK_AWAY = "took_away", "Took away"
+        # Journal-only acts: no entry, no deltas, nothing for reconcile
+        # to fold. They exist so the history can say what the owner did.
+        RENAMED = "renamed", "Renamed"
+        NOTED = "noted", "Notes edited"
+        STAT_SET = "stat_set", "Characteristic set"
+        STAT_CLEARED = "stat_cleared", "Characteristic cleared"
 
     assignment = models.ForeignKey(
-        "n26.Assignment", on_delete=models.CASCADE, related_name="ledger_events"
+        "n26.Assignment",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="ledger_events",
+    )
+    #: The model a journal-only event is about, where it is about one.
+    #: Never set beside ``assignment`` — an assignment already knows its
+    #: model, and two answers to "what is this about" could disagree.
+    miniature = models.ForeignKey(
+        "n26.Miniature",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="ledger_events",
+    )
+    #: Set on every event at write. The history's anchor: derivable from
+    #: the assignment's roots or the model's membership, but a reader of
+    #: "everything done to this gang, in order" should not need a join
+    #: per event to ask it.
+    gang = models.ForeignKey(
+        "n26.Gang", on_delete=models.CASCADE, related_name="ledger_events"
     )
     kind = models.CharField(max_length=20, choices=Kind)
     actor = models.ForeignKey(
@@ -119,6 +168,23 @@ class LedgerEvent(Base):
         verbose_name = "ledger event"
         verbose_name_plural = "ledger events"
         ordering = ["created"]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(assignment__isnull=True)
+                | models.Q(miniature__isnull=True),
+                name="ledger_event_about_at_most_one",
+            ),
+        ]
 
     def __str__(self):
-        return f"{self.get_kind_display()}: {self.assignment.assignable}"
+        return f"{self.get_kind_display()}: {self.about}"
+
+    @property
+    def about(self):
+        """What the record concerns: the thing acquired, the model acted
+        on, or — neither set — the gang itself."""
+        if self.assignment_id is not None:
+            return self.assignment.assignable
+        if self.miniature_id is not None:
+            return self.miniature
+        return self.gang

@@ -1362,10 +1362,11 @@ def assigned_to(thing):
         return None
     # Archived rows are things somebody parted with, so they hold
     # nothing; every reader that counts a gang's own rows leaves them
-    # out the same way.
-    tally = Assignment.objects.filter(archived=False, **{column: thing}).aggregate(
-        rows=Count("pk"), gangs=Count("gang_root", distinct=True)
-    )
+    # out the same way. An assignment that *removes* its assignable is
+    # the opposite of holding it, so those are left out too.
+    tally = Assignment.objects.filter(
+        archived=False, removes=False, **{column: thing}
+    ).aggregate(rows=Count("pk"), gangs=Count("gang_root", distinct=True))
     return AssignedTo(gangs=tally["gangs"], rows=tally["rows"])
 
 

@@ -38,11 +38,16 @@ underlying spec.
   sentence written for them: views catch that one class, show it, and
   redirect. A content bug or a caller mistake is not one — nobody can
   click their way to it, so it stays an ordinary error with a traceback.
-- Display-only state (`AssignmentSet`) deliberately bypasses operations.
-  Keep the line clean: if a feature costs money or changes a rating, it
-  goes through an operation.
+- **Every write to the gang's story goes through an operation** — even
+  where nothing is priced. A rename, a notes edit, a characteristic
+  override write a journal-only `LedgerEvent` (about a miniature or the
+  gang, no entry behind it) so the history can say what the owner did.
+  Device preferences (`AssignmentSet`, `PrintConfig`) are nobody's
+  history and stay plain saves.
 - The ledger is append-only, and folding an entry's events must
   reproduce the entry — `reconcile.check_entry` checks exactly that.
+  Journal-only events stand outside the fold by construction: no entry,
+  no deltas. Every event is pinned to its gang at write.
 
 ## Reading player data
 
@@ -99,6 +104,12 @@ underlying spec.
 - `archived=False` is never a default filter. Readers opt in explicitly
   (`card_rows` does; `reconcile.sum_rating` also excludes assignments
   whose model has left the roster).
+- **An assignment with `removes` set is machinery, never a line.**
+  `assemble()` keeps such assignments off the node tree (they ride the
+  card as `Card.removals`, compiled by `effects` into round-0
+  removals), so node walkers never see them — but anything reading
+  assignments directly from the database must skip `removes=True` or a
+  taken-away subtype reads as a held one.
 
 ## Views, forms, templates
 

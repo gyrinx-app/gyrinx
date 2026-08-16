@@ -260,7 +260,12 @@ def buy_weapon_profile(weapon_assignment, weapon_profile, actor=None, **kwargs):
 def assign(assignable, *, actor=None, gang=None, miniature=None, **kwargs):
     from n26.core.operations import operation
 
-    host_gang = gang or (miniature.gang if miniature else None)
+    stash = kwargs.get("stash")
+    host_gang = (
+        gang
+        or (miniature.gang if miniature else None)
+        or (stash.gang if stash is not None else None)
+    )
     actor = actor or (host_gang.owner if host_gang else None)
     with operation(host_gang, actor=actor) as op:
         return op.assign(assignable, gang=gang, miniature=miniature, **kwargs)
