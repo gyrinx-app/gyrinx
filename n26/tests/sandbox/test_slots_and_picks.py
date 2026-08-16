@@ -828,6 +828,27 @@ class TestAGangPickOpensAChoiceOnEveryModel:
         assert Assignment.objects.get(pickable=nauticus).miniature == kaustos
         assert_reconciled(gang)
 
+    def test_each_fighter_settles_their_own_independently(self, gang, guild_shape):
+        profile, guild, nauticus, role_slot = guild_shape
+        kaustos, grendel = self.crew_with_the_pick(gang, profile, guild)
+
+        for fighter in (kaustos, grendel):
+            (role_row,) = choices_of(fighter)
+            choose(
+                role_row.anchor.assignment, nauticus, slot=role_slot, miniature=fighter
+            )
+
+        assert sorted(
+            Assignment.objects.filter(pickable=nauticus).values_list(
+                "miniature__name", flat=True
+            )
+        ) == ["Grendel", "Kaustos"]
+        for fighter in (kaustos, grendel):
+            assert [line.name for line in card_of(fighter)[1].rules] == [
+                "Master of Water"
+            ]
+        assert_reconciled(gang)
+
     def test_unchoosing_the_alliance_takes_every_role_with_it(self, gang, guild_shape):
         profile, guild, nauticus, role_slot = guild_shape
         kaustos, _ = self.crew_with_the_pick(gang, profile, guild)

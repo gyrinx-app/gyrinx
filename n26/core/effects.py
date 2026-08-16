@@ -706,10 +706,18 @@ def compute(card, index):
                     # asked on each card its scope reached a model of —
                     # Water Guild, the gang's pick, opening a Guild Role
                     # on every fighter — and never repeated for merely
-                    # riding a card as the gang's copy.
+                    # riding a card as the gang's copy. A gang *guest*
+                    # granting a slot has no stored assignment on this
+                    # card to hang the choice's address on, so its slot
+                    # is not asked yet: recording an anchorless row would
+                    # only be dropped further down.
                     given_here = not (
                         step.echoed or (step.node is not None and step.node.broadcast)
-                    ) or any(target.kind == MODEL for target in targets)
+                    ) or (
+                        step.node is not None
+                        and step.node.broadcast
+                        and any(target.kind == MODEL for target in targets)
+                    )
                     if given_here:
                         given = (
                             effect.thing,

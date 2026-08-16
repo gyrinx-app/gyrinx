@@ -61,8 +61,7 @@ class TestWhatTheConversionDecides:
         assert made.scope.reach == TargetsMiniature.Reach.BEARER
 
     def test_a_rule_used_on_a_gang_means_all_models(self, gang_type, default_pack):
-        from n26.core.operations import operation
-        from n26.tests.sandbox.actions import found_gang
+        from n26.tests.sandbox.actions import assign, found_gang
 
         made = _model_scoped("House payload")
         rule = create_rule("House charter")
@@ -70,8 +69,7 @@ class TestWhatTheConversionDecides:
         gang = found_gang(
             "The Bad Girls", gang_type, owner=User.objects.create_user("player")
         )
-        with operation(gang, actor=gang.owner) as op:
-            op.assign(rule, gang=gang)
+        assign(rule, gang=gang)
 
         say_the_reach(live_apps)
 
