@@ -94,8 +94,13 @@ steps:
       # The DB connection pool in gyrinx/settings_prod.py and the gunicorn
       # worker/thread counts in docker/entrypoint.sh are sized against these
       # four values — revisit them together.
+      # --cpu=1: measured over 14,940 one-minute container samples, the service
+      # used 0.10 vCPU at p50, 0.36 at p95 and 0.86 at p99.9, exceeding 1.0 vCPU
+      # in a single sample and never reaching 1.5. The work is I/O-bound on
+      # Postgres, so the second core sat idle. startup-cpu-boost stays on, which
+      # covers the CPU spike of a cold Django boot.
       - "--max-instances=3"
-      - "--cpu=2"
+      - "--cpu=1"
       - "--memory=1Gi"
       - "--concurrency=40"
       # HTTP probe against the WSGI-level /healthz in gyrinx/wsgi.py, which only
