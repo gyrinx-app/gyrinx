@@ -1467,6 +1467,17 @@ GROUPS: list[Group] = [
                     "slot renders inside this component's scope, which is what "
                     'lets a caller bind ::disabled="!dirty" on its own button.'
                 ),
+                parts=(
+                    Part(
+                        "c-n26.pick-list.box",
+                        "n26/pick_list/box.html",
+                        "One option as a box to tick — the same row whether the "
+                        "thing is held or is one the panel offers, so the two "
+                        "runs cannot come to look different. Binds to `picked` "
+                        "above it in the Alpine scope, which is what lets the "
+                        "panel tick a box and the list read what is ticked.",
+                    ),
+                ),
             ),
             Component(
                 slug="tick-list",
