@@ -253,9 +253,9 @@ class OwnedCopyRow:
     #: and a chevron full of ways to lose a thing is no place for it.
     accessorise: Action | None = None
     #: The options this copy was taken with, in the order the offer put
-    #: them — "Cutter plasma guns", "Smoke dispenser". Its price already
-    #: holds what they added, so what each one costs is not said again
-    #: here. Empty where nothing was ever asked.
+    #: them — "Cutter plasma guns", "Smoke dispenser". What each added is
+    #: already inside the copy's rating, so no figure is said again
+    #: beside them. Empty where nothing was ever asked.
     chosen: tuple[str, ...] = ()
 
 

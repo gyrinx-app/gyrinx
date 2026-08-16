@@ -307,6 +307,7 @@ _CATALOGUE = [
         "Mounts",
         [
             ("Grav-cutter", 150, 12, False),
+            ("Ridge-runner", 90, 8, False),
         ],
     ),
 ]
@@ -361,6 +362,17 @@ OFFERED = {
             ],
         ),
         ("one-or-none", [("Smoke dispenser", 20)]),
+    ],
+    #: The mount the sample fighter already owns. A second optioned line
+    #: so that one can be drawn as a row still for sale, with its
+    #: controls, while the other is drawn as a row already bought,
+    #: naming what it was bought with.
+    "Ridge-runner": [
+        (
+            "one",
+            [("Ridge-runner scattergun", 0), ("Ridge-runner harpoon", 25)],
+        ),
+        ("one-or-none", [("Ridge-runner spikes", 10)]),
     ],
 }
 
@@ -1865,10 +1877,11 @@ def carried():
     template drew them differently.
 
     Two Stub guns, a Meltagun with a paid round, and a mount bought with
-    two of its options taken: a count above one, a part under a copy, a
-    copy naming what it was bought with, and everything else on the list
-    untouched. Those are the states a row has, and one sample answers
-    for every surface that asks what this fighter is carrying.
+    one option from each of its two sets: a count above one, a part
+    under a copy, a copy naming what it was bought with, and everything
+    else on the list untouched. Those are the states a row has, and one
+    sample answers for every surface that asks what this fighter is
+    carrying.
     """
     from n26.core.owned import OwnedPart, OwnedThing, thing_key
 
@@ -1902,13 +1915,14 @@ def carried():
         copy("Meltagun", 135, parts=(round_,)),
         copy("Stub gun", 5, index=0),
         copy("Stub gun", 5, index=1),
-        # The mount the sample list offers alternatives on, bought with
-        # one taken from each of its two sets — the options themselves,
-        # never the author's name for the set they came from.
+        # A mount bought with one option taken from each of its two sets
+        # — the options themselves, never the author's name for the set
+        # they came from. The list's other mount is left unbought, so one
+        # of the two draws its controls and the other draws its picks.
         copy(
-            "Grav-cutter",
-            165,
-            chosen=("Grav-cutter plasma guns", "Smoke dispenser"),
+            "Ridge-runner",
+            125,
+            chosen=("Ridge-runner harpoon", "Ridge-runner spikes"),
         ),
     ):
         held.setdefault(key, []).append(thing)

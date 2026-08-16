@@ -25,7 +25,7 @@ from dataclasses import dataclass, field
 from n26.core.effects import ModifierIndex
 from n26.core.models import Assignment, Reason
 from n26.core.models.assignment import ASSIGNABLE_FIELDS
-from n26.library.models.assignable import OPTION_OFFER_PATHS
+from n26.library.models.assignable import Family, Optioned
 from n26.library.models.modifier import GANG, MODEL
 
 
@@ -426,9 +426,29 @@ def hydrate_rows(rows, with_statlines=False, with_options=False):
             "weapon_profile__weapon__statline_type__stats__stat",
         ]
     if with_options:
-        paths += ["chosen_options", *(f"wargear__{p}" for p in OPTION_OFFER_PATHS)]
+        paths += ["chosen_options", *_option_offer_paths()]
     prefetch_related_objects(rows, *paths)
     return rows
+
+
+def _option_offer_paths():
+    """The offer a copy's recorded options are named from, per kind.
+
+    Asked of the library's own families rather than a list kept here, so
+    a kind of gear that gains options is described without a query per
+    copy the day it is authored. Only what a model *owns* is described,
+    which is the same question :func:`n26.core.owned.is_possession`
+    asks — a fighter's own entry offers options too, and nothing draws
+    them as kit.
+
+    The set each option brings is not pulled: naming an option reads the
+    key already on its own row, so the set itself would be a query for
+    something nobody looks at.
+    """
+    for name in ASSIGNABLE_FIELDS:
+        kind = Assignment._meta.get_field(name).related_model
+        if issubclass(kind, Optioned) and getattr(kind, "family", None) == Family.GEAR:
+            yield f"{name}__options__group"
 
 
 def set_by_hand(**filters):
@@ -450,14 +470,12 @@ def set_by_hand(**filters):
     return grouped
 
 
-def card_rows(with_statlines=False, with_options=False, **filters):
+def card_rows(with_statlines=False, **filters):
     """The flat fetch every card build starts from: one assignment query,
     hydrated. Builds fetching more than one list of assignments hydrate
     them together instead — one pass covers any number of fetches.
     """
-    return hydrate_rows(
-        _flat_rows(**filters), with_statlines=with_statlines, with_options=with_options
-    )
+    return hydrate_rows(_flat_rows(**filters), with_statlines=with_statlines)
 
 
 def gang_rows(gang):
@@ -612,7 +630,7 @@ def _forest(rows):
     return roots
 
 
-def build_gang_card(gang, with_statlines=True, assignment_set=None, with_options=False):
+def build_gang_card(gang, with_statlines=True, assignment_set=None):
     """The gang's own card, its stash, and every member's card.
 
     The same fetch family as ever: one assignment query for everything
@@ -631,9 +649,7 @@ def build_gang_card(gang, with_statlines=True, assignment_set=None, with_options
     # The stash's assignments ride the same hydration pass as everyone's
     # — a second pass would repeat every narrow query for a handful.
     stash_rows = _flat_rows(gang_root=gang, stash_root__isnull=False)
-    hydrate_rows(
-        [*rows, *stash_rows], with_statlines=with_statlines, with_options=with_options
-    )
+    hydrate_rows([*rows, *stash_rows], with_statlines=with_statlines)
     for row in rows:
         if row.miniature_root_id is None:
             shared.append(row)

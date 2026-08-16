@@ -465,9 +465,10 @@ class TestWhatAnOwnedCopySays:
     def test_the_standard_guns_are_named_though_nobody_picked_them(
         self, client, owner, fighter, house_list, cutter
     ):
-        """Taking what comes as standard records nothing, because there
-        was nothing to record. A reader asking what this mount carries
-        still needs telling, so the set answers with its head."""
+        """A purchase records every set it took, the head of a pick-one
+        set included, so taking what comes as standard is recorded like
+        any other pick. A reader asking what this mount carries is
+        answered whether or not they made a decision."""
         self.buy(client, owner, fighter, house_list, cutter)
 
         assert self.chosen(client, owner, fighter, house_list) == [
@@ -528,6 +529,64 @@ class TestWhatAnOwnedCopySays:
             ("Cutter heavy stubbers", "Smoke dispenser"),
             ("Cutter plasma guns",),
         ]
+
+    def test_an_any_of_set_names_every_option_taken_from_it(
+        self, client, owner, gang, fighter, default_pack
+    ):
+        """The third mode: a set a buyer may take as much of as they
+        like, which is the one place several names come from a single
+        set."""
+        belt = create_wargear("Grenade belt", price=20)
+        pouches = create_option_group(belt, "Pouches", choose="any")
+        for name, price in [("Frag", 15), ("Krak", 30), ("Smoke", 10)]:
+            offer_option(
+                belt,
+                f"{name} grenades",
+                price=price,
+                thing=create_weapon(f"{name} grenades", profiles=[("Thrown", 0)]),
+                group=pouches,
+            )
+        collection = create_collection("Munitions", entries=[belt])
+        assign(collection, gang=gang)
+
+        client.force_login(owner)
+        client.post(
+            equip_url(fighter, collection),
+            {"thing": key_of(belt), choice_field(belt, 0): ["0", "2"]},
+        )
+
+        row = row_named(client, owner, fighter, collection, "Grenade belt")
+        assert [copy.chosen for copy in row.copies] == [
+            ("Frag grenades", "Smoke grenades")
+        ]
+        gang.refresh_from_db()
+        assert_reconciled(gang)
+
+    def test_kit_that_arrived_without_options_names_none_of_them(
+        self, client, owner, gang, fighter, cutter, default_pack
+    ):
+        """A mount built into a fighter's own entry is granted whole,
+        with none of its sets resolved and nothing recorded. Answering
+        with a set's head would tell a reader the fighter has launchers
+        that were never assigned to them.
+        """
+        from n26.library.authoring import add_built_in
+
+        rider = create_wargear("Rider's rig", price=0)
+        add_built_in(rider, cutter)
+        collection = create_collection("Riders", entries=[rider])
+        assign(collection, gang=gang)
+
+        client.force_login(owner)
+        client.post(equip_url(fighter, collection), {"thing": key_of(rider)})
+
+        from n26.core.card import build_card
+        from n26.core.owned import owned_things
+
+        held = Assignment.objects.get(wargear=cutter, archived=False)
+        assert not held.chosen_options.exists()
+        owned = owned_things(build_card(fighter, with_options=True), "/equip")
+        assert [thing.chosen for thing in owned[key_of(cutter)]] == [()]
 
     def test_a_set_two_offers_share_is_named_once(
         self, client, owner, gang, fighter, default_pack
@@ -592,7 +651,7 @@ class TestWhatTheOwnedCopyDraws:
 
         assert "Cutter plasma guns · Smoke dispenser" in body
 
-    def test_the_label_the_author_gave_a_set_still_reaches_nobody(
+    def test_an_owned_copy_never_names_the_set_a_pick_came_from(
         self, client, owner, fighter, house_list, cutter
     ):
         """Naming the sets would be the tidy way to draw two picks, and

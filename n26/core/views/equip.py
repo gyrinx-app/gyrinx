@@ -419,8 +419,8 @@ def equip(request, pk):
     # One card build serves the whole page: which lists this fighter can
     # browse and how usable each line is are both read off the same
     # computed card.
-    # ``with_options`` so each copy can name what it was bought with;
-    # nothing else on this page reads it.
+    # The options ride along because this page names what each copy was
+    # bought with, which no other surface built from a card does.
     card = build_card(miniature, with_options=True)
     index = build_modifier_index([node.assignable for node in card.all_nodes()])
     computed = compute(card, index)
