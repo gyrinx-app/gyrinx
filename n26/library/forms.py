@@ -373,12 +373,20 @@ class GeneratedForm(forms.Form):
         for name, kind in self.spec.fields.items():
             if isinstance(kind, One) and kind.within and self.carrier is not None:
                 picked = cleaned.get(name)
-                # The narrowed queryset has already refused a stray, so
-                # this is the case where nothing narrowed it: a form
-                # built without its carrier would otherwise accept an
-                # set of options belonging to somebody else's profile.
-                if picked is not None and picked.carrier != self.carrier:
-                    self.add_error(name, f"That belongs to {picked.carrier}.")
+                # Asked of the same accessor that narrowed the picker, so
+                # what is offered and what is accepted are one statement
+                # rather than two that can come to disagree — and one that
+                # holds for any kind, not only the ones whose rows can name
+                # what they belong to. Asked of the database rather than of
+                # a list, so a wide accessor costs one row and not all of
+                # them.
+                if (
+                    picked is not None
+                    and not getattr(self.carrier, kind.within)
+                    .filter(pk=picked.pk)
+                    .exists()
+                ):
+                    self.add_error(name, f"That does not belong to {self.carrier}.")
             if isinstance(kind, One) and "collection" in kind.filtered_by:
                 picked = cleaned.get(name)
                 if (
@@ -488,8 +496,18 @@ class GeneratedForm(forms.Form):
         ``is_exclusive`` sharing one id, and the switches cross-wire —
         saving the weapon marks it exclusive because the other form's
         control answered for it.
+
+        What the spec calls **fixed** is left out: those answers are
+        what the thing is, and the way to a different answer is a
+        different thing. Left out rather than refused, and taken off the
+        form rather than only hidden — ``apply_to`` writes the fields the
+        form carries, so a submission naming one anyway writes nothing.
         """
-        return cls(data, files, initial=_initial_from(cls.spec, thing), prefix=prefix)
+        form = cls(data, files, initial=_initial_from(cls.spec, thing), prefix=prefix)
+        for name, kind in cls.spec.fields.items():
+            if getattr(kind, "fixed", False):
+                form.fields.pop(name, None)
+        return form
 
     def apply_to(self, thing):
         """Write this valid form's fields onto an existing row.
@@ -922,6 +940,24 @@ def scope_kind_cards(picked="", carrier=None):
             }
         )
     return cards
+
+
+def chosen_kind_cards(modifier):
+    """The two cards this modifier's kinds were picked from — label and
+    blurb only, for a page that shows the settled kinds rather than
+    offering them again. The kinds are what a modifier *is*, so the page
+    that corrects one states them and never asks."""
+    scope_kind, effect_kind = _scope_verb(modifier.scope), _effect_verb(modifier.effect)
+    return (
+        {
+            "label": _verb_label(scope_kind, SCOPE_MODELS.get(scope_kind)),
+            "blurb": specs()[scope_kind].blurb,
+        },
+        {
+            "label": _verb_label(effect_kind, EFFECT_MODELS.get(effect_kind)),
+            "blurb": specs()[effect_kind].blurb,
+        },
+    )
 
 
 def effect_kind_cards(picked=""):

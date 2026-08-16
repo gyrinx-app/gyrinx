@@ -181,6 +181,58 @@ Within a collection, when displayed, items are grouped by collection section and
 - Where it appears: when a fighter's view of a collection is built, everything unplaced falls into the collection's own default section (part of its schema, so its name and position are content too), or a code-level "Other", drawn last. So browsing Skills & Powers, an unplaced set ("category") is there, under Other.
 - But narrowing excludes it: a Primary-narrowed picker (e.g. used by the "offers a choice" modifier, by setting that the choice comes "from section") only shows categories *placed* within that section. An unplaced skill category lives in Other, not Primary, so it isn't offered. Same for the skills square on the edit page: that surface is the *fighter's* view — their placements — so a collection that hasn't been placed for them isn't shown.
 
+### Slot type
+
+> Draft, for review.
+
+*What is chosen: Gang Legacy is the first, and new ones are authored.*
+
+Fields of its own: a **plural** (what several of them are called, so a page can say "Gang Legacies"), and **allows repeats** (whether one holder may pick the same pickable for two slots of this type).
+
+A slot type puts a name on one or more slots, and groups pickables. It is not an assignable: nothing holds a slot type. Its slots, picklists and pickables all name it, and authoring refuses a mismatch — a picklist of one slot type cannot sit behind another type's slot. Which slot type something belongs to is settled when it is made and never changed afterwards; something in the wrong slot type is a new one, made in the right one. Its page is where the whole slot type is built: its pickables, its picklists, and its slots.
+
+### Pickable
+
+> Draft, for review.
+
+*A value that goes into a slot.*
+
+Fields of its own: the **slot type** it belongs to — plus the shared assignable set, so whatever the pickable means rides it as ordinary modifiers.
+
+One thing offered in a slot: a specific value, of a particular slot type, that carries behaviour as ordinary modifiers. It never draws a row of its own: it appears under its slot's choice row when chosen. Without its slot it shows nothing and does nothing, so it arrives chosen, given, or as a slot's starting value — never as a bare built-in; the authoring form refuses one. Reach: whatever its own modifiers say, from wherever the pick landed.
+
+### Picklist
+
+> Draft, for review.
+
+*A flat, ordered list of pickables that the player chooses from.*
+
+Fields of its own: a **slot type** and a **name**. Each pickable on it carries its place in the order and, where this list calls it something else, a wording of its own.
+
+A set of pickables available in a slot. One slot type throughout, no headings and no prices — where a collection is a catalogue, this is a menu. One slot type may have several different picklists, which is how a limited selection of the pickables is made available in certain situations: what a leader picks from and what a champion picks from could be two lists of one slot type. Not an assignable; a slot names it.
+
+### Slot
+
+> Draft, for review.
+
+*A fully configured slot containing pickables: a picklist, a label, and how many picks.*
+
+Fields of its own: its **slot type** and **picklist**; the **label** shown on the card; **min** and **max picks**; **assigned to** (whether the pick lands on the bearer or on the gang); **hidden**; and a position among the slots on one card.
+
+One specific, named use of a slot type. Assigning one to a model or gang — built into a profile, given by a modifier, or brought by an option when something is bought — causes the slot to show up. The card draws the label with what has been picked by the player, or what's set by default, or a control to pick, on the holder's own card and nowhere else: a slot the gang holds is asked once rather than on every fighter. Picking under the minimum adds a note on the card, never a refusal (no page prints these notes yet), and the picker stops offering at the maximum. A slot of one pick is settled by picking, and picking again replaces the pick; a slot of several is made a pick at a time, each option on the picker adding or taking back its own. A slot of nought picks asks nothing. **Hidden** makes the slot invisible while the pick still does everything it does — grouped hidden assignables, under one name.
+
+### Picks
+
+> Draft, for review.
+
+*Not a type: the assignment that settles a choice.*
+
+The pick is an ordinary assignment: the pickable, hosted where the slot says it lands, caused by the slot's own assignment and pointing back at it. So removing the slot removes the pick and everything the pickable gave; two slots of one slot type on one holder stay independent, even where one thing opened both; and nothing is worked out from what kind of thing was chosen. A pick is free and adds nothing to any rating.
+
+A pick the gang holds is broadcast (but not displayed) to every member: a rule reaching "models with the Cawdor legacy" reaches them all, the fighter who was asked included.
+
+Where the slot type does not allow repeats, the picker marks the pickables already picked for another slot, and the card notes when one pickable is picked for two (no page prints these notes yet). Marks and notes, never locks: the narrowing informs, and an owner may still hand over a pickable no picklist offered.
+
 ---
 
 ## Core types & concepts

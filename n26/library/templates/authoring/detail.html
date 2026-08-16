@@ -26,6 +26,18 @@ thing twice, a line apart.
                 <c-ui.breadcrumbs.item href="{% url 'authoring-leaf' kind %}">
                     {{ verbose_name_plural|capfirst }}
                 </c-ui.breadcrumbs.item>
+                {% comment %}
+                A kind filed under another names it here, which is the
+                only place some pages name it at all: a field settled
+                when the thing was made is not offered on the edit form,
+                so a picklist would otherwise never say which slot type
+                it belongs to.
+                {% endcomment %}
+                {% if parent %}
+                    <c-ui.breadcrumbs.item href="{% url 'authoring-detail' parent.kind parent.thing.pk %}">
+                        {{ parent.thing }}
+                    </c-ui.breadcrumbs.item>
+                {% endif %}
                 <c-ui.breadcrumbs.item :current="True">
                     {{ thing }}
                 </c-ui.breadcrumbs.item>
@@ -176,7 +188,8 @@ thing twice, a line apart.
                         </c-ui.button>
                     </div>
                 {% else %}
-                    <c-n26.form-section title="Add a {{ section.part_verbose_name }}" class="mt-10">
+                    <c-n26.form-section title="Add {{ section.part_article }} {{ section.part_verbose_name }}"
+                                        class="mt-10">
                         {% if section.part_help %}
                             <c-n26.prose class="max-w-2xl">
                                 {% for paragraph in section.part_help %}<p>{{ paragraph }}</p>{% endfor %}
@@ -207,6 +220,33 @@ thing twice, a line apart.
                         </form>
                     </c-n26.form-section>
                 {% endif %}
+            {% endfor %}
+            {% comment %}
+    What points at this thing from elsewhere in the library. Names and
+    ways to them and nothing else: none of it is made here, and each is
+    corrected on its own page.
+            {% endcomment %}
+            {% for section in related_sections %}
+                <c-n26.form-section title="{{ section.title }}"
+                                    description="{{ section.description }}"
+                                    class="mt-10">
+                    {% if section.rows %}
+                        <c-ui.table>
+                            <tbody>
+                                {% for row in section.rows %}
+                                    <tr>
+                                        {% include "authoring/_name_cell.html" with row=row %}
+                                        <td class="w-full text-muted">{{ row.notes|join:" · " }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </c-ui.table>
+                    {% else %}
+                        <c-ui.description>
+                            {{ section.nothing_yet }}
+                        </c-ui.description>
+                    {% endif %}
+                </c-n26.form-section>
             {% endfor %}
             {% comment %}
     Options and their sets are drawn as one section, grouped the way a

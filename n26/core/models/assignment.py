@@ -58,6 +58,8 @@ ASSIGNABLE_FIELDS = {
     "hidden": "library.Hidden",
     "gang_type": "library.GangType",
     "counter": "library.Counter",
+    "slot": "library.Slot",
+    "pickable": "library.Pickable",
 }
 
 HOST_FIELDS = ("gang", "miniature", "parent", "stash")
@@ -198,6 +200,20 @@ class Assignment(NamesAnAssignable, Base, Archived):
         blank=True,
         related_name="assignments",
     )
+    slot = models.ForeignKey(
+        "library.Slot",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="assignments",
+    )
+    pickable = models.ForeignKey(
+        "library.Pickable",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="assignments",
+    )
 
     # Where it lives — exactly one of these three.
     gang = models.ForeignKey(
@@ -228,6 +244,29 @@ class Assignment(NamesAnAssignable, Base, Archived):
     # Why this exists. Removing the cause removes everything it caused.
     caused_by = models.ForeignKey(
         "self", on_delete=models.CASCADE, null=True, blank=True, related_name="caused"
+    )
+
+    # Which choice this settles: the slot's own assignment, not the slot
+    # row — so two slots of one type on one holder stay independent and a
+    # card reads what was chosen without inferring anything from kinds.
+    # Declared like ``caused_by`` because it names the same assignment: a
+    # pick's cause is the slot that offered it, and one link protecting
+    # what the other cascades would make the row impossible to delete.
+    chosen_for = models.ForeignKey(
+        "self", on_delete=models.CASCADE, null=True, blank=True, related_name="picks"
+    )
+
+    # Which slot this pick settles. One assignment may ask twice — a
+    # thing giving two skill-tree choices opens both from one line — so
+    # the asking assignment alone cannot say which choice a pick
+    # answers. PROTECT: a library row must not vanish out from under a
+    # player's pick.
+    chosen_for_slot = models.ForeignKey(
+        "library.Slot",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
     )
 
     # Denormalised roots, maintained in save().

@@ -254,6 +254,22 @@ class TestTheGangPicks:
             "Shooting",
         }
 
+    def test_no_hunters_card_asks_the_gangs_question(self, gang, hunters):
+        """The choice rows draw on the host's card and nowhere else.
+
+        The gang's assignments ride every member's card so that gang-wide
+        rules reach them — and a choice that rode along with them would
+        put the same question in front of the reader once per fighter,
+        each pointing at the same answer.
+        """
+        asked = {
+            slot.kind_label
+            for hunter in hunters.values()
+            for slot in fighter_computed(hunter).choices
+        }
+        # The Hunt Leader has a question of his own, which is his.
+        assert asked == {"Primary skill"}
+
     def test_the_chosen_rows_live_on_the_gang(self, gang, tokens):
         picks = pick(gang, tokens, ["agility", "cunning", "savant", "shooting"])
         assert all(row.gang == gang for row in picks)

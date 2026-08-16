@@ -786,6 +786,10 @@ def context():
         "sorts": SORTS,
         "choice_offer": choice_offer(),
         "empty_choice_offer": ChoiceOffer(label="Primary skill"),
+        # A choice that holds several picks, part-way through and with no
+        # room left: the two states where its acts differ.
+        "choice_picks_offer": choice_picks_offer(),
+        "full_choice_picks_offer": choice_picks_offer(full=True),
         # The same list a fighter's edit page ticks: what they hold, and
         # the one thing a rule gives them that no click can clear.
         "tick_list_offer": tick_list_offer(),
@@ -869,7 +873,7 @@ def sample_about():
                 href="#",
             ),
             _Said(
-                text="It asks the gang to choose one affiliation — the card says Choose until they pick.",
+                text="It asks the gang to make the choice — the card says Choose until they pick.",
             ),
         ),
         assigned_to=_AssignedSample(gangs=14, rows=23),
@@ -877,8 +881,9 @@ def sample_about():
 
 
 def choice_offer():
-    """A pick list as a view hands it over: two headings, one of them
-    carrying a line of detail on an option.
+    """A pick list as a view hands it over: two headings, a line of
+    detail on one option and, on another, the other choice that has
+    already had it.
 
     Skill sets, because that is the case with headings worth showing —
     the same structure with one nameless group is what an offer naming a
@@ -898,7 +903,11 @@ def choice_offer():
             ChoosableGroup(
                 name="Cunning",
                 options=[
-                    Choosable(key="library.skill:4", name="Backstab"),
+                    Choosable(
+                        key="library.skill:4",
+                        name="Backstab",
+                        taken_for="Second skill",
+                    ),
                     Choosable(
                         key="library.skill:5",
                         name="Infiltrate",
@@ -907,6 +916,43 @@ def choice_offer():
                 ],
             ),
         ],
+    )
+
+
+def choice_picks_offer(full=False):
+    """A choice that holds several picks, part-way through being made.
+
+    One nameless group, because a picklist has no headings — it is the
+    pickables behind a choice and nothing else. Two of the three are held,
+    so both acts are on the page at once; ``full`` is the same choice with
+    no room left, where the ones it does not hold are not listed at all.
+    """
+    held = [
+        Choosable(
+            key="library.pickable:1",
+            name="Cawdor",
+            is_current=True,
+            control="remove",
+        ),
+        Choosable(
+            key="library.pickable:2",
+            name="Escher",
+            is_current=True,
+            control="remove",
+        ),
+    ]
+    rest = [
+        Choosable(
+            key="library.pickable:3",
+            name="Ironhead Squats",
+            control="choose",
+            taken_for="Second legacy",
+        ),
+    ]
+    return ChoiceOffer(
+        label="Gang Legacy",
+        takes_several=True,
+        groups=[ChoosableGroup(name="", options=held if full else [*held, *rest])],
     )
 
 
@@ -1827,7 +1873,7 @@ CHANGELOG = [
         "title": "Outcasts",
         "date": "28 Jul",
         "text": (
-            "Archetypes and affiliations, chained picks, and the ratio notes that "
+            "Gang legacies, chained picks, and the ratio notes that "
             "come with them. Said, never enforced."
         ),
     },

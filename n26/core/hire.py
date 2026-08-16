@@ -500,7 +500,11 @@ def hireable_profiles(gang_type=None):
     from n26.library.models import Profile
     from n26.library.models.defaults import DEFAULT_ASSIGNABLE_FIELDS
 
-    members = [f"members__{name}" for name in DEFAULT_ASSIGNABLE_FIELDS]
+    # default_pickable rides along for slots arriving already settled —
+    # the preview card draws the starting pick, so it is read per member.
+    members = [
+        f"members__{name}" for name in (*DEFAULT_ASSIGNABLE_FIELDS, "default_pickable")
+    ]
     weapon_extras = (
         "members__weapon__profiles__traits",
         "members__weapon__profiles__statline__stats__statline_type_stat__stat",

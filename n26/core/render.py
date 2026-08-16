@@ -13,17 +13,25 @@ number of queries regardless of how many models or how much kit — see
 from dataclasses import dataclass, field
 
 from n26.core.card import build_card
-from n26.core.effects import kind_of, limit_notes
+from n26.core.effects import choice_notes, kind_of, limit_notes
 from n26.library.models import (
     EMPTY_VALUE,
     Counter,
     Hidden,
+    Pickable,
     Rule,
+    Slot,
     Subtype,
     Weapon,
     WeaponProfile,
 )
 from n26.library.standard_content import XP_COUNTER
+
+#: The kinds that never draw a line of their own. A hidden carrier by
+#: definition; a slot because its line *is* its choice row; a pick
+#: because it appears as that row's answer. Their effects still show,
+#: named in whatever they changed.
+DRAWS_NO_LINE = (Hidden, Slot, Pickable)
 
 #: The book's weapon slots on one card. Each weapon takes its own
 #: ``slots`` against this budget — asterisked weapons two, grenades none.
@@ -299,6 +307,25 @@ class Choosable:
     #: surface offering things to tick draws it fixed: there is nothing a click
     #: could take away.
     granted_by: str = ""
+    #: The other choice on this holder that has already settled on it,
+    #: where the slot type says one pickable answers one choice. Marked
+    #: and never withheld: the owner may still pick it, and the card says
+    #: so afterwards.
+    taken_for: str = ""
+    #: What this option's own control does, where a choice is settled one
+    #: option at a time: ``"choose"`` adds it, ``"remove"`` takes back the
+    #: pick behind it, and empty draws no control at all. Empty
+    #: throughout on a choice that holds one, where the whole list is
+    #: settled in a single go.
+    control: str = ""
+
+    @property
+    def remark(self):
+        """The muted line under the option's name, whatever fills it."""
+        said = [self.detail] if self.detail else []
+        if self.taken_for:
+            said.append(f"already chosen for {self.taken_for}")
+        return " · ".join(said)
 
 
 @dataclass
@@ -321,11 +348,20 @@ class ChoiceOffer:
     One structure whatever the offer names, which is the point: a skill, an
     archetype and an affiliation differ in the rows they list and in
     nothing else, so one page draws all three.
+
+    A choice holding several picks is settled a pick at a time —
+    ``takes_several`` — and each option carries its own control saying
+    what a click on it does. One that holds a single pick is the older
+    shape: the whole list is settled in a single go, and settling it
+    again replaces what was chosen.
     """
 
     label: str
     chosen: str | None = None
     groups: list[ChoosableGroup] = field(default_factory=list)
+    #: Whether the picker adds and removes one pick at a time rather than
+    #: settling the whole list in a single go.
+    takes_several: bool = False
 
     @property
     def is_empty(self):
@@ -702,9 +738,9 @@ def _slot_key(slot, host):
     nowhere to send a reader.
     """
     anchor = getattr(slot.anchor, "assignment", None)
-    if not host or anchor is None or slot.offer is None:
+    if not host or anchor is None or slot.identity is None:
         return ""
-    return f"{host}:{anchor.pk}:{slot.offer.pk}"
+    return f"{host}:{anchor.pk}:{slot.identity.pk}"
 
 
 def _choice_line(slot, host):
@@ -772,8 +808,26 @@ def build_choice_offer(slot, computed):
     draws the whole kind, which is one heading-less group. Neither
     branch knows what kind of thing is being picked — that is what lets a
     skill, an archetype and an affiliation share a screen.
+
+    Where the slot type takes one pickable once, the ones this holder
+    has already spent elsewhere are marked. Marked, not withheld: the
+    list informs, the click still works, and the card says so
+    afterwards.
+
+    A choice holding more than one pick is settled a pick at a time:
+    everything it holds is drawn chosen and carries the control that
+    takes that one back, and everything else carries the control that
+    adds it — until the choice is full, when the rest stop being offered.
+    Swapping the earliest for whatever was clicked is the behaviour of a
+    choice that holds exactly one, and only of that. A choice that holds
+    none offers nothing at all.
     """
-    from n26.core.browse import CollectionView, offered_by
+    from n26.core.browse import CollectionView, Listed, offered_by
+
+    if slot.max_picks == 0:
+        # A choice that holds nothing asks nothing: there is no pick a
+        # click here could write, so there is nothing to draw.
+        return ChoiceOffer(label=slot.kind_label, chosen=slot.chosen_name)
 
     offered = offered_by(slot, computed)
     current = slot.resolved_with.assignable if slot.resolved_with is not None else None
@@ -783,19 +837,43 @@ def build_choice_offer(slot, computed):
             offered, label=slot.kind_label, chosen=slot.chosen_name, current=current
         )
 
-    groups = []
-    if offered is not None:
-        groups.append(
-            ChoosableGroup(
-                name="",
-                options=[_choosable(thing, current) for thing in offered],
+    several = slot.max_picks > 1
+    held = {option_key(pick.assignable) for pick in slot.picks}
+    taken = _taken_elsewhere(slot, computed)
+    options = []
+    for item in offered or ():
+        thing = item.thing if isinstance(item, Listed) else item
+        name = item.name if isinstance(item, Listed) else None
+        key = option_key(thing)
+        if several and key not in held and slot.is_full:
+            # Full: the way to something else is to take one back, not to
+            # push one out unasked.
+            continue
+        options.append(
+            _choosable(
+                thing,
+                current,
+                taken=taken,
+                name=name,
+                held=held,
+                control=("remove" if key in held else "choose") if several else "",
             )
         )
 
+    if not several and slot.slot is not None and slot.min_picks == 0 and options:
+        # A choice expecting no picks may be settled on nothing: the
+        # None row resets it, and reads as current while nothing is
+        # picked. Only where one pick is held in a single go — a choice
+        # worked at a pick at a time already resets through each pick's
+        # own Remove.
+        options.append(Choosable(key=NONE_KEY, name="None", is_current=not slot.picks))
+
+    groups = [ChoosableGroup(name="", options=options)] if options else []
     return ChoiceOffer(
         label=slot.kind_label,
         chosen=slot.chosen_name,
-        groups=[group for group in groups if group.options],
+        groups=groups,
+        takes_several=several,
     )
 
 
@@ -844,18 +922,65 @@ def offer_from_view(view, *, label, chosen=None, current=None, held=(), granted=
     )
 
 
-def _choosable(thing, current, notes=(), held=(), granted=None):
-    key = f"{thing._meta.label_lower}:{thing.pk}"
+def _taken_elsewhere(slot, computed):
+    """What this holder has already picked for another choice of the same
+    slot type, keyed the way the picker keys its options.
+
+    Only where the slot type takes one pickable once: where it allows
+    repeats, picking the same thing twice is the content working as
+    written and there is nothing to say. The choice being made is left
+    out of its own answer — what is already picked *here* is marked as
+    the current pick, which is a different fact.
+    """
+    if slot.slot is None or slot.slot.slot_type.allows_repeats:
+        return {}
+    taken = {}
+    for other in computed.choices:
+        if other is slot or other.slot is None:
+            continue
+        if other.slot.slot_type_id != slot.slot.slot_type_id:
+            continue
+        for pick in other.picks:
+            taken.setdefault(option_key(pick.assignable), other.source)
+    return taken
+
+
+#: The key the None row submits — the reset on a choice expecting no
+#: picks. No stored thing is behind it, so the key is its own word
+#: rather than a ``label:pk`` pair, which no real option can collide
+#: with.
+NONE_KEY = "none"
+
+
+def option_key(thing):
+    """How a picker names one option in a form.
+
+    The model's label and its primary key, the same pair the equipment
+    listing keys its Buy buttons on: a bare key is ambiguous across the
+    assignable tables. Public because whoever reads a click back has to
+    key what is held the same way the page keyed what it drew.
+    """
+    return f"{thing._meta.label_lower}:{thing.pk}"
+
+
+def _choosable(
+    thing, current, notes=(), held=(), granted=None, taken=None, name=None, control=""
+):
+    key = option_key(thing)
     granted_by = (granted or {}).get(key, "")
     return Choosable(
         key=key,
-        name=str(thing),
+        # The wording a list gives a pickable, where it gives it one. The
+        # thing's own name everywhere else, and on every other surface.
+        name=name or str(thing),
         thing=thing,
         is_current=(current is not None and thing == current)
         or key in held
         or bool(granted_by),
         detail="; ".join(note.text for note in notes),
         granted_by=granted_by,
+        taken_for=(taken or {}).get(key, ""),
+        control=control,
     )
 
 
@@ -933,9 +1058,10 @@ def card_to_model_card(
     # question stops being asked.
     chosen_keys = (
         {
-            slot.resolved_with.key
+            pick.key
             for slot in computed.choices
-            if slot.resolved_with is not None and question_row(slot) is None
+            for pick in slot.picks
+            if question_row(slot) is None
         }
         if computed
         else set()
@@ -1038,10 +1164,11 @@ def card_to_model_card(
             # has, and this is no longer part of it.
             continue
         thing = node.assignable
-        if isinstance(thing, Hidden):
-            # No row of its own — that is its whole kind. Its effects have
-            # already landed (a shifted stat cell names it), so skipping
-            # the row hides nothing the player needs.
+        if isinstance(thing, DRAWS_NO_LINE):
+            # No row of its own. A hidden carrier's effects have already
+            # landed (a shifted stat cell names it); a slot draws its
+            # choice row instead; a pick appears as that row's answer, or
+            # as nothing at all where no choice stands behind it.
             continue
         if getattr(thing, "card_row", None) is not None:
             # The kind said where its lines go — one declaration, read
@@ -1156,7 +1283,9 @@ def card_to_model_card(
             if computed
             else []
         ),
-        remarks=limit_notes(card, computed) if computed else [],
+        remarks=(
+            [*limit_notes(card, computed), *choice_notes(computed)] if computed else []
+        ),
         owned_by=owned_by,
         xp=xp if counted_xp is None else counted_xp,
         xp_target=xp_target,
@@ -1216,11 +1345,7 @@ def _gang_rows(gang_card, gang_computed):
     from n26.library.models import Counter
 
     chosen_keys = (
-        {
-            slot.resolved_with.key
-            for slot in gang_computed.choices
-            if slot.resolved_with is not None
-        }
+        {pick.key for slot in gang_computed.choices for pick in slot.picks}
         if gang_computed
         else set()
     )
@@ -1233,7 +1358,7 @@ def _gang_rows(gang_card, gang_computed):
         if node.suppressed:
             # Taken away by a modifier — the assignment stays, the line goes.
             continue
-        if isinstance(node.assignable, (Hidden, Counter)):
+        if isinstance(node.assignable, (*DRAWS_NO_LINE, Counter)):
             continue
         if isinstance(node.assignable, Rule):
             rules.append(AssignableLine(name=node.name, provenance=provenance_of(node)))
@@ -1422,7 +1547,7 @@ def stash_lines(gang_card):
         for node in gang_card.stash_roots
         # No row of its own is the kind's whole contract — a chosen
         # option's Hidden carrier rides the stash invisibly.
-        if not isinstance(node.assignable, Hidden)
+        if not isinstance(node.assignable, DRAWS_NO_LINE)
     ]
 
 

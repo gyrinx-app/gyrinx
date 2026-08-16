@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from n26.core.effects import ModifierIndex
+from n26.core.effects import ModifierIndex, is_orphan_pick
 from n26.core.models import Assignment, Reason
 from n26.core.models.assignment import ASSIGNABLE_FIELDS
 from n26.library.models.modifier import GANG, MODEL
@@ -49,6 +49,14 @@ class Node:
     rating: int = 0
     #: The key of the node that brought this one, if any.
     caused_by_key: object = None
+    #: The key of the node whose choice this line settles — the slot's
+    #: own line. Set on a pick and on nothing else, so what answers a
+    #: choice is read rather than guessed from what kind of thing it is.
+    chosen_for_key: object = None
+    #: Which of that line's choices this settles: the slot itself. One
+    #: line may ask more than once — a thing giving two choices of one
+    #: slot type — and then this is what tells the answers apart.
+    chosen_for_slot_id: object = None
     #: The ledger's reason, for a line that has one.
     reason: str | None = None
     is_weapon_profile: bool = False
@@ -122,6 +130,8 @@ def node_for(assignment):
         key=assignment.pk,
         rating=assignment.rating,
         caused_by_key=assignment.caused_by_id,
+        chosen_for_key=assignment.chosen_for_id,
+        chosen_for_slot_id=assignment.chosen_for_slot_id,
         reason=entry.reason if entry else None,
         is_weapon_profile=assignment.weapon_profile_id is not None,
         is_profile=assignment.profile_id is not None,
@@ -205,28 +215,40 @@ class Card:
 
         A specialisation counts as a possession for the same reason a
         subtype does: "(Gunner specialist only)" asks what this fighter
-        *is*, and what they chose says so.
+        *is*, and what they chose says so. A pick counts for the same
+        reason again — unless no slot stands behind it, in which case
+        nobody chose it and it says nothing about anyone.
+
+        **A pick the gang holds is this model's too.** Where a choice
+        says the gang carries the answer, the pick lands on the gang and
+        rides every member's card as a broadcast row — including the card
+        of the fighter who was asked. What the gang chose is a fact about
+        everyone in it ("models with the Cawdor legacy"), so a pick is
+        the one broadcast row that counts here. Nothing else is: a
+        gang-held gun is not this fighter's gun.
         """
         from n26.core import select
-        from n26.library.models import Counter, Specialisation, Subtype
+        from n26.library.models import Counter, Pickable, Specialisation, Subtype
 
         profile = None
         possessions = []
         counts = []
         for node in self.all_nodes():
-            if node.broadcast:
-                # The gang-hosted assignments ride the card for their
-                # effects; they are not facts about this model.
-                continue
             if node.suppressed:
                 # Taken away, so no longer a fact about anyone: a rule
                 # reaching Leaders must not reach a fighter whose Leader
                 # assignment something cancelled.
                 continue
+            if is_orphan_pick(node):
+                continue
+            if node.broadcast and not isinstance(node.assignable, Pickable):
+                # The gang-hosted assignments ride the card for their
+                # effects; they are not facts about this model.
+                continue
             if node.is_primary_profile:
                 profile = node.assignable
                 possessions.append(profile.profile_type)
-            elif isinstance(node.assignable, (Subtype, Specialisation)):
+            elif isinstance(node.assignable, (Subtype, Specialisation, Pickable)):
                 possessions.append(node.assignable)
             elif isinstance(node.assignable, Counter):
                 held = (
@@ -348,7 +370,7 @@ class GangCard:
         possessions = []
         counts = []
         for node in self.all_nodes():
-            if node.suppressed:
+            if node.suppressed or is_orphan_pick(node):
                 continue
             possessions.append(node.assignable)
             if isinstance(node.assignable, Counter):
@@ -402,6 +424,12 @@ def hydrate_rows(rows, with_statlines=False):
         # A chosen-mode placement reads the chosen token's home off
         # the assignment already in memory — never by a query.
         "skill_tree__category",
+        # Whether a slot type allows the same pickable twice is read
+        # while a card's notes are worked out, which may not query. The
+        # picklist behind the choice rides along for the picker, which
+        # reads it off the card it was built from.
+        "slot__slot_type",
+        "slot__picklist",
         # A firing line's home is its gun's, so a scope narrowed to a
         # category asks each profile for its weapon. Without this the
         # asking is a query per profile, from inside compute.
@@ -717,6 +745,19 @@ def build_card_from_profile(profile, option=None, base=None):
                 )
                 weapon_nodes[assignable.pk] = node
             roots.append(node)
+            if member.default_pickable_id is not None:
+                # A slot arriving already settled: the preview draws the
+                # starting pick the hire will write, not an open choice.
+                roots.append(
+                    Node(
+                        assignable=member.default_pickable,
+                        key=next(counter),
+                        caused_by_key=node.key,
+                        chosen_for_key=node.key,
+                        chosen_for_slot_id=assignable.pk,
+                        reason=Reason.DEFAULT,
+                    )
+                )
 
     # Bundled ammo stacks under its weapon, wherever in the selection the
     # weapon arrived — the same order of business as the hire itself.
@@ -788,7 +829,14 @@ def build_modifier_index(assignables, max_depth=3):
             "targets_miniature__counter_at_least",
             queryset=CounterAtLeast.objects.select_related("counter"),
         ),
+        "targets_miniature__has_pickable__pickables",
         "targets_weapons__has_traits__traits",
+        # A given slot draws a choice row worked out by ``compute``,
+        # which may not query, and its slot type decides what the row's
+        # notes may say. Its picklist rides along for the picker behind
+        # the row.
+        "adds_assignable__slot__slot_type",
+        "adds_assignable__slot__picklist",
         "targets_weapons__in_categories__categories",
         "targets_weapons__is_one_of__weapons",
         # A granted weapon is put on the card as lines, statlines and all,

@@ -29,7 +29,10 @@ from django.db import models
 #: own columns say everything — and where it is not, the miss shows up
 #: as a query per row, which the pinned counts catch.
 READ_WITH = {
-    "library.defaultassignment": ("default_set",),
+    # The slot rides along because a set naming a starting pick is read
+    # as "chosen from the start for that choice", which names it.
+    "library.defaultassignment": ("default_set", "slot"),
+    "library.picklistmember": ("picklist", "pickable"),
     "library.option": ("default_set", "profile", "wargear"),
     "library.addsassignable": ("modifier",),
     "library.removesassignable": ("modifier",),

@@ -135,6 +135,49 @@ class TestRouting:
         assert names == ["Combat Shotgun", "Mesh Armour"]
 
 
+class TestSettlingAChoice:
+    """``chosen_for`` names the assignment that asked, so what answers a
+    choice is read rather than guessed from what kind of thing it is."""
+
+    def test_a_pick_points_at_what_asked(self, gang, db):
+        from n26.library.models import Pickable, Picklist, Slot, SlotType
+
+        legacy = SlotType.objects.create(name="Gang Legacy")
+        picklist = Picklist.objects.create(name="Gang Legacies", slot_type=legacy)
+        slot = Assignment.objects.create(
+            assignable=Slot.objects.create(
+                name="Gang Legacy", slot_type=legacy, picklist=picklist
+            ),
+            gang=gang,
+        )
+        pick = Assignment.objects.create(
+            assignable=Pickable.objects.create(name="Cawdor", slot_type=legacy),
+            gang=gang,
+            caused_by=slot,
+            chosen_for=slot,
+        )
+
+        assert list(slot.picks.all()) == [pick]
+
+    def test_it_is_the_same_link_the_cause_is(self):
+        """The pick's cause *is* the choice that asked, so the two must
+        agree about what a hard delete does — one protecting what the
+        other cascades would make the row impossible to delete."""
+        cause = Assignment._meta.get_field("caused_by")
+        chosen_for = Assignment._meta.get_field("chosen_for")
+        assert chosen_for.remote_field.on_delete is cause.remote_field.on_delete
+
+    def test_the_slot_it_settles_cannot_be_deleted_under_it(self):
+        """The other half of the pair points at content, and content a
+        player's pick names must not vanish out from under them — the
+        rule every assignable column here already follows."""
+        from django.db.models.deletion import PROTECT
+
+        named = Assignment._meta.get_field("chosen_for_slot")
+        assert named.remote_field.on_delete is PROTECT
+        assert named.null is True
+
+
 class TestTheStartupCheck:
     def test_it_passes_as_things_stand(self):
         assert every_assignable_has_a_column(None) == []

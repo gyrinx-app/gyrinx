@@ -720,6 +720,131 @@ class TestBuiltInAndOptional:
         ]
 
 
+class TestASlotTypeExplained:
+    """A slot and its pickables, explained: what a choice asks for, what
+    picklists a pickable is on, and which slots could settle on it.
+
+    A pickable is only ever reached through a choice, so the routes into
+    one are the picklists that hold it and the slots that draw on those.
+    """
+
+    @pytest.fixture
+    def legacy(self, default_pack):
+        from n26.library.authoring import create_slot_type
+
+        return create_slot_type(
+            "Gang Legacy", plural_name="Gang Legacies", allows_repeats=False
+        )
+
+    @pytest.fixture
+    def cawdor(self, legacy):
+        from n26.library.authoring import create_pickable
+
+        return create_pickable("Cawdor", legacy)
+
+    @pytest.fixture
+    def houses(self, legacy, cawdor):
+        from n26.library.authoring import create_picklist
+
+        return create_picklist("House Legacies", legacy, members=[cawdor])
+
+    @pytest.fixture
+    def choice(self, legacy, houses):
+        from n26.library.authoring import create_slot
+
+        return create_slot("House legacy", legacy, houses, label="Gang Legacy")
+
+    def test_a_choice_says_what_it_asks_for(self, choice):
+        assert texts(prose_for(choice).does) == [
+            "Asks for one Gang Legacy, chosen from House Legacies."
+        ]
+
+    def test_a_choice_of_several_says_how_many(self, legacy, houses):
+        from n26.library.authoring import create_slot
+
+        pair = create_slot("Two legacies", legacy, houses, min_picks=2, max_picks=2)
+
+        assert texts(prose_for(pair).does) == [
+            "Asks for 2 Gang Legacies, chosen from House Legacies."
+        ]
+
+    def test_a_choice_the_gang_holds_says_whose_the_pick_is(self, legacy, houses):
+        from n26.library.authoring import create_slot
+
+        leaders = create_slot("Gang legacy", legacy, houses, assigned_to="gang")
+
+        assert texts(prose_for(leaders).does) == [
+            "Asks for one Gang Legacy, chosen from House Legacies. What is "
+            "chosen belongs to the gang and is broadcast, not to whoever "
+            "was asked."
+        ]
+
+    def test_a_hidden_choice_says_it_is_hidden(self, legacy, houses):
+        from n26.library.authoring import create_slot
+
+        bundle = create_slot("The Cawdor bundle", legacy, houses, hidden=True)
+
+        assert texts(prose_for(bundle).does) == [
+            "Holds one Gang Legacy from House Legacies, and is hidden."
+        ]
+
+    def test_a_choice_says_where_it_is_built_in(self, choice, escher, person_type):
+        hunter = create_profile("Hunter", profile_type=person_type, gang_type=escher)
+        add_built_in(hunter, choice)
+
+        assert texts(prose_for(choice).referenced_by) == [
+            "Built into the Hunter profile."
+        ]
+
+    def test_a_pickable_says_which_lists_offer_it(self, cawdor, houses):
+        assert texts(prose_for(cawdor).referenced_by) == ["Listed in House Legacies."]
+
+    def test_a_pickable_says_which_slots_could_settle_on_it(self, cawdor, choice):
+        assert texts(prose_for(cawdor).referenced_by) == [
+            "Listed in House Legacies.",
+            "May be chosen for the House legacy slot.",
+        ]
+
+    def test_a_pickable_no_list_holds_is_reached_by_nothing(self, cawdor, choice):
+        """A choice names a picklist, so a pickable nobody listed is on
+        no route at all — an owner may still hand it over."""
+        from n26.library.models import PicklistMember
+
+        PicklistMember.objects.all().delete()
+
+        assert texts(prose_for(cawdor).referenced_by) == []
+
+    def test_a_pickable_a_choice_starts_with_says_so(
+        self, cawdor, choice, escher, person_type
+    ):
+        squats = create_profile(
+            "Squats Hunter", profile_type=person_type, gang_type=escher
+        )
+        add_built_in(squats, choice, default_pickable=cawdor)
+
+        assert texts(prose_for(cawdor).referenced_by) == [
+            "Chosen from the start for the House legacy slot.",
+            "Listed in House Legacies.",
+            "May be chosen for the House legacy slot.",
+        ]
+
+    def test_a_pickable_says_what_it_gives(self, cawdor, houses, default_pack):
+        attach_modifiers_to(
+            cawdor,
+            [
+                modifier(
+                    "Cawdor: its equipment list",
+                    targets_model(),
+                    ef_adds(create_collection("Cawdor Word-Keeper")),
+                )
+            ],
+        )
+
+        assert texts(prose_for(cawdor).does) == [
+            "They gain access to Cawdor Word-Keeper, while they have it."
+        ]
+
+
 class TestWhatIsAssignedToIt:
     """The player side: what would be disturbed if this went."""
 
@@ -937,7 +1062,7 @@ class TestTheQueryCountStaysFlat:
         table: "what carries this modifier" and "what holds this set" are
         each one query per kind, and there are twenty-odd kinds.
         """
-        with django_assert_num_queries(63):
+        with django_assert_num_queries(68):
             prose_for(much_used)
 
 

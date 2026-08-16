@@ -23,6 +23,17 @@ The value is the chip's position, which is how a formset addresses its
 forms; the view refuses a position naming no chip.
 {% endcomment %}
 <c-n26.form-section title="Who it reaches">
+    {% comment %}
+    On the page that corrects a modifier the kinds are settled, so each
+    pane leads with the card its kind was picked from — read-only, since
+    changing the kind is composing a different modifier. The composer
+    passes no cards: there the picker itself is the explanation.
+    {% endcomment %}
+    {% if who_card %}
+        <c-ui.description>
+            <strong>{{ who_card.label|capfirst }}.</strong> {{ who_card.blurb }}
+        </c-ui.description>
+    {% endif %}
     {% include "authoring/_form.html" with form=composer.who_form %}
     {% if composer.condition_formset %}
         {{ composer.condition_formset.management_form }}
@@ -53,5 +64,10 @@ forms; the view refuses a position naming no chip.
     {% endif %}
 </c-n26.form-section>
 <c-n26.form-section title="What it does">
+    {% if what_card %}
+        <c-ui.description>
+            <strong>{{ what_card.label|capfirst }}.</strong> {{ what_card.blurb }}
+        </c-ui.description>
+    {% endif %}
     {% include "authoring/_form.html" with form=composer.what_form %}
 </c-n26.form-section>

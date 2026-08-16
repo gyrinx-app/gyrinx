@@ -29,8 +29,8 @@ class Family(models.TextChoices):
     Set per model class (``family = Family.GEAR``), never per row: it
     says what *sort* of thing a kind is, so the menu can read as the
     author thinks — the plumbing, the model's own qualities, the kit it
-    carries, the gang-scale picks. A discovering test refuses any
-    authorable kind without one.
+    carries, the gang-scale picks, the slot types. A discovering
+    test refuses any authorable kind without one.
     """
 
     #: The plumbing everything references: rules, counters, the taxonomy.
@@ -41,6 +41,9 @@ class Family(models.TextChoices):
     GEAR = "gear", "Gear"
     #: The gang-scale things: gang types, profiles, chosen carriers, lists.
     GANG = "gang", "Gang"
+    #: A slot type and its parts: the type itself, its pickables, the
+    #: picklists that contain them, and the slots that display them.
+    CHOICE = "choice", "Slots & Pickables"
     #: Not assignables at all — the shapes content is built from.
     FOUNDATION = "foundation", "Foundation"
 

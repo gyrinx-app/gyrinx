@@ -37,6 +37,22 @@ def chosen_only_kinds():
     return [model for model in library_assignables() if not model.takes_built_ins]
 
 
+def a_row_of(model, name):
+    """One row of ``model``, with bare rows of whatever it requires.
+
+    Built by reflection rather than by a maker per kind: the guards
+    below are about *every* chosen-only kind, and one this could not
+    build would quietly drop out of them. A relation with a default —
+    the pack — is left to it.
+    """
+    required = {
+        field.name: a_row_of(field.related_model, f"{name} {field.name}")
+        for field in model._meta.fields
+        if field.many_to_one and not field.null and not field.has_default()
+    }
+    return model.objects.create(name=name, **required)
+
+
 def acquired_kind_pages():
     """The authoring pages of every kind that *is* acquired — the pages
     the built-ins section belongs on."""
@@ -343,7 +359,7 @@ class TestTheKindsOnlyEverChosen:
 
         from n26.library.authoring import add_built_in, create_rule
 
-        chosen = model.objects.create(name=f"Something {model.__name__}")
+        chosen = a_row_of(model, f"Something {model.__name__}")
         brought = create_rule(f"What a {model.__name__} brings")
 
         with pytest.raises(ValidationError, match="chosen rather than acquired"):

@@ -5,8 +5,13 @@ from n26.library import artwork
 from n26.library.models import (
     ContentPack,
     GangType,
+    Pickable,
+    Picklist,
+    PicklistMember,
     Profile,
     ProfileType,
+    Slot,
+    SlotType,
     Stat,
     Statline,
     StatlineStat,
@@ -111,6 +116,74 @@ class StatlineInline(admin.StackedInline):
     can_delete = True
     show_change_link = True
     fields = []
+
+
+# Slots and picks. A slot type is authored on its own page in the
+# library; these registrations are the inspectable graph behind it — every
+# table filterable by the slot type it belongs to, so "what is in Gang
+# Legacy" is one question of any of them.
+
+
+@admin.register(SlotType)
+class SlotTypeAdmin(admin.ModelAdmin):
+    list_display = ["name", "plural_name", "allows_repeats", "pack", "archived"]
+    list_filter = ["pack", "allows_repeats", "archived"]
+    search_fields = ["name"]
+    list_select_related = ["pack"]
+
+
+@admin.register(Pickable)
+class PickableAdmin(admin.ModelAdmin):
+    list_display = ["name", "slot_type", "qualifier", "pack", "archived"]
+    list_filter = ["pack", "slot_type", "archived"]
+    search_fields = ["name", "qualifier"]
+    list_select_related = ["pack", "slot_type"]
+
+
+class PicklistMemberInline(admin.TabularInline):
+    model = PicklistMember
+    extra = 1
+    fields = ["pickable", "label_override", "position"]
+    ordering = ["position"]
+    # A plain dropdown here would draw every option in the library once
+    # per row of the list.
+    autocomplete_fields = ["pickable"]
+
+
+@admin.register(Picklist)
+class PicklistAdmin(admin.ModelAdmin):
+    list_display = ["name", "slot_type", "pack", "archived"]
+    list_filter = ["pack", "slot_type", "archived"]
+    search_fields = ["name"]
+    inlines = [PicklistMemberInline]
+    list_select_related = ["pack", "slot_type"]
+
+
+@admin.register(PicklistMember)
+class PicklistMemberAdmin(admin.ModelAdmin):
+    list_display = ["picklist", "pickable", "label_override", "position", "archived"]
+    list_filter = ["picklist__slot_type", "archived"]
+    search_fields = ["picklist__name", "pickable__name"]
+    list_select_related = ["picklist", "pickable"]
+
+
+@admin.register(Slot)
+class SlotAdmin(admin.ModelAdmin):
+    list_display = [
+        "name",
+        "slot_type",
+        "picklist",
+        "label",
+        "min_picks",
+        "max_picks",
+        "assigned_to",
+        "hidden",
+        "pack",
+        "archived",
+    ]
+    list_filter = ["pack", "slot_type", "assigned_to", "hidden", "archived"]
+    search_fields = ["name", "label"]
+    list_select_related = ["pack", "slot_type", "picklist"]
 
 
 @admin.register(Profile)

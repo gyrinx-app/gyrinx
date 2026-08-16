@@ -107,6 +107,12 @@ GRANTABLE_FIELDS = {
     # a gang's own rules hang off, so that one "takes away" can cancel
     # the lot — see recipes.md, the corrupted gang.
     "hidden": "library.Hidden",
+    # A further choice: picking Clan House opens the House choice.
+    # Un-choosing the first retracts the second and its pick through the
+    # ordinary cause chain. The *pickable* is deliberately not here — a
+    # pickable handed over with no slot to answer shows nothing and does
+    # nothing, so giving one could only be a mistake.
+    "slot": "library.Slot",
 }
 
 #: What an ``AllowsAtMost`` may count. The books limit ranks ("no
@@ -156,7 +162,7 @@ class TargetsMiniature(models.Model):
     #: check (n26.E003/E004) verifies this names exactly the condition
     #: models that FK this scope — a condition nothing folds would be
     #: silently dead.
-    CONDITIONS = ("has_subtypes", "is_profile", "counter_at_least")
+    CONDITIONS = ("has_subtypes", "is_profile", "has_pickable", "counter_at_least")
 
     #: Positional, not factual — read off the carrier node, like
     #: ``TargetsAttachedWeapon``. An archetype assigned to a Champion
@@ -249,6 +255,33 @@ class TargetsMiniature(models.Model):
 # ``HasSubtypes`` with several subtypes is any-of).
 
 
+#: The words a negated condition reads with, and the words a plain one
+#: does. A condition names alternatives and then says whether it wants
+#: them or wants everything else — "Leader or Champion models", "every
+#: model except Champions" — so the two readings share one shape.
+_EXCEPT = "every model except "
+_THESE = " models"
+
+
+def _negatable():
+    """The column a condition carries to mean "everything but these".
+
+    Most scoping names the ranks it reaches, and naming a further one is
+    a value on the row. This is for the rule easier to state the other
+    way round, where writing out everyone else would be a list that goes
+    stale the day a subtype is added. It sits on the conditions naming a
+    *membership* (a subtype, an entry, a pick); a threshold's opposite
+    is a different question and is not written this way.
+    """
+    return models.BooleanField(
+        default=False,
+        help_text=(
+            "Reach everything this does not name — every model except "
+            "these. Other conditions still narrow it further."
+        ),
+    )
+
+
 def _some_of(rows):
     """A few names said whole, a crowd said by its size.
 
@@ -268,6 +301,8 @@ class HasSubtypes(models.Model):
 
     "Leaders and Champions each select a skill" is one row naming both —
     any-of within the row. Wanting Mounted *and* Wyrd is two rows.
+    Negated, it is the same row read the other way: everyone the row
+    does not name.
     """
 
     scope = models.ForeignKey(
@@ -280,6 +315,7 @@ class HasSubtypes(models.Model):
         related_name="+",
         help_text="The model must have at least one of these subtypes.",
     )
+    negate = _negatable()
 
     class Meta:
         verbose_name = "has subtypes"
@@ -287,16 +323,20 @@ class HasSubtypes(models.Model):
 
     def __str__(self):
         wanted = list(self.subtypes.all()) if self.pk else []
-        return _some_of(wanted) + " models"
+        if self.negate:
+            return _EXCEPT + _some_of(wanted)
+        return _some_of(wanted) + _THESE
 
     def as_condition(self):
         from n26.core import select
 
         wanted = list(self.subtypes.all())
         if not wanted:
-            # An empty row narrows nothing — never "matches nobody".
+            # An empty row narrows nothing — never "matches nobody", and
+            # never "matches everybody but nobody" when negated either.
             return None
-        return select.Any(*(select.Has(subtype) for subtype in wanted))
+        matched = select.Any(*(select.Has(subtype) for subtype in wanted))
+        return select.Not(matched) if self.negate else matched
 
 
 class IsProfile(models.Model):
@@ -319,6 +359,7 @@ class IsProfile(models.Model):
         related_name="+",
         help_text="The model must be one of these profiles.",
     )
+    negate = _negatable()
 
     class Meta:
         verbose_name = "is the profile"
@@ -326,7 +367,9 @@ class IsProfile(models.Model):
 
     def __str__(self):
         wanted = list(self.profiles.all()) if self.pk else []
-        return _some_of(wanted) + " models"
+        if self.negate:
+            return _EXCEPT + _some_of(wanted)
+        return _some_of(wanted) + _THESE
 
     def as_condition(self):
         from n26.core import select
@@ -335,7 +378,53 @@ class IsProfile(models.Model):
         if not wanted:
             # An empty row narrows nothing — never "matches nobody".
             return None
-        return select.Any(*(select.Exactly(profile) for profile in wanted))
+        matched = select.Any(*(select.Exactly(profile) for profile in wanted))
+        return select.Not(matched) if self.negate else matched
+
+
+class HasPickable(models.Model):
+    """Condition: the model has one of these picked.
+
+    "Models with the Cawdor legacy" — one condition serving every slot
+    type ever authored, because what was picked is an ordinary
+    assignment and picking it is an ordinary possession. Any-of within
+    the row; negated, it is everyone who picked something else.
+
+    A pick with no slot behind it is not a possession, so it is not
+    matched here either: a pickable nobody was offered says nothing about
+    the model holding it.
+    """
+
+    scope = models.ForeignKey(
+        TargetsMiniature,
+        on_delete=models.CASCADE,
+        related_name="has_pickable",
+    )
+    pickables = models.ManyToManyField(
+        "library.Pickable",
+        related_name="+",
+        help_text="The model must have picked at least one of these.",
+    )
+    negate = _negatable()
+
+    class Meta:
+        verbose_name = "has pickable"
+        verbose_name_plural = "has pickable"
+
+    def __str__(self):
+        wanted = list(self.pickables.all()) if self.pk else []
+        if self.negate:
+            return _EXCEPT + _some_of(wanted)
+        return _some_of(wanted) + _THESE
+
+    def as_condition(self):
+        from n26.core import select
+
+        wanted = list(self.pickables.all())
+        if not wanted:
+            return None
+        matched = select.Any(*(select.Has(pickable) for pickable in wanted))
+        return select.Not(matched) if self.negate else matched
 
 
 class CounterAtLeast(models.Model):
@@ -717,6 +806,13 @@ class AssignableChoice(models.Model):
         blank=True,
         related_name="+",
     )
+    slot = models.ForeignKey(
+        "library.Slot",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
 
     class Meta:
         abstract = True
@@ -742,7 +838,8 @@ class AssignableChoice(models.Model):
         gang's card carries named rules, standing lists, and the hidden
         carriers its own rules hang off — an alliance's "the gang
         gains…" — but has no type line, no skills row, and holds no
-        weapons, so nothing else can land there.
+        weapons, so nothing else can land there. A slot may land on
+        either a gang or a model.
         """
         if self.trait_id is not None:
             return target_kind == WEAPON_PROFILE
@@ -751,6 +848,7 @@ class AssignableChoice(models.Model):
                 self.rule_id is not None
                 or self.collection_id is not None
                 or self.hidden_id is not None
+                or self.slot_id is not None
             )
         return target_kind == MODEL
 

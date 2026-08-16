@@ -161,6 +161,13 @@ urlpatterns = [
         authoring_views.entry_remove,
         name="authoring-entry-remove",
     ),
+    # A pickable's place on a picklist belongs to that list, the same way,
+    # so taking it off has an address here.
+    path(
+        "authoring/picklist-members/<str:pk>/remove/",
+        authoring_views.picklist_member_remove,
+        name="authoring-picklist-member-remove",
+    ),
     # A firing line belongs to its weapon rather than being an authored
     # kind of its own — there is no listing of every profile in the
     # library, and no making one apart from the weapon it fires — so

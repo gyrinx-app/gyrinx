@@ -89,6 +89,11 @@ def test_admin_also_accepts_the_uuid_form_in_a_url(admin_client, make_profile):
         "profiletype",
         "profile",
         "statline",
+        "slottype",
+        "pickable",
+        "picklist",
+        "picklistmember",
+        "slot",
     ],
 )
 @pytest.mark.parametrize("page", ["", "add/"])
@@ -111,3 +116,48 @@ def test_statline_admin_inlines_its_values(admin_client, make_profile, make_stat
     statline = make_statline(profile, movement=4, weapon_skill=3, toughness=5)
     response = admin_client.get(f"/admin/library/statline/{statline.pk}/change/")
     assert response.status_code == 200
+
+
+def test_a_slot_type_of_choice_is_inspectable_by_its_own_name(
+    admin_client, default_pack
+):
+    """The whole graph filters by the slot type it belongs to, so "what is
+    in Gang Legacy" is one question of any of the four tables."""
+    from n26.library.authoring import (
+        create_pickable,
+        create_picklist,
+        create_slot,
+        create_slot_type,
+    )
+
+    legacy = create_slot_type("Gang Legacy", plural_name="Gang Legacies")
+    houses = create_picklist(
+        "House Legacies", legacy, members=[create_pickable("Cawdor", legacy)]
+    )
+    create_slot("House legacy", legacy, houses)
+
+    for model in ("pickable", "picklist", "slot"):
+        response = admin_client.get(
+            f"/admin/library/{model}/?slot_type__id__exact={legacy.pk}"
+        )
+        assert response.status_code == 200, model
+        assert "Gang Legacy" in response.content.decode(), model
+
+
+def test_a_lists_pickables_are_edited_on_the_list(admin_client, default_pack):
+    from n26.library.authoring import (
+        create_pickable,
+        create_picklist,
+        create_slot_type,
+    )
+
+    legacy = create_slot_type("Gang Legacy")
+    houses = create_picklist(
+        "House Legacies", legacy, members=[create_pickable("Cawdor", legacy)]
+    )
+
+    html = admin_client.get(
+        f"/admin/library/picklist/{houses.pk}/change/"
+    ).content.decode()
+
+    assert "Cawdor" in html

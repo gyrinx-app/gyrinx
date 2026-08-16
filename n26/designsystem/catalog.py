@@ -1630,6 +1630,23 @@ GROUPS: list[Group] = [
                 ),
             ),
             Component(
+                slug="choice-picks",
+                tag="c-n26.choice-picks",
+                template="n26/choice_picks.html",
+                summary="A list of things to choose and unchoose one at a time.",
+                notes=(
+                    "A flat list of options, one per row: the name, an "
+                    "optional muted remark, and a button. Options the choice "
+                    "already holds show a red Remove; the rest show a green "
+                    "Choose. When the choice is full, only what it holds is "
+                    "listed. Plain submit buttons and no script: the page "
+                    "wraps this in its own form, and only the clicked button "
+                    "is sent, so the view knows which option to add or take "
+                    "back. Use choice-offer for a single-pick choice; use "
+                    "this where a choice holds several picks."
+                ),
+            ),
+            Component(
                 slug="tick-list",
                 tag="c-n26.tick-list",
                 template="n26/tick_list.html",

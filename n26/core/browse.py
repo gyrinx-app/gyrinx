@@ -75,6 +75,21 @@ class OfferedOption:
 
 
 @dataclass(frozen=True)
+class Listed:
+    """One pickable as the list offering it puts it.
+
+    A picklist may call a pickable something of its own, so what a picker
+    prints is the list's word and not always the thing's own name. The
+    thing rides along because that is what a click settles on, and it is
+    what every other surface goes on calling by its own name: the wording
+    belongs to the list, so it reaches the picker and stops there.
+    """
+
+    thing: object
+    name: str
+
+
+@dataclass(frozen=True)
 class OfferedGroup:
     """One set of the alternatives a line offers.
 
@@ -694,7 +709,21 @@ def offered_by(slot, computed, terms=EQUIPMENT_LIST):
     skill is not settled by choosing a power — it would read as open
     whatever was chosen. Narrowing the list is not policing it; drawing a
     button that cannot work is the harm.
+
+    A choice borne by a ``Slot`` draws its picklist, in the list's own
+    order, each pickable under the wording that list gives it
+    (:class:`Listed`). No sections and no prices — the pickables behind a
+    choice and nothing else — and the same rule holds: the list informs,
+    and an owner may still hand over something off it.
     """
+    if slot.slot is not None:
+        return [
+            Listed(thing=member.pickable, name=member.label)
+            # One query for the whole list: the wording is the member's
+            # and the identity is the pickable's, so a list of thirty
+            # pickables must not be thirty fetches.
+            for member in slot.slot.picklist.members.select_related("pickable")
+        ]
     offer = slot.offer
     section = getattr(offer, "from_section", None) if offer is not None else None
     if section is None:
