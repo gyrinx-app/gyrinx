@@ -83,6 +83,41 @@ class TestTheDiscoveringGuard:
         )
 
 
+class TestVerbTablesCoverTheColumns:
+    """``_scope_verb`` and ``_effect_verb`` read stored rows back to the
+    verb an author picked, ending in a bare lookup over these tables —
+    a scope or effect model missing from its table would 500 every page
+    that names a modifier's kind, so drift is refused here."""
+
+    def test_every_scope_column_is_covered(self):
+        from n26.library.forms import SCOPE_MODELS
+        from n26.library.models import Modifier
+        from n26.library.models.modifier import SCOPE_FIELDS
+
+        columns = {
+            Modifier._meta.get_field(name).related_model.__name__
+            for name in SCOPE_FIELDS
+        }
+        assert columns == set(SCOPE_MODELS.values())
+
+    def test_every_effect_column_is_covered(self):
+        from n26.library.forms import EFFECT_MODELS
+        from n26.library.models import Modifier
+        from n26.library.models.modifier import EFFECT_FIELDS
+
+        columns = {
+            Modifier._meta.get_field(name).related_model.__name__
+            for name in EFFECT_FIELDS
+        }
+        assert columns == set(EFFECT_MODELS.values())
+
+    def test_every_table_verb_has_a_spec(self):
+        from n26.library.forms import EFFECT_MODELS, SCOPE_MODELS
+
+        assert set(SCOPE_MODELS) <= set(specs())
+        assert set(EFFECT_MODELS) <= set(specs())
+
+
 def scope_conditions():
     """Every ``(scope model, relation)`` a condition row hangs on."""
     from n26.library.models import Modifier

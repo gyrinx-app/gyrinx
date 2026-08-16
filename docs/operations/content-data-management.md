@@ -23,6 +23,19 @@ The export uses the `gyrinx-dumpdata` Cloud Run job in production:
 3. Find and run the `gyrinx-dumpdata` job
 4. The job exports all content data to `latest.json` in the `gyrinx-app-bootstrap-dump` bucket
 
+The job runs, inside the production app image:
+
+```bash
+manage dumpdata contenttypes content pages flatpages library -o /dump/latest.json
+```
+
+That covers both editions' content: `content` is the n23 content app, and
+`library` is the n26 content library (every kind, including modifiers,
+their scopes and conditions, statlines, collections, defaults, and the
+slots-and-picks models). If this list changes, change it with
+`gcloud run jobs update gyrinx-dumpdata --region=europe-west2 --command=manage --args=…`
+and update this page — the job's definition lives only in Cloud Run.
+
 Or use the gcloud CLI:
 
 ```bash
@@ -42,12 +55,28 @@ gsutil cp gs://gyrinx-app-bootstrap-dump/latest.json .
 The `loaddata_overwrite` command replaces your local content with the production data:
 
 ```bash
+# Migrate first: the fixture was dumped from production's schema, so your
+# database must be at least as new before loading
+manage migrate
+
 # Check what will be changed first
 manage loaddata_overwrite latest.json --dry-run
 
 # Actually import the data
 manage loaddata_overwrite latest.json
 ```
+
+### Worktrees
+
+Load into the **main** worktree, whose `gyrinx_main` database is the
+template every child worktree forks from. A child worktree picks the new
+content up with:
+
+```bash
+./scripts/dev.sh --reset-db
+```
+
+An existing child database keeps whatever it forked with until it is reset.
 
 ## What loaddata_overwrite Does
 
@@ -70,6 +99,7 @@ When you first set up Gyrinx locally:
 gsutil cp gs://gyrinx-app-bootstrap-dump/latest.json .
 
 # Import it
+manage migrate
 manage loaddata_overwrite latest.json --verbose
 ```
 
@@ -82,6 +112,7 @@ Need to investigate a content issue from production?
 gsutil cp gs://gyrinx-app-bootstrap-dump/latest.json .
 
 # Import with verbose output to see what's happening
+manage migrate
 manage loaddata_overwrite latest.json --verbose
 
 # Poke around
@@ -90,7 +121,8 @@ manage shell
 
 ## Warnings
 
-- **This deletes all your local content data** - The command wipes content models before importing
+- **This deletes your local content data** - The command wipes every model the fixture names before importing. A kind with no rows in the export at all is absent from the fixture, so local rows of that kind survive — do not rely on the overwrite to clear content the production library has none of
+- **Local gangs that used locally-authored content dangle** - A gang built against content you authored locally will reference rows the overwrite deleted. Delete those gangs, or expect broken references
 - **Don't commit latest.json** - It's already in .gitignore, keep it that way
 - **Need access** - You must be a trusted developer with GCS permissions
 - **Big file** - The export can be large, depending on how much content exists
