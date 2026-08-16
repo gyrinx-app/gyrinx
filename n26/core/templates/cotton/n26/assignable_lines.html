@@ -9,8 +9,8 @@ card shows carries one, so this single component draws skills, gear and weapon
 traits alike, and no list on a card is joined by hand.
 
 A computed line was granted rather than bought, and will appear and vanish as
-whatever grants it changes. It is marked with a dotted underline naming the
-source, the same mark a modified characteristic gets in
+whatever grants it changes. It is marked with a dotted underline whose tooltip
+says where it came from, the same mark a modified characteristic gets in
 <c-n26.statline.cells>. Not a badge: granted skills are ordinary, and badging
 each one would make the common case look like an exception.
 
@@ -25,4 +25,4 @@ With no lines at all it draws an em dash.
     traits add nothing to a model's rating and stay bare names. On by default,
     and a model's card passes False, being read at the table mid-game where no
     number is wanted; the stash, read while deciding what to sell, keeps them.
-{% endcomment %}<c-vars :lines="None" :ratings="True" />{% if lines %}{% for line in lines %}{% if line.provenance.computed %}<span class="underline decoration-dotted underline-offset-2" title="{% if line.provenance.source %}From {{ line.provenance.source }}{% if line.provenance.source_kind %} ({{ line.provenance.source_kind }}){% endif %}{% else %}Granted, not printed{% endif %}">{{ line.name }}</span>{% else %}{{ line.name }}{% endif %}{% if ratings and line.rating %} <span class="tabular-nums">{{ line.rating }}¢</span>{% endif %}{% if not forloop.last %}, {% endif %}{% endfor %}{% else %}&mdash;{% endif %}
+{% endcomment %}<c-vars :lines="None" :ratings="True" />{% if lines %}{% for line in lines %}{% if line.provenance.computed %}<c-ui.tooltip size="sm"><span class="cursor-help underline decoration-dotted underline-offset-2">{{ line.name }}</span><c-slot name="content">{% if line.provenance.source %}From {{ line.provenance.source }}{% if line.provenance.source_kind %} ({{ line.provenance.source_kind }}){% endif %}{% else %}Granted, not printed{% endif %}</c-slot></c-ui.tooltip>{% else %}{{ line.name }}{% endif %}{% if ratings and line.rating %} <span class="tabular-nums">{{ line.rating }}¢</span>{% endif %}{% if not forloop.last %}, {% endif %}{% endfor %}{% else %}&mdash;{% endif %}

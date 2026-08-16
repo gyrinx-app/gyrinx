@@ -9,7 +9,7 @@ siblings.
 
 A ghost button group: a link to the thing you are on, joined to a chevron that
 opens the rest. Without a `label` only the chevron is drawn, which is the shape
-for a placement whose heading already names the current thing.
+for a placement whose heading already says what is current.
 
 The panel is the kit's dropdown and stays hidden until Alpine runs, so the same
 rows are drawn again in a <noscript> strip below. Every row is a real <a>
@@ -19,12 +19,12 @@ fit() places the panel itself, fixed and clamped inside the window, against the
 rectangle of the [data-quick-switcher] root — so anything wrapped around this
 component must leave that root reachable. The kit writes offsets of its own on
 open, scroll and resize and they are wrong for a fixed box; these listeners are
-registered after the kit's and both ride a frame, so the fit lands after each
+registered after the kit's and both run on a frame, so the fit lands after each
 of its writes and before the frame is drawn.
 
 Focus lands in the filter box and never leaves it: Down and Up move a
 highlight, Enter clicks the highlighted row, Escape clears the filter before it
-closes the panel, and the box names the highlighted row with
+closes the panel, and the box points at the highlighted row with
 aria-activedescendant so the tinted row and the spoken one agree.
 
   label, href, icon — the leading link. Without a label there is no link.
@@ -283,9 +283,9 @@ aria-activedescendant so the tinted row and the spoken one agree.
                  class="flex max-w-[calc(100vw-1rem)] flex-col">
                 {% comment %}
                 The filter box owns the arrow keys and never gives focus up:
-                it names the highlighted row with aria-activedescendant
+                it points at the highlighted row with aria-activedescendant
                 instead, so the caret stays in the words being typed.
-                aria-controls is what makes that legal — the row it names sits
+                aria-controls is what makes that legal — the row it points at sits
                 outside the box, so the box has to say which list it is naming
                 a row in.
                 {% endcomment %}

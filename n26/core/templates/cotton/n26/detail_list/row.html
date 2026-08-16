@@ -19,7 +19,7 @@ that only looks clickable when pointed at never looks clickable on a phone.
   :editable — False draws the value as text with no control, for a settled fact.
   href — make the control a link to an edit page instead of a dialog trigger.
   dialog, dialog_header, dialog_footer — the dialog's body, heading and buttons.
-    Named on the row rather than nested inside `dialog` because Cotton reads
+    Declared on the row rather than nested inside `dialog` because Cotton reads
     slots from a component's children at compile time; a <c-slot> arriving
     inside interpolated content is only markup by then, and c-ui.dialog would
     render it into its body.

@@ -64,8 +64,10 @@ reader learns they can write one.
             </div>
 
             <div class="flex shrink-0 flex-col items-end gap-1.5">
-                <c-ui.badge size="sm" variant="solid" class="shrink-0"
-                            title="Rating, including weapons and wargear">{{ card.rating }}¢</c-ui.badge>
+                <c-ui.tooltip size="sm">
+                    <c-ui.badge size="sm" variant="solid" class="shrink-0">{{ card.rating }}¢</c-ui.badge>
+                    <c-slot name="content">Rating, including weapons and wargear</c-slot>
+                </c-ui.tooltip>
 
                 {% if actions %}<div class="flex flex-nowrap items-center gap-2">{{ actions }}</div>{% endif %}
             </div>
@@ -122,17 +124,19 @@ reader learns they can write one.
                             {% endif %}
                         {% endfor %}
                         {% if card.learn_href %}
-                            <c-ui.button size="xs"
-                                         variant="default"
-                                         :outlined="True"
-                                         class="py-0!"
-                                         href="{{ card.learn_href }}"
-                                         title="Learn a skill"
-                                         aria-label="Learn a skill">
-                                <span class="n26-icon-only">
-                                    <c-n26.icon name="pencil" class="size-3" />
-                                </span>
-                            </c-ui.button>
+                            <c-ui.tooltip size="sm">
+                                <c-ui.button size="xs"
+                                             variant="default"
+                                             :outlined="True"
+                                             class="py-0!"
+                                             href="{{ card.learn_href }}"
+                                             aria-label="Learn a skill">
+                                    <span class="n26-icon-only">
+                                        <c-n26.icon name="pencil" class="size-3" />
+                                    </span>
+                                </c-ui.button>
+                                <c-slot name="content">Learn a skill</c-slot>
+                            </c-ui.tooltip>
                         {% endif %}
                     </span>
                 {% endif %}
@@ -237,8 +241,8 @@ reader learns they can write one.
                 <tbody>
                     {% for weapon in card.weapons %}
                         {% comment %}
-                        The unnamed profile is the weapon, so its stats ride the
-                        weapon's own row and every named profile gets a row
+                        The unnamed profile is the weapon, so its stats sit on
+                        the weapon's own row and every named profile gets a row
                         beneath. WeaponLine decides that, so the text card, the
                         print card and this one cannot drift.
 

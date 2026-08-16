@@ -30,7 +30,7 @@ something the page knows and this does not.
     {% else %}
         {% for group in offer.groups %}
             {% comment %}
-            The caption names the tier the set sits in, and n26.render fills it
+            The caption says which tier the set sits in, and n26.render fills it
             in only where the list spans several (n26.render.ChoosableGroup).
             {% endcomment %}
             <c-n26.radio-cards label="{{ group.name }}"

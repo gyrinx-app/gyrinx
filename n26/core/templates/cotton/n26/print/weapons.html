@@ -37,7 +37,7 @@ want.
         {# One tbody per weapon, so the rule falls between weapons rather than #}
         {# between the lines of one. See .n26-print-table.is-grouped. #}
         <tbody>
-            {# The unnamed profile is the weapon, so its stats ride the weapon's #}
+            {# The unnamed profile is the weapon, so its stats sit on the weapon's #}
             {# own line and every named profile takes a line beneath. #}
             {% with own=weapon.own_line stats=weapon.own_stats %}
                 <tr {% if own.traits or not stats %}class="is-continued"{% endif %}>

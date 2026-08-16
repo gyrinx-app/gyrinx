@@ -17,7 +17,7 @@ act.
 A caller may instead draw it closed (open="") and open it with
 $dispatch('n26-dialog-open', { id, url }), which writes `url` through
 history.replaceState rather than navigating; dismissal puts the address back
-the same way. Every such panel needs its own `id` — the event names it, and
+the same way. Every such panel needs its own `id` — the event carries it, and
 the heading's id is derived from it.
 
 The slot carries the csrf token and the question's own fields: a component has

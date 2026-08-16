@@ -60,8 +60,9 @@ one swatch that changes between light and dark.
 <fieldset {{ attrs }} class="{{ class }}">
     {% if label %}
         {% comment %}
-        A legend, not a label: the group is what is being named, and a <label>
-        would have to point at one swatch and announce nothing for the rest.
+        A legend, not a label: the caption belongs to the whole group, and a
+        <label> would have to point at one swatch and announce nothing for the
+        rest.
         {% endcomment %}
         <legend class="mb-1.5 block font-semibold text-ink-900 dark:text-ink-100">{{ label }}</legend>
     {% endif %}

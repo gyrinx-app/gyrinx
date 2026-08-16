@@ -839,7 +839,7 @@ GROUPS: list[Group] = [
                     "The drawings live in the registry at n26/core/icons.py as path "
                     "data alone — Heroicons v2 outline, 24x24, round caps, no fill — "
                     "and this component supplies everything else. Brand marks break "
-                    "that uniformity, so the registry names which are solid fills and "
+                    "that uniformity, so the registry says which are solid fills and "
                     "which keep a canvas of their own. There is no colour prop: an "
                     "icon draws in currentColor. Stroke weight is a prop, weight being "
                     "a function of rendered size rather than of the drawing."
@@ -1453,7 +1453,7 @@ GROUPS: list[Group] = [
                     "times rather than once. Checkboxes and no script: what "
                     "arrives ticked is what the server said, so the form is right "
                     "before anything runs. An option a rule grants is drawn ticked "
-                    "and fixed, naming what grants it — and a fixed box submits "
+                    "and fixed, saying what grants it — and a fixed box submits "
                     "nothing, so whatever applies the difference must leave "
                     "granted things out of it rather than read their silence as a "
                     "clearing. An empty offer draws nothing; why it is empty is "
@@ -1534,7 +1534,7 @@ GROUPS: list[Group] = [
                     Part(
                         "c-n26.statline.cells",
                         "n26/statline/cells.html",
-                        "The <td> cells. Marks a modified value and names what "
+                        "The <td> cells. Marks a modified value and says what "
                         "changed it.",
                         required=True,
                     ),
