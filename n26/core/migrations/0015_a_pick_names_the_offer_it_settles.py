@@ -5,8 +5,12 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
+    # The library dependency is only for the offerschoice table the new
+    # column points at — deliberately not the library head: the Paths
+    # conversion (library.0062) runs live code that reads this column,
+    # so it must come after this migration, not before.
     dependencies = [
-        ("library", "0062_the_paths_become_picks"),
+        ("library", "0061_reach_is_said_not_implied"),
         ("n26", "0014_the_owner_edits_what_a_model_is"),
     ]
 
