@@ -13,4 +13,6 @@ class TestCardTooltipsAreReal:
         )
         assert 'title="Rating' not in html
         assert 'title="Learn' not in html
+        assert 'title="From' not in html
+        assert 'title="Granted' not in html
         assert html.count('role="tooltip"') >= 1
