@@ -781,6 +781,18 @@ class TestTheEditionToggle:
         assert 'aria-label="Edition"' not in client.get("/").content.decode()
 
 
+def announcement_bar(body):
+    """The site announcement's own markup, cut out of a rendered page.
+
+    The closing tag is searched for from the bar's start rather than
+    from the top of the document: an <aside> anywhere above it would
+    otherwise invert the slice into an empty string, and every "not in
+    the bar" assertion below would hold for the wrong reason.
+    """
+    start = body.index("n26-announcement")
+    return body[start : body.index("</aside>", start)]
+
+
 class TestTheSiteBanner:
     """The platform's banner, drawn in this edition's terms.
 
@@ -920,7 +932,7 @@ class TestTheSiteBanner:
         # The page is the one that holds an `action`, and its form still
         # posts there — the address belongs in the form, not in the bar.
         assert f'action="{skills_url}' in body
-        bar = body[body.index("n26-announcement") : body.index("</aside>")]
+        bar = announcement_bar(body)
         assert "N26 support is coming." in bar
         assert skills_url not in bar
 
@@ -951,7 +963,7 @@ class TestTheSiteBanner:
         body = client.get("/n26/").content.decode()
         assert "N26 support is coming." in body
 
-        bar = body[body.index("n26-announcement") : body.index("</aside>")]
+        bar = announcement_bar(body)
         dismiss_url = reverse("core:dismiss-banner")
         assert dismiss_url in bar
         # The id the expression posts, not merely the one in the wrapper's
@@ -990,7 +1002,7 @@ class TestTheSiteBanner:
         banner = live_banner(cta_text="Read the notes", cta_url="https://example.com")
 
         body = client.get("/n26/").content.decode()
-        bar = body[body.index("n26-announcement") : body.index("</aside>")]
+        bar = announcement_bar(body)
         tracked = reverse("core:track-banner-click", kwargs={"id": banner.id})
         assert f'href="{tracked}"' in bar
         assert 'href="https://example.com"' not in bar
@@ -1017,7 +1029,7 @@ class TestTheSiteBanner:
         live_banner(cta_text="Read the notes", cta_url="")
 
         body = client.get("/n26/").content.decode()
-        bar = body[body.index("n26-announcement") : body.index("</aside>")]
+        bar = announcement_bar(body)
         assert "Read the notes" not in bar
         assert "n26-announcement-cta" not in bar
 

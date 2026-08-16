@@ -202,8 +202,16 @@ def view_preview(request, slug):
 
 #: The banner every shell page carries, so the region above the nav is drawn
 #: rather than assumed. Nothing here is stored: a real site banner is a model.
+#:
+#: The id has to be shaped like a real one. The shell builds the call to
+#: action's address from it, and the route it builds leads to a lookup by
+#: primary key — handed something that is not a UUID, that lookup raises
+#: rather than answering "no such banner", so a word here turns the demo
+#: button into a server error. Nothing is stored under this id, so following
+#: it finds nothing, which is the right answer for a banner that is drawn to
+#: be looked at.
 _SHELL_BANNER = {
-    "id": "preview",
+    "id": "3f47d1a0-0000-4000-8000-000000000001",
     "colour": "info",
     "text": "The site banner sits above the nav, where it cannot be missed.",
     "cta_text": "Read the notes",

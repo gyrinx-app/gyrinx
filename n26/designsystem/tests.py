@@ -298,6 +298,22 @@ class TestTheShellStillDraws:
         assert 'name="gang_type"' in page
         assert "Escher (HoB)" in page
 
+    def test_the_sample_banners_button_leads_somewhere_answerable(self, reader):
+        """The button is drawn from a banner nobody stored, so following
+        it finds nothing — but it has to be able to say so.
+
+        The shell sends the call to action by way of the click tracker,
+        which looks the banner up by primary key. Given an id that is not
+        shaped like one, that lookup raises instead of answering, and the
+        gallery's own demo button becomes a server error.
+        """
+        page = reader.get("/n26/design/shell/").content.decode()
+        start = page.index("n26-announcement")
+        bar = page[start : page.index("</aside>", start)]
+        href = bar.split('href="')[1].split('"')[0]
+
+        assert reader.get(href).status_code == 404
+
     def test_the_equip_shell_draws_a_listing_with_a_group_of_options(self, reader):
         """One line in the sample catalogue offers alternatives at
         purchase — a mount and its weapon swaps — so this is where that
