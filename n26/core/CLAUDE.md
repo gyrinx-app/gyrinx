@@ -104,6 +104,12 @@ underlying spec.
 - `archived=False` is never a default filter. Readers opt in explicitly
   (`card_rows` does; `reconcile.sum_rating` also excludes assignments
   whose model has left the roster).
+- **An assignment with `removes` set is machinery, never a line.**
+  `assemble()` keeps such assignments off the node tree (they ride the
+  card as `Card.removals`, compiled by `effects` into round-0
+  removals), so node walkers never see them — but anything reading
+  assignments directly from the database must skip `removes=True` or a
+  taken-away subtype reads as a held one.
 
 ## Views, forms, templates
 
