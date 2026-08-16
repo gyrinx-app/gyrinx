@@ -756,8 +756,8 @@ class TestRatingTheHire:
         out what the box does from its label alone."""
         client.force_login(tester)
         body = client.get(dialog_url(gang, ganger)).content.decode()
-        assert "usual rating (55¢)" in body
-        assert "price-paid as their rating" in body
+        assert "rating follows the price you pay" in body
+        assert "usual rating of 55¢" in body
 
     def test_ticked_the_price_paid_becomes_the_rating(
         self, client, tester, gang, ganger
