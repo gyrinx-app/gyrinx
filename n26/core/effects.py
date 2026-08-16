@@ -560,14 +560,16 @@ def compute(card, index):
         },
     )
 
-    is_assigned = {
-        ModifierIndex.key(node.assignable): node.assignment is not None
-        for node in card.all_nodes()
-    }
-    anchors = {ModifierIndex.key(node.assignable): node for node in card.all_nodes()}
-    #: The card's written lines by their own identity, which is what a
-    #: chain of grants names when it says what it stands on.
-    lines = {node.key: node for node in card.all_nodes()}
+    # Three views of the card's own lines, taken in one pass: whether a
+    # thing is written down, the line carrying each thing, and the lines
+    # by their own identity — the last being what a chain of grants names
+    # when it says what it stands on.
+    is_assigned, anchors, lines = {}, {}, {}
+    for node in card.all_nodes():
+        carried = ModifierIndex.key(node.assignable)
+        is_assigned[carried] = node.assignment is not None
+        anchors[carried] = node
+        lines[node.key] = node
     offers = _Offers()
     given_slots = _Offers()
     log = _Log()

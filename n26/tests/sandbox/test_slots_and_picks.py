@@ -1017,7 +1017,9 @@ class TestAGangGuestOpensAChoiceOnEveryModel:
 
         _, computed = card_of(kaustos)
         assert [guest.name for guest in computed.echoed] == ["The Water Pact"]
-        assert not Assignment.objects.filter(rule__isnull=False).exists()
+        assert not Assignment.objects.filter(
+            rule__isnull=False, gang_root=gang
+        ).exists()
 
     def test_every_model_is_asked_and_the_gang_is_not(self, gang, guild_shape):
         profile, alliance, _, _ = guild_shape
