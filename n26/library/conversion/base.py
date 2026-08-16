@@ -255,7 +255,10 @@ class Plan:
     system: str
     steps: tuple = ()
     #: Primary keys of every gang whose pages this system touches — the
-    #: capture set the apply proves unchanged.
+    #: capture set the apply proves unchanged. Derived from stored rows,
+    #: which every carrier so far is; a system whose carrier arrives by
+    #: grant has no row to find, and its plan must widen this set the
+    #: renderer's way.
     gang_ids: tuple = ()
     problems: tuple = ()
     #: True when the system simply is not here — nothing to convert and
