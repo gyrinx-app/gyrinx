@@ -13,6 +13,13 @@ the moment a code path forgets one and nothing notices for months; a
 recompute at the boundary is right by construction, and ``n26.reconcile``
 still catches anything that bypassed the boundary entirely.
 
+Not every operation moves money. A rename, a notes edit, a
+characteristic set by hand price nothing — they go through here anyway,
+because they are part of the gang's story and each writes a journal
+event, so the history can say who did what and when. The line is the
+story, not the money: device preferences (a print config, a display
+set) are nobody's history and stay plain saves.
+
 Use it as a context manager::
 
     with operation(gang, actor=player) as op:
@@ -294,11 +301,85 @@ class Operation:
         finally:
             self._effect_depth -= 1
 
-    def event(self, assignment, kind, **deltas):
-        """Append to the log. Nothing already written is ever altered."""
+    def event(self, about, kind, **deltas):
+        """Append to the log. Nothing already written is ever altered.
+
+        ``about`` is the assignment or the model the record concerns —
+        or ``None``, for an act on the gang itself. Every event is
+        pinned to its gang, so a gang's whole history is one query, in
+        order: this operation's gang, or — opened without one — the
+        gang at the top of the assignment's own chain.
+        """
+        assignment = about if isinstance(about, Assignment) else None
+        gang = self.gang
+        if gang is None and assignment is not None:
+            gang = assignment.gang_root
         return LedgerEvent.objects.create(
-            assignment=assignment, kind=kind, actor=self.actor, **deltas
+            assignment=assignment,
+            miniature=about if isinstance(about, Miniature) else None,
+            gang=gang,
+            kind=kind,
+            actor=self.actor,
+            **deltas,
         )
+
+    def rename(self, miniature, name):
+        """Give one model a new name, and say so in the history.
+
+        The name is the owner's prose, so nothing here is priced — the
+        event stands alone, no entry behind it. The note keeps both
+        names, which is the whole of what a reader of the history wants
+        from a rename.
+        """
+        was = miniature.name
+        if was == name:
+            return miniature
+        miniature.name = name
+        miniature.save(update_fields=["name", "modified"])
+        self.event(miniature, LedgerEvent.Kind.RENAMED, note=f"{was} → {name}"[:255])
+        return miniature
+
+    def edit_notes(self, miniature, notes):
+        """Store the owner's notes as written, and say they changed.
+
+        The history records that the notes moved and never what they
+        say: the words are the owner's, and the journal is a list of
+        acts, not a copy of the prose.
+        """
+        if miniature.notes == notes:
+            return miniature
+        miniature.notes = notes
+        miniature.save(update_fields=["notes", "modified"])
+        self.event(miniature, LedgerEvent.Kind.NOTED)
+        return miniature
+
+    def set_stats(self, miniature, changes):
+        """Set or clear the characteristics an owner has taken over.
+
+        ``changes`` is what the form worked out actually moved — each a
+        ``(type_stat, value, said)``, where an empty value clears the
+        override so the entry's own print stands again, and ``said`` is
+        the sentence the history keeps. Nothing here is priced: the
+        override replaces a printed value, and what the gang is worth
+        never followed from a characteristic.
+        """
+        from n26.core.models import StatOverride
+
+        for type_stat, value, said in changes:
+            held = StatOverride.objects.filter(
+                miniature=miniature, statline_type_stat=type_stat
+            )
+            if not value:
+                held.delete()
+                self.event(miniature, LedgerEvent.Kind.STAT_CLEARED, note=said)
+                continue
+            override = held.first() or StatOverride(
+                miniature=miniature, statline_type_stat=type_stat
+            )
+            override.value = value
+            override.save()
+            self.event(miniature, LedgerEvent.Kind.STAT_SET, note=said)
+        return miniature
 
     def remove(self, assignment, note=""):
         """Take something away — and everything it brought with it.

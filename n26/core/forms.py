@@ -216,31 +216,42 @@ def statline_override_form_for(profile):
         def cells(self, placeholders=None):
             return super().cells(placeholders=placeholders or printed)
 
-        def save(self, miniature):
-            """Record the boxes that were typed and clear the ones that
-            were not.
+        def changes(self):
+            """Which cells this submission moves, and what each says.
 
-            A cleared box is an answer — the override goes and the entry
-            prints again — so this writes every cell the form drew rather
-            than only the filled ones. Nothing here moves money or
-            rating, which is why it is a plain write and not an
-            operation.
+            One ``(type_stat, value, said)`` per cell that differs from
+            what stood — an empty value clears the override and the
+            entry prints again. A cleared box that held nothing is not a
+            change, and a value retyped as it was is not one either, so
+            saving an untouched form moves nothing and the history stays
+            quiet. Values are compared in canonical form, the same one
+            the override stores, so retyping ``4`` over a stored ``4"``
+            is recognised as the same answer.
+
+            ``said`` is the sentence the history keeps: the value the
+            card showed — the standing override, or the entry's print —
+            then what it becomes. ``Operation.set_stats`` writes both
+            the cells and the sentences.
             """
-            from n26.core.models import StatOverride
-
+            moved = []
             for type_stat in self.type_stats:
                 value = (self.cleaned_data.get(type_stat.field_name) or "").strip()
-                held = StatOverride.objects.filter(
-                    miniature=miniature, statline_type_stat=type_stat
-                )
-                if not value:
-                    held.delete()
+                if value:
+                    value = type_stat.stat.format_value(value)
+                before = self.initial.get(type_stat.field_name, "")
+                if value == before:
                     continue
-                override = held.first() or StatOverride(
-                    miniature=miniature, statline_type_stat=type_stat
-                )
-                override.value = value
-                override.save()
+                if not value:
+                    returns = printed.get(type_stat.field_name) or "—"
+                    said = (
+                        f"{type_stat.short_name} {before} cleared — "
+                        f"{returns} prints again"
+                    )
+                else:
+                    showed = before or printed.get(type_stat.field_name) or "—"
+                    said = f"{type_stat.short_name} {showed} → {value}"
+                moved.append((type_stat, value, said[:255]))
+            return moved
 
     return StatlineOverrideForm
 

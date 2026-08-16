@@ -21,18 +21,17 @@ def edit_fighter(request, pk):
     are offered here, outlined, and the Gear and Weapons rows carry the
     way to the Equip tab.
 
-    Three forms post here, and ``act`` says which was clicked. Notes are
-    the owner's prose and characteristics they set are the owner's
-    numbers; neither is a fact the books watch — no rating moves, no
-    ledger entry is written — so both are plain saves rather than
-    operations. What the notes editor produced is stored as written and
-    sanitised on the way out, so a tightened allowlist reaches old notes
-    too.
+    Three forms post here, and ``act`` says which was clicked. All
+    three go through an operation: notes and characteristics price
+    nothing and move no rating, but they are part of the gang's story,
+    so each writes a journal event and the history can say what the
+    owner did. What the notes editor produced is stored as written and
+    sanitised on the way out, so a tightened allowlist reaches old
+    notes too.
 
-    The skills a model holds are the third, and the one thing here the
-    books do watch: learning writes an assignment and clearing archives one, so
-    that form goes through an operation and the whole difference lands
-    or none of it does.
+    The skills a model holds are the one thing here the books do
+    watch: learning writes an assignment and clearing archives one, so
+    the whole difference lands or none of it does.
 
     A refused characteristic redraws the page with the boxes as typed
     and the complaint under them; anything saved lands back here.
@@ -59,7 +58,8 @@ def edit_fighter(request, pk):
         if statline_class is not None:
             statline_edit = statline_class.opened_on(miniature, request.POST)
             if statline_edit.is_valid():
-                statline_edit.save(miniature)
+                with operation(gang, actor=request.user) as op:
+                    op.set_stats(miniature, statline_edit.changes())
                 record(
                     request, N26Noun.MODEL, EventVerb.UPDATE, miniature, statline=True
                 )
@@ -108,8 +108,8 @@ def edit_fighter(request, pk):
         # The one field is optional, so the form cannot fail — kept as a
         # form anyway, because that is where a second field will land.
         if form.is_valid():
-            miniature.notes = form.cleaned_data["notes"]
-            miniature.save(update_fields=["notes"])
+            with operation(gang, actor=request.user) as op:
+                op.edit_notes(miniature, form.cleaned_data["notes"])
             record(request, N26Noun.MODEL, EventVerb.UPDATE, miniature, notes=True)
             messages.success(request, "Notes saved.")
         return redirect("n26-edit-fighter", pk=miniature.pk)
