@@ -7,8 +7,13 @@ general carrier away again and grants a narrower one of its own, so
 its card should ask the same question over a shorter list. The plain
 profile keeps the general offer untouched.
 
-This file is a probe, not a contract: it pins what the engine does with
-the pattern today, plan evidence and all.
+Both ways of building it are covered: the older shape, where a hidden
+carries a modifier offering the choice, and the slots-and-picks shape,
+where the subtype grants a slot. Each asks its question over the right
+menu and each can be answered, because a question a grant put on the
+card is addressed on the written line that chain of grants stands on.
+The plan evidence for the swap — the general offer reached and then
+retracted — is pinned here too.
 """
 
 import pytest
@@ -225,13 +230,11 @@ class TestTheSubjugatorPatrolOfficer:
 
 class TestTheSwapWithTheHiddenBuiltIn:
     """The other possible wiring of the original experiment: the general
-    hidden arrives as a *built-in* of each profile — a stored assignment.
-    Half of it works: the plain officer's question is anchored and
-    settleable, and the removal silences the stored hidden's question on
-    the Subjugator. The narrow half still cannot work, because the
-    narrow hidden has to arrive by the profile's own modifier — that is
-    the whole trick — and a granted hidden's question is anchorless.
-    Both wirings of the experiment fail at the same spot."""
+    hidden arrives as a *built-in* of each profile — a stored assignment
+    — rather than through the subtype. It behaves the same way: the
+    removal silences the stored hidden's question on the Subjugator, and
+    the narrow hidden the profile's own modifier grants asks an anchored
+    question of its own. Either wiring of the pattern works."""
 
     @pytest.fixture
     def built_in_profiles(self, person_type, gang_type, general_offer, narrow_offer):
@@ -276,31 +279,70 @@ class TestTheSwapWithTheHiddenBuiltIn:
         questions = questions_on(subjugator)
 
         assert [(names, slot.anchor is not None) for slot, names in questions] == [
-            ({"Gunner"}, False)
+            ({"Gunner"}, True)
         ]
 
 
 class TestWhetherTheQuestionCanBeSettled:
-    """Where the pattern comes apart today. A choice is settled against
-    the stored assignment that carries the offer — but a hidden that
-    arrives by grant is computed, so nothing on the card anchors its
-    question. The list is right on both ranks; neither slot has an
-    address, so no picker can be reached and no pick can ever resolve
-    it. The working shapes store the carrier instead: the offer sits on
-    the subtype itself (a built-in assignment), or the hidden is a
-    member of the profile's default set."""
+    """Both ranks' questions can be answered. A choice is settled against
+    a stored assignment, and a hidden that arrives by grant is computed
+    and has none — so the question is addressed on the written line its
+    chain of grants stands on: the Specialist subtype for the general
+    offer, and the profile itself for the narrow one the Subjugator
+    grants. The list is right on both ranks and so is the address."""
 
-    def test_neither_ranks_question_is_anchored_to_any_stored_row(self, officers):
-        for miniature in officers.values():
-            ((slot, _),) = questions_on(miniature)
-            assert slot.anchor is None
+    def test_each_ranks_question_is_anchored_on_what_its_chain_stands_on(
+        self, officers, specialist
+    ):
+        ((plain, _),) = questions_on(officers["plain"])
+        ((subjugator, _),) = questions_on(officers["subjugator"])
 
-    def test_the_drawn_line_carries_no_address(self, officers):
+        # The general offer hangs off the subtype that granted it; the
+        # narrow one off the profile whose modifier granted it.
+        assert plain.anchor.assignment.assignable == specialist
+        assert subjugator.anchor.assignment.assignable == (
+            officers["subjugator"].membership.profile
+        )
+
+    def test_the_drawn_line_carries_an_address(self, officers):
         from n26.core.render import choice_lines
 
         for miniature in officers.values():
             (line,) = choice_lines(computed_for(miniature), host=str(miniature.pk))
-            assert line.key == ""
+            assert line.key != ""
+
+    def test_the_narrow_question_settles_from_the_screen(
+        self, gang, officers, owner, client, specialisations
+    ):
+        """The whole point of an address: a player can click the question
+        and the pick lands."""
+        from n26.core.models import Assignment
+        from n26.core.reconcile import assert_reconciled
+        from n26.core.render import render_gang
+        from n26.core.views.choose import link_slots
+
+        subjugator = officers["subjugator"]
+        client.force_login(owner)
+        sheet = render_gang(gang)
+        link_slots(gang, sheet, *sheet.models)
+        card = next(drawn for drawn in sheet.models if drawn.name == "Kade")
+        (line,) = card.questions
+
+        body = client.get(line.href).content.decode()
+        assert "Gunner" in body and "Sniper" not in body
+        response = client.post(
+            line.href,
+            {"thing": f"library.specialisation:{specialisations['Gunner'].pk}"},
+        )
+
+        assert response.status_code == 302
+        (settled,) = computed_for(subjugator).choices
+        assert settled.chosen_name == "Gunner"
+        assert (
+            Assignment.objects.get(specialisation=specialisations["Gunner"]).miniature
+            == subjugator
+        )
+        assert_reconciled(gang)
 
 
 class TestTheSameSwapBuiltAsSlotsAndPicks:

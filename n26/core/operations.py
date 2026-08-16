@@ -720,20 +720,22 @@ class Operation:
         for chosen in taken:
             ChosenProfileOption.objects.create(assignment=carrier, default_set=chosen)
 
-    def choose(self, anchor, chosen, slot=None, **kwargs):
+    def choose(self, anchor, chosen, slot=None, offer=None, **kwargs):
         """Make a choice — pick a specialisation, pick a gang legacy.
 
         ``anchor`` is the assignment that asked: the one whose assignable
         carries a modifier offering the choice (the Specialist subtype's),
-        or a **slot's** own assignment. What was chosen is a free
+        the line a chain of grants stands on where the offerer was itself
+        granted, or a **slot's** own assignment. What was chosen is a free
         assignment caused by it, so removing what asked takes the answer
         along, and it points back through ``chosen_for`` so the card reads
         the choice as settled.
 
-        ``slot`` names which choice is being settled where the anchor
-        cannot say: a slot a modifier *gave* has no assignment of its
-        own, so the thing that gave it is the anchor and the slot is
-        named here.
+        ``slot`` and ``offer`` name which choice is being settled where
+        the anchor cannot say. What a modifier *gave* has no assignment of
+        its own, so the anchor is the written line it stands on — which
+        may carry no offer itself, and may carry several — and the one
+        being answered is named here.
 
         Something of a kind the choice does not name is refused
         (:class:`NotOnOffer`), because it would settle nothing: the row
@@ -746,16 +748,27 @@ class Operation:
         from n26.library.models import Slot
         from n26.library.models.modifier import OffersChoice
 
-        if slot is None and isinstance(anchor.assignable, Slot):
-            slot = anchor.assignable
-        if slot is not None:
-            return self._choose_for_slot(anchor, slot, chosen, **kwargs)
+        if offer is None:
+            # A slot's own assignment says which choice it is without being
+            # told; a named offer has already said.
+            if slot is None and isinstance(anchor.assignable, Slot):
+                slot = anchor.assignable
+            if slot is not None:
+                return self._choose_for_slot(anchor, slot, chosen, **kwargs)
 
+        asked = (
+            [offer]
+            if offer is not None
+            else [
+                modifier.effect
+                for modifier in anchor.assignable.modifiers.all()
+                if isinstance(modifier.effect, OffersChoice)
+            ]
+        )
         matched = [
-            modifier.effect
-            for modifier in anchor.assignable.modifiers.all()
-            if isinstance(modifier.effect, OffersChoice)
-            and modifier.effect.selector().matches(select.matchable(chosen))
+            effect
+            for effect in asked
+            if effect.selector().matches(select.matchable(chosen))
         ]
         if not matched:
             raise NotOnOffer(anchor, chosen)

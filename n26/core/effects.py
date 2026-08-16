@@ -560,15 +560,12 @@ def compute(card, index):
         },
     )
 
-    # Three views of the card's own lines, taken in one pass: whether a
-    # thing is written down, the line carrying each thing, and the lines
-    # by their own identity — the last being what a chain of grants names
-    # when it says what it stands on.
-    is_assigned, anchors, lines = {}, {}, {}
+    # Two views of the card's own lines, taken in one pass: whether a thing
+    # is written down, and the lines by their own identity — the latter
+    # being what a chain of grants names when it says what it stands on.
+    is_assigned, lines = {}, {}
     for node in card.all_nodes():
-        carried = ModifierIndex.key(node.assignable)
-        is_assigned[carried] = node.assignment is not None
-        anchors[carried] = node
+        is_assigned[ModifierIndex.key(node.assignable)] = node.assignment is not None
         lines[node.key] = node
     offers = _Offers()
     given_slots = _Offers()
@@ -823,11 +820,16 @@ def compute(card, index):
                             _Applied(source_key, holder, "stat_changes", change)
                         )
                     elif isinstance(effect, OffersChoice):
+                        # Addressed on the line the offerer stands on, as a
+                        # given slot is: an offer carried by something a
+                        # modifier granted — the hidden a profile hands its
+                        # own narrowed choice on — is answerable, where a
+                        # choice with no address could only ever be looked at.
                         offer = (
                             effect,
                             label,
                             label_kind,
-                            anchors.get(source_key),
+                            lines.get(step.root_key),
                         )
                         offers.items.append(offer)
                         log.applied.append(_Applied(source_key, offers, "items", offer))

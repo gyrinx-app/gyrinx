@@ -242,6 +242,7 @@ def choose(request, pk, slot):
                         found.anchor,
                         picked.thing,
                         slot=found.slot.slot,
+                        offer=found.slot.offer,
                         **_host(found),
                     )
         except Refusal as refusal:
