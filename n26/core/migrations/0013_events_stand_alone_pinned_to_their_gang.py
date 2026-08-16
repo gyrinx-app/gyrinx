@@ -15,16 +15,32 @@ from django.db import migrations, models
 
 def pin_gangs(apps, schema_editor):
     """Every existing event is about an assignment; its gang is the
-    assignment's pinned root."""
+    assignment's pinned root, or — for an assignment whose model has no
+    membership to pin one through — the host chain read directly. Any
+    event still unpinned is named here, loudly, before the NOT NULL
+    lands: a named list beats an aborted ALTER halfway through a deploy.
+    """
     LedgerEvent = apps.get_model("n26", "LedgerEvent")
     Assignment = apps.get_model("n26", "Assignment")
-    LedgerEvent.objects.update(
-        gang_id=models.Subquery(
-            Assignment.objects.filter(pk=models.OuterRef("assignment_id")).values(
-                "gang_root_id"
-            )[:1]
+    assignment = Assignment.objects.filter(pk=models.OuterRef("assignment_id"))
+    for path in (
+        "gang_root_id",
+        "gang_id",
+        "stash__gang_id",
+        "miniature__membership__gang_id",
+    ):
+        LedgerEvent.objects.filter(gang__isnull=True).update(
+            gang_id=models.Subquery(assignment.values(path)[:1])
         )
+    unpinned = list(
+        LedgerEvent.objects.filter(gang__isnull=True).values_list("pk", flat=True)
     )
+    if unpinned:
+        raise RuntimeError(
+            "These ledger events reach no gang through their assignment's "
+            f"host chain and cannot be pinned: {unpinned}. Repair or remove "
+            "them, then rerun the migration."
+        )
 
 
 class Migration(migrations.Migration):

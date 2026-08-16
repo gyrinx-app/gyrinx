@@ -320,6 +320,9 @@ class Operation:
         gang = self.gang
         if gang is None and assignment is not None:
             gang = assignment.gang_root
+        if gang is None and isinstance(about, Miniature):
+            membership = getattr(about, "membership", None)
+            gang = membership.gang if membership else None
         return LedgerEvent.objects.create(
             assignment=assignment,
             miniature=about if isinstance(about, Miniature) else None,

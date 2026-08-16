@@ -98,6 +98,22 @@ def card_for(miniature):
     return build_model_card(miniature, card=card, computed=compute(card, index))
 
 
+@pytest.fixture(autouse=True)
+def the_books_stay_honest(yolanda):
+    """Every test here ends with the gang reconciled — edits must never
+    move the books, whatever the test did on the way.
+
+    Fetched fresh: the check compares the instance it is handed, and
+    operations repin through instances of their own, so a cached one
+    would report a drift that is only staleness.
+    """
+    yield
+    from n26.core.models import Gang
+    from n26.core.reconcile import assert_reconciled
+
+    assert_reconciled(Gang.objects.get(pk=yolanda.membership.gang_id))
+
+
 def edit(miniature):
     """Open an operation on the model's gang, as the edit page would."""
     gang = miniature.membership.gang
@@ -297,17 +313,32 @@ class TestTheEditPage:
         return client.post(reverse("n26-edit-fighter", args=[miniature.pk]), data)
 
     def test_the_box_offers_the_library_ticked_where_held(self, client, yolanda):
-        create_subtype("Mounted")
+        mounted = create_subtype("Mounted")
         gaunt = create_rule("Gaunt")
         assign(gaunt, miniature=yolanda, paid=0)
         client.force_login(yolanda.membership.gang.owner)
-        body = self._page(client, yolanda).content.decode()
+        page = self._page(client, yolanda)
+        body = page.content.decode()
         assert "Subtypes &amp; Rules" in body
         assert 'value="library.subtype:' in body
         assert 'value="library.rule:' in body
-        # The held rule opens ticked; the unheld subtype does not.
-        rule_box = body.split('value="library.rule:')[1][:200]
-        assert "checked" in rule_box
+        # The held rule opens ticked; the unheld subtype does not. Read
+        # off the offers the view built rather than the markup, which is
+        # the structure the boxes are drawn from.
+        ticked = {
+            option.key: option.is_current
+            for offer in (
+                page.context["rule_edits"],
+                page.context["subtype_edits"],
+                page.context["rule_more"],
+                page.context["subtype_more"],
+            )
+            if offer
+            for group in offer.groups
+            for option in group.options
+        }
+        assert ticked[f"library.rule:{gaunt.pk}"]
+        assert not ticked[f"library.subtype:{mounted.pk}"]
 
     def test_ticking_a_subtype_adds_it_in_the_owners_name(self, client, yolanda):
         mounted = create_subtype("Mounted")
@@ -353,6 +384,8 @@ class TestTheEditPage:
         assert [line.name for line in card_for(rehired).rules] == ["Gaunt"]
 
     def test_a_paid_for_thing_is_said_to_stay(self, client, yolanda):
+        """The warning says why it stays, and the saved message never
+        claims a loss the card denies."""
         mounted = create_subtype("Mounted")
         assign(mounted, miniature=yolanda, paid=75)
         client.force_login(yolanda.membership.gang.owner)
@@ -363,7 +396,31 @@ class TestTheEditPage:
         )
         page = client.get(response.url)
         body = page.content.decode()
+        assert "lost Mounted" not in body
         assert "Mounted stays on the card — it was paid for." in body
+
+    def test_clearing_a_thing_both_added_and_granted_takes_it_fully_away(
+        self, client, yolanda
+    ):
+        """Clearing means gone by every route: archiving the owner's own
+        addition alone would leave a standing grant re-ticking the box."""
+        mounted = create_subtype("Mounted")
+        client.force_login(yolanda.membership.gang.owner)
+        self._post(
+            client,
+            yolanda,
+            {"act": "subtypes", "subtypes": [f"library.subtype:{mounted.pk}"]},
+        )
+        cutter = create_wargear("Cutter")
+        modifier(
+            "Cutter grants Mounted", targets_model(), adds(mounted), carried_by=cutter
+        )
+        assign(cutter, miniature=yolanda, paid=75)
+        assert card_for(yolanda).type_line == "Fighter (Mounted)"
+
+        self._post(client, yolanda, {"act": "subtypes"})
+
+        assert card_for(yolanda).type_line == "Fighter"
 
     def test_reset_posts_per_section(self, client, yolanda):
         mounted = create_subtype("Mounted")

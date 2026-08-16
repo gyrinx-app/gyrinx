@@ -29,7 +29,9 @@ def _edit_state(own, computed, field):
     from n26.core.views.learn import _key
 
     kind_class = Assignment._meta.get_field(field).related_model
-    offered = list(kind_class.objects.all())
+    # The live library, as every player-facing offer reads it — an
+    # archived subtype is not a box to tick.
+    offered = list(kind_class.objects.selectable())
     stored, own_adds, gang_held = {}, {}, set()
     for node in own.all_nodes():
         if node.suppressed or node.assignment is None:
@@ -141,17 +143,27 @@ def _apply_edits(op, miniature, own, computed, field, ticked):
     added, taken, restored = [], [], []
     for thing in offered:
         key = _key(thing)
+        # A standing removal the money refused: the thing still shows,
+        # its box opens ticked, and saving the section untouched must
+        # move nothing — neither restoring the removal nor stacking a
+        # second one.
+        shown = key in stored or key in granted
         if key in ticked:
-            if key in removed:
+            if key in removed and not shown:
                 op.remove(removed[key], note="restored")
                 restored.append(str(thing))
-            elif key not in stored and key not in granted:
+            elif not shown and key not in removed:
                 op.assign(thing, miniature=miniature, paid=0, reason=Reason.EDITED)
                 added.append(str(thing))
         elif key in own_adds:
             op.remove(own_adds[key])
+            if key in granted and key not in removed:
+                # A grant also supplies it, and archiving the owner's
+                # addition leaves that standing — clearing means gone by
+                # every route, so the grant is cancelled too.
+                op.take_away(miniature, thing)
             taken.append(str(thing))
-        elif key in stored or key in granted:
+        elif shown and key not in removed:
             op.take_away(miniature, thing)
             taken.append(str(thing))
     return added, taken, restored
@@ -282,22 +294,13 @@ def edit_fighter(request, pk):
             taken=len(taken),
             restored=len(restored),
         )
-        moved = [
-            phrase
-            for phrase in (
-                f"gained {', '.join(added)}" if added else "",
-                f"lost {', '.join(taken)}" if taken else "",
-                f"got {', '.join(restored)} back" if restored else "",
-            )
-            if phrase
-        ]
-        messages.success(
-            request,
-            f"{miniature.name} {' and '.join(moved)}." if moved else "Saved.",
-        )
+        # A paid-for thing is never hidden by a removal, so its box
+        # would silently re-tick on the redraw — find those out first,
+        # say why each stays, and keep them out of the sentence saying
+        # what was lost: a message claiming a loss the card denies would
+        # be worse than no message at all.
+        refused = set()
         if taken:
-            # A paid-for thing is never hidden by a removal, so the box
-            # would silently re-tick on the redraw — say why instead.
             fresh = build_card(miniature)
             fresh_index = build_modifier_index(
                 [node.assignable for node in fresh.all_nodes()]
@@ -307,16 +310,32 @@ def edit_fighter(request, pk):
                 for step in compute(fresh, fresh_index).plan
                 for name in step.refused
             }
-            for name in [name for name in taken if name in refused]:
-                messages.warning(
-                    request, f"{name} stays on the card — it was paid for."
-                )
+        lost = [name for name in taken if name not in refused]
+        moved = [
+            phrase
+            for phrase in (
+                f"gained {', '.join(added)}" if added else "",
+                f"lost {', '.join(lost)}" if lost else "",
+                f"got {', '.join(restored)} back" if restored else "",
+            )
+            if phrase
+        ]
+        messages.success(
+            request,
+            f"{miniature.name} {' and '.join(moved)}." if moved else "Saved.",
+        )
+        for name in [name for name in taken if name in refused]:
+            messages.warning(request, f"{name} stays on the card — it was paid for.")
         return redirect("n26-edit-fighter", pk=miniature.pk)
     elif request.method == "POST" and request.POST.get("act") == "reset-edits":
         field = request.POST.get("kind")
         if field in EDITABLE_KINDS.values():
-            with operation(gang, actor=request.user) as op:
-                undone = op.reset_edits(miniature, field)
+            try:
+                with operation(gang, actor=request.user) as op:
+                    undone = op.reset_edits(miniature, field)
+            except Refusal as refusal:
+                messages.error(request, str(refusal))
+                return redirect("n26-edit-fighter", pk=miniature.pk)
             record(
                 request,
                 N26Noun.MODEL,
@@ -327,7 +346,7 @@ def edit_fighter(request, pk):
             )
             messages.success(
                 request,
-                f"{miniature.name}'s {request.POST.get('kind')} edits are undone."
+                f"{miniature.name}'s {field} edits are undone."
                 if undone
                 else "Nothing to reset.",
             )

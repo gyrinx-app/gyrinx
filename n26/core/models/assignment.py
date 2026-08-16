@@ -315,11 +315,16 @@ class Assignment(NamesAnAssignable, Base, Archived):
                 name="assignment_exactly_one_assignable",
             ),
             # A removal names what it takes away, and only the kinds an
-            # owner edits by hand may be taken away this way.
+            # owner edits by hand may be taken away this way — hosted on
+            # the model it edits, because assembly compiles removals off
+            # a model's own rows and a gang-hosted one would broadcast
+            # as a held line instead.
             models.CheckConstraint(
                 condition=models.Q(removes=False)
-                | models.Q(subtype__isnull=False)
-                | models.Q(rule__isnull=False),
+                | (
+                    models.Q(miniature__isnull=False)
+                    & (models.Q(subtype__isnull=False) | models.Q(rule__isnull=False))
+                ),
                 name="assignment_removes_names_subtype_or_rule",
             ),
         ]

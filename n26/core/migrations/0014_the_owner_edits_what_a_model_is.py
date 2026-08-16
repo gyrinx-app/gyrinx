@@ -58,11 +58,13 @@ class Migration(migrations.Migration):
         migrations.AddConstraint(
             model_name="assignment",
             constraint=models.CheckConstraint(
-                condition=models.Q(
-                    ("removes", False),
-                    ("subtype__isnull", False),
-                    ("rule__isnull", False),
-                    _connector="OR",
+                condition=models.Q(("removes", False))
+                | (
+                    models.Q(("miniature__isnull", False))
+                    & (
+                        models.Q(("subtype__isnull", False))
+                        | models.Q(("rule__isnull", False))
+                    )
                 ),
                 name="assignment_removes_names_subtype_or_rule",
             ),
