@@ -893,7 +893,19 @@ def compute(card, index):
         if ModifierIndex.key(contribution.thing) not in dead
     ]
     _fill_choice_slots(computed, offers.items, by_cause)
-    _fill_slot_choices(computed, given_slots.items, by_choice)
+    # A question whose slot was itself taken away is not asked: the
+    # giver may stand, but the given thing is gone — the Subjugator
+    # pattern, where a profile removes the general slot its subtype
+    # grants and grants a narrower one of its own.
+    _fill_slot_choices(
+        computed,
+        [
+            given
+            for given in given_slots.items
+            if ModifierIndex.key(given[0]) not in dead
+        ],
+        by_choice,
+    )
     return computed
 
 
