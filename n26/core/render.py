@@ -307,6 +307,12 @@ class Choosable:
     #: surface offering things to tick draws it fixed: there is nothing a click
     #: could take away.
     granted_by: str = ""
+    #: Why this one cannot be changed, where something other than a grant
+    #: fixes it — money standing behind it. Drawn fixed like a granted
+    #: line, saying this instead of a giver. A surface must not offer an
+    #: act that would be refused: the refusal would arrive as a message
+    #: about a change the card then denies.
+    fixed_because: str = ""
     #: The other choice on this holder that has already settled on it,
     #: where the slot type says one pickable answers one choice. Marked
     #: and never withheld: the owner may still pick it, and the card says

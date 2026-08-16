@@ -1444,6 +1444,42 @@ GROUPS: list[Group] = [
                 ),
             ),
             Component(
+                slug="pick-list",
+                tag="c-n26.pick-list",
+                template="n26/pick_list/index.html",
+                summary="What a thing has, and a searchable way to add to it.",
+                notes=(
+                    "For a library too long to scan — every subtype, every "
+                    "special rule — without becoming a different control: the "
+                    "held things are ticked boxes, and a button opens the rest "
+                    "as a c-n26.quick-switcher panel, the shape a reader has "
+                    "already met. Click a row and its box appears above, "
+                    "ticked; clear a box and the row is offered again. Nothing "
+                    "reloads, because every box was already on the page — the "
+                    "panel only ticks them, so it adds no input of its own and "
+                    "no value can arrive that nobody chose. Its rows report a "
+                    "key rather than their words, because two rows can read "
+                    "alike and mean different rows. With no script the addable "
+                    "boxes are put back by a noscript rule and the panel is "
+                    "cloaked, so what is left is one plain list of every "
+                    "option that works. Save is disabled until the ticked set "
+                    "differs from the one the page opened with: the actions "
+                    "slot renders inside this component's scope, which is what "
+                    'lets a caller bind ::disabled="!dirty" on its own button.'
+                ),
+                parts=(
+                    Part(
+                        "c-n26.pick-list.box",
+                        "n26/pick_list/box.html",
+                        "One option as a box to tick — the same row whether the "
+                        "thing is held or is one the panel offers, so the two "
+                        "runs cannot come to look different. Binds to `picked` "
+                        "above it in the Alpine scope, which is what lets the "
+                        "panel tick a box and the list read what is ticked.",
+                    ),
+                ),
+            ),
+            Component(
                 slug="tick-list",
                 tag="c-n26.tick-list",
                 template="n26/tick_list.html",

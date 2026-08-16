@@ -1,5 +1,7 @@
 """One model's own page — the card, editable, and the owner's notes."""
 
+from dataclasses import dataclass
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import Http404
@@ -14,17 +16,46 @@ from n26.core.views.permissions import _own_miniature_or_404
 EDITABLE_KINDS = {"subtypes": "subtype", "rules": "rule"}
 
 
+@dataclass(frozen=True)
+class _EditState:
+    """How each thing of one kind stands on a card, keyed the way a pick
+    list keys its options.
+
+    Not "is it held" but *how* it is held, because each answer settles a
+    different write: an owner's own addition is archived, anything else
+    gains a removal, a standing removal is archived to bring the thing
+    back, and something fixed is not offered at all.
+    """
+
+    #: Every thing of the kind the live library offers.
+    offered: list
+    #: The written assignment showing each thing, by key.
+    stored: dict
+    #: The subset the owner added themselves.
+    own_adds: dict
+    #: Keys the gang holds, riding this card.
+    gang_held: set
+    #: Key -> what grants it, for things no assignment stands behind.
+    granted: dict
+    #: Key -> the owner's standing removal of it.
+    removed: dict
+    #: Keys a removal could not shift, because money stands behind them.
+    fixed: set
+
+
 def _edit_state(own, computed, field):
     """What the card currently says for one editable kind, keyed the way
     a tick list keys its options.
 
-    Six answers, because the diff needs to know not just whether a
-    thing is held but *how*: any stored assignment showing it, which of
-    those are the gang's riding this card, the subset that are the
-    owner's own additions, what a modifier grants, and the owner's
-    standing removals. A suppressed line is held by nobody — it has
-    been taken away, and the box for it opens clear.
+    The diff needs to know not just whether a thing is held but *how*:
+    any stored assignment showing it, which of those are the gang's
+    riding this card, the subset that are the owner's own additions,
+    what a modifier grants, the owner's standing removals — and which
+    could not be taken away at all, because money stands behind every
+    line of them. A suppressed line is held by nobody: it has been taken
+    away, and the box for it opens clear.
     """
+    from n26.core.effects import stands_whatever_happens
     from n26.core.models import Assignment, Reason
     from n26.core.views.learn import _key
 
@@ -58,43 +89,60 @@ def _edit_state(own, computed, field):
         for row in own.removals
         if isinstance(row.assignable, kind_class)
     }
-    return offered, stored, own_adds, gang_held, granted, removed
+    # Bought, so a removal would leave it exactly where it is. Asked of
+    # the engine's own rule rather than restated here, because a surface
+    # that disagreed would offer a clearing that quietly does nothing.
+    fixed = {
+        key
+        for key, assignment in stored.items()
+        if stands_whatever_happens(own, assignment.assignable)
+    }
+    return _EditState(
+        offered=offered,
+        stored=stored,
+        own_adds=own_adds,
+        gang_held=gang_held,
+        granted=granted,
+        removed=removed,
+        fixed=fixed,
+    )
 
 
 def _edits_offer(own, computed, field, heading):
-    """One section of the edits box, split into what the card shows and
-    the rest of the library.
+    """One section of the edits box: every thing of the kind, as options.
 
-    Nothing is drawn fixed — that is the section's whole point. A
-    granted thing says what grants it, but its box still clears: the
-    owner's clearing becomes a stored removal, and ticking it again
-    archives that removal, so the content's own answer is always one
-    click away.
+    A granted thing's box still clears — the owner's clearing becomes a
+    stored removal, and ticking it again archives that removal, so the
+    content's own answer is always one click away. What does *not* clear
+    is a thing money stands behind: a removal would leave it exactly
+    where it is, so it is drawn fixed and says so rather than being
+    offered and refused.
 
-    Two offers rather than one, because the library runs to a hundred
-    rules and a wall of clear boxes buries the handful that matter: the
-    first holds what the card shows and what the owner has touched, the
-    second everything else, for the page to fold away. A ticked box in
-    the folded half still submits, so the split changes nothing about
-    what a save means. Both are None where the library offers nothing,
-    so the page can skip the section rather than draw an empty list.
+    Two answers, because the page draws them differently. What the card
+    shows — and anything the owner has touched, so a thing they took
+    away stays where it can be put back — is the list of boxes. The rest
+    of the library is what the search panel offers: a box each, which
+    appears in the list above once it is ticked.
     """
     from n26.core.render import ChoiceOffer, Choosable, ChoosableGroup
     from n26.core.views.learn import _key
 
-    offered, stored, own_adds, gang_held, granted, removed = _edit_state(
-        own, computed, field
-    )
+    state = _edit_state(own, computed, field)
     current, rest = [], []
-    for thing in offered:
+    for thing in state.offered:
         key = _key(thing)
-        if key in own_adds:
+        fixed_because = ""
+        if key in state.fixed:
+            # Named as a price rather than a rule: the owner can sell it
+            # from the equip screen, which is the way back.
+            fixed_because = "bought — sell it to take it away"
+        if key in state.own_adds:
             detail = "added by you"
-        elif key in removed:
+        elif key in state.removed:
             detail = "taken away by you"
-        elif key in granted and key not in stored:
-            detail = f"from {granted[key]}"
-        elif key in gang_held:
+        elif key in state.granted and key not in state.stored:
+            detail = f"from {state.granted[key]}"
+        elif key in state.gang_held:
             detail = "the gang's"
         else:
             detail = ""
@@ -102,26 +150,21 @@ def _edits_offer(own, computed, field, heading):
             key=key,
             name=str(thing),
             thing=thing,
-            is_current=key in stored or key in granted,
+            is_current=key in state.stored or key in state.granted,
             detail=detail,
+            fixed_because=fixed_because,
         )
         if option.is_current or detail:
             current.append(option)
         else:
             rest.append(option)
 
-    def boxed(options, name):
-        if not options:
-            return None
-        return ChoiceOffer(
-            label="", groups=[ChoosableGroup(name=name, options=options)]
-        )
-
-    return (
-        boxed(current, heading),
-        boxed(rest, ""),
-        bool(own_adds or removed),
+    held = (
+        ChoiceOffer(label="", groups=[ChoosableGroup(name=heading, options=current)])
+        if current
+        else None
     )
+    return held, rest, bool(state.own_adds or state.removed)
 
 
 def _apply_edits(op, miniature, own, computed, field, ticked):
@@ -137,33 +180,33 @@ def _apply_edits(op, miniature, own, computed, field, ticked):
     from n26.core.models import Reason
     from n26.core.views.learn import _key
 
-    offered, stored, own_adds, _gang_held, granted, removed = _edit_state(
-        own, computed, field
-    )
+    state = _edit_state(own, computed, field)
     added, taken, restored = [], [], []
-    for thing in offered:
+    for thing in state.offered:
         key = _key(thing)
-        # A standing removal the money refused: the thing still shows,
-        # its box opens ticked, and saving the section untouched must
-        # move nothing — neither restoring the removal nor stacking a
-        # second one.
-        shown = key in stored or key in granted
+        if key in state.fixed:
+            # Drawn fixed, and a fixed box submits nothing — so its
+            # silence is not a clearing. Nothing here may act on it: a
+            # removal would leave the thing on the card and the page
+            # would report a loss the card denies.
+            continue
+        shown = key in state.stored or key in state.granted
         if key in ticked:
-            if key in removed and not shown:
-                op.remove(removed[key], note="restored")
+            if key in state.removed and not shown:
+                op.remove(state.removed[key], note="restored")
                 restored.append(str(thing))
-            elif not shown and key not in removed:
+            elif not shown and key not in state.removed:
                 op.assign(thing, miniature=miniature, paid=0, reason=Reason.EDITED)
                 added.append(str(thing))
-        elif key in own_adds:
-            op.remove(own_adds[key])
-            if key in granted and key not in removed:
+        elif key in state.own_adds:
+            op.remove(state.own_adds[key])
+            if key in state.granted and key not in state.removed:
                 # A grant also supplies it, and archiving the owner's
                 # addition leaves that standing — clearing means gone by
                 # every route, so the grant is cancelled too.
                 op.take_away(miniature, thing)
             taken.append(str(thing))
-        elif shown and key not in removed:
+        elif shown and key not in state.removed:
             op.take_away(miniature, thing)
             taken.append(str(thing))
     return added, taken, restored
@@ -294,28 +337,14 @@ def edit_fighter(request, pk):
             taken=len(taken),
             restored=len(restored),
         )
-        # A paid-for thing is never hidden by a removal, so its box
-        # would silently re-tick on the redraw — find those out first,
-        # say why each stays, and keep them out of the sentence saying
-        # what was lost: a message claiming a loss the card denies would
-        # be worse than no message at all.
-        refused = set()
-        if taken:
-            fresh = build_card(miniature)
-            fresh_index = build_modifier_index(
-                [node.assignable for node in fresh.all_nodes()]
-            )
-            refused = {
-                name
-                for step in compute(fresh, fresh_index).plan
-                for name in step.refused
-            }
-        lost = [name for name in taken if name not in refused]
+        # Everything named here really moved: a thing a removal could not
+        # shift is drawn fixed and never acted on, so the sentence cannot
+        # claim a loss the card denies.
         moved = [
             phrase
             for phrase in (
                 f"gained {', '.join(added)}" if added else "",
-                f"lost {', '.join(lost)}" if lost else "",
+                f"lost {', '.join(taken)}" if taken else "",
                 f"got {', '.join(restored)} back" if restored else "",
             )
             if phrase
@@ -324,8 +353,6 @@ def edit_fighter(request, pk):
             request,
             f"{miniature.name} {' and '.join(moved)}." if moved else "Saved.",
         )
-        for name in [name for name in taken if name in refused]:
-            messages.warning(request, f"{name} stays on the card — it was paid for.")
         return redirect("n26-edit-fighter", pk=miniature.pk)
     elif request.method == "POST" and request.POST.get("act") == "reset-edits":
         field = request.POST.get("kind")

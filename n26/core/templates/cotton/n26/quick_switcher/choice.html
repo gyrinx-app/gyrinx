@@ -16,21 +16,25 @@ A <button>, not a link with a dead href: a link that goes nowhere is offered as
 a place, opens nothing in a new tab, and is read aloud as a lie. Enter still
 works, because the panel clicks the highlighted row.
 
-Clicking dispatches a bubbling `quick-switcher-choose` carrying this row's
-label, and the caller listens for it on whatever holds the switcher. Which row
-is current is bound rather than fixed at render, since the choice takes effect
-without a reload; the comparison is the caller's to write.
+Clicking dispatches a bubbling `quick-switcher-choose` carrying what this row
+stands for, and the caller listens for it on whatever holds the switcher. Which
+row is current is bound rather than fixed at render, since the choice takes
+effect without a reload; the comparison is the caller's to write.
 
-  label — what the row says, what the filter matches, and what it reports.
+  label — what the row says, and what the filter matches.
+  value — what the row reports and is compared on. Defaults to the label, which
+    is right where the words are the thing. Set it where they are not: two rows
+    may read alike and mean different things, and a caller acting on the words
+    would act on whichever it found first.
   current_value — an Alpine expression holding the choice in force. This row is
-    current while that equals its label; left out, no row is ever marked.
+    current while that equals its value; left out, no row is ever marked.
   available — an Alpine expression; the row is drawn only while it is true, and
     `label` is in scope so a caller can ask about this row. An unavailable row
     is still reachable by the arrow keys, so a caller offering rows that come
     and go must handle a choice it cannot honour.
   icon — a c-n26.icon name before the label.
 {% endcomment %}
-<c-vars label="" current_value="false" available="true" icon="" class="" />
+<c-vars label="" value="" current_value="false" available="true" icon="" class="" />
 
 {% comment %}
 register, matches, highlight, active and close all live above this row in the
@@ -44,18 +48,18 @@ emitted them, so this one is marked important.
 {% endcomment %}
 <button type="button"
         role="menuitem"
-        x-data="{ id: '', label: {{ label|json_dumps }}, facets: { search: {{ label|lower|json_dumps }} } }"
+        x-data="{ id: '', label: {{ label|json_dumps }}, value: {{ value|default:label|json_dumps }}, facets: { search: {{ label|lower|json_dumps }} } }"
         x-init="id = register($el, facets)"
         :id="id"
         x-show="matches(facets) &amp;&amp; ({{ available }})"
         x-cloak
-        @click="$dispatch('quick-switcher-choose', { value: label }); close()"
+        @click="$dispatch('quick-switcher-choose', { value: value }); close()"
         @mouseenter="highlight(id)"
-        :aria-current="({{ current_value }}) === label ? 'true' : 'false'"
+        :aria-current="({{ current_value }}) === value ? 'true' : 'false'"
         :class="{
             'bg-ink-200! dark:bg-ink-700!': active === id,
-            'bg-ink-100 font-medium text-ink-900 dark:bg-ink-800 dark:text-ink-100': ({{ current_value }}) === label,
-            'text-ink-700 dark:text-ink-300': ({{ current_value }}) !== label,
+            'bg-ink-100 font-medium text-ink-900 dark:bg-ink-800 dark:text-ink-100': ({{ current_value }}) === value,
+            'text-ink-700 dark:text-ink-300': ({{ current_value }}) !== value,
         }"
         {{ attrs }}
         class="flex w-full items-center gap-2.5 border-b border-box-border px-3 py-2 text-left text-sm
@@ -67,7 +71,7 @@ emitted them, so this one is marked important.
         <c-n26.icon name="{{ icon }}" class="size-4 shrink-0 text-ink-500 dark:text-ink-400" />
     {% endif %}
     <span class="min-w-0 flex-1 truncate">{{ label }}</span>
-    <span x-show="({{ current_value }}) === label" x-cloak class="shrink-0">
+    <span x-show="({{ current_value }}) === value" x-cloak class="shrink-0">
         <c-n26.icon name="check" class="size-4 text-accent-text" />
     </span>
 </button>

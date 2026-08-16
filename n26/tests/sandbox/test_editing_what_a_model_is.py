@@ -312,33 +312,61 @@ class TestTheEditPage:
 
         return client.post(reverse("n26-edit-fighter", args=[miniature.pk]), data)
 
-    def test_the_box_offers_the_library_ticked_where_held(self, client, yolanda):
+    def _held(self, page, key):
+        """The section's held options, keyed. None where nothing is."""
+        offer = page.context[key]
+        return (
+            {}
+            if offer is None
+            else {
+                option.key: option for group in offer.groups for option in group.options
+            }
+        )
+
+    def _addable(self, page, key):
+        return {option.key: option for option in page.context[key]}
+
+    def test_what_is_held_is_a_box_and_the_rest_is_the_panel(self, client, yolanda):
+        """Two halves: what the card shows is a box to clear, and the
+        rest of the library is what the search panel offers."""
         mounted = create_subtype("Mounted")
         gaunt = create_rule("Gaunt")
         assign(gaunt, miniature=yolanda, paid=0)
         client.force_login(yolanda.membership.gang.owner)
         page = self._page(client, yolanda)
-        body = page.content.decode()
+
+        assert self._held(page, "rule_edits")[f"library.rule:{gaunt.pk}"].is_current
+        assert f"library.subtype:{mounted.pk}" in self._addable(page, "subtype_more")
+        assert f"library.subtype:{mounted.pk}" not in self._held(page, "subtype_edits")
+
+    def test_every_option_is_a_box_in_the_page_so_no_script_can_add(
+        self, client, yolanda
+    ):
+        """The panel only ticks boxes that are already there, so every
+        addable thing is a box in the HTML — which is also the whole of
+        the fallback for a reader with no script."""
+        mounted = create_subtype("Mounted")
+        gaunt = create_rule("Gaunt")
+        assign(gaunt, miniature=yolanda, paid=0)
+        client.force_login(yolanda.membership.gang.owner)
+        body = self._page(client, yolanda).content.decode()
         assert "Subtypes &amp; Rules" in body
-        assert 'value="library.subtype:' in body
-        assert 'value="library.rule:' in body
-        # The held rule opens ticked; the unheld subtype does not. Read
-        # off the offers the view built rather than the markup, which is
-        # the structure the boxes are drawn from.
-        ticked = {
-            option.key: option.is_current
-            for offer in (
-                page.context["rule_edits"],
-                page.context["subtype_edits"],
-                page.context["rule_more"],
-                page.context["subtype_more"],
-            )
-            if offer
-            for group in offer.groups
-            for option in group.options
-        }
-        assert ticked[f"library.rule:{gaunt.pk}"]
-        assert not ticked[f"library.subtype:{mounted.pk}"]
+        # A box carries the key, never the name: a rule's identity takes
+        # in its annotation, and two Leashes differ by nothing else.
+        assert f'value="library.subtype:{mounted.pk}"' in body
+        assert f'value="library.rule:{gaunt.pk}"' in body
+        # The panel's own row reports that same key rather than the words.
+        assert f"isPicked('library.subtype:{mounted.pk}')" in body
+
+    def test_ticking_a_subtype_from_the_list_adds_it(self, client, yolanda):
+        mounted = create_subtype("Mounted")
+        client.force_login(yolanda.membership.gang.owner)
+        self._post(
+            client,
+            yolanda,
+            {"act": "subtypes", "subtypes": [f"library.subtype:{mounted.pk}"]},
+        )
+        assert card_for(yolanda).type_line == "Fighter (Mounted)"
 
     def test_ticking_a_subtype_adds_it_in_the_owners_name(self, client, yolanda):
         mounted = create_subtype("Mounted")
@@ -383,21 +411,42 @@ class TestTheEditPage:
         )
         assert [line.name for line in card_for(rehired).rules] == ["Gaunt"]
 
-    def test_a_paid_for_thing_is_said_to_stay(self, client, yolanda):
-        """The warning says why it stays, and the saved message never
-        claims a loss the card denies."""
+    def test_a_paid_for_thing_is_not_offered_to_be_taken_away(self, client, yolanda):
+        """A removal could not shift it, so its box is fixed and says
+        why. Offering the act and then refusing it wrote a removal that
+        changed nothing and reported a loss the card denied."""
         mounted = create_subtype("Mounted")
         assign(mounted, miniature=yolanda, paid=75)
         client.force_login(yolanda.membership.gang.owner)
-        response = self._post(
-            client,
-            yolanda,
-            {"act": "subtypes"},
-        )
-        page = client.get(response.url)
+        page = self._page(client, yolanda)
+        option = self._held(page, "subtype_edits")[f"library.subtype:{mounted.pk}"]
+        assert option.is_current
+        assert option.fixed_because
+        assert "sell" in option.fixed_because
+        # Drawn disabled, so the browser never submits it.
         body = page.content.decode()
+        box = body.split(f'value="library.subtype:{mounted.pk}"')[1][:200]
+        assert "disabled" in box
+
+    def test_a_fixed_box_submitting_nothing_is_not_read_as_a_clearing(
+        self, client, yolanda
+    ):
+        """A disabled box posts nothing, and its silence must not be
+        taken for a clearing — the whole reason granted things are left
+        out of the difference too."""
+        mounted = create_subtype("Mounted")
+        assign(mounted, miniature=yolanda, paid=75)
+        client.force_login(yolanda.membership.gang.owner)
+        response = self._post(client, yolanda, {"act": "subtypes"})
+
+        assert card_for(yolanda).type_line == "Fighter (Mounted)"
+        assert not Assignment.objects.filter(
+            miniature_root=yolanda, subtype=mounted, removes=True
+        ).exists()
+        body = client.get(response.url).content.decode()
         assert "lost Mounted" not in body
-        assert "Mounted stays on the card — it was paid for." in body
+        # Nothing moved, so the page says exactly that.
+        assert "Saved." in body
 
     def test_clearing_a_thing_both_added_and_granted_takes_it_fully_away(
         self, client, yolanda

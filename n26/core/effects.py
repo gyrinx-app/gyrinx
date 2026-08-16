@@ -1571,16 +1571,44 @@ def _suppress(card, thing):
     the gun stays. Answers with what it hid and what it left alone.
     """
     hidden, refused = [], []
-    wanted = ModifierIndex.key(thing)
-    for node in card.all_nodes():
-        if node.computed or ModifierIndex.key(node.assignable) != wanted:
-            continue
+    for node in _stored_lines(card, thing):
         if any(line.carries_money for line in node.walk()):
             refused.append(node)
         else:
             node.suppressed = True
             hidden.append(node)
     return tuple(hidden), tuple(refused)
+
+
+def _stored_lines(card, thing):
+    """The card's own written lines naming this thing — what a removal
+    reaches. Granted lines are the grants' own output and are retracted
+    through the log instead."""
+    wanted = ModifierIndex.key(thing)
+    return [
+        node
+        for node in card.all_nodes()
+        if not node.computed and ModifierIndex.key(node.assignable) == wanted
+    ]
+
+
+def stands_whatever_happens(card, thing):
+    """Whether taking this away would leave it on the card regardless.
+
+    The mirror of what :func:`_suppress` refuses: a written line nobody
+    paid for is hidden, and one with money behind it is left exactly
+    where it is. So a thing every line of which carries money cannot be
+    taken away at all, and a surface offering to do so has to ask this
+    first — otherwise it writes a removal that changes nothing and then
+    reports a loss the card denies.
+
+    Held twice, once paid for, counts as standing: the free line goes and
+    the thing is still there, doing everything it does.
+    """
+    lines = _stored_lines(card, thing)
+    if not lines:
+        return False
+    return any(any(line.carries_money for line in node.walk()) for node in lines)
 
 
 def _retract(computed, log):
