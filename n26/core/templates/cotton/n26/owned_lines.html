@@ -24,6 +24,12 @@ a gun — and Operation.move refuses a firing line, so the structure gives it no
 to draw. An accessory is the case that could be moved, but the way to re-fit one
 is from wherever it is being kept rather than from the gun it is already on.
 
+Something bought with a choice names what it was bought with, quietly, under its
+own name: a mount says which guns it carries. The options alone, run together —
+the sets an author filed them under are their own way of organising a page and
+are never shown, and no figure is repeated beside them, because what each one
+added is already inside the copy's rating on the right.
+
 A weapon carries one extra control, and it sits on the name's own line rather
 than among the acts: the way to bolt an accessory onto it. Which copies have one
 is the structure's answer — nothing else on a card is somewhere to fit one — so
@@ -44,51 +50,67 @@ also keeps this out of the catalogue's own form, which wraps every row on the pa
 <div class="flex flex-col gap-1 {{ class }}">
     {% for copy in copies %}
         <div class="flex min-h-9 items-center gap-2">
-            <span class="min-w-0 flex-1 text-sm text-ink-900 dark:text-ink-100">
-                {{ copy.name }}
-                {% comment %}
-                Only a weapon carries this, which is the structure's word and
-                not a test made here. On the name's own line, after the words it
-                acts on, the way the sheet's rename pencil sits after a
-                fighter's name: it is about this gun, where everything on the
-                right of the row is about what to do with it — and everything
-                over there takes the thing away, which is no company for the one
-                control that adds to it. Quiet with it: a fighter's guns are
-                read for what they are, not for what could be bolted on.
+            <span class="flex min-w-0 flex-1 flex-col justify-center">
+                <span class="text-sm text-ink-900 dark:text-ink-100">
+                    {{ copy.name }}
+                    {% comment %}
+                    Only a weapon carries this, which is the structure's word and
+                    not a test made here. On the name's own line, after the words it
+                    acts on, the way the sheet's rename pencil sits after a
+                    fighter's name: it is about this gun, where everything on the
+                    right of the row is about what to do with it — and everything
+                    over there takes the thing away, which is no company for the one
+                    control that adds to it. Quiet with it: a fighter's guns are
+                    read for what they are, not for what could be bolted on.
 
-                A link to the address that draws the panel, and a click that
-                opens the panel already on the page. Both reach the same state;
-                the second does it without rebuilding a catalogue of several
-                hundred rows. Its own x-data because Alpine only walks into
-                elements a component contains, and a row is drawn in places
-                where nothing above it is one.
-                {% endcomment %}
+                    A link to the address that draws the panel, and a click that
+                    opens the panel already on the page. Both reach the same state;
+                    the second does it without rebuilding a catalogue of several
+                    hundred rows. Its own x-data because Alpine only walks into
+                    elements a component contains, and a row is drawn in places
+                    where nothing above it is one.
+                    {% endcomment %}
+                    {% comment %}
+                    An icon and the words, together: a bare plus beside a
+                    gun's name says nothing about what clicking it adds, and
+                    words without the plus don't read as a control that adds
+                    one. Ghost and small is what keeps it quiet.
+                    {% endcomment %}
+                    {% if copy.accessorise %}
+                        <c-ui.button variant="ghost"
+                                     size="xs"
+                                     class="ms-0.5 -mt-0.5 align-middle text-ink-500 dark:text-ink-400"
+                                     href="{{ copy.accessorise.target }}"
+                                     aria-label="{{ copy.accessorise.label }} to {{ copy.name }}"
+                                     x-data
+                                     x-on:click.prevent="$dispatch('n26-dialog-open', { id: 'n26-accessorise-{{ copy.id }}', url: $el.getAttribute('href') })">
+                            {% comment %}
+                            One flex line: the kit button is inline-block and
+                            the reset makes an svg a block, so bare icon-then-
+                            words stack. The span is what holds them together.
+                            {% endcomment %}
+                            <span class="inline-flex items-center gap-1 whitespace-nowrap">
+                                <c-n26.icon name="plus"
+                                            class="size-3.5"
+                                            stroke_width="2.5" />
+                                {{ copy.accessorise.label }}
+                            </span>
+                        </c-ui.button>
+                    {% endif %}
+                </span>
                 {% comment %}
-                An icon and the words, together: a bare plus beside a
-                gun's name says nothing about what clicking it adds, and
-                words without the plus don't read as a control that adds
-                one. Ghost and small is what keeps it quiet.
+                What this copy was bought with, under the name it was bought
+                under. Two of the same mount may carry different guns, so it
+                belongs to the copy and not to the row heading above it.
+
+                The options alone, run together: the sets they were picked
+                from are the author's way of organising their own page, and
+                naming them here would hand a reader a vocabulary they never
+                agreed to. No prices either — the figure to the right already
+                holds what they added.
                 {% endcomment %}
-                {% if copy.accessorise %}
-                    <c-ui.button variant="ghost"
-                                 size="xs"
-                                 class="ms-0.5 -mt-0.5 align-middle text-ink-500 dark:text-ink-400"
-                                 href="{{ copy.accessorise.target }}"
-                                 aria-label="{{ copy.accessorise.label }} to {{ copy.name }}"
-                                 x-data
-                                 x-on:click.prevent="$dispatch('n26-dialog-open', { id: 'n26-accessorise-{{ copy.id }}', url: $el.getAttribute('href') })">
-                        {% comment %}
-                        One flex line: the kit button is inline-block and
-                        the reset makes an svg a block, so bare icon-then-
-                        words stack. The span is what holds them together.
-                        {% endcomment %}
-                        <span class="inline-flex items-center gap-1 whitespace-nowrap">
-                            <c-n26.icon name="plus"
-                                        class="size-3.5"
-                                        stroke_width="2.5" />
-                            {{ copy.accessorise.label }}
-                        </span>
-                    </c-ui.button>
+                {% if copy.chosen %}
+                    <span class="text-xs text-muted">{{ copy.chosen|join:" · " }}</span>
                 {% endif %}
             </span>
             {% comment %}

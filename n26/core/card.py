@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 from n26.core.effects import ModifierIndex, is_orphan_pick
 from n26.core.models import Assignment, Reason
 from n26.core.models.assignment import ASSIGNABLE_FIELDS
+from n26.library.models.assignable import Family, Optioned
 from n26.library.models.modifier import GANG, MODEL
 
 
@@ -400,7 +401,7 @@ def _flat_rows(**filters):
     )
 
 
-def hydrate_rows(rows, with_statlines=False):
+def hydrate_rows(rows, with_statlines=False, with_options=False):
     """Load everything a card build reads off ``rows`` — narrow passes,
     never a wide join.
 
@@ -413,6 +414,12 @@ def hydrate_rows(rows, with_statlines=False):
 
     ``with_statlines`` pulls each profile's characteristics along too,
     which rendering needs and plain assignment work does not.
+
+    ``with_options`` pulls what each copy was bought with — the sets
+    recorded against it and the offer they were picked from. Only the
+    screens that name a copy's options ask for it: a printed sheet says
+    what a fighter carries and never how it was chosen, and would pay
+    these passes for an answer it does not print.
     """
     from django.db.models import prefetch_related_objects
 
@@ -446,8 +453,30 @@ def hydrate_rows(rows, with_statlines=False):
             "profile__profile_type__statline_type__stats__stat",
             "weapon_profile__weapon__statline_type__stats__stat",
         ]
+    if with_options:
+        paths += ["chosen_options", *_option_offer_paths()]
     prefetch_related_objects(rows, *paths)
     return rows
+
+
+def _option_offer_paths():
+    """The offer a copy's recorded options are named from, per kind.
+
+    Asked of the library's own families rather than a list kept here, so
+    a kind of gear that gains options is described without a query per
+    copy the day it is authored. Only what a model *owns* is described,
+    which is the same question :func:`n26.core.owned.is_possession`
+    asks — a fighter's own entry offers options too, and nothing draws
+    them as kit.
+
+    The set each option brings is not pulled: naming an option reads the
+    key already on its own row, so the set itself would be a query for
+    something nobody looks at.
+    """
+    for name in ASSIGNABLE_FIELDS:
+        kind = Assignment._meta.get_field(name).related_model
+        if issubclass(kind, Optioned) and getattr(kind, "family", None) == Family.GEAR:
+            yield f"{name}__options__group"
 
 
 def set_by_hand(**filters):
@@ -564,7 +593,9 @@ def assemble(
     return card
 
 
-def build_card(miniature, with_statlines=False, assignment_set=None):
+def build_card(
+    miniature, with_statlines=False, assignment_set=None, with_options=False
+):
     """A model's card: everything it owns, or one named selection.
 
     Two assignment queries rather than one — the model's own, then the
@@ -582,7 +613,9 @@ def build_card(miniature, with_statlines=False, assignment_set=None):
     gang = membership.gang if membership else None
     own = _flat_rows(miniature_root=miniature)
     shared = gang_rows(gang)
-    hydrate_rows([*own, *shared], with_statlines=with_statlines)
+    hydrate_rows(
+        [*own, *shared], with_statlines=with_statlines, with_options=with_options
+    )
     return assemble(
         miniature,
         own,

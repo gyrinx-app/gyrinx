@@ -146,6 +146,34 @@ class OwnedThing:
     #: an accessory hangs off the gun it changes, so nothing else on a
     #: card is somewhere to fit one.
     accessorise_href: str = ""
+    #: What this copy was taken with, named as the buyer was offered it.
+    #: Per copy and not per content: two of the same mount may carry
+    #: different guns. Empty for anything that offered no choice, which
+    #: is most of what a model owns.
+    chosen: tuple[str, ...] = ()
+
+
+def _chosen_of(node):
+    """The options this copy was taken with, as the buyer was offered them.
+
+    The recorded sets say what was picked and the offer says what each
+    was called, and both are already in hand — describing a copy costs
+    no query. The set an option brings is what gets recorded, so two
+    options bringing the same set cannot be told apart afterwards; the
+    first is named.
+
+    The author's own label for a group is never read here. A reader is
+    shown the options themselves, in the order the offer puts them, and
+    a heading naming the group would be a second vocabulary they never
+    agreed to.
+    """
+    from n26.library.models.assignable import Optioned
+
+    thing = node.assignable
+    if not isinstance(thing, Optioned):
+        return ()
+    recorded = {row.default_set_id for row in node.assignment.chosen_options.all()}
+    return tuple(option.name for option in thing.options_taken(recorded))
 
 
 def _part_name(node):
@@ -260,6 +288,7 @@ def owned_things(card, at):
                     if isinstance(node.assignable, Weapon)
                     else ""
                 ),
+                chosen=_chosen_of(node),
             )
         )
     return index

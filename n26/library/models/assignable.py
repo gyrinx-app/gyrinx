@@ -502,6 +502,42 @@ class Optioned(models.Model):
             raise ValueError(f"{self.name} does not offer: {', '.join(strays)}.")
         return taken
 
+    def options_taken(self, recorded_sets):
+        """The options something was acquired with, in the offer's own order.
+
+        ``recorded_sets`` is the ids of the sets recorded against it,
+        because a set is what materialises. Acquiring something records
+        every set it took, each pick-one group's head included, so what
+        comes back is what the thing actually has. Nothing is inferred
+        where nothing was recorded: something that arrived by another
+        road than a purchase — kit built into a profile, say — took no
+        options and had none materialised, and naming a group's head
+        would credit it with a weapon nobody ever gave it.
+
+        Groups offering no choice are left out, the same test the buying
+        screen makes: a pick-one set with a single option is taken
+        unasked, and naming it would tell a reader about a decision
+        nobody made.
+
+        Nothing stops two options bringing the same set, and a taking
+        records the set rather than the wording that reached it. Each
+        recorded set is therefore spent on the first option offering it,
+        exactly as ``resolve_selection`` spends what a player named — a
+        set taken once is named once, however many ways there were to
+        ask for it.
+        """
+        unspent = set(recorded_sets)
+        taken = []
+        for group, offered in self.grouped_offers():
+            one_of = (group.choose if group is not None else "one") == "one"
+            if one_of and len(offered) < 2:
+                continue
+            for option in offered:
+                if option.default_set_id in unspent:
+                    unspent.discard(option.default_set_id)
+                    taken.append(option)
+        return taken
+
     def price_with(self, selection=None, base=None):
         """This, its built-ins, and every set taken with it.
 

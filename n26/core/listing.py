@@ -252,6 +252,11 @@ class OwnedCopyRow:
     #: the one act here that adds something rather than taking it away,
     #: and a chevron full of ways to lose a thing is no place for it.
     accessorise: Action | None = None
+    #: The options this copy was taken with, in the order the offer put
+    #: them — "Cutter plasma guns", "Smoke dispenser". What each added is
+    #: already inside the copy's rating, so no figure is said again
+    #: beside them. Empty where nothing was ever asked.
+    chosen: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -427,6 +432,7 @@ def copy_row(copy, refunds=True):
             for part in copy.parts
         ),
         sell=Action("Sell", LINK, copy.sell_href, DANGER),
+        chosen=copy.chosen,
         accessorise=(
             Action("Add accessory", LINK, copy.accessorise_href, SECONDARY)
             if copy.accessorise_href
