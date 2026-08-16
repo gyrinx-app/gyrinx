@@ -456,7 +456,7 @@ class TestTheBooksStayHonest:
     """Edits price nothing, move nothing, and reconcile stays clean."""
 
     def test_reconcile_is_clean_after_the_lot(self, yolanda):
-        from n26.core import reconcile
+        from n26.core.reconcile import assert_reconciled
 
         gang = yolanda.membership.gang
         rating_before = gang.rating
@@ -470,7 +470,7 @@ class TestTheBooksStayHonest:
 
         gang.refresh_from_db()
         assert gang.rating == rating_before
-        assert reconcile.check_gang(gang) == []
+        assert_reconciled(gang)
 
     def test_computing_the_card_twice_is_identical(self, yolanda):
         mounted = create_subtype("Mounted")
