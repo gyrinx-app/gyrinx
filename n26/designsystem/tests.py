@@ -326,3 +326,28 @@ class TestTheShellStillDraws:
         assert "Grav-cutter plasma guns" in page
         assert "+15¢" in page
         assert "Choose one, or none" in page
+
+
+class TestTheModelCardsTooltips:
+    """The card's tooltips are real components, never a native title —
+    which shows only under a mouse and never on touch."""
+
+    def test_the_page_draws_the_card_at_all(self, reader):
+        # Guards the assertions below against passing vacuously: a card
+        # rendered without its context draws none of the markup the
+        # other tests refuse.
+        page = reader.get("/n26/design/c/model-card/").content.decode()
+        assert "Vesna Krail" in page
+
+    def test_no_native_title_survives_on_the_card(self, reader):
+        page = reader.get("/n26/design/c/model-card/").content.decode()
+        assert 'title="Rating' not in page
+        assert 'title="Learn' not in page
+        assert 'title="From' not in page
+        assert 'title="Granted' not in page
+
+    def test_the_provenance_and_rating_bubbles_are_drawn(self, reader):
+        page = reader.get("/n26/design/c/model-card/").content.decode()
+        assert 'role="tooltip"' in page
+        assert "From Leader" in page
+        assert "Rating, including weapons and wargear" in page
