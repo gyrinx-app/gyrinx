@@ -4611,7 +4611,7 @@ class TestFindingAModifierAmongHundreds:
         rows = self.facets(client)
 
         assert {row["scope"] for row in rows} == {
-            "targets_miniature",
+            "targets_model",
             "targets_weapons",
         }
         assert {row["effect"] for row in rows} == {"adds_assignable", "changes_stat"}
@@ -4625,7 +4625,7 @@ class TestFindingAModifierAmongHundreds:
 
     def test_each_facet_offers_the_values_the_rows_hold(self, assorted, client):
         assert [option["value"] for option in self.options(client, "scope")] == [
-            "targets_miniature",
+            "targets_model",
             "targets_weapons",
         ]
         assert [option["value"] for option in self.options(client, "effect")] == [
@@ -4654,24 +4654,50 @@ class TestFindingAModifierAmongHundreds:
         modifier("Grants Mounted", targets_model(), ef_adds(create_subtype("Mounted")))
 
         assert [option["value"] for option in self.options(client, "scope")] == [
-            "targets_miniature"
+            "targets_model"
         ]
         body = client.get("/n26/authoring/modifiers/").content.decode()
         assert "Reaches" not in body
         assert "Does" not in body
 
-    def test_the_menus_are_named_in_the_models_own_words(self, assorted, client):
-        """A facet's labels are the scope and effect models' verbose
-        names, so a new kind arrives on the filter reading as it does
-        everywhere else."""
+    def test_the_menus_are_named_as_the_composer_names_them(self, assorted, client):
+        """The Reaches facet offers one option per reach, in the
+        composer's own card words — one scope model holds two reaches,
+        so the column's verbose name cannot tell them apart. Effects
+        keep the models' verbose names."""
         by_value = {
             option["value"]: option["label"]
             for option in self.options(client, "scope") + self.options(client, "effect")
         }
 
-        assert by_value["targets_miniature"] == "Targets the model"
-        assert by_value["targets_weapons"] == "Targets weapons"
+        assert by_value["targets_model"] == "The model carrying it"
+        assert by_value["targets_weapons"] == "The model's weapons"
         assert by_value["changes_stat"] == "Changes stat"
+
+    def test_the_two_gang_reaches_filter_apart(self, author, client, default_pack):
+        """A modifier kept the gang's alone is not found under the
+        gang-and-all-models filter, and each option wears its own card
+        label."""
+        from n26.library.authoring import (
+            create_rule,
+            ef_adds,
+            modifier,
+            targets_gang,
+            targets_gang_alone,
+        )
+
+        both = modifier("Gang rule", targets_gang(), ef_adds(create_rule("Loud")))
+        alone = modifier(
+            "Quiet rule", targets_gang_alone(), ef_adds(create_rule("Quiet"))
+        )
+
+        response = client.get("/n26/authoring/modifiers/")
+        facets = {row["pk"]: row["facets"]["scope"] for row in response.context["rows"]}
+        assert facets[both.pk] == "targets_gang"
+        assert facets[alone.pk] == "targets_gang_alone"
+        by_value = {o["value"]: o["label"] for o in self.options(client, "scope")}
+        assert by_value["targets_gang"] == "The gang carrying it and all models"
+        assert by_value["targets_gang_alone"] == "The gang carrying it"
 
     def test_the_readout_counts_what_was_rendered(self, assorted, client):
         """The number above the list and the rows in it are computed

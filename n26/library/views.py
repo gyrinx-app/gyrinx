@@ -2412,8 +2412,9 @@ def modifiers(request):
     narrow what is already here rather than asking the server again —
     the page's cost is the same whichever of them is on.
     """
+    from n26.library.forms import SCOPE_MODELS, _scope_verb, _verb_label
     from n26.library.models import Modifier
-    from n26.library.models.modifier import EFFECT_FIELDS, SCOPE_FIELDS
+    from n26.library.models.modifier import EFFECT_FIELDS
 
     every = list(_reading_sentences(Modifier.objects.all()))
     counts = _carrier_counts(every)
@@ -2433,7 +2434,11 @@ def modifiers(request):
                 "label": modifier.name,
                 "notes": notes,
                 "facets": {
-                    "scope": _which(modifier, SCOPE_FIELDS),
+                    # By the reach the author picked, not the column: one
+                    # scope model holds two options, and a filter lumping
+                    # "the gang carrying it" with "…and all models" would
+                    # filter for neither.
+                    "scope": _scope_verb(modifier.scope),
                     "effect": _which(modifier, EFFECT_FIELDS),
                     "carried": "carried" if carriers else "uncarried",
                     # What the search reads. Lowercased here so the
@@ -2449,7 +2454,15 @@ def modifiers(request):
         {
             "rows": rows,
             "count": len(rows),
-            "scope_options": _facet_options(rows, "scope", _kind_labels(SCOPE_FIELDS)),
+            "scope_options": _facet_options(
+                rows,
+                "scope",
+                # The composer's own card names, one option per reach.
+                [
+                    (name, capfirst(_verb_label(name, SCOPE_MODELS.get(name))))
+                    for name in SCOPE_MODELS
+                ],
+            ),
             "effect_options": _facet_options(
                 rows, "effect", _kind_labels(EFFECT_FIELDS)
             ),
