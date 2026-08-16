@@ -1020,6 +1020,7 @@ class TestAGangGuestOpensAChoiceOnEveryModel:
         assert not Assignment.objects.filter(
             rule__isnull=False, gang_root=gang
         ).exists()
+        assert_reconciled(gang)
 
     def test_every_model_is_asked_and_the_gang_is_not(self, gang, guild_shape):
         profile, alliance, _, _ = guild_shape
@@ -1042,6 +1043,7 @@ class TestAGangGuestOpensAChoiceOnEveryModel:
         # is the written line that stands under the whole chain.
         assert role_row.source == "The Water Pact"
         assert role_row.anchor.assignment == signed
+        assert_reconciled(gang)
 
     def test_the_role_settles_per_fighter_and_its_payload_lands(
         self, gang, guild_shape
