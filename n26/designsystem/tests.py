@@ -298,18 +298,21 @@ class TestTheShellStillDraws:
         assert 'name="gang_type"' in page
         assert "Escher (HoB)" in page
 
-    def test_the_sample_banners_button_leads_somewhere_answerable(self, reader):
-        """The button is drawn from a banner nobody stored, so following
-        it finds nothing — but it has to be able to say so.
+    def test_the_sample_banner_draws_a_button_that_answers(self, reader):
+        """A bar with a call to action is the thing this page is here to
+        show, and the button has to survive being followed.
 
-        The shell sends the call to action by way of the click tracker,
-        which looks the banner up by primary key. Given an id that is not
-        shaped like one, that lookup raises instead of answering, and the
-        gallery's own demo button becomes a server error.
+        The shell sends it by way of the click tracker, whose address
+        accepts none but a real id — so a sample id that is merely a word
+        is an address that cannot be built, and takes every shell page
+        down with it. Nothing is stored under the sample's id, so
+        following it finds nothing, which it must be able to say.
         """
         page = reader.get("/n26/design/shell/").content.decode()
         start = page.index("n26-announcement")
         bar = page[start : page.index("</aside>", start)]
+
+        assert "n26-announcement-cta" in bar
         href = bar.split('href="')[1].split('"')[0]
 
         assert reader.get(href).status_code == 404

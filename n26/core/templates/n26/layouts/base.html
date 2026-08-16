@@ -137,14 +137,20 @@ banner, is_impersonating / impersonator, gtm_container_id, messages, user.
         tracker link unconditionally would turn "no call to action" into a
         button leading out of the edition.
         {% endcomment %}
+        {% comment %}
+        Both addresses are written inline rather than resolved into a variable
+        first. The `as` form of {% url %} answers an unknown route name with an
+        empty string, which here would mean a bar that quietly stops offering
+        its button, or a close button that posts nowhere and forgets — a route
+        renamed out from under this file would be noticed by nobody. Written
+        this way it raises on the spot.
+        {% endcomment %}
         {% if banner %}
-            {% url 'core:dismiss-banner' as banner_dismiss_url %}
-            {% url 'core:track-banner-click' banner.id as banner_cta_url %}
             <c-n26.site.announcement tone="{{ banner.colour|banner_tone }}"
                                      icon="{{ banner.icon|banner_icon }}"
                                      cta_text="{{ banner.cta_text }}"
-                                     cta_url="{% if banner.cta_url %}{{ banner_cta_url }}{% endif %}"
-                                     on_dismiss="fetch('{{ banner_dismiss_url }}', {method: 'POST', headers: {'X-CSRFToken': '{{ csrf_token }}', 'Content-Type': 'application/json'}, body: JSON.stringify({banner_id: '{{ banner.id }}'})})"
+                                     cta_url="{% if banner.cta_url %}{% url 'core:track-banner-click' banner.id %}{% endif %}"
+                                     on_dismiss="fetch('{% url 'core:dismiss-banner' %}', {method: 'POST', headers: {'X-CSRFToken': '{{ csrf_token }}', 'Content-Type': 'application/json'}, body: JSON.stringify({banner_id: '{{ banner.id }}'})})"
                                      id="site-banner-{{ banner.id }}">
                 {{ banner.text }}
             </c-n26.site.announcement>
