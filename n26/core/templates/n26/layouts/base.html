@@ -113,11 +113,25 @@ banner, is_impersonating / impersonator, gtm_container_id, messages, user.
         component 500s the whole edition the moment someone sets a banner to an
         icon n26 does not draw.
         {% endcomment %}
+        {% comment %}
+        on_dismiss is what makes the close button stick. The component
+        deliberately does not remember being dismissed — only the application
+        can decide where that memory lives — so without this the bar is hidden
+        for the current page and back on the next one.
+
+        It lives in the session, which is where the site's own context
+        processor looks before it puts `banner` in the context at all, so the
+        reader is told once whichever edition they were in when they closed it.
+        The route is the platform's rather than an edition's: it operates on a
+        platform-owned Banner and writes a key both editions read.
+        {% endcomment %}
         {% if banner %}
+            {% url 'core:dismiss-banner' as banner_dismiss_url %}
             <c-n26.site.announcement tone="{{ banner.colour|banner_tone }}"
                                      icon="{{ banner.icon|banner_icon }}"
                                      cta_text="{{ banner.cta_text }}"
                                      cta_url="{{ banner.cta_url }}"
+                                     on_dismiss="fetch('{{ banner_dismiss_url }}', {method: 'POST', headers: {'X-CSRFToken': '{{ csrf_token }}', 'Content-Type': 'application/json'}, body: JSON.stringify({banner_id: '{{ banner.id }}'})})"
                                      id="site-banner-{{ banner.id }}">
                 {{ banner.text }}
             </c-n26.site.announcement>
