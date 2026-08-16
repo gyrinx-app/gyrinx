@@ -1,27 +1,15 @@
 {% comment %}
-OVERRIDE of django_cotton_ui's cotton/ui/error.html. Identical to the shipped
-template except that every `attrs.dict` is `attrs.attrs_dict`.
+<c-ui.error> — a field's error text, from an explicit `message`, from a bound
+form plus a field `name`, or from slot content.
 
-Cotton's Attrs object exposes two accessors. `attrs_dict()` filters out the
-props the component declared in <c-vars>; `dict()` returns them all. `{{ attrs }}`
-uses the filtering path, but the kit reaches for `attrs.dict` because it needs
-the `merge` filter to fold in a class — so error's own `name`, `form` and
-`message` props get written back out as HTML attributes.
+Overrides the kit so attributes come from `attrs.attrs_dict` rather than
+`attrs.dict`: only the former filters out props declared in <c-vars>. Without
+it the `form` prop is written back out as an HTML attribute, and a Django Form
+stringifies to the entire form rendered as HTML — so the attribute terminates
+early and a second copy of the form lands in the page.
 
-For a string prop that is merely untidy. For `form` it is fatal: the value is a
-Django Form, whose str() is the entire form rendered as HTML, so it terminates
-the attribute early and dumps a form — inputs, labels, every field's errors —
-into the page. That is what you get from the kit's own documented integration,
-because field.html itself calls `<c-ui.error :form="form" name="{{ name }}" />`.
-
-designsystem/tests.py::test_error_override_still_needed watches the upstream
-template and fails once this is fixed there, so the override can be deleted
-rather than silently shadowing a newer version.
-
-Same bug, not fixed here because it is invisible: label.html, description.html,
-accordion/index.html, accordion/item.html and datepicker/impl.html also use
-`attrs.dict`. label's leak is the notable one — it renders for="None" when no
-`for` is given.
+designsystem/tests.py::test_error_override_still_needed fails once the kit no
+longer needs this override.
 {% endcomment %}
 <c-vars
     name
@@ -30,14 +18,11 @@ accordion/index.html, accordion/item.html and datepicker/impl.html also use
 />
 
 {% if message %}
-    {# Explicit message provided #}
     <div {{ attrs.attrs_dict|merge:'class:text-sm text-red-600 dark:text-red-400 mt-1.5' }}>
         {{ message }}
     </div>
 {% elif form and name %}
-    {# Django form integration - look up errors by field name #}
     {% if name == '__all__' %}
-        {# Non-field errors #}
         {% if form.non_field_errors %}
             {% for error in form.non_field_errors %}
                 <div {{ attrs.attrs_dict|merge:'class:text-sm text-red-600 dark:text-red-400 mt-1.5' }}>
@@ -46,7 +31,6 @@ accordion/index.html, accordion/item.html and datepicker/impl.html also use
             {% endfor %}
         {% endif %}
     {% else %}
-        {# Field-specific errors - accessed via form.errors dict #}
         {% for error in form.errors|get_item:name %}
             <div {{ attrs.attrs_dict|merge:'class:text-sm text-red-600 dark:text-red-400 mt-1.5' }}>
                 {{ error }}
@@ -54,7 +38,6 @@ accordion/index.html, accordion/item.html and datepicker/impl.html also use
         {% endfor %}
     {% endif %}
 {% elif slot %}
-    {# Slot content provided #}
     <div {{ attrs.attrs_dict|merge:'class:text-sm text-red-600 dark:text-red-400 mt-1.5' }}>
         {{ slot }}
     </div>

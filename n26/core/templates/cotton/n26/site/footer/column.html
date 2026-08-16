@@ -1,47 +1,27 @@
 {% comment %}
 <c-n26.site.footer.column> — one column of the footer.
 
-    {# the common case: a title over a list of links #}
     <c-n26.site.footer.column heading="Help & Documentation">
         <li><c-n26.link href="/help/" tone="muted">Getting started</c-n26.link></li>
     </c-n26.site.footer.column>
 
-    {# a title that is markup, not a word #}
-    <c-n26.site.footer.column>
-        <c-slot name="lead"><a href="/">…logo… Gyrinx</a></c-slot>
-        <li>Designed and built in the UK.</li>
-    </c-n26.site.footer.column>
-
-    {# not a list at all #}
     <c-n26.site.footer.column heading="Support us">
         <c-slot name="content"><a class="n26-img-tilt" href="…"><img …></a></c-slot>
     </c-n26.site.footer.column>
 
-The default slot is the inside of a <ul>, so it takes <li> elements. A list,
-because a column of links is one, and saying so is what lets a screen reader
-announce "list, four items" and skip it — most of what a footer landmark is for.
-
-Three ways in, because footers are where the odd one out lives. `heading` is a
-word and becomes an <h3>. `lead` is for when the title is markup rather than a
-word — a brand block, a link — and is not wrapped in a heading, because "logo,
-Gyrinx, link" reads badly in a list of headings and is not the thing anyone is
-looking for. `content` replaces the list outright, for the column holding a
-picture instead of links.
+The default slot is the inside of a <ul>, so it takes <li> elements. A real list
+is what lets a screen reader announce "list, four items" and skip the lot.
 
   heading — a plain title. Rendered as an <h3>.
-  lead — a title that is markup rather than a word. Drawn above the list, not
-    wrapped in a heading.
+  lead — a title that is markup rather than a word: a brand block, a link. Drawn
+    above the list and not wrapped in a heading, since "logo, Gyrinx, link"
+    reads badly in a list of headings.
   content — replaces the list outright, for a column holding something that is
     not links.
 {% endcomment %}
-{% comment %}
-`lead` and `content` are declared even though they are only ever filled as
-slots. An undeclared slot name is not empty when nobody fills it — it is
-whatever the enclosing scope happens to have under that name, and this column
-is drawn on every page in the site's footer. Any view holding a `lead` would
-have it printed as a footer heading; declaring the names gives the unfilled
-case a real default of "".
-{% endcomment %}
+{# The slots are declared: an undeclared slot name is not empty when nobody #}
+{# fills it — it resolves to the caller's own variable of that name, and #}
+{# this column is drawn on every page in the site's footer. #}
 <c-vars heading="" lead="" content="" class="" />
 
 <div {{ attrs }} class="{{ class }}">

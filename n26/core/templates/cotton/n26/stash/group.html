@@ -3,34 +3,21 @@
 
     <c-n26.stash.group label="wargear" :lines="lines" />
 
-The kind as the label, the items beside it. They run on one line and wrap rather
-than each taking a row: a stash of a dozen things would otherwise be a dozen rows
-for a dozen words, and the stash is a footnote on a gang sheet rather than the
-point of it.
+The kind as the label, the items beside it as a comma-separated run drawn by
+<c-n26.assignable-lines> — so the commas are that component's business, and
+something granted by a modifier carries the same mark it would on a fighter's
+card. Each item's rating sits against its own name rather than in a column;
+nothing is compared down a stash, so a column would spend the width the names
+want.
 
-Ratings sit against their own item rather than in a column. Nothing is being
-compared down a stash — you are not choosing between the mesh armour and the
-lasgun — so a price column would buy alignment nobody reads and spend the width
-that lets the names run on.
+A group whose lines have somewhere to go is stacked instead, one line each with
+its own link: an accessory in the stash is gear waiting for a weapon, and a
+comma-separated run has nowhere to put a control. The choice is read off the
+first line, since a group is all one kind. Print-outs always take the compact
+form, having no links at all.
 
-Drawn by <c-n26.assignable-lines>, which means the commas are the container's
-business and something that arrived by way of a modifier carries the same mark it
-would on a fighter's card.
-
-  --- except where a line has somewhere to go ---
-
-An accessory in the stash is gear waiting for a gun, and the way back onto one is
-a control per item — which a comma-separated run has nowhere to put. Such a group
-is stacked instead, one line each with its own link. It costs the width the run
-was saving, and it is worth it exactly where a reader is looking at spare kit and
-wondering what to do with it.
-
-Read off the first line, because a group is one kind and a kind either has
-somewhere to go or does not. A group whose lines carry no address is drawn the
-compact way, which is every group on a print-out — nothing there is clickable.
-
-  label — the kind. Capitalised here, not by the caller: kinds come from a model's
-    verbose_name and so arrive lower case, written to appear mid-sentence.
+  label — the kind. Capitalised here because kinds arrive from a model's
+    verbose_name, written lower case to appear mid-sentence.
   :lines — n26.render.StashLine objects of this one kind.
 {% endcomment %}
 <c-vars label="" :lines="None" class="" />

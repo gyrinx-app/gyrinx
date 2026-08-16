@@ -1,15 +1,11 @@
 {# title: A portrait, and what the player wrote #}
-{# note: A picture of the model before the name — on a sheet of eleven cards a painted mini is found faster than a name is read — and the two sections a player writes rather than earns. Notes before lore: notes are read between games, lore once. The Edits are the quietest control in the library, because a card is read far more often than it is written. #}
+{# note: A picture of the model before the name, and the two sections a player writes rather than earns. Notes come before lore: notes are read between games, lore once. Each carries a muted Edit, because a card is read far more often than it is written. #}
 {% load static %}
 <c-n26.model-card :card="model_card" notes_href="#" lore_href="#">
     {% comment %}
-    An initials avatar rather than a photograph, because this repository has no
-    fighter pictures to ship and inventing one would put a stranger's mini in the
-    gallery. A real call site passes an <img> and it fills the frame.
-
-    c-ui.avatar clips itself to a circle; the card's frame is a rounded square, so
-    what you see here is the kit's treatment inside ours. Passing a bare <img>
-    gives the square.
+    An initials avatar, because the gallery ships no model photographs. A real
+    call site passes an <img>, which fills the card's rounded-square frame;
+    c-ui.avatar clips itself to a circle inside it.
     {% endcomment %}
     <c-slot name="avatar">
         <c-ui.avatar initials="GQ" size="lg" color="auto" />

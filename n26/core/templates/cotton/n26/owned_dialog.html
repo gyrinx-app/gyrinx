@@ -3,74 +3,23 @@
 
     <c-n26.owned-dialog :dialog="dialog">{% csrf_token %}</c-n26.owned-dialog>
 
-Five questions, one panel: sell it on for half of what it is worth, hand it to
-somebody else, undo the purchase, take it off the card, or bolt an accessory to
-it. Which one is being asked arrives in `dialog` from n26.core.views.owned,
-along with everything only the server can say — the figure a sale or a refund
-will pay, who else is on the roster, and what fits this weapon.
+Five questions in one panel — sell, move, refund, remove, accessorise — since
+the difference between them is a sentence and, for three of them, one control.
+Which is being asked, along with the figures, the roster and the accessories
+that fit, arrives in `dialog` from n26.core.views.owned. The panel itself is
+<c-n26.dialog>, where the open-state rules are written down.
 
-One component rather than five because the difference between them is a
-sentence and, for three of them, one control: five files would be five copies
-of the same panel drifting apart a fix at a time. The panel itself is
-<c-n26.dialog>, which is where the open-state-lives-in-the-URL reasoning is
-written down.
+Only the clicked submit is sent, so a move is told apart by `to=stash`
+arriving. Two of the five can end up with nothing to submit: a move with nobody
+else on the roster posts a hidden to=stash and draws no select, and
+accessorise draws no submit when nothing in the library fits the weapon.
 
-  --- what each one says ---
+Accessorise is also the one an equip page draws for every weapon on it rather
+than only for the one the URL names, so those panels are passed open="" and an
+id each.
 
-A sale states its arithmetic. The figure is worked out from rows the reader
-cannot see, so a number with no working is a number to be taken on trust, and
-this one is money. A move states what it does *not* do: the thing keeps the
-rating it was pinned at, which is the question anyone moving a gun between
-fighters actually has. A removal states that the money stays spent, because the
-sale button directly above it says otherwise and the two must not be confused.
-
-A refund has to be told apart from both of the acts that also take a thing
-away, and the difference is entirely in the money: a removal keeps it, a sale
-returns half of what the thing is *worth*, and this returns what was *paid*.
-Three sentences that would each be right about the wrong act, so each names its
-own number.
-
-  --- selling a gun with something bolted to it ---
-
-Two sales, so two figures. Keeping the accessories sells the gun alone and pays
-for the gun alone; selling them too pays for the lot. The cards carry a figure
-each rather than the lead carrying one, because a single number above a choice
-describes whichever answer it was written for and misleads about the other.
-Keeping is checked from the start: it is the answer that can still be changed
-tomorrow, since a stashed sight can be sold and a sold one cannot be recovered.
-
-  --- two ways to answer a move ---
-
-The stash is a button and the roster is a select, because they are not the same
-kind of choice: the stash is one place and always there, while which fighter is
-a list that may be long. Only the clicked submit is sent, so `to=stash`
-arriving is the whole of how the view tells them apart. With nobody else on the
-roster there is no select and no second act — the stash becomes the act itself,
-and a hidden field says so.
-
-  --- and one question that is not a confirmation ---
-
-`accessorise` asks which accessory to fit rather than confirming anything, and
-it sits here because it is the same sort of state: one row of a card, open
-because the address says so. The list is already narrowed to what fits the
-weapon — narrowing is the whole of what fitting does, and the operation behind
-this will bolt anything to anything. With nothing fitting there is no submit at
-all, because a green button over an empty list promises an act it cannot do.
-
-It is also the one of the five a page draws for every row it could be asked
-about rather than only for the row named — see n26.core.views.owned. Those are
-drawn closed, so the caller passes `open` and an `id` per panel; everything
-else about them is the same panel as the four confirmations.
-
-  :dialog — what n26.core.views.owned built: kind, title, the sentence under
-    it, where to post, where Cancel goes, the roster, the accessories that fit,
-    and the wording of the sale's two answers.
-  modal — promote to the top layer. On by default; off draws the panel in the
-    page's flow, which is what a reader without scripting sees.
-  open — the server says this one is open. Off draws it closed, waiting for a
-    click that names its id.
-  id — the element's id, for a page holding more than one of these.
-  slot — the csrf token. A component has no request and renders none itself.
+The slot carries the csrf token: a component has no request and renders none
+itself.
 {% endcomment %}
 <c-vars :dialog="None" :modal="True" :open="True" id="n26-dialog" class="" />
 
@@ -115,21 +64,16 @@ else about them is the same panel as the four confirmations.
 
     {{ slot }}
     {% comment %}
-    Which list the reader was buying from, carried through the click so they come
-    back to it rather than to the first tab of the strip.
+    Which collection was being bought from and which section tab was open, so
+    the answer lands back where the question was asked.
     {% endcomment %}
     {% if dialog.list %}<input type="hidden" name="list" value="{{ dialog.list }}">{% endif %}
-    {% comment %}
-    And which section tab was open under it, for the same reason: an answer
-    should land where the question was asked, not at the top of the first tab.
-    {% endcomment %}
     {% if dialog.section %}<input type="hidden" name="section" value="{{ dialog.section }}">{% endif %}
 
     {% comment %}
-    The same controls the row for sale draws, starting on what this copy took.
-    Drawn by the listing's own include so a set is asked about in one way
-    wherever it is asked about, and read back as places in the offer the server
-    re-derives.
+    The listing's own include, so a set is asked about the same way wherever it
+    is asked about. It starts on what this copy took, and the server reads the
+    answer back as places in the offer it re-derives.
     {% endcomment %}
     {% if dialog.kind == "rechoose" %}
         <div class="-my-0.5">
@@ -139,14 +83,11 @@ else about them is the same panel as the four confirmations.
 
     {% if dialog.kind == "accessorise" %}
         {% comment %}
-        The identity, never the price: the server reads the price off the
-        library, so the figures beside the names are what a reader is choosing
-        between and not what they are charged.
-        {% endcomment %}
-        {% comment %}
-        The field takes its id from the panel's, because a page draws one of
-        these per weapon and a label pointing at a repeated id points at the
-        first gun on the screen whichever one it sits under.
+        The field takes its id from the panel's: a page draws one of these per
+        weapon, and a label pointing at a repeated id points at the first gun
+        on the screen whichever one it sits under. The form submits the
+        accessory's identity and never its price — the server reads that off
+        the library.
         {% endcomment %}
         {% if dialog.accessories %}
             <c-ui.field label="Accessory" for="{{ id }}-what">
@@ -163,12 +104,8 @@ else about them is the same panel as the four confirmations.
 
     {% if dialog.kind == "sell" and dialog.keepable %}
         {% comment %}
-        Two answers, and the default is the recoverable one: a stashed sight can
-        still be sold tomorrow, where a sold one is gone. Each card carries its
-        own figure because the two sales pay differently, and a number that
-        described only one of the answers would be wrong half the time it was
-        read. Both the wording and the arithmetic come from the view — the
-        template picks nothing.
+        The two sales pay differently, so each card states its own figure. The
+        wording and the arithmetic both come from the view.
         {% endcomment %}
         <c-n26.radio-cards label="What is bolted to it"
                            description="{{ dialog.keepable }}"
@@ -188,11 +125,8 @@ else about them is the same panel as the four confirmations.
     {% if dialog.kind == "reassign" %}
         {% if dialog.models %}
             {% comment %}
-            No placeholder row: the first name on the roster is selected from
-            the start, so Move always has an answer. A "Select an option" row
-            would make the modal open on a state where its own act does
-            nothing, and it is disabled, so a reader who left it alone would
-            click Move and be told there was nowhere to move to.
+            No placeholder option: the first name on the roster is selected
+            from the start, so Move always has an answer.
             {% endcomment %}
             <c-ui.field label="To" for="reassign-to">
                 <c-ui.select.native name="miniature" id="reassign-to" placeholder="">
@@ -203,10 +137,9 @@ else about them is the same panel as the four confirmations.
             </c-ui.field>
             <c-slot name="actions">
                 {% comment %}
-                A submit, not a link: it is one of the two answers to this form.
-                The kit writes its own type="button" after {{ attrs }} and HTML
-                keeps the first of a duplicate pair, which is what lets the
-                attribute here win.
+                The kit writes its own type="button" after {{ attrs }}, and
+                HTML keeps the first of a duplicate pair — which is the only
+                reason the type set here wins and this stays a submit.
                 {% endcomment %}
                 <c-ui.button type="submit" name="to" value="stash" size="md">
                     To the stash

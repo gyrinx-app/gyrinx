@@ -4,20 +4,13 @@
     <c-n26.site.nav.gang href="/n26/gangs/1/" name="The Ashen Choir" type="Escher"
                          colour="teal" />
 
-Two lines rather than one: the name is what the reader is looking for and the
-type is how they tell two of their own apart, so the type is quieter and sits
-under it rather than competing for the same line.
+The name on one line and the type, quieter, under it. The whole row is one
+anchor, so its accessible name is the name and the type read together; neither
+the colour mark nor the type's artwork adds to it, both being aria-hidden.
 
-A component rather than markup at the call site, because the drawer's rows and
-the page that lists gangs should agree about what a gang looks like without the
-layout template knowing any of the classes.
-
-  href — the gang's sheet.
-  name — the gang's name.
-  type — the gang type, shown under the name. Optional.
   type_icon — the gang type's stored artwork, as SVG source. Empty draws nothing.
   colour — the gang's colour, as a mark before the name. Empty draws nothing, so
-    a drawer of gangs where few have one keeps its left edge.
+    a drawer where few gangs have one keeps its left edge.
 {% endcomment %}
 <c-vars href="#" name="" type="" type_icon="" colour="" class="" />
 
@@ -27,16 +20,10 @@ layout template knowing any of the classes.
           hover:bg-ink-100 dark:hover:bg-ink-800 {{ class }}">
     {% comment %}
     The mark sits inside the name's span rather than in a column of its own: a
-    column would have to be there whether or not the gang has a colour, and an
-    empty one down a drawer of five rows reads as a misalignment. Inside, the
-    type line below still starts at the row's left edge.
+    column would hold space whether or not the gang has a colour, and the type
+    line below would then start indented from the row's left edge.
     {% endcomment %}
     <span class="truncate text-sm text-ink-700 dark:text-ink-300"><c-n26.color-swatch color="{{ colour }}" />{{ name }}</span>
-    {% comment %}
-    The badge goes on the type line rather than the name line: it says what the
-    gang is, which is what that line is for, and the row is already an anchor
-    whose accessible name should stay the gang's own.
-    {% endcomment %}
     {% if type %}
         <span class="truncate text-xs text-ink-500 dark:text-ink-400"><c-n26.flair-link text="{{ type }}" tone="current"><c-n26.flair.gang-type :icon="type_icon" /></c-n26.flair-link></span>
     {% endif %}

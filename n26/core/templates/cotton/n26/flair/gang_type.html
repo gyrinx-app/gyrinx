@@ -6,19 +6,17 @@
         <c-n26.flair.gang-type :icon="gang.gang_type.artwork" />
     </c-n26.flair-link>
 
-The sibling of the fixed drawings beside it, and the one that is not fixed: the
-other badges in this directory are artwork we ship, this one is artwork an
-author stored against a gang type. Which means it is untrusted, and the whole of
-what this component does is put it through safe_artwork — the platform's SVG
-allowlist — before it reaches the page.
+Unlike the other badges in this directory, the artwork here is stored by an
+author rather than shipped, so it is untrusted. All this component does is put
+it through safe_artwork, the platform's SVG allowlist, before it reaches the
+page.
 
-A gang type with no artwork renders nothing, not a placeholder and not a spacer.
-A column of names where only some carry a badge keeps its left edge, the same
-way an unset gang colour draws no swatch.
+A gang type with no artwork renders nothing — no placeholder, no spacer — so a
+column where only some names carry a badge keeps its left edge.
 
-Pass the icon with a colon (`:icon=`) so the markup arrives as a value rather
-than being folded into an attribute — SVG source carries quotes and newlines and
-does not survive the trip through one.
+Pass the icon with a colon (`:icon=`) so the markup arrives as a value: SVG
+source carries quotes and newlines and does not survive being folded into an
+HTML attribute.
 
   icon — the gang type's stored SVG source. Empty draws nothing.
 {% endcomment %}

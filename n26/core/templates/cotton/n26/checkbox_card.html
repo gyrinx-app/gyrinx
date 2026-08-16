@@ -7,18 +7,15 @@
         …rows of dependent controls…
     </c-n26.checkbox-card>
 
-The kit's own checkbox cards (c-ui.checkbox.group variant="cards") make the
-whole surface the toggle, which is right up until the card holds controls of
-its own — then a click on any of them would toggle the card. This one confines
-the toggle to its header row and keeps the body live, which is the difference
-that justifies a second component. The presentation is deliberately the
-kit's: border-2 to the accent with a light tint while ticked, so the two read
-as one family whichever a screen uses.
+Use this instead of the kit's checkbox cards (c-ui.checkbox.group
+variant="cards") when the card holds controls of its own: the kit makes the
+whole surface the toggle, so a click on any of them would tick the card. Here
+the toggle is confined to the header row and the body stays live. The
+presentation matches the kit's, so the two read as one family.
 
-While unticked the body is dead — dimmed and inert, because choices inside an
-unselected card are choices about something that is not happening. inert stops
-interaction and focus but not form submission: an input inside that must not
-submit while the card is unticked binds :disabled="!picked" itself.
+While unticked the body is dimmed and inert. `inert` stops interaction and
+focus but not form submission — an input that must not submit while the card is
+unticked binds :disabled="!picked" itself.
 
 `picked` is in Alpine scope for the body and meta slots to read.
 
@@ -50,9 +47,8 @@ submit while the card is unticked binds :disabled="!picked" itself.
         {% if meta %}{{ meta }}{% endif %}
     </label>
     {% comment %}
-    pl-8 walks the body in to the title's left edge — checkbox width plus the
-    header's gap — so the contents read as the card's own rather than as a
-    second list beside it.
+    pl-8 is the checkbox width plus the header's gap, lining the body up with
+    the title's left edge.
     {% endcomment %}
     {% if slot.strip %}
         <div class="mt-2 border-t border-box-border pt-2 pl-8"

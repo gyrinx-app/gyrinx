@@ -6,62 +6,37 @@
         <c-slot name="actions"><c-ui.button size="sm" variant="success">Add</c-ui.button></c-slot>
     </c-n26.collection-picker.item>
 
-Registers its facets with <c-n26.collection-picker> on init and then shows itself only
-while they pass — so a row is filtered by the same object the counts are
-computed from, and the two cannot disagree.
+Registers its facets with <c-n26.collection-picker> on init and shows itself
+only while they pass, so a row and the counts above it are filtered from one
+object and cannot disagree. Price, trade points and exclusivity are props
+rather than markup for that reason: the picker has to read them.
 
-The layout is one row at every width, not a card that reflows. Name truncates,
-everything else is shrink-0, so the actions stay put and stay hittable however
-narrow it gets — a row whose button wraps under it doubles the height of the
-list, and this list is long. The row is min-h-11 for the same reason the group
-header is: it is a target.
-
-Searchable text is built here, lowercased once at registration, rather than in
-the predicate. It runs on every keystroke against every item; doing the casing
-per comparison is work repeated for no reason.
-
-Price, trade points and exclusivity are props rather than slot content because the sliders filter on
-them — a facet the parent has to read cannot be markup only. They are rendered
-here too, so a call site states each number once.
+One row at every width. The name is the only thing that gives ground;
+everything else is shrink-0, so the actions stay put and stay hittable.
 
   name — shown, and searched.
-  :price — credits. Rendered as a badge, and what the price slider caps.
-  :trade_points — what a post charging them asks instead. What the
-    trade-points slider filters on.
-  :exclusive — equipment list only. Shows "E" rather than a number, and is
-    dropped the moment the trade-points slider narrows, because "E" answers no
-    numeric question — the same rule n26.browse.narrow follows.
-  details_label — what the disclosure says it will show: "Show card", "Show
-    details". A word, not a sentence; the button is the quietest thing on the row.
-  rows — more rows under this one, always visible. For options a reader chooses
-    between, which is not something to hide behind a disclosure.
-  details — the row, opened. Anything: a whole model card, a picture, a form.
-    Given one, the name becomes a disclosure button; without one it is plain
-    text. Rendered only once opened, so a long list does not pay for detail
-    nobody asked to see.
-  :disclosure — draw that button. Off where the row's own actions carry the
-    control instead: `expanded` is this row's state and anything inside it can
-    set it, so a row whose action button opens the detail wants one control and
-    not two saying the same thing.
+  :price — credits. What the price filter caps.
+  :trade_points — what a post charging them asks instead.
+  :exclusive — equipment list only. Shows "E", and drops out as soon as the
+    trade-points filter narrows, following n26.browse.narrow.
+  details — the row opened: a model card, a picture, a form. Given one, the
+    name grows a disclosure button, and the content is built only once opened.
+  :disclosure — draw that button. Off where the row's own actions set
+    `expanded` instead, so there are not two controls saying one thing.
+  details_label — what the disclosure says it will show: "card", "details".
+  rows — further rows under this one, always visible. For options a reader
+    chooses between, which is not something to hide.
   keywords — extra searchable text that is not on screen.
-  icon — a small leading mark, for state worth spotting down the list rather
-    than reading. The column is reserved whether or not a row has one: most
-    rows will not, and letting those start further left leaves the names in a
-    ragged edge that reads as broken rather than as sparse.
+  icon — a small leading mark, after the name.
   meta — extra content after the name, before the actions.
   actions — buttons. Keep them small; there is one of these per row.
-  price_control — what to draw in the price column instead of the figure: a box
-    the reader types in, or a number that moves with something they are choosing.
-    Rendered in the same fixed-width column, so a list of live prices and fixed
-    ones still lines up. `:price` is still required and is still what the slider
-    filters on — a filter has to agree with itself between keystrokes, so it
-    reads what the row advertises and never what the control currently says.
-    That is the whole of why these are two names: one is the number the list is
-    asking, the other is a control that may be showing something else.
+  price_control — markup for the price column instead of the figure. :price is
+    still required and is still what the filter reads, so filtering cannot
+    disagree with itself while a reader is typing in the control.
   state — extra Alpine state merged into this row's scope, as object-literal
-    properties. The row's slots all render inside it, so this is how a caller
-    gives price_control and the rows slot something to share; an x-data of their
-    own inside a slot would put them in sibling scopes that cannot see each other.
+    properties. The row's slots render inside it, so this is how price_control
+    and the rows slot share anything; an x-data inside a slot would put them in
+    sibling scopes that cannot see each other.
 {% endcomment %}
 <c-vars
     name=""
@@ -90,14 +65,9 @@ here too, so a call site states each number once.
         facets.section = sectionName;
         facets.category = categoryName || sectionName;
         {% comment %}
-        Where a row sits is part of what it is, so it is part of what a
-        search covers: 'Champ' should find the Champions and 'weapons' every
-        weapon. Folded in here rather than asked of the call site, because the
-        names are already in scope and a caller repeating them in `keywords` is a
-        third place for them to disagree.
-
-        Appended once at registration, not compared per keystroke — the predicate
-        runs for every item on every letter typed.
+        A row's section and category are searchable too, folded in and
+        lowercased once here rather than compared per keystroke: the predicate
+        runs over every item on every letter typed.
         {% endcomment %}
         facets.search = [facets.search, categoryName, sectionName]
             .filter(Boolean).join(' ').toLowerCase();
@@ -108,42 +78,19 @@ here too, so a call site states each number once.
     <div class="flex min-h-9 items-center gap-2">
 
     {% comment %}
-    A row never holds a chevron: those belong to the tiers above — the section
-    and the category — and one on every row as well made a column of them where
-    two thirds meant "this opens a tier" and one third meant "there is more to
-    read", which is two ideas wearing the same mark.
-
-    So a row pays a hair of rail rather than a chevron's width. Reserving the
-    width aligned a row's name with the headings above it and spent, on every
-    row, the indent that now says which things are the list's own items and
-    which hang off them.
-
-    The disclosure is a named button instead, which can say what it opens; a
-    chevron cannot. See below.
-
-    The leading state icon sits after the name. It used to have a reserved column
-    of its own on the left, and with the gutter there a second reserved column
-    would push every name in the list right to mark the few rows that carry one.
+    A chevron marks a tier — a section or a category — so a row carries a rail
+    in its place and says what it opens in words instead.
     {% endcomment %}
     <span class="flex min-w-0 flex-1 items-center gap-2 text-sm text-ink-900 dark:text-ink-100">
         <span class="n26-cp-rail" aria-hidden="true"></span>
         {% comment %}
-        Wraps on a phone, truncates from sm up. The name is what a reader is
-        scanning for and the row's height is not, so on a narrow screen the
-        height gives way — truncating "Death Maiden" to "Death …" to keep one
-        line spends the only thing on the row that cannot be recovered by
-        looking elsewhere. With room, truncation keeps the columns tidy.
+        The name wraps on a phone and truncates from sm up: it is the one thing
+        on the row that cannot be recovered by looking elsewhere.
         {% endcomment %}
         <span class="min-w-0 font-semibold sm:truncate">{{ name }}</span>
 
         {% if icon %}<span class="n26-icon-inline shrink-0 text-muted">{{ icon }}</span>{% endif %}
 
-        {% comment %}
-        Next to the name, because it is about the name — and quiet, because it is
-        the third thing on a row that already has a price and a button, and the
-        least of them. It says what it opens rather than pointing at it: "Show
-        card" is a promise a chevron cannot make.
-        {% endcomment %}
         {% if details and disclosure %}
             <button type="button" @click="expanded = !expanded" :aria-expanded="expanded"
                     class="flex shrink-0 items-center gap-1 rounded-control px-1.5 py-0.5 text-xs
@@ -160,13 +107,9 @@ here too, so a call site states each number once.
     {% if meta %}<span class="shrink-0">{{ meta }}</span>{% endif %}
 
     {% comment %}
-    Availability before price, both shrink-0. Freely available items show
-    nothing rather than a "Common" badge: that is the majority case, and badging
-    the majority leaves the hard-to-find ones — the ones worth spotting — with
-    nothing to stand out against.
-
-    Exclusive prints "E" rather than a number, which is what it is: equipment
-    list only, in both editions, and not a point on the trade-points scale.
+    Freely available items draw nothing here, so the hard-to-find ones have
+    something to stand out against. Exclusive prints "E": equipment list only,
+    not a point on the trade-points scale.
     {% endcomment %}
     {% if exclusive %}
         <span class="shrink-0 text-xs font-semibold tabular-nums text-ink-900 dark:text-ink-100"
@@ -177,33 +120,20 @@ here too, so a call site states each number once.
     {% endif %}
 
     {% comment %}
-    A fixed-width, right-aligned price column. Without the width, a 5¢ row and a
-    145¢ row put their buttons in different places, and a column of buttons that
-    almost lines up reads worse than one that plainly does not.
+    Fixed width, so a 5¢ row and a 145¢ row put their buttons in the same
+    place.
     {% endcomment %}
     <span class="n26-cp-price shrink-0 text-sm text-ink-900 dark:text-ink-100">{% if price_control %}{{ price_control }}{% else %}{{ price }}¢{% endif %}</span>
 
     {% if actions %}<span class="flex shrink-0 items-center gap-1">{{ actions }}</span>{% endif %}
     </div>
 
-    {% comment %}
-    Notes under the row, not beside it. A note is a sentence, and a sentence
-    competing for width with a price and two buttons wins nothing — on a phone it
-    would wrap to three words a line while the buttons keep their space.
-
-    Indented to the name's column so it reads as belonging to this row rather
-    than as a new one, and never as a badge: n26.notes says levels are "how
-    loudly to draw it" and nothing blocks on one, so the loudest this gets is a
-    word in a different weight. We inform, never police.
-    {% endcomment %}
-    {% comment %}
-    More rows belonging to this one — a profile's hire options, say. Always
-    visible, unlike `details`: something a reader has to choose between is not
-    something to hide, and the disclosure is for the reference material behind
-    the choice rather than for the choice itself.
-    {% endcomment %}
     {% if rows %}<div class="n26-cp-inset">{{ rows }}</div>{% endif %}
 
+    {% comment %}
+    A note's level says how loudly to draw it and never blocks anything, so the
+    loudest this gets is a mark and a heavier weight.
+    {% endcomment %}
     {% for note in notes %}
         <div class="n26-cp-inset pb-1 text-xs {% if note.level == 'error' %}font-semibold{% endif %} text-ink-900 dark:text-ink-100">
             {% if note.level != "info" %}<span class="text-muted">!</span> {% endif %}{{ note.text }}
@@ -211,17 +141,12 @@ here too, so a call site states each number once.
     {% endfor %}
 
     {% comment %}
-    The whole thing, on demand — progressive disclosure's last step.
+    x-if inside the x-show, so Alpine does not walk the details until they are
+    first opened: the markup is served either way, but forty unopened rows
+    would otherwise hold forty model cards' worth of bindings alive.
 
-    x-if inside the x-show, so the details are not *instantiated* until first
-    opened. Worth being precise about what that saves: the markup is in the
-    response either way, because a <template>'s contents are still served. What
-    is deferred is Alpine walking it — forty unopened rows would otherwise mean
-    forty model cards' worth of x-data, tooltips and bindings alive on a page
-    where nobody has opened one. Bytes are unchanged; work on load is not.
-
-    x-if needs a <template>, and a template cannot be a flex child, which is why
-    the disclosure hangs below the row rather than inside it.
+    x-if needs a <template>, and a template cannot be a flex child, which is
+    why the details hang below the row rather than inside it.
     {% endcomment %}
     {% if details %}
         <div x-show="expanded" x-collapse x-cloak>

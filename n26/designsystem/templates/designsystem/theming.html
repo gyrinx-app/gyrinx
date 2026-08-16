@@ -12,7 +12,6 @@
                 gallery changes — this page included.
             </p>
         </header>
-        {# ---------------------------------------------------------------- presets #}
         <section class="mb-14">
             <h2 class="text-xl font-semibold">Presets</h2>
             <p class="mb-5 mt-1 text-sm text-muted">
@@ -49,7 +48,6 @@
                 <span x-show="!available" x-cloak class="text-sm text-muted">Theme builder not found on this page.</span>
             </div>
         </section>
-        {# --------------------------------------------------------------- specimen #}
         <section class="mb-14">
             <h2 class="text-xl font-semibold">Specimen</h2>
             <p class="mb-5 mt-1 text-sm text-muted">
@@ -138,7 +136,7 @@
                                     <th>Fighter</th>
                                     <th>Class</th>
                                     <th>Status</th>
-                                    <th>Cost</th>
+                                    <th>Rating</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -201,7 +199,6 @@
                 </div>
             </div>
         </section>
-        {# --------------------------------------------------------------- concepts #}
         <section class="mb-14">
             <h2 class="text-xl font-semibold">The four buckets</h2>
             <p class="mb-6 mt-1 text-sm text-muted">
@@ -237,7 +234,6 @@
                 {% endfor %}
             </div>
         </section>
-        {# ------------------------------------------------------------------ howto #}
         <section class="rounded-box border border-box-border bg-surface p-6">
             <h2 class="text-lg font-semibold">Making a theme permanent</h2>
             <p class="mt-2 text-sm leading-relaxed text-muted">
@@ -263,9 +259,8 @@
     --color-accent-foreground: var(--color-indigo-950);
 }</code></pre>
             <p class="mt-4 text-sm leading-relaxed text-muted">
-                Two things are worth noticing. The accent is set separately per mode, because a 500
-                that reads well on white is usually too dark on near-black. And the neutral scale is
-                retoned by reassigning
+                The accent is set separately per mode, because a 500 that reads well on white is
+                usually too dark on near-black. The neutral scale is retoned by reassigning
                 <code class="rounded bg-ink-500/10 px-1.5 py-0.5 text-xs">--color-ink-*</code>,
                 never by overriding <code class="rounded bg-ink-500/10 px-1.5 py-0.5 text-xs">zinc</code>
                 itself — that indirection is what keeps your own <code class="rounded bg-ink-500/10 px-1.5 py-0.5 text-xs">zinc-*</code>
@@ -277,11 +272,9 @@
 {% block scripts %}
     <script>
 document.addEventListener('alpine:init', () => {
-    // The kit's theme-builder widget owns the current theme: it holds the state,
-    // writes the custom properties, persists to localStorage and generates the
-    // export. Rather than duplicate any of that, the presets here reach into its
-    // Alpine scope, set the same fields its own controls set, and call its apply().
-    // One source of truth, and the widget's UI stays in sync with what you clicked.
+    // The kit's theme-builder widget owns the current theme. The presets here reach
+    // into its Alpine scope, set the same fields its own controls set, and call its
+    // apply(), so the widget's own UI stays in step with what was clicked.
     const widget = () => document.querySelector('[x-data^="cottonThemeBuilderWidget"]');
     const scope = () => {
         const el = widget();
@@ -302,10 +295,9 @@ document.addEventListener('alpine:init', () => {
             });
         },
 
-        // The widget restores its theme from localStorage on load, so after a
-        // reload work out which preset (if any) that restored state corresponds
-        // to, rather than showing nothing as selected while a preset is plainly
-        // still in effect.
+        // The widget restores its theme from localStorage on load, so work out
+        // which preset that restored state corresponds to; without this a preset
+        // still in effect shows as unselected after a reload.
         match() {
             const state = scope();
             if (!state) return null;

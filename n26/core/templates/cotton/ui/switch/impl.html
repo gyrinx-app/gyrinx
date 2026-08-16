@@ -1,41 +1,15 @@
 {% comment %}
-OVERRIDE of django_cotton_ui's cotton/ui/switch/impl.html. Identical to the
-shipped template except for how the hidden checkbox is bound.
+<c-ui.switch> — a toggle switch backed by a hidden checkbox, so the state
+posts with the surrounding form.
 
-  --- what was wrong ---
+Overrides the kit, which binds that checkbox through `x-bind="input"`. Bound
+that way the model never reflects back onto the element: from the moment
+Alpine initialises, the checkbox reads checked and stays checked however the
+switch is moved. The visible track follows `switchOn` correctly, so the
+control looks right and posts the opposite — a silent wrong value on save.
 
-The kit binds the checkbox with `x-bind="input"`, an object holding
-`x-model.boolean`. Applied that way the model never reflects onto the element:
-once Alpine initialises the component the checkbox reads `checked` and stays
-that way, whether the switch was started on or off, and whichever way the state
-moves afterwards. The visible track follows `switchOn` correctly, so the control
-looks right and posts the opposite.
-
-A form is what makes that dangerous rather than cosmetic. Saving a weapon after
-editing its price marked it exclusive, because the box under the switch had been
-checked since load and nobody could see it.
-
-  --- why it stayed hidden ---
-
-Every form in the app was unbound until things could be edited, and an unbound
-field's value is `None`, which renders `switchInput(false, none)` — `none` is
-not a JavaScript literal, so the component threw on init and never bound
-anything. The plain unchecked input underneath was what got posted, which is the
-right answer for the wrong reason. The first form opened on a saved row is the
-first one where Alpine got far enough to be wrong.
-
-  --- the change ---
-
-`x-model="switchOn"` on the element itself, which is the ordinary Alpine
-spelling and reflects both ways, plus the `x-ref` and `:disabled` the bind
-object was also supplying. No `.boolean`: that modifier casts a string value,
-and this state is already a boolean.
-
-  --- upstream ---
-
-Delete this file if the kit fixes its binding, and check the rest of the
-template against the shipped one when you do — everything below the input is a
-verbatim copy and will drift.
+`x-model="switchOn"` on the element itself reflects both ways. No `.boolean`
+modifier: that casts a string, and this state is a boolean already.
 {% endcomment %}
 <c-vars
     name=""
@@ -64,7 +38,6 @@ verbatim copy and will drift.
 />
 
 <div x-data='switchInput({{ disabled|lower }}, {{ checked|lower }})' class="inline-flex items-center">
-    {% comment %}Hidden checkbox input for form submission{% endcomment %}
     <input
         type="checkbox"
         name="{{ name }}"
@@ -77,7 +50,6 @@ verbatim copy and will drift.
         :disabled="disabled"
     />
 
-    {% comment %}Switch toggle button{% endcomment %}
     <button
         type="button"
         role="switch"

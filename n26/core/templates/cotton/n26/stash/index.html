@@ -3,52 +3,30 @@
 
     <c-n26.stash :lines="gang.stash" :total="gang.stash_rating" />
 
-A card, built to sit in the same grid as the fighters. The stash is a place
-gear lives the way a fighter is a place gear lives, so it takes a grid slot
-of its own rather than a strip above the roster — what the gang holds and
-who holds what read as one layout, and moving something between a card and
-the stash is moving it between two like things on one screen.
+A card, built to sit in the same grid as the fighters, so moving something
+between a fighter and the stash is moving it between two like things on one
+screen.
 
-Takes the sheet's own flat list and groups it here, by what kind of thing
-each item is. That is the question actually asked of a stash: nobody scans
-it for "the thing called Mesh armour", they scan it for armour or for a
-spare weapon, and an ungrouped list makes that a read of every line.
+GangSheet.stash is deliberately flat — how to group it is presentational, and a
+text sheet and a web sheet do not agree — so this component groups by kind.
+dictsort runs before regroup because regroup only gathers adjacent equal keys:
+handed an unsorted list it silently yields "weapon, wargear, weapon" as three
+groups.
 
-  --- why the grouping is this component's job ---
-
-n26.render keeps GangSheet.stash flat on purpose, because whether a renderer
-groups by kind, sorts by rating or prints straight through is presentational
-— a text sheet and a web sheet will not agree, so the structure does not
-choose for them. This one groups, so it does the grouping. dictsort before
-regroup because regroup starts a new group whenever the key changes rather
-than gathering equal keys — handed an unsorted list it silently produces
-"weapon, wargear, weapon" as three groups, which looks like a data problem
-and is not one.
-
-  --- the total ---
-
-On the header line, where a fighter's card puts its rating, and for the same
-reason: what the card is worth is a fact about the card. It is also already
-in the wealth strip further up as St, which is why this one is quiet — a
-reminder of a number, not the place that number lives.
-
-An empty stash still draws the card: it holds a grid slot either way, and a
-slot that appears and disappears with the contents moves every fighter after
-it around the grid.
+An empty stash still draws the card, since a slot that comes and goes with the
+contents shifts every fighter after it around the grid.
 
   :lines — n26.render.StashLine objects, straight from GangSheet.stash.
-  :total — what the whole stash is pinned at, in credits.
+  :total — what the whole stash is pinned at, in credits. Drawn quietly: the
+    wealth strip above is where that number lives.
   empty — what to say when there is nothing.
 {% endcomment %}
 <c-vars :lines="None" :total="0" empty="" class="" />
 
 <c-ui.card padding="none" class="{{ class }}">
     <c-slot name="header">
-        {% comment %}
-        -mx-2 for the reason the model card's header carries it: the kit's
-        header band hardcodes px-6 where every row below is px-4, so the
-        name would start eight pixels further in than the contents.
-        {% endcomment %}
+        {# -mx-2 because the kit's header band hardcodes px-6 where the rows #}
+        {# below are px-4, so the name would start further in than the contents. #}
         <div class="-mx-2 flex items-start gap-3">
             <div class="min-w-0 flex-1 font-semibold">Stash</div>
             <span class="shrink-0 text-sm tabular-nums text-muted">{{ total }}¢</span>

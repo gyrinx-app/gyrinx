@@ -3,25 +3,20 @@
 
     <c-n26.quick-switcher.of :switcher="nav_switcher" />
 
-The same control as <c-n26.quick-switcher>, handed a `Switcher` from
-n26/core/navigation.py instead of having its rows written out. Every surface
-that offers "the thing you are on, and its siblings" builds one of those in
-the view — which gangs, which kinds of content, which rows of a kind — and
-this is the one place that turns one into markup. A second call site writing
-the rows itself is a second place for the wording and the current-row marking
-to drift.
+The same control as <c-n26.quick-switcher>, handed a `Switcher` built in the
+view (n26/core/navigation.py) instead of having its rows written out. This is
+the one place that turns one into markup, so the wording and the current-row
+marking cannot drift between call sites.
 
-Which variant is drawn is the structure's business, not the caller's: a
-switcher with no `label` is the chevron on its own, which is what a page whose
-heading already names the current thing passes (`switcher.unnamed`).
+The shape follows the structure: a Switcher with no `label` draws the chevron
+alone (`switcher.unnamed`).
 
   :switcher — the Switcher to draw. Its `items` are the destinations.
   align — which edge of the trigger the panel hangs from: start or end.
   min_width — the panel's minimum width, as a CSS length.
-  hotkey — a letter; ⌥⇧ plus it opens the panel from anywhere on the
-    page. A placement concern, so it is passed here rather than carried
-    by the structure: which chord a control answers depends on where on
-    the page it was put, not on what it lists.
+  hotkey — a letter; ⌥⇧ with it opens the panel from anywhere on the page.
+    Passed here rather than carried by the structure, because which chord a
+    control takes depends on where it was put, not on what it lists.
 {% endcomment %}
 <c-vars :switcher="None" align="start" min_width="16rem" hotkey="" class="" />
 

@@ -4,36 +4,25 @@
     <c-n26.gang-table.row name="The Ashen Choir" type="Escher (HoB)" colour="teal"
                           :sheet="sheet" href="/gangs/1/" print_href="/gangs/1/print/" />
 
-The whole row opens the gang, and the buttons on it still work. Exactly one real
-<a> is in the markup — on the name — and .n26-row-link stretches its ::after over
-the row. Wrapping the row in an anchor instead would put two buttons inside a
-link, which no browser handles the same way and no screen reader can announce; a
-click handler on a div would lose the URL, middle-click and keyboard focus.
+The whole row opens the gang and the buttons on it still work. Exactly one real
+<a> is in the markup — on the name — and `.n26-row-link` stretches its ::after
+over the row; the row is `relative` for that stretch to fill, and the actions are
+`relative` so they paint above it. Drop either class and the row swallows every
+click, leaving Print unreachable. They live on the markup rather than in the CSS
+rule because which parts of a row stay clickable is the row's decision.
 
-So: the row is `relative` for the stretch to fill, and the actions are `relative`
-so they paint above it. That is the whole trick, and it is why those two classes
-are on the markup rather than in the CSS rule — which parts of a row stay
-clickable is the row's decision, not the stylesheet's.
-
-  --- the layout ---
-
-One column on a phone, four at md. The name and type lead, the wealth strip sits
-under them on a phone and beside them at width, and the actions go last on a
-phone and right at width. Nothing is dropped: what a gang is worth is the reason
-you came to the list.
+The column widths are named rather than `auto`. Every row is its own grid and a
+grid's columns only align within one element, so `auto` sizes each row to its own
+content and the wealth strips land a few pixels apart down the page.
 
   name — the gang's. The link, and the accessible name for the whole row.
-  type — its gang type, under the name.
-  type_icon — the gang type's stored artwork, as SVG source. Empty draws nothing,
-    which is the case a list of mixed types has to survive.
-  colour — the gang's colour, as a mark before the name. Empty draws nothing, so a
-    column of names where few gangs have one keeps its left edge.
+  colour, type_icon — a mark before the name and a badge on the type line. Each
+    draws nothing when empty, so a list of mixed gangs keeps one left edge.
   :sheet — a n26.render.GangSheet, for <c-n26.wealth>.
-  href — where the row goes. The edit screen, since that is what a row is for.
+  href — where the row goes.
   print_href — the print button's destination. Omitted, no print button.
   owner — whose gang it is, after the type. For a list holding more than one
-    person's; omitted on a list of your own, where it would say your name on
-    every row.
+    person's; on a list of your own it would say your name on every row.
 {% endcomment %}
 <c-vars name="" type="" type_icon="" colour="" :sheet="None" href="" print_href=""
         owner="" class="" />
@@ -46,71 +35,48 @@ you came to the list.
      x-show="matches(facets)"
      x-cloak
      {% comment %}
-     Fixed tracks once the list is wide enough, not auto. Every row is its own grid — a grid's columns
-     only align within one element — so `auto` sizes each row to its own content
-     and the wealth strips come out a few pixels apart down the page, which reads
-     as a wobble rather than as a column. Naming the widths is what makes five
-     separate grids look like one table.
-
-     The alternative, one grid on the container with the rows as display:contents,
-     costs the row its box: no hover, and nothing for the stretched link to fill.
+     Fixed tracks once the list is wide enough, not auto: naming the widths is
+     what makes five separate grids look like one table. The alternative — one
+     grid on the container with the rows as display:contents — takes the row's
+     box away, leaving no hover and nothing for the stretched link to fill.
      {% endcomment %}
      class="relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 px-1 py-3
             hover:bg-ink-500/5 @2xl:grid-cols-[minmax(0,1fr)_17rem_9rem] {{ class }}">
 
     <div class="col-start-1 row-start-1 min-w-0">
         {% comment %}
-        The mark goes inside the anchor rather than beside it, so the focus ring
-        that draws around the name draws around the whole thing and the two never
-        wrap apart. It is aria-hidden, so the row's accessible name is still the
-        gang's name and nothing else.
+        The mark goes inside the anchor, so the focus ring draws around both and
+        the two never wrap apart. It is aria-hidden, leaving the row's accessible
+        name the gang's name and nothing else.
         {% endcomment %}
         <a href="{{ href }}"
            class="n26-row-link rounded-control text-base font-semibold text-ink-900 focus-ring dark:text-ink-100">
             <c-n26.color-swatch color="{{ colour }}" />{{ name }}
         </a>
         {% comment %}
-        The badge rides through flair-link, outside the anchor above: the row's
-        accessible name is the gang's name, and a piece of artwork repeating the
-        type in the middle of it would say the type twice. No href — the type is
-        not somewhere to go — so flair-link draws a span.
+        The type sits outside the anchor above, which is what keeps the row's
+        accessible name the gang's own. No href, so flair-link draws a span: a
+        gang's type is not somewhere to go.
         {% endcomment %}
         <p class="text-sm text-muted">
             <c-n26.flair-link text="{{ type }}" tone="current">
                 <c-n26.flair.gang-type :icon="type_icon" />
             </c-n26.flair-link>
-            {% comment %}
-            Only where the list holds more than one person's gangs. On a
-            page of your own, every row would say your name.
-            {% endcomment %}
             {% if owner %}<span class="text-muted"> · {{ owner }}</span>{% endif %}
         </p>
     </div>
 
     {% comment %}
-    Under the name when the list is narrow, beside it when it is wide. Left-aligned either way, so it
-    starts where the name starts rather than floating at the far edge of a row
-    whose other content is on the left.
+    Left-aligned at both widths, so the strip starts where the name starts
+    rather than floating at the far edge of the row.
     {% endcomment %}
     <c-n26.wealth :sheet="sheet"
                   class="col-start-1 row-start-2 justify-self-start @2xl:col-start-2 @2xl:row-start-1" />
 
     {% comment %}
-    relative, so the buttons sit above the stretched link rather than under it —
-    without this the row swallows every click and Print becomes unreachable.
-
-    Both the same variant. Print was quieter on the argument that the row already
-    edits — but stacked narrow, a bordered button above a bare word reads as
-    one button and one thing that failed to render, and they are peers: Edit is
-    the one the row duplicates, Print is the one it does not.
-    {% endcomment %}
-    {% comment %}
-    Right edge at both widths, stacked when the list is narrow and side by side
-    when it is wide. Spanning
-    both rows so they stay centred against the name and the figures together
-    rather than pinning to one of them — and on the right because that is where a
-    thumb is, and because a row whose actions move left as the screen narrows
-    makes the reader look for them twice.
+    relative, so the buttons paint above the stretched link rather than under it.
+    They span both grid rows, which keeps them centred against the name and the
+    wealth strip together rather than pinned to one of the two.
     {% endcomment %}
     <div class="relative col-start-2 row-start-1 row-span-2 flex shrink-0 flex-col
                 items-stretch gap-2 justify-self-end

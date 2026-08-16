@@ -8,35 +8,20 @@
         {% endfor %}
     </c-n26.detail-list>
 
-Rows, not a container of its own. A gang's choices and its counters are one run
-of labelled facts — "Territory: Choose, Reputation: 7, Meat: 3" reads as one
-strip — and two containers side by side would set them at two rhythms with a gap
-between them that means nothing. So this draws <c-n26.detail-list.row>s into
-whichever list the caller has open, and the caller decides what else goes in it.
+Draws <c-n26.detail-list.row>s and no container of its own, so one list can
+hold a gang's choices and its counters as a single run of labelled facts. It
+has to be called inside a <c-n26.detail-list>, and `class` lands on every row
+because there is nothing else to put it on.
 
-  --- filled and empty are the same row ---
+Takes n26.render.ChoiceLine values from a ModelCard or a GangSheet. A settled
+slot and an unsettled one are the same control leading to the same page:
+clicking a settled slot is how a choice is changed. A slot with nothing chosen
+is information, never an error — nothing marks it, counts it, or refuses to
+proceed without it.
 
-A slot whose choice has been made shows what was chosen; one that has not shows
-Choose. Both are the same control leading to the same page, because both are the
-same question — clicking a settled slot is how you change your mind, and giving
-the two different shapes would say the settled one could not be revisited.
-
-A slot with no choice made is information, never an error: nothing is marked,
-nothing is counted as missing, and nothing anywhere refuses to proceed without
-it.
-
-  --- a slot with nowhere to go ---
-
-A card built from a profile's default equipment has real offers and no stored
-rows to choose against, so its lines carry no address. Those draw as plain
-text with an em dash — a settled-looking fact rather than a dead button, which is
-what a print sheet and the gallery want.
-
-  :choices — n26.render.ChoiceLine values, from a ModelCard or a GangSheet.
-    Each carries its own href; a view fills those in (n26.core.views.choose).
-  choose_label — what an unsettled slot's control says. One word by default,
-    because the label beside it already names the question.
-  class — extra classes on every row. There is no container to put them on.
+A line with no href draws as plain text with an em dash. That is a card built
+from a profile's default equipment: real offers, but no stored assignment to
+choose against. Views fill the addresses in (n26.core.views.choose).
 {% endcomment %}
 <c-vars :choices="None" choose_label="Choose" class="" />
 

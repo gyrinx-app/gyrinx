@@ -3,27 +3,23 @@
 
     <c-n26.roster-summary :summary="summary" />
 
-A dropdown beside the gang's figures answering the two sums a player does on
-their fingers mid-decision: what the gang fields (each profile at each rank,
-counted) and what each model is worth (every rating, totalled). Two tabs of
-one panel because they are two readings of one list — a reader flips between
-them the way they flip a gang list over — and the panel is where they belong
-rather than the page, because these are numbers checked in passing, not
-content a screen is about.
+A dropdown beside the gang's figures holding two readings of one roster: how
+many of each profile at each rank the gang fields, and what each model is
+worth. Numbers checked in passing mid-decision, which is why they are behind a
+control rather than on the page.
 
-Both tables keep the roster's own order, pets after their keepers, so the
-tally reads down the same way the sheet does. The totals row is the check:
-the count is the M figure beside the trigger, and the ratings total is the
-sum of the models listed — which the gang's own rating figure need not
-equal, since a gang can carry worth no single model does.
+Both tables keep the roster's own order, pets after their keepers, so the tally
+reads down the way the sheet does. The counts total matches the M figure beside
+the trigger; the ratings total need not match the gang's rating figure, since a
+gang can carry worth that no single model does.
 
   :summary — a n26.render.RosterSummary.
 {% endcomment %}
 {% comment %}
-class is declared but not forwarded to c-ui.dropdown: the kit's dropdown
-does not declare one, and an undeclared class lands in {{ attrs }} ahead
-of the root's own — the browser keeps the first class attribute it sees
-and the dropdown loses its positioning context entirely.
+class is declared but deliberately not forwarded to c-ui.dropdown, which does
+not declare one: it would land in {{ attrs }} ahead of the root's own class
+attribute, the browser would keep the first, and the dropdown would lose its
+positioning context.
 {% endcomment %}
 <c-vars :summary="None" class="" />
 

@@ -6,31 +6,21 @@
         <c-slot name="breadcrumb">…breadcrumbs…</c-slot>
     </c-n26.model-header>
 
-The one header every per-model screen draws. Edit and Equip are two faces of the
-same model, so they share a header and read as tabs of one place — a component
-rather than a convention, because two screens each writing "the same" header are
-two screens free to drift apart about what a model's page looks like.
+The header every per-model screen draws, so that a model's screens read as
+tabs of one place. The title is the model's name plain — the tab strip is what
+says which screen is open.
 
-The title is the model's name plain, not "Equip Vesna": the tab strip says which
-face is open, and a title that repeated the verb would say it twice while making
-the name harder to scan for. The lead is the model's rank — what a reader
-checking "which of my models is this" wants said once at the top.
+The tab strip comes from the model_screen_tabs tag rather than from the
+caller, so adding a screen to a model is one edit to n26.core.navigation and no
+screen can invent a strip of its own.
 
-The tab strip is built by the model_screen_tabs tag rather than passed in, so a
-screen cannot invent a strip of its own; adding a screen to a model is one edit
-to n26.core.navigation.
-
-  :miniature — the model. Needs ``pk`` and ``name``; nothing else is read.
+  :miniature — the model. Only ``pk`` and ``name`` are read.
   lead — the model's rank, under the name. Empty draws nothing.
   active — which tab this screen is: ``edit`` or ``equip``.
-  switcher — a control after the name, for the gang's other models: the pages
-    pass <c-n26.quick-switcher.of> pointed at this same screen for each of them.
-  breadcrumb — the trail above the name. The pages build it, because who owns
-    the gang and where its sheet lives are their business.
-  actions — the header's far end, opposite the name: the gang's figures and
-    the roster tally, the numbers a per-model decision is made against. The
-    same corner the gang sheet keeps its wealth strip in, so a reader's eye
-    finds the money in one place on every screen.
+  switcher — a control after the name, for the gang's other models.
+  breadcrumb — the trail above the name; the pages build it.
+  actions — the header's far end: the gang's figures and the roster tally, in
+    the corner the gang sheet keeps its wealth strip in.
 {% endcomment %}
 <c-vars
     :miniature="None"

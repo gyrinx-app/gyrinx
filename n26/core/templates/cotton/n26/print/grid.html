@@ -7,33 +7,23 @@
         {% endfor %}
     </c-n26.print.grid>
 
-Named a grid, and pointedly not `display: grid`. Nor flex. In WebKit a flex or
-grid item does not take part in page fragmentation: the item is laid out as a
-unit and the fold is applied over the top of it, so `break-inside: avoid` on a
-flex child is not honoured — it is ignored without a word, and a card comes off
-the printer in two halves on two sheets. This is the single biggest cause of
-broken print output on iOS, and it is invisible until someone prints from a
-phone, because desktop Chrome fragments flex children well enough to fool you.
+Named a grid, but neither `display: grid` nor flex: WebKit discards
+`break-inside: avoid` on a grid or flex item, and a card comes off the printer
+in two halves on two sheets. This is a block container of inline-blocks
+instead — an inline-block is an atomic inline, so nothing in the layout model
+is capable of cutting one, and a line box that does not fit the space left on
+the page moves to the next page whole.
 
-So this is a block container of inline-blocks, and the distinction that matters
-is not that inline-blocks fragment *better* — it is that they cannot fragment at
-all. An inline-block is an atomic inline: one indivisible box on a line. A line
-box that does not fit the space left on the page moves to the next page whole,
-and takes every card on it. Nothing in the layout model is capable of cutting
-one, so nothing has to be asked not to.
+The cell width is derived from columns and gutter, so no combination of props
+overflows the paper, and a card picks the width up without being told it.
 
-The cell width is derived rather than chosen: columns and gutter go in, and the
-width that exactly fills the printable area comes out. There is no combination
-of props that overflows the paper. A card picks that width up automatically, so
-call sites do not repeat it and cannot disagree with it.
+Every child takes a turn, including one hidden with display:none — nth-child
+counts elements, so a hidden child shifts the end-of-row rule onto the wrong
+card. Leave it out of the loop instead.
 
-  columns — 1 to 6. Written out as CSS rules per count in print.css, because
-    the end-of-row rule needs :nth-child and nth-child takes a literal.
+  columns — 1 to 6, written out as one CSS rule per count in print.css because
+    the end-of-row rule needs an :nth-child literal.
   gutter — between cards, both ways. Any CSS length.
-
-Every child is an item, including ones you meant to hide: nth-child counts
-elements, so a child with display:none still takes its turn and shifts the
-end-of-row rule onto the wrong card. Leave it out of the loop instead.
 {% endcomment %}
 <c-vars columns="2" gutter="4mm" class="" />
 

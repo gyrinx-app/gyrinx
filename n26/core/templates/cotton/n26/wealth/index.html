@@ -3,60 +3,32 @@
 
     <c-n26.wealth :sheet="gang" />
 
-Four figures, in the order they answer questions about each other: rating is what
-the gang fields, credits what it has left, stash what it owns and nobody is
-carrying, and
-wealth the three added together. Reading left to right is reading the sum being
-made, which is why this is a strip and not four badges — badges would put the
-numbers in no relation at all.
+Four figures, left to right in the order that makes the sum: rating is what the
+gang fields, credits what it has left to spend, stash what it owns and nobody is
+carrying, and wealth the three added together.
 
-Takes the whole GangSheet rather than four numbers, and that is the point: four
-positional integers of the same type in the same units are four chances to swap
-two of them and never find out. GangSheet already holds them under names.
+It takes the whole sheet rather than four integers, because four positional
+numbers of the same type in the same units are four chances to swap two and
+never find out.
 
-  --- why a dl and not a table ---
+A definition list, not the two-row table it resembles: a table would need the
+labels and the figures in separate rows, written out twice and kept in step by
+hand. Its type scale, padding and tabular figures mirror <c-n26.statline.cells>,
+and a test holds them to it.
 
-The statline next door is a two-row table, and this looks like one. It is not: a
-table needs its headers and its values in separate rows, so the labels and the
-figures would have to be written out twice and kept in step by hand. A definition
-list says the same thing — four terms, four values — with each pair authored once,
-and lays out as columns with flex.
+A gang founding without a budget has no credits figure to give, so that cell
+draws a muted em dash rather than 0¢, which would read as bankrupt.
 
-The type scale, padding and tabular figures are mirrored from
-<c-n26.statline.cells> on purpose, and a test holds them to it, because the two
-sit inches apart on a gang sheet and reading as one system is the whole job.
-
-  --- a gang with no budget ---
-
-Founding without a ceiling is a real state — the player buys what they own and
-the gang's number is its rating — and in it the credits figure counts nothing.
-It draws an em dash saying so rather than 0¢, which is what a gang that has
-spent its last credit shows and reads as bankrupt.
-
-Both `credits` and `credits_unlimited` come off whatever is passed, so the two
-cannot disagree: a Gang answers from its own starting_credits and a GangSheet
-carries the answer the gang gave when it was derived. The positive form is the
-one asked for, so anything that does not know the question keeps drawing the
-number it always did.
-
-  :sheet — a n26.render.GangSheet, or anything carrying the same figures: the
+  :sheet — a n26.render.GangSheet, or anything carrying the same figures; the
     Gang model does, which is what the hire and equip screens pass.
-  class — passed to the scroll container. Where a page wants the strip fenced
-    off, `border-l border-box-border pl-3` is the rule it used to draw itself.
+  class — passed to the scroll container. Whether the strip needs fencing off
+    depends on what sits beside it, so a page that wants a rule down the left
+    passes `border-l border-box-border pl-3`.
 {% endcomment %}
 <c-vars :sheet="None" class="" />
 
-{% comment %}
-No rule down the left. Whether this strip needs fencing off from what sits beside
-it depends entirely on what that is — beside a gang's name it helps, repeated down
-a list of rows it becomes five short lines that look like a table someone forgot
-to finish. That is a layout question, so it belongs to the layout: pass
-class="border-l border-box-border pl-3" where the page wants one.
-
-Scrolls rather than wraps, for the same reason the statline does: a strip whose
-last figure drops onto a second row stops reading as a strip, and "wealth" is the
-one a reader is most often after.
-{% endcomment %}
+{# Scrolls rather than wraps: a strip whose last figure drops onto a second #}
+{# line stops reading as a strip. #}
 <div class="overflow-x-auto {{ class }}">
     <dl class="flex w-max items-stretch">
         <c-n26.wealth.figure short="R" full="Rating" :value="sheet.rating" />

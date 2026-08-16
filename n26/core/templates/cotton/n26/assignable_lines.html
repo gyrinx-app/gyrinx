@@ -4,40 +4,25 @@
     <c-n26.assignable-lines :lines="card.skills" />
     <c-n26.assignable-lines :lines="profile.traits" />
 
-Takes n26.render.AssignableLine, which is a name and a Provenance. Every
-assignable a card shows carries one — that is the rule the render layer keeps —
-so one component can draw skills, gear and weapon traits alike, and there is no
-list on a card that has to be joined by hand.
+Takes n26.render.AssignableLine — a name and a Provenance. Every assignable a
+card shows carries one, so this single component draws skills, gear and weapon
+traits alike, and no list on a card is joined by hand.
 
-A computed line is re-derived on read: nobody bought it, and it will appear and
-vanish as whatever grants it changes. That is worth marking, and the mark is a
-dotted underline naming the source — the same treatment a modified characteristic
-gets in <c-n26.statline.cells>, because it is the same statement. A card should
-have one way of saying "this is not simply printed here".
+A computed line was granted rather than bought, and will appear and vanish as
+whatever grants it changes. It is marked with a dotted underline naming the
+source, the same mark a modified characteristic gets in
+<c-n26.statline.cells>. Not a badge: granted skills are ordinary, and badging
+each one would make the common case look like an exception.
 
-Deliberately not a badge. Granted skills are ordinary — a Leader has several —
-and badging each one makes the common case look like an exception.
+The source goes on `title` rather than into a c-ui.tooltip, unlike the
+statline: a tooltip is an Alpine component in an inline-block wrapper, and a
+run of them puts a layout box between every name and its comma.
 
-The source is a title attribute rather than a c-ui.tooltip, which is the one
-place this differs from the statline. A tooltip is an Alpine component wrapped in
-an inline-block, and a comma-separated run of them puts a layout box between
-every word and its comma — "Gang Hierarchy , Group Activation". A dozen of them
-on one card is also a lot of machinery for a line of text. The statline can
-afford one per modified cell; a list cannot afford one per item.
+With no lines at all it draws an em dash.
 
-Empty renders an em dash, not a muted "None": the card has no second-class text.
-
-A line's rating is drawn when it has one, when the caller wants ratings at all,
-and zero draws nothing — which is what lets one component serve every list: the
-stash reads with its prices on, and skills and traits, which contribute nothing,
-stay bare names rather than gaining a row of noughts.
-
-Whether money belongs in the list at all is the surface's call, not the line's. A
-fighter's card is read while playing, where what a piece of gear cost the gang
-months ago answers no question at the table — so the card asks for none, and the
-stash, which is read while deciding what to sell, keeps them.
-
-  :lines — a list of n26.render.AssignableLine, or anything with the same shape: a
-    name, a provenance, and optionally a rating.
-  :ratings — draw each line's rating beside it. On by default; a card passes False.
+  :lines — a list of n26.render.AssignableLine, or anything of the same shape.
+  :ratings — draw each line's rating beside it, where it has one; skills and
+    traits add nothing to a model's rating and stay bare names. On by default,
+    and a model's card passes False, being read at the table mid-game where no
+    number is wanted; the stash, read while deciding what to sell, keeps them.
 {% endcomment %}<c-vars :lines="None" :ratings="True" />{% if lines %}{% for line in lines %}{% if line.provenance.computed %}<span class="underline decoration-dotted underline-offset-2" title="{% if line.provenance.source %}From {{ line.provenance.source }}{% if line.provenance.source_kind %} ({{ line.provenance.source_kind }}){% endif %}{% else %}Granted, not printed{% endif %}">{{ line.name }}</span>{% else %}{{ line.name }}{% endif %}{% if ratings and line.rating %} <span class="tabular-nums">{{ line.rating }}¢</span>{% endif %}{% if not forloop.last %}, {% endif %}{% endfor %}{% else %}&mdash;{% endif %}

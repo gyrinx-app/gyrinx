@@ -9,25 +9,21 @@ the safe renderer for what it produces.
     {# rendering what was saved #}
     <c-n26.rich-text :value="page.body" />
 
-Two modes, one component, because they are two views of the same content and it
-is useful to flip between them. Pass a bound field and you get the editor with an
-Edit / Preview switch; pass only a value and you get the rendered article.
+Two modes: pass a bound field and you get the editor with an Edit / Preview
+switch, pass only a value and you get the rendered article. The editing mode is
+wrapped in <c-ui.field>, so label, description and form errors behave as they do
+on c-ui.input.
 
-Wrapped in <c-ui.field>, so label, description and form errors work exactly as
-they do on c-ui.input — that is the whole point of it being a component rather
-than a bare {{ field }}.
+Rendering always goes through safe_rich_text — editor output is user input that
+has been round-tripped through a database, so it is sanitised on the way out.
 
-Rendering always goes through safe_rich_text. Editor output is user input that
-has been round-tripped through a database, so it is sanitised on the way out
-rather than trusted.
+The page must render {{ form.media }} once, or the widget stays a plain textarea
+and no editor ever appears. Once per page, not per field: every editor on it
+shares the one script.
 
-*You must render {{ form.media }} once on the page.* Without it the widget is
-just a textarea with a data attribute and no editor ever appears. Once per page,
-not once per field — every editor shares the one script.
-
-Dark mode, responsiveness and the chrome matching the kit's inputs are handled
-outside this template: static/n26/richtext.js swaps the skin with the mode, and
-app.css restyles the editor's frame and the rendered prose from theme tokens.
+The editor's own appearance lives outside this template — static/n26/richtext.js
+swaps the skin with light and dark, app.css restyles the frame and the rendered
+prose from theme tokens.
 
   :field — a bound form field whose widget is n26.widgets.RichText.
   value — HTML. The content to render, or the editor's starting preview.
@@ -58,9 +54,8 @@ app.css restyles the editor's frame and the rendered prose from theme tokens.
         <div x-data="richText({{ value|safe_rich_text|json_dumps }})">
             {% if toggle %}
                 {% comment %}
-                A radio group would be the honest control for one-of-two, but this
-                switches a view rather than setting a value, so it stays buttons —
-                nothing here is submitted.
+                Buttons rather than radios: this switches a view and submits
+                nothing.
                 {% endcomment %}
                 <div class="mb-2 inline-flex rounded-control border border-box-border p-0.5 text-sm">
                     <button type="button" @click="show('edit')"
@@ -77,9 +72,8 @@ app.css restyles the editor's frame and the rendered prose from theme tokens.
             {% endif %}
 
             {% comment %}
-            x-show, not a template swap: hiding keeps the editor instance alive, so
-            switching back does not tear TinyMCE down and rebuild it, and the undo
-            history survives.
+            x-show, not a template swap: hiding keeps the editor instance alive,
+            so switching back does not rebuild TinyMCE and lose the undo history.
             {% endcomment %}
             <div x-show="mode === 'edit'">{{ field }}</div>
 

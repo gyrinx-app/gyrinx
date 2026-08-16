@@ -3,28 +3,22 @@
 
     <c-n26.tick-list :offer="skills" name="skills" />
 
-Takes the same n26.render.ChoiceOffer that <c-n26.choice-offer> draws: groups
-with names, options with a line of detail. A sibling of that component rather
-than a mode of it, for the reason radio cards and checkbox cards are siblings —
-one of many is the browser's rule over a shared name, any number is the absence
-of that rule, and the two say different things about what leaving a box alone
-means. One name across every group all the same: the headings are how the list
-is read, not a question each.
+Takes the same n26.render.ChoiceOffer that <c-n26.choice-offer> draws, but ticks
+any number of options rather than exactly one. Every box submits under one
+`name` across every group: the headings are how the list reads, not a question
+each.
 
-Checkboxes and no script. What is ticked when the page arrives is what the
-server said, and a box that submits nothing has been cleared — so the form works
-before anything runs and stays right if nothing ever does.
+Checkboxes and no script. What arrives ticked is what the server said, and a box
+that submits nothing has been cleared.
 
-An option the rules grant is drawn ticked and fixed, saying what grants it:
-nothing stored is behind it, so there is nothing a click could take away. A
-fixed box submits nothing either, which is why whatever applies the difference
-must leave granted things out of it rather than read their silence as a
-clearing.
+An option the rules grant is drawn ticked and disabled, saying what grants it —
+nothing is stored behind it for a click to take away. A disabled box submits
+nothing, so whatever applies the difference must leave granted options out
+rather than read their silence as a clearing.
 
-Rows rather than cards: this draws inside a box beside a model's card, where a
-grid of cards would be a second page. An empty offer draws nothing — whether to
-say something instead depends on why it is empty, which the page knows and this
-does not.
+Rows rather than cards, to sit in a box beside a model's card. An empty offer
+draws nothing; what to say instead depends on why it is empty, which the page
+knows and this does not.
 
   :offer — a n26.render.ChoiceOffer.
   name — the input name every box submits under. One name across every group.
@@ -34,10 +28,9 @@ does not.
 <div {{ attrs }} class="space-y-4 {{ class }}">
     {% for group in offer.groups %}
         {% comment %}
-        A fieldset per heading, because the heading is what the boxes under it
-        have in common — the skill set, the power family. The caption after it
-        names the tier the set sits in, and is filled in only where the list
-        spans several; see n26.render.ChoosableGroup.
+        A fieldset per heading: the heading is what the boxes under it have in
+        common. The caption names the tier the set sits in, and is filled in
+        only where the list spans several — see n26.render.ChoosableGroup.
         {% endcomment %}
         <fieldset>
             <legend class="mb-1 block text-sm font-semibold text-ink-900 dark:text-ink-100">

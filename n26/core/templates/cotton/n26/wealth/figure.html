@@ -3,48 +3,33 @@
 
     <c-n26.wealth.figure short="R" full="Rating" :value="sheet.rating" />
 
-The short name over the figure, both centred, in a column of their own. Authored
-once: the term and its value are the same pair, so nothing here can fall out of
-step with the row above or below it.
+The short name over the figure, both centred, each pair authored once so the two
+cannot fall out of step.
 
-The full name arrives through c-ui.tooltip rather than a title attribute, which is
-where this parts company with <c-n26.statline.header>. That component's reasoning
-is about volume — a card carries a dozen columns and a gang sheet hundreds, so it
-spends nothing per cell. There are four of these on a page, so they can afford the
-thing that actually works on a phone: a title never appears at all without a
-mouse, and "R" is not a word.
+The full name is a c-ui.tooltip rather than a title attribute, unlike
+<c-n26.statline.header>: a title never appears without a mouse, and "R" is not a
+word. There are four of these on a page, so the machinery is affordable here.
 
   short — the abbreviation shown. Two characters at most; Cr, not Cred.
   full — what it stands for, revealed on hover or tap.
-  :value — credits, as an integer. The ¢ is drawn here so a caller never has to
-    remember which figures carry it.
-  unit — what the figure is denominated in: ¢ unless said otherwise. A figure
-    that counts things rather than money passes an empty one.
+  :value — an integer, drawn with the unit appended so no caller has to
+    remember which figures carry one.
+  unit — ¢ unless said otherwise. A figure counting things passes an empty one.
   unset — why this figure has no answer, as a sentence. Given one, the cell
     draws a muted em dash carrying it and ignores `value`. For a figure that is
-    not zero but absent: a gang with no budget has not spent nothing, it has
-    nothing to spend against, and a 0¢ there would be read as bankrupt.
+    absent rather than zero, where a 0¢ would be read as bankrupt.
 {% endcomment %}
 <c-vars short="" full="" :value="0" unit="¢" unset="" />
 
 <div class="flex flex-col items-center px-3">
-    {% comment %}
-    dt before dd in the source, and the visual order matches, so the label is read
-    before the figure it labels in either medium. Mirrors the statline's type: xs
-    semibold for the label, sm tabular for the value.
-    {% endcomment %}
     <dt class="text-xs font-semibold text-ink-900 dark:text-ink-100">
         <c-ui.tooltip size="sm">
             <span class="cursor-help">{{ short }}</span>
             <c-slot name="content">{{ full }}</c-slot>
         </c-ui.tooltip>
     </dt>
-    {% comment %}
-    An em dash rather than the number, when there is no number to give. It is
-    muted because it is the absence of a figure rather than a figure, and it
-    carries the reason the way the label above carries its full name — the same
-    tooltip, so a reader who taps one learns the other works too.
-    {% endcomment %}
+    {# The em dash carries its reason in the same tooltip the label uses, so a #}
+    {# reader who taps one learns the other works too. #}
     {% if unset %}
         <dd class="whitespace-nowrap text-sm text-muted">
             <c-ui.tooltip size="sm">

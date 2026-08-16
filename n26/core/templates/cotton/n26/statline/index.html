@@ -8,37 +8,25 @@
     <c-n26.statline :statline="card.statline" layout="book"
                     type_line="Fighter (Leader)" xp="61" />
 
-Two layouts, because the book uses two. `strip` puts every characteristic on one
-row, which is what a weapon profile wants and what fits a dense list. `book` breaks
-at each group — so M–Sv sits above Ld–Int, exactly as printed — and spends the
-second row's leftover columns on the type line and XP, which is what the page in the
-rulebook does rather than leaving them empty.
+Two layouts. `strip` puts every characteristic on one row, which is what a weapon
+profile wants; `book` breaks at each group — M–Sv above Ld–Int, as printed — and
+spends the last row's leftover columns on the type line and XP. Where the groups
+break comes from is_first_of_group on StatlineTypeStat and the tint from
+is_highlighted, so both are the content's decision, not this component's.
 
-Either way the grouping comes from is_first_of_group on StatlineTypeStat, so where
-the row breaks is content. The same is true of the tint, from is_highlighted: the
-psychology stats stay together and stay emphasised whatever a pack does to the rest.
+Not built on c-ui.table: that component styles itself through descendant
+variants like [&_th]:text-ink-500, which outrank any class from a call site, so
+its left-aligned data grid cannot be turned into a centred characteristic strip.
 
-Not built on c-ui.table, the one kit component a card could not reuse. A statline is
-a centred characteristic strip where that is a left-aligned data grid with per-row
-borders and row hover — and its styling is applied through descendant variants,
-[&_th]:text-ink-500 and the like, which outrank any class put on a cell, so the look
-cannot be adjusted from the call site at all. Composing from the same tokens gets the
-strip a card actually wants.
-
-Scrolls horizontally rather than wrapping: thirteen characteristics do not fit a
-phone, and a statline that reflows stops being readable as a row.
-
-XP is two numbers, given separately rather than as the "61/79" one string a
-printed card gets. They are not the same kind of fact — one is where the fighter
-is and the other is where the next rank is — and a card that hands over the
-joined string has thrown away which is which before the template can say so. Apart,
-the target can be muted and each can carry a tooltip naming it.
+Scrolls horizontally rather than wrapping — thirteen characteristics do not fit
+a phone, and a statline that reflows stops reading as a row.
 
   :statline — a n26.render.Statline.
   layout — strip (default) or book.
-  type_line — book only; the second row's trailing cells.
-  xp — what the fighter has now.
-  xp_target — the next rank, muted beside it. Without one, xp stands alone.
+  type_line — book only; the last row's trailing cells.
+  xp, xp_target — passed apart, not as one "61/79" string, so the target can be
+    muted and each can carry a tooltip naming it. Without a target, xp stands
+    alone.
 {% endcomment %}
 {% load arith %}
 <c-vars
@@ -54,15 +42,12 @@ the target can be muted and each can carry a tooltip naming it.
     <table class="w-full border-collapse text-sm">
         {% if layout == "book" %}
             {% comment %}
-            One tbody with <th> rows inside it, rather than repeated theads, which
-            HTML allows only one of. Column counts have to agree for the rows to line
-            up, and that alignment is the whole point of the layout: Ld sits under M.
+            One tbody with <th> rows inside it, because HTML allows only one thead.
 
-            The widest group sets the table's column count. Type then spans whatever
-            the last group leaves, less one for XP — hence the subtraction, which
-            Django's template language cannot do unaided (see
-            core/templatetags/arith.py). Floored at 1, because a colspan of 0 is
-            invalid and a narrow statline should degrade rather than break.
+            The widest group sets the column count; Type spans what the last group
+            leaves, less one for XP. The subtraction needs the filters in
+            core/templatetags/arith.py, and is floored at 1 because a colspan of 0
+            is invalid.
             {% endcomment %}
             <tbody>
                 {% for group in statline.groups %}
@@ -85,23 +70,10 @@ the target can be muted and each can carry a tooltip naming it.
                                         <td colspan="{{ wide|sub:narrow|sub:1|at_least:1 }}"
                                             class="border-l border-box-border px-2 py-0.5 text-center text-ink-900 dark:text-ink-100">{{ type_line }}</td>
                                         {% comment %}
-                                        Current and target, told apart by weight
-                                        rather than by a label there is no room
-                                        for. The target is the quieter of the two
-                                        because it is a fixed fact about the rank
-                                        — it is the number on the left that moves
-                                        and that a reader is checking.
-
-                                        A tooltip each, because muting one and not
-                                        the other says they differ without saying
-                                        how, and "61/79" is only obvious once you
-                                        already know the convention.
-
                                         inline-flex so the three parts sit tight:
                                         a flex container drops whitespace-only
-                                        children, which is what stops the newlines
-                                        in this markup becoming gaps around the
-                                        slash.
+                                        children, which stops the newlines in this
+                                        markup becoming gaps around the slash.
                                         {% endcomment %}
                                         <td class="border-l border-box-border px-2 py-0.5 text-center tabular-nums text-ink-900 dark:text-ink-100">
                                             {% if xp_target %}

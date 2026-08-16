@@ -6,12 +6,7 @@
         <header class="mb-8">
             <div class="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">{{ component.group }}</div>
             <h1 class="break-all font-mono text-2xl font-semibold sm:text-3xl">&lt;{{ component.tag }}&gt;</h1>
-            {% comment %}
-        Views get a way out of the gallery. This page has a sidebar, a heading
-        set in a long monospace tag and a code block, and at phone width those
-        decide the layout before the view does — so "does this fit a phone"
-        cannot be answered here, only next door.
-            {% endcomment %}
+            {# A view needs a way out of the gallery: this page's own sidebar and heading decide the layout at phone width before the view does. #}
             {% if component.group == "Views" %}
                 <p class="mt-2 text-sm">
                     <c-n26.link href="{% url 'designsystem:view_preview' component.slug %}"
@@ -36,7 +31,6 @@
                 <p class="text-sm leading-relaxed">{{ component.notes }}</p>
             </div>
         {% endif %}
-        {# ------------------------------------------------------------------ demos #}
         {% if component.demos %}
             <div class="mb-14 space-y-10">
                 {% for demo in component.demos %}
@@ -50,7 +44,6 @@
                 and it appears here automatically.
             </div>
         {% endif %}
-        {# -------------------------------------------------------------------- api #}
         <section id="api" class="scroll-mt-24">
             <h2 class="mb-1 text-xl font-semibold">Props</h2>
             <p class="mb-4 text-sm text-muted">
@@ -67,7 +60,6 @@
             </p>
             {% include "designsystem/_api_table.html" with api=component.api %}
         </section>
-        {# ------------------------------------------------------------- sub-parts #}
         {% if component.parts %}
             <section id="parts" class="mt-14">
                 <h2 class="mb-1 text-xl font-semibold">Subcomponents</h2>
@@ -90,7 +82,6 @@
                 </div>
             </section>
         {% endif %}
-        {# ------------------------------------------------------------------- next #}
         <nav class="mt-16 flex items-stretch justify-between gap-4 border-t border-box-border pt-6 text-sm">
             {% if previous %}
                 <a href="{% url 'designsystem:component' previous.slug %}"

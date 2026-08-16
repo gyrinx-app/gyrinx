@@ -5,32 +5,24 @@
     <c-n26.icon name="plus" class="size-4" stroke_width="2" />
     <c-n26.icon name="truck" label="Deliveries" />
 
-There is no icon library to install — the kit ships none — so before this the
-artwork was pasted inline wherever it was wanted, and the same chevron lived in
-five templates. The paths now live in core/icons.py and this renders them; see
-that module for where the drawings come from and which four are ours.
+The path data lives in core/icons.py; everything else is the same for every
+icon, which is what makes one component enough. A line icon takes the colour of
+the text it sits in, so there is no colour prop, and its size comes from a class
+— or from nothing, since .n26-icon-inline sizes and vertically centres any svg
+inside it.
 
-Everything except the path data is the same for every icon, which is what makes
-one component enough: a 24x24 canvas, no fill, currentColor, round caps and
-joins. So an icon takes the colour of the text it sits in and needs no colour
-prop, and the size comes from a class — or from nothing at all, since
-.n26-icon-inline sizes and vertically centres any svg inside it.
+Stroke weight follows rendered size rather than the drawing, so it is a prop:
+1.7 suits the sizes icons usually appear at, and something at size-3 wants 2 or
+more before it fades out.
 
-stroke_width is a prop rather than a constant because weight is a function of
-size, not of the drawing: 1.7 is the house value at the sizes icons usually
-appear, and something rendered at size-3 wants 2 or 2.5 or it fades out.
+An icon with a `label` is announced; one without is hidden from screen readers,
+which is the default and right for decoration beside text that already says it.
 
-An icon with a `label` is a picture that carries meaning and is announced; one
-without is decoration beside text that already says it, and is hidden. Hidden is
-the default because that is overwhelmingly the case that comes up.
-
-The brand marks are the exception, and the one reason this template has an `if`
-in it. A logo is a filled shape, not a line drawing, and cannot be restated as a
-stroke without becoming a different logo — so github, discord and patreon are
-drawn as they ship and this swaps fill for stroke to suit. stroke_width means
-nothing on one and is ignored; core/icons.py's SOLID set is what decides. A mark
-published on a canvas other than the 24 grid keeps it too, which is why the
-viewBox is looked up rather than written here.
+The brand marks are the exception and the reason for the `if`: a logo is a
+filled shape and cannot be restated as a line drawing, so core/icons.py's SOLID
+set swaps fill for stroke and stroke_width is ignored. A mark published on a
+canvas other than the 24 grid keeps it, which is why the viewBox is looked up
+rather than written here.
 
   name — a key in core/icons.py. An unknown name raises rather than rendering
     an empty <svg>, which would be an invisible hole in a toolbar.

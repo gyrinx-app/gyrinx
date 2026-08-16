@@ -59,9 +59,11 @@ Read `demos.py` (a hundred lines) first, then `introspect.py`.
 
 ## The `notes` register
 
-A catalog entry's `notes` are not a description — they are the argument
-for the design decision: what you would have done instead, and what
-broke when you tried. Write new ones in that register.
+A catalog entry's `notes` hold call-site facts the prop table cannot
+show: silent failure modes, required companions, cross-file couplings
+(named file), rendering switches. One or two sentences; no design
+rationale, no history. A component with nothing of that kind has no
+notes.
 
 ## Traps
 
@@ -84,7 +86,11 @@ broke when you tried. Write new ones in that register.
 A comment states a constraint, an invariant, or a consequence the code
 cannot show — briefly, in plain words. It must make sense to a reader
 who has never seen any earlier version of this code: no people, no
-tickets or PRs, no changelog narration. This app comes closest to that
-standard already — keep it that way. Django `{# #}` comments are
+tickets or PRs, no changelog narration. Django `{# #}` comments are
 single-line only; multi-line prose uses `{% comment %}` (a multi-line
 `{# #}` renders as literal page text).
+
+A component's leading `{% comment %}` block is its gallery description:
+first line `<c-tag> — one-sentence summary.`, then only sentences that
+state a constraint or trap. Three to eight lines is the normal size;
+design rationale and history belong in `n26/design/` docs, not here.

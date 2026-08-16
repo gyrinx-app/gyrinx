@@ -5,29 +5,18 @@
                                icon="star" :current="True" />
 
 A real <a>, always in the HTML, so the list is reachable whether or not the
-filter above it ever runs. The row registers its own searchable text with the
-panel on init and hides itself while the query excludes it; nothing outside the
-panel knows or needs to know how many rows are showing.
+filter above it runs. The row registers its searchable text with the panel on
+init and hides itself while the query excludes it.
 
-  --- the highlighted one ---
+The current row is ticked and tinted, and says so with aria-current: a reader
+seeing neither the glyph nor the colour still has to be told which one they are
+on. The highlight is separate — where the arrow keys have got to, and where
+Enter goes — and the pointer moves it too, so only one row is ever marked as
+Enter's destination.
 
-Separately from the current one: the highlight is where the arrow keys have
-got to, and pressing Enter goes there. It is a tint plus an id the filter box
-names aloud, never a tint alone. The pointer moves it as well, so hovering a
-row and pressing Enter goes to the row under the pointer.
-
-  --- the current one ---
-
-The tick is drawn, and the row is tinted, and neither is what says "current" —
-aria-current does. A tick is a glyph and a tint is a colour, and a reader using
-neither still has to be told which of these they are already on.
-
-  --- the rule under each row ---
-
-Every row carries its own bottom rule, rather than the list dividing between
-its children. Filtering hides rows without removing them, and a divide counts
-the hidden ones: the first row left showing would draw a rule above itself with
-nothing above to separate it from.
+Each row draws its own bottom rule rather than the list dividing between its
+children: filtering hides rows without removing them, and a divide would leave
+the first row still showing with a rule above nothing.
 
   label — what the row says, and what the filter matches against.
   href — where it goes.
@@ -38,22 +27,13 @@ nothing above to separate it from.
 
 {% comment %}
 register, matches, highlight, active and close all live above this row in the
-scope chain: the first four on the panel, close() on the dropdown itself. The
-row holds nothing of its own but the text it is matched on and the id the
-panel gave it back.
+Alpine scope chain — the first four on the panel, close() on the dropdown. The
+row holds only the text it is matched on and the id the panel minted for it,
+which the filter box points at while this row is highlighted.
 
-The id is what the filter box points at when this row is the highlighted one,
-so it has to be in the document and it has to be unique on the page: the panel
-mints it, because only the panel knows how many rows it has.
-
-The pointer moves the highlight too. One row marked is the whole point of a
-highlight — a fill under the pointer and a highlight somewhere else are two
-answers to "where does Enter go", and Enter can only take one of them.
-
-A stronger tint than hover's, and it has to win against the current row's,
-which is the same colour hover uses. Which of two plain background utilities
-wins is decided by the order Tailwind emitted them, so this one is marked
-important rather than left to that.
+The highlight tint has to win against the current row's, which is the colour
+hover uses; two plain background utilities are settled by the order Tailwind
+emitted them, so this one is marked important.
 {% endcomment %}
 <a href="{{ href }}"
    role="menuitem"

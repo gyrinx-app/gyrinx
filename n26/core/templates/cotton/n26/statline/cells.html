@@ -4,14 +4,12 @@
     <tr><c-n26.statline.cells :cells="profile.statline.cells" /></tr>
 
 The values half of <c-n26.statline.header>, taking the same flat list so the two
-line up however they are sliced. Values arrive already formatted — Stat.format_value
-has turned 4 into 4", 3 into 3+ and 2 into +2 — so nothing here interprets a
-characteristic.
+line up however they are sliced. Values arrive already formatted by
+Stat.format_value — 4", 3+, +2 — so nothing here interprets a characteristic.
 
-A modified cell is marked twice over: accent *and* semibold. Colour alone would
-disappear in a theme whose accent sits close to the text, and this is the one place
-on a card where "this is not the printed value" has to survive a bad palette. The
-tooltip names what changed it, which the paper card cannot do at all.
+A modified cell is marked by accent colour and semibold together, so it still
+reads in a theme whose accent sits close to the text. Its tooltip names what
+changed it.
 
   :cells — a list of n26.render.StatCell.
   leading / trailing — extra <td> either side.

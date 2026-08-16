@@ -4,20 +4,17 @@
     <tr><c-n26.statline.header :cells="card.statline.cells" /></tr>
     <tr><c-n26.statline.header :cells="group" /></tr>
 
-Takes a flat list of StatCells, not a whole Statline, so it can render either the
-lot or one group at a time — which is what the rulebook's two-row layout needs.
-Group boundaries survive either way because is_first_of_group is on the cell.
+Takes a flat list of StatCells rather than a whole Statline, so it can draw the
+lot or one group at a time; group boundaries survive either way because
+is_first_of_group is on the cell.
 
-Emits cells rather than a row, so the same header serves the fighter's strip, the
-weapon table with a name column in front of it, and the book layout's second row
-with Type and XP after it.
+It emits cells and not a row, so the same header serves the fighter's strip, the
+weapon table with a name column in front of it, and the book layout's rows with
+Type and XP after them. The divider is suppressed on the first cell drawn, so a
+group starting a row has no rule down its left-hand side.
 
-The divider is suppressed on the first cell rendered: a group that starts a row
-should not begin with a rule down its left-hand side.
-
-full_name goes on title rather than into a c-ui.tooltip — a card carries a dozen of
-these and a gang sheet hundreds. It earns its keep on the weapon columns, where S
-and L each appear twice and only the title says which is range and which accuracy.
+full_name goes on `title` rather than into a c-ui.tooltip: a gang sheet draws
+hundreds of these cells, and a tooltip is an Alpine component apiece.
 
   :cells — a list of n26.render.StatCell.
   leading / trailing — extra <th> either side.

@@ -1,95 +1,44 @@
 {% comment %}
-<c-n26.collection-picker> — a long categorised list you filter at the top and act on inline.
+<c-n26.collection-picker> — a long categorised list, filtered at the top and
+acted on inline.
 
-    <c-n26.collection-picker :categories="names" price_ceiling="200" tp_ceiling="12">
-        <c-slot name="filters">
-            <c-n26.range-menu label="Price" model_min="minPrice" model_max="maxPrice" … />
-        </c-slot>
-        <c-n26.collection-picker.section name="Weapons">
-            <c-n26.collection-picker.category name="Pistols">
-                <c-n26.collection-picker.item name="Autopistol" :price="10" :trade_points="0">
-                    <c-slot name="actions"><c-ui.button size="sm">Add</c-ui.button></c-slot>
-                    <c-slot name="details">…the whole thing, on demand…</c-slot>
-                </c-n26.collection-picker.item>
-            </c-n26.collection-picker.category>
-        </c-n26.collection-picker.section>
+    <c-n26.collection-picker :categories="names" :sections="sections">
+        <c-slot name="filters">…range menus, toggles…</c-slot>
+        <c-n26.collection-picker.section name="Weapons">…categories, items…</c-n26.collection-picker.section>
     </c-n26.collection-picker>
 
-Two tiers, because that is what a collection has: sections hold
-categories hold rows, exactly as n26.browse.CollectionView does. The section
-collapses and the category is a heading inside it — two nested collapses would be
-one too many to thumb through, and the fine structure is what you want visible
-once the coarse one is open. A one-level list is the same thing with the category
-left out; items sitting straight in a section take its name as their own.
+Two tiers, as n26.browse.CollectionView has them: sections hold categories
+hold items. An item may sit straight in a section, and then registers the
+section's name as its category.
 
-Built for a phone first, which decides most of what follows. The filter bar is
-sticky, because a filter you have to scroll back up to reach is one you use
-once. Categories collapse, because thirty items is a lot of thumb. And every
-control narrows the list *as you touch it* — no Apply, no reload — so the loop
-is filter, look, adjust, rather than filter, wait, discover, go back.
+Filtering narrows what is already on the page and fetches nothing. Items
+register their facets on init, and one effect — recount() — walks them and
+writes the counts table that every group, tab and readout reads. Nothing else
+may walk the items: Alpine caches no getter, so a count computed per read is
+recomputed for every group on every click.
 
-  --- how it filters ---
+The controls belong to the caller. They go in the `filters` slot, render inside
+this component's Alpine scope, and drive its state by name: query, categories,
+minPrice, maxPrice, maxTradePoints, includeExclusive. <c-n26.filter-menu> has a
+scope of its own and cannot reach them, so it reports through the `filter-apply`
+event and is told to clear itself by `filter-reset`.
 
-One list of facets on this component, not per group. Items register themselves
-on init — name, category, price, trade points, exclusivity, searchable text — so the counts, the
-"showing" readout and each group's own visibility all come from that one
-array and cannot disagree with the rows.
-
-matches() is the only predicate, and one effect runs it: recount() walks the
-items once when they or a filter change and writes every count into a table
-the rest of the page reads. A group hides itself when its number there is
-zero — an empty category disappears rather than sitting there as a header
-with nothing under it, which on a phone is most of a screen wasted. The table
-is what keeps a big list quick in the hand: counting per read instead would
-walk every item through the reactive proxy once per tab, per group and per
-readout, and a click on a tab — which changes no item and no filter — would
-spend a second recomputing numbers that cannot have changed.
-
-The readout counts what is on screen rather than what was registered, which
-under tabs is one section's worth: a total spanning the sections a tab is
-hiding is a number that contradicts the list directly beneath it.
-
-A search forces every group open — findable beats tidy, and a match hidden in a
-collapsed category may as well not be a match. Closing the search puts each
-group back exactly as the reader left it, because `open` was never overwritten.
-
-  --- what it does not own ---
-
-The controls. They go in the `filters` slot and drive this component's state by
-name: `query`, `categories`, `minPrice`, `maxPrice`, `maxTradePoints` and
-`includeExclusive` are in scope for
-anything rendered there, so a call site picks the controls the data deserves
-rather than accepting a fixed bar. c-n26.range-menu and c-n26.toggle write to
-them directly — and read back from them, which is what lets Clear filters move
-a slider rather than just the number behind it. c-n26.filter-menu has its own
-Alpine scope and cannot, so it reports via the `filter-apply` event it already
-dispatches, and listens for `filter-reset` to be told.
-
-  :categories — every category name, in order. The starting selection is all of
-    them, and the category filter narrows it.
-  :sections — every section name, in order. Required for the tab strip, and
-    the strip is the default: without them the picker falls back to the stacked
-    form rather than rendering an empty list.
-  tabs — draw the sections as a tab strip and show one at a time, instead of
-    stacking them as collapsibles. One layer of disclosure rather than two.
+  :categories — every category name, in order. All are selected to start with.
+  :sections — every section name, in order. The tab strip needs them; without
+    them the picker falls back to the stacked form.
+  tabs — draw the sections as a tab strip, one at a time, instead of stacking
+    them as collapsibles. On by default.
   price_floor, price_ceiling, tp_ceiling — the ends of each numeric filter,
-    which are also its "no filter" positions. A control that can be reset has
-    to know where "off" is, and only the caller knows what the data spans.
-  filters — the control bar. Rendered inside this component's Alpine scope.
+    which are also its "off" positions.
+  filters — the control bar.
   empty — what to show when nothing matches.
 {% endcomment %}
 <c-vars
     :categories="[]"
     :sections="[]"
     {% comment %}
-    Tabs by default. Two stacked collapsibles made you click
-    twice to reach the second section — once to shut the first, once to open it —
-    and the tab strip leaves the category as the only thing that collapses, which
-    is the level where having two open at once is actually useful.
-
     Pass tabs="" for the stacked form, which suits a collection with more
-    sections than fit a strip: a tab hides everything it is not, and that cost
-    grows with the number of them.
+    sections than a strip can hold.
     {% endcomment %}
     tabs="1"
     price_floor="0"
@@ -107,26 +56,20 @@ dispatches, and listens for `filter-reset` to be told.
         allCategories: {{ categories|json_dumps }},
         sections: {{ sections|json_dumps }},
         wantsTabs: {{ tabs|yesno:"true,false" }},
-        // Tabs need something to put in the strip. With no sections the chosen
-        // one is empty, nothing matches it, and the whole list disappears --
-        // which is what happened the moment tabs became the default and the
-        // first caller that had never needed to pass sections rendered blank.
-        // A default that breaks a caller who does not know about a second prop
-        // is not a default, so this falls back to the stack instead.
+        // With no sections the chosen tab matches nothing and the whole list
+        // disappears, so a picker given none falls back to the stacked form.
         //
-        // No quote characters in here, either: this whole object is the value of
-        // a double-quoted HTML attribute, so one would end the attribute and
-        // print the rest of the state machine onto the page. It did.
+        // No quote characters anywhere in this object: it is the value of a
+        // double-quoted attribute, and one would end the attribute and print
+        // the rest of the state machine onto the page.
         get tabbed() { return this.wantsTabs && this.sections.length > 0 },
         chosenSection: {{ sections.0|default:""|json_dumps }},
         {% comment %}
-        The chosen section survives a reload by living in the URL: init
-        reads ?section= back, and chooseSection writes it without a
-        navigation. Pages that answer a click with a redirect echo the
-        parameter (a hidden input below carries it in the POST), so
-        buying from the third tab lands the reader back on the third
-        tab. An unknown name needs no guarding here — visibleSection
-        already falls back to the first section that has anything.
+        The chosen section lives in ?section= so it survives a reload, and
+        a hidden input below carries it into any POST this picker sits in,
+        so a view redirecting after a click can restore the tab. An unknown
+        name needs no guard: visibleSection falls back to the first section
+        holding anything.
         {% endcomment %}
         init() {
             const fromUrl = new URLSearchParams(location.search).get('section');
@@ -146,19 +89,13 @@ dispatches, and listens for `filter-reset` to be told.
         register(facets) { this.items.push(facets) },
 
         {% comment %}
-        Every count on the page reads this table, and one effect rebuilds
-        it when the items or a filter change. It must stay the only place
-        the items are walked: Alpine re-runs a getter per *read* and
-        caches nothing, so a count that walked the items itself would
-        walk them once per tab, per group and per readout — hundreds of
-        passes through the reactive proxy, a second of dependency
-        bookkeeping per click on a strip this size — to show numbers a
-        tab click cannot have changed.
+        Every count on the page reads this table, and one effect rebuilds it
+        when the items or a filter change. It must stay the only place the
+        items are walked — see the note at the top of this file.
 
-        countIn (a category's number) deliberately ignores the category
-        filter — the filter menu shows what each choice would yield —
-        while a section's number respects it, so a section whose every
-        category is unticked hides itself.
+        A category's number ignores the category filter, so the filter menu
+        can show what each choice would yield; a section's number respects
+        it, so a section with every category unticked hides itself.
         {% endcomment %}
         counts: { section: {}, category: {}, sectionTotal: {}, shown: 0, total: 0 },
         recount() {
@@ -186,13 +123,11 @@ dispatches, and listens for `filter-reset` to be told.
             if (this.query && !facets.search.includes(this.query.trim().toLowerCase())) return false;
             if (facets.price < this.minPrice || facets.price > this.maxPrice) return false;
             {% comment %}
-            Exclusive items answer no numeric question. "E" is not a rarity, it
-            is "equipment list only", so it sits in no trade-points range —
-            which means narrowing that slider at all has to drop them, not
-            compare them against it. n26.browse.narrow draws the same line
-            ("Filtering by trade_points drops Exclusive items"), and the two
-            agreeing is the point: the same catalogue filtered on the server and
-            filtered in the hand should not show different things.
+            "E" means equipment list only, not a point on the trade-points
+            scale, so narrowing that slider at all drops exclusive items
+            rather than comparing them against it. n26.browse.narrow draws
+            the same line, and the same catalogue filtered on the server and
+            filtered in the hand must not show different things.
             {% endcomment %}
             if (facets.exclusive) {
                 if (!this.includeExclusive) return false;
@@ -206,23 +141,11 @@ dispatches, and listens for `filter-reset` to be told.
         categoryOn(name) { return this.categories.includes(name) },
         countIn(name) { return this.counts.category[name] || 0 },
         {% comment %}
-        A section counts what is visible under it, category filter included —
-        otherwise a section whose every category has been filtered away would sit
-        there as a header with nothing inside, which is the thing countIn already
-        prevents one level down.
-        {% endcomment %}
-        {% comment %}
-        Which section is on screen is derived, never stored alongside the
-        filters. Filtering can empty the section a reader picked, and the two
-        ways to handle that are to correct the stored choice — an effect that
-        races the thing that caused it, which <c-n26.range-slider> has a long
-        note about — or to not store a conclusion at all. So `chosenSection` is
-        only what was last clicked, and what is *shown* is that if it still has
-        anything, else the first section that does.
-
-        Which also means the reader's choice survives a filter that empties it:
-        widen the filter again and their tab comes back, because nothing
-        overwrote it.
+        Which section is on screen is derived, never stored: chosenSection is
+        only what was last clicked, and what shows is that section if it still
+        holds anything, else the first that does. Correcting the stored choice
+        instead would be an effect racing the filter that caused it, and would
+        lose the reader's tab as soon as a filter emptied it.
         {% endcomment %}
         get liveSections() { return this.sections.filter(s => this.countInSection(s) > 0) },
         get visibleSection() {
@@ -233,11 +156,9 @@ dispatches, and listens for `filter-reset` to be told.
 
         countInSection(name) { return this.counts.section[name] || 0 },
         {% comment %}
-        The readout counts what the list could be drawing right now — which
-        under tabs is one section's worth, because a tab hides everything it
-        is not. Both halves read the same table the rows are filtered from,
-        so the number above the list and the rows in it cannot say
-        different things.
+        The readout counts what the list could be drawing now, which under
+        tabs is one section's worth: a total spanning the sections a tab is
+        hiding would contradict the list beneath it.
         {% endcomment %}
         get shown() {
             return this.tabbed ? this.countInSection(this.visibleSection) : this.counts.shown;
@@ -264,9 +185,9 @@ dispatches, and listens for `filter-reset` to be told.
             this.includeExclusive = true;
             this.categories = this.allCategories.slice();
             {% comment %}
-            The category menu keeps its own selection, so telling this component
-            is not enough — filter-menu listens for filter-reset by name, which
-            is the mirror of the filter-apply it already sends.
+            The category menu keeps its own selection, so clearing this
+            component's state is not enough: filter-menu listens for
+            filter-reset by name.
             {% endcomment %}
             this.$dispatch('filter-reset', { name: 'category' });
         },
@@ -274,55 +195,34 @@ dispatches, and listens for `filter-reset` to be told.
         toggleAll(open) { this.$dispatch('collection-picker-toggle', { open: open }) },
      }"
      {% comment %}
-     The one effect that walks the items. Registration and every filter
-     land here — batched to one rebuild per flush — and everything that
-     shows a number reads the table it writes.
+     The one effect that walks the items: registration and every filter land
+     here, batched to one rebuild per flush.
      {% endcomment %}
      x-effect="recount()"
      @filter-apply.window="if ($event.detail.name === 'category') categories = $event.detail.values">
 
     {% comment %}
-    The section on screen, riding whatever form this picker sits inside —
-    so a click that answers with a redirect can put the reader back on
-    the tab they were using. Bound to what is shown rather than what was
-    clicked, and empty without tabs or without script, which the views
-    read as "no tab to restore".
+    The section on screen, carried by whatever form this picker sits inside.
+    Empty without tabs or without script, which views read as "no tab to
+    restore".
     {% endcomment %}
     <input type="hidden" name="section" :value="tabbed ? (visibleSection || '') : ''">
 
     {% comment %}
-    Sticky, and the one place a z-index is needed: the dropdown panels a filter
-    opens are inside this bar, so it has to sit above the rows it scrolls over
-    without trapping its own overlays underneath them.
+    One sticky box holds every band — filters, readout, tab strip — because
+    two stacked sticky boxes would each have to know the height of everything
+    above it. Anything a call site wants pinned goes in the filters slot.
 
-    The background is opaque on purpose. A translucent bar looks better standing
-    still and turns to mush the moment tabular rows slide under it.
-
-    How far down it sticks is the page's business, not this component's: a page
-    with its own fixed header needs the bar to start below it, and a page
-    without one wants zero. So it reads --n26-sticky-top and defaults to 0,
-    which means a call site sets that variable once rather than every sticky
-    thing on the page guessing. Inline, because a `top` utility passed through
-    `class` would tie with this one and let stylesheet order decide.
-
-    One sticky box holding every band, rather than a sticky bar and a sticky
-    strip below it. Two of them would each need to know how tall everything
-    above it is — a number only measurement can give, and a wrong one either
-    overlaps the band above or leaves a stripe of scrolling list between them.
-    Stacked inside one box they simply follow each other, and the page sets one
-    offset. Anything a call site wants pinned goes in the filters slot for the
-    same reason.
+    How far down it sticks is the page's business: it reads --n26-sticky-top
+    and defaults to 0, so a page with a fixed header of its own sets that
+    variable once. Written inline, because a `top` utility passed through
+    `class` would tie with this one and leave stylesheet order to decide.
     {% endcomment %}
     <div class="sticky z-20 -mx-1 space-y-2 bg-[var(--color-bg)] px-1 pt-1 {% if tabs %}pb-0{% else %}pb-3{% endif %}"
          style="top: var(--n26-sticky-top, 0px)">
         {{ filters }}
 
         <div class="flex min-h-6 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-900 dark:text-ink-100">
-            {% comment %}
-            The count is the feedback loop. Sliders and toggles change the list
-            below the fold as often as above it, so a number that moves as you
-            drag is what tells you the control did anything at all.
-            {% endcomment %}
             <span>
                 <span class="font-semibold tabular-nums" x-text="shown"></span>
                 <span x-show="shown !== total" x-cloak> of <span class="tabular-nums" x-text="total"></span></span>
@@ -343,56 +243,17 @@ dispatches, and listens for `filter-reset` to be told.
         </div>
 
         {% comment %}
-        Tabs instead of a stack of collapsibles, when the sections are few and
-        named and a reader wants one at a time. One layer of disclosure rather
-        than two: the tab strip replaces the outer collapse entirely, so opening
-        a category is the only thing left to do.
+        A tab with nothing behind it is hidden rather than disabled, so a
+        filter that empties a section takes its tab away with it.
 
-        Worth it when the sections are a small fixed set — Gang List, Brutes,
-        Hangers-on — and worse when they are many or unevenly full, because a
-        tab hides everything it is not.
-
-        A tab with nothing behind it is hidden rather than disabled: an empty
-        tab is not a choice a reader can act on, and leaving it there to be
-        clicked and do nothing is a worse answer than removing it while the
-        filter holds.
+        Two strips, and a breakpoint picks one: from sm up every section is a
+        tab, below it the section on screen stands alone with the rest behind a
+        switcher. Both draw the rule under the strip from the tabs' own 2px
+        bottom borders plus a trailing span across the width they do not fill —
+        a rule on the strip with the active tab pulled over it lands the
+        indicator a pixel proud and reads as a double line.
         {% endcomment %}
         {% if tabs %}
-            {% comment %}
-            The rule under the strip is drawn by the tabs themselves, not by the
-            strip. A parent border plus a thicker child border pulled over it
-            with a negative margin is the usual recipe, and it leaves the active
-            indicator standing one pixel proud of the rail either side of it —
-            which is a double line, and looked like one.
-
-            Here every item carries the same 2px bottom border and the flex row
-            makes them all the same height, so every border lands on the same
-            pixels: one continuous rule, accent under the active tab and
-            box-border everywhere else. The trailing span is what carries it
-            across the width the tabs do not fill. Both strips below are built
-            that way.
-            {% endcomment %}
-            {% comment %}
-            Two strips, and the width picks one: from sm up there is room to
-            draw every section, below it there is room for one and a menu.
-
-            A breakpoint rather than a measurement. Section names come from
-            content and run long, so a row of them wrapping on a phone is a
-            whole second band of chrome — but which names fit at which width
-            is not a question worth a ResizeObserver and a ghost copy of the
-            strip to answer.
-
-            They are written as two blocks rather than one that adapts,
-            because what they do differs. Showing every tab means the row is
-            fixed: clicking one moves the accent and nothing else, so a reader
-            can go back to the tab they came from without hunting for where it
-            went. Showing one means the row is the current section followed by
-            everything else, which is the markup order — no rule needed to put
-            the current one first, because there is nothing else in the row to
-            be in front of it. One strip serving both had to pull the active
-            tab to the front, which is right in the second shape and reorders
-            the whole row on every click in the first.
-            {% endcomment %}
             <div role="tablist" class="relative hidden flex-wrap gap-x-1 sm:flex">
                 <template x-for="name in sections" :key="name">
                     <button type="button" role="tab"
@@ -411,28 +272,17 @@ dispatches, and listens for `filter-reset` to be told.
                 </template>
                 {% comment %}
                 order-last, because Alpine appends x-for clones at the end of
-                the container — so this span, written after the template, ends
-                up *before* the generated tabs in the DOM and was pushing the
-                whole strip to the right. Flex order puts it back where it
-                reads.
+                the container: this span, written after the template, ends up
+                before the generated tabs in the DOM.
                 {% endcomment %}
                 <span aria-hidden="true" class="order-last min-w-0 flex-1 border-b-2 border-box-border"></span>
             </div>
 
             {% comment %}
-            The narrow strip: the section on screen, then the rest behind the
-            chevron the switcher already draws — placement, filtering and arrow
-            keys included. Every section is in the menu, so nothing this shape
-            leaves out is a section with no way to reach it.
-
-            The tab is bound to the section on screen rather than picked out of
-            a drawn row, so there is only ever one of it and no sibling to hide.
-            It is not clickable: it is the section you are looking at, and the
-            control beside it is the way to any other.
-
-            The menu appears only while more than one section is live. Behind a
-            chevron sitting next to the only section there is, there would be
-            nothing to choose.
+            The narrow strip: the section on screen, then every section behind
+            the switcher's chevron, which appears only while more than one is
+            live. The tab is bound to what is shown rather than drawn per
+            section, so there is only ever one of it.
             {% endcomment %}
             <div role="tablist" class="relative flex flex-wrap gap-x-1 sm:hidden"
                  @quick-switcher-choose="chooseSection($event.detail.value)">
@@ -445,14 +295,13 @@ dispatches, and listens for `filter-reset` to be told.
                           x-text="countInSection(visibleSection)"></span>
                 </span>
                 {% comment %}
-                This component's own state, held under a name of its own so
-                the rows inside the panel can reach it. The switcher's panel
-                has a scope of its own and several of its names are these —
-                items, matches, register, shown, query — so a bare
-                countInSection() called down there counts the menu's rows
-                instead of the listing's, silently, and every section comes back
-                empty. $data is this scope as it stands out here, before the
-                panel's is stacked on top of it.
+                This component's state under a name of its own, so the rows
+                inside the panel can reach it. The switcher's panel has a scope
+                of its own that shares several names with this one — items,
+                matches, register, shown, query — so an expression written bare
+                down there silently reads the menu's rows instead of the
+                listing's. $data is this scope before the panel's is stacked on
+                top of it.
                 {% endcomment %}
                 <span x-data="{ picker: $data }"
                       x-show="liveSections.length > 1"
@@ -463,31 +312,23 @@ dispatches, and listens for `filter-reset` to be told.
                                           placeholder="Search sections"
                                           align="end">
                         {% comment %}
-                        The count is of the sections the menu holds beyond the
-                        one on screen — "+2 more" beside the chevron — bound
-                        rather than written because filtering changes how many
-                        sections are live. A bare chevron next to a single tab
-                        reads as decoration; a number says there is a list
-                        behind it and how long it is. "more" needs no plural,
-                        which is what keeps the words to two.
+                        How many sections the menu holds beyond the one on
+                        screen. Bound rather than written, because filtering
+                        changes how many are live.
                         {% endcomment %}
                         <c-slot name="trigger_words">
                             <span x-text="`+${picker.liveSections.length - 1} more`"></span>
                         </c-slot>
                         {% for name in sections %}
                             {% comment %}
-                            Written without a comparison operator: an
-                            expression handed to a component travels as an
-                            attribute twice over, and a `>` escaped on the way
-                            in comes out as the four characters of an entity
-                            with nothing left to decode them.
-                            {% endcomment %}
-                            {% comment %}
-                            The name is bound, not written into the attribute.
-                            Written, it arrives HTML-escaped and is escaped a
-                            second time on the way into the row's own state, so
-                            a section called "Kit & gear" compares equal to
-                            nothing and can never be the current one.
+                            Two escaping traps. The availability expression
+                            avoids a comparison operator: an expression handed
+                            to a component travels as an attribute twice over,
+                            and a `>` escaped on the way in arrives as the
+                            characters of an entity with nothing left to decode
+                            it. And the name is bound rather than written,
+                            because written it is escaped twice and a section
+                            called "Kit & gear" then equals nothing.
                             {% endcomment %}
                             <c-n26.quick-switcher.choice :label="name"
                                                          current_value="picker.visibleSection"
@@ -501,16 +342,10 @@ dispatches, and listens for `filter-reset` to be told.
     </div>
 
     {% comment %}
-    No rules between the groups. A filtered list of three hundred rows drew a
-    line under every section and category it was still showing, and the lines
-    were the loudest thing on a screen whose job is to be read down — the
-    headings' own weight and case say where a group starts, which is what type
-    is for.
-
-    Nothing here draws a divider, so nothing has to worry about the divide-y
-    trap either: Tailwind's divider keys off [hidden] and x-show sets
-    display:none instead, so a hidden group would have left its separator
-    behind and the list would have grown stray lines as a reader typed.
+    Nothing draws a rule between the groups, and nothing should: Tailwind's
+    divide-y keys off [hidden] while x-show sets display:none, so a hidden
+    group would leave its separator behind and the list would grow stray lines
+    as a reader typed.
     {% endcomment %}
     <div>{{ slot }}</div>
 

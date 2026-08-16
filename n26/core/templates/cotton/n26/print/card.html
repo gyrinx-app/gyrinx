@@ -1,46 +1,27 @@
 {% comment %}
 <c-n26.print.card> — one thing that arrives on paper whole.
 
-    {# fills its grid cell, as tall as its content #}
-    <c-n26.print.card title="Escher Gang Queen" subtitle="Fighter (Leader)" badge="135¢">
-        …
-    </c-n26.print.card>
-
-    {# a fixed physical size, with a footer pinned to the bottom edge #}
-    <c-n26.print.card height="110mm">
+    <c-n26.print.card title="Escher Gang Queen" subtitle="Fighter (Leader)"
+                      badge="135¢" height="110mm">
         <c-slot name="foot"><c-n26.print.field label="Notes" /></c-slot>
         …
     </c-n26.print.card>
 
-Width comes from the grid's cell by default, so a card tiled two-up and the same
-card tiled three-up are the same call. Standing alone, outside a grid, it fills
-its container instead — the custom property simply is not there and the fallback
-takes over.
+Width comes from the grid's cell. Outside a grid the custom property is not
+there and the card fills its container instead. Given a height, the card becomes
+a fixed physical object: the body takes the slack, the `foot` slot sits on the
+bottom edge, and anything past the bottom is clipped rather than spilling onto
+the next card.
 
-Height is the interesting prop. Left off, the card is as tall as its content and
-a row of them is as tall as the tallest. Given a length, the card becomes a
-fixed physical object — the shape you want when it is going to be cut out — and
-then the body takes the slack and the `foot` slot sits on the bottom edge
-however little there is above it. Content past the bottom is clipped rather than
-spilling onto the next card; `data-print-fit` and <c-n26.print.sheet fit> are
-how you avoid needing to.
+A card is an atomic inline, so no page fold can split it — see
+<c-n26.print.grid>.
 
-A card cannot be split by the page fold. Not because of the break-inside rules
-it carries — those are belt and braces for engines that ignore the model — but
-because it is an atomic inline. See <c-n26.print.grid> for why that is the
-whole design.
-
-  title, subtitle, badge — the head band: a name, a line under it, and a number
-    opposite. All optional; give none and no band is drawn, and the slot owns
-    the whole card.
-  width, height — CSS lengths. Width defaults to the grid cell.
-  pad — inner padding.
-  fit — mark the body for the shrink-to-fit script, so content too long for a
-    fixed-height card reduces its type instead of being cut off. Needs
-    <c-n26.print.sheet fit> to have loaded the script, and means nothing without
-    a height — an auto-height card has nothing to overflow.
-  fit_min — the floor it shrinks to, in millimetres. Below that it clips again,
-    because type too small to read is not a rescue.
+  title, subtitle, badge — the head band. Give none and no band is drawn.
+  width, height, pad — CSS lengths.
+  fit — mark the body for the shrink-to-fit script. Needs
+    <c-n26.print.sheet fit> to have loaded it, and does nothing without a
+    height, since an auto-height card cannot overflow.
+  fit_min — the type size in millimetres below which it clips instead.
 {% endcomment %}
 <c-vars
     title=""
@@ -69,12 +50,7 @@ whole design.
         </div>
     {% endif %}
 
-    {% comment %}
-    The body wrapper only exists on a fixed-height card, where something has to
-    absorb the slack for the footer to sit on the bottom edge. On an auto-height
-    card there is no slack to absorb, and an extra div would be a flex item with
-    opinions for no reason.
-    {% endcomment %}
+    {# The body wrapper absorbs the slack a fixed-height card's footer sits below. #}
     {% if height %}
         <div class="n26-print-card-body"{% if fit %} data-print-fit{% if fit_min %} data-print-fit-min="{{ fit_min }}"{% endif %}{% endif %}>{{ slot }}</div>
         {% if foot %}<div class="n26-print-card-foot">{{ foot }}</div>{% endif %}

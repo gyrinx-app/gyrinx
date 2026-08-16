@@ -5,25 +5,18 @@
     <c-n26.print.entry label="Lore" stacked>{{ prose }}</c-n26.print.entry>
     <c-n26.print.entry label="XP" aligned>61/79</c-n26.print.entry>
 
-Two shapes, because printed matter genuinely uses both. Beside, for the short
-comma-joined lists that make up most of a reference card, where stacking would
-spend a line on every heading. Above, for prose, which reads badly squeezed into
-whatever width a heading left it.
+The label sits beside the value by default, wrapped to its narrowest so a long
+heading takes two short lines rather than reserving a wide column and starving
+the value. `stacked` puts it above instead, for prose.
 
-The beside form wraps its label to its narrowest — one word per line — so a long
-label like "Legendary Names" costs two short lines rather than reserving a wide
-column and starving the value. `aligned` is the opposite trade: a fixed label
-column, for a run of entries whose values should start at the same x.
+The entry is an atomic inline-level box, which no fragmentation engine may
+split. print.css has the rules, including the one case where it is blockified
+back to an ordinary flex row.
 
-The entry is monolithic: an atomic inline-level box, which no fragmentation
-engine is permitted to split. See print.css for why that beats asking with
-break-inside, and for the one case where it is blockified back to an ordinary
-flex row.
-
-  label — the heading. Omit it and the value stands alone, still on its own line.
+  label — omit it and the value stands alone, still on its own line.
   stacked — label above the value.
-  aligned — fixed-width label column instead of a shrink-to-fit one.
-  label_width — that column's width. Only meaningful with `aligned`.
+  aligned — a fixed-width label column, so a run of entries starts its values at
+    the same x. `label_width` sets that width and means nothing without it.
 {% endcomment %}
 <c-vars label="" stacked="" aligned="" label_width="" class="" />
 

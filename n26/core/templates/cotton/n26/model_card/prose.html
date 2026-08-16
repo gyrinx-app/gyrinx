@@ -4,38 +4,13 @@
     <c-n26.model-card.prose heading="Notes" href="/fighters/1/notes/"
                             empty="No notes yet.">{{ notes }}</c-n26.model-card.prose>
 
-The two sections a player writes rather than earns, and the only places on a card
-with a control on them. One component because they are the same shape — a
-heading, an Edit, and a paragraph — and giving them separate templates would be
-two places to change the day the treatment moves.
-
-  --- the empty state ---
-
-An empty section still draws, provided there is somewhere to edit. A heading over
-nothing is normally chrome, but here it is the only thing telling a reader that a
-fighter *can* have notes; hide it and the feature exists for whoever already knew.
-The sentence goes in the muted voice a card otherwise avoids — it is the one bit
-of text on a card that is about the interface rather than about the fighter.
-
-  --- the Edit ---
-
-<c-n26.action-links>, which is what this library already uses for exactly this:
-the gallery's own overview puts a run of them under a block of rendered rich text,
-with Edit muted and Delete in danger. This is the same situation, so it is the
-same control — a first draft of this section used an xs ghost button instead,
-which was a third way of saying "edit" and belonged to nothing.
-
-Under the text rather than beside the heading. That is where the existing pattern
-puts it, and it is also where a reader looks after finishing a paragraph rather
-than before starting one.
-
-Muted, not accent. The card is a reference document read far more often than it is
-written, and an Edit competing with the fighter's name would be shouting at
-someone who came to check a statline.
+A heading, the written text, and a muted Edit under it. With nothing written
+the empty sentence is drawn instead, which is the only thing telling a reader
+the section can be written at all.
 
   heading — "Notes", "Lore".
   href — where Edit goes. Without one no link is drawn, which is what a print
-    sheet or a shared read-only card wants.
+    sheet or a read-only card wants.
   empty — what to say when there is nothing written.
 {% endcomment %}
 <c-vars heading="" href="" empty="" class="" />
@@ -44,13 +19,9 @@ someone who came to check a statline.
     <h3 class="text-sm font-semibold text-ink-900 dark:text-ink-100">{{ heading }}</h3>
 
     {% comment %}
-    slot.strip, not slot: a section written across several lines has a default
-    slot holding the newlines between them, and Django counts whitespace as
-    truthy — the plain test renders a blank paragraph and never the empty line.
-
-    :measure="False" because the card already decides how wide it is. A second cap
-    inside a column this narrow would leave a ragged gap on the right and nothing
-    else.
+    slot.strip, not slot: a slot written across several lines holds the
+    newlines between them, and Django counts whitespace as truthy — the plain
+    test draws a blank paragraph and never the empty sentence.
     {% endcomment %}
     {% if slot.strip %}
         <c-n26.prose :measure="False" class="mt-1 text-sm">{{ slot }}</c-n26.prose>

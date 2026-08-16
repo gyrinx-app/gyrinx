@@ -1,5 +1,5 @@
 {% comment %}
-<c-n26.choice-menu> — single choice in a dropdown.
+<c-n26.choice-menu> — one of a set, as a dropdown with radios.
 
     <c-n26.choice-menu
         label="Sort"
@@ -8,32 +8,18 @@
         :options="[{'value': 'recent', 'label': 'Recently edited'},
                    {'value': 'name', 'label': 'Name A–Z'}]" />
 
-The sibling of <c-n26.filter-menu>, for the things that are one-of rather than
-many-of. Sorting is the obvious case: it is never several orders at once, so the
-multi-select panel is the wrong shape for it.
+The sibling of <c-n26.filter-menu>, which is the same panel with checkboxes and
+All / None. For a menu that commits the moment you choose — no OK, no Cancel —
+the kit's own <c-ui.menu> is the better fit.
 
-Radios instead of checkboxes, and All / None and the per-row `only` go with them —
-they only mean something when more than one row can be on. What is left is the
-list, and OK / Cancel.
+OK dispatches `choice-apply` with {name, value}; Cancel puts the choice back to
+what it was when the panel opened and dispatches nothing.
 
-Like its sibling it adds no state of its own beyond a snapshot. The radio group's
-Alpine scope holds the choice in a plain, assignable `value`, and the dropdown
-exposes `close()`; both sit above this content in the scope chain. The group wraps
-the whole dropdown so the trigger can show the current choice while shut.
-
-For a plain menu that commits the moment you pick — no OK, no Cancel — the kit's
-own <c-ui.menu> is a better fit than this.
-
-  label — trigger text.
-  name — submitted field name; also the `name` on the applied event.
-  :options — [{value, label}].
-  :selected — the initially chosen value.
-  placeholder — shown in the trigger when nothing is chosen.
-  apply_label / cancel_label — footer button text.
-  align, position, min_width — passed through to the dropdown.
-
-Applying dispatches `choice-apply` with {name, value}; cancelling restores the
-choice as it was when the panel opened and dispatches nothing.
+The radio group wraps the whole dropdown rather than sitting inside the panel,
+which is what lets the trigger show the current choice while shut. Its scope
+holds the choice in an assignable `value` and the dropdown's exposes `close()`,
+and both sit above this content, so the expressions here read and write them
+directly.
 {% endcomment %}
 <c-vars
     label="Choose"
@@ -57,23 +43,16 @@ choice as it was when the panel opened and dispatches nothing.
         <c-ui.dropdown align="{{ align }}" position="{{ position }}" min_width="{{ min_width }}">
             <c-slot name="trigger">
                 {% comment %}
-                sm, a notch under the kit's default. This sits in the row beneath
-                a search bar, refining what the search returned — the search is
-                the control a reader reaches for, and a row of full-size buttons
-                under a full-size field reads as two bars of chrome before the
-                list gets a pixel.
-                {% endcomment %}
-                {% comment %}
-                default, not primary: a bar of filled accent buttons above
-                a list reads as the page's main acts rather than its
-                filters.
+                sm and `default`, matching <c-n26.filter-menu>'s trigger: these
+                sit together in a bar under a search field, refining a list
+                rather than acting on the page.
                 {% endcomment %}
                 <c-ui.button size="sm" variant="default">
                     <span class="flex items-center justify-center gap-1.5">
                         {{ label }}
                         {% comment %}
-                        A count would say nothing here — it is always one — so the
-                        trigger carries the chosen label instead.
+                        The chosen label rather than a count, which here is
+                        always one.
                         {% endcomment %}
                         <span x-show="value" x-cloak
                               x-text="options.find(o => o.value === value)?.label"
@@ -86,8 +65,8 @@ choice as it was when the panel opened and dispatches nothing.
             </c-slot>
 
             {% comment %}
-            Snapshot on open rather than on init, so Cancel reverts to how things
-            were when this panel was opened — not to how the page first loaded.
+            Snapshot on open rather than on init, so Cancel reverts to how
+            things were when the panel was opened, not to the page's first load.
             {% endcomment %}
             <div class="p-3"
                  x-init="$watch('dropdownMenu', open => { if (open) snapshot = value })">

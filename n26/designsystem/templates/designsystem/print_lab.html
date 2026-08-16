@@ -2,12 +2,7 @@
 {% block title %}Print lab{% endblock %}
 {% block mobile_title %}Print lab{% endblock %}
 {% block content %}
-    {% comment %}
-The harness. Everything is a GET parameter and the form is a plain GET form, so
-the address bar always holds the current state — which means a configuration
-that shows a bug can be pasted into a message, opened on a phone, or handed to a
-script, without anybody having to describe which checkboxes to tick.
-    {% endcomment %}
+    {# Every control is a GET parameter, so the address bar always holds the current state and a configuration that shows a bug can be sent to somebody. #}
     <div class="mb-8">
         <h1 class="text-2xl font-semibold text-ink-900 dark:text-ink-100">Print lab</h1>
         <p class="mt-2 max-w-2xl text-muted">
@@ -20,7 +15,6 @@ script, without anybody having to describe which checkboxes to tick.
         </p>
     </div>
     <div class="grid gap-6 lg:grid-cols-[20rem_minmax(0,1fr)]">
-        {# ------------------------------------------------------------- controls #}
         <div class="space-y-4">
             <form method="get"
                   class="space-y-4 rounded-box border border-box-border bg-surface p-4">
@@ -152,12 +146,7 @@ script, without anybody having to describe which checkboxes to tick.
                     Update preview
                 </c-ui.button>
             </form>
-            {% comment %}
-        The geometry, worked out. This is the readout the lab exists for: the
-        cell width is a number nobody can compute by looking at a preview, and
-        "how many fit on a page" is the question every print change is really
-        asking.
-            {% endcomment %}
+            {# The geometry, worked out: cell width and how many fit a page are not readable off a preview. #}
             <div class="rounded-box border border-box-border bg-surface p-4 text-sm">
                 <div class="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Geometry</div>
                 <dl class="space-y-1">
@@ -204,15 +193,8 @@ script, without anybody having to describe which checkboxes to tick.
                 </p>
             </div>
         </div>
-        {# -------------------------------------------------------------- preview #}
         <div class="min-w-0">
-            {% comment %}
-        An iframe, not an include. The sheet has to be its own document for the
-        same reason it has its own URL: @page is document-level, and a sheet
-        rendered inside the gallery would be pinned to the gallery's page rather
-        than to its own. The preview is the artefact, loaded the way a printer
-        would load it.
-            {% endcomment %}
+            {# An iframe, not an include: @page is document-level, so a sheet rendered inside the gallery would take the gallery's page geometry. #}
             {# djlint:off H021 — print column widths live on the cells; print engines read them there #}
             <div class="overflow-hidden rounded-box border border-box-border"
                  style="background: #565257">

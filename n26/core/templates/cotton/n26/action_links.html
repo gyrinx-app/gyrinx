@@ -15,10 +15,8 @@
         <c-n26.action-link href="/b/" tone="danger">Delete</c-n26.action-link>
     </c-n26.action-links>
 
-The dots are drawn by CSS, on every child but the first, rather than written at
-each call site — which is the whole point: adding or reordering a link cannot
-leave a stray separator behind, and a link hidden by a permission check takes its
-dot with it. See .n26-action-links in app.css.
+.n26-action-links in app.css draws the dots on every child but the first, so
+adding, reordering, or hiding a link cannot leave a stray separator behind.
 
   icon — a single leading icon for the run. Sized in em and muted, so it reads as
     labelling the group rather than belonging to the first link.

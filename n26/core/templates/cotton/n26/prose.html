@@ -6,31 +6,17 @@
         <p>Build a gang, hire some fighters, print the cards.</p>
     </c-n26.prose>
 
-For prose a template writes, as opposed to prose a database stores. The library
-had one and not the other: <c-n26.rich-text> renders what an editor produced, and
-anything hand-written in a page was left to whatever utilities its author reached
-for — which is why two screens ended up with two heading scales.
+For copy a template writes; <c-n26.rich-text> is for copy the database stores.
+Both go through the same .rich-text rules in app.css, so a page's own words and a
+description someone typed into the editor get the same typography.
 
-Both go through the same .rich-text rules in app.css, so a page's own copy and a
-description someone typed into TinyMCE are the same typography. That is the whole
-point of it being a component: the alternative is remembering to write
-class="rich-text" and getting it right every time.
+Write plain HTML inside — h2, p, ul, a — not components. The styling reaches the
+tags by descendant selector, which is what makes ordinary markup work.
 
-Plain HTML inside — h2, p, ul, a — not components. This is the one place in the
-library where that is right: the tags *are* the vocabulary, a paragraph component
-would be a paragraph with extra steps, and the styling reaches them by descendant
-selector precisely so an author can write ordinary markup.
-
-  --- the measure ---
-
-Capped at max-w-prose by default, because a line of body copy running the width of
-a desktop window is a line people lose their place in. Set :measure="False" where
-something else already constrains the width — a card, a column, a dialog — and a
-second cap would just leave a ragged gap on the right.
-
-<c-n26.rich-text> deliberately does not do this: stored content is nearly always
-already inside something with a width, and the two components differ here because
-the situations do.
+Capped at max-w-prose by default, since body copy running the full width of a
+desktop window is hard to track between lines. Pass :measure="False" where a
+card, column or dialog already constrains the width; <c-n26.rich-text> does not
+cap at all, because stored content is nearly always already inside something.
 
   :measure — cap the line length. True by default.
 {% endcomment %}
