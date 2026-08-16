@@ -54,9 +54,11 @@ from n26.library.specs import (
 #: drift test rather than trusted.
 SCOPE_PRODUCES = {
     "targets_model": "model",
+    "targets_every_model": "model",
     "targets_weapons": "weapon_profile",
     "targets_attached_weapon": "weapon_profile",
     "targets_gang": "gang",
+    "targets_gang_alone": "gang",
 }
 
 #: Which model each effect verb creates — for the compatibility check,
@@ -818,9 +820,11 @@ def suggestion_form_for(kind_model):
 #: test, so a new scope verb shows up here or shows up loudly.
 SCOPE_MODELS = {
     "targets_model": "TargetsMiniature",
+    "targets_every_model": "TargetsMiniature",
     "targets_weapons": "TargetsWeapons",
     "targets_attached_weapon": "TargetsAttachedWeapon",
     "targets_gang": "TargetsGang",
+    "targets_gang_alone": "TargetsGang",
 }
 
 
@@ -845,8 +849,20 @@ def _verb_label(name, model_label):
 
 def _scope_verb(scope):
     """Which verb builds this scope row — SCOPE_MODELS read backwards,
-    for a composer opened on a modifier that already exists."""
+    for a composer opened on a modifier that already exists.
+
+    Two scope models each carry two verbs, told apart by the row: the
+    reach an author picked is which verb they picked.
+    """
     name = type(scope).__name__
+    if name == "TargetsMiniature":
+        return (
+            "targets_every_model"
+            if scope.reach == scope.Reach.EVERY_MODEL
+            else "targets_model"
+        )
+    if name == "TargetsGang":
+        return "targets_gang" if scope.echoes else "targets_gang_alone"
     return next(verb for verb, model in SCOPE_MODELS.items() if model == name)
 
 
@@ -937,6 +953,7 @@ def scope_kind_cards(picked="", carrier=None):
                 "checked": name == picked,
                 "disabled": disabled,
                 "reason": reason,
+                "deprecated": spec.deprecated,
             }
         )
     return cards

@@ -142,14 +142,14 @@ class Target:
 
 
 class TargetsMiniature(models.Model):
-    """The model carrying the assignable — optionally only some models.
+    """Models, as far as the stated ``reach`` says — the bearer, or all.
 
-    Unfiltered, this is the ordinary case: whatever carries the modifier
-    is what it affects. Narrowing is done by **condition rows** hanging
+    The reach is the author's choice, never implied by where the carrier
+    happens to be held. Narrowing is done by **condition rows** hanging
     off this scope (``HasSubtypes``, ``CounterAtLeast``) — one row per
     condition, so a new way of narrowing is a new small model, never a
-    new column here. No rows means everyone, the same default-open rule
-    ``UsableBy`` uses.
+    new column here. No rows means every model the reach says, the same
+    default-open rule ``UsableBy`` uses.
 
     The stored shape is this scope's own — a tailored admin form,
     PROTECTed references — but it is a *dialect*: ``as_selector()``
@@ -164,15 +164,27 @@ class TargetsMiniature(models.Model):
     #: silently dead.
     CONDITIONS = ("has_subtypes", "is_profile", "has_pickable", "counter_at_least")
 
-    #: Positional, not factual — read off the carrier node, like
-    #: ``TargetsAttachedWeapon``. An archetype assigned to a Champion
-    #: applies to that Champion, never to every Champion because the gang
-    #: holds one: same carrier, and the host decides.
-    when_directly_assigned = models.BooleanField(
-        default=False,
+    class Reach(models.TextChoices):
+        #: Only the model the carrier is directly assigned to — an
+        #: archetype assigned to a Champion applies to that Champion,
+        #: never to every Champion because the gang holds one.
+        BEARER = "bearer", "the model carrying it"
+        #: Every model in the gang, however the carrier is held — the
+        #: reach a thing the gang holds has.
+        EVERY_MODEL = "every_model", "all models in the gang"
+
+    #: How far the modifier reaches, said by the author rather than
+    #: implied by where the carrier happens to be held. Positional
+    #: narrowing is read off the carrier node, like
+    #: ``TargetsAttachedWeapon``.
+    reach = models.CharField(
+        max_length=20,
+        choices=Reach,
+        default=Reach.BEARER,
         help_text=(
-            "Only the model this is directly assigned to — never reached "
-            "through the gang's broadcast."
+            "The model carrying it: only the model this is directly "
+            "assigned to. All models in the gang: everyone, however it "
+            "is carried."
         ),
     )
 
@@ -182,15 +194,25 @@ class TargetsMiniature(models.Model):
 
     def __str__(self):
         parts = [str(row) for row in self._condition_rows()] if self.pk else []
-        described = ", ".join(parts) if parts else "the model"
-        if self.when_directly_assigned:
-            described += " (bearer only)"
+        every = self.reach == self.Reach.EVERY_MODEL
+        if not parts:
+            return "all models" if every else "the model"
+        described = ", ".join(parts)
+        if every:
+            described += " (all models)"
         return described
 
     @property
     def narrows(self):
-        """Whether this scope reaches fewer than everything of its kind."""
-        return bool(self.pk and self._condition_rows()) or self.when_directly_assigned
+        """Whether this scope says anything worth keeping in a name.
+
+        The bearer is the default and says nothing beside the carrier;
+        conditions and the all-models reach are the facts that tell two
+        otherwise identical rows apart.
+        """
+        return bool(self.pk and self._condition_rows()) or self.reach == (
+            self.Reach.EVERY_MODEL
+        )
 
     def _condition_rows(self):
         return [
@@ -222,7 +244,7 @@ class TargetsMiniature(models.Model):
             self._compiled_selector = compiled
         return compiled
 
-    def targets(self, card, facts, carrier=None):
+    def targets(self, card, facts, carrier=None, echoed=False):
         """The model, when the fighter matches.
 
         ``facts`` is the round snapshot ``compute`` hands in — printed
@@ -236,10 +258,13 @@ class TargetsMiniature(models.Model):
         """
         if getattr(card, "host_kind", MODEL) != MODEL:
             return []
-        if self.when_directly_assigned and (carrier is None or carrier.broadcast):
-            # The gang's broadcast of this assignment reaches nobody; only
-            # the model it is hosted on. A discovered (granted) carrier
-            # hangs off no assignment at all, so it has no bearer.
+        if self.reach == self.Reach.BEARER and (
+            echoed or (carrier is not None and carrier.broadcast)
+        ):
+            # Never through the gang: neither the broadcast copy of a
+            # gang-hosted assignment nor a gang guest reaches anyone this
+            # way. A carrier granted on this very card does — the model
+            # of the card is the model carrying it.
             return []
         if self.as_selector().matches(facts.model()):
             return [Target(kind=MODEL)]
@@ -527,7 +552,7 @@ class TargetsWeapons(models.Model):
             self._compiled_selector = compiled
         return compiled
 
-    def targets(self, card, facts, carrier=None):
+    def targets(self, card, facts, carrier=None, echoed=False):
         from n26.core import select
 
         chosen = self.as_selector()
@@ -695,7 +720,7 @@ class TargetsAttachedWeapon(models.Model):
 
         return select.Anything()
 
-    def targets(self, card, facts, carrier=None):
+    def targets(self, card, facts, carrier=None, echoed=False):
         if carrier is None:
             return []  # a discovered (computed) carrier hangs off nothing
         for node in card.all_nodes():
@@ -717,26 +742,48 @@ class TargetsGang(models.Model):
     ``TargetsMiniature``'s guard: each targets only its own kind of
     card, read off ``card.host_kind``, so an unfiltered selector on one
     never swallows the other. A modifier reaching *members* from a
-    gang-hosted carrier uses ``TargetsMiniature`` instead; that is the
-    broadcast.
+    gang-hosted carrier says so instead: ``TargetsMiniature`` with the
+    all-models reach.
     """
+
+    #: Whether what this modifier gives the gang also rides every
+    #: member's card as the gang's guest. On, this is the ordinary
+    #: gang-and-everyone reach — a rule given to the gang does everything
+    #: it does to every fighter. Off, the grant is the gang's alone:
+    #: it prints on the gang's card and touches no fighter. Stored
+    #: assignments the gang holds (a pick made for it) ride regardless —
+    #: that is assignment-level broadcast, not this modifier's.
+    echoes = models.BooleanField(
+        default=True,
+        help_text=(
+            "Whether what this gives the gang also reaches every model. "
+            "Off, it is the gang's alone."
+        ),
+    )
 
     class Meta:
         verbose_name = "targets the gang"
         verbose_name_plural = "target the gang"
 
     def __str__(self):
-        return "the gang"
+        return "the gang" if self.echoes else "the gang alone"
 
-    #: There is one gang, so this scope has nothing to narrow to.
-    narrows = False
+    @property
+    def narrows(self):
+        """Whether this scope says anything worth keeping in a name.
+
+        There is one gang, so nothing narrows — but keeping a grant the
+        gang's alone is the fact telling two otherwise identical rows
+        on one carrier apart.
+        """
+        return not self.echoes
 
     def as_selector(self):
         from n26.core import select
 
         return select.Anything()
 
-    def targets(self, card, facts, carrier=None):
+    def targets(self, card, facts, carrier=None, echoed=False):
         if getattr(card, "host_kind", MODEL) != GANG:
             return []
         return [Target(kind=GANG)]

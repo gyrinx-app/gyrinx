@@ -3931,7 +3931,9 @@ class TestTheModifierSection:
         ).content.decode()
         assert 'name="what-stat"' in body
         assert 'name="what-amount"' in body
-        assert 'name="who-when_directly_assigned"' in body
+        # The who pane for a model scope is its condition chips: the
+        # scope itself has nothing to fill in, the verb said the reach.
+        assert "Add a condition" in body
 
     def test_composing_attaches_here(self, rule, client, default_pack):
         from n26.library.authoring import create_subtype
@@ -4471,6 +4473,13 @@ class TestTheKindCards:
         assert 'name="scope_kind"' in body
         assert 'name="effect_kind"' in body
         assert "The model carrying it" in body
+        assert "All models in the gang" in body
+        assert "The gang carrying it and all models" in body
+        assert "The gang carrying it" in body
+        # The gang-and-all-models card is kept for existing content and
+        # steered away from: it wears the pill and says to take care.
+        assert "Deprecated" in body
+        assert "in a different way per effect. Use with care." in body
         # The apostrophe arrives HTML-escaped, so the title is matched
         # around it.
         assert "choice into a section" in body
@@ -4783,7 +4792,7 @@ class TestAModifiersOwnPage:
         body = client.get(f"/n26/authoring/modifiers/{made.pk}/").content.decode()
 
         assert "The model carrying it" in body
-        assert "Whoever has the item carrying this modifier on their card." in body
+        assert "Only the model this is directly assigned to" in body
         assert "Gives something" in body
         assert "The target gains a subtype" in body
 

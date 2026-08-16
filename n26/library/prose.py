@@ -535,6 +535,19 @@ def sentence_for(modifier, carriage=UNATTACHED, thing=None, chain=None):
     # constraint would describe a modifier the database refuses.
     target = _possible_kinds(scope)[0].kind
     who = _who(carriage, thing)
+    if getattr(scope, "reach", None) == "every_model" and carriage is not GANG:
+        # The author said everyone, so the sentence speaks of everyone —
+        # while the carrier's own persistence still says how long, since
+        # whoever holds it is not the gang.
+        spoken = _who(GANG)
+        who = _Who(
+            subject=spoken.subject,
+            possessive=spoken.possessive,
+            weapons=spoken.weapons,
+            plural=spoken.plural,
+            persistence=who.persistence,
+            asked=who.asked,
+        )
     if target == GANG_TARGET:
         # The gang is the one thing every carrier reaches the same way,
         # so who holds the carrier stops mattering here.
@@ -551,7 +564,10 @@ def sentence_for(modifier, carriage=UNATTACHED, thing=None, chain=None):
     said, hint = renderer(effect, _Parts(who=who, target=target, chain=chain or {}))
     if lead:
         said = f"{lead}, {said}"
-    if getattr(scope, "when_directly_assigned", False):
+    if getattr(scope, "reach", None) == "bearer" and carriage is GANG:
+        # A bearer-reach modifier on something the gang holds: the
+        # broadcast copy reaches nobody, and only saying so stops the
+        # sentence promising everyone.
         hint += (
             " Only the model this is assigned to directly — what the "
             "gang holds does not reach anyone this way."

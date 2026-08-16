@@ -47,11 +47,14 @@ from n26.tests.sandbox.actions import (
     ef_removes,
     found_gang,
     give_weapon,
+    has_subtypes,
     hire,
     modifier,
     op_adds_model,
     remove,
+    targets_every_model,
     targets_gang,
+    targets_gang_alone,
     targets_model,
     targets_weapons,
 )
@@ -92,7 +95,7 @@ def matriarchy(backstab, weapon_skill):
     )
     modifier(
         "Matriarchy: the fighters are quick",
-        targets_model(),
+        targets_every_model(),
         ef_changes_stat(weapon_skill, mode="improve", amount=1),
         carried_by=rule,
     )
@@ -258,7 +261,7 @@ class TestTwoAims:
     def also_at_the_model(self, charter, matriarchy):
         return modifier(
             "Escher: the fighters have Matriarchy",
-            targets_model(),
+            targets_every_model(),
             ef_adds(matriarchy),
             carried_by=charter,
         )
@@ -279,6 +282,56 @@ class TestTwoAims:
         assert [line.name for line in drawn_for(crew["Yolanda"]).rules] == [
             "Matriarchy"
         ]
+
+
+class TestAGrantTheGangKeepsToItself:
+    """The gang carrying it: applied only to the gang, and what it gives
+    the gang does not reach the models — no guest, no echoed step,
+    nothing to buy from."""
+
+    @pytest.fixture
+    def sealed(self, gang_type, matriarchy, knife):
+        """A second founding row whose grants are the gang's alone."""
+        hidden = create_hidden("Sealed archives")
+        modifier(
+            "Archives: the gang alone has Matriarchy",
+            targets_gang_alone(),
+            ef_adds(matriarchy),
+            carried_by=hidden,
+        )
+        modifier(
+            "Archives: the gang alone buys from the Vault",
+            targets_gang_alone(),
+            ef_adds(create_collection("The Vault", entries=[knife])),
+            carried_by=hidden,
+        )
+        gang_type.built_ins = create_default_set("Sealed founding", members=[hidden])
+        gang_type.save()
+        return hidden
+
+    @pytest.fixture
+    def gang(self, sealed, gang_type):
+        return found_gang(
+            "The Quiet House", gang_type, owner=User.objects.create_user("tom")
+        )
+
+    def test_the_gang_holds_it_and_says_so(self, gang, crew):
+        drawn = render_gang(gang)
+        assert [line.name for line in drawn.rules] == ["Matriarchy"]
+        assert [line.name for line in gang_collections(gang)] == ["The Vault"]
+
+    def test_no_fighter_is_reached_by_any_of_it(self, gang, crew, weapon_skill):
+        for miniature in crew.values():
+            assert traits_on(miniature) == []
+            assert stat_changes_on(miniature, weapon_skill) == []
+            assert collections_for(miniature) == []
+
+    def test_the_fighters_plan_never_mentions_it(self, gang, crew):
+        _, computed = computed_for(crew["Yolanda"])
+        assert [
+            step for step in computed.plan if str(step.source) == "Matriarchy"
+        ] == []
+        assert computed.echoed == []
 
 
 class TestWhatTheGangHoldsIsNotTheFightersToShow:
@@ -382,7 +435,7 @@ class TestWhoAGuestReaches:
         leader = create_subtype("Leader")
         modifier(
             "Matriarchy: the Matriarch keeps watch",
-            targets_model(with_subtypes=[leader]),
+            targets_every_model(has_subtypes(leader)),
             ef_adds(create_skill("Overwatch")),
             carried_by=matriarchy,
         )

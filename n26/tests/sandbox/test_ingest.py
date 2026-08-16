@@ -2256,9 +2256,10 @@ def _scope_of(modifier):
     profile_names = sorted(
         str(profile) for row in scope.is_profile.all() for profile in row.profiles.all()
     )
+    bearer = scope.reach == scope.Reach.BEARER
     if subtype_names:
-        return ("subtype", subtype_names, scope.when_directly_assigned)
-    return ("profile", profile_names, scope.when_directly_assigned)
+        return ("subtype", subtype_names, bearer)
+    return ("profile", profile_names, bearer)
 
 
 class TestTheArchetypeSheet:

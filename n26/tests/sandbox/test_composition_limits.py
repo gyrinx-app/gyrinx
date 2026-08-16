@@ -36,11 +36,12 @@ from n26.tests.sandbox.actions import (
     create_wargear,
     ef_removes,
     found_gang,
+    has_subtypes,
     hire,
     modifier,
     move,
+    targets_every_model,
     targets_gang,
-    targets_model,
 )
 
 pytestmark = pytest.mark.django_db
@@ -127,7 +128,7 @@ def limit_each(carrier, at_most, thing, ranks):
     """The per-model half: a ceiling on every model of these ranks."""
     return modifier(
         f"Corrupted: {at_most} {thing} each",
-        targets_model(with_subtypes=ranks),
+        targets_every_model(has_subtypes(*ranks)),
         allows_at_most(at_most, thing),
         carried_by=carrier,
     )
