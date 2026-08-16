@@ -161,6 +161,12 @@ def world(prod_shape, person_type, owner, default_pack):
     )
     choose(anchor(fighters["switched"]), specs["Gunner"])
     assign(narrow, miniature=fighters["subjugator"])
+    # Odo answers the narrowed question, so the world holds a pick
+    # anchored on the hidden rather than the subtype.
+    choose(
+        Assignment.objects.get(hidden=narrow, miniature=fighters["subjugator"]),
+        specs["Gunner"],
+    )
     return (first, second), fighters
 
 
@@ -179,7 +185,7 @@ class TestThePlan:
             in said
         )
         assert "replace “Subjugator offer”" in said
-        assert said.count("rewrite pick") == 3
+        assert said.count("rewrite pick") == 4
         assert "retire “General offer”" in said
         assert (
             "retire the carrierless modifier "
@@ -244,15 +250,15 @@ class TestTheApply:
 
     def test_the_subjugator_holder_still_asks_a_narrow_question(self, world):
         _, fighters = world
-        before = [
+        before = sorted(
             (slot.kind_label, slot.is_resolved)
             for slot in _choices_of(fighters["subjugator"])
-        ]
+        )
 
         apply(plan_specialisation())
 
         after = _choices_of(fighters["subjugator"])
-        assert [(s.kind_label, s.is_resolved) for s in after] == before
+        assert sorted((s.kind_label, s.is_resolved) for s in after) == before
         from n26.core.render import build_choice_offer
 
         card_computed = _computed_for(fighters["subjugator"])
@@ -268,6 +274,57 @@ class TestTheApply:
             if option.key != "none"
         }
         assert names == {"Gunner", "Medic"}
+
+    def test_an_answered_narrow_question_settles_on_the_narrow_slot(self, world):
+        _, fighters = world
+
+        apply(plan_specialisation())
+
+        pick = Assignment.objects.get(
+            miniature=fighters["subjugator"], pickable__isnull=False
+        )
+        assert pick.pickable.name == "Gunner"
+        assert pick.chosen_for_slot == Slot.objects.get(
+            name="Specialisation (Subjugator Patrol Officer)"
+        )
+
+    def test_a_general_fossil_with_no_offer_still_retires(self, world, prod_shape):
+        _, _, _, general = prod_shape
+        offer = next(
+            m
+            for m in general.modifiers.all()
+            if getattr(m, "offers_choice", None) is not None
+        )
+        scope_row, effect_row = offer.scope, offer.effect
+        general.modifiers.remove(offer)
+        offer.delete()
+        scope_row.delete()
+        effect_row.delete()
+        Collection.objects.get(name="Specialisation Offer").delete()
+
+        apply(plan_specialisation())
+
+        assert not Hidden.objects.filter(qualifier="(general)").exists()
+
+    def test_a_dropped_removes_carriers_gangs_join_the_capture_set(
+        self, world, prod_shape, person_type, owner
+    ):
+        _, _, _, general = prod_shape
+        watch = create_gang_type("The Watch Rotation", starting_credits=1000)
+        watchman = create_profile("Watchman", person_type, watch, price=50)
+        modifier(
+            "Watchman: removes Specialisation Offer",
+            targets_model(),
+            ef_removes(general),
+            carried_by=watchman,
+        )
+        bystander = found_gang("The Shift", watch, owner=owner, budget=1000)
+        hire(bystander, watchman, "Silas", paid=50)
+
+        plan = plan_specialisation()
+
+        assert plan.ok
+        assert bystander.pk in plan.gang_ids
 
     def test_rechoosing_works_on_the_new_machinery(self, world, prod_shape):
         specialist, _, _, _ = prod_shape
@@ -362,6 +419,52 @@ class TestTheRefusals:
 
         assert not plan.ok
         assert "shared" in plan.problems[0]
+
+    def test_a_shared_narrow_offer_is_refused(self, world, prod_shape):
+        from n26.library.authoring import attach_modifiers_to
+
+        _, _, narrow, _ = prod_shape
+        offer = next(
+            m
+            for m in narrow.modifiers.all()
+            if getattr(m, "offers_choice", None) is not None
+        )
+        attach_modifiers_to(create_hidden("Bystander"), [offer])
+
+        plan = plan_specialisation()
+
+        assert not plan.ok
+        assert any("shared" in problem for problem in plan.problems)
+
+    def test_a_shared_general_offer_is_refused(self, world, prod_shape):
+        from n26.library.authoring import attach_modifiers_to
+
+        _, _, _, general = prod_shape
+        offer = next(
+            m
+            for m in general.modifiers.all()
+            if getattr(m, "offers_choice", None) is not None
+        )
+        attach_modifiers_to(create_hidden("Another bystander"), [offer])
+
+        plan = plan_specialisation()
+
+        assert not plan.ok
+        assert any("shared" in problem for problem in plan.problems)
+
+    def test_a_granted_specialist_subtype_is_refused(self, world, prod_shape):
+        specialist, _, _, _ = prod_shape
+        modifier(
+            "Rank grants Specialist",
+            targets_model(),
+            ef_adds(specialist),
+            carried_by=create_subtype("Sergeant"),
+        )
+
+        plan = plan_specialisation()
+
+        assert not plan.ok
+        assert any("cannot find the gangs" in problem for problem in plan.problems)
 
 
 def _computed_for(miniature):

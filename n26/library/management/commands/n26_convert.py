@@ -1,11 +1,14 @@
 """Plan or apply a slots-and-picks conversion, from the shell.
 
-The rehearsal tool: point it at a database holding the system (a fork
-of the prod mirror, a restore of a full dump) and read the plan; add
-``--apply`` to perform it, with the conversion's own refusal standing
-between the plan and a committed write. Production runs the same
-conversions through migrations — this command is how one is checked
-before it ships.
+The rehearsal tool, and for the larger systems the production tool too:
+point it at a database holding the system (a fork of the prod mirror, a
+restore of a full dump) and read the plan; add ``--apply`` to perform
+it, with the conversion's own refusal standing between the plan and a
+committed write. A small system may ship as a migration that runs its
+plan at deploy; a system proving many gangs would gamble with the
+container-boot window, so production runs this command instead, as a
+one-off job after the code deploys. Either way this is how a conversion
+is checked before it ships.
 """
 
 from django.core.management.base import BaseCommand, CommandError
@@ -26,9 +29,9 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         plan = SYSTEMS[options["system"]]()
-        for problem in plan.problems:
-            self.stdout.write(self.style.ERROR(f"problem: {problem}"))
         if not options["apply"]:
+            for problem in plan.problems:
+                self.stdout.write(self.style.ERROR(f"problem: {problem}"))
             for line in plan.preview():
                 self.stdout.write(line)
             self.stdout.write("(planned only — nothing written)")

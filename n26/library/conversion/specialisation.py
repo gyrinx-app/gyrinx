@@ -40,22 +40,44 @@ SLOT_TYPE = "Specialisation"
 PICKLIST = "Specialisations"
 NARROW_HIDDEN = "Specialisation offer"
 GENERAL_HIDDEN = "Specialisation Offer"
+NARROW_PICKLIST = "Subjugator Patrol Officer options"
+NARROW_SLOT = "Specialisation (Subjugator Patrol Officer)"
 
 
-def _the_offer(carrier, problems, said):
-    """The carrier's one specialisation offer, or a stated problem."""
-    offers = [
+def _offers_of(carrier):
+    return [
         m
         for m in carrier.modifiers.all()
         if getattr(m, "offers_choice", None) is not None
         and m.offers_choice.of_kind.model == "specialisation"
     ]
+
+
+def _the_offer(carrier, problems, said):
+    """The carrier's one specialisation offer, or a stated problem."""
+    offers = _offers_of(carrier)
     if len(offers) != 1:
         problems.append(
             f"{said} carries {len(offers)} specialisation offers — expected one"
         )
         return None
     return offers[0]
+
+
+def _solely_carried(offer, carrier, problems):
+    """Deleting an offer's modifier detaches it from every carrier at
+    once, so the plan must know no third thing shares it — a sharer's
+    gangs are outside the capture set and would lose their question
+    unproven."""
+    others = [
+        f"{kind} “{row}”"
+        for kind, row in carriers_of(offer)
+        if not (kind == type(carrier).__name__ and row.pk == carrier.pk)
+    ]
+    if others:
+        problems.append(
+            f"“{offer.name}” is shared — also carried by " + ", ".join(others)
+        )
 
 
 def plan_specialisation():
@@ -83,14 +105,19 @@ def plan_specialisation():
             problems.append(
                 "the Specialist offer names a section — expected the whole kind"
             )
-        others = [
-            f"{kind} “{row}”"
-            for kind, row in carriers_of(offer)
-            if not (kind == "Subtype" and row.pk == subtype.pk)
-        ]
-        if others:
+        _solely_carried(offer, subtype, problems)
+
+    # The capture set is found through stored assignments, so a
+    # Specialist subtype arriving by grant would reach gangs the plan
+    # cannot enumerate.
+    from n26.library.models import AddsAssignable, Modifier, RemovesAssignable
+
+    for effect_row in AddsAssignable.objects.filter(subtype=subtype):
+        granter = Modifier.objects.filter(adds_assignable=effect_row).first()
+        if granter is not None and carriers_of(granter):
             problems.append(
-                "the Specialist offer is shared — also carried by " + ", ".join(others)
+                f"“{granter.name}” grants the “{SUBTYPE}” subtype — the plan "
+                "cannot find the gangs that reaches"
             )
 
     old_rows = list(Specialisation.objects.filter(archived=False).order_by("name"))
@@ -109,7 +136,7 @@ def plan_specialisation():
 
     picks = list(
         Assignment.objects.filter(specialisation__isnull=False)
-        .select_related("specialisation", "gang_root")
+        .select_related("specialisation", "gang_root", "caused_by")
         .order_by("created")
     )
     unanchored = [str(pick.pk) for pick in picks if pick.caused_by_id is None]
@@ -137,6 +164,7 @@ def plan_specialisation():
     if narrow is not None:
         narrow_offer = _the_offer(narrow, problems, f"the “{NARROW_HIDDEN}” hidden")
         if narrow_offer is not None:
+            _solely_carried(narrow_offer, narrow, problems)
             section = narrow_offer.offers_choice.from_section
             if section is None:
                 problems.append(f"the “{NARROW_HIDDEN}” offer names no menu")
@@ -161,40 +189,77 @@ def plan_specialisation():
     general_offer = None
     general_menu = None
     stray_effects = []
+    drop_carrier_gangs = set()
     if general is not None:
         if Assignment.objects.filter(hidden=general).exists():
             problems.append(
                 f"the “{GENERAL_HIDDEN}” hidden is held by someone — it cannot retire"
             )
-        general_offer = _the_offer(general, problems, f"the “{GENERAL_HIDDEN}” hidden")
-        if general_offer is not None and general_offer.offers_choice.from_section_id:
-            general_menu = general_offer.offers_choice.from_section.collection
+        general_offers = _offers_of(general)
+        if len(general_offers) > 1:
+            problems.append(
+                f"the “{GENERAL_HIDDEN}” hidden carries "
+                f"{len(general_offers)} specialisation offers — expected at most one"
+            )
+        # A fossil that lost its offer already is simply retirable.
+        general_offer = general_offers[0] if general_offers else None
+        if general_offer is not None:
+            _solely_carried(general_offer, general, problems)
+            if general_offer.offers_choice.from_section_id:
+                general_menu = general_offer.offers_choice.from_section.collection
         # The abandoned narrowing experiment left wiring behind that
         # still names the hidden, and would protect it from retiring. A
         # bare effect row, or a whole modifier nothing carries, is dead
         # and retires with it. A carried modifier that only *removes*
         # the hidden is a read-time no-op — nothing grants the hidden
         # and nobody holds it, both proven above — so it drops from its
-        # carrier without changing a page. A carried modifier that
+        # one carrier, and that carrier's gangs join the capture set so
+        # the no-op is proven, not assumed. A carried modifier that
         # grants the hidden is live wiring, and a problem.
-        from n26.library.models import AddsAssignable, Modifier, RemovesAssignable
-
+        assignment_columns = {
+            label: column for column, label in Assignment.ASSIGNABLE_FIELDS.items()
+        }
         for model, label, column in (
             (AddsAssignable, "library.AddsAssignable", "adds_assignable"),
             (RemovesAssignable, "library.RemovesAssignable", "removes_assignable"),
         ):
-            for row in model.objects.filter(hidden=general):
-                alive = Modifier.objects.filter(**{column: row}).first()
+            for effect_row in model.objects.filter(hidden=general):
+                alive = Modifier.objects.filter(**{column: effect_row}).first()
                 if alive is None:
-                    stray_effects.append(Retire(model=label, pk=row.pk, name=str(row)))
+                    stray_effects.append(
+                        Retire(model=label, pk=effect_row.pk, name=str(effect_row))
+                    )
                     continue
                 holders = carriers_of(alive)
                 if not holders:
                     stray_effects.append(
                         RetireModifier(modifier_id=alive.pk, modifier_name=alive.name)
                     )
-                elif column == "removes_assignable" and len(holders) == 1:
+                elif column == "adds_assignable":
+                    problems.append(
+                        f"“{alive.name}” still grants the “{GENERAL_HIDDEN}” "
+                        "hidden — it cannot retire"
+                    )
+                elif len(holders) != 1:
+                    problems.append(
+                        f"“{alive.name}” removes the “{GENERAL_HIDDEN}” hidden "
+                        f"from {len(holders)} carriers — the plan only drops "
+                        "it from one"
+                    )
+                else:
                     kind, holder = holders[0]
+                    holder_column = assignment_columns.get(f"library.{kind}")
+                    if holder_column is None:
+                        problems.append(
+                            f"“{alive.name}” is carried by {kind} “{holder}” — "
+                            "the plan cannot find that carrier's gangs"
+                        )
+                        continue
+                    drop_carrier_gangs.update(
+                        Assignment.objects.filter(
+                            **{holder_column: holder}
+                        ).values_list("gang_root_id", flat=True)
+                    )
                     stray_effects.append(
                         DropModifier(
                             carrier=(f"library.{kind}", holder.pk),
@@ -203,11 +268,24 @@ def plan_specialisation():
                             modifier_name=alive.name,
                         )
                     )
-                else:
-                    problems.append(
-                        f"“{alive.name}” still names the “{GENERAL_HIDDEN}” "
-                        "hidden — it cannot retire"
-                    )
+
+    # Each pick settles onto the slot its own anchor grants: the
+    # subtype's holders answer the general question, the narrow
+    # hidden's holders answer their narrowed one. An anchor the plan
+    # does not recognise has no slot to settle on.
+    pick_slots = {}
+    for pick in picks:
+        if pick.caused_by_id is None:
+            continue
+        if pick.caused_by.subtype_id == subtype.pk:
+            pick_slots[pick.pk] = SLOT_TYPE
+        elif narrow is not None and pick.caused_by.hidden_id == narrow.pk:
+            pick_slots[pick.pk] = NARROW_SLOT
+        else:
+            problems.append(
+                f"pick {pick.pk} is anchored on “{pick.caused_by}”, which "
+                "the plan does not recognise"
+            )
 
     if problems:
         return Plan(system="specialisation", problems=tuple(problems))
@@ -248,14 +326,14 @@ def plan_specialisation():
     if narrow is not None and narrow_offer is not None:
         steps += [
             CreatePicklist(
-                name="Subjugator Patrol Officer options",
+                name=NARROW_PICKLIST,
                 slot_type=SLOT_TYPE,
                 members=tuple(narrow_names),
             ),
             CreateSlot(
-                name="Specialisation (Subjugator Patrol Officer)",
+                name=NARROW_SLOT,
                 slot_type=SLOT_TYPE,
-                picklist="Subjugator Patrol Officer options",
+                picklist=NARROW_PICKLIST,
                 label="Specialisation",
                 assigned_to="bearer",
                 min_picks=0,
@@ -268,7 +346,7 @@ def plan_specialisation():
                 grant_name=(
                     "Subjugator Patrol Officer: the model is asked its Specialisation"
                 ),
-                slot="Specialisation (Subjugator Patrol Officer)",
+                slot=NARROW_SLOT,
                 reach="model",
             ),
         ]
@@ -277,7 +355,7 @@ def plan_specialisation():
             assignment_id=pick.pk,
             old_column="specialisation",
             pickable=pick.specialisation.name,
-            slot=SLOT_TYPE,
+            slot=pick_slots[pick.pk],
             gang=str(pick.gang_root),
         )
         for pick in picks
@@ -324,6 +402,7 @@ def plan_specialisation():
                     archived=False, hidden__in=[h for h in (narrow,) if h]
                 ).values_list("gang_root_id", flat=True)
             ),
+            *drop_carrier_gangs,
         },
         key=str,
     )
