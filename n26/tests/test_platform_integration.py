@@ -969,6 +969,58 @@ class TestTheSiteBanner:
 
         assert "N26 support is coming." not in client.get("/n26/").content.decode()
 
+    def test_the_call_to_action_is_counted(
+        self, tester, client, default_pack, live_banner
+    ):
+        """A banner advertising something reported no interest from this
+        edition at all, however many readers followed it.
+
+        The bar's button pointed at the banner's own address, so the
+        click went straight there and the site counted nothing. It goes
+        by way of the platform's tracker instead, which records the click
+        against the banner and then sends the reader on. The count is the
+        site's — one banner is shown above both editions, and a click on
+        it is a click on it.
+        """
+        from django.urls import reverse
+
+        from gyrinx.analytics.models import Event, EventVerb
+        from gyrinx.analytics.nouns import PlatformNoun
+
+        banner = live_banner(cta_text="Read the notes", cta_url="https://example.com")
+
+        body = client.get("/n26/").content.decode()
+        bar = body[body.index("n26-announcement") : body.index("</aside>")]
+        tracked = reverse("core:track-banner-click", kwargs={"id": banner.id})
+        assert f'href="{tracked}"' in bar
+        assert 'href="https://example.com"' not in bar
+
+        # Following it still arrives where the banner said it would.
+        followed = client.get(tracked)
+        assert followed.status_code == 302
+        assert followed.url == "https://example.com"
+
+        assert Event.objects.filter(
+            noun=PlatformNoun.BANNER,
+            verb=EventVerb.CLICK,
+            object_id=banner.id,
+        ).exists()
+
+    def test_a_banner_with_nowhere_to_go_draws_no_button(
+        self, tester, client, default_pack, live_banner
+    ):
+        """The tracker sends a banner holding no address of its own to the
+        site's home, so a bar handed a tracker link regardless would offer
+        a button leading out of the edition to a page the banner never
+        named.
+        """
+        live_banner(cta_text="Read the notes", cta_url="")
+
+        body = client.get("/n26/").content.decode()
+        bar = body[body.index("n26-announcement") : body.index("</aside>")]
+        assert "Read the notes" not in bar
+        assert "n26-announcement-cta" not in bar
+
 
 class TestTheSharedIconKeys:
     """gyrinx/site/icons.py names an n26 icon for every key, as a string,

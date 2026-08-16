@@ -125,12 +125,25 @@ banner, is_impersonating / impersonator, gtm_container_id, messages, user.
         The route is the platform's rather than an edition's: it operates on a
         platform-owned Banner and writes a key both editions read.
         {% endcomment %}
+        {% comment %}
+        The call to action goes by way of the platform's click tracker, which
+        counts the click and then redirects to the banner's own address. Linked
+        straight at that address instead, the bar still works and the clicks
+        are simply never counted — so a banner advertising something reports
+        nothing from this edition's pages and reads as ignored.
+
+        Only when there is somewhere to go: the tracker redirects a banner with
+        no address of its own to the site's home, so handing the component a
+        tracker link unconditionally would turn "no call to action" into a
+        button leading out of the edition.
+        {% endcomment %}
         {% if banner %}
             {% url 'core:dismiss-banner' as banner_dismiss_url %}
+            {% url 'core:track-banner-click' banner.id as banner_cta_url %}
             <c-n26.site.announcement tone="{{ banner.colour|banner_tone }}"
                                      icon="{{ banner.icon|banner_icon }}"
                                      cta_text="{{ banner.cta_text }}"
-                                     cta_url="{{ banner.cta_url }}"
+                                     cta_url="{% if banner.cta_url %}{{ banner_cta_url }}{% endif %}"
                                      on_dismiss="fetch('{{ banner_dismiss_url }}', {method: 'POST', headers: {'X-CSRFToken': '{{ csrf_token }}', 'Content-Type': 'application/json'}, body: JSON.stringify({banner_id: '{{ banner.id }}'})})"
                                      id="site-banner-{{ banner.id }}">
                 {{ banner.text }}
