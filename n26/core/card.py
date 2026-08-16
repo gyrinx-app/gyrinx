@@ -745,6 +745,19 @@ def build_card_from_profile(profile, option=None, base=None):
                 )
                 weapon_nodes[assignable.pk] = node
             roots.append(node)
+            if member.default_pickable_id is not None:
+                # A slot arriving already settled: the preview draws the
+                # starting pick the hire will write, not an open choice.
+                roots.append(
+                    Node(
+                        assignable=member.default_pickable,
+                        key=next(counter),
+                        caused_by_key=node.key,
+                        chosen_for_key=node.key,
+                        chosen_for_slot_id=assignable.pk,
+                        reason=Reason.DEFAULT,
+                    )
+                )
 
     # Bundled ammo stacks under its weapon, wherever in the selection the
     # weapon arrived — the same order of business as the hire itself.

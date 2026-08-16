@@ -200,6 +200,69 @@ class TestTheCardYouGetIsTheCardYouWerePromised:
         assert build_model_card(beast).name == "Growler"
 
 
+class TestAStartingPickOnThePreview:
+    """A slot built in with its starting pick: the preview reads settled,
+    the way the hired card does — not an open Choose."""
+
+    @pytest.fixture
+    def settled_hunter(self, person_type, gang_type, default_pack):
+        from n26.library.authoring import (
+            add_built_in,
+            create_pickable,
+            create_picklist,
+            create_slot,
+            create_slot_type,
+        )
+
+        legacy = create_slot_type("Gang Legacy")
+        cawdor = create_pickable("Cawdor", legacy)
+        modifier(
+            "Cawdor grants Zealot",
+            TargetsMiniature.objects.create(),
+            AddsAssignable.objects.create(rule=create_rule("Zealot")),
+            carried_by=cawdor,
+        )
+        houses = create_picklist("House Legacies", legacy, members=[cawdor])
+        slot = create_slot("Gang Legacy", legacy, houses)
+        profile = Profile.objects.create(
+            name="Hunter", profile_type=person_type, gang_type=gang_type, price=100
+        )
+        add_built_in(profile, slot, default_pickable=cawdor)
+        return profile
+
+    def test_the_preview_draws_the_pick_rather_than_choose(self, settled_hunter):
+        (choice,) = preview(settled_hunter).choices
+
+        assert (choice.kind_label, choice.chosen) == ("Gang Legacy", "Cawdor")
+
+    def test_what_the_pick_means_runs_on_the_preview(self, settled_hunter):
+        """The starting pick is a real pick, not decoration: what it
+        gives shows before anyone buys, and nothing is written."""
+        from n26.core.models import Assignment
+
+        card = preview(settled_hunter)
+
+        assert "Zealot" in [rule.name for rule in card.rules]
+        assert Assignment.objects.count() == 0
+
+    def test_the_hire_delivers_the_choice_it_promised(self, gang, settled_hunter):
+        from n26.core.card import build_card
+
+        promised = preview(settled_hunter)
+        hired = hire_with_option(gang, settled_hunter, "Grendel")
+        card = build_card(hired, with_statlines=True)
+        index = build_modifier_index([n.assignable for n in card.all_nodes()])
+        delivered = build_model_card(hired, card=card, computed=compute(card, index))
+
+        assert [(c.kind_label, c.chosen) for c in delivered.choices] == [
+            (c.kind_label, c.chosen) for c in promised.choices
+        ]
+        assert (delivered.choices[0].kind_label, delivered.choices[0].chosen) == (
+            "Gang Legacy",
+            "Cawdor",
+        )
+
+
 class TestModifiersRunInAPreview:
     def test_a_granted_skill_shows_before_you_buy(self, person_type, gang_type):
         """Built-ins carry modifiers, and a preview computes them."""
