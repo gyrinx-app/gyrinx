@@ -512,15 +512,25 @@ class Optioned(models.Model):
         screen makes: a pick-one set with a single option is taken
         unasked, and naming it would tell a reader about a decision
         nobody made.
+
+        Nothing stops two options bringing the same set, and a taking
+        records the set rather than the wording that reached it. Each
+        recorded set is therefore spent on the first option offering it,
+        exactly as ``resolve_selection`` spends what a player named — a
+        set taken once is named once, however many ways there were to
+        ask for it.
         """
+        unspent = set(recorded_sets)
         taken = []
         for group, offered in self.grouped_offers():
             one_of = (group.choose if group is not None else "one") == "one"
             if one_of and len(offered) < 2:
                 continue
-            here = [
-                option for option in offered if option.default_set_id in recorded_sets
-            ]
+            here = []
+            for option in offered:
+                if option.default_set_id in unspent:
+                    unspent.discard(option.default_set_id)
+                    here.append(option)
             taken.extend(here or (offered[:1] if one_of else []))
         return taken
 

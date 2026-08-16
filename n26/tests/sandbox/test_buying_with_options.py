@@ -529,6 +529,34 @@ class TestWhatAnOwnedCopySays:
             ("Cutter plasma guns",),
         ]
 
+    def test_a_set_two_offers_share_is_named_once(
+        self, client, owner, gang, fighter, default_pack
+    ):
+        """A taking records the set, not the wording that reached it, so
+        an author offering one set from two places leaves nothing to
+        tell the two apart. It is named where it was spent — naming it
+        again under the second offer would credit the buyer with a
+        fitting they never took."""
+        rig = create_wargear("Grav rig", price=40)
+        offer_option(rig, "As standard", thing=create_wargear("Rig webbing", price=0))
+        offer_option(
+            rig, "With boosters", thing=create_wargear("Rig boosters", price=15)
+        )
+        boosters = rig.options.get(name="With boosters").default_set
+        spares = create_option_group(rig, "Spares", choose="one-or-none")
+        offer_option(rig, "Boosters again", default_set=boosters, group=spares)
+        collection = create_collection("Sundries", entries=[rig])
+        assign(collection, gang=gang)
+
+        client.force_login(owner)
+        client.post(
+            equip_url(fighter, collection),
+            {"thing": key_of(rig), choice_field(rig, 0): "1"},
+        )
+
+        row = row_named(client, owner, fighter, collection, "Grav rig")
+        assert [copy.chosen for copy in row.copies] == [("With boosters",)]
+
     def test_something_that_asked_nothing_says_nothing(
         self, client, owner, gang, fighter, house_list, default_pack
     ):
