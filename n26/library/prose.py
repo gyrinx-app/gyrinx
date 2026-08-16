@@ -536,9 +536,18 @@ def sentence_for(modifier, carriage=UNATTACHED, thing=None, chain=None):
     target = _possible_kinds(scope)[0].kind
     who = _who(carriage, thing)
     if getattr(scope, "reach", None) == "every_model" and carriage is not GANG:
-        # The author said everyone, so the sentence says everyone —
-        # whoever happens to hold the carrier.
-        who = _who(GANG)
+        # The author said everyone, so the sentence speaks of everyone —
+        # while the carrier's own persistence still says how long, since
+        # whoever holds it is not the gang.
+        spoken = _who(GANG)
+        who = _Who(
+            subject=spoken.subject,
+            possessive=spoken.possessive,
+            weapons=spoken.weapons,
+            plural=spoken.plural,
+            persistence=who.persistence,
+            asked=who.asked,
+        )
     if target == GANG_TARGET:
         # The gang is the one thing every carrier reaches the same way,
         # so who holds the carrier stops mattering here.

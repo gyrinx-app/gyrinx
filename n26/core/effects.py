@@ -892,8 +892,15 @@ def _acquisitions(log, dead):
     """
     held = {}
     for placed in log.placed:
-        if _stands(placed, dead):
-            held.setdefault(placed.thing_key, placed.contribution)
+        if not _stands(placed, dead):
+            continue
+        standing = held.get(placed.thing_key)
+        # First giver still standing names it — except that a giver whose
+        # grant echoes beats one keeping it the gang's alone, whatever
+        # order the batch happened to sort them in: reaching the members
+        # must not turn on a modifier's name.
+        if standing is None or (placed.contribution.echoes and not standing.echoes):
+            held[placed.thing_key] = placed.contribution
     return list(held.values())
 
 

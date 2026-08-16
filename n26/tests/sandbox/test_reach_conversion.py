@@ -85,6 +85,23 @@ class TestWhatTheConversionDecides:
         made.scope.refresh_from_db()
         assert made.scope.reach == TargetsMiniature.Reach.BEARER
 
+    def test_a_pickable_nobody_has_picked_for_a_gang_stays_the_bearer(
+        self, default_pack
+    ):
+        """A pickable cannot be built in, so only its live picks say
+        where it is used — and with none, the decision is the bearer,
+        reached without a crash."""
+        from n26.library.authoring import create_pickable, create_slot_type
+
+        made = _model_scoped("Guild payload")
+        pickable = create_pickable("Water Guild", create_slot_type("Alliance"))
+        attach_modifiers_to(pickable, [made])
+
+        say_the_reach(live_apps)
+
+        made.scope.refresh_from_db()
+        assert made.scope.reach == TargetsMiniature.Reach.BEARER
+
     def test_an_unattached_modifier_stays_the_bearer(self, default_pack):
         made = _model_scoped("Spare payload")
 

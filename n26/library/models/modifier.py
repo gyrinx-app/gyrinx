@@ -194,8 +194,11 @@ class TargetsMiniature(models.Model):
 
     def __str__(self):
         parts = [str(row) for row in self._condition_rows()] if self.pk else []
-        described = ", ".join(parts) if parts else "the model"
-        if self.reach == self.Reach.EVERY_MODEL:
+        every = self.reach == self.Reach.EVERY_MODEL
+        if not parts:
+            return "all models" if every else "the model"
+        described = ", ".join(parts)
+        if every:
             described += " (all models)"
         return described
 
@@ -765,8 +768,15 @@ class TargetsGang(models.Model):
     def __str__(self):
         return "the gang" if self.echoes else "the gang alone"
 
-    #: There is one gang, so this scope has nothing to narrow to.
-    narrows = False
+    @property
+    def narrows(self):
+        """Whether this scope says anything worth keeping in a name.
+
+        There is one gang, so nothing narrows — but keeping a grant the
+        gang's alone is the fact telling two otherwise identical rows
+        on one carrier apart.
+        """
+        return not self.echoes
 
     def as_selector(self):
         from n26.core import select

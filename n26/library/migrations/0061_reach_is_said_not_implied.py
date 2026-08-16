@@ -37,6 +37,7 @@ FIGHTER_SIDE = (
     "Collection",
     "Counter",
     "Trait",
+    "LastingEffect",
 )
 
 
@@ -57,8 +58,13 @@ def _carrier_kinds(apps, modifier_ids):
     return found
 
 
+#: The either-side kinds a default assignment can name — a pickable
+#: cannot be built in, so only its live picks say where it is used.
+_FOUNDING_COLUMNS = ("rule", "hidden", "slot")
+
+
 def _used_on_a_gang(apps, kind, carrier):
-    """Whether this rule/hidden reaches gangs anywhere: a live assignment
+    """Whether this carrier reaches gangs anywhere: a live assignment
     hosted on a gang, or a place in any gang type's founding built-ins."""
     Assignment = apps.get_model("n26", "Assignment")
     GangType = apps.get_model("library", "GangType")
@@ -70,6 +76,8 @@ def _used_on_a_gang(apps, kind, carrier):
         .exists()
     ):
         return True
+    if column not in _FOUNDING_COLUMNS:
+        return False
     founding = GangType.objects.filter(built_ins__isnull=False).values_list(
         "built_ins", flat=True
     )
@@ -88,28 +96,27 @@ def say_the_reach(apps, schema_editor=None):
         # column's default, so only the other decisions write.
         if getattr(scope, "when_directly_assigned", False):
             continue
-        modifiers = list(
-            Modifier.objects.filter(targets_miniature=scope).values_list(
-                "pk", flat=True
-            )
+        rows = list(
+            Modifier.objects.filter(targets_miniature=scope).values_list("pk", "name")
         )
-        names = list(
-            Modifier.objects.filter(targets_miniature=scope).values_list(
-                "name", flat=True
-            )
-        )
+        modifiers = [pk for pk, _ in rows]
+        names = ", ".join(name for _, name in rows)
         carriers = _carrier_kinds(apps, modifiers) if modifiers else []
         gang_use = False
+        undecided = []
         for kind, carrier in carriers:
+            said = getattr(carrier, "name", None) or carrier.pk
             if kind in GANG_SIDE:
                 gang_use = True
-            elif kind in EITHER_SIDE and _used_on_a_gang(apps, kind, carrier):
-                gang_use = True
-                said = getattr(carrier, "name", None) or carrier.pk
-                print(
-                    f"[reach] {names}: carried by {kind} “{said}”, "
-                    "which reaches gangs — converted to all models."
-                )
+            elif kind in EITHER_SIDE:
+                if _used_on_a_gang(apps, kind, carrier):
+                    gang_use = True
+                    print(
+                        f"[reach] {names}: carried by {kind} “{said}”, "
+                        "which reaches gangs — converted to all models."
+                    )
+                else:
+                    undecided.append(f"{kind} “{said}”")
         if not carriers and modifiers:
             print(
                 f"[reach] {names}: nothing carries it — left as the model "
@@ -125,6 +132,12 @@ def say_the_reach(apps, schema_editor=None):
                 )
             scope.reach = "every_model"
             scope.save(update_fields=["reach"])
+        elif undecided:
+            print(
+                f"[reach] {names}: carried by {', '.join(undecided)}, used "
+                "on no gang — left as the model carrying it. Review if the "
+                "carrier is meant for gangs."
+            )
 
 
 class Migration(migrations.Migration):
