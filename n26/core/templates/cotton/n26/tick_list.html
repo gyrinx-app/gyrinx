@@ -20,6 +20,12 @@ Rows rather than cards, to sit in a box beside a model's card. An empty offer
 draws nothing; what to say instead depends on why it is empty, which the page
 knows and this does not.
 
+Every line states its own font size. `text-muted` is a colour and carries no
+size, so a muted line without one inherits whatever it sits in and can come out
+*larger* than the name it belongs under. The order here is the reading order: a
+heading and an option name at the base size, and the lines that qualify them —
+the tier caption, and where a thing came from — a step smaller.
+
   :offer — a n26.render.ChoiceOffer.
   name — the input name every box submits under. One name across every group.
 {% endcomment %}
@@ -33,9 +39,9 @@ knows and this does not.
         only where the list spans several — see n26.render.ChoosableGroup.
         {% endcomment %}
         <fieldset>
-            <legend class="mb-1 block text-sm font-semibold text-ink-900 dark:text-ink-100">
+            <legend class="mb-1 block text-base font-semibold text-ink-900 dark:text-ink-100">
                 {{ group.name }}
-                {% if group.caption %}<span class="font-normal text-muted">{{ group.caption }}</span>{% endif %}
+                {% if group.caption %}<span class="text-sm font-normal text-muted">{{ group.caption }}</span>{% endif %}
             </legend>
             <div class="space-y-1">
                 {% for option in group.options %}
@@ -46,13 +52,13 @@ knows and this does not.
                                value="{{ option.key }}"
                                {% if option.is_current %}checked{% endif %}
                                {% if option.granted_by %}disabled{% endif %}
-                               class="mt-0.5 size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
+                               class="mt-1 size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
                         <span class="min-w-0 flex-1">
-                            <span class="block text-sm text-ink-900 dark:text-ink-100">{{ option.name }}</span>
+                            <span class="block text-base text-ink-900 dark:text-ink-100">{{ option.name }}</span>
                             {% if option.granted_by %}
-                                <span class="block text-muted">From {{ option.granted_by }}</span>
+                                <span class="block text-sm text-muted">From {{ option.granted_by }}</span>
                             {% elif option.detail %}
-                                <span class="block text-muted">{{ option.detail }}</span>
+                                <span class="block text-sm text-muted">{{ option.detail }}</span>
                             {% endif %}
                         </span>
                     </label>
