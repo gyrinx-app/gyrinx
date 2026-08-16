@@ -33,39 +33,39 @@ That objection is obsolete — the codebase already solved it, twice over:
 So the answer is yes, and the security work is done. What follows is mostly wiring
 existing parts together, plus one genuine design decision about colour.
 
-## The colour problem — decide this first
+## Colour and crisp edges — decided, and one of them is a live bug
 
-`sanitize_inline_svg` **deliberately forces monochrome**. `_COLOR_ATTR_RE` rewrites every
-concrete `fill` and `stroke` to `currentColor`, so the icon takes the colour of the text
-beside it. That is the right call for gang type icons. For badges it is a decision
-somebody has to make, because it is not what the current badges look like.
+`sanitize_inline_svg` does two things beyond sanitising that matter here. Verified by
+running it over the four committed badge SVGs:
 
-Verified by running the sanitiser over the four committed badge SVGs:
+- It **forces monochrome**: `_COLOR_ATTR_RE` rewrites every concrete `fill`/`stroke` to
+  `currentColor`, preserving only `none` and `url(…)`. `scummer.svg`'s `fill="#B18…"`
+  accents are flattened — the Patreon badges are two-tone today.
+- It **drops `shape-rendering="crispEdges"`**, which is not in `_PRESENTATION_ATTRS`. The
+  badges are 24×24 pixel art, so they would go soft at small sizes.
 
-- All four survive with no elements dropped, but `scummer.svg` has `fill="#B18…"` accents
-  rewritten to `currentColor`. The Patreon badges are **two-tone today** and the sanitiser
-  would flatten them to silhouettes.
-- `shape-rendering="crispEdges"` is dropped — it is not in `_PRESENTATION_ATTRS`. These
-  badges are 24×24 pixel art, so losing it means blurry edges at small sizes. Gang type
-  icons are not pixel art, which is presumably why nobody has hit this.
+**The `shape-rendering` drop is already hurting production.** The gang type icons are
+pixel art too, and they go through this sanitiser on every render — so they are being
+drawn with antialiased edges right now. Adding `shape-rendering` to `_PRESENTATION_ATTRS`
+is a fix for existing n26 artwork, not preparation for badges, and it should land on its
+own rather than waiting behind this work.
 
-Three consequences:
+Decisions taken:
 
-1. **Do not route the four committed badges through the sanitiser.** They are trusted repo
-   assets; inlining them verbatim keeps their palette and their crisp edges. Two render
-   paths is the correct answer here, not an accident.
+1. **Preserve colour.** `sanitize_inline_svg` gets a `preserve_colour=True` option that
+   skips `_COLOR_ATTR_RE`, and badge rendering passes it. Safe — colour values are inert,
+   and the attribute allowlist (which excludes `style`) is what actually holds the line.
+   One tightening to do on that path: `_normalise_color` currently preserves *any* value
+   starting with `url(`, so the colour-preserving path must restrict it to `url(#` or
+   stored artwork could name an external paint server.
 2. **Add `shape-rendering` to `_PRESENTATION_ATTRS`.** Purely presentational, no attack
-   surface, and pixel-art badges need it.
-3. **Decide whether uploaded badges may be full colour.** If yes, `sanitize_inline_svg`
-   needs a `preserve_colour=True` option that skips `_COLOR_ATTR_RE`. This is safe —
-   colour values are inert, and the attribute allowlist (which excludes `style`) is what
-   actually holds the line. One caveat if it is added: `_normalise_color` currently
-   preserves *any* value starting with `url(`, so a `preserve_colour` path should tighten
-   that to `url(#` so stored artwork cannot name an external paint server.
+   surface, fixes gang type icons as a side effect.
+3. **Do not route the four committed badges through the sanitiser.** They are trusted repo
+   assets and inlining them verbatim is both cheaper and lossless. Two render paths is the
+   correct answer here, not an accident.
 
-My recommendation: allow colour. A supporter or playtester badge is a small piece of
-identity artwork, and the content team will want more than a silhouette. Monochrome
-remains available by simply drawing it in `currentColor`.
+Monochrome stays available to anyone who wants it — draw the artwork in `currentColor`
+and nothing rewrites it.
 
 ## Promote the artwork module to the platform
 
@@ -268,8 +268,10 @@ step state the blast radius.
 
 ## Build order
 
-1. `shape-rendering` in the allowlist; `preserve_colour` option on `sanitize_inline_svg`
-   if colour is wanted. Small, self-contained, testable.
+1. `shape-rendering` in the allowlist, and a `preserve_colour` option on
+   `sanitize_inline_svg` (with `url(` tightened to `url(#` on that path). Small,
+   self-contained, testable — and the allowlist half fixes the gang type icons, so it need
+   not wait for the rest.
 2. Promote `artwork.py` to the platform with a `prefix` parameter; n26 imports from there.
 3. `Badge` + `BadgeGrant` + migration + admin + bulk actions.
 4. Eligibility union on `UserProfile`, `auto_display` filter in `display_badge`, two-provider
@@ -292,6 +294,9 @@ Cases worth pinning:
   start going through the sanitiser).
 - Uploaded artwork carrying `<script>`, an `on*` handler and a `<foreignObject>` renders
   none of them.
+- With `preserve_colour`, concrete fills survive and `shape-rendering` survives; without
+  it, existing behaviour is unchanged. A `fill="url(https://…)"` is refused on the
+  colour-preserving path.
 - An expired grant, and a grant whose badge is archived, grant nothing.
 - An EVERYONE grant with `auto_display=False` widens the picker and changes no rendered
   page.
@@ -302,8 +307,6 @@ Cases worth pinning:
 
 ## Open questions
 
-- Colour or monochrome for uploaded badges? This is the one that changes the code (see
-  above) and the one the content team will have an opinion about.
 - Should a tester badge outrank the Patreon tiers for someone who is both? Rank decides it,
   and it is easier to pick now than after people have seen it.
 - Is `expires_at` wanted in the first cut? Cheap now, awkward to retrofit, but it adds a
