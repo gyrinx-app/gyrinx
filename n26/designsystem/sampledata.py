@@ -1864,14 +1864,15 @@ def carried():
     owned rows because the real function said so, and not because a
     template drew them differently.
 
-    Two Stub guns and a Meltagun with a paid round: a count above one, a
-    part under a copy, and everything else on the list untouched. Those
-    are the states a row has, and one sample answers for every surface
-    that asks what this fighter is carrying.
+    Two Stub guns, a Meltagun with a paid round, and a mount bought with
+    two of its options taken: a count above one, a part under a copy, a
+    copy naming what it was bought with, and everything else on the list
+    untouched. Those are the states a row has, and one sample answers
+    for every surface that asks what this fighter is carrying.
     """
     from n26.core.owned import OwnedPart, OwnedThing, thing_key
 
-    def copy(name, rating, index=0, parts=()):
+    def copy(name, rating, index=0, parts=(), chosen=()):
         stock = _stock(name)
         pk = f"{stock.pk}-{index}"
         return thing_key(stock), OwnedThing(
@@ -1884,6 +1885,7 @@ def carried():
             reassign_href="#",
             refund_href="#",
             remove_href="#",
+            chosen=chosen,
         )
 
     round_ = OwnedPart(
@@ -1900,6 +1902,14 @@ def carried():
         copy("Meltagun", 135, parts=(round_,)),
         copy("Stub gun", 5, index=0),
         copy("Stub gun", 5, index=1),
+        # The mount the sample list offers alternatives on, bought with
+        # one taken from each of its two sets — the options themselves,
+        # never the author's name for the set they came from.
+        copy(
+            "Grav-cutter",
+            165,
+            chosen=("Grav-cutter plasma guns", "Smoke dispenser"),
+        ),
     ):
         held.setdefault(key, []).append(thing)
     return held

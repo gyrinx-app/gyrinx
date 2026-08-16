@@ -435,6 +435,191 @@ class TestTakingNothingFromAnOptionalSet:
         assert_reconciled(gang)
 
 
+class TestWhatAnOwnedCopySays:
+    """A mount already bought names the guns it was bought with.
+
+    The row above it is about the content — every Cutter there could
+    be — so the answer belongs to the copy: two mounts on one fighter
+    may carry different guns and a heading cannot say both.
+    """
+
+    def buy(self, client, owner, fighter, house_list, cutter, **picked):
+        client.force_login(owner)
+        client.post(equip_url(fighter, house_list), {"thing": key_of(cutter), **picked})
+
+    def chosen(self, client, owner, fighter, house_list):
+        row = cutter_row(client, owner, fighter, house_list)
+        return [copy.chosen for copy in row.copies]
+
+    def test_a_swap_is_named_on_the_copy_that_took_it(
+        self, client, owner, fighter, house_list, cutter
+    ):
+        self.buy(
+            client, owner, fighter, house_list, cutter, **{choice_field(cutter, 0): "2"}
+        )
+
+        assert self.chosen(client, owner, fighter, house_list) == [
+            ("Cutter plasma guns",)
+        ]
+
+    def test_the_standard_guns_are_named_though_nobody_picked_them(
+        self, client, owner, fighter, house_list, cutter
+    ):
+        """Taking what comes as standard records nothing, because there
+        was nothing to record. A reader asking what this mount carries
+        still needs telling, so the set answers with its head."""
+        self.buy(client, owner, fighter, house_list, cutter)
+
+        assert self.chosen(client, owner, fighter, house_list) == [
+            ("Cutter grenade launchers",)
+        ]
+
+    def test_both_sets_are_named_in_the_order_the_offer_puts_them(
+        self, client, owner, fighter, house_list, cutter
+    ):
+        self.buy(
+            client,
+            owner,
+            fighter,
+            house_list,
+            cutter,
+            **{choice_field(cutter, 0): "2", choice_field(cutter, 1): "0"},
+        )
+
+        assert self.chosen(client, owner, fighter, house_list) == [
+            ("Cutter plasma guns", "Smoke dispenser")
+        ]
+
+    def test_a_set_nobody_took_anything_from_says_nothing(
+        self, client, owner, fighter, house_list, cutter
+    ):
+        """A one-or-none set left alone is a mount without a dispenser,
+        which is a thing it has not got — and a line saying so would be
+        the page listing everything nobody bought."""
+        self.buy(
+            client,
+            owner,
+            fighter,
+            house_list,
+            cutter,
+            **{choice_field(cutter, 0): "0", choice_field(cutter, 1): ""},
+        )
+
+        assert self.chosen(client, owner, fighter, house_list) == [
+            ("Cutter grenade launchers",)
+        ]
+
+    def test_two_copies_each_say_what_they_took(
+        self, client, owner, fighter, house_list, cutter
+    ):
+        self.buy(
+            client, owner, fighter, house_list, cutter, **{choice_field(cutter, 0): "2"}
+        )
+        self.buy(
+            client,
+            owner,
+            fighter,
+            house_list,
+            cutter,
+            **{choice_field(cutter, 0): "1", choice_field(cutter, 1): "0"},
+        )
+
+        assert sorted(self.chosen(client, owner, fighter, house_list)) == [
+            ("Cutter heavy stubbers", "Smoke dispenser"),
+            ("Cutter plasma guns",),
+        ]
+
+    def test_something_that_asked_nothing_says_nothing(
+        self, client, owner, gang, fighter, house_list, default_pack
+    ):
+        knife = create_wargear("Stiletto knife", price=10)
+        house_list.entries.create(wargear=knife)
+
+        client.force_login(owner)
+        client.post(equip_url(fighter, house_list), {"thing": key_of(knife)})
+
+        row = row_named(client, owner, fighter, house_list, "Stiletto knife")
+        assert [copy.chosen for copy in row.copies] == [()]
+
+
+class TestWhatTheOwnedCopyDraws:
+    """The same, on the page — where the offer is drawn a second time."""
+
+    def test_the_page_prints_what_the_copy_took(
+        self, client, owner, fighter, house_list, cutter
+    ):
+        """The picks run together, which is the substring the radios
+        below cannot make: "Buy another" redraws every option this mount
+        offers, so either name on its own proves nothing."""
+        client.force_login(owner)
+        client.post(
+            equip_url(fighter, house_list),
+            {
+                "thing": key_of(cutter),
+                choice_field(cutter, 0): "2",
+                choice_field(cutter, 1): "0",
+            },
+        )
+        body = client.get(equip_url(fighter, house_list)).content.decode()
+
+        assert "Cutter plasma guns · Smoke dispenser" in body
+
+    def test_the_label_the_author_gave_a_set_still_reaches_nobody(
+        self, client, owner, fighter, house_list, cutter
+    ):
+        """Naming the sets would be the tidy way to draw two picks, and
+        it is the one way that is not ours to draw: the label is the
+        author's note to themselves."""
+        client.force_login(owner)
+        client.post(
+            equip_url(fighter, house_list),
+            {
+                "thing": key_of(cutter),
+                choice_field(cutter, 0): "2",
+                choice_field(cutter, 1): "0",
+            },
+        )
+        body = client.get(equip_url(fighter, house_list)).content.decode()
+
+        assert SET_LABEL not in body
+
+
+class TestNamingWhatIsOwnedCostsNothing:
+    """Describing a copy reads the recorded sets and the offer they came
+    from, both already in hand — so a fighter buying more mounts asks the
+    database no more than one who bought a single mount."""
+
+    def test_it_costs_no_query_per_copy(
+        self, client, owner, fighter, house_list, cutter
+    ):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        from n26.core.card import build_card
+        from n26.core.owned import owned_things
+
+        def buy(pick):
+            client.force_login(owner)
+            client.post(
+                equip_url(fighter, house_list),
+                {"thing": key_of(cutter), choice_field(cutter, 0): pick},
+            )
+
+        def measure():
+            with CaptureQueriesContext(connection) as captured:
+                card = build_card(fighter, with_options=True)
+                owned = owned_things(card, "/equip")
+                named = [thing.chosen for thing in owned[key_of(cutter)]]
+                assert all(named), named
+            return len(captured.captured_queries)
+
+        buy("2")
+        one = measure()
+        for pick in ["0", "1", "2"]:
+            buy(pick)
+        assert measure() == one
+
+
 class TestAPickTheListingNeverOffered:
     """A tampered index is a broken link, not a rule to explain — and it
     buys nothing at all, not even the mount."""

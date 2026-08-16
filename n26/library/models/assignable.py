@@ -499,6 +499,31 @@ class Optioned(models.Model):
             raise ValueError(f"{self.name} does not offer: {', '.join(strays)}.")
         return taken
 
+    def options_taken(self, recorded_sets):
+        """The options something was acquired with, in the offer's own order.
+
+        ``recorded_sets`` is the ids of the sets recorded against it,
+        because a set is what materialises. A pick-one group records
+        nothing where its head was taken, so a group with nothing
+        recorded answers with its head — that is what was taken, and a
+        reader asking what a thing has needs telling either way.
+
+        Groups offering no choice are left out, the same test the buying
+        screen makes: a pick-one set with a single option is taken
+        unasked, and naming it would tell a reader about a decision
+        nobody made.
+        """
+        taken = []
+        for group, offered in self.grouped_offers():
+            one_of = (group.choose if group is not None else "one") == "one"
+            if one_of and len(offered) < 2:
+                continue
+            here = [
+                option for option in offered if option.default_set_id in recorded_sets
+            ]
+            taken.extend(here or (offered[:1] if one_of else []))
+        return taken
+
     def price_with(self, selection=None, base=None):
         """This, its built-ins, and every set taken with it.
 

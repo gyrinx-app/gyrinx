@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 from n26.core.effects import ModifierIndex
 from n26.core.models import Assignment, Reason
 from n26.core.models.assignment import ASSIGNABLE_FIELDS
+from n26.library.models.assignable import OPTION_OFFER_PATHS
 from n26.library.models.modifier import GANG, MODEL
 
 
@@ -378,7 +379,7 @@ def _flat_rows(**filters):
     )
 
 
-def hydrate_rows(rows, with_statlines=False):
+def hydrate_rows(rows, with_statlines=False, with_options=False):
     """Load everything a card build reads off ``rows`` — narrow passes,
     never a wide join.
 
@@ -391,6 +392,12 @@ def hydrate_rows(rows, with_statlines=False):
 
     ``with_statlines`` pulls each profile's characteristics along too,
     which rendering needs and plain assignment work does not.
+
+    ``with_options`` pulls what each copy was bought with — the sets
+    recorded against it and the offer they were picked from. Only the
+    screens that name a copy's options ask for it: a printed sheet says
+    what a fighter carries and never how it was chosen, and would pay
+    these passes for an answer it does not print.
     """
     from django.db.models import prefetch_related_objects
 
@@ -418,6 +425,8 @@ def hydrate_rows(rows, with_statlines=False):
             "profile__profile_type__statline_type__stats__stat",
             "weapon_profile__weapon__statline_type__stats__stat",
         ]
+    if with_options:
+        paths += ["chosen_options", *(f"wargear__{p}" for p in OPTION_OFFER_PATHS)]
     prefetch_related_objects(rows, *paths)
     return rows
 
@@ -441,12 +450,14 @@ def set_by_hand(**filters):
     return grouped
 
 
-def card_rows(with_statlines=False, **filters):
+def card_rows(with_statlines=False, with_options=False, **filters):
     """The flat fetch every card build starts from: one assignment query,
     hydrated. Builds fetching more than one list of assignments hydrate
     them together instead — one pass covers any number of fetches.
     """
-    return hydrate_rows(_flat_rows(**filters), with_statlines=with_statlines)
+    return hydrate_rows(
+        _flat_rows(**filters), with_statlines=with_statlines, with_options=with_options
+    )
 
 
 def gang_rows(gang):
@@ -536,7 +547,9 @@ def assemble(
     return card
 
 
-def build_card(miniature, with_statlines=False, assignment_set=None):
+def build_card(
+    miniature, with_statlines=False, assignment_set=None, with_options=False
+):
     """A model's card: everything it owns, or one named selection.
 
     Two assignment queries rather than one — the model's own, then the
@@ -554,7 +567,9 @@ def build_card(miniature, with_statlines=False, assignment_set=None):
     gang = membership.gang if membership else None
     own = _flat_rows(miniature_root=miniature)
     shared = gang_rows(gang)
-    hydrate_rows([*own, *shared], with_statlines=with_statlines)
+    hydrate_rows(
+        [*own, *shared], with_statlines=with_statlines, with_options=with_options
+    )
     return assemble(
         miniature,
         own,
@@ -597,7 +612,7 @@ def _forest(rows):
     return roots
 
 
-def build_gang_card(gang, with_statlines=True, assignment_set=None):
+def build_gang_card(gang, with_statlines=True, assignment_set=None, with_options=False):
     """The gang's own card, its stash, and every member's card.
 
     The same fetch family as ever: one assignment query for everything
@@ -616,7 +631,9 @@ def build_gang_card(gang, with_statlines=True, assignment_set=None):
     # The stash's assignments ride the same hydration pass as everyone's
     # — a second pass would repeat every narrow query for a handful.
     stash_rows = _flat_rows(gang_root=gang, stash_root__isnull=False)
-    hydrate_rows([*rows, *stash_rows], with_statlines=with_statlines)
+    hydrate_rows(
+        [*rows, *stash_rows], with_statlines=with_statlines, with_options=with_options
+    )
     for row in rows:
         if row.miniature_root_id is None:
             shared.append(row)
