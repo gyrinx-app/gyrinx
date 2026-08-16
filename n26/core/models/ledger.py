@@ -34,6 +34,10 @@ class Reason(models.TextChoices):
     GRANTED = "granted", "Granted by something else"
     REWARD = "reward", "Reward"
     FREE = "free", "Free"
+    # The owner's own change to what the model is — a subtype or rule
+    # they added or took away themselves. Priced at nothing, and what a
+    # per-section reset archives.
+    EDITED = "edited", "Edited by the owner"
 
 
 class LedgerEntry(Base):
@@ -112,6 +116,10 @@ class LedgerEvent(Base):
         # — by a reader, and by anyone reconciling the books — and only a
         # kind of its own can answer.
         SOLD = "sold", "Sold"
+        # The arrival of an owner's removal: "Took away: Mounted" is
+        # what happened, where the plain ``added`` would read as the
+        # opposite of what the owner did.
+        TOOK_AWAY = "took_away", "Took away"
         # Journal-only acts: no entry, no deltas, nothing for reconcile
         # to fold. They exist so the history can say what the owner did.
         RENAMED = "renamed", "Renamed"

@@ -169,6 +169,13 @@ class Card:
     #: depicts nobody, so there is nobody's settings to honour.
     stat_overrides: dict = field(default_factory=dict)
 
+    #: The owner's own removals — assignments whose ``removes`` is set,
+    #: each naming a subtype or rule to take away. Machinery, never
+    #: lines: they are kept off the node tree so nothing walking the
+    #: card can mistake one for a held thing, and ``n26.core.effects``
+    #: reads them as unconditional removals.
+    removals: list = field(default_factory=list)
+
     #: The gang's own card, when this card belongs to one of its models.
     #: The gang's own assignments already ride here as broadcast nodes;
     #: what the gang holds by *grant* has no assignment to ride, so its
@@ -540,7 +547,12 @@ def assemble(
     beneath them — are left off the card. Non-equipment (the profile,
     subtypes, skills, injuries) always rides.
     """
-    kept = rows
+    # The owner's removals part company with the lines here, before any
+    # node exists to mistake for a held thing. A print selection cannot
+    # resurrect them: they are read off the full fetch, not the kept one.
+    removals = [row for row in rows if row.removes]
+    kept = [row for row in rows if not row.removes]
+    rows = kept
     if assignment_set is not None:
         from n26.core.models.assignment_set import SELECTABLE_FIELDS
 
@@ -582,6 +594,7 @@ def assemble(
         roots=roots,
         gang_card=gang_card,
         stat_overrides=stat_overrides or {},
+        removals=removals,
     )
     # Only what the model owns. The gang-hosted assignments ride the card
     # so their modifiers reach it; they are not part of what it is worth.

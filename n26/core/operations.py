@@ -222,6 +222,8 @@ class Operation:
         reason=None,
         bought_from=None,
         note="",
+        removes=False,
+        kind=None,
     ):
         """Write one assignment: an assignable, a host, and a cause.
 
@@ -247,6 +249,7 @@ class Operation:
             caused_by=caused_by,
             chosen_for=chosen_for,
             chosen_for_slot=chosen_for_slot,
+            removes=removes,
         )
         if list_price is None:
             list_price = paid + discount
@@ -273,14 +276,17 @@ class Operation:
         )
         self.event(
             assignment,
-            _kind_for(paid, caused_by),
+            kind if kind is not None else _kind_for(paid, caused_by),
             credits_delta=paid,
             trade_points_delta=trade_points,
             rating_delta=rating,
             note=note,
         )
         self.touched(assignment.miniature_root)
-        self._run_stored_effects(assignment, assignable)
+        # A removal is not an arrival: the thing named is being taken
+        # away, so nothing it would write on arrival may run.
+        if not removes:
+            self._run_stored_effects(assignment, assignable)
         return assignment
 
     def _run_stored_effects(self, assignment, assignable):
@@ -380,6 +386,45 @@ class Operation:
             override.save()
             self.event(miniature, LedgerEvent.Kind.STAT_SET, note=said)
         return miniature
+
+    def take_away(self, miniature, thing):
+        """The owner removes a subtype or rule from what the model shows.
+
+        Stored as an assignment with ``removes`` set — the carrier of
+        the owner's decision, ledgered like any acquisition — and
+        compiled at read time to an unconditional removal, so what it
+        cancels is suppressed rather than written to. Archiving this
+        assignment brings the thing back; a purchase in the thing's
+        name is never hidden by it (``n26.core.effects``).
+        """
+        return self.assign(
+            thing,
+            miniature=miniature,
+            paid=0,
+            reason=Reason.EDITED,
+            removes=True,
+            kind=LedgerEvent.Kind.TOOK_AWAY,
+        )
+
+    def reset_edits(self, miniature, field):
+        """Archive the owner's own edits of one kind, adds and removals
+        both, so the model reads as the content says again.
+
+        ``field`` is the assignable column the section holds —
+        ``"subtype"`` or ``"rule"``. Each archive writes its own event,
+        so the reset is in the history like everything else.
+        """
+        edits = list(
+            Assignment.objects.filter(
+                miniature_root=miniature,
+                archived=False,
+                ledger_entry__reason=Reason.EDITED,
+                **{f"{field}__isnull": False},
+            )
+        )
+        for assignment in edits:
+            self.remove(assignment, note="reset")
+        return edits
 
     def remove(self, assignment, note=""):
         """Take something away — and everything it brought with it.
