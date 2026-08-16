@@ -26,13 +26,14 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         plan = SYSTEMS[options["system"]]()
-        for line in plan.preview():
-            self.stdout.write(line)
         for problem in plan.problems:
             self.stdout.write(self.style.ERROR(f"problem: {problem}"))
         if not options["apply"]:
+            for line in plan.preview():
+                self.stdout.write(line)
             self.stdout.write("(planned only — nothing written)")
             return
+        # The apply report opens with the preview, so it is not said twice.
         try:
             for line in apply(plan):
                 self.stdout.write(line)

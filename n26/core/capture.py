@@ -4,11 +4,14 @@ states of the world.
 A conversion that moves content from one shape to another must leave
 every page saying the same things. The capture holds exactly the facts
 that must not change — names, numbers, the questions asked and what
-settled them — as sorted primitives, so two captures compare with ``==``
-and any difference is a mistake by definition. Addresses, ids and
-provenance wording are deliberately absent: a conversion may change
-where a control leads and which machinery asks a question, never what
-the reader is told.
+settled them — as plain primitives, sorted wherever the page's own
+order carries no meaning (a statline keeps its printed order; a run of
+rules does not), so two captures compare with ``==`` and any difference
+is a mistake by definition. Addresses and provenance wording are
+deliberately absent — a conversion may change where a control leads and
+which machinery asks a question, never what the reader is told — and
+the one id kept is the model key, so a difference names the fighter it
+is about.
 
 Built on ``render_gang``, the same derivation every screen uses, so the
 capture cannot agree with a broken page.

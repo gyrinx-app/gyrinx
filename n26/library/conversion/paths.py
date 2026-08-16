@@ -77,9 +77,9 @@ def plan_paths():
         .order_by("position", "affiliation__name")
     )
     old_paths = [entry.affiliation for entry in entries]
-    if len(old_paths) < 2:
+    if len(old_paths) != 2:
         problems.append(
-            f"the “{menu.name}” menu lists {len(old_paths)} affiliations — expected the two paths"
+            f"the “{menu.name}” menu lists {len(old_paths)} affiliations — expected exactly the two paths"
         )
 
     picks = list(
