@@ -142,14 +142,14 @@ class Target:
 
 
 class TargetsMiniature(models.Model):
-    """The model carrying the assignable — optionally only some models.
+    """Models, as far as the stated ``reach`` says — the bearer, or all.
 
-    Unfiltered, this is the ordinary case: whatever carries the modifier
-    is what it affects. Narrowing is done by **condition rows** hanging
+    The reach is the author's choice, never implied by where the carrier
+    happens to be held. Narrowing is done by **condition rows** hanging
     off this scope (``HasSubtypes``, ``CounterAtLeast``) — one row per
     condition, so a new way of narrowing is a new small model, never a
-    new column here. No rows means everyone, the same default-open rule
-    ``UsableBy`` uses.
+    new column here. No rows means every model the reach says, the same
+    default-open rule ``UsableBy`` uses.
 
     The stored shape is this scope's own — a tailored admin form,
     PROTECTed references — but it is a *dialect*: ``as_selector()``
@@ -739,8 +739,8 @@ class TargetsGang(models.Model):
     ``TargetsMiniature``'s guard: each targets only its own kind of
     card, read off ``card.host_kind``, so an unfiltered selector on one
     never swallows the other. A modifier reaching *members* from a
-    gang-hosted carrier uses ``TargetsMiniature`` instead; that is the
-    broadcast.
+    gang-hosted carrier says so instead: ``TargetsMiniature`` with the
+    all-models reach.
     """
 
     #: Whether what this modifier gives the gang also rides every

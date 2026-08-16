@@ -758,6 +758,112 @@ class TestOneChoiceOpensAnother:
         assert_reconciled(gang)
 
 
+class TestAGangPickOpensAChoiceOnEveryModel:
+    """The Water Guild shape: the gang's pick grants a slot to all
+    models, so each fighter's card asks its own Guild Role — anchored on
+    the gang's pick riding their card. The gang's own card is never
+    asked: the grant reaches no model there."""
+
+    @pytest.fixture
+    def guild_shape(self, person_type, gang_type, default_pack):
+        alliance = create_slot_type("Alliance")
+        role = create_slot_type("Guild Role")
+        nauticus = create_pickable("Nauticus", role)
+        modifier(
+            "Nauticus: its rule",
+            targets_model_with(),
+            ef_adds(create_rule("Master of Water")),
+            carried_by=nauticus,
+        )
+        roles = create_picklist("Guild Roles", role, members=[nauticus])
+        role_slot = create_slot("Guild Role", role, roles)
+        guild = create_pickable("Water Guild", alliance)
+        modifier(
+            "Water Guild grants the Guild Role choice",
+            targets_every_model(),
+            ef_adds(role_slot),
+            carried_by=guild,
+        )
+        guilds = create_picklist("Guilds", alliance, members=[guild])
+        alliance_slot = create_slot("Alliance", alliance, guilds, assigned_to="gang")
+        add_built_in(gang_type, alliance_slot)
+        profile = create_profile("Hunter", person_type, gang_type, price=100)
+        return profile, guild, nauticus, role_slot
+
+    @pytest.fixture
+    def gang(self, owner, gang_type, guild_shape):
+        # Founded after the built-in exists: founding is what writes the
+        # gang's Alliance slot.
+        return found_gang("The Long Hunt", gang_type, owner=owner, budget=1000)
+
+    def crew_with_the_pick(self, gang, profile, guild):
+        fighters = [
+            hire(gang, profile, name, paid=100) for name in ("Kaustos", "Grendel")
+        ]
+        (alliance_row,) = gang_choices(gang).choices
+        choose(alliance_row.anchor.assignment, guild)
+        return fighters
+
+    def test_every_model_is_asked_and_the_gang_is_not(self, gang, guild_shape):
+        profile, guild, _, _ = guild_shape
+        fighters = self.crew_with_the_pick(gang, profile, guild)
+
+        for fighter in fighters:
+            assert [row.kind_label for row in choices_of(fighter)] == ["Guild Role"]
+        assert [row.kind_label for row in gang_choices(gang).choices] == ["Alliance"]
+        assert_reconciled(gang)
+
+    def test_the_role_settles_per_fighter_and_its_payload_lands(
+        self, gang, guild_shape
+    ):
+        profile, guild, nauticus, role_slot = guild_shape
+        kaustos, grendel = self.crew_with_the_pick(gang, profile, guild)
+        (role_row,) = choices_of(kaustos)
+
+        choose(role_row.anchor.assignment, nauticus, slot=role_slot, miniature=kaustos)
+
+        _, computed = card_of(kaustos)
+        assert [line.name for line in computed.rules] == ["Master of Water"]
+        assert card_of(grendel)[1].rules == []
+        assert Assignment.objects.get(pickable=nauticus).miniature == kaustos
+        assert_reconciled(gang)
+
+    def test_unchoosing_the_alliance_takes_every_role_with_it(self, gang, guild_shape):
+        profile, guild, nauticus, role_slot = guild_shape
+        kaustos, _ = self.crew_with_the_pick(gang, profile, guild)
+        (role_row,) = choices_of(kaustos)
+        choose(role_row.anchor.assignment, nauticus, slot=role_slot, miniature=kaustos)
+
+        remove(Assignment.objects.get(pickable=guild))
+
+        assert choices_of(kaustos) == []
+        assert not Assignment.objects.filter(
+            pickable__isnull=False, archived=False
+        ).exists()
+        assert_reconciled(gang)
+
+    def test_the_screen_asks_on_the_fighters_card_and_the_click_lands(
+        self, gang, guild_shape, client, owner
+    ):
+        from n26.core.views.choose import link_slots
+
+        profile, guild, nauticus, _ = guild_shape
+        kaustos, _ = self.crew_with_the_pick(gang, profile, guild)
+        client.force_login(owner)
+        sheet = render_gang(gang)
+        link_slots(gang, sheet, *sheet.models)
+        card = next(drawn for drawn in sheet.models if drawn.name == "Kaustos")
+        (line,) = card.questions
+
+        body = client.get(line.href).content.decode()
+        assert "Nauticus" in body
+        response = client.post(line.href, {"thing": f"library.pickable:{nauticus.pk}"})
+
+        assert response.status_code == 302
+        assert Assignment.objects.get(pickable=nauticus).miniature == kaustos
+        assert_reconciled(gang)
+
+
 class TestRemovingTheChoiceItself:
     def test_the_pick_goes_with_it(self, gang, squats_hunter):
         grendel = hire(gang, squats_hunter, "Grendel", paid=100)

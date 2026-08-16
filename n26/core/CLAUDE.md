@@ -57,10 +57,13 @@ underlying spec.
   A new display fact is a new field, computed in Python.
 - Every assignable a card shows carries a `Provenance` saying where it
   came from.
-- **Host decides reach.** An assignment hosted on the gang is broadcast
-  to every member's card (marked `broadcast=True`) so gang-wide rules
-  reach them — they draw no line, and gang-hosted assignments carry no
-  rating of their own. Any new code walking a card's nodes needs
+- **Host decides visibility; the scope says the reach.** An assignment
+  hosted on the gang rides every member's card (marked `broadcast=True`)
+  so its modifiers *can* run there — they draw no line, and gang-hosted
+  assignments carry no rating of their own. Whether a targets-the-model
+  modifier actually reaches through that ride is the scope's stated
+  `reach` ("the model carrying it" never does; "all models in the gang"
+  is what the ride is for). Any new code walking a card's nodes needs
   `if node.broadcast: continue` or it will double-count the gang's kit
   onto every fighter.
 - **What the gang holds by *grant* rides too.** A thing a modifier gave

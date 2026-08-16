@@ -108,6 +108,10 @@ class Contribution:
     thing: object
     source: str
     source_kind: str = ""
+    #: Whether, granted to the gang, it also rides every member's card
+    #: as the gang's guest — the granting scope's own say. Meaningless
+    #: for a grant to a model, where there is nothing to echo.
+    echoes: bool = True
 
     @property
     def name(self):
@@ -615,10 +619,12 @@ def compute(card, index):
     # it does. Something the card already carries is passed over: the
     # assignment it stands on is the more direct telling, and one thing's
     # modifiers run once however many ways it reaches the card.
+    # A grant whose scope keeps it the gang's alone never echoes: it
+    # prints on the gang's card and touches no fighter.
     echoed = [
         contribution
         for contribution in _from_the_gang(card, index)
-        if ModifierIndex.key(contribution.thing) not in seen
+        if contribution.echoes and ModifierIndex.key(contribution.thing) not in seen
     ]
     for contribution in echoed:
         seen.add(ModifierIndex.key(contribution.thing))
@@ -691,30 +697,30 @@ def compute(card, index):
                     continue
                 step.outcome = "reached"
                 label, label_kind = str(step.source), kind_of(step.source)
-                if (
-                    isinstance(effect, AddsAssignable)
-                    and effect.slot_id is not None
-                    and not (
-                        step.echoed or (step.node is not None and step.node.broadcast)
-                    )
-                ):
+                if isinstance(effect, AddsAssignable) and effect.slot_id is not None:
                     # A choice one thing opens by giving another: picking
                     # Clan House opens the House choice. Once per grant
-                    # however many targets it reaches — the choice belongs
-                    # to whatever gave it, not to each thing it lands on.
-                    # It is asked where the giver is held: the gang's is
-                    # asked on the gang's own card, never again on each
-                    # member's.
-                    given = (
-                        effect.thing,
-                        anchors.get(source_key),
-                        label,
-                        label_kind,
-                    )
-                    given_slots.items.append(given)
-                    log.applied.append(
-                        _Applied(source_key, given_slots, "items", given)
-                    )
+                    # however many targets it reaches — and asked where
+                    # the grant *landed*. A local giver's choice is asked
+                    # here, whatever it targets; a gang-held giver's is
+                    # asked on each card its scope reached a model of —
+                    # Water Guild, the gang's pick, opening a Guild Role
+                    # on every fighter — and never repeated for merely
+                    # riding a card as the gang's copy.
+                    given_here = not (
+                        step.echoed or (step.node is not None and step.node.broadcast)
+                    ) or any(target.kind == MODEL for target in targets)
+                    if given_here:
+                        given = (
+                            effect.thing,
+                            anchors.get(source_key),
+                            label,
+                            label_kind,
+                        )
+                        given_slots.items.append(given)
+                        log.applied.append(
+                            _Applied(source_key, given_slots, "items", given)
+                        )
                 for target in targets:
                     if isinstance(effect, AddsAssignable):
                         thing = effect.thing
@@ -722,7 +728,10 @@ def compute(card, index):
                             (
                                 target,
                                 Contribution(
-                                    thing=thing, source=label, source_kind=label_kind
+                                    thing=thing,
+                                    source=label,
+                                    source_kind=label_kind,
+                                    echoes=getattr(scope, "echoes", True),
                                 ),
                                 step.node,
                                 source_key,

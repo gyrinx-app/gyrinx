@@ -4473,6 +4473,9 @@ class TestTheKindCards:
         assert 'name="scope_kind"' in body
         assert 'name="effect_kind"' in body
         assert "The model carrying it" in body
+        assert "All models in the gang" in body
+        assert "The gang carrying it and all models" in body
+        assert "The gang carrying it" in body
         # The apostrophe arrives HTML-escaped, so the title is matched
         # around it.
         assert "choice into a section" in body
