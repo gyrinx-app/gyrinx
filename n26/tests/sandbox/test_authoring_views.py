@@ -4614,7 +4614,7 @@ class TestFindingAModifierAmongHundreds:
             "targets_model",
             "targets_weapons",
         }
-        assert {row["effect"] for row in rows} == {"adds_assignable", "changes_stat"}
+        assert {row["effect"] for row in rows} == {"ef_adds", "ef_changes_stat"}
 
     def test_every_row_says_whether_anything_holds_it(self, assorted, client):
         rows = self.facets(client)
@@ -4629,8 +4629,8 @@ class TestFindingAModifierAmongHundreds:
             "targets_weapons",
         ]
         assert [option["value"] for option in self.options(client, "effect")] == [
-            "adds_assignable",
-            "changes_stat",
+            "ef_adds",
+            "ef_changes_stat",
         ]
         assert [option["value"] for option in self.options(client, "carried")] == [
             "carried",
@@ -4672,7 +4672,64 @@ class TestFindingAModifierAmongHundreds:
 
         assert by_value["targets_model"] == "The model carrying it"
         assert by_value["targets_weapons"] == "The model's weapons"
-        assert by_value["changes_stat"] == "Changes stat"
+        assert by_value["ef_changes_stat"] == "Changes a stat"
+
+    def test_every_verb_wears_its_own_card_label(self, author, client, default_pack):
+        """One modifier per scope verb and one per placement verb: the
+        facet offers every option under its composer card name, keyed by
+        verb — a column-keyed facet would lump the pairs that share a
+        model."""
+        from n26.library.authoring import (
+            create_category,
+            create_collection,
+            create_rule,
+            create_trait,
+            ef_adds,
+            ef_places,
+            ef_places_choice,
+            modifier,
+            targets_attached_weapon,
+            targets_every_model,
+            targets_gang,
+            targets_gang_alone,
+            targets_model,
+            targets_weapons,
+        )
+        from n26.tests.sandbox.actions import section_of
+
+        scopes = {
+            "targets_model": targets_model(),
+            "targets_every_model": targets_every_model(),
+            "targets_weapons": targets_weapons(),
+            "targets_attached_weapon": targets_attached_weapon(),
+            "targets_gang": targets_gang(),
+            "targets_gang_alone": targets_gang_alone(),
+        }
+        for name, scope in scopes.items():
+            thing = (
+                create_trait(f"For {name}")
+                if name in ("targets_weapons", "targets_attached_weapon")
+                else create_rule(f"For {name}")
+            )
+            modifier(f"Via {name}", scope, ef_adds(thing))
+        collection = create_collection("Skills & Powers")
+        tier = section_of(collection, "Primary", 0, is_default=True)
+        family = create_category("Skills", "Combat")
+        modifier("Placed outright", targets_model(), ef_places(family, tier))
+        modifier("Placed as chosen", targets_model(), ef_places_choice(tier))
+
+        by_value = {
+            option["value"]: option["label"]
+            for option in self.options(client, "scope") + self.options(client, "effect")
+        }
+        assert by_value["targets_model"] == "The model carrying it"
+        assert by_value["targets_every_model"] == "All models in the gang"
+        assert by_value["targets_weapons"] == "The model's weapons"
+        assert by_value["targets_attached_weapon"] == "The weapon it's fitted to"
+        assert by_value["targets_gang"] == "The gang carrying it and all models"
+        assert by_value["targets_gang_alone"] == "The gang carrying it"
+        assert by_value["ef_places"] == "Puts a category into a section"
+        assert by_value["ef_places_choice"] == "Puts the player's choice into a section"
 
     def test_the_two_gang_reaches_filter_apart(self, author, client, default_pack):
         """A modifier kept the gang's alone is not found under the

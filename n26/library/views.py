@@ -28,7 +28,6 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils.html import escape
 from django.utils.safestring import mark_safe
-from django.utils.text import capfirst
 
 from n26.library.forms import generate_form, statline_form_for, suggestion_form_for
 from n26.library.models.assignable import Family
@@ -2358,34 +2357,6 @@ CARRIED_LABELS = (
 )
 
 
-def _which(modifier, fields):
-    """Which of these columns holds this modifier's row.
-
-    Exactly one does — the database refuses anything else — and its
-    name is what a facet filters on. Read off the id, so naming it
-    costs nothing and does not depend on the sentence, which an
-    author's conditions can word any number of ways.
-    """
-    return next(name for name in fields if getattr(modifier, f"{name}_id") is not None)
-
-
-def _kind_labels(fields):
-    """How a facet names each scope or effect kind.
-
-    The models' own verbose names, so a new kind arrives on the filter
-    labelled as it is everywhere else and nobody writes the word twice.
-    """
-    from n26.library.models import Modifier
-
-    return [
-        (
-            name,
-            capfirst(Modifier._meta.get_field(name).related_model._meta.verbose_name),
-        )
-        for name in fields
-    ]
-
-
 def _facet_options(rows, key, labels):
     """The facet's options, narrowed to the values these rows actually
     hold.
@@ -2412,9 +2383,13 @@ def modifiers(request):
     narrow what is already here rather than asking the server again —
     the page's cost is the same whichever of them is on.
     """
-    from n26.library.forms import SCOPE_MODELS, _scope_verb, _verb_label
+    from n26.library.forms import (
+        _effect_choices,
+        _effect_verb,
+        _scope_choices,
+        _scope_verb,
+    )
     from n26.library.models import Modifier
-    from n26.library.models.modifier import EFFECT_FIELDS
 
     every = list(_reading_sentences(Modifier.objects.all()))
     counts = _carrier_counts(every)
@@ -2434,12 +2409,12 @@ def modifiers(request):
                 "label": modifier.name,
                 "notes": notes,
                 "facets": {
-                    # By the reach the author picked, not the column: one
-                    # scope model holds two options, and a filter lumping
-                    # "the gang carrying it" with "…and all models" would
-                    # filter for neither.
+                    # By the verb the author picked, not the column: one
+                    # model can hold two verbs — the two gang reaches,
+                    # the two placements — and a filter keyed on the
+                    # column would lump each pair and filter for neither.
                     "scope": _scope_verb(modifier.scope),
-                    "effect": _which(modifier, EFFECT_FIELDS),
+                    "effect": _effect_verb(modifier.effect),
                     "carried": "carried" if carriers else "uncarried",
                     # What the search reads. Lowercased here so the
                     # comparison is a plain substring test in the browser.
@@ -2454,18 +2429,10 @@ def modifiers(request):
         {
             "rows": rows,
             "count": len(rows),
-            "scope_options": _facet_options(
-                rows,
-                "scope",
-                # The composer's own card names, one option per reach.
-                [
-                    (name, capfirst(_verb_label(name, SCOPE_MODELS.get(name))))
-                    for name in SCOPE_MODELS
-                ],
-            ),
-            "effect_options": _facet_options(
-                rows, "effect", _kind_labels(EFFECT_FIELDS)
-            ),
+            # The composer's own choices, so the filter and the WHO/WHAT
+            # pickers stay one vocabulary.
+            "scope_options": _facet_options(rows, "scope", _scope_choices()),
+            "effect_options": _facet_options(rows, "effect", _effect_choices()),
             "carried_options": _facet_options(rows, "carried", CARRIED_LABELS),
         },
     )

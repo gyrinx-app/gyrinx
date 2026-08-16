@@ -121,7 +121,7 @@ manage shell
 
 ## Warnings
 
-- **This deletes all your local content data** - The command wipes content models before importing
+- **This deletes your local content data** - The command wipes every model the fixture names before importing. A kind with no rows in the export at all is absent from the fixture, so local rows of that kind survive — do not rely on the overwrite to clear content the production library has none of
 - **Local gangs that used locally-authored content dangle** - A gang built against content you authored locally will reference rows the overwrite deleted. Delete those gangs, or expect broken references
 - **Don't commit latest.json** - It's already in .gitignore, keep it that way
 - **Need access** - You must be a trusted developer with GCS permissions

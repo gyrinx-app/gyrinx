@@ -108,8 +108,11 @@ manage ensuresuperuser
 
 ### `manage loaddata_overwrite`
 
-Loads Django fixtures with overwrite capability.
+Loads Django fixtures with overwrite capability. Run `manage migrate`
+first: the fixture was dumped from production's schema, so the database
+must be at least as new before loading.
 
 ```bash
+manage migrate
 manage loaddata_overwrite <fixture_name>
 ```
