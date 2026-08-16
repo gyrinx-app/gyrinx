@@ -223,6 +223,63 @@ class TestTheSubjugatorPatrolOfficer:
         assert narrow.outcome == "reached"
 
 
+class TestTheSwapWithTheHiddenBuiltIn:
+    """The other possible wiring of the original experiment: the general
+    hidden arrives as a *built-in* of each profile — a stored assignment.
+    Half of it works: the plain officer's question is anchored and
+    settleable, and the removal silences the stored hidden's question on
+    the Subjugator. The narrow half still cannot work, because the
+    narrow hidden has to arrive by the profile's own modifier — that is
+    the whole trick — and a granted hidden's question is anchorless.
+    Both wirings of the experiment fail at the same spot."""
+
+    @pytest.fixture
+    def built_in_profiles(self, person_type, gang_type, general_offer, narrow_offer):
+        made = {}
+        for key, name in [
+            ("plain", "Stored Patrol Officer"),
+            ("subjugator", "Stored Subjugator"),
+        ]:
+            profile = create_profile(name, person_type, gang_type, price=0)
+            profile.built_ins = create_default_set(
+                f"{name} built-ins", members=[general_offer]
+            )
+            profile.save()
+            made[key] = profile
+        modifier(
+            "Stored Subjugator: the general offer goes",
+            targets_model(),
+            ef_removes(general_offer),
+            carried_by=made["subjugator"],
+        )
+        modifier(
+            "Stored Subjugator: the narrow offer arrives",
+            targets_model(),
+            ef_adds(narrow_offer),
+            carried_by=made["subjugator"],
+        )
+        return made
+
+    def test_the_plain_officers_question_is_anchored_and_whole(
+        self, gang, built_in_profiles
+    ):
+        officer = hire(gang, built_in_profiles["plain"], "Vex")
+
+        ((slot, names),) = questions_on(officer)
+
+        assert names == {"Sniper", "Gunner", "Medic", "Armourer"}
+        assert slot.anchor is not None and slot.anchor.assignment is not None
+
+    def test_the_subjugator_sees_only_the_short_menu(self, gang, built_in_profiles):
+        subjugator = hire(gang, built_in_profiles["subjugator"], "Kade")
+
+        questions = questions_on(subjugator)
+
+        assert [(names, slot.anchor is not None) for slot, names in questions] == [
+            ({"Gunner"}, False)
+        ]
+
+
 class TestWhetherTheQuestionCanBeSettled:
     """Where the pattern comes apart today. A choice is settled against
     the stored assignment that carries the offer — but a hidden that
