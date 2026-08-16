@@ -280,12 +280,19 @@ class Assignment(NamesAnAssignable, Base, Archived):
     # The same reasoning as ``chosen_for_slot``, and the same need: one
     # line may offer two choices of a kind — a primary role and a
     # secondary one — and both are answered by the same kind of thing, so
-    # nothing about the answer says which question it was. Unset on a pick
-    # written before the question could be named, where the offer's own
-    # selector is the only thing left to go on.
+    # nothing about the answer says which question it was.
+    #
+    # SET_NULL where a slot PROTECTs, because the two rows do not live
+    # alike: a slot is a thing an author edits in place, while an offer is
+    # part of a modifier and is written afresh every time that modifier is
+    # composed. Holding the old row hostage would make renaming a
+    # question fail for everyone who had answered it. Losing the link is
+    # survivable — an unnamed answer is read by what it is instead, which
+    # is what every answer written before there was a question to name
+    # relies on.
     chosen_for_offer = models.ForeignKey(
         "library.OffersChoice",
-        on_delete=models.PROTECT,
+        on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name="+",

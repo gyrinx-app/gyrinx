@@ -709,11 +709,10 @@ class TestOneLineAskingTwice:
     """A line may ask two questions of one kind — a primary role and a
     secondary one — and the answers stay apart.
 
-    Nothing about a pick says which question it settles: both are
-    answered by the same sort of thing, and a narrow menu's answer is on
-    the wide menu too. So the pick names the question, exactly as a slot's
-    pick names its slot. Before that, answering one made both read as
-    settled and the player lost a question they had never answered.
+    Nothing about a pick itself says which question it settles: both take
+    the same sort of thing, and the offers match on kind alone. So the
+    pick names the question, exactly as a slot's pick names its slot, and
+    an answer settles one question and no more.
     """
 
     @pytest.fixture
@@ -781,14 +780,16 @@ class TestOneLineAskingTwice:
         vex = hire(gang, twice_asked, "Vex")
         rows = self.rows(vex)
 
-        choose(rows["Primary role"].anchor.assignment, skills["Marksman"])
+        # Nobody said which question, and the line asks two that would
+        # both take it, so the answer names neither — the shape of every
+        # answer given before a question could be named.
+        pick = choose(rows["Primary role"].anchor.assignment, skills["Marksman"])
+        assert pick.chosen_for_offer is None
 
-        assert Assignment.objects.get(skill=skills["Marksman"]).chosen_for_offer is None
         settled = self.rows(vex)
-        # Marksman is on both menus, so both questions could claim it.
+        # Either question would take it: both offers match on kind alone.
         assert settled["Primary role"].chosen_name == "Marksman"
         assert settled["Secondary role"].chosen_name is None
-        assert_reconciled(gang)
 
     def test_an_unnamed_pick_leaves_the_other_question_answerable(
         self, gang, twice_asked, skills
@@ -804,4 +805,66 @@ class TestOneLineAskingTwice:
         settled = self.rows(vex)
         assert settled["Primary role"].chosen_name == "Marksman"
         assert settled["Secondary role"].chosen_name == "Parry"
+        assert_reconciled(gang)
+
+    def test_an_answer_given_is_never_taken_by_the_other_question(
+        self, gang, twice_asked, skills
+    ):
+        """An unnamed answer settles whichever question is free, so it must
+        not be the one whose own answer is sitting right there. Answering
+        the second question first is the order that catches it."""
+        vex = hire(gang, twice_asked, "Vex")
+        rows = self.rows(vex)
+        choose(rows["Secondary role"].anchor.assignment, skills["Marksman"])
+
+        open_row = self.rows(vex)["Primary role"]
+        choose(open_row.anchor.assignment, skills["Parry"], offer=open_row.offer)
+
+        settled = self.rows(vex)
+        assert settled["Primary role"].chosen_name == "Parry"
+        assert settled["Secondary role"].chosen_name == "Marksman"
+
+    def test_rewording_a_question_does_not_empty_the_cards_that_answered_it(
+        self, gang, twice_asked, skills
+    ):
+        """Composing a modifier writes its question afresh, so an answer
+        can end up naming a question the card no longer asks. It is read
+        like an unnamed one rather than lost."""
+        from n26.library.models import OffersChoice
+
+        vex = hire(gang, twice_asked, "Vex")
+        rows = self.rows(vex)
+        row = rows["Primary role"]
+        choose(row.anchor.assignment, skills["Berserker"], offer=row.offer)
+
+        # The question it named is gone; the answer stays where it is.
+        gone = OffersChoice.objects.create(
+            of_kind=row.offer.of_kind, label="Reworded", from_section=None
+        )
+        Assignment.objects.filter(skill=skills["Berserker"]).update(
+            chosen_for_offer=gone
+        )
+
+        assert self.rows(vex)["Primary role"].chosen_name == "Berserker"
+
+    def test_deleting_the_question_leaves_the_answer_standing(
+        self, gang, twice_asked, skills
+    ):
+        """An author may delete or recompose a question at any time, and
+        composing writes a new row either way. Whoever answered it keeps
+        their answer, and the page they answered from still works."""
+        from n26.library.authoring import delete_modifier
+        from n26.library.models import Modifier
+
+        vex = hire(gang, twice_asked, "Vex")
+        row = self.rows(vex)["Primary role"]
+        choose(row.anchor.assignment, skills["Berserker"], offer=row.offer)
+
+        delete_modifier(Modifier.objects.get(name="Twice Asked: Primary role"))
+
+        held = Assignment.objects.get(skill=skills["Berserker"])
+        assert held.chosen_for_offer is None
+        # The question is gone, so only the other one is asked — and the
+        # answer is still the gang's, on the ledger where it always was.
+        assert list(self.rows(vex)) == ["Secondary role"]
         assert_reconciled(gang)

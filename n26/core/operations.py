@@ -934,10 +934,11 @@ class Operation:
         return self.assign(
             chosen,
             caused_by=anchor,
-            # Which question this answers, where the click said. One line
-            # may ask twice over one kind, and nothing about the answer
-            # tells the two apart.
-            chosen_for_offer=matched[0] if offer is not None else None,
+            # Which question this answers. One line may ask twice over one
+            # kind, and nothing about the answer tells the two apart, so a
+            # caller that knows says — and where the line asks once there
+            # is only one question it can be.
+            chosen_for_offer=offer or (matched[0] if len(matched) == 1 else None),
             paid=0,
             reason=Reason.GRANTED,
             **kwargs,

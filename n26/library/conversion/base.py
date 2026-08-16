@@ -218,6 +218,9 @@ class RewritePick:
         row.pickable = made.pickables[self.pickable]
         row.chosen_for_id = row.caused_by_id
         row.chosen_for_slot = made.slots[self.slot]
+        # The question it used to answer is not the one it answers now,
+        # and a pick naming both a slot and an offer says two things.
+        row.chosen_for_offer = None
         setattr(row, self.old_column, None)
         row.save()
 
