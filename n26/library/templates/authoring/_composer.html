@@ -110,7 +110,11 @@ leaves one out gets a section with no heading.
                                             :wrap="True"
                                             :checked="card.checked"
                                             :disabled="card.disabled"
-                                            class="h-full" />
+                                            class="h-full">
+                        <c-slot name="flair">
+                            {% if card.deprecated %}<c-ui.badge color="amber" size="sm">Deprecated</c-ui.badge>{% endif %}
+                        </c-slot>
+                    </c-n26.radio-cards.card>
                 </div>
             {% endfor %}
         </c-n26.radio-cards>

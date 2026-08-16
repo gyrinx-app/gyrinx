@@ -953,6 +953,7 @@ def scope_kind_cards(picked="", carrier=None):
                 "checked": name == picked,
                 "disabled": disabled,
                 "reason": reason,
+                "deprecated": spec.deprecated,
             }
         )
     return cards

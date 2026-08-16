@@ -4476,6 +4476,10 @@ class TestTheKindCards:
         assert "All models in the gang" in body
         assert "The gang carrying it and all models" in body
         assert "The gang carrying it" in body
+        # The gang-and-all-models card is kept for existing content and
+        # steered away from: it wears the pill and says to take care.
+        assert "Deprecated" in body
+        assert "in a different way per effect. Use with care." in body
         # The apostrophe arrives HTML-escaped, so the title is matched
         # around it.
         assert "choice into a section" in body

@@ -242,6 +242,10 @@ class Spec:
     #: A concrete case from the books, revealed on the card's hover —
     #: the fastest way to recognise "that is the one I need".
     example: str = ""
+    #: Kept for existing content, steered away from for new: the picker
+    #: draws a Deprecated pill on the card. Never removed while content
+    #: uses the verb.
+    deprecated: bool = False
 
     @property
     def name(self):
@@ -508,18 +512,16 @@ def _build_registry():
             {},
             label="The gang carrying it and all models",
             blurb=(
-                "Lands on the gang, and what the gang is given reaches "
-                "every fighter — a rule given to the gang does everything "
-                "it does to every one of them. Use “All models in the "
-                "gang” to put something on each fighter's own card "
-                "instead."
+                "Affects the gang and all models, in a different way per "
+                "effect. Use with care."
             ),
             example=(
-                "An alliance grants the gang another equipment list, or a "
-                "named rule that prints on the gang's sheet — and if that "
-                "rule sharpens Melee weapons, every fighter's blades are "
-                "sharper."
+                "A rule given to the gang prints on the gang's sheet only, "
+                "while what the rule does reaches every fighter. Prefer "
+                "assigning a hidden item to the gang that carries “All "
+                "models in the gang” modifiers."
             ),
+            deprecated=True,
         ),
         Spec(
             authoring.targets_gang_alone,

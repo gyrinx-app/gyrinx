@@ -1534,8 +1534,12 @@ def targets_attached_weapon():
 
 
 def targets_gang():
-    """The gang carrying it and all models: the effect lands on the gang,
-    and what the gang is given reaches every fighter as its guest."""
+    """The gang carrying it and all models: affects the gang and all
+    models, in a different way per effect.
+
+    Deprecated on the composer — kept for existing content. Prefer
+    assigning a hidden item to the gang that carries ``targets_every_model``
+    modifiers, which says the same thing legibly."""
     from n26.library.models import TargetsGang
 
     return TargetsGang.objects.create()
