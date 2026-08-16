@@ -198,9 +198,10 @@ class SwapCarrier:
 
 @dataclass(frozen=True)
 class DropModifier:
-    """A modifier retired outright — for a carrier whose behaviour is
-    ending, not moving. The plan must have proven nothing holds the
-    carrier, or a page would change."""
+    """A modifier retired outright — for behaviour that is ending, not
+    moving. The plan must have proven the modifier does nothing on any
+    page: either nothing holds its carrier, or the modifier itself is
+    inert wherever the carrier appears."""
 
     carrier: tuple  # (model label, pk)
     carrier_name: str

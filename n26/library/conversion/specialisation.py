@@ -108,9 +108,19 @@ def plan_specialisation():
             "picks with no caused_by to settle against: " + ", ".join(unanchored)
         )
 
+    # Hidden names are unique only together with their qualifier, so a
+    # name here must resolve to one row or the plan cannot know which
+    # it is converting.
+    def _the_hidden(name):
+        found = list(Hidden.objects.filter(name=name, archived=False))
+        if len(found) > 1:
+            problems.append(f"{len(found)} hiddens named “{name}” — expected one")
+            return None
+        return found[0] if found else None
+
     # The Subjugator fossil: kept, converted — its holder's page must go
     # on asking the same narrowed question.
-    narrow = Hidden.objects.filter(name=NARROW_HIDDEN, archived=False).first()
+    narrow = _the_hidden(NARROW_HIDDEN)
     narrow_offer = None
     narrow_menu = None
     narrow_names = []
@@ -137,7 +147,7 @@ def plan_specialisation():
 
     # The general fossil: retired — the plan must know nothing holds it,
     # nothing grants it, and every stray reference is itself dead.
-    general = Hidden.objects.filter(name=GENERAL_HIDDEN, archived=False).first()
+    general = _the_hidden(GENERAL_HIDDEN)
     general_offer = None
     general_menu = None
     stray_effects = []

@@ -313,6 +313,14 @@ class TestTheRefusals:
             apply(plan)
         assert not SlotType.objects.filter(name="Specialisation").exists()
 
+    def test_two_hiddens_sharing_a_name_are_refused(self, world):
+        create_hidden("Specialisation offer", qualifier="(a second one)")
+
+        plan = plan_specialisation()
+
+        assert not plan.ok
+        assert any("2 hiddens named" in problem for problem in plan.problems)
+
     def test_a_live_modifier_naming_the_general_fossil_is_refused(
         self, world, prod_shape
     ):
