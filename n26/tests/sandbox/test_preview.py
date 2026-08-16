@@ -49,7 +49,7 @@ def placement_payload(rank, category, tier, bearer_only=False):
     """One composer submit: one cell of the grid."""
     payload = {
         "attach_to": "@Brawler",
-        "scope_kind": "targets_model",
+        "scope_kind": "targets_model" if bearer_only else "targets_every_model",
         "effect_kind": "ef_places",
         "conditions-TOTAL_FORMS": "1",
         "conditions-INITIAL_FORMS": "0",
@@ -58,8 +58,6 @@ def placement_payload(rank, category, tier, bearer_only=False):
         "what-category": f"@{category}",
         "what-section": f"@{tier}",
     }
-    if bearer_only:
-        payload["who-when_directly_assigned"] = "on"
     return payload
 
 

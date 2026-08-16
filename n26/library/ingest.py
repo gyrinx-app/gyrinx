@@ -3138,14 +3138,17 @@ class _Performer:
         targets = planned.fields.get("targets")
         if not targets:
             return authoring.targets_model()
+        # A sheet that names who it reaches is an archetype-shaped row: the
+        # carrier is something the gang holds, so the reach is every model
+        # the condition names — unless the row says the bearer alone.
         if "subtype" in targets:
-            return authoring.targets_model(
+            return authoring.targets_every_model(
                 authoring.has_subtypes(self.resolve(targets["subtype"]))
             )
-        return authoring.targets_model(
-            authoring.is_profile(self.resolve(targets["profile"])),
-            when_directly_assigned=targets.get("bearer_only", False),
-        )
+        named = authoring.is_profile(self.resolve(targets["profile"]))
+        if targets.get("bearer_only", False):
+            return authoring.targets_model(named)
+        return authoring.targets_every_model(named)
 
     def _modifier_effect(self, planned):
         """What a planned modifier does: places a set in a tier, or puts

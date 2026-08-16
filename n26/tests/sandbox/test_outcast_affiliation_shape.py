@@ -42,8 +42,8 @@ from n26.library.authoring import (
     ef_adds,
     has_subtypes,
     modifier,
+    targets_every_model,
     targets_gang,
-    targets_model,
 )
 from n26.tests.sandbox.actions import found_gang
 
@@ -115,7 +115,7 @@ def house_choice(house_slot_type, ranks):
     cawdor = houses.members.first().pickable
     modifier(
         "House Cawdor: its equipment list",
-        targets_model(has_subtypes(ranks["Outcast Leader"])),
+        targets_every_model(has_subtypes(ranks["Outcast Leader"])),
         ef_adds(
             create_collection(
                 "House Cawdor Equipment List",
@@ -137,7 +137,7 @@ def affiliations(slot_type, ranks, house_choice):
     made = {name: create_pickable(name, slot_type) for name in AFFILIATIONS}
     modifier(
         "Aranthian: its equipment list",
-        targets_model(has_subtypes(*[ranks[name] for name in ARANTHIAN_RANKS])),
+        targets_every_model(has_subtypes(*[ranks[name] for name in ARANTHIAN_RANKS])),
         ef_adds(
             create_collection(
                 "Aranthian Equipment List",

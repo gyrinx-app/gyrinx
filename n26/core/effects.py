@@ -656,7 +656,9 @@ def compute(card, index):
                     gang_held = step.echoed or (
                         step.node is not None and step.node.broadcast
                     )
-                    if gang_held or not scope.targets(card, facts, carrier=step.node):
+                    if gang_held or not scope.targets(
+                        card, facts, carrier=step.node, echoed=step.echoed
+                    ):
                         step.outcome = "skipped"
                         computed.plan.append(step)
                         continue
@@ -678,7 +680,9 @@ def compute(card, index):
 
                 targets = [
                     target
-                    for target in scope.targets(card, facts, carrier=step.node)
+                    for target in scope.targets(
+                        card, facts, carrier=step.node, echoed=step.echoed
+                    )
                     if effect.accepts(target.kind)
                 ]
                 if not targets:

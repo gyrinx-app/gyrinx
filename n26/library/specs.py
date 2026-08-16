@@ -363,7 +363,6 @@ def _build_registry():
         StatlineType,
         StatlineTypeStat,
         Subtype,
-        TargetsMiniature,
         Trait,
         Wargear,
         Weapon,
@@ -402,16 +401,41 @@ def _build_registry():
                         "counter_at_least",
                     )
                 ),
-                "when_directly_assigned": Bool(
-                    source=(TargetsMiniature, "when_directly_assigned")
-                ),
             },
             label="The model carrying it",
-            blurb="Whoever has the item carrying this modifier on their card.",
+            blurb=(
+                "Only the model this is directly assigned to — nothing is "
+                "reached through the gang. Conditions can narrow it "
+                "further."
+            ),
             example=(
-                "Mounted grants two skills: any fighter with the Mounted "
-                "subtype gets them. Conditions can narrow it — only Wyrds, "
-                "only at 75+ XP."
+                "Mounted grants two skills: the fighter with the Mounted "
+                "subtype gets them. An archetype assigned to a Champion "
+                "applies to that Champion alone."
+            ),
+        ),
+        Spec(
+            authoring.targets_every_model,
+            {
+                "conditions": Conditions(
+                    kinds=(
+                        "has_subtypes",
+                        "is_profile",
+                        "has_pickable",
+                        "counter_at_least",
+                    )
+                ),
+            },
+            label="All models in the gang",
+            blurb=(
+                "Every model in the gang, not just whoever carries this — "
+                "the reach for things the gang holds: a chosen alliance, a "
+                "founding rule. Conditions narrow it the same way."
+            ),
+            example=(
+                "The leader's archetype sets the skills available to every "
+                "model except Champions: one modifier, with a condition "
+                "naming the exception."
             ),
         ),
         Spec(
@@ -482,21 +506,33 @@ def _build_registry():
         Spec(
             authoring.targets_gang,
             {},
-            label="The gang itself",
+            label="The gang carrying it and all models",
             blurb=(
-                "Where the effect lands: on the gang, not on any one "
-                "model. What the gang then holds still reaches the "
-                "fighters — a rule given to the gang does everything it "
-                "does to every one of them. Use “The model carrying it” "
-                "for an effect that is each fighter's own."
+                "Lands on the gang, and what the gang is given reaches "
+                "every fighter — a rule given to the gang does everything "
+                "it does to every one of them. Use “All models in the "
+                "gang” to put something on each fighter's own card "
+                "instead."
             ),
             example=(
                 "An alliance grants the gang another equipment list, or a "
                 "named rule that prints on the gang's sheet — and if that "
                 "rule sharpens Melee weapons, every fighter's blades are "
-                "sharper. “All Escher fighters may…” is the same item "
-                "targeting the model carrying it, which prints the rule on "
-                "each fighter's card as theirs."
+                "sharper."
+            ),
+        ),
+        Spec(
+            authoring.targets_gang_alone,
+            {},
+            label="The gang carrying it",
+            blurb=(
+                "Lands on the gang and stays there: what this gives the "
+                "gang is the gang's alone, and rides no fighter's card. A "
+                "pick the gang stores is still the gang's fact either way."
+            ),
+            example=(
+                "A rule that prints on the gang sheet without touching the "
+                "fighters, or a gang-level counter."
             ),
         ),
         # -- effects, worked out at read time --------------------------

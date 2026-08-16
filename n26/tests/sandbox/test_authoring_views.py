@@ -3931,7 +3931,9 @@ class TestTheModifierSection:
         ).content.decode()
         assert 'name="what-stat"' in body
         assert 'name="what-amount"' in body
-        assert 'name="who-when_directly_assigned"' in body
+        # The who pane for a model scope is its condition chips: the
+        # scope itself has nothing to fill in, the verb said the reach.
+        assert "Add a condition" in body
 
     def test_composing_attaches_here(self, rule, client, default_pack):
         from n26.library.authoring import create_subtype
@@ -4783,7 +4785,7 @@ class TestAModifiersOwnPage:
         body = client.get(f"/n26/authoring/modifiers/{made.pk}/").content.decode()
 
         assert "The model carrying it" in body
-        assert "Whoever has the item carrying this modifier on their card." in body
+        assert "Only the model this is directly assigned to" in body
         assert "Gives something" in body
         assert "The target gains a subtype" in body
 

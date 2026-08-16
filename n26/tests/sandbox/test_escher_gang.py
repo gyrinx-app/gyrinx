@@ -45,6 +45,7 @@ from n26.tests.sandbox.actions import (
     create_wargear,
     create_weapon,
     found_gang,
+    has_subtypes,
     hire_with_option,
     modifier,
     offer_option,
@@ -53,6 +54,7 @@ from n26.tests.sandbox.actions import (
     restrict_use,
     section_of,
     set_statline,
+    targets_every_model,
     targets_model,
 )
 
@@ -371,14 +373,14 @@ def escher(house_list, profiles, subtypes, catalogue, gang_type):
     # A named rule that computes nothing — the card just says it.
     modifier(
         "Escher: Nimble",
-        targets_model(),
+        targets_every_model(),
         _adds(create_rule("Nimble")),
         carried_by=gang_type,
     )
     # The one that must reach a card, and only some models.
     modifier(
         "Escher: Leaders and Champions start with a Primary skill",
-        targets_model(with_subtypes=[subtypes["leader"], subtypes["champion"]]),
+        targets_every_model(has_subtypes(subtypes["leader"], subtypes["champion"])),
         offers_choice(Skill, from_section=tiers["primary"]),
         carried_by=gang_type,
     )

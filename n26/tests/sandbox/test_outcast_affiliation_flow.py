@@ -37,12 +37,13 @@ from n26.tests.sandbox.actions import (
     create_subtype,
     create_wargear,
     found_gang,
+    has_subtypes,
     hire_with_option,
     modifier,
     offers_choice,
     section_of,
+    targets_every_model,
     targets_gang,
-    targets_model,
 )
 
 pytestmark = pytest.mark.django_db
@@ -87,7 +88,10 @@ def affiliations(subtypes, house_lists):
         house: create_affiliation(
             f"House {house}",
             effects=[
-                (targets_model(with_subtypes=leaders_and_champions), adds(house_list))
+                (
+                    targets_every_model(has_subtypes(*leaders_and_champions)),
+                    adds(house_list),
+                )
             ],
         )
         for house, house_list in house_lists.items()
@@ -105,13 +109,13 @@ def affiliations(subtypes, house_lists):
         "Clan House": create_affiliation("Clan House Outcast"),
         "Mutant": create_affiliation(
             "Mutant Outcast",
-            effects=[(targets_model(), adds(mutations))],
+            effects=[(targets_every_model(), adds(mutations))],
         ),
         "Aranthian": create_affiliation(
             "Aranthian Outcast",
             effects=[
                 (
-                    targets_model(with_subtypes=leaders_and_champions),
+                    targets_every_model(has_subtypes(*leaders_and_champions)),
                     adds(create_collection("Aranthian Equipment List")),
                 )
             ],

@@ -46,6 +46,7 @@ from n26.tests.sandbox.actions import (
     hire,
     modifier,
     remove,
+    targets_every_model,
     targets_model,
 )
 
@@ -612,7 +613,7 @@ class TestALeaderAskedForTheGang:
     """The Leader → Gang arrow: the choice rides the leader, and what he
     picks belongs to the gang.
 
-    The pick is gang-hosted, so its payload is broadcast — and scoped, so
+    The pick is gang-hosted and its payload says all models — scoped, so
     it reaches the ranks the archetype names and no others. Which ranks
     those are is content: naming a second one is a row on the condition,
     not a change here.
@@ -631,7 +632,7 @@ class TestALeaderAskedForTheGang:
         mutant = create_pickable("Mutant", slot_type)
         modifier(
             "Mutant: the gangers and the scum",
-            targets_model_with(has_subtypes(ranks["ganger"], ranks["hive scum"])),
+            targets_every_model(has_subtypes(ranks["ganger"], ranks["hive scum"])),
             ef_adds(create_rule("Unstable")),
             carried_by=mutant,
         )

@@ -20,9 +20,9 @@ What this pins:
   row hangs off the shared Leader *subtype*, so every Leader variant
   receives it; the Champion and Hive Scum rows name their *profiles*
   outright (``is_profile``), so a same-ranked outsider reads nothing;
-* "…all models except Champions": the Champion row is **bearer only**
-  (``TargetsMiniature.when_directly_assigned``) — what a Champion gets
-  if *they* pick it, inert in the gang's radiated copy;
+* "…all models except Champions": the Champion row reaches **the model
+  carrying it** (``TargetsMiniature.Reach.BEARER``) — what a Champion
+  gets if *they* pick it, inert in the gang's radiated copy;
 * **chained choices**: the chosen Clan House offers the house pick —
   a slot caused by what another slot settled on, no new machinery;
 * affiliations as scoped access grants;
@@ -36,7 +36,12 @@ from n26.core.browse import offered_by, placements_for
 from n26.core.card import build_card, build_gang_card, build_modifier_index
 from n26.core.effects import compute, compute_gang
 from n26.core.render_text import gang_to_text
-from n26.library.authoring import has_subtypes, is_profile, targets_model
+from n26.library.authoring import (
+    has_subtypes,
+    is_profile,
+    targets_every_model,
+    targets_model,
+)
 from n26.library.models import Affiliation, Archetype, Skill
 from n26.tests.sandbox.actions import (
     adds,
@@ -182,18 +187,16 @@ def archetypes(sets, skills_collection, subtypes, profiles):
     subtypes are shared vocabulary, and naming the entry keeps a
     same-ranked outsider out of the archetype's reach.
 
-    The Champion row is also **bearer only**: it
+    The Champion row also reaches only **the model carrying it**: it
     says what a Champion gets *if they pick this archetype* — inert when
     it radiates from the gang, active when a Champion carries
-    their own copy. Hosting decides; the content is one table."""
+    their own copy. The reach is said, and the content is one table."""
     _, tiers = skills_collection
 
     scopes = {
-        "leader": lambda: targets_model(has_subtypes(subtypes["leader"])),
-        "champion": lambda: targets_model(
-            is_profile(profiles["champion"]), when_directly_assigned=True
-        ),
-        "scum": lambda: targets_model(is_profile(profiles["scum"])),
+        "leader": lambda: targets_every_model(has_subtypes(subtypes["leader"])),
+        "champion": lambda: targets_model(is_profile(profiles["champion"])),
+        "scum": lambda: targets_every_model(is_profile(profiles["scum"])),
     }
     made = {}
     for name, table in ARCHETYPES.items():
@@ -279,7 +282,7 @@ def affiliations(subtypes, house_lists, mutations):
             f"House {house}",
             effects=[
                 (
-                    targets_model(
+                    targets_every_model(
                         has_subtypes(subtypes["leader"], subtypes["champion"])
                     ),
                     adds(house_list),
@@ -293,13 +296,13 @@ def affiliations(subtypes, house_lists, mutations):
         "clan_house": create_affiliation("Clan House Outcast"),
         "mutant": create_affiliation(
             "Mutant Outcast",
-            effects=[(targets_model(), adds(mutations))],
+            effects=[(targets_every_model(), adds(mutations))],
         ),
         "aranthian": create_affiliation(
             "Aranthian Outcast",
             effects=[
                 (
-                    targets_model(
+                    targets_every_model(
                         has_subtypes(subtypes["leader"], subtypes["champion"])
                     ),
                     adds(create_collection("Aranthian Equipment List")),
@@ -349,13 +352,13 @@ def outcasts(subtypes, skills_collection, affiliations, affiliation_lists):
 
     modifier(
         "Outcasts: Cult of Personality",
-        targets_model(),
+        targets_every_model(),
         adds(create_rule("Cult of Personality")),
         carried_by=gang_type,
     )
     modifier(
         "Outcasts: Starting Skills",
-        targets_model(has_subtypes(subtypes["leader"], subtypes["champion"])),
+        targets_every_model(has_subtypes(subtypes["leader"], subtypes["champion"])),
         offers_choice(Skill, from_section=tiers["primary"]),
         carried_by=gang_type,
     )

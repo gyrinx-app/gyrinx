@@ -39,12 +39,14 @@ from n26.tests.sandbox.actions import (
     create_skill_tree,
     create_subtype,
     found_gang,
+    has_subtypes,
     hire_with_option,
     modifier,
     offers_choice,
     places,
     remove,
     section_of,
+    targets_every_model,
     targets_gang,
     targets_model,
 )
@@ -105,7 +107,7 @@ def archetypes(sets, skills_collection, subtypes):
         archetype = create_archetype(name)
         modifier(
             f"{name}: {set_key} is Primary",
-            targets_model(with_subtypes=[subtypes["leader"], subtypes["ganger"]]),
+            targets_every_model(has_subtypes(subtypes["leader"], subtypes["ganger"])),
             places(sets[set_key], tiers["primary"]),
             carried_by=archetype,
         )
@@ -174,7 +176,7 @@ def gang_list(subtypes, skills_collection, pick_lists, trees):
     # its own fighter.
     modifier(
         "Outcasts: a Leader starts with a Primary skill",
-        targets_model(with_subtypes=[subtypes["leader"]]),
+        targets_every_model(has_subtypes(subtypes["leader"])),
         offers_choice(Skill, from_section=tiers["primary"]),
         carried_by=gang_type,
     )
@@ -225,7 +227,7 @@ def whispers(gang_list, subtypes, skills_collection):
         add_entry(collection, power)
     modifier(
         "Outcasts: the whispers are Primary for Leaders",
-        targets_model(with_subtypes=[subtypes["leader"]]),
+        targets_every_model(has_subtypes(subtypes["leader"])),
         places(family, tiers["primary"]),
         carried_by=gang_list,
     )

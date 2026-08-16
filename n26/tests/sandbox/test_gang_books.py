@@ -54,6 +54,7 @@ from n26.library.authoring import (
     restrict_use,
     section_of,
     set_statline,
+    targets_every_model,
     targets_gang,
     targets_model,
 )
@@ -132,7 +133,7 @@ def escher(ranks, default_pack):
     charter = create_hidden(
         "House Escher charter",
         effects=[
-            (targets_model(), ef_adds(nimble)),
+            (targets_every_model(), ef_adds(nimble)),
             # "During Gang Creation a player can decide that their gang
             # has been corrupted" — an open question on the gang's own
             # card, chosen for or simply left.
@@ -188,21 +189,21 @@ def chaos_corruption(escher, ranks, chaos_powers, skills_catalogue):
         effects=[
             # "Members of the gang do not benefit from any of the gang's
             # special rules" — computed removal; removes always win.
-            (targets_model(), ef_removes(nimble)),
+            (targets_every_model(), ef_removes(nimble)),
             # The Post-cycle rituals, printed on who may perform them.
             (
-                targets_model(has_subtypes(ranks["leader"])),
+                targets_every_model(has_subtypes(ranks["leader"])),
                 ef_adds(create_rule("Lead Ritual", annotation="Leader only")),
             ),
             (
-                targets_model(),
+                targets_every_model(),
                 ef_adds(create_rule("Ritual Focus", annotation="max one Fighter")),
             ),
             # "The gang must select one of the Chaos gods" — what is
             # chosen asks its own follow-up. Chained by construction.
             (targets_gang(), ef_offers_choice(Affiliation, label="dedication")),
             # The corruption-only equipment list, opened for everyone.
-            (targets_model(), ef_adds(options)),
+            (targets_every_model(), ef_adds(options)),
         ],
     )
     return corruption, gods, options, powers
@@ -759,7 +760,7 @@ class TestImmovableBrutes:
                 "modifiers": [
                     {
                         "attach_to": "@Immovable Brutes",
-                        "scope_kind": "targets_model",
+                        "scope_kind": "targets_every_model",
                         "effect_kind": "ef_adds",
                         "conditions-TOTAL_FORMS": "1",
                         "conditions-INITIAL_FORMS": "0",

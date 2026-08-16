@@ -43,7 +43,6 @@ class TestConditionsNest:
         scope = targets_model(
             has_subtypes(leader, champion),
             counter_at_least(xp, 75),
-            when_directly_assigned=True,
         )
 
         (subtype_row,) = HasSubtypes.objects.filter(scope=scope)
@@ -53,7 +52,7 @@ class TestConditionsNest:
         assert threshold_row.at_least == 75
         # The folded sentence — what plan traces and auto-names compose.
         # Subtypes read in their own Meta order (by name), as before.
-        assert str(scope) == "Champion or Leader models, at XP 75+ (bearer only)"
+        assert str(scope) == "Champion or Leader models, at XP 75+"
 
     def test_an_unconditioned_scope_reads_as_the_model(self, default_pack):
         assert str(targets_model()) == "the model"

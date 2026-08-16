@@ -19,6 +19,7 @@ from n26.core.render import build_model_card
 from n26.library.models import Skill
 from n26.tests.sandbox.actions import (
     adds,
+    counter_at_least,
     create_counter,
     create_default_set,
     create_rule,
@@ -27,6 +28,7 @@ from n26.tests.sandbox.actions import (
     modifier,
     offers_choice,
     tally,
+    targets_every_model,
     targets_model,
 )
 
@@ -54,13 +56,13 @@ def queen(make_profile, xp, gang_type):
     # The gang-wide rules that hang off the value:
     modifier(
         "Promotion offer at 75 XP",
-        targets_model(when_counter=xp, at_least=75),
+        targets_every_model(counter_at_least(xp, 75)),
         offers_choice(Skill),
         carried_by=gang_type,
     )
     modifier(
         "Veteran title at 100 XP",
-        targets_model(when_counter=xp, at_least=100),
+        targets_every_model(counter_at_least(xp, 100)),
         adds(create_rule("Veteran")),
         carried_by=gang_type,
     )

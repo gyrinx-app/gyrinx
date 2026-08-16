@@ -44,9 +44,11 @@ from n26.tests.sandbox.actions import (
     ef_removes,
     found_gang,
     give_weapon,
+    has_subtypes,
     hire,
     modifier,
     remove,
+    targets_every_model,
     targets_gang,
     targets_model,
 )
@@ -82,7 +84,7 @@ def house(default_pack, fighter_type):
         )
         modifier(
             f"Escher: fighters have {name}",
-            targets_model(),
+            targets_every_model(),
             ef_adds(rule),
             carried_by=charter,
         )
@@ -127,7 +129,7 @@ def corruption(house):
     )
     modifier(
         "Corrupted: fighters lose the gang's rules",
-        targets_model(),
+        targets_every_model(),
         ef_removes(charter),
         carried_by=corrupted,
     )
@@ -237,7 +239,7 @@ class TestABundleOfGangRules:
         rank = create_subtype("Ganger")
         modifier(
             "Escher: gangers have Sisterhood",
-            targets_model(with_subtypes=[rank]),
+            targets_every_model(has_subtypes(rank)),
             ef_adds(sisterhood),
             carried_by=charter,
         )
@@ -262,7 +264,7 @@ class TestABundleOfGangRules:
         ritual = create_hidden("Escher rites")
         modifier(
             "Escher: fighters keep the rites",
-            targets_model(),
+            targets_every_model(),
             ef_adds(ritual),
             carried_by=charter,
         )
@@ -359,7 +361,7 @@ class TestInnateRows:
     def confiscation(self, shotgun):
         return create_affiliation(
             "Disarmed",
-            effects=[(targets_model(), ef_removes(shotgun))],
+            effects=[(targets_every_model(), ef_removes(shotgun))],
         )
 
     @pytest.fixture
@@ -434,7 +436,7 @@ class TestInnateRows:
         assert "Reputation" in [line.name for line in card_for(juve).rules]
 
         demoted = create_affiliation(
-            "Demoted", effects=[(targets_model(), ef_removes(rank))]
+            "Demoted", effects=[(targets_every_model(), ef_removes(rank))]
         )
         assign(demoted, gang=gang)
 
@@ -454,7 +456,7 @@ class TestInnateRows:
         assert "Sworn Oath" in [line.name for line in card_for(sister).rules]
 
         forsworn = create_affiliation(
-            "Forsworn", effects=[(targets_model(), ef_removes(oath))]
+            "Forsworn", effects=[(targets_every_model(), ef_removes(oath))]
         )
         assign(forsworn, gang=gang)
 
@@ -472,7 +474,7 @@ class TestWhatMoneyProtects:
     def confiscation(self, autogun):
         return create_affiliation(
             "Disarmed",
-            effects=[(targets_model(), ef_removes(autogun))],
+            effects=[(targets_every_model(), ef_removes(autogun))],
         )
 
     def test_a_gun_the_gang_bought_stays_put(self, gang, autogun, confiscation):

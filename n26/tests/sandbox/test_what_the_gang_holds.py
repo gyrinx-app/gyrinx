@@ -47,10 +47,12 @@ from n26.tests.sandbox.actions import (
     ef_removes,
     found_gang,
     give_weapon,
+    has_subtypes,
     hire,
     modifier,
     op_adds_model,
     remove,
+    targets_every_model,
     targets_gang,
     targets_model,
     targets_weapons,
@@ -92,7 +94,7 @@ def matriarchy(backstab, weapon_skill):
     )
     modifier(
         "Matriarchy: the fighters are quick",
-        targets_model(),
+        targets_every_model(),
         ef_changes_stat(weapon_skill, mode="improve", amount=1),
         carried_by=rule,
     )
@@ -258,7 +260,7 @@ class TestTwoAims:
     def also_at_the_model(self, charter, matriarchy):
         return modifier(
             "Escher: the fighters have Matriarchy",
-            targets_model(),
+            targets_every_model(),
             ef_adds(matriarchy),
             carried_by=charter,
         )
@@ -382,7 +384,7 @@ class TestWhoAGuestReaches:
         leader = create_subtype("Leader")
         modifier(
             "Matriarchy: the Matriarch keeps watch",
-            targets_model(with_subtypes=[leader]),
+            targets_every_model(has_subtypes(leader)),
             ef_adds(create_skill("Overwatch")),
             carried_by=matriarchy,
         )

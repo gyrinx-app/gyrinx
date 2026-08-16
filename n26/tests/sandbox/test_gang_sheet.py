@@ -40,6 +40,7 @@ from n26.tests.sandbox.actions import (
     modifier,
     offers_choice,
     tally,
+    targets_every_model,
     targets_gang,
     targets_model,
 )
@@ -73,7 +74,7 @@ def escherish(gang_type, house_list):
     gang_type.save()
     modifier(
         "Nimble for everyone",
-        targets_model(),
+        targets_every_model(),
         _adds(create_rule("Nimble")),
         carried_by=gang_type,
     )

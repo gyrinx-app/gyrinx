@@ -39,12 +39,14 @@ from n26.tests.sandbox.actions import (
     create_skill_tree,
     create_subtype,
     found_gang,
+    has_subtypes,
     hire_with_option,
     modifier,
     offers_choice,
     places_the_chosen,
     remove,
     section_of,
+    targets_every_model,
     targets_gang,
     targets_model,
 )
@@ -139,7 +141,9 @@ def venators(subtypes, skills_collection):
         for tier, ranks in meanings:
             modifier(
                 f"Skill Tree {rank}: {tier} for {', '.join(ranks)}",
-                targets_model(with_subtypes=[subtypes[rank_] for rank_ in ranks]),
+                targets_every_model(
+                    has_subtypes(*[subtypes[rank_] for rank_ in ranks])
+                ),
                 places_the_chosen(tiers[tier]),
                 carried_by=slot,
             )

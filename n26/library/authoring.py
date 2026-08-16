@@ -1466,19 +1466,38 @@ def _attach_condition(condition, scope):
 # --- Scopes: who a modifier reaches -----------------------------------------
 
 
-def targets_model(*conditions, when_directly_assigned=False):
-    """The carrier's model, narrowed by nested conditions —
+def targets_model(*conditions):
+    """The model carrying it — only the model the carrier is directly
+    assigned to, narrowed by nested conditions —
     ``targets_model(has_subtypes(leader), counter_at_least(xp, 5))``.
 
-    ``when_directly_assigned`` limits the scope to the model the carrier
-    is directly assigned to, never reached through the gang's broadcast —
-    an archetype assigned to a Champion applies to that Champion alone.
+    Never reached through the gang's broadcast: an archetype assigned to
+    a Champion applies to that Champion alone. For everyone in the gang,
+    use ``targets_every_model``.
     """
     from n26.library.models import TargetsMiniature
 
-    scope = TargetsMiniature.objects.create(
-        when_directly_assigned=when_directly_assigned
-    )
+    return _model_scope(TargetsMiniature.Reach.BEARER, conditions)
+
+
+def targets_every_model(*conditions):
+    """All models in the gang, however the carrier is held, narrowed by
+    the same nested conditions — ``targets_every_model(has_subtypes(x))``.
+
+    The reach a thing the gang holds has: a chosen alliance, a founding
+    rule. Compute is per card, so a fighter-held carrier's modifiers are
+    seen only where that carrier is — the gang-held carrier is the case
+    this is for.
+    """
+    from n26.library.models import TargetsMiniature
+
+    return _model_scope(TargetsMiniature.Reach.EVERY_MODEL, conditions)
+
+
+def _model_scope(reach, conditions):
+    from n26.library.models import TargetsMiniature
+
+    scope = TargetsMiniature.objects.create(reach=reach)
     for condition in conditions:
         if isinstance(condition, _weapon_conditions()):
             raise ValueError(
@@ -1515,10 +1534,19 @@ def targets_attached_weapon():
 
 
 def targets_gang():
-    """The gang carrying the assignable — the gang itself, not its members."""
+    """The gang carrying it and all models: the effect lands on the gang,
+    and what the gang is given reaches every fighter as its guest."""
     from n26.library.models import TargetsGang
 
     return TargetsGang.objects.create()
+
+
+def targets_gang_alone():
+    """The gang carrying it, and nobody else: what this gives the gang is
+    the gang's alone, and rides no fighter's card."""
+    from n26.library.models import TargetsGang
+
+    return TargetsGang.objects.create(echoes=False)
 
 
 # --- Effects: what a modifier does (ef_ at read, op_ at purchase) -----------

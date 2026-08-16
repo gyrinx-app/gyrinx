@@ -138,11 +138,6 @@ class TestHelpIsSourcedNeverWritten:
     def test_the_pins(self):
         """Literal pins: if a model's words change, someone chose to
         change what every admin reads."""
-        fields = specs()["targets_model"].fields
-        assert fields["when_directly_assigned"].help == (
-            "Only the model this is directly assigned to — never reached "
-            "through the gang's broadcast."
-        )
         assert specs()["counter_at_least"].fields["counter"].help == (
             "The counter whose value is checked."
         )
@@ -187,16 +182,23 @@ class TestTargetsModel:
         example = sandbox_targets_model(when_counter=xp, at_least=75)
         assert str(scope) == str(example) == "at XP 75+"
 
-    def test_bearer_only_is_the_brawler_champion_row(self, default_pack):
+    def test_the_brawler_champion_row_reaches_the_model_carrying_it(self, default_pack):
+        """The verb is the reach: targets_model is the bearer, and needs
+        no flag to say so."""
         champion = create_subtype("Outcast Champion")
         scope = specs()["targets_model"].compile(
-            {
-                "conditions": [("has_subtypes", {"subtypes": [champion]})],
-                "when_directly_assigned": True,
-            }
+            {"conditions": [("has_subtypes", {"subtypes": [champion]})]}
         )
-        assert str(scope) == "Outcast Champion models (bearer only)"
-        assert scope.when_directly_assigned is True
+        assert str(scope) == "Outcast Champion models"
+        assert scope.reach == scope.Reach.BEARER
+
+    def test_all_models_is_its_own_verb_and_says_so(self, default_pack):
+        champion = create_subtype("Outcast Champion")
+        scope = specs()["targets_every_model"].compile(
+            {"conditions": [("has_subtypes", {"subtypes": [champion]})]}
+        )
+        assert str(scope) == "Outcast Champion models (all models)"
+        assert scope.reach == scope.Reach.EVERY_MODEL
 
     def test_a_condition_the_scope_cannot_take_refuses_in_words(self, default_pack):
         melee = create_trait("Melee")

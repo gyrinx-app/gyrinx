@@ -72,7 +72,9 @@ from n26.library.authoring import (  # noqa: F401 — re-exported for the suites
     section_of,
     set_statline,
     targets_attached_weapon,
+    targets_every_model,
     targets_gang,
+    targets_gang_alone,
 )
 from n26.library.authoring import (
     modifier as _modifier,
@@ -87,20 +89,20 @@ from n26.library.authoring import (
 # --- Aliases: the sandbox names the example suites were written in --------
 
 
-def targets_model(with_subtypes=(), when_counter=None, at_least=0, bearer_only=False):
-    """The carrier's model, optionally narrowed by subtype and by a
+def targets_model(with_subtypes=(), when_counter=None, at_least=0):
+    """The model carrying it, optionally narrowed by subtype and by a
     counter threshold — ``targets_model(when_counter=xp, at_least=5)``.
 
     Old-grammar alias: keyword filters become nested condition verbs
-    (``n26.library.authoring.targets_model(has_subtypes(…), …)``), and
-    ``bearer_only`` became ``when_directly_assigned``.
+    (``n26.library.authoring.targets_model(has_subtypes(…), …)``). For
+    everyone in the gang, use ``targets_every_model``.
     """
     conditions = []
     if with_subtypes:
         conditions.append(has_subtypes(*with_subtypes))
     if when_counter is not None:
         conditions.append(counter_at_least(when_counter, at_least))
-    return _targets_model(*conditions, when_directly_assigned=bearer_only)
+    return _targets_model(*conditions)
 
 
 def targets_weapons(with_trait=None):

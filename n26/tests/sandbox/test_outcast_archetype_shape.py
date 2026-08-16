@@ -40,6 +40,7 @@ from n26.library.authoring import (
     ef_adds,
     has_subtypes,
     modifier,
+    targets_every_model,
     targets_model,
 )
 from n26.tests.sandbox.actions import found_gang, hire
@@ -100,7 +101,7 @@ def archetypes(slot_type, ranks):
     }
     modifier(
         f"Mutant: {GANG_PAYLOAD}",
-        targets_model(has_subtypes(ranks[EXCEPTED], negate=True)),
+        targets_every_model(has_subtypes(ranks[EXCEPTED], negate=True)),
         ef_adds(create_rule(GANG_PAYLOAD)),
         attach_to=made["Mutant"],
     )
