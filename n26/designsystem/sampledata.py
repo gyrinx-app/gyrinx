@@ -377,13 +377,21 @@ OFFERED = {
 }
 
 
-def _offered_choices(name):
-    """The alternatives one line offers, as the structure browse builds.
+@dataclass(frozen=True)
+class _Set:
+    """What an option would bring, as far as a drawing needs to know.
 
-    ``default_set`` is what a purchase would materialise, and the gallery
-    buys nothing — so the sample names none, exactly as a line with no
-    alternatives carries none.
+    Only its identity is read here: a control starts picked when the
+    thing being drawn holds this set, and the gallery holds nothing that
+    could be fetched. The option's own name serves, because two options
+    of one offer never share it.
     """
+
+    pk: str
+
+
+def _offered_choices(name):
+    """The alternatives one line offers, as the structure browse builds."""
     return tuple(
         OfferedGroup(
             choose=choose,
@@ -392,7 +400,7 @@ def _offered_choices(name):
                     name=option,
                     surcharge=surcharge,
                     is_default=(choose == "one" and position == 0),
-                    default_set=None,
+                    default_set=_Set(option),
                 )
                 for position, (option, surcharge) in enumerate(options)
             ),
@@ -1988,7 +1996,7 @@ def _stock(name):
 
 def owned_context():
     """What a fighter is carrying, and the things that can happen to it."""
-    from n26.core.listing import copy_row
+    from n26.core.listing import copy_row, pick_groups
 
     named = {"cancel_url": "#", "action": "#", "list": "", "name": "Meltagun"}
     return {
@@ -2046,6 +2054,23 @@ def owned_context():
             "sell_all_detail": "Everything goes together. 91¢.",
             "submit_label": "Sell",
             "submit_variant": "danger",
+        },
+        # The mount the sample fighter owns, reopened on its alternatives.
+        # Built by the real loader from the real offer, so what starts
+        # picked here is decided the way the application decides it: the
+        # harpoon and the spikes, which is what the copy was bought with.
+        "owned_rechoose_dialog": {
+            **named,
+            "kind": "rechoose",
+            "name": "Ridge-runner",
+            "title": "Change Ridge-runner's options",
+            "choices": pick_groups(
+                _offered_choices("Ridge-runner"),
+                "library.wargear:ridge-runner",
+                taken={"Ridge-runner harpoon", "Ridge-runner spikes"},
+            ),
+            "submit_label": "Save options",
+            "submit_variant": "success",
         },
         "owned_accessorise_dialog": {
             **named,

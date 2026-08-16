@@ -1,6 +1,6 @@
 """What a fighter already owns — selling it, handing it on, taking it off.
 
-Five acts, five addresses, one shape each: a POST names the assignment
+Six acts, six addresses, one shape each: a POST names the assignment
 in its path, an ``operation`` writes it, and the reader lands back where
 they clicked. They are addressed by *assignment* rather than by
 fighter, because that is what they are about — a weapon on a fighter, a
@@ -38,7 +38,10 @@ The acts are deliberately distinct, and the ledger says which happened:
     Off the card, money stays spent.
 ``accessorise``
     A purchase, hosted on the weapon rather than on the fighter. The only
-    one of the five that adds something.
+    one that adds something.
+``rechoose``
+    Taking a thing with different alternatives to the ones it was bought
+    with. The difference settles either way, on the thing's own line.
 """
 
 from django.contrib import messages
@@ -49,7 +52,7 @@ from django.shortcuts import redirect
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
-from n26.core.owned import DIALOGS, is_possession, with_query
+from n26.core.owned import DIALOGS, is_possession, thing_key, with_query
 from n26.core.views.permissions import _own_assignment_or_404
 
 
@@ -345,6 +348,26 @@ def owned_dialog(request, card, *, at, miniature, gang):
             "submit_variant": "primary",
         }
 
+    if kind == "rechoose":
+        # The same controls the row for sale draws, starting on what this
+        # copy took rather than on what a buyer would be handed. What a
+        # swap adds is beside each option; what it settles to is on the
+        # copy's own line once it is saved, because that is where the
+        # figure it changes lives.
+        from n26.core.browse import offered_choices
+        from n26.core.listing import pick_groups
+
+        thing = assignment.assignable
+        taken = {row.default_set_id for row in assignment.chosen_options.all()}
+        return dialog | {
+            "title": f"Change {name}'s options",
+            "choices": pick_groups(
+                offered_choices(thing), thing_key(thing), taken=taken
+            ),
+            "submit_label": "Save options",
+            "submit_variant": "success",
+        }
+
     if kind == "refund":
         _, paid = refund_of(assignment)
         # The figure is what the ledger says was handed over, which is not
@@ -621,6 +644,85 @@ def reassign_assignment(request, pk):
         messages.success(request, f"Fitted {name} to {destination.assignable}.")
     else:
         messages.success(request, f"Moved {name} to {destination.name}.")
+    return redirect(back)
+
+
+@login_required
+@require_POST
+def rechoose_assignment(request, pk):
+    """Take something already owned with different options.
+
+    The alternatives were priced when it was bought and they are priced
+    the same way now, so changing them settles the difference either
+    way: a dearer set is charged, a cheaper one comes back, and the
+    figure lands on the thing's own line because an option is a way that
+    thing is built rather than a purchase beside it.
+
+    The picks arrive as places in the offer the server re-derives, read
+    back by the same parser a purchase uses, so a tampered form can name
+    nothing the content does not offer. A gang that cannot afford an
+    upgrade is refused and nothing changes — the whole swap unwinds
+    together, rather than leaving the old set gone and the new one
+    unpaid for.
+    """
+    from n26.analytics import EventVerb, N26Noun, record
+    from n26.core.browse import offered_choices
+    from n26.core.operations import Refusal, operation
+    from n26.core.views.equip import _choices_picked
+    from n26.library.models.assignable import Optioned
+
+    assignment = _possession_or_404(request, pk)
+    thing = assignment.assignable
+    if not isinstance(thing, Optioned) or not thing.offers_a_choice:
+        # No control draws this address for anything else, and there
+        # would be nothing on the panel behind it to pick.
+        raise Http404("Nothing to choose")
+    gang = assignment.gang_root
+    miniature = assignment.miniature_root
+    back = _back_to(request, miniature, gang)
+
+    picked = _choices_picked(request.POST, thing_key(thing), offered_choices(thing))
+    taken = {row.default_set_id for row in assignment.chosen_options.all()}
+    entry = getattr(assignment, "ledger_entry", None)
+    before = entry.paid if entry is not None else 0
+    try:
+        with operation(gang, actor=request.user) as op:
+            op.rechoose(assignment, option=[option.default_set for option in picked])
+    except Refusal as refusal:
+        messages.error(request, str(refusal))
+        return redirect(back)
+    if entry is not None:
+        entry.refresh_from_db()
+    after = entry.paid if entry is not None else 0
+
+    record(
+        request,
+        N26Noun.ASSIGNMENT,
+        EventVerb.UPDATE,
+        assignment,
+        gang_id=str(gang.pk),
+        miniature_id=str(miniature.pk) if miniature else None,
+        thing=str(thing),
+        action="rechoose",
+        delta=after - before,
+    )
+    # What changed is read from what is recorded rather than from the
+    # money: two options at one price are a real swap that costs nothing,
+    # and calling that unchanged would tell a reader their click did not
+    # land.
+    now = {row.default_set_id for row in assignment.chosen_options.all()}
+    if now == taken:
+        messages.success(request, f"{thing}'s options are unchanged.")
+        return redirect(back)
+    holds = ", ".join(option.name for option in thing.options_taken(now))
+    settled = (
+        f" — {after - before}¢ more."
+        if after > before
+        else f" — {before - after}¢ back."
+        if after < before
+        else "."
+    )
+    messages.success(request, f"{thing} now has {holds}{settled}")
     return redirect(back)
 
 

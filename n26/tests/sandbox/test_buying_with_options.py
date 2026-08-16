@@ -671,6 +671,278 @@ class TestWhatTheOwnedCopyDraws:
         assert SET_LABEL not in body
 
 
+class TestTheWayToChangeThem:
+    """A copy already bought offers a way back to its own alternatives."""
+
+    def test_the_chevron_offers_it_where_the_content_asks_anything(
+        self, client, owner, fighter, house_list, cutter
+    ):
+        client.force_login(owner)
+        client.post(equip_url(fighter, house_list), {"thing": key_of(cutter)})
+
+        row = cutter_row(client, owner, fighter, house_list)
+        (copy,) = row.copies
+        assert [action.label for action in copy.more][0] == "Change options"
+        assert (
+            f"rechoose={copy.id}"
+            in dict((action.label, action.target) for action in copy.more)[
+                "Change options"
+            ]
+        )
+
+    def test_something_that_asked_nothing_offers_no_way_to_change_it(
+        self, client, owner, gang, fighter, house_list, default_pack
+    ):
+        """A set with nothing to pick was taken unasked, so the panel
+        behind such a control would offer one thing."""
+        knife = create_wargear("Stiletto knife", price=10)
+        house_list.entries.create(wargear=knife)
+
+        client.force_login(owner)
+        client.post(equip_url(fighter, house_list), {"thing": key_of(knife)})
+
+        row = row_named(client, owner, fighter, house_list, "Stiletto knife")
+        (copy,) = row.copies
+        assert "Change options" not in [action.label for action in copy.more]
+
+    def test_the_panel_starts_on_what_the_copy_took(
+        self, client, owner, fighter, house_list, cutter
+    ):
+        """Not on what a buyer would be handed: the reader is changing
+        something, so the controls open on what it is now."""
+        client.force_login(owner)
+        client.post(
+            equip_url(fighter, house_list),
+            {"thing": key_of(cutter), choice_field(cutter, 0): "2"},
+        )
+        copy_id = cutter_row(client, owner, fighter, house_list).copies[0].id
+
+        response = client.get(f"{equip_url(fighter, house_list)}&rechoose={copy_id}")
+        guns, fittings = response.context["dialog"]["choices"]
+
+        assert [option.checked for option in guns.options] == [False, False, True]
+        assert fittings.nothing_taken
+
+    def test_a_set_the_copy_took_from_says_so(
+        self, client, owner, fighter, house_list, cutter
+    ):
+        client.force_login(owner)
+        client.post(
+            equip_url(fighter, house_list),
+            {"thing": key_of(cutter), choice_field(cutter, 1): "0"},
+        )
+        copy_id = cutter_row(client, owner, fighter, house_list).copies[0].id
+
+        response = client.get(f"{equip_url(fighter, house_list)}&rechoose={copy_id}")
+        _, fittings = response.context["dialog"]["choices"]
+
+        assert not fittings.nothing_taken
+        assert [option.checked for option in fittings.options] == [True]
+
+
+class TestChangingThem:
+    """The swap settles on the thing's own line, in either direction."""
+
+    def bought(self, client, owner, fighter, house_list, cutter, **picked):
+        client.force_login(owner)
+        client.post(equip_url(fighter, house_list), {"thing": key_of(cutter), **picked})
+        return cutter_row(client, owner, fighter, house_list).copies[0].id
+
+    def change(self, client, fighter, house_list, copy_id, **picked):
+        return client.post(
+            reverse("n26-rechoose", args=[copy_id]),
+            {"list": str(house_list.pk), **picked},
+            follow=True,
+        )
+
+    def test_a_dearer_set_is_charged_the_difference(
+        self, client, owner, gang, fighter, house_list, cutter
+    ):
+        copy_id = self.bought(client, owner, fighter, house_list, cutter)
+        gang.refresh_from_db()
+        assert (gang.credits, gang.rating) == (850, 150)
+
+        self.change(
+            client, fighter, house_list, copy_id, **{choice_field(cutter, 0): "2"}
+        )
+
+        assert weapons_of(fighter) == ["Cutter plasma guns"]
+        gang.refresh_from_db()
+        assert (gang.credits, gang.rating) == (835, 165)
+        assert_reconciled(gang)
+
+    def test_a_cheaper_set_hands_the_difference_back(
+        self, client, owner, gang, fighter, house_list, cutter
+    ):
+        copy_id = self.bought(
+            client,
+            owner,
+            fighter,
+            house_list,
+            cutter,
+            **{choice_field(cutter, 0): "2", choice_field(cutter, 1): "0"},
+        )
+        gang.refresh_from_db()
+        assert (gang.credits, gang.rating) == (815, 185)
+
+        self.change(
+            client, fighter, house_list, copy_id, **{choice_field(cutter, 0): "0"}
+        )
+
+        assert weapons_of(fighter) == ["Cutter grenade launchers"]
+        gang.refresh_from_db()
+        assert (gang.credits, gang.rating) == (850, 150)
+        assert_reconciled(gang)
+
+    def test_the_copy_says_what_it_now_takes(
+        self, client, owner, fighter, house_list, cutter
+    ):
+        copy_id = self.bought(client, owner, fighter, house_list, cutter)
+        self.change(
+            client,
+            fighter,
+            house_list,
+            copy_id,
+            **{choice_field(cutter, 0): "1", choice_field(cutter, 1): "0"},
+        )
+
+        row = cutter_row(client, owner, fighter, house_list)
+        assert [copy.chosen for copy in row.copies] == [
+            ("Cutter heavy stubbers", "Smoke dispenser")
+        ]
+
+    def test_it_says_what_was_charged(self, client, owner, fighter, house_list, cutter):
+        copy_id = self.bought(client, owner, fighter, house_list, cutter)
+        response = self.change(
+            client, fighter, house_list, copy_id, **{choice_field(cutter, 0): "2"}
+        )
+
+        said = [str(message) for message in response.context["messages"]]
+        assert said == ["Escher Cutter now has Cutter plasma guns — 15¢ more."]
+
+    def test_it_says_what_came_back(self, client, owner, fighter, house_list, cutter):
+        copy_id = self.bought(
+            client, owner, fighter, house_list, cutter, **{choice_field(cutter, 0): "2"}
+        )
+        response = self.change(
+            client, fighter, house_list, copy_id, **{choice_field(cutter, 0): "0"}
+        )
+
+        said = [str(message) for message in response.context["messages"]]
+        assert said == ["Escher Cutter now has Cutter grenade launchers — 15¢ back."]
+
+    def test_a_swap_between_options_at_one_price_is_still_a_swap(
+        self, client, owner, gang, fighter, default_pack
+    ):
+        """Two options an author priced the same are a real change that
+        settles nothing. Read from the money, that is indistinguishable
+        from a click that did nothing — so it is read from what is
+        recorded, and the reader is told what they now have."""
+        rig = create_wargear("Duct rig", price=30)
+        for name in ["Left-handed", "Right-handed"]:
+            offer_option(
+                rig,
+                f"{name} fitting",
+                price=5,
+                thing=create_wargear(f"{name} bracket", is_exclusive=True),
+            )
+        collection = create_collection("Riggings", entries=[rig])
+        assign(collection, gang=gang)
+
+        client.force_login(owner)
+        client.post(equip_url(fighter, collection), {"thing": key_of(rig)})
+        copy_id = row_named(client, owner, fighter, collection, "Duct rig").copies[0].id
+
+        response = client.post(
+            reverse("n26-rechoose", args=[copy_id]),
+            {"list": str(collection.pk), choice_field(rig, 0): "1"},
+            follow=True,
+        )
+
+        said = [str(message) for message in response.context["messages"]]
+        assert said == ["Duct rig now has Right-handed fitting."]
+        row = row_named(client, owner, fighter, collection, "Duct rig")
+        assert [copy.chosen for copy in row.copies] == [("Right-handed fitting",)]
+        gang.refresh_from_db()
+        assert_reconciled(gang)
+
+    def test_changing_nothing_charges_nothing(
+        self, client, owner, gang, fighter, house_list, cutter
+    ):
+        copy_id = self.bought(client, owner, fighter, house_list, cutter)
+        response = self.change(
+            client, fighter, house_list, copy_id, **{choice_field(cutter, 0): "0"}
+        )
+
+        said = [str(message) for message in response.context["messages"]]
+        assert said == ["Escher Cutter's options are unchanged."]
+        gang.refresh_from_db()
+        assert (gang.credits, gang.rating) == (850, 150)
+        assert_reconciled(gang)
+
+    def test_the_guns_it_no_longer_takes_leave_with_the_swap(
+        self, client, owner, gang, fighter, house_list, cutter
+    ):
+        """Nothing is ever replaced: the departing set's rows go the way a
+        refund goes, so a mount is never carrying two sets of guns."""
+        copy_id = self.bought(client, owner, fighter, house_list, cutter)
+        self.change(
+            client, fighter, house_list, copy_id, **{choice_field(cutter, 0): "2"}
+        )
+
+        assert not Assignment.objects.filter(
+            weapon__name="Cutter grenade launchers", archived=False
+        ).exists()
+        gang.refresh_from_db()
+        assert_reconciled(gang)
+
+    def test_a_pick_the_offer_never_made_is_refused(
+        self, client, owner, gang, fighter, house_list, cutter
+    ):
+        copy_id = self.bought(client, owner, fighter, house_list, cutter)
+        response = self.change(
+            client, fighter, house_list, copy_id, **{choice_field(cutter, 0): "9"}
+        )
+
+        assert response.status_code == 404
+        assert weapons_of(fighter) == ["Cutter grenade launchers"]
+        gang.refresh_from_db()
+        assert gang.credits == 850
+
+    def test_an_upgrade_the_gang_cannot_afford_changes_nothing(
+        self, client, owner, gang_type, make_profile, make_statline, cutter
+    ):
+        """The refusal unwinds the whole swap rather than leaving the old
+        guns gone and the new ones unpaid for."""
+        pauper = found_gang("The Skint", gang_type, owner=owner, budget=155)
+        profile = make_profile("Waif", price=0)
+        make_statline(profile, movement=5, weapon_skill=4, toughness=3)
+        fighter = hire(pauper, profile, "Nell")
+        collection = create_collection(
+            "Thin Pickings", entries=[(cutter, {"price_override": 150})]
+        )
+        assign(collection, gang=pauper)
+
+        client.force_login(owner)
+        client.post(equip_url(fighter, collection), {"thing": key_of(cutter)})
+        copy_id = (
+            row_named(client, owner, fighter, collection, "Escher Cutter").copies[0].id
+        )
+
+        response = client.post(
+            reverse("n26-rechoose", args=[copy_id]),
+            {"list": str(collection.pk), choice_field(cutter, 0): "2"},
+            follow=True,
+        )
+
+        said = [str(message) for message in response.context["messages"]]
+        assert said and "credits" in said[0].lower()
+        assert weapons_of(fighter) == ["Cutter grenade launchers"]
+        pauper.refresh_from_db()
+        assert pauper.credits == 5
+        assert_reconciled(pauper)
+
+
 class TestNamingWhatIsOwnedCostsNothing:
     """Describing a copy reads the recorded sets and the offer they came
     from, both already in hand — so a fighter buying more mounts asks the

@@ -1167,14 +1167,15 @@ GROUPS: list[Group] = [
                 summary=(
                     "Confirm a sale, a move, a refund or a removal of "
                     "something the gang owns — or ask which accessory to "
-                    "fit to a weapon."
+                    "fit to a weapon, or which alternatives it is taken "
+                    "with."
                 ),
                 needs=(ALPINE,),
                 notes=(
-                    "One panel for five questions, because the difference "
-                    "between them is a sentence and, for three of them, one "
-                    "control — five files "
-                    "would be five copies of the same dialog drifting apart a "
+                    "One panel for six questions, because the difference "
+                    "between them is a sentence and, for half of them, one "
+                    "control — six files "
+                    "would be six copies of the same dialog drifting apart a "
                     "fix at a time. Each says the thing a reader cannot work "
                     "out from the page: a sale states its arithmetic, because "
                     "the figure comes from rows nobody can see and it is money; "
@@ -1194,7 +1195,14 @@ GROUPS: list[Group] = [
                     "one; and fitting an accessory is the question here that "
                     "confirms nothing, sharing the panel because it is the same "
                     "sort of state — one row of a card, open because the "
-                    "address says so."
+                    "address says so. Changing what a thing was bought with "
+                    "is the second of those, and it draws the buying row's "
+                    "own controls rather than a second set: one set of "
+                    "alternatives asked about in two places is one place "
+                    "where the asking is written, with the loader deciding "
+                    "which control starts picked — a buyer is handed the "
+                    "standard one, and somebody changing a thing starts on "
+                    "what it holds."
                 ),
             ),
             Component(

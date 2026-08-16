@@ -80,6 +80,11 @@ urlpatterns = [
         views.accessorise_assignment,
         name="n26-accessorise",
     ),
+    path(
+        "assignments/<str:pk>/rechoose/",
+        views.rechoose_assignment,
+        name="n26-rechoose",
+    ),
     path("gangs/<str:pk>/print/setup/", views.print_setup, name="n26-print-setup"),
     path("gangs/<str:pk>/print/", views.print_gang, name="n26-print"),
     path("design/", include("n26.designsystem.urls")),

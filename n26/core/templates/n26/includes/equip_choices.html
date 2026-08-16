@@ -1,7 +1,12 @@
 {% comment %}
-The questions a row asks before it will sell you the thing: a mount's grenade
-launchers or, for a surcharge, its plasma guns. Expects `row` — an
-n26.core.listing.Listing.
+The questions asked about a thing with alternatives: a mount's grenade
+launchers or, for a surcharge, its plasma guns. Expects `choices` — a tuple of
+n26.core.listing.PickGroup.
+
+Drawn both where the thing is for sale and where one already held is being
+changed. Which control starts picked is the structure's answer either way
+(`option.checked`, `group.nothing_taken`), so the two readings are made in one
+place and this draws whichever it is handed.
 
 Controls rather than a second row on the list, because that is what they are: a
 mount's guns are not a thing you buy from this screen, they are a way the mount
@@ -11,9 +16,8 @@ page — same three modes, drawn the same way, read back the same way as indices
 into the row the server re-derives.
 
 Which control is not a style choice: the set's `choose` says whether exactly one
-is taken (radios, the standard one already selected), any number (tick boxes,
-none selected), or at most one (radios with a None row). Nothing here decides it
-again.
+is taken (radios), any number (tick boxes), or at most one (radios with a None
+row). Nothing here decides it again.
 
 A set is never named. The label the content carries is the author's word for
 their own page, and a player is here to pick — so a set is shown as grouping,
@@ -28,7 +32,7 @@ Works with no script running: every control posts its own value and the server
 does the arithmetic when the purchase is made. What is lost without one is the
 price box updating as the radios move.
 {% endcomment %}
-{% for group in row.choices %}
+{% for group in choices %}
     {% comment %}
     Every set after the first says how many to take, and its options step in
     from that label — the two together are how a reader is told where one set's
@@ -58,7 +62,7 @@ price box updating as the radios move.
             <input type="{% if group.choose == 'any' %}checkbox{% else %}radio{% endif %}"
                    name="{{ group.field }}"
                    value="{{ option.value }}"
-                   {% if option.is_default %}checked{% endif %}
+                   {% if option.checked %}checked{% endif %}
                    class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
             <span class="min-w-0 text-sm text-ink-900 dark:text-ink-100 sm:truncate">{{ option.name }}</span>
             {% if option.surcharge_label %}
@@ -67,17 +71,18 @@ price box updating as the radios move.
         </label>
     {% endfor %}
     {% comment %}
-    A one-or-none set starts with nothing taken, and radios cannot be unclicked
-    once clicked — so "None" is the option that makes taking nothing clickable,
-    checked from the start and adding nothing. Its empty value is what the
-    purchase skips.
+    Radios cannot be unclicked once clicked, so "None" is the option that makes
+    taking nothing clickable, and it adds nothing. Whether it is where the set
+    starts is the group's answer: a row for sale takes nothing from such a set,
+    and one already held starts on whatever it holds. Its empty value is what
+    the answer skips.
     {% endcomment %}
     {% if group.choose == "one-or-none" %}
         <label class="flex min-h-9 cursor-pointer items-center gap-2 rounded-control py-0.5 hover:bg-ink-500/5 {% if not forloop.first %}n26-cp-substep{% endif %}">
             <input type="radio"
                    name="{{ group.field }}"
                    value=""
-                   checked
+                   {% if group.nothing_taken %}checked{% endif %}
                    class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
             <span class="min-w-0 text-sm text-ink-900 dark:text-ink-100 sm:truncate">None</span>
         </label>

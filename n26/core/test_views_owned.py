@@ -398,7 +398,8 @@ class TestWhatMayBeClickedOn:
     """
 
     @pytest.mark.parametrize(
-        "route", ["n26-sell", "n26-reassign", "n26-refund", "n26-remove"]
+        "route",
+        ["n26-sell", "n26-reassign", "n26-refund", "n26-remove", "n26-rechoose"],
     )
     def test_a_fighter_is_not_kit(self, client, tester, gang, fighter, sword, route):
         client.force_login(tester)
@@ -421,7 +422,8 @@ class TestWhatMayBeClickedOn:
         assert_reconciled(gang)
 
     @pytest.mark.parametrize(
-        "route", ["n26-sell", "n26-reassign", "n26-refund", "n26-remove"]
+        "route",
+        ["n26-sell", "n26-reassign", "n26-refund", "n26-remove", "n26-rechoose"],
     )
     def test_the_gang_itself_is_not_kit(self, client, tester, gang, route):
         """The founding assignment carries the gang's type, its equipment
@@ -442,7 +444,8 @@ class TestWhatMayBeClickedOn:
         assert_reconciled(gang)
 
     @pytest.mark.parametrize(
-        "route", ["n26-sell", "n26-reassign", "n26-refund", "n26-remove"]
+        "route",
+        ["n26-sell", "n26-reassign", "n26-refund", "n26-remove", "n26-rechoose"],
     )
     def test_what_a_fighter_knows_is_not_kit(
         self, client, tester, gang, fighter, route
@@ -485,7 +488,8 @@ class TestWhoMayClick:
     none of them is a GET."""
 
     @pytest.mark.parametrize(
-        "route", ["n26-sell", "n26-reassign", "n26-refund", "n26-remove"]
+        "route",
+        ["n26-sell", "n26-reassign", "n26-refund", "n26-remove", "n26-rechoose"],
     )
     def test_a_stranger_finds_nothing(self, client, gang, sword, route):
         stranger = User.objects.create_user("stranger")
@@ -498,7 +502,8 @@ class TestWhoMayClick:
         assert_reconciled(gang)
 
     @pytest.mark.parametrize(
-        "route", ["n26-sell", "n26-reassign", "n26-refund", "n26-remove"]
+        "route",
+        ["n26-sell", "n26-reassign", "n26-refund", "n26-remove", "n26-rechoose"],
     )
     def test_signing_out_is_signing_out(self, client, sword, route):
         response = client.post(url(route, sword))
@@ -506,7 +511,8 @@ class TestWhoMayClick:
         assert "/accounts/login/" in response.url
 
     @pytest.mark.parametrize(
-        "route", ["n26-sell", "n26-reassign", "n26-refund", "n26-remove"]
+        "route",
+        ["n26-sell", "n26-reassign", "n26-refund", "n26-remove", "n26-rechoose"],
     )
     def test_a_get_writes_nothing(self, client, tester, gang, sword, route):
         """A link that spent money by being followed would be spent by a
@@ -525,7 +531,14 @@ class TestWhoMayClick:
 
     @pytest.mark.parametrize(
         "route",
-        ["n26-sell", "n26-reassign", "n26-refund", "n26-remove", "n26-accessorise"],
+        [
+            "n26-sell",
+            "n26-reassign",
+            "n26-refund",
+            "n26-remove",
+            "n26-accessorise",
+            "n26-rechoose",
+        ],
     )
     def test_a_pk_that_is_not_a_ulid_is_not_found(self, client, tester, route):
         client.force_login(tester)

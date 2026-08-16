@@ -79,7 +79,7 @@ reader might want belongs, with the click it feeds.
                 </span>
             </div>
             {% if row.buy.choices %}
-                {% include "n26/includes/equip_choices.html" with row=row.buy %}
+                {% include "n26/includes/equip_choices.html" with choices=row.buy.choices %}
             {% endif %}
             {% if row.buy.options %}
                 {% include "n26/includes/equip_options.html" with row=row.buy %}

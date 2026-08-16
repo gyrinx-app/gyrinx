@@ -245,7 +245,7 @@ def browse(collection, terms=EQUIPMENT_LIST):
                     charges_trade_points=terms.charges_trade_points,
                     shows_trade_points=in_trade_points,
                     parts=_swept_parts(thing, terms, in_trade_points),
-                    choices=_offered_choices(thing),
+                    choices=offered_choices(thing),
                 ),
             )
 
@@ -310,7 +310,7 @@ def browse(collection, terms=EQUIPMENT_LIST):
                 parts=_entry_parts(
                     ammo.get(entry.weapon_id, ()), terms, in_trade_points
                 ),
-                choices=_offered_choices(thing),
+                choices=offered_choices(thing),
             ),
         )
 
@@ -385,14 +385,14 @@ def all_gear(name, terms=EQUIPMENT_LIST):
                         is_exclusive=price.is_exclusive,
                         charges_trade_points=terms.charges_trade_points,
                         parts=_swept_parts(thing, terms, False),
-                        choices=_offered_choices(thing),
+                        choices=offered_choices(thing),
                     ),
                 )
             )
     return _sectioned(name, lines)
 
 
-def _offered_choices(thing):
+def offered_choices(thing):
     """The sets of alternatives this thing puts to a buyer.
 
     Read off the same offer a hire reads (``Optioned.grouped_offers``), so

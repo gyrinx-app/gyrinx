@@ -40,7 +40,7 @@ every input in the list on the same column however many rows have one.
     {% if row.choices or row.options %}
         <c-slot name="rows">
             {% if row.choices %}
-                {% include "n26/includes/equip_choices.html" %}
+                {% include "n26/includes/equip_choices.html" with choices=row.choices %}
             {% endif %}
             {% if row.options %}
                 {% include "n26/includes/equip_options.html" %}

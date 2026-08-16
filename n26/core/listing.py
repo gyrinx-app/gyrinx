@@ -165,7 +165,14 @@ class GroupOption:
     name: str
     value: str
     surcharge: int
+    #: Whether this is the one its set takes unasked. A fact about the
+    #: offer, true wherever the offer is drawn.
     is_default: bool
+    #: Whether this control arrives already picked. A question about
+    #: *this* drawing rather than about the offer: buying starts on the
+    #: standard one, and changing what something already holds starts on
+    #: what it holds.
+    checked: bool = False
 
     @property
     def surcharge_label(self):
@@ -191,6 +198,11 @@ class PickGroup:
     #: The input every option in this group shares.
     field: str
     options: tuple[GroupOption, ...]
+    #: Whether the control for taking nothing from this set is the one
+    #: picked. Radios cannot be unclicked, so a one-or-none set draws a
+    #: "None" beside its options, and this says whether that is where it
+    #: starts.
+    nothing_taken: bool = True
 
 
 @dataclass(frozen=True)
@@ -347,12 +359,18 @@ def _options_of(line, key):
     )
 
 
-def _choices_of(line, key):
-    """The line's offered alternatives as controls, in the line's own order.
+def pick_groups(offered, key, taken=None):
+    """Offered alternatives as controls, in the offer's own order.
 
     The order is load-bearing: a control submits its place in the set and
-    the purchase reads that place against the line it re-derives, so this
-    walks the browsed line and never a second derivation of it.
+    whatever answers the form reads that place against the offer it
+    re-derives, so this walks one derivation of the offer and never a
+    second.
+
+    ``taken`` is the sets something already holds, where it holds any: the
+    same controls, starting on what it took rather than on what a buyer
+    would be handed. Left out — which is what a row for sale means — each
+    set starts on the one taken unasked.
     """
     return tuple(
         PickGroup(
@@ -364,11 +382,24 @@ def _choices_of(line, key):
                     value=str(position),
                     surcharge=option.surcharge,
                     is_default=option.is_default,
+                    checked=(
+                        option.is_default
+                        if taken is None
+                        else option.default_set is not None
+                        and option.default_set.pk in taken
+                    ),
                 )
                 for position, option in enumerate(group.options)
             ),
+            nothing_taken=(
+                taken is None
+                or not any(
+                    option.default_set is not None and option.default_set.pk in taken
+                    for option in group.options
+                )
+            ),
         )
-        for index, group in enumerate(line.choices)
+        for index, group in enumerate(offered)
     )
 
 
@@ -389,7 +420,7 @@ def listing_row(line):
         # collection and finds the line itself, so a tampered form can
         # name nothing that is not on the list.
         buy=Action(label="Buy", kind=SUBMIT, target=key, tone=PRIMARY),
-        choices=_choices_of(line, key),
+        choices=pick_groups(line.choices, key),
     )
 
 
@@ -439,6 +470,14 @@ def copy_row(copy, refunds=True):
             else None
         ),
         more=(
+            # First, and only where the content asks anything: the one act
+            # here that leaves the fighter holding what they held, so it
+            # reads before the ways of parting with it.
+            *(
+                (Action("Change options", LINK, copy.rechoose_href, SECONDARY),)
+                if copy.rechoose_href
+                else ()
+            ),
             Action("Reassign", LINK, copy.reassign_href, SECONDARY),
             *(
                 (Action("Refund", LINK, copy.refund_href, SECONDARY),)

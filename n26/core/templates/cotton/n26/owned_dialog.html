@@ -99,6 +99,8 @@ else about them is the same panel as the four confirmations.
                 {{ dialog.sum }} It leaves the card with anything attached to it,
                 and stops counting towards the gang's rating.
             {% endif %}
+        {% elif dialog.kind == "rechoose" %}
+            You will be charged or refunded the difference.
         {% elif dialog.kind == "reassign" %}
             Where it lives changes; what it is worth does not — a move never
             re-prices.
@@ -122,6 +124,18 @@ else about them is the same panel as the four confirmations.
     should land where the question was asked, not at the top of the first tab.
     {% endcomment %}
     {% if dialog.section %}<input type="hidden" name="section" value="{{ dialog.section }}">{% endif %}
+
+    {% comment %}
+    The same controls the row for sale draws, starting on what this copy took.
+    Drawn by the listing's own include so a set is asked about in one way
+    wherever it is asked about, and read back as places in the offer the server
+    re-derives.
+    {% endcomment %}
+    {% if dialog.kind == "rechoose" %}
+        <div class="-my-0.5">
+            {% include "n26/includes/equip_choices.html" with choices=dialog.choices %}
+        </div>
+    {% endif %}
 
     {% if dialog.kind == "accessorise" %}
         {% comment %}
