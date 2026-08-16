@@ -5,7 +5,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("n26", "0014_the_owner_edits_what_a_model_is"),
+        ("n26", "0015_a_pick_names_the_offer_it_settles"),
     ]
 
     operations = [
