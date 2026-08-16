@@ -1,0 +1,158 @@
+{% extends "n26/layouts/base.html" %}
+{% load navigation %}
+{% load humanize %}
+{% comment %}
+The gang's history — everything done to it, newest first.
+
+One line per act, in plain words: hired, bought, renamed, took away, put
+back. What an act brought with it is folded beneath it, so a hire is one
+line with its kit under it rather than seven of equal weight.
+
+The filters are a plain GET form: a narrowed page is an address someone
+can keep, and the page works with no script at all. The full timestamp
+rides on each time as a title, so hovering answers "when exactly" without
+spending a column on it.
+{% endcomment %}
+{% block head_title %}History of {{ gang.name }}{% endblock head_title %}
+{% comment %}
+The bar names the gang and opens on the reader's others. The heading
+block stays empty: the switcher carries the name itself, and a bar
+that said it twice would be spending the width the name needs.
+{% endcomment %}
+{% block nav_switcher %}
+    {% gang_switcher gang as gang_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="gang_switcher_" hotkey="f" />
+{% endblock nav_switcher %}
+{% block nav_items %}
+    {% include 'n26/_nav.html' with here='gangs' %}
+{% endblock %}
+{% block content %}
+    <div class="mx-auto flex w-full max-w-2xl flex-col gap-6">
+        <c-n26.page-header title="History"
+                           lead="Everything done to {{ gang.name }}, newest first.">
+            <c-slot name="breadcrumb">
+                <c-ui.breadcrumbs>
+                    <c-ui.breadcrumbs.item>
+                        <c-n26.user-link :user="gang.owner" tone="current" href="{% url 'n26-dashboard' %}" />
+                    </c-ui.breadcrumbs.item>
+                    <c-ui.breadcrumbs.item href="{% url 'n26-gang' gang.pk %}">{{ gang.name }}</c-ui.breadcrumbs.item>
+                    <c-ui.breadcrumbs.item :current="True">
+                        History
+                    </c-ui.breadcrumbs.item>
+                </c-ui.breadcrumbs>
+            </c-slot>
+        </c-n26.page-header>
+        {% comment %}
+        One form, three narrowings, one submit. The search bar is nested
+        — HTML has no nested forms, so it renders as a div and the one
+        real form carries everything to the same address.
+        {% endcomment %}
+        <form action="{% url 'n26-gang-history' gang.pk %}"
+              method="get"
+              class="flex flex-col gap-2">
+            <c-n26.search-bar :nested="True"
+                              name="q"
+                              value="{{ query }}"
+                              placeholder="Search the history" />
+            <div class="flex flex-wrap items-center gap-2">
+                <label class="sr-only" for="history-kind">Kind of act</label>
+                <div class="w-40">
+                    <c-ui.select.native name="kind" id="history-kind" size="sm" placeholder="">
+                        <c-ui.select.option value="">
+                            Everything
+                        </c-ui.select.option>
+                        {% for value, label in kinds.items %}
+                            <c-ui.select.option value="{{ value }}" :selected="kind == value">
+                                {{ label }}
+                            </c-ui.select.option>
+                        {% endfor %}
+                    </c-ui.select.native>
+                </div>
+                <label class="sr-only" for="history-model">Model</label>
+                <div class="w-48">
+                    <c-ui.select.native name="model" id="history-model" size="sm" placeholder="">
+                        <c-ui.select.option value="">
+                            Any model
+                        </c-ui.select.option>
+                        {% for pk, name in models %}
+                            <c-ui.select.option value="{{ pk }}" :selected="model == pk">
+                                {{ name }}
+                            </c-ui.select.option>
+                        {% endfor %}
+                    </c-ui.select.native>
+                </div>
+                <c-ui.button size="sm" variant="default" type="submit">
+                    Filter
+                </c-ui.button>
+                {% if narrowed %}
+                    <c-n26.link href="{% url 'n26-gang-history' gang.pk %}">Clear</c-n26.link>
+                    <span class="text-sm text-muted">{{ shown }} of {{ total }} acts</span>
+                {% endif %}
+            </div>
+        </form>
+        {% if days %}
+            <ol class="flex flex-col gap-5">
+                {% for day in days %}
+                    <li>
+                        <h2 class="mb-1 border-b border-box-border pb-1 text-sm font-medium text-muted">
+                            {{ day.date|naturalday:"j F Y"|capfirst }}
+                        </h2>
+                        <ol>
+                            {% for act in day.acts %}
+                                <li class="flex gap-3 border-b border-box-border/50 py-2 last:border-b-0">
+                                    <time datetime="{{ act.when|date:'c' }}"
+                                          title="{{ act.when }}"
+                                          class="w-11 shrink-0 pt-px text-right text-sm tabular-nums text-muted">
+                                        {{ act.when|time:"H:i" }}
+                                    </time>
+                                    <div class="min-w-0 flex-1">
+                                        <p class="text-base">
+                                            {% if act.actor %}<span class="font-medium">{{ act.actor }}</span>{% endif %}
+                                            {% for span in act.spans %}{% if span.href %}<c-n26.link href="{{ span.href }}" tone="current">{{ span.text }}</c-n26.link>{% else %}{{ span.text }}{% endif %}{% endfor %}
+                                        </p>
+                                        {% if act.note %}<p class="text-sm text-muted">{{ act.note }}</p>{% endif %}
+                                        {% if act.subs %}
+                                            <ul class="mt-0.5 text-sm text-muted">
+                                                {% for sub in act.subs %}
+                                                    <li>
+                                                        {{ sub.name }}
+                                                        <span class="opacity-75">— {{ sub.kind }}{% if sub.note %}, {{ sub.note }}{% endif %}</span>
+                                                    </li>
+                                                {% endfor %}
+                                            </ul>
+                                        {% endif %}
+                                    </div>
+                                    {% if act.credits or act.rating %}
+                                        <div class="shrink-0 pt-px text-right text-sm tabular-nums">
+                                            {% if act.credits %}
+                                                <div title="What this did to the gang's credits"
+                                                     class="{% if act.credits > 0 %}font-medium{% endif %}">
+                                                    {% if act.credits > 0 %}+{% endif %}{{ act.credits }}¢
+                                                </div>
+                                            {% endif %}
+                                            {% if act.rating %}
+                                                <div class="text-muted"
+                                                     title="What this did to the gang's rating — set when the thing was acquired, and never re-priced">
+                                                    {% if act.rating > 0 %}+{% endif %}{{ act.rating }} rating
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    {% endif %}
+                                </li>
+                            {% endfor %}
+                        </ol>
+                    </li>
+                {% endfor %}
+            </ol>
+        {% else %}
+            <p class="text-muted">
+                {% if narrowed %}
+                    Nothing matches that.
+                    <c-n26.link href="{% url 'n26-gang-history' gang.pk %}">Show everything</c-n26.link>
+                {% else %}
+                    Nothing yet — the history starts with the first thing done to the gang.
+                {% endif %}
+            </p>
+        {% endif %}
+    </div>
+{% endblock content %}

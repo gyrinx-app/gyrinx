@@ -152,6 +152,12 @@ class LedgerEvent(Base):
         "n26.Gang", on_delete=models.CASCADE, related_name="ledger_events"
     )
     kind = models.CharField(max_length=20, choices=Kind)
+    #: One mark per operation, shared by every event it wrote. Events
+    #: sharing a mark were one act — a hire and everything it brought, a
+    #: reset and everything it undid — and a reader of the history is
+    #: shown them as one. Null means the act's mark was never recorded,
+    #: and each event stands on its own.
+    batch = models.UUIDField(null=True, blank=True, editable=False)
     actor = models.ForeignKey(
         "auth.User",
         on_delete=models.SET_NULL,

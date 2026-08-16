@@ -135,6 +135,11 @@ that said it twice would be spending the width the name needs.
                                  href="{% url 'n26-print-setup' gang.pk %}">
                         Print
                     </c-ui.button>
+                    <c-ui.button size="sm"
+                                 variant="default"
+                                 href="{% url 'n26-gang-history' gang.pk %}">
+                        History
+                    </c-ui.button>
                     <c-ui.dropdown>
                         <c-slot name="trigger">
                             <c-ui.button size="sm" variant="default" aria-label="More actions">

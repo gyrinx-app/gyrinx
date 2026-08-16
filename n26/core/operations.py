@@ -28,6 +28,7 @@ Use it as a context manager::
 """
 
 from contextlib import contextmanager
+from uuid import uuid4
 
 from django.db import transaction
 
@@ -194,6 +195,9 @@ class Operation:
     def __init__(self, gang, actor=None):
         self.gang = gang
         self.actor = actor
+        # Every event this operation writes carries the same mark, so
+        # the history can tell one act's records from its neighbours'.
+        self.batch = uuid4()
         self._miniatures = {}
         self._effect_depth = 0
 
@@ -331,6 +335,7 @@ class Operation:
             miniature=about if isinstance(about, Miniature) else None,
             gang=gang,
             kind=kind,
+            batch=self.batch,
             actor=self.actor,
             **deltas,
         )
