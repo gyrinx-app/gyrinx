@@ -313,6 +313,16 @@ class TestTheRefusals:
             apply(plan)
         assert not SlotType.objects.filter(name="Specialisation").exists()
 
+    def test_an_archived_specialisation_is_refused_not_skipped(self, world):
+        ghost = create_specialisation("Forgotten")
+        ghost.archived = True
+        ghost.save()
+
+        plan = plan_specialisation()
+
+        assert not plan.ok
+        assert any("Forgotten" in problem for problem in plan.problems)
+
     def test_two_hiddens_sharing_a_name_are_refused(self, world):
         create_hidden("Specialisation offer", qualifier="(a second one)")
 

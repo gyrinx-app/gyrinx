@@ -96,6 +96,16 @@ def plan_specialisation():
     old_rows = list(Specialisation.objects.filter(archived=False).order_by("name"))
     if not old_rows:
         problems.append("no specialisations to convert")
+    # An archived row would escape every step — not a pickable, not
+    # retired, and any stored pick naming it only failing at apply.
+    # Whether it should convert or die is a content decision, so the
+    # plan refuses rather than deciding.
+    ghosts = Specialisation.objects.filter(archived=True).order_by("name")
+    if ghosts:
+        problems.append(
+            "archived specialisations the plan does not convert: "
+            + ", ".join(row.name for row in ghosts)
+        )
 
     picks = list(
         Assignment.objects.filter(specialisation__isnull=False)
