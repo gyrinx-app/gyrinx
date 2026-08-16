@@ -112,6 +112,12 @@ class Contribution:
     #: as the gang's guest — the granting scope's own say. Meaningless
     #: for a grant to a model, where there is nothing to echo.
     echoes: bool = True
+    #: The written line the chain of grants that brought this thing
+    #: stands on, however many grants deep it arrived. A grant writes
+    #: nothing down, so a choice one gives has no assignment of its own
+    #: to be addressed on; this is the one it hangs from instead, and
+    #: taking that line away takes the whole chain with it.
+    root_key: object = None
 
     @property
     def name(self):
@@ -285,6 +291,10 @@ class PlannedStep:
     #: The card node carrying this modifier — None for discovered
     #: carriers. What "the weapon I am attached to" anchors on.
     node: object = None
+    #: The written line this carrier stands on: its own where the card
+    #: holds it, and otherwise the one at the foot of the grants that
+    #: brought it here. What a choice it gives is addressed on.
+    root_key: object = None
 
     @property
     def scope(self):
@@ -555,6 +565,9 @@ def compute(card, index):
         for node in card.all_nodes()
     }
     anchors = {ModifierIndex.key(node.assignable): node for node in card.all_nodes()}
+    #: The card's written lines by their own identity, which is what a
+    #: chain of grants names when it says what it stands on.
+    lines = {node.key: node for node in card.all_nodes()}
     offers = _Offers()
     given_slots = _Offers()
     log = _Log()
@@ -584,7 +597,13 @@ def compute(card, index):
         AllowsAtMost: 6,
     }
 
-    def steps_for(source, discovered, found_in_round, node=None, echoed=False):
+    def steps_for(
+        source, discovered, found_in_round, node=None, echoed=False, root_key=None
+    ):
+        # A carrier the card holds stands on its own line; one a grant
+        # brought stands on whatever the granter stood on, so the foot of
+        # a chain however deep is the line somebody wrote down.
+        stands_on = node.key if node is not None else root_key
         for modifier, spec in index.for_thing(source):
             if modifier.scope is None or modifier.effect is None:
                 continue
@@ -596,6 +615,7 @@ def compute(card, index):
                 discovered=discovered,
                 node=node,
                 echoed=echoed,
+                root_key=stands_on,
             )
 
     # One run of a carrier's modifiers per NODE, not per distinct thing:
@@ -628,7 +648,18 @@ def compute(card, index):
     ]
     for contribution in echoed:
         seen.add(ModifierIndex.key(contribution.thing))
-        pending.extend(steps_for(contribution.thing, True, 0, echoed=True))
+        # The gang's guest keeps the line it stands on: the gang wrote
+        # that one down, and it rides this card as a broadcast line, so a
+        # choice the guest gives has an address here after all.
+        pending.extend(
+            steps_for(
+                contribution.thing,
+                True,
+                0,
+                echoed=True,
+                root_key=contribution.root_key,
+            )
+        )
 
     round_no = 0
     while pending and round_no <= MAX_CHAIN_DEPTH:
@@ -706,22 +737,23 @@ def compute(card, index):
                     # asked on each card its scope reached a model of —
                     # Water Guild, the gang's pick, opening a Guild Role
                     # on every fighter — and never repeated for merely
-                    # riding a card as the gang's copy. A gang *guest*
-                    # granting a slot has no stored assignment on this
-                    # card to hang the choice's address on, so its slot
-                    # is not asked yet: recording an anchorless row would
-                    # only be dropped further down.
-                    given_here = not (
-                        step.echoed or (step.node is not None and step.node.broadcast)
-                    ) or (
-                        step.node is not None
-                        and step.node.broadcast
-                        and any(target.kind == MODEL for target in targets)
+                    # riding a card as the gang's copy. The gang's guests
+                    # are gang-held too: a rule an alliance gave the gang
+                    # asks its choice on each fighter it reaches, and on
+                    # none if it reaches only the gang.
+                    gang_held = step.echoed or (
+                        step.node is not None and step.node.broadcast
                     )
-                    if given_here:
+                    if not gang_held or any(target.kind == MODEL for target in targets):
+                        # Addressed on the line the giver stands on. That
+                        # is the giver's own where the card holds it, and
+                        # otherwise the written line its chain of grants
+                        # hangs from — so what a grant gives can be asked
+                        # and answered like anything else, and un-writing
+                        # that line takes the answers with it.
                         given = (
                             effect.thing,
-                            anchors.get(source_key),
+                            lines.get(step.root_key),
                             label,
                             label_kind,
                         )
@@ -740,6 +772,7 @@ def compute(card, index):
                                     source=label,
                                     source_kind=label_kind,
                                     echoes=getattr(scope, "echoes", True),
+                                    root_key=step.root_key,
                                 ),
                                 step.node,
                                 source_key,
@@ -749,7 +782,9 @@ def compute(card, index):
                         thing_key = ModifierIndex.key(thing)
                         if thing_key not in seen:
                             seen.add(thing_key)
-                            pending.extend(steps_for(thing, True, round_no))
+                            pending.extend(
+                                steps_for(thing, True, round_no, root_key=step.root_key)
+                            )
                     elif isinstance(effect, RemovesAssignable):
                         removes.append(
                             (
@@ -1294,8 +1329,10 @@ def _fill_slot_choices(computed, given, by_choice):
     gave share an anchor, and only the slot tells their picks apart.
 
     ``given`` holds the slots a modifier handed over, which have no
-    assignment of their own — the choice they open is anchored on
-    whatever gave it, so un-choosing that retracts this one too.
+    assignment of their own — the choice they open is anchored on the
+    written line the giver stands on, so un-writing that retracts this
+    one too. A slot given by something standing on no written line at
+    all has nowhere to be asked, and is not.
     """
     from n26.library.models import Slot
 

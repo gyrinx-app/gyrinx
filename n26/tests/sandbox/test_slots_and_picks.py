@@ -29,8 +29,10 @@ from n26.tests.sandbox.actions import (
     assign,
     buy,
     choose,
+    create_affiliation,
     create_collection,
     create_gang_type,
+    create_hidden,
     create_pickable,
     create_picklist,
     create_profile,
@@ -45,8 +47,10 @@ from n26.tests.sandbox.actions import (
     has_subtypes,
     hire,
     modifier,
+    refund,
     remove,
     targets_every_model,
+    targets_gang,
     targets_model,
 )
 
@@ -870,6 +874,210 @@ class TestAGangPickOpensAChoiceOnEveryModel:
 
         profile, guild, nauticus, _ = guild_shape
         kaustos, _ = self.crew_with_the_pick(gang, profile, guild)
+        client.force_login(owner)
+        sheet = render_gang(gang)
+        link_slots(gang, sheet, *sheet.models)
+        card = next(drawn for drawn in sheet.models if drawn.name == "Kaustos")
+        (line,) = card.questions
+
+        body = client.get(line.href).content.decode()
+        assert "Nauticus" in body
+        response = client.post(line.href, {"thing": f"library.pickable:{nauticus.pk}"})
+
+        assert response.status_code == 302
+        assert Assignment.objects.get(pickable=nauticus).miniature == kaustos
+        assert_reconciled(gang)
+
+
+class TestAChoiceOpenedFurtherDownTheChain:
+    """The giver need not be a line the card holds. A wargear gives a
+    hidden carrier and the carrier opens the choice: nothing wrote the
+    carrier down, so the choice is addressed on the wargear the whole
+    chain stands on, and goes when the wargear does.
+    """
+
+    @pytest.fixture
+    def relic(self, person_type, gang_type, default_pack):
+        rite = create_slot_type("Rite")
+        vigil = create_pickable("The Vigil", rite)
+        modifier(
+            "The Vigil: its rule",
+            targets_model_with(),
+            ef_adds(create_rule("Keeps the Vigil")),
+            carried_by=vigil,
+        )
+        rites = create_picklist("Rites", rite, members=[vigil])
+        rite_slot = create_slot("Rite", rite, rites)
+        observances = create_hidden("The relic's observances")
+        modifier(
+            "The observances open the Rite choice",
+            targets_model(),
+            ef_adds(rite_slot),
+            carried_by=observances,
+        )
+        relic = create_wargear("Reliquary", price=30)
+        modifier(
+            "Reliquary: it carries its observances",
+            targets_model(),
+            ef_adds(observances),
+            carried_by=relic,
+        )
+        profile = create_profile("Devotee", person_type, gang_type, price=100)
+        return profile, relic, vigil, rite_slot
+
+    def test_the_choice_is_asked_and_addressed_on_the_wargear(self, gang, relic):
+        profile, wargear, _, _ = relic
+        kaustos = hire(gang, profile, "Kaustos", paid=100)
+        bought = buy(kaustos, thing=wargear, paid=30)
+
+        (rite_row,) = choices_of(kaustos)
+
+        assert rite_row.kind_label == "Rite"
+        assert rite_row.anchor.assignment == bought
+        assert_reconciled(gang)
+
+    def test_what_is_picked_lands_and_giving_the_wargear_back_takes_it(
+        self, gang, relic
+    ):
+        profile, wargear, vigil, rite_slot = relic
+        kaustos = hire(gang, profile, "Kaustos", paid=100)
+        bought = buy(kaustos, thing=wargear, paid=30)
+        (rite_row,) = choices_of(kaustos)
+        choose(rite_row.anchor.assignment, vigil, slot=rite_slot)
+        assert [line.name for line in card_of(kaustos)[1].rules] == ["Keeps the Vigil"]
+
+        refund(bought)
+
+        assert choices_of(kaustos) == []
+        assert not Assignment.objects.filter(pickable=vigil, archived=False).exists()
+        # The refund repinned the gang it reached through the assignment,
+        # which is not this instance.
+        gang.refresh_from_db()
+        assert_reconciled(gang)
+
+
+class TestAGangGuestOpensAChoiceOnEveryModel:
+    """The same shape one hop further down the chain: what opens the
+    choice is not a line the gang holds but a rule the gang was *given* —
+    an alliance's, written nowhere. The choice is asked on every fighter
+    all the same, addressed on the line the chain of grants stands on,
+    which is the alliance the gang signed.
+
+    A player who signed the alliance saw its rule arrive on the gang and
+    the Guild Role it opens arrive on nobody: every fighter had the role's
+    behaviour waiting and no card ever asked which role.
+    """
+
+    @pytest.fixture
+    def guild_shape(self, person_type, gang_type, default_pack):
+        role = create_slot_type("Guild Role")
+        nauticus = create_pickable("Nauticus", role)
+        modifier(
+            "Nauticus: its rule",
+            targets_model_with(),
+            ef_adds(create_rule("Master of Water")),
+            carried_by=nauticus,
+        )
+        roles = create_picklist("Guild Roles", role, members=[nauticus])
+        role_slot = create_slot("Guild Role", role, roles)
+        # What the gang is given, and what it opens. The rule is held by
+        # grant: no assignment names it anywhere.
+        pact = create_rule("The Water Pact")
+        modifier(
+            "The Water Pact: every hand has a role",
+            targets_every_model(),
+            ef_adds(role_slot),
+            carried_by=pact,
+        )
+        alliance = create_affiliation("Water Guild")
+        modifier(
+            "Water Guild: the gang has the Water Pact",
+            targets_gang(),
+            ef_adds(pact),
+            carried_by=alliance,
+        )
+        profile = create_profile("Hunter", person_type, gang_type, price=100)
+        return profile, alliance, nauticus, role_slot
+
+    @pytest.fixture
+    def gang(self, owner, gang_type):
+        return found_gang("The Long Hunt", gang_type, owner=owner, budget=1000)
+
+    def crew_and_alliance(self, gang, profile, alliance):
+        fighters = [
+            hire(gang, profile, name, paid=100) for name in ("Kaustos", "Grendel")
+        ]
+        return fighters, assign(alliance, gang=gang)
+
+    def test_the_gang_holds_the_rule_by_grant_and_nothing_writes_it_down(
+        self, gang, guild_shape
+    ):
+        profile, alliance, _, _ = guild_shape
+        (kaustos, _), _ = self.crew_and_alliance(gang, profile, alliance)
+
+        _, computed = card_of(kaustos)
+        assert [guest.name for guest in computed.echoed] == ["The Water Pact"]
+        assert not Assignment.objects.filter(rule__isnull=False).exists()
+
+    def test_every_model_is_asked_and_the_gang_is_not(self, gang, guild_shape):
+        profile, alliance, _, _ = guild_shape
+        fighters, _ = self.crew_and_alliance(gang, profile, alliance)
+
+        for fighter in fighters:
+            assert [row.kind_label for row in choices_of(fighter)] == ["Guild Role"]
+        assert [row.kind_label for row in gang_choices(gang).choices] == []
+        assert_reconciled(gang)
+
+    def test_the_choice_names_the_rule_and_is_asked_on_the_alliance(
+        self, gang, guild_shape
+    ):
+        profile, alliance, _, _ = guild_shape
+        (kaustos, _), signed = self.crew_and_alliance(gang, profile, alliance)
+
+        (role_row,) = choices_of(kaustos)
+
+        # The player is told what opened the choice; the address behind it
+        # is the written line that stands under the whole chain.
+        assert role_row.source == "The Water Pact"
+        assert role_row.anchor.assignment == signed
+
+    def test_the_role_settles_per_fighter_and_its_payload_lands(
+        self, gang, guild_shape
+    ):
+        profile, alliance, nauticus, role_slot = guild_shape
+        (kaustos, grendel), _ = self.crew_and_alliance(gang, profile, alliance)
+        (role_row,) = choices_of(kaustos)
+
+        choose(role_row.anchor.assignment, nauticus, slot=role_slot, miniature=kaustos)
+
+        # The guest itself draws no line on a fighter: what the pick gives
+        # is the fighter's, and the rule behind it stays the gang's.
+        assert [line.name for line in card_of(kaustos)[1].rules] == ["Master of Water"]
+        assert card_of(grendel)[1].rules == []
+        assert Assignment.objects.get(pickable=nauticus).miniature == kaustos
+        assert_reconciled(gang)
+
+    def test_dropping_the_alliance_takes_every_role_with_it(self, gang, guild_shape):
+        profile, alliance, nauticus, role_slot = guild_shape
+        (kaustos, _), signed = self.crew_and_alliance(gang, profile, alliance)
+        (role_row,) = choices_of(kaustos)
+        choose(role_row.anchor.assignment, nauticus, slot=role_slot, miniature=kaustos)
+
+        remove(signed)
+
+        assert choices_of(kaustos) == []
+        assert not Assignment.objects.filter(
+            pickable__isnull=False, archived=False
+        ).exists()
+        assert_reconciled(gang)
+
+    def test_the_screen_asks_on_the_fighters_card_and_the_click_lands(
+        self, gang, guild_shape, client, owner
+    ):
+        from n26.core.views.choose import link_slots
+
+        profile, alliance, nauticus, _ = guild_shape
+        (kaustos, _), _ = self.crew_and_alliance(gang, profile, alliance)
         client.force_login(owner)
         sheet = render_gang(gang)
         link_slots(gang, sheet, *sheet.models)
