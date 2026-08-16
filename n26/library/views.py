@@ -277,10 +277,10 @@ DETAIL_KINDS = {
         # says; what they are adding is one more pickable to choose from.
         "part_name": "pickable",
         "parts_description": (
-            "What a choice drawing on this list offers, in the order a "
-            "player reads them. Taking one off changes only what is offered "
-            "next: the pickable itself stays in the library, and anyone who "
-            "already picked it keeps it."
+            "A list of pickables for a particular slot type, in the order "
+            "a player reads them. Taking one off changes only what is "
+            "offered next: the pickable itself stays in the library, and "
+            "anyone who already made a pick keeps it."
         ),
         "nothing_yet": (
             "No pickables yet — a choice drawing on this list has nothing to offer."
@@ -1355,10 +1355,7 @@ DETAIL_RELATED = {
     "picklist": {
         "kind": "slot",
         "title": "Slots drawing on this picklist",
-        "description": (
-            "Every slot that offers this list. A picklist nothing draws on "
-            "is never put in front of a player."
-        ),
+        "description": "Every slot that uses this picklist.",
         "nothing_yet": ("No slot draws on this picklist yet, so nothing offers it."),
         "rows": lambda picklist: picklist.slots.select_related("picklist"),
         "notes": _slot_terms,
@@ -3012,7 +3009,7 @@ SLOT_TYPE_PARTS = (
         "part_name": "pickable",
         "notes": _pickable_notes,
         "description": (
-            "The values a choice of this slot type can settle on. A "
+            "The values available to a choice of this slot type. A "
             "pickable does nothing until a modifier hangs on it, which is "
             "done on its own page."
         ),
@@ -3029,9 +3026,9 @@ SLOT_TYPE_PARTS = (
         "part_name": "picklist",
         "notes": _picklist_notes,
         "description": (
-            "The pickables behind one choice, in order. A slot type may "
-            "have several picklists: what a leader chooses from and what a "
-            "champion chooses from are two lists over one slot type."
+            "A list of pickables, in order. A slot type may have several "
+            "picklists: what a leader picks from and what a champion picks "
+            "from could be two lists of one slot type."
         ),
         "nothing_yet": (
             "No picklists yet — a choice draws its pickables from one of these."
@@ -3046,9 +3043,9 @@ SLOT_TYPE_PARTS = (
         "part_name": "slot",
         "notes": _slot_notes,
         "description": (
-            "One named use of this slot type: a picklist, a label, and how "
-            "many picks. Building one into a profile is what puts the "
-            "choice on that fighter's card."
+            "A specific, named use of a slot type: a picklist, a label, "
+            "and how many picks. Adding to a model or gang causes the slot "
+            "to be displayed."
         ),
         "nothing_yet": (
             "No slots yet — nothing puts this slot type's pickables in front "

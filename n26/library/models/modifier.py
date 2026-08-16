@@ -839,7 +839,7 @@ class AssignableChoice(models.Model):
         carriers its own rules hang off — an alliance's "the gang
         gains…" — but has no type line, no skills row, and holds no
         weapons, so nothing else can land there. A slot may land on
-        either: a gang is asked its affiliation, a fighter their legacy.
+        either a gang or a model.
         """
         if self.trait_id is not None:
             return target_kind == WEAPON_PROFILE

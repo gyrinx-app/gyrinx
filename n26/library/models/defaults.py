@@ -216,8 +216,7 @@ class DefaultAssignment(NamesAnAssignable, Content):
         blank=True,
         related_name="+",
         help_text=(
-            "A slot's starting pick — what the choice arrives already "
-            "settled on. Changing it later is the ordinary rechoose."
+            "A slot's starting pick — what the choice arrives already settled on."
         ),
     )
     position = models.PositiveIntegerField(default=0)
@@ -244,8 +243,8 @@ class DefaultAssignment(NamesAnAssignable, Content):
             raise ValidationError(
                 {
                     "default_pickable": (
-                        "A starting pick belongs to a slot. Name the slot "
-                        "this pick settles."
+                        "A starting pick belongs to a slot. Identify the "
+                        "slot for this pick."
                     )
                 }
             )

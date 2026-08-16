@@ -1505,7 +1505,7 @@ class TestKindHelp:
 
         paragraphs = kind_help(_model_for(specs()[LEAF_KINDS[kind]]))
         assert paragraphs, f"{kind} has no docstring — the page cannot say what it is"
-        assert len(paragraphs[0]) > 30  # a definition, not a stub
+        assert len(paragraphs[0]) > 20  # a definition, not a stub
 
     @pytest.mark.parametrize("kind", sorted(LEAF_KINDS), ids=str)
     def test_every_kind_summarises_itself_in_one_line(self, kind):

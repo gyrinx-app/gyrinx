@@ -218,7 +218,7 @@ class TestMakingTheChoice:
         (open_slot,) = choices_of(kaustos)
         elsewhere = create_pickable("Aranthian", create_slot_type("Affiliation"))
 
-        with pytest.raises(Refusal, match="Aranthian cannot settle Gang Legacy"):
+        with pytest.raises(Refusal, match="Aranthian cannot be a pick for Gang Legacy"):
             choose(open_slot.anchor.assignment, elsewhere)
 
     def test_a_pickable_the_list_does_not_offer_is_still_the_owners_to_give(
@@ -384,7 +384,7 @@ class TestThePickerMarksWhatIsTaken:
         self, gang, twice_asked, houses
     ):
         """A choice does not report itself: what is picked here is
-        already drawn as the answer, which is a different fact."""
+        already drawn as the current pick, which is a different fact."""
         kaustos = hire(gang, twice_asked, "Kaustos", paid=100)
         first, _ = sorted(choices_of(kaustos), key=lambda slot: slot.source)
         choose(first.anchor.assignment, houses["Cawdor"])

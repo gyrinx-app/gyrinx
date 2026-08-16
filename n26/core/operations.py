@@ -127,7 +127,7 @@ class Refusal(Exception):
     is written for the player who clicked the button.
 
     What belongs here is an act some control really offered and the
-    domain declines: an overspend, a pick that cannot settle the
+    app declines: an overspend, a pick that cannot settle the
     choice it was given. What does not is a content bug or a caller
     mistake — nobody can click their way to one, the sentence would mean
     nothing to a player, and an unhandled error is the right answer.
@@ -814,7 +814,7 @@ class Operation:
         a slot the gang holds is settled for one particular fighter.
 
         A choice that arrived in the stash has no bearer to land on, and
-        its answer belongs with the item rather than with the gang: a
+        its pick belongs with the item rather than with the gang: a
         thing bought unassigned takes what was chosen for it along when
         somebody finally carries it.
         """
@@ -825,8 +825,8 @@ class Operation:
                 anchor,
                 chosen,
                 message=(
-                    f"{chosen} cannot settle {slot.choice_label} — that "
-                    f"choice takes {slot.slot_type} pickables."
+                    f"{chosen} cannot be a pick for {slot.choice_label} — "
+                    f"that choice takes {slot.slot_type} pickables."
                 ),
             )
         if not any(key in kwargs for key in ("miniature", "gang", "stash", "parent")):

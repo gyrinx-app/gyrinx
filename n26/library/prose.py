@@ -403,7 +403,10 @@ def _says_offers_choice(effect, parts):
             "on it."
         )
     if effect.will_be_assigned_to == effect.WillBeAssignedTo.GANG:
-        said += " What is chosen belongs to the gang, not to whoever was asked."
+        said += (
+            " What is chosen belongs to the gang and is broadcast, not to "
+            "whoever was asked."
+        )
     return said, hint
 
 
@@ -637,17 +640,18 @@ def _asks(slot):
     )
     if slot.hidden:
         return Sentence(
-            text=f"Holds {count} {named} from {slot.picklist}, and asks nothing.",
+            text=f"Holds {count} {named} from {slot.picklist}, and is hidden.",
             hint=(
-                "No choice row is drawn. What is picked still does "
-                "everything it does, which is how several things arrive "
-                "together under one name."
+                "No choice row is drawn. What is picked still does everything it does."
             ),
             key=_identity(slot.picklist),
         )
     said = f"Asks for {count} {named}, chosen from {slot.picklist}."
     if slot.assigned_to == slot.WillBeAssignedTo.GANG:
-        said += " What is chosen belongs to the gang, not to whoever was asked."
+        said += (
+            " What is chosen belongs to the gang and is broadcast, not to "
+            "whoever was asked."
+        )
     return Sentence(
         text=said,
         hint=(
@@ -1052,8 +1056,8 @@ def _listed(edges):
         Sentence(
             text=f"Listed in {picklist}.",
             hint=(
-                "The pickables behind a choice. Everything on this list is "
-                "offered wherever a choice draws on it."
+                "A list of pickables for a slot. Everything on this list "
+                "is offered wherever a slot offers a choice."
             ),
             key=_identity(picklist),
         )
@@ -1077,8 +1081,7 @@ def _offered_by_a_choice(edges):
         Sentence(
             text=f"May be chosen for {_named(slot)}.",
             hint=(
-                "The choice is on the card while whatever asks it is, and "
-                "this is one of the pickables it offers."
+                "This slot offers a choice from a picklist that contains this pickable."
             ),
             key=_identity(slot),
         )
@@ -1096,10 +1099,7 @@ def _started_with(edges):
     return [
         Sentence(
             text=f"Chosen from the start for {_named(reference.row.slot)}.",
-            hint=(
-                "Arrives already picked, the moment the choice does. "
-                "Changing it afterwards is the ordinary rechoose."
-            ),
+            hint="Arrives already picked. Players can change it.",
             key=_identity(reference.row.slot),
         )
         for reference in of_kind(

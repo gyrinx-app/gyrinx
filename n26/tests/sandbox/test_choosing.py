@@ -374,7 +374,7 @@ class TestWhatOneCardMayPick:
         body = client.get(
             sheet_slots(gang)["Sorrow: Primary skill"].href
         ).content.decode()
-        assert "Nothing is on offer here yet" in body
+        assert "Nothing is available to choose here" in body
 
 
 class TestATierHoldingTwoKinds:
@@ -631,7 +631,10 @@ class TestAClickTheDomainWillNotTake:
         assert response.status_code == 302
         assert Assignment.objects.count() == before
         assert sheet_slots(gang)["Sorrow: Primary skill"].is_resolved is False
-        assert "not one of the things on offer" in client.get(href).content.decode()
+        assert (
+            "not one of the things available to pick"
+            in client.get(href).content.decode()
+        )
 
     def test_a_pick_of_the_wrong_kind_is_refused_in_words(self, gang, crew, whispers):
         """The operation's own guard, under whatever asks it. A pick that

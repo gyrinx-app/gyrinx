@@ -2,7 +2,7 @@
 <c-n26.choice-offer> — a list of things to pick one of, grouped under its headings.
 
     <c-n26.choice-offer :offer="offer">
-        <c-slot name="empty">Nothing is on offer here yet.</c-slot>
+        <c-slot name="empty">Nothing available to choose here.</c-slot>
     </c-n26.choice-offer>
 
 Takes a n26.render.ChoiceOffer, which the view has already flattened: groups with
@@ -38,7 +38,7 @@ without restating the rhythm would bunch every group against the next.
     {% if offer.is_empty %}
         <c-n26.form-section>
             <p class="text-muted">
-                {% if empty %}{{ empty }}{% else %}Nothing is on offer here yet.{% endif %}
+                {% if empty %}{{ empty }}{% else %}Nothing available to choose here.{% endif %}
             </p>
         </c-n26.form-section>
     {% else %}

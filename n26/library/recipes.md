@@ -124,8 +124,8 @@ type; this one is worth writing down because it uses all of them.
    a slot type may have as many picklists as it needs, and a fighter is
    offered exactly the one their slot draws on.
 5. Add a **slot** per picklist, labelled "Gang Legacy", taking [how many
-   picks], assigned to [the bearer — or the gang, where what is picked
-   belongs to the gang rather than to whoever was asked].
+   picks], assigned to [the bearer — or the gang, where the pick is the
+   gang's and is broadcast to every member, whoever was asked].
 6. Build the matching slot into each fighter entry that may take one.
    An entry with no legacy carries no slot at all, and its card asks
    nothing.

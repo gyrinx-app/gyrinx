@@ -2,7 +2,7 @@
 {% comment %}
 The question asked before a pickable is taken off a list, at an address
 of its own. A page rather than a prompt: it survives a reload, Back is a
-real answer, and it works with scripting switched off. Nothing here
+real way out, and it works with scripting switched off. Nothing here
 changes anything — the form's POST is the act.
 
 The first line says the one fact the row's Remove control cannot: what
@@ -12,7 +12,7 @@ goes is this list's place for the pickable, never the pickable itself.
 {% block content %}
     <c-n26.form-page action="{% url 'authoring-picklist-member-remove' thing.pk %}"
                      title="Stop offering {{ label }}?"
-                     lead="{{ picklist }} will no longer offer it. The pickable itself stays in the library, and on every other list that offers it."
+                     lead="{{ picklist }} will no longer offer it. The pickable itself stays in the library, and on every other picklist that offers it."
                      submit_label="Stop offering it"
                      submit_variant="danger"
                      cancel_url="{{ back }}">

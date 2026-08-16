@@ -185,41 +185,41 @@ Within a collection, when displayed, items are grouped by collection section and
 
 > Draft, for review.
 
-*What is chosen — Gang Legacy is the first — and everything authored in it.*
+*What is chosen: Gang Legacy is the first, and new ones are authored.*
 
 Fields of its own: a **plural** (what several of them are called, so a page can say "Gang Legacies"), and **allows repeats** (whether one holder may pick the same pickable for two slots of this type).
 
-Not an assignable: nothing holds a slot type. It is what the other three name, and authoring refuses a mismatch between them — a picklist of one slot type cannot sit behind another type's choice. Which slot type a pickable, a picklist or a slot belongs to is settled when it is made and not offered again afterwards: moving one would leave a picklist offering pickables its slot could not take, and every pick already made answering nothing. Something in the wrong slot type is a new one, made in the right one. Its page is where the whole slot type is built: its pickables, its picklists, and the slots that draw on them.
+A slot type puts a name on one-or-more slots, and groups pickables. It is not an assignable: nothing holds a slot type. Its slots, picklists and pickables all name it, and authoring refuses a mismatch — a picklist of one slot type cannot sit behind another type's slot. Which slot type something belongs to is settled when it is made and never changed afterwards; something in the wrong slot type is a new one, made in the right one. Its page is where the whole slot type is built: its pickables, its picklists, and its slots.
 
 ### Pickable
 
 > Draft, for review.
 
-*One pickable a choice offers: Cawdor, Ironhead Squat, Ogryn.*
+*A value that goes into a slot.*
 
 Fields of its own: the **slot type** it belongs to — plus the shared assignable set, so whatever the pickable means rides it as ordinary modifiers.
 
-It never draws a row of its own: it appears under its slot's choice row as the answer. Without its slot it shows nothing and does nothing — a pickable nobody was offered is not something the holder has — so it arrives chosen, given, or as a slot's starting value, and the authoring form refuses one built in on its own. Reach: whatever its own modifiers say, from wherever the pick landed.
+One thing offered in a slot: a specific value, of a particular slot type, that carries behaviour as ordinary modifiers. It never draws a row of its own: it appears under its slot's choice row when chosen. Without its slot it shows nothing and does nothing, so it arrives chosen, given, or as a slot's starting value — never as a bare built-in; the authoring form refuses one. Reach: whatever its own modifiers say, from wherever the pick landed.
 
 ### Picklist
 
 > Draft, for review.
 
-*The pickables behind a choice: a flat, ordered list of them, all of one slot type.*
+*A flat, ordered list of pickables that the player chooses from.*
 
 Fields of its own: a **slot type** and a **name**. Each pickable on it carries its place in the order and, where this list calls it something else, a wording of its own.
 
-No sections, no placements, no prices — where a collection is a catalogue, this is a menu. One slot type may have several picklists: what a leader chooses from and what a champion chooses from are two lists over one slot type. Not an assignable; a slot names it.
+A set of pickables available in a slot. One slot type throughout, no headings and no prices — where a collection is a catalogue, this is a menu. One slot type may have several different picklists, which is how a limited selection of the pickables is made available in certain situations: what a leader picks from and what a champion picks from could be two lists of one slot type. Not an assignable; a slot names it.
 
 ### Slot
 
 > Draft, for review.
 
-*A choice put on a card: a picklist, a label, and how many picks.*
+*A fully configured slot containing pickables: a picklist, a label, and how many picks.*
 
-Fields of its own: its **slot type** and **picklist**; the **label** the card calls the choice by; **min** and **max picks**; **assigned to** (whether the pick lands on the bearer or on the gang); **hidden**; and a position among the slots on one card.
+Fields of its own: its **slot type** and **picklist**; the **label** shown on the card; **min** and **max picks**; **assigned to** (whether the pick lands on the bearer or on the gang); **hidden**; and a position among the slots on one card.
 
-Assigning one is what puts the choice on a card — built into a profile, given by a modifier, or brought by an option when something is bought. The card draws the label with what has been picked, or a control to pick, on the holder's own card and nowhere else: a choice the gang holds is asked once rather than on every fighter. Fewer picks than the minimum is a note on the card, never a refusal (no page prints these notes yet), and the picker stops offering at the maximum. A choice of one is settled by picking, and picking again replaces the pick; a choice of several is made a pick at a time, each pickable on the picker adding or taking back its own — full, it offers the rest again once one has been taken back. A choice of nought asks nothing. **Hidden** draws no choice row at all while what is picked still applies, which is how several things arrive together under one name.
+One specific, named use of a slot type. Assigning one to a model or gang — built into a profile, given by a modifier, or brought by an option when something is bought — causes the slot to show up. The card draws the label with what has been picked by the player, or what's set by default, or a control to pick, on the holder's own card and nowhere else: a slot the gang holds is asked once rather than on every fighter. Picking under the minimum adds a note on the card, never a refusal (no page prints these notes yet), and the picker stops offering at the maximum. A slot of one pick is settled by picking, and picking again replaces the pick; a slot of several is made a pick at a time, each option on the picker adding or taking back its own. Nought picks asks nothing. **Hidden** makes the slot invisible while the pick still does everything it does — grouped hidden assignables, under one name.
 
 ### Picks
 
@@ -227,11 +227,11 @@ Assigning one is what puts the choice on a card — built into a profile, given 
 
 *Not a type: the assignment that settles a choice.*
 
-Choosing writes an ordinary assignment — the pickable, hosted where the slot says it lands, caused by the slot's own assignment and pointing back at it, and naming the choice row it settles. So removing the slot removes the pick and everything the pickable gave; two slots of one slot type on one holder stay independent, even where one thing opened both; and nothing is worked out from what kind of thing was chosen. A pick is free and adds nothing to any rating.
+The pick is an ordinary assignment: the pickable, hosted where the slot says it lands, caused by the slot's own assignment and pointing back at it. So removing the slot removes the pick and everything the pickable gave; two slots of one slot type on one holder stay independent, even where one thing opened both; and nothing is worked out from what kind of thing was chosen. A pick is free and adds nothing to any rating.
 
-A pick the gang holds is a fact about every model in it: a rule reaching "models with the Cawdor legacy" reaches them all, the fighter who was asked included.
+A pick the gang holds is broadcast (but not displayed) to every member: a rule reaching "models with the Cawdor legacy" reaches them all, the fighter who was asked included.
 
-Where the slot type takes one pickable once, the picker marks the pickables already spent on another slot, and the card notes when one pickable is picked for two (no page prints these notes yet). Marks and notes, never locks: the narrowing informs, and an owner may still hand over a pickable no picklist offered.
+Where the slot type does not allow repeats, the picker marks the pickables already picked for another slot, and the card notes when one pickable is picked for two (no page prints these notes yet). Marks and notes, never locks: the narrowing informs, and an owner may still hand over a pickable no picklist offered.
 
 ---
 

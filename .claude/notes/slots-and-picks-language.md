@@ -1,17 +1,10 @@
 # Slots & Pickables — language review
 
-Every entry below is a direct quote from the diff (`git diff main...HEAD`),
-tagged with the file and line it lives at. This version reflects the
-vocabulary-correction round (commit `13dc224f`, "the pages speak the
-spec's five nouns, and nothing coined"): the pages now use only the
-spec's five nouns — **slot type**, **pickable**, **picklist**, **slot**,
-**pick** — with every improvised coinage ("domain", "option", "list of
-options", "choice-for-slot") removed from shipped copy, and unmigrated
-kinds (Archetype, Affiliation) no longer cited as examples of the
-vocabulary — only Gang Legacy, the one slot type actually built, is.
-
-Edit any entry in place — change the quoted text, leave a note, whatever's
-fastest — and the edits will be integrated back to the file:line noted.
+**Integrated.** The maintainer's edits below — reworded docstrings and
+help texts, trimmed hints, both "Tom note" instructions (gallery text
+rewritten plainly; the doc drafts rebuilt from the docstrings) — have
+been integrated back to the noted file:lines. The quotes below are the
+record of the review round; the code is now the source of truth.
 
 ---
 
@@ -20,17 +13,17 @@ fastest — and the edits will be integrated back to the file:line noted.
 | What | Text | File:line |
 |---|---|---|
 | Family label (menu heading) | `"Slots & Pickables"` | `n26/library/models/assignable.py:48` |
-| `Family.CHOICE`'s own comment (says what the menu groups) | "A slot type and its parts: the type itself, its pickables, the picklists they are offered on, and the slots that offer them. Four kinds that only mean anything together, so the menu keeps them together." | `n26/library/models/assignable.py:44-47` |
+| `Family.CHOICE`'s own comment (says what the menu groups) | "A slot type and its parts: the type itself, its pickables, the picklists that contain them, and the slots that display them." | `n26/library/models/assignable.py:44-47` |
 
 Kind menu descriptions — each model's docstring first line, which is what
 `kind_summary()` renders as the menu row description (`n26/library/views.py:885-889`):
 
 | Kind | First line | File:line |
 |---|---|---|
-| SlotType | "What is chosen: Gang Legacy is the first, and new ones are authored, never coded." | `n26/library/models/slots.py:39` |
-| Pickable | "One pickable a choice offers: Cawdor, Aranthian, Outcast Leader." | `n26/library/models/slots.py:90` |
-| Picklist | "The pickables behind a choice: a flat, ordered list of them." | `n26/library/models/slots.py:137` |
-| Slot | "A choice put on a card: a picklist, a label, and how many picks." | `n26/library/models/slots.py:256` |
+| SlotType | "What is chosen: Gang Legacy is the first, and new ones are authored." | `n26/library/models/slots.py:39` |
+| Pickable | "A value that goes into a Slot." | `n26/library/models/slots.py:90` |
+| Picklist | "A flat, ordered list of Pickables." | `n26/library/models/slots.py:137` |
+| Slot | "A fully configured slot containing pickables: a picklist, a label, and how many picks." | `n26/library/models/slots.py:256` |
 | HasPickable (condition) | "Condition: the model has one of these picked." | `n26/library/models/modifier.py:386` |
 
 ---
@@ -39,33 +32,37 @@ Kind menu descriptions — each model's docstring first line, which is what
 
 **Module docstring**, `n26/library/models/slots.py:1-23`:
 
-> Slots and picks — a choice made from a curated list, authored not coded.
+> Slots and picks — user-pickable values from a list.
 >
-> A new slot type is four rows and no code. A **slot type** names what is
-> chosen (Gang Legacy is the first). **Pickables** are what may
-> be picked in it, each an ordinary assignable carrying ordinary modifiers.
-> A **picklist** is the flat, ordered list of them a choice draws from. A
-> **slot** is one named use of the type — a picklist, a label, how many
-> picks, and where the pick lands — and it is an assignable, so putting the
-> choice on a card is an ordinary assignment.
+> A slot is used to define new labels and values for gangs and models, and
+> attach behaviour to them, without a code change.
 >
-> What is chosen is an ordinary assignment too: the pickable, hosted per the
+> A **slot type** puts a name one-or-more Slots, and groups pickables.
+> **Pickables** are what may be picked/chosen from the available options
+> in the slot. Each is an ordinary assignable carrying ordinary modifiers.
+>
+> A **picklist** is a flat, ordered list of Pickables that the player chooses
+> from.
+>
+> Finally, a **slot** is one specific, named use of the type — a picklist,
+> a label, and other configuration like how many picks, and where the pick lands —
+> and it too is an assignable, so putting the choice on a card is an ordinary
+> assignment (e.g. from a modifier).
+>
+> The eventual pick is an ordinary assignment too: the pickable, hosted per the
 > slot's `assigned_to`, caused by the slot's assignment and pointing back at
 > it through `Assignment.chosen_for`. Resolution reads that link, so two
 > slots of one type on one holder stay independent and nothing is inferred
 > from kinds.
 >
-> Two of the rules here are shaped by the rest of the app rather than by the
-> game. A pickable draws no row of its own and does nothing at all until its
-> slot is present — so a pickable built into something, with no slot to
-> answer, would sit in the library unread, and the authoring pages refuse
-> one. And a hidden slot draws no choice row while its pick still does
-> everything it does: that is how a bundle of behaviour arrives under one
-> name.
+> Modifiers can be use to set defaults, so a slot comes pre-filled.
+>
+> A "hidden" slot is not made visible to the user, but its pick still does
+> everything it does. The use-case for this is the same as hidden assignables.
 
 **`SlotType`**, `n26/library/models/slots.py:39-44`:
 
-> What is chosen: Gang Legacy is the first, and new ones are authored, never coded.
+> Puts a name one-or-more Slots, and groups pickables
 >
 > Ties a slot, its picklist and its pickables together — all three name
 > one of these, and authoring refuses a mismatch. Whether the same
@@ -74,52 +71,49 @@ Kind menu descriptions — each model's docstring first line, which is what
 
 **`Pickable`**, `n26/library/models/slots.py:90-100`:
 
-> One pickable a choice offers: Cawdor, Aranthian, Outcast Leader.
+> One thing offered in a Slot.
 >
-> A named value of its slot type that carries whatever it means as
-> ordinary modifiers — an equipment list opened, a subtype granted, a
-> further choice offered.
+> A specific value, of a particular slot type, that carries behaviour as
+> ordinary modifiers.
 >
 > It never draws a row of its own: it appears under its slot's choice
-> row as the answer. **Without its slot it shows nothing and does
-> nothing** — a pickable nobody was offered is not a thing the holder
-> has. So it arrives chosen, given, or as a slot's starting value, and
+> row when chosen. **Without its slot it shows nothing and does
+> nothing**. So it arrives chosen, given, or as a slot's starting value, and
 > never as a bare built-in.
 
 **`Picklist`**, `n26/library/models/slots.py:137-143`:
 
-> The pickables behind a choice: a flat, ordered list of them.
+> A set of pickables available in a slot as a flat, ordered list.
 >
 > One slot type throughout, no headings and no prices — where a
 > collection is a catalogue, this is a menu. Two slots may draw from one
-> picklist, and one slot type may have several: the legacies a House
-> fighter chooses from and the one a Squat fighter does are two
-> picklists over one slot type.
+> picklist, and one slot type may have several different picklists.
+>
+> This allows a limited selection of the Pickables to be made available
+> in certain situations, but under the same slot type. This is meant to
+> be a simpler alternative to the "places" system of Collections.
 
 **`PicklistMember`**, `n26/library/models/slots.py:191-195`:
 
 > One pickable on one list, in its place.
 >
-> The pickable says what it is and what it does; this says that this
-> list offers it, where in the order, and — where one list calls it
-> something else — under what wording.
+> Links a Pickable to a Picklist: where in the order, and — where one
+> picklist calls it something else — under what wording.
 
 **`Slot`**, `n26/library/models/slots.py:256-269`:
 
-> A choice put on a card: a picklist, a label, and how many picks.
+> A one specific use of the pickables: a type, a picklist, a label, and config.
 >
-> Assigning one is what asks the question. The card draws the label
-> with what has been picked, or a control to pick — on the holder's own
-> card and nowhere else, so a slot the gang holds is asked once rather
-> than on every fighter.
+> Assigning one to a model or gang will cause the slot to show up.
+> The gang or model card draws the label with what has been picked by the player,
+> or what's set by default, or a control to pick.
 >
-> How many picks sit between the minimum and the maximum. Under the
-> minimum is a note on the card, never a refusal, and the picker stops
+> How many picks sit between the minimum and the maximum. Picking under the
+> minimum adds a note on the card, never a refusal, and the picker stops
 > offering at the maximum.
 >
-> **Hidden** draws no choice row at all: the pick still arrives and
-> still does everything it does, which is how a bundle of behaviour is
-> given one name.
+> **Hidden** makes the slot invisible: the pick still arrives and
+> still does everything it does. This is basically "grouped hidden assignables".
 
 **`HasPickable`** (condition model), `n26/library/models/modifier.py:386-395`:
 
@@ -161,8 +155,8 @@ existing sentence about the affiliation carrier (the method is called
 review had it):
 
 > "...but has no type line, no skills row, and holds no weapons, so
-> nothing else can land there. **A slot may land on either: a gang is
-> asked its affiliation, a fighter their legacy.**"
+> nothing else can land there. **A slot may land on either a gang or
+> a model**"
 
 — `n26/library/models/modifier.py:830-843`
 
@@ -179,15 +173,13 @@ completeness; the render/effects internals are in section 6):
 
 > "A choice on a card, resolved or not.
 >
-> Two things ask one: a modifier that offers a choice of a kind, and a
-> `Slot` assigned to the holder. Either way the row is computed —
-> present while whatever asks it is — and only what was chosen is
-> stored. Unresolved is the absence of that assignment: nothing
-> pending is written.
+> Two things ask the player to choose: a modifier that offers a choice
+> of a specific kind, and a `Slot` assigned to the holder. Either way the row is computed —
+> shown while whatever offers the choice is present — and only what was chosen is
+> stored.
 >
 > A slot-borne choice may hold several picks and reads them off
-> `Assignment.chosen_for`, which names the assignment that asked;
-> nothing is inferred from what kind of thing was chosen."
+> `Assignment.chosen_for`, which links to the choice-offering assignment."
 
 — `n26/core/effects.py:148-159`
 
@@ -205,22 +197,22 @@ authoring decision, so only the model-file location is given):
 |---|---|---|
 | `_negatable()` helper (shared by `HasSubtypes.negate`, `IsProfile.negate`, `HasPickable.negate`) | "Reach everything this does not name — every model except these. Other conditions still narrow it further." | `n26/library/models/modifier.py:278-281` |
 | `HasPickable.pickables` | "The model must have picked at least one of these." | `n26/library/models/modifier.py:406` |
-| `DefaultAssignment.default_pickable` | "A slot's starting pick — what the choice arrives already settled on. Changing it later is the ordinary rechoose." | `n26/library/models/defaults.py:218-221` |
+| `DefaultAssignment.default_pickable` | "A slot's starting pick — what the choice arrives already settled on." | `n26/library/models/defaults.py:218-221` |
 | `SlotType.name` | `'What is chosen, e.g. "Gang Legacy".'` | `n26/library/models/slots.py:51` |
 | `SlotType.plural_name` | `'What several of them are called, e.g. "Gang Legacies". Blank adds an s.'` | `n26/library/models/slots.py:57-59` |
-| `SlotType.allows_repeats` | "Whether one holder may pick the same pickable for two slots of this type. Turned off, the card says when they have — it never stops them." | `n26/library/models/slots.py:63-67` |
+| `SlotType.allows_repeats` | "Whether one holder may pick the same pickable for two slots of this type." | `n26/library/models/slots.py:63-67` |
 | `Pickable.slot_type` | "The slot type this pickable belongs to." | `n26/library/models/slots.py:118` |
 | `Picklist.slot_type` | "The slot type these pickables belong to." | `n26/library/models/slots.py:152` |
 | `Picklist.name` | `'What this picklist is called, e.g. "Gang Legacies".'` | `n26/library/models/slots.py:156` |
 | `PicklistMember.label_override` | "What this list calls the pickable, where that differs from its own name. Blank uses the name." | `n26/library/models/slots.py:212-215` |
 | `PicklistMember.position` | "Where it sits in the list. Ties fall back to name." | `n26/library/models/slots.py:219` |
-| `Slot.slot_type` | "The slot type this choice is in." | `n26/library/models/slots.py:300` |
-| `Slot.picklist` | "The picklist this choice draws on." | `n26/library/models/slots.py:306` |
-| `Slot.label` | `'What the card calls this choice, e.g. "Gang Legacy". Blank uses this slot\'s own name.'` | `n26/library/models/slots.py:312-315` |
-| `Slot.min_picks` | "How many picks the card expects. Fewer is a note on the card, never a refusal. Nought asks for nothing." | `n26/library/models/slots.py:319-322` |
+| `Slot.slot_type` | "The type of slot being configured." | `n26/library/models/slots.py:300` |
+| `Slot.picklist` | "The picklist this slot draws from." | `n26/library/models/slots.py:306` |
+| `Slot.label` | `'The name on this slot, e.g. "Gang Legacy". Blank uses this slot\'s own name.'` | `n26/library/models/slots.py:312-315` |
+| `Slot.min_picks` | "How many picks expected. Nought asks for nothing." | `n26/library/models/slots.py:319-322` |
 | `Slot.max_picks` | "How many picks the choice holds. The picker stops offering here." | `n26/library/models/slots.py:326` |
-| `Slot.assigned_to` | "Where the pick lands. Almost always the bearer; assigned to the gang, the pick is the gang's and is broadcast to every member, whoever was asked." | `n26/library/models/slots.py:332-336` |
-| `Slot.hidden` | "Draw no choice row at all. What is picked still applies — this is how several things arrive together under one name." | `n26/library/models/slots.py:340-343` |
+| `Slot.assigned_to` | "Where the pick lands. Almost always the bearer; assigned to the gang, the pick is the gang's and is broadcast (but not displayed) to every member, whoever was asked." | `n26/library/models/slots.py:332-336` |
+| `Slot.hidden` | "Display no choice at all. What is picked still applies." | `n26/library/models/slots.py:340-343` |
 | `Slot.position` | "Order among the slots on one card. Ties fall back to name." | `n26/library/models/slots.py:347` |
 | Field `Assignment.chosen_for` / `chosen_for_slot` | *(no help_text — comments only, see below)* | `n26/core/models/assignment.py:249-269` |
 
@@ -248,9 +240,9 @@ Section titles/descriptions/empty-states (`SLOT_TYPE_PARTS`,
 
 | Part | Title | Description | Empty state | Lines |
 |---|---|---|---|---|
-| Pickables | "Pickables" | "The values a choice of this slot type can settle on. A pickable does nothing until a modifier hangs on it, which is done on its own page." | "No pickables yet — a choice of this slot type has nothing to offer." | 3011-3021 |
-| Picklists | "Picklists" | "The pickables behind one choice, in order. A slot type may have several picklists: what a leader chooses from and what a champion chooses from are two lists over one slot type." | "No picklists yet — a choice draws its pickables from one of these." | 3028-3038 |
-| Slots | "Slots" | "One named use of this slot type: a picklist, a label, and how many picks. Building one into a profile is what puts the choice on that fighter's card." | "No slots yet — nothing puts this slot type's pickables in front of a player." | 3045-3056 |
+| Pickables | "Pickables" | "The values available to choice of this slot type. A pickable does nothing until a modifier hangs on it, which is done on its own page." | "No pickables yet — a choice of this slot type has nothing to offer." | 3011-3021 |
+| Picklists | "Picklists" | "A list of pickables, in order. A slot type may have several picklists: what a leader picks from and what a champion picks from could be two lists of one slot type." | "No picklists yet — a choice draws its pickables from one of these." | 3028-3038 |
+| Slots | "Slots" | "A specifc, named use of a slot type: a picklist, a label, and how many picks. Adding to a model or gang causes the slot to be displayed." | "No slots yet — nothing puts this slot type's pickables in front of a player." | 3045-3056 |
 
 Flashes and errors (`n26/library/views.py`, `slot_type_page`):
 
@@ -278,7 +270,7 @@ authoring pages' duplicate-name errors (e.g. the generic `create` view,
 |---|---|---|
 | `parts_label` | "pickables" | 275 |
 | `part_name` | "pickable" | 278 |
-| `parts_description` | "What a choice drawing on this list offers, in the order a player reads them. Taking one off changes only what is offered next: the pickable itself stays in the library, and anyone who already picked it keeps it." | 279-284 |
+| `parts_description` | "A list of pickables for a particular slot type, in the order a player reads them. Taking one off changes only what is offered next: the pickable itself stays in the library, and anyone who already made a pick keeps it." | 279-284 |
 | `nothing_yet` | "No pickables yet — a choice drawing on this list has nothing to offer." | 285-287 |
 
 **Picklist-member remove page**
@@ -289,7 +281,7 @@ authoring pages' duplicate-name errors (e.g. the generic `create` view,
 |---|---|---|
 | Page title (`head_title`) | `"Remove {{ label }}"` | 11 |
 | Form title | `"Stop offering {{ label }}?"` | 14 |
-| Lead | `"{{ picklist }} will no longer offer it. The pickable itself stays in the library, and on every other list that offers it."` | 15 |
+| Lead | `"{{ picklist }} will no longer offer it. The pickable itself stays in the library, and on every other picklist that offers it."` | 15 |
 | Submit label | "Stop offering it" | 16 |
 | Breadcrumb: content library link | "Content library" | 21 |
 | Breadcrumb: current | "Stop offering" | 26 |
@@ -304,7 +296,7 @@ draws it lives in `detail.html:225-251`):
 | Element | Text |
 |---|---|
 | Section title | "Slots drawing on this picklist" |
-| Section description | "Every slot that offers this list. A picklist nothing draws on is never put in front of a player." |
+| Section description | "Every slot that uses this picklist." |
 | Empty state | "No slot draws on this picklist yet, so nothing offers it." |
 
 **Row notes in listings** (`n26/library/views.py`):
@@ -350,10 +342,10 @@ verbose-name pairs.*
 | `create_slot`: picklist's slot type doesn't match the slot's | `f"{picklist} lists {picklist.slot_type} pickables, and this is a {slot_type} choice."` | `n26/library/authoring.py:652-655` |
 | `PicklistMember.clean()`: pickable/picklist slot-type mismatch | `f"{pickable} belongs to {pickable.slot_type}, and {picklist} lists {picklist.slot_type} pickables."` | `n26/library/models/slots.py:243-252` |
 | `Slot.clean()`: picklist/slot_type mismatch | `f"{picklist} lists {picklist.slot_type} pickables, and this is a {slot_type} choice."` | `n26/library/models/slots.py:376-385` |
-| `DefaultAssignment.clean()`: starting pick with no slot named | "A starting pick belongs to a slot. Name the slot this pick settles." | `n26/library/models/defaults.py:244-251` |
+| `DefaultAssignment.clean()`: starting pick with no slot named | "A starting pick belongs to a slot. Identify the slot for this pick." | `n26/library/models/defaults.py:244-251` |
 | `DefaultAssignment.clean()`: starting pick's slot type doesn't match the slot's | `f"{self.default_pickable} belongs to {self.default_pickable.slot_type}, and {self.slot} offers {self.slot.slot_type} pickables."` | `n26/library/models/defaults.py:252-261` |
 | `NotOnOffer` default message (pre-existing, unchanged, shown for context — now overridable via a `message=` kwarg) | `f"{anchor.assignable} does not offer a choice of {type(chosen)._meta.verbose_name}."` | `n26/core/operations.py:173-176` |
-| `NotOnOffer` new slot-specific message (`_choose_for_slot`, wrong slot type) | `f"{chosen} cannot settle {slot.choice_label} — that choice takes {slot.slot_type} pickables."` | `n26/core/operations.py:824-831` |
+| `NotOnOffer` new slot-specific message (`_choose_for_slot`, wrong slot type) | `f"{chosen} cannot be a pick for {slot.choice_label} — that choice takes {slot.slot_type} pickables."` | `n26/core/operations.py:824-831` |
 | `ValidationError` from an authoring verb, surfaced on the form | *(no new string — `form.add_error(None, refused)` shows the verb's own message from the rows above)* | `n26/library/views.py:1129`, `1510`, `3132` |
 
 *Count: 9 distinct refusal/validation strings (2 are duplicated across a
@@ -367,10 +359,10 @@ helper function/verb and the model's own `clean()`).*
 |---|---|---|
 | Choose button label + accessible name | `aria-label="Choose {{ option.name }}"` … `>Choose</c-ui.button>` | `n26/core/templates/cotton/n26/choice_picks.html:90` |
 | Remove button label + accessible name | `aria-label="Remove {{ option.name }}"` … `>Remove</c-ui.button>` | `n26/core/templates/cotton/n26/choice_picks.html:83` |
-| Empty state (choice-picks component default) | "Nothing is on offer here yet." | `n26/core/templates/cotton/n26/choice_picks.html:46` |
-| Empty state (single-pick offer, unchanged text, now conditionally rendered) | "Nothing is on offer here yet. This slot draws on lists that other picks open up, so making those choices first fills it in." | `n26/core/templates/n26/choose.html:87` |
+| Empty state (choice-picks component default) | "Nothing available to choose here." | `n26/core/templates/cotton/n26/choice_picks.html:46` |
+| Empty state (single-pick offer, unchanged text, now conditionally rendered) | "Nothing is available to choose here. It draws on a list of options that other picks open up, so making those choices first fills it in." | `n26/core/templates/n26/choose.html:87` |
 | Flash: chosen or removed | `f"{said} {picked.name} — {offer.label}."` where `said = "Chose"` or `"Removed"` | `n26/core/views/choose.py:231-232` |
-| Stale-page error (pre-existing text, now also covers a take-back with nothing behind it) | "That is not one of the things on offer." | `n26/core/views/choose.py:192` |
+| Stale-page error (pre-existing text, now also covers a take-back with nothing behind it) | "That is not one of the things available to pick." | `n26/core/views/choose.py:192` |
 | Taken-mark on an option ("already chosen for X") | `f"already chosen for {self.taken_for}"` (joined into `Choosable.remark` with " · ") | `n26/core/render.py:323-327` (`Choosable.remark` property) |
 
 **Card remark ("… — 0 of 1 chosen")**:
@@ -392,14 +384,14 @@ All from `n26/library/prose.py`.
 
 | Case | Sentence text | Hint | Line |
 |---|---|---|---|
-| Hidden slot | `f"Holds {count} {named} from {slot.picklist}, and asks nothing."` | "No choice row is drawn. What is picked still does everything it does, which is how several things arrive together under one name." | 640-647 |
-| Ordinary slot | `f"Asks for {count} {named}, chosen from {slot.picklist}."` (+ `" What is chosen belongs to the gang, not to whoever was asked."` when assigned to the gang) | `f"The choice stays on the card until it is made, and making it late costs nothing. {bounds}"` where `bounds = f"Fewer than {min} is a note on the card, never a refusal, and the picker stops offering at {max}."` | 648-658 |
+| Hidden slot | `f"Holds {count} {named} from {slot.picklist}, and is hidden."` | "No choice row is drawn. What is picked still does everything it does." | 640-647 |
+| Ordinary slot | `f"Asks for {count} {named}, chosen from {slot.picklist}."` (+ `" What is chosen belongs to the gang and is broadcast, not to whoever was asked."` when assigned to the gang) | `f"The choice stays on the card until it is made, and making it late costs nothing. {bounds}"` where `bounds = f"Fewer than {min} is a note on the card, never a refusal, and the picker stops offering at {max}."` | 648-658 |
 | `_picks_asked` wording | `"one"` / `str(max_picks)` / `f"{min} to {max}"` | — | 616-620 |
 
 **`_listed(edges)`** — the picklists that offer a pickable:
 
 > Sentence text: `f"Listed in {picklist}."`
-> Hint: "The pickables behind a choice. Everything on this list is offered wherever a choice draws on it."
+> Hint: "A list of pickables for a slot. Everything on this list is offered wherever a slot offers a choice."
 
 `n26/library/prose.py:1044-1061`
 
@@ -407,7 +399,7 @@ All from `n26/library/prose.py`.
 holding this pickable:
 
 > Sentence text: `f"May be chosen for {_named(slot)}."`
-> Hint: "The choice is on the card while whatever asks it is, and this is one of the pickables it offers."
+> Hint: "This slot offers a choice from a picklist that contains this pickable."
 
 `n26/library/prose.py:1064-1086`
 
@@ -415,7 +407,7 @@ holding this pickable:
 pick:
 
 > Sentence text: `f"Chosen from the start for {_named(reference.row.slot)}."`
-> Hint: "Arrives already picked, the moment the choice does. Changing it afterwards is the ordinary rechoose."
+> Hint: "Arrives already picked. Players can change it."
 
 `n26/library/prose.py:1089-1109`
 
@@ -424,6 +416,8 @@ pick:
 ---
 
 ## 8. Gallery text
+
+Tom note: these are TERRIBLE. I'm not even going to try to rewrite. It's a list of buttons -- just keep is simple, clear, and point-in-time.
 
 **Design-system catalog entry** (`n26/designsystem/catalog.py`, new
 `Component` for `choice-picks`):
@@ -473,6 +467,9 @@ string changes.*
 ---
 
 ## 9. The two doc drafts (in full)
+
+Tom note: use my changes to the docstrings right at the top of this document to update these below. Use my language and way of explaining. I'll then edit the document
+myself directly.
 
 Both are marked as drafts within the source files themselves (`> Draft, for
 review.`), reproduced here in full since they're the primary review

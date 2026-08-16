@@ -147,15 +147,14 @@ class ComputedWeapon:
 class ChoiceSlot:
     """A choice on a card, resolved or not.
 
-    Two things ask one: a modifier that offers a choice of a kind, and a
-    ``Slot`` assigned to the holder. Either way the row is computed —
-    present while whatever asks it is — and only what was chosen is
-    stored. Unresolved is the absence of that assignment: nothing
-    pending is written.
+    Two things ask the player to choose: a modifier that offers a
+    choice of a specific kind, and a ``Slot`` assigned to the holder.
+    Either way the row is computed — shown while whatever offers the
+    choice is present — and only what was chosen is stored.
 
     A slot-borne choice may hold several picks and reads them off
-    ``Assignment.chosen_for``, which names the assignment that asked;
-    nothing is inferred from what kind of thing was chosen.
+    ``Assignment.chosen_for``, which links to the choice-offering
+    assignment.
     """
 
     kind_label: str

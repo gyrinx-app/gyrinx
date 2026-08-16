@@ -2,35 +2,25 @@
 <c-n26.choice-picks> — a list of things to choose and unchoose one at a time.
 
     <c-n26.choice-picks :offer="offer">
-        <c-slot name="empty">Nothing is on offer here yet.</c-slot>
+        <c-slot name="empty">Nothing available to choose here.</c-slot>
     </c-n26.choice-picks>
 
-Takes the same n26.render.ChoiceOffer that <c-n26.choice-offer> draws, and is a
-sibling of it rather than a mode, for the reason radio cards and checkbox cards
-are siblings: one of many is the browser's rule over a shared name, and a choice
-that holds three picks is not that question. There is no selection to keep here
-and nothing to save at the end — each option carries its own act, and a click
-settles or unsettles that one option and nothing else.
+Draws the same n26.render.ChoiceOffer that <c-n26.choice-offer> draws, for a
+choice that holds several picks. Each option is a row: the name, an optional
+muted remark, and a button. The offer says which button each option gets
+(n26.render.Choosable.control): "remove" for what the choice holds, "choose"
+for what it does not; an option with neither control gets no button. A full
+choice lists only what it holds.
 
-The offer says which act each option gets (n26.render.Choosable.control): what
-the choice already holds is taken back, what it does not is added, and when the
-choice is full the rest are not listed at all — the way to something else is to
-take a pick back, never to have one pushed out unasked.
-
-Buttons and no script. It draws submits and no form of its own, so it goes
-inside one — the page it sits on owns the action and the token, and only the
-button that was clicked is sent, which is how the two acts tell themselves
-apart.
-
-Rows rather than cards: the option's name and a line about it read down a
-column, and the act sits at the end of its own row where the eye finishes it.
+Plain submit buttons and no form of its own — the page it sits on owns the
+form and the token, and only the clicked button is sent, so the view knows
+which option to add or take back.
 
   :offer — a n26.render.ChoiceOffer.
-  name — the input name the add act submits under, matching what the view reads.
-    Taking one back always submits under "remove".
-  empty — what to say when there is nothing to pick. An empty offer is a thing
-    to say rather than a page to hide: what to say depends on why it is empty,
-    which the page knows and this does not.
+  name — the input name a Choose click submits under, matching what the view
+    reads. Remove always submits under "remove".
+  empty — what to say when there is nothing to pick; the page knows why it is
+    empty, so the page supplies the words.
 {% endcomment %}
 <c-vars :offer="None" name="thing" class="" />
 
@@ -43,7 +33,7 @@ that holds one.
     {% if offer.is_empty %}
         <c-n26.form-section>
             <p class="text-muted">
-                {% if empty %}{{ empty }}{% else %}Nothing is on offer here yet.{% endif %}
+                {% if empty %}{{ empty }}{% else %}Nothing available to choose here.{% endif %}
             </p>
         </c-n26.form-section>
     {% else %}

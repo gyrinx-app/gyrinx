@@ -333,7 +333,7 @@ def learn(request, pk):
         if picked is None:
             # Not on this list — a stale page, or a click with nothing
             # selected. The list itself is the reply either way.
-            messages.error(request, "That is not one of the things on offer.")
+            messages.error(request, "That is not one of the things available to pick.")
             return redirect(here)
         # A skill the model already has, by any route — learned, granted,
         # or chosen for a founding choice. A second copy means nothing

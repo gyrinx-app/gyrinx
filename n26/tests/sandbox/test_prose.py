@@ -775,16 +775,17 @@ class TestASlotTypeExplained:
 
         assert texts(prose_for(leaders).does) == [
             "Asks for one Gang Legacy, chosen from House Legacies. What is "
-            "chosen belongs to the gang, not to whoever was asked."
+            "chosen belongs to the gang and is broadcast, not to whoever "
+            "was asked."
         ]
 
-    def test_a_hidden_choice_says_it_asks_nothing(self, legacy, houses):
+    def test_a_hidden_choice_says_it_is_hidden(self, legacy, houses):
         from n26.library.authoring import create_slot
 
         bundle = create_slot("The Cawdor bundle", legacy, houses, hidden=True)
 
         assert texts(prose_for(bundle).does) == [
-            "Holds one Gang Legacy from House Legacies, and asks nothing."
+            "Holds one Gang Legacy from House Legacies, and is hidden."
         ]
 
     def test_a_choice_says_where_it_is_built_in(self, choice, escher, person_type):

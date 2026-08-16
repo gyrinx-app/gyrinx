@@ -1,26 +1,31 @@
-"""Slots and picks — a choice made from a curated list, authored not coded.
+"""Slots and picks — user-pickable values from a list.
 
-A new slot type is four rows and no code. A **slot type** names what is
-chosen (Gang Legacy is the first). **Pickables** are what may
-be picked in it, each an ordinary assignable carrying ordinary modifiers.
-A **picklist** is the flat, ordered list of them a choice draws from. A
-**slot** is one named use of the type — a picklist, a label, how many
-picks, and where the pick lands — and it is an assignable, so putting the
-choice on a card is an ordinary assignment.
+A slot is used to define new labels and values for gangs and models, and
+attach behaviour to them, without a code change.
 
-What is chosen is an ordinary assignment too: the pickable, hosted per the
-slot's ``assigned_to``, caused by the slot's assignment and pointing back at
-it through ``Assignment.chosen_for``. Resolution reads that link, so two
-slots of one type on one holder stay independent and nothing is inferred
-from kinds.
+A **slot type** puts a name on one-or-more slots, and groups pickables.
+**Pickables** are what may be picked/chosen from the available options in
+the slot. Each is an ordinary assignable carrying ordinary modifiers.
 
-Two of the rules here are shaped by the rest of the app rather than by the
-game. A pickable draws no row of its own and does nothing at all until its
-slot is present — so a pickable built into something, with no slot to
-answer, would sit in the library unread, and the authoring pages refuse
-one. And a hidden slot draws no choice row while its pick still does
-everything it does: that is how a bundle of behaviour arrives under one
-name.
+A **picklist** is a flat, ordered list of pickables that the player
+chooses from.
+
+Finally, a **slot** is one specific, named use of the type — a picklist,
+a label, and other configuration like how many picks and where the pick
+lands — and it too is an assignable, so putting the choice on a card is
+an ordinary assignment (e.g. from a modifier).
+
+The eventual pick is an ordinary assignment too: the pickable, hosted per
+the slot's ``assigned_to``, caused by the slot's assignment and pointing
+back at it through ``Assignment.chosen_for``. Resolution reads that link,
+so two slots of one type on one holder stay independent and nothing is
+inferred from kinds.
+
+A starting pick can be set, so a slot comes pre-filled.
+
+A "hidden" slot is not made visible to the user, but its pick still does
+everything it does. The use-case for this is the same as hidden
+assignables.
 """
 
 from django.core.exceptions import ValidationError
@@ -36,12 +41,13 @@ from n26.library.models.base import Content
 
 
 class SlotType(Content):
-    """What is chosen: Gang Legacy is the first, and new ones are authored, never coded.
+    """What is chosen: Gang Legacy is the first, and new ones are authored.
 
-    Ties a slot, its picklist and its pickables together — all three name
-    one of these, and authoring refuses a mismatch. Whether the same
-    pickable may be picked twice over is a fact about the slot type, so it
-    is stated here once rather than on every slot.
+    Puts a name on one-or-more slots, and groups pickables. Ties a slot,
+    its picklist and its pickables together — all three name one of
+    these, and authoring refuses a mismatch. Whether the same pickable
+    may be picked twice over is a fact about the slot type, so it is
+    stated here once rather than on every slot.
     """
 
     family = Family.CHOICE
@@ -61,9 +67,7 @@ class SlotType(Content):
     allows_repeats = models.BooleanField(
         default=True,
         help_text=(
-            "Whether one holder may pick the same pickable for two slots of "
-            "this type. Turned off, the card says when they have — it never "
-            "stops them."
+            "Whether one holder may pick the same pickable for two slots of this type."
         ),
     )
 
@@ -87,17 +91,15 @@ class SlotType(Content):
 
 
 class Pickable(Content, Assignable):
-    """One pickable a choice offers: Cawdor, Aranthian, Outcast Leader.
+    """A value that goes into a Slot.
 
-    A named value of its slot type that carries whatever it means as
-    ordinary modifiers — an equipment list opened, a subtype granted, a
-    further choice offered.
+    One thing offered in a slot: a specific value, of a particular slot
+    type, that carries behaviour as ordinary modifiers.
 
     It never draws a row of its own: it appears under its slot's choice
-    row as the answer. **Without its slot it shows nothing and does
-    nothing** — a pickable nobody was offered is not a thing the holder
-    has. So it arrives chosen, given, or as a slot's starting value, and
-    never as a bare built-in.
+    row when chosen. **Without its slot it shows nothing and does
+    nothing**. So it arrives chosen, given, or as a slot's starting
+    value, and never as a bare built-in.
     """
 
     # Filed with the rest of the choice machinery, which is where an
@@ -134,13 +136,17 @@ class Pickable(Content, Assignable):
 
 
 class Picklist(Content):
-    """The pickables behind a choice: a flat, ordered list of them.
+    """A flat, ordered list of Pickables.
 
-    One slot type throughout, no headings and no prices — where a
-    collection is a catalogue, this is a menu. Two slots may draw from one
-    picklist, and one slot type may have several: the legacies a House
-    fighter chooses from and the one a Squat fighter does are two
-    picklists over one slot type.
+    A set of pickables available in a slot. One slot type throughout,
+    no headings and no prices — where a collection is a catalogue, this
+    is a menu. Two slots may draw from one picklist, and one slot type
+    may have several different picklists.
+
+    This allows a limited selection of the pickables to be made
+    available in certain situations, but under the same slot type. This
+    is meant to be a simpler alternative to the "places" system of
+    Collections.
     """
 
     family = Family.CHOICE
@@ -190,9 +196,8 @@ class Picklist(Content):
 class PicklistMember(Content):
     """One pickable on one list, in its place.
 
-    The pickable says what it is and what it does; this says that this
-    list offers it, where in the order, and — where one list calls it
-    something else — under what wording.
+    Links a Pickable to a Picklist: where in the order, and — where one
+    picklist calls it something else — under what wording.
     """
 
     picklist = models.ForeignKey(
@@ -253,20 +258,21 @@ class PicklistMember(Content):
 
 
 class Slot(Content, Assignable):
-    """A choice put on a card: a picklist, a label, and how many picks.
+    """A fully configured slot containing pickables: a picklist, a
+    label, and how many picks.
 
-    Assigning one is what asks the question. The card draws the label
-    with what has been picked, or a control to pick — on the holder's own
-    card and nowhere else, so a slot the gang holds is asked once rather
-    than on every fighter.
+    One specific use of the pickables: a type, a picklist, a label, and
+    config. Assigning one to a model or gang will cause the slot to show
+    up. The gang or model card draws the label with what has been picked
+    by the player, or what's set by default, or a control to pick.
 
-    How many picks sit between the minimum and the maximum. Under the
-    minimum is a note on the card, never a refusal, and the picker stops
-    offering at the maximum.
+    How many picks sit between the minimum and the maximum. Picking
+    under the minimum adds a note on the card, never a refusal, and the
+    picker stops offering at the maximum.
 
-    **Hidden** draws no choice row at all: the pick still arrives and
-    still does everything it does, which is how a bundle of behaviour is
-    given one name.
+    **Hidden** makes the slot invisible: the pick still arrives and
+    still does everything it does. This is basically "grouped hidden
+    assignables".
     """
 
     family = Family.CHOICE
@@ -297,29 +303,26 @@ class Slot(Content, Assignable):
         SlotType,
         on_delete=models.PROTECT,
         related_name="slots",
-        help_text="The slot type this choice is in.",
+        help_text="The type of slot being configured.",
     )
     picklist = models.ForeignKey(
         Picklist,
         on_delete=models.PROTECT,
         related_name="slots",
-        help_text="The picklist this choice draws on.",
+        help_text="The picklist this slot draws from.",
     )
     label = models.CharField(
         max_length=200,
         blank=True,
         default="",
         help_text=(
-            'What the card calls this choice, e.g. "Gang Legacy". Blank '
-            "uses this slot's own name."
+            'The name on this slot, e.g. "Gang Legacy". Blank uses this '
+            "slot's own name."
         ),
     )
     min_picks = models.PositiveIntegerField(
         default=1,
-        help_text=(
-            "How many picks the card expects. Fewer is a note on the card, "
-            "never a refusal. Nought asks for nothing."
-        ),
+        help_text="How many picks expected. Nought asks for nothing.",
     )
     max_picks = models.PositiveIntegerField(
         default=1,
@@ -331,16 +334,13 @@ class Slot(Content, Assignable):
         default=WillBeAssignedTo.BEARER,
         help_text=(
             "Where the pick lands. Almost always the bearer; assigned to "
-            "the gang, the pick is the gang's and is broadcast to every "
-            "member, whoever was asked."
+            "the gang, the pick is the gang's and is broadcast (but not "
+            "displayed) to every member, whoever was asked."
         ),
     )
     hidden = models.BooleanField(
         default=False,
-        help_text=(
-            "Draw no choice row at all. What is picked still applies — this "
-            "is how several things arrive together under one name."
-        ),
+        help_text="Display no choice at all. What is picked still applies.",
     )
     position = models.PositiveIntegerField(
         default=0,

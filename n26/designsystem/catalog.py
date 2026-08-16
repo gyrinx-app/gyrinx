@@ -1635,23 +1635,15 @@ GROUPS: list[Group] = [
                 template="n26/choice_picks.html",
                 summary="A list of things to choose and unchoose one at a time.",
                 notes=(
-                    "The third way to draw the same structure, and a sibling of "
-                    "the other two for the reason they are siblings of each "
-                    "other: radios ask which one, boxes ask which of these, and "
-                    "a choice holding three picks asks neither. A mode of "
-                    "choice-offer is the obvious saving and the wrong one: the "
-                    "single selection a shared name keeps across the lot is "
-                    "exactly what must not happen here, so every branch in that "
-                    "template would be undoing what its radios do. Each option "
-                    "carries its own submit instead: the one that "
-                    "was clicked is the only one sent, which is how adding and "
-                    "taking back tell themselves apart with no script and no "
-                    "state to keep. What the choice holds draws with the act "
-                    "that takes it back; when it is full the rest are not listed "
-                    "at all, because the alternative is a click that silently "
-                    "drops a pick the reader made earlier. Which act an option "
-                    "gets is decided in Python and read off the option, so this "
-                    "never works out for itself what the choice is holding."
+                    "A flat list of options, one per row: the name, an "
+                    "optional muted remark, and a button. Options the choice "
+                    "already holds show a red Remove; the rest show a green "
+                    "Choose. When the choice is full, only what it holds is "
+                    "listed. Plain submit buttons and no script: the page "
+                    "wraps this in its own form, and only the clicked button "
+                    "is sent, so the view knows which option to add or take "
+                    "back. Use choice-offer for a single-pick choice; use "
+                    "this where a choice holds several picks."
                 ),
             ),
             Component(

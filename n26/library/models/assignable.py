@@ -42,9 +42,7 @@ class Family(models.TextChoices):
     #: The gang-scale things: gang types, profiles, chosen carriers, lists.
     GANG = "gang", "Gang"
     #: A slot type and its parts: the type itself, its pickables, the
-    #: picklists they are offered on, and the slots that offer them.
-    #: Four kinds that only mean anything together, so the menu keeps
-    #: them together.
+    #: picklists that contain them, and the slots that display them.
     CHOICE = "choice", "Slots & Pickables"
     #: Not assignables at all — the shapes content is built from.
     FOUNDATION = "foundation", "Foundation"

@@ -189,9 +189,9 @@ def choose(request, pk, slot):
             # Nothing on the list, or nothing behind the option a click
             # asked to take back — a stale page either way, and the list
             # itself is the reply.
-            messages.error(request, "That is not one of the things on offer.")
+            messages.error(request, "That is not one of the things available to pick.")
             return redirect(request.path)
-        # A worked-at choice comes back to itself; an answered one leaves.
+        # A worked-at choice comes back to itself; a settled one leaves.
         landing = request.path if offer.takes_several else back
         try:
             with operation(gang, actor=request.user) as op:
@@ -203,7 +203,7 @@ def choose(request, pk, slot):
                         and found.slot.is_full
                         and found.slot.picks
                     ):
-                        # One pick, already made: the new answer replaces it.
+                        # One pick, already made: the new pick replaces it.
                         standing = found.slot.picks[0]
                         if standing.assignment is not None:
                             op.remove(standing.assignment)
