@@ -143,7 +143,7 @@ def _edits_offer(own, computed, field, heading):
         elif key in state.granted and key not in state.stored:
             detail = f"from {state.granted[key]}"
         elif key in state.gang_held:
-            detail = "the gang's"
+            detail = "from the gang"
         else:
             detail = ""
         option = Choosable(
