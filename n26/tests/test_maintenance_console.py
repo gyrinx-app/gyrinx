@@ -1,0 +1,253 @@
+"""This edition's repairs, as the maintenance console offers them.
+
+A seam test: the console is the platform's, the conversion is ours, and
+what is proven here is that the two meet — the operation is registered and
+gated, the page shows the plan without writing, applying records what
+happened, and every way a run can end leaves an honest record behind.
+
+The conversion's own discipline is proven in
+``n26/tests/sandbox/test_conversion_specialisation.py``; this file cares
+only about the door it is triggered through.
+"""
+
+from contextlib import contextmanager
+
+import pytest
+from django.contrib.auth.models import User
+from django.urls import reverse
+
+from gyrinx.maintenance.models import Backfill
+from gyrinx.maintenance.registry import operations, resolve_operation
+from n26.core.models import Assignment
+from n26.maintenance import (
+    MAX_ATTEMPTS,
+    Operation,
+    convert_specialisation,
+    convert_specialisation_view,
+)
+from n26.tests.sandbox.test_conversion_specialisation import (
+    build_prod_shape,
+    build_world,
+)
+
+pytestmark = pytest.mark.django_db
+
+URL_NAME = "admin:maintenance_n26_convert_specialisation"
+
+
+@contextmanager
+def _lock_held_elsewhere():
+    """Hold the run's lock on another connection, as a run in flight does."""
+    from django.db import connections
+
+    from n26.maintenance import LOCK_KEY
+
+    other = connections.create_connection("default")
+    try:
+        with other.cursor() as cursor:
+            cursor.execute("SELECT pg_advisory_lock(%s)", [LOCK_KEY])
+        yield
+        with other.cursor() as cursor:
+            cursor.execute("SELECT pg_advisory_unlock(%s)", [LOCK_KEY])
+    finally:
+        other.close()
+
+
+@pytest.fixture
+def owner(db):
+    return User.objects.create_user("player")
+
+
+@pytest.fixture
+def prod_shape(default_pack):
+    return build_prod_shape()
+
+
+@pytest.fixture
+def world(prod_shape, person_type, owner, default_pack):
+    return build_world(prod_shape, person_type, owner)
+
+
+@pytest.fixture
+def superuser(db):
+    return User.objects.create_superuser("boss", "boss@example.com", "password")
+
+
+@pytest.fixture
+def staffer(db):
+    return User.objects.create_user(
+        "clerk", "clerk@example.com", "password", is_staff=True
+    )
+
+
+class TestTheConsoleOffersIt:
+    def test_the_operation_is_registered_and_named(self):
+        registered = {op.operation for op in operations()}
+
+        assert Operation.CONVERT_SPECIALISATION.value in registered
+        found = resolve_operation(Operation.CONVERT_SPECIALISATION.value)
+        assert found.name == Operation.CONVERT_SPECIALISATION.label
+        assert found.view is convert_specialisation_view
+
+    def test_only_a_superuser_may_reach_it(self, client, staffer):
+        client.force_login(staffer)
+
+        assert client.get(reverse(URL_NAME)).status_code == 403
+
+    def test_a_stranger_is_sent_to_the_login(self, client):
+        response = client.get(reverse(URL_NAME))
+
+        assert response.status_code in (302, 403)
+
+
+class TestThePage:
+    def test_it_shows_the_plan_and_writes_nothing(self, client, superuser, world):
+        client.force_login(superuser)
+
+        response = client.get(reverse(URL_NAME))
+
+        page = response.content.decode()
+        assert response.status_code == 200
+        assert "create slot type “Specialisation”" in page
+        assert "prove 2 gangs read the same" in page
+        assert not Backfill.objects.exists()
+        assert Assignment.objects.filter(specialisation__isnull=False).exists()
+
+    def test_a_refusal_is_said_on_the_page_not_applied(
+        self, client, superuser, world, prod_shape
+    ):
+        _, _, _, general = prod_shape
+        from n26.tests.sandbox.actions import assign
+
+        _, fighters = world
+        assign(general, miniature=fighters["open"])
+        client.force_login(superuser)
+
+        response = client.post(reverse(URL_NAME), follow=True)
+
+        assert "held by someone" in response.content.decode()
+        assert not Backfill.objects.exists()
+
+
+class TestApplying:
+    def test_it_records_what_it_did(self, client, superuser, world):
+        client.force_login(superuser)
+
+        response = client.post(reverse(URL_NAME), follow=True)
+
+        backfill = Backfill.objects.get()
+        assert backfill.operation == Operation.CONVERT_SPECIALISATION.value
+        assert backfill.triggered_by == superuser
+        assert backfill.status == Backfill.Status.DONE
+        assert "applied; every page reads the same" in backfill.summary["report"][-1]
+        assert backfill.summary["attempts"] == 1
+        # The run really converted: the picks now name pickables.
+        assert not Assignment.objects.filter(specialisation__isnull=False).exists()
+        assert Assignment.objects.filter(pickable__isnull=False).exists()
+        assert str(backfill.id) in response.redirect_chain[-1][0]
+
+    def test_the_detail_page_says_what_happened(self, client, superuser, world):
+        client.force_login(superuser)
+        client.post(reverse(URL_NAME))
+        backfill = Backfill.objects.get()
+
+        response = client.get(
+            reverse("admin:maintenance_backfill_detail", args=[backfill.id])
+        )
+
+        assert "What it did" in response.content.decode()
+
+    def test_a_second_run_finds_nothing_to_convert(self, client, superuser, world):
+        client.force_login(superuser)
+        client.post(reverse(URL_NAME))
+
+        response = client.get(reverse(URL_NAME))
+
+        assert "Nothing to convert" in response.content.decode()
+
+    def test_a_run_already_going_is_not_started_again(self, client, superuser, world):
+        Backfill.objects.create(
+            operation=Operation.CONVERT_SPECIALISATION,
+            status=Backfill.Status.RUNNING,
+        )
+        client.force_login(superuser)
+
+        client.post(reverse(URL_NAME), follow=True)
+
+        assert Backfill.objects.count() == 1
+        assert Assignment.objects.filter(specialisation__isnull=False).exists()
+
+
+class TestTheRunsOwnGuards:
+    def test_a_refusal_is_written_down_never_raised(self, world, prod_shape):
+        """A raised error would be redelivered for ever, so every ending
+        lands on the record instead."""
+        from n26.library.authoring import attach_modifiers_to
+        from n26.tests.sandbox.actions import create_subtype
+
+        specialist, _, _, _ = prod_shape
+        offer = next(
+            m
+            for m in specialist.modifiers.all()
+            if getattr(m, "offers_choice", None) is not None
+        )
+        attach_modifiers_to(create_subtype("Understudy"), [offer])
+        backfill = Backfill.objects.create(
+            operation=Operation.CONVERT_SPECIALISATION,
+            status=Backfill.Status.RUNNING,
+        )
+
+        convert_specialisation.enqueue(backfill_id=str(backfill.id))
+
+        backfill.refresh_from_db()
+        assert backfill.status == Backfill.Status.FAILED
+        assert "shared" in backfill.error
+        assert Assignment.objects.filter(specialisation__isnull=False).exists()
+
+    def test_a_run_that_keeps_being_restarted_gives_up(self, world):
+        backfill = Backfill.objects.create(
+            operation=Operation.CONVERT_SPECIALISATION,
+            status=Backfill.Status.RUNNING,
+            summary={"attempts": MAX_ATTEMPTS},
+        )
+
+        convert_specialisation.enqueue(backfill_id=str(backfill.id))
+
+        backfill.refresh_from_db()
+        assert backfill.status == Backfill.Status.FAILED
+        assert "without finishing" in backfill.error
+        assert Assignment.objects.filter(specialisation__isnull=False).exists()
+
+    def test_a_second_copy_arriving_mid_run_leaves_no_trace(self, world):
+        """Delivery is at-least-once, so a copy can arrive while the first
+        is still working. It must not touch the record at all — counting
+        its arrival would let a long run be failed out from under itself.
+
+        The run in flight is held on its own connection, as a second
+        delivery really is: Postgres hands the same session a lock it
+        already holds, so a same-connection stand-in would prove nothing.
+        """
+        backfill = Backfill.objects.create(
+            operation=Operation.CONVERT_SPECIALISATION,
+            status=Backfill.Status.RUNNING,
+            summary={"attempts": MAX_ATTEMPTS},
+        )
+
+        with _lock_held_elsewhere():
+            convert_specialisation.enqueue(backfill_id=str(backfill.id))
+
+        backfill.refresh_from_db()
+        assert backfill.status == Backfill.Status.RUNNING
+        assert backfill.summary["attempts"] == MAX_ATTEMPTS
+        assert backfill.error == ""
+
+    def test_a_cancelled_run_stays_cancelled(self, world):
+        backfill = Backfill.objects.create(
+            operation=Operation.CONVERT_SPECIALISATION,
+            status=Backfill.Status.CANCELLED,
+        )
+
+        convert_specialisation.enqueue(backfill_id=str(backfill.id))
+
+        backfill.refresh_from_db()
+        assert backfill.status == Backfill.Status.CANCELLED

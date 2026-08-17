@@ -251,3 +251,10 @@ class PrintConfigAdmin(admin.ModelAdmin):
     list_select_related = ["gang"]
     # As on AssignmentSet: the ticking happens on the print setup screen.
     exclude = ["miniatures", "assignments"]
+
+
+# Registering this edition's maintenance operations happens on import, and
+# admin autodiscovery is when it must happen. Importing the seam here — and
+# never gyrinx.maintenance.admin, which installs the console's admin site and
+# must run after the platform's own admin — is what puts them on the console.
+import n26.maintenance  # noqa: E402,F401  (imported for its registrations)

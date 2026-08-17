@@ -54,6 +54,15 @@ def owner(db):
 
 @pytest.fixture
 def prod_shape(default_pack):
+    return build_prod_shape()
+
+
+@pytest.fixture
+def world(prod_shape, person_type, owner, default_pack):
+    return build_world(prod_shape, person_type, owner)
+
+
+def build_prod_shape():
     """The system as production holds it: the subtype's whole-kind
     offer, four specialisations, and the two fossil hiddens."""
     specs = {}
@@ -122,8 +131,7 @@ def prod_shape(default_pack):
     return specialist, specs, narrow, general
 
 
-@pytest.fixture
-def world(prod_shape, person_type, owner, default_pack):
+def build_world(prod_shape, person_type, owner):
     """Two gangs of specialists: a settled pick, a switched pick, an
     open question, and one fighter holding the Subjugator fossil."""
     specialist, specs, narrow, general = prod_shape

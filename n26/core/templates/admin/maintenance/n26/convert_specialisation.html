@@ -1,0 +1,75 @@
+{% extends "admin/base_site.html" %}
+{% block title %}
+    {{ title }} | {{ site_title|default:_("Django site admin") }}
+{% endblock title %}
+{% block extrahead %}
+    {{ block.super }}
+    <style>
+    .mt-plan { font-family: monospace; line-height: 1.6; }
+    .mt-form { margin-top: 2rem; }
+    .mt-table { width: 100%; margin-top: 1rem; }
+    .mt-problems { color: var(--error-fg, #ba2121); }
+    </style>
+{% endblock extrahead %}
+{% block content %}
+    <p>
+        <a href="{% url 'admin:maintenance_index' %}">← Back to Maintenance</a>
+    </p>
+    <h1>{{ title }}</h1>
+    <p>
+        This is the plan. Nothing has been changed. Every line below is a step
+        the conversion would perform, in order; the last line says how many
+        gangs it would prove unchanged before committing anything.
+    </p>
+    <p>
+        Applying runs the whole conversion in one transaction. It captures what
+        every affected gang's pages say, performs the steps, captures again, and
+        commits only if the two readings match and every gang still reconciles.
+        Anything else — a difference, a refusal, an interruption — writes nothing
+        at all, so a run that does not finish can simply be run again.
+    </p>
+    {% if plan.nothing_here %}
+        <h2>Nothing to convert</h2>
+        <p>This system is not here. It has been converted already, or was never present.</p>
+    {% elif not plan.ok %}
+        <h2 class="mt-problems">The conversion refuses</h2>
+        <ul class="mt-problems">
+            {% for problem in plan.problems %}<li>{{ problem }}</li>{% endfor %}
+        </ul>
+        <p>Nothing can be applied while any of these stands.</p>
+    {% else %}
+        <h2>What it would do</h2>
+        <ul class="mt-plan">
+            {% for line in preview %}<li>{{ line }}</li>{% endfor %}
+        </ul>
+        <form method="post"
+              class="mt-form"
+              onsubmit="return confirm('Run the Specialisation conversion over {{ gangs }} gang(s)? It writes nothing unless every page reads the same.')">
+            {% csrf_token %}
+            <button type="submit" class="button default">Apply conversion</button>
+        </form>
+    {% endif %}
+    {% if recent %}
+        <h2>Recent runs</h2>
+        <table class="mt-table">
+            <thead>
+                <tr>
+                    <th>When</th>
+                    <th>Status</th>
+                    <th>Triggered by</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for run in recent %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'admin:maintenance_backfill_detail' run.id %}">{{ run.created }}</a>
+                        </td>
+                        <td>{{ run.get_status_display }}</td>
+                        <td>{{ run.triggered_by|default:"—" }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+{% endblock content %}
