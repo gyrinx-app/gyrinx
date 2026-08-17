@@ -157,11 +157,20 @@ that said it twice would be spending the width the name needs.
         {% comment %}
         Every other parameter rides along in each page's address, so
         turning the page keeps the question the reader asked.
+
+        The ends are drawn as two cases rather than one with a computed
+        `disabled`: a component attribute takes a variable, not an
+        expression, so `not pages.next` would evaluate to nothing and
+        the control would draw as a live link with nowhere to go.
         {% endcomment %}
         {% if pages %}
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <c-ui.pagination>
-                    <c-ui.pagination.prev href="{{ pages.previous }}" :disabled="not pages.previous" />
+                    {% if pages.previous %}
+                        <c-ui.pagination.prev href="{{ pages.previous }}" />
+                    {% else %}
+                        <c-ui.pagination.prev :disabled="True" />
+                    {% endif %}
                     {% for number in pages.numbers %}
                         {% if number.elided %}
                             <c-ui.pagination.ellipsis />
@@ -171,7 +180,11 @@ that said it twice would be spending the width the name needs.
                             </c-ui.pagination.item>
                         {% endif %}
                     {% endfor %}
-                    <c-ui.pagination.next href="{{ pages.next }}" :disabled="not pages.next" />
+                    {% if pages.next %}
+                        <c-ui.pagination.next href="{{ pages.next }}" />
+                    {% else %}
+                        <c-ui.pagination.next :disabled="True" />
+                    {% endif %}
                 </c-ui.pagination>
                 <p class="text-sm text-muted">Page {{ pages.number }} of {{ pages.of }}</p>
             </div>

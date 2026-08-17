@@ -404,8 +404,12 @@ class TestThePageIsTheOwners:
         first = client.get(at)
         assert first.context["shown"] == PER_PAGE
         assert first.context["pages"]["of"] == 2
-        # The pager is really drawn, not merely computed.
-        assert "page=2" in first.content.decode()
+        # The pager is really drawn, not merely computed — and the end
+        # it cannot go to is dead rather than a live link to nowhere.
+        drawn = first.content.decode()
+        assert "page=2" in drawn
+        back = drawn[drawn.index('aria-label="Previous page"') - 200 :][:400]
+        assert "pointer-events-none" in back
         second = client.get(at, {"page": 2, "q": "renamed"})
         assert second.status_code == 200
         assert "q=renamed" in second.context["pages"]["previous"]
