@@ -82,11 +82,20 @@ places — the same pattern a gang's screens use for their siblings.
         asked for everybody's gangs would lose that by turning the page.
         A gap in a long run is marked and not linked — there is no one
         page it leads to.
+
+        The ends are drawn as two cases rather than one with a computed
+        `disabled`: a component attribute takes a variable, not an
+        expression, so a comparison there evaluates to nothing and the
+        control draws as a live link with an empty address.
         {% endcomment %}
         {% if pages %}
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <c-ui.pagination>
-                    <c-ui.pagination.prev href="{{ pages.previous }}" :disabled="not pages.previous" />
+                    {% if pages.previous %}
+                        <c-ui.pagination.prev href="{{ pages.previous }}" />
+                    {% else %}
+                        <c-ui.pagination.prev :disabled="True" />
+                    {% endif %}
                     {% for number in pages.numbers %}
                         {% if number.elided %}
                             <c-ui.pagination.ellipsis />
@@ -96,7 +105,11 @@ places — the same pattern a gang's screens use for their siblings.
                             </c-ui.pagination.item>
                         {% endif %}
                     {% endfor %}
-                    <c-ui.pagination.next href="{{ pages.next }}" :disabled="not pages.next" />
+                    {% if pages.next %}
+                        <c-ui.pagination.next href="{{ pages.next }}" />
+                    {% else %}
+                        <c-ui.pagination.next :disabled="True" />
+                    {% endif %}
                 </c-ui.pagination>
                 <p class="text-sm text-muted">Page {{ pages.number }} of {{ pages.of }}</p>
             </div>
