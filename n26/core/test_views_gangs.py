@@ -326,6 +326,37 @@ def test_the_second_page_holds_the_rest(client, tester, make_gang):
     assert "Page 2 of 2" in body
 
 
+def test_the_page_the_pager_cannot_turn_to_is_dead(client, tester, make_gang):
+    """At either end the control is inert, not a live link to nowhere.
+
+    The kit draws a disabled end as a `#` address it cannot follow; an
+    enabled one carries a real address. A control offering to go back
+    from the first page is a link a keyboard reader is invited to take,
+    and its empty address would drop whatever question was asked.
+    """
+    from n26.core.views.gangs import GANGS_PER_PAGE
+
+    for number in range(GANGS_PER_PAGE + 5):
+        make_gang(f"Gang {number:02d}")
+
+    client.force_login(tester)
+    first = client.get(reverse("n26-gangs")).content.decode()
+    back = _control(first, "Previous page")
+    assert "pointer-events-none" in back
+    assert 'href=""' not in back
+
+    last = client.get(reverse("n26-gangs"), {"page": "2"}).content.decode()
+    forward = _control(last, "Next page")
+    assert "pointer-events-none" in forward
+    assert 'href=""' not in forward
+
+
+def _control(body, label):
+    """The markup of the pager control named ``label``."""
+    at = body.index(f'aria-label="{label}"')
+    return body[max(0, at - 400) : at + 200]
+
+
 def test_a_short_list_is_not_paged_at_all(client, tester, make_gang):
     make_gang("The Ashen Choir")
 
