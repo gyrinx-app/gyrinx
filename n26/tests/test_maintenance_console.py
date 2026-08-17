@@ -241,6 +241,25 @@ class TestTheRunsOwnGuards:
         assert backfill.summary["attempts"] == MAX_ATTEMPTS
         assert backfill.error == ""
 
+    def test_a_delivery_arriving_after_success_cannot_unsay_it(
+        self, client, superuser, world
+    ):
+        """A run finishes close to the moment its delivery is retried, so
+        the copy that arrives to find the work already done is the likely
+        one. It must not file a successful conversion as a failure."""
+        client.force_login(superuser)
+        client.post(reverse(URL_NAME))
+        backfill = Backfill.objects.get()
+        assert backfill.status == Backfill.Status.DONE
+        report = backfill.summary["report"]
+
+        convert_specialisation.enqueue(backfill_id=str(backfill.id))
+
+        backfill.refresh_from_db()
+        assert backfill.status == Backfill.Status.DONE
+        assert backfill.error == ""
+        assert backfill.summary["report"] == report
+
     def test_a_cancelled_run_stays_cancelled(self, world):
         backfill = Backfill.objects.create(
             operation=Operation.CONVERT_SPECIALISATION,

@@ -85,20 +85,30 @@ def _plan():
 def _write(backfill_id, *, status=None, summary_patch=None, error=""):
     """Record what happened, under the row's own lock.
 
-    A cancelled run stays cancelled: an operator's stop always wins, even
-    over a run still finishing its work. A record that has already
-    finished is never reopened by a straggler.
+    A record that has reached an ending keeps it. Only one copy of a run
+    ever works — the lock sees to that — so whatever wrote the ending was
+    the run itself, and anything arriving afterwards is a redelivery with
+    nothing new to say. A long run finishes close to the moment its
+    delivery is retried, so the copy that finds the work already done is
+    the likely case, not the exotic one: were it allowed to write, it
+    would file a successful conversion as a failure.
+
+    An operator's stop counts as an ending too, and outranks the rest.
     """
+    ENDINGS = (Backfill.Status.DONE, Backfill.Status.FAILED, Backfill.Status.CANCELLED)
     with transaction.atomic():
         try:
             backfill = Backfill.objects.select_for_update().get(pk=backfill_id)
         except Backfill.DoesNotExist:
             logger.warning("Backfill record %s missing; progress dropped", backfill_id)
             return False
-        if backfill.status == Backfill.Status.CANCELLED:
-            return False
-        finished = backfill.status in (Backfill.Status.DONE, Backfill.Status.FAILED)
-        if finished and status in (None, Backfill.Status.RUNNING):
+        if backfill.status in ENDINGS:
+            logger.info(
+                "Backfill %s is already %s; dropping write (attempted %s)",
+                backfill_id,
+                backfill.status,
+                status or "progress",
+            )
             return False
         if summary_patch:
             backfill.summary = {**backfill.summary, **summary_patch}
