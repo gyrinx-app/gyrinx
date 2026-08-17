@@ -24,6 +24,7 @@ priced, columns change on existing free rows, the ledger is untouched,
 and the reconcile assertion proves it gang by gang.
 """
 
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 
 from django.db import transaction
@@ -373,12 +374,56 @@ class _Rehearsed(Exception):
     """Raised at the end of a rehearsal to unwind it. Never escapes."""
 
 
+@contextmanager
+def _one_snapshot():
+    """Ask for the whole run to read one unchanging view of the database.
+
+    The proof compares what the pages said before with what they say
+    after, and takes any difference to be this conversion's doing. On a
+    live database that only holds if both readings are of the same world.
+    Proving hundreds of gangs takes minutes and players go on playing
+    throughout, so reading whatever is committed at the time — the
+    ordinary way — puts their purchases in the second reading, and the
+    conversion is blamed for a hazard suit somebody bought while it
+    worked. Worse, the run would refuse for a reason nobody can act on.
+
+    Reading from one snapshot instead, what differs is what the run did.
+    Somebody changing a row it also writes ends it in a refusal rather
+    than a guess, which is the right ending for work that cannot be half
+    done. Set on the session, because a transaction's isolation can only
+    be chosen before it has read anything, and restored afterwards so a
+    pooled connection is handed back as it was found.
+    """
+    from django.db import connection
+
+    outermost = not connection.in_atomic_block
+    if not (outermost and connection.vendor == "postgresql"):
+        # Nested inside someone else's transaction — a test, a shell.
+        # Their snapshot is already the one this will read from.
+        yield
+        return
+    with connection.cursor() as cursor:
+        cursor.execute("SHOW default_transaction_isolation")
+        was = cursor.fetchone()[0]
+        cursor.execute(
+            "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL REPEATABLE READ"
+        )
+    try:
+        yield
+    finally:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL {was}"
+            )
+
+
 def _perform(plan, report, *, keep):
+
     from n26.core.capture import differences, gang_state
     from n26.core.models import Gang
     from n26.core.reconcile import assert_reconciled
 
-    with transaction.atomic():
+    with _one_snapshot(), transaction.atomic():
         before = {
             str(gang.pk): gang_state(gang)
             for gang in Gang.objects.filter(pk__in=plan.gang_ids)

@@ -389,6 +389,23 @@ class TestTheRefusals:
         assert not plan.ok
         assert any("Forgotten" in problem for problem in plan.problems)
 
+    def test_a_model_holding_two_specialisations_is_refused(self, world, prod_shape):
+        """The offer showed one answer and left the spare lying on the
+        card; a slot would say both. Production really holds these."""
+        specialist, specs, _, _ = prod_shape
+        _, fighters = world
+        anchor = Assignment.objects.get(
+            subtype=specialist, miniature=fighters["settled"]
+        )
+        choose(anchor, specs["Scout"])
+
+        plan = plan_specialisation()
+
+        assert not plan.ok
+        assert any(
+            "more than one specialisation" in problem for problem in plan.problems
+        )
+
     def test_two_hiddens_sharing_a_name_are_refused(self, world):
         create_hidden("Specialisation offer", qualifier="(a second one)")
 
