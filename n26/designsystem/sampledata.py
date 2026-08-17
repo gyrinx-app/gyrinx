@@ -1304,11 +1304,10 @@ def model_card():
                         traits=_printed("Plentiful"),
                     ),
                     WeaponProfileLine(
-                        # No leading dash. It was standing in for "this hangs
-                        # off the weapon above", which the indent on screen and
-                        # the italic in print already say — and an em-dash in a
-                        # name field is now the one thing that reads as a profile
-                        # with no name at all.
+                        # No leading dash in the name: the card draws its own
+                        # mark for a named profile, so one stored here would
+                        # print twice — and a name that is only a dash reads as
+                        # a profile with no name at all, which means the weapon.
                         name="Hotshot las pack",
                         rating=10,
                         statline=_weapon_statline(

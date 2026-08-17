@@ -284,7 +284,15 @@ reader learns they can write one.
                                 <c-n26.statline.cells :cells="profile.statline.cells">
                                     <c-slot name="leading">
                                         <td class="px-4 py-1.5 text-ink-900 dark:text-ink-100">
-                                            <span class="pl-4">{{ profile.name }}</span>
+                                            {% comment %}
+                                            The dash is the mark the book and n26.render_text open a
+                                            named profile with: this row hangs off the weapon above. A
+                                            flex item beside the name rather than a character in front
+                                            of it, because a phone-width column wraps an inline mark
+                                            onto a line of its own; aria-hidden, so the name is read
+                                            out alone.
+                                            {% endcomment %}
+                                            <span class="flex gap-1 pl-2"><span aria-hidden="true">-</span><span>{{ profile.name }}</span></span>
                                         </td>
                                     </c-slot>
                                 </c-n26.statline.cells>
@@ -321,7 +329,7 @@ reader learns they can write one.
                                     the profiles' indent and reads as a profile
                                     missing its stats.
                                     {% endcomment %}
-                                    <span class="pl-4">
+                                    <span class="pl-2">
                                         <span aria-hidden="true">+</span>
                                         <c-n26.assignable-lines :lines="weapon.accessories" :ratings="False" />
                                     </span>

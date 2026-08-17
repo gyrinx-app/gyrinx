@@ -231,6 +231,50 @@ def test_a_weapon_with_no_stats_of_its_own_gives_its_name_the_whole_row(
     assert "colspan" in body[cell:start]
 
 
+def test_a_named_profile_opens_with_a_dash_under_its_weapon(
+    client, tester, gang, make_profile, make_statline
+):
+    """The book prints an ammo type as a dash and a name beneath the gun it
+    belongs to, and the card says it the same way: with no mark, a reader has
+    only a few pixels of indent to tell an ammo type from a gun of its own.
+    The weapon's own row carries no mark, so the two cannot be confused.
+
+    The mark is decorative, so a card read aloud announces the ammo type's
+    name and not a stray hyphen.
+    """
+    from n26.library.authoring import add_weapon_profile, create_weapon
+
+    profile = make_profile("Ganger", price=55)
+    make_statline(profile)
+
+    launcher = create_weapon("Grenade launcher", price=65)
+    for name in ("frag", "krak"):
+        add_weapon_profile(launcher, name=name)
+
+    with operation(gang, actor=tester) as op:
+        fighter = op.hire(profile, "Vex", paid=55)
+        op.give_weapon(fighter, launcher, paid=65)
+
+    client.force_login(tester)
+    body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
+    # Scoped to the weapon table, so a name drawn elsewhere on the page
+    # cannot stand in for the row being read here.
+    table = body[body.index("Weapons") :]
+
+    for name in ("frag", "krak"):
+        start = table.index(f"{name}</span>")
+        # The mark and the name share one flex row, which is what stops a
+        # narrow column wrapping the dash onto a line of its own.
+        opened = table.rindex('<span class="flex', 0, start)
+        assert '<span aria-hidden="true">-</span>' in table[opened:start], (
+            f"{name} is drawn without the dash that says it hangs off the gun"
+        )
+
+    # The weapon's own row is the gun itself, and opens with no mark.
+    gun = table.index("Grenade launcher")
+    assert "aria-hidden" not in table[table.rindex("<td", 0, gun) : gun]
+
+
 class TestRefittingAStashedAccessory:
     """A sight kept back from a sale is gear waiting for a gun, and the
     sheet is where the gang's spare kit is read — so the way back onto a
