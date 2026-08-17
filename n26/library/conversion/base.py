@@ -197,6 +197,59 @@ class SwapCarrier:
 
 
 @dataclass(frozen=True)
+class DropModifier:
+    """A modifier retired outright — for behaviour that is ending, not
+    moving. The plan must have proven the modifier does nothing on any
+    page: either nothing holds its carrier, or the modifier itself is
+    inert wherever the carrier appears."""
+
+    carrier: tuple  # (model label, pk)
+    carrier_name: str
+    modifier_id: object
+    modifier_name: str
+
+    def say(self):
+        return f"on {self.carrier_name}: retire “{self.modifier_name}”"
+
+    def perform(self, made):
+        from django.apps import apps
+
+        from n26.library.models import Modifier
+
+        app_label, model_name = self.carrier[0].split(".")
+        carrier = apps.get_model(app_label, model_name).objects.get(pk=self.carrier[1])
+        dropped = Modifier.objects.get(pk=self.modifier_id)
+        scope_row, effect_row = dropped.scope, dropped.effect
+        carrier.modifiers.remove(dropped)
+        dropped.delete()
+        scope_row.delete()
+        effect_row.delete()
+
+
+@dataclass(frozen=True)
+class RetireModifier:
+    """A modifier nothing carries, deleted with its scope and effect
+    rows. A detached modifier does nothing on any page, but its effect
+    row still names whatever it granted or removed — and protects that
+    thing from retiring."""
+
+    modifier_id: object
+    modifier_name: str
+
+    def say(self):
+        return f"retire the carrierless modifier “{self.modifier_name}”"
+
+    def perform(self, made):
+        from n26.library.models import Modifier
+
+        dropped = Modifier.objects.get(pk=self.modifier_id)
+        scope_row, effect_row = dropped.scope, dropped.effect
+        dropped.delete()
+        scope_row.delete()
+        effect_row.delete()
+
+
+@dataclass(frozen=True)
 class RewritePick:
     """One stored choice, re-said as a pick: the old kind's column moves
     to ``pickable``, the anchor it already hangs from (``caused_by``)
@@ -214,15 +267,15 @@ class RewritePick:
     def perform(self, made):
         from n26.core.models import Assignment
 
-        row = Assignment.objects.get(pk=self.assignment_id)
-        row.pickable = made.pickables[self.pickable]
-        row.chosen_for_id = row.caused_by_id
-        row.chosen_for_slot = made.slots[self.slot]
+        pick = Assignment.objects.get(pk=self.assignment_id)
+        pick.pickable = made.pickables[self.pickable]
+        pick.chosen_for_id = pick.caused_by_id
+        pick.chosen_for_slot = made.slots[self.slot]
         # The question it used to answer is not the one it answers now,
         # and a pick naming both a slot and an offer says two things.
-        row.chosen_for_offer = None
-        setattr(row, self.old_column, None)
-        row.save()
+        pick.chosen_for_offer = None
+        setattr(pick, self.old_column, None)
+        pick.save()
 
 
 @dataclass(frozen=True)
@@ -283,17 +336,20 @@ class Plan:
         return lines
 
 
-def apply(plan):
+def apply(plan, *, keep=True):
     """Perform exactly the plan, prove the pages unchanged, or refuse.
 
     Returns the report lines. Raises :class:`ConversionRefused` — after
     unwinding everything — if the plan carries problems, any affected
     gang's pages change, or any touched gang stops reconciling.
-    """
-    from n26.core.capture import differences, gang_state
-    from n26.core.models import Gang
-    from n26.core.reconcile import assert_reconciled
 
+    With ``keep=False`` it does the whole thing and then throws it away:
+    every step performed, every page proven, and the transaction unwound
+    on purpose. That is the closest a live database can be asked "would
+    this work here?" without being changed by the answer, and it is worth
+    asking of one holding real players' gangs, where the surprises are.
+    A rehearsal that would have refused refuses, in the same words.
+    """
     if plan.problems:
         raise ConversionRefused(
             f"[{plan.system}] not applied: " + "; ".join(plan.problems)
@@ -302,6 +358,26 @@ def apply(plan):
         return list(plan.preview())
 
     report = list(plan.preview())
+    try:
+        _perform(plan, report, keep=keep)
+    except _Rehearsed:
+        report.append(
+            f"[{plan.system}] rehearsed; every page reads the same; nothing kept"
+        )
+        return report
+    report.append(f"[{plan.system}] applied; every page reads the same")
+    return report
+
+
+class _Rehearsed(Exception):
+    """Raised at the end of a rehearsal to unwind it. Never escapes."""
+
+
+def _perform(plan, report, *, keep):
+    from n26.core.capture import differences, gang_state
+    from n26.core.models import Gang
+    from n26.core.reconcile import assert_reconciled
+
     with transaction.atomic():
         before = {
             str(gang.pk): gang_state(gang)
@@ -335,5 +411,6 @@ def apply(plan):
                 raise ConversionRefused(
                     f"[{plan.system}] refused — {gang} no longer reconciles: {failed}"
                 ) from failed
-    report.append(f"[{plan.system}] applied; every page reads the same")
-    return report
+        if not keep:
+            # Everything held true. Unwind it anyway — that was the ask.
+            raise _Rehearsed

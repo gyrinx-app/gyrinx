@@ -1,0 +1,30 @@
+{% comment %}
+    The summary of one conversion run, on the Backfill detail page: what
+    it was going to do, and — once it has finished — what it did.
+{% endcomment %}
+{% if backfill.summary.kept is False %}
+    <h2>A rehearsal — nothing was kept</h2>
+    <p>
+        This run performed the whole conversion, proved every affected gang's
+        pages, and then unwound it. The library is exactly as it was.
+    </p>
+{% endif %}
+{% if backfill.summary.report %}
+    <h2>What it did</h2>
+    <ul>
+        {% for line in backfill.summary.report %}<li>{{ line }}</li>{% endfor %}
+    </ul>
+{% elif backfill.summary.preview %}
+    <h2>What it is doing</h2>
+    <p>
+        These are the steps it planned. The conversion writes nothing until every
+        affected gang has been proven to read the same, so a run still working has
+        changed nothing yet.
+    </p>
+    <ul>
+        {% for line in backfill.summary.preview %}<li>{{ line }}</li>{% endfor %}
+    </ul>
+{% endif %}
+{% if backfill.summary.attempts %}
+    <p>Started {{ backfill.summary.attempts }} time{{ backfill.summary.attempts|pluralize }}.</p>
+{% endif %}

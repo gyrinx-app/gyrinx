@@ -27,14 +27,16 @@ The dependency direction is: `library` holds content, `core` reads it.
 Concretely:
 
 - **No app code in `n26/` imports `n23.*` or `gyrinx.*`.** n26 is a
-  parallel edition, not a layer on the old one. Six deliberate
+  parallel edition, not a layer on the old one. Seven deliberate
   exceptions: the dashboard reads `gyrinx.site.models.ChangelogEntry`,
   deferred inside the view; the gangs view searches with
   `gyrinx.querysets.search_queryset`; the artwork tag cleans SVG with
   `gyrinx.svg.sanitize_inline_svg`; `n26/library/artwork.py` stores and
   reads uploads through `gyrinx.artwork`; `n26/analytics.py` records
-  events through `gyrinx.analytics`; and `n26/tests/` may import platform
-  pieces to test the seam. Do not add others.
+  events through `gyrinx.analytics`; `n26/maintenance.py` offers this
+  edition's repairs through `gyrinx.maintenance` and runs them on
+  `gyrinx.tasks`; and `n26/tests/` may import platform pieces to test the
+  seam. Do not add others.
 - **`n26/analytics.py` is the third platform module n26 may call, and
   the only file allowed to.** Activity tracking is the site's: one
   events table, one log stream, one dashboard, and every question asked
@@ -76,6 +78,23 @@ Concretely:
   This edition keeps only the folder its uploads land in
   (`n26/library/artwork.py` binds the prefix); every rule about what may
   be stored and what an address may name lives in the platform module.
+- **`n26/maintenance.py` is the other single-file seam, and it works the
+  way `n26/analytics.py` does.** The maintenance console is site
+  furniture — a superuser-gated index, one audit record per run, a detail
+  page, a cancel button — and it deliberately knows nothing about either
+  edition; what there is to repair is edition knowledge, so an edition
+  registers its operations rather than the console naming them. A second
+  console here would give the two editions separate histories of what was
+  repaired and when, which is the same argument as for analytics. The
+  whole dependency is one file: the registry, the audit record, the page
+  helpers and the background-task route are imported there and nowhere
+  else in `n26/`, and `n26/core/tasks.py` only re-exports its
+  `task_routes` because the task registry insists on reading them from an
+  app's own `tasks` module. One import is forbidden outright:
+  `gyrinx.maintenance.admin` installs the console's admin site and must
+  run after the platform's own — an edition importing it during
+  autodiscovery would install it too early and every maintenance route
+  would be silently dropped.
 - **Templates may `{% load %}` a platform tag library** where the thing
   it answers is genuinely the platform's and not an edition's — today
   that is `badge_tags`, because which badge a person shows follows from

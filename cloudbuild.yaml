@@ -103,6 +103,23 @@ steps:
       - "--cpu=1"
       - "--memory=1Gi"
       - "--concurrency=40"
+      # A cap, not a target: nothing serves slower for having a longer one.
+      # The default 300s is below what the longest background task needs — a
+      # library conversion holds a single transaction while it proves every
+      # affected gang's pages unchanged, measured at ~165s over 634 gangs on
+      # a developer machine and slower on one vCPU. Being cut off writes
+      # nothing, so such a task would simply never finish rather than finish
+      # badly.
+      #
+      # 600s because a task arrives as a Pub/Sub push, and that is the longest
+      # acknowledgement deadline Pub/Sub allows. The two must not part company:
+      # a request outliving its deadline is delivered a second time while the
+      # first is still working, and the second copy — finding the work already
+      # in hand and standing down — answers successfully, which acknowledges
+      # the message. The first then dies against the longer cap with nothing
+      # left to retry it. Equal deadlines mean a request that runs too long is
+      # cut off and redelivered honestly instead.
+      - "--timeout=600"
       # HTTP probe against the WSGI-level /healthz in gyrinx/wsgi.py, which only
       # answers once a gunicorn worker has fully imported the app. A TCP probe
       # passes as soon as the master binds the port, which lets Cloud Run send
