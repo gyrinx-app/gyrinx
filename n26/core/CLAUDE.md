@@ -144,8 +144,15 @@ underlying spec.
   nothing (use `<c-slot>`); write `&amp;` not `&` in attributes; the
   platform's cotton checker does not scan n26 templates, so the
   `:field=` vs `field=` mistake is unguarded here — check your colons.
-  A template filter inside a `:attribute` (`:count="roster|length"`)
-  silently evaluates to nothing — compute the value in the view.
+  A `:attribute` takes a **variable, not an expression**: a filter
+  (`:count="roster|length"`), a comparison (`:selected="kind == value"`)
+  and a negation (`:disabled="not pages.next"`) all silently evaluate to
+  nothing, so the box never draws as ticked and the pager's end never
+  draws as disabled — each reads as a working control that is quietly
+  inert or quietly live. Plain lookups (`:current="number.current"`) and
+  literals (`:current="True"`) are the two forms that do work. Compute
+  the flag in the view, or draw the cases with `{% if %}`; and check the
+  rendered markup rather than the source, because nothing raises.
   Passing `class=` to a component whose `<c-vars>` does not declare it
   (the kit's `c-ui.badge`, for one) renders a *second* class attribute
   via `{{ attrs }}` — the browser keeps the first and silently drops
