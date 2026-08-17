@@ -165,6 +165,18 @@ class TestApplying:
 
         assert "Nothing to convert" in response.content.decode()
 
+    def test_applying_twice_records_only_the_run_that_did_something(
+        self, client, superuser, world
+    ):
+        """A page left open across someone else's run: submitting it
+        again must not file a record for work there is none of."""
+        client.force_login(superuser)
+        client.post(reverse(URL_NAME))
+
+        client.post(reverse(URL_NAME), follow=True)
+
+        assert Backfill.objects.count() == 1
+
     def test_a_run_already_going_is_not_started_again(self, client, superuser, world):
         Backfill.objects.create(
             operation=Operation.CONVERT_SPECIALISATION,

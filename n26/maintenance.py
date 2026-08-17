@@ -227,6 +227,14 @@ def convert_specialisation_view(request):
                 reverse("admin:maintenance_backfill_detail", args=[running.id])
             )
         plan = _plan()
+        if plan.nothing_here:
+            # A page left open across someone else's run, most likely.
+            # Recording a run that would do nothing only clutters the
+            # history of what was really done.
+            messages.info(request, "There is nothing to convert.")
+            return HttpResponseRedirect(
+                reverse("admin:maintenance_n26_convert_specialisation")
+            )
         if not plan.ok:
             # Refusing here rather than in the task keeps the reason on
             # the screen of whoever asked for it.

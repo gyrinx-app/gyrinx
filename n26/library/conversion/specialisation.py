@@ -15,10 +15,9 @@ hidden keeps its purpose — its offer becomes a grant of a second slot
 over its own narrow picklist, so a holder's page asks the same
 question. The general hidden and both menu collections retire.
 
-This system ships without a migration: proving several hundred gangs
-inside the container-boot window would gamble with the startup probe's
-ceiling, so production runs the rehearsal command itself, as a one-off
-Cloud Run job, after the code deploys.
+Production converts from the maintenance console, once, after the code
+deploys — see :mod:`n26.maintenance`. Elsewhere the command does it
+(``manage n26_convert specialisation``).
 """
 
 from n26.library.conversion.base import (
