@@ -28,6 +28,7 @@ Use it as a context manager::
 """
 
 from contextlib import contextmanager
+from uuid import uuid4
 
 from django.db import transaction
 
@@ -194,6 +195,9 @@ class Operation:
     def __init__(self, gang, actor=None):
         self.gang = gang
         self.actor = actor
+        # Every event this operation writes carries the same mark, so
+        # the history can tell one act's records from its neighbours'.
+        self.batch = uuid4()
         self._miniatures = {}
         self._effect_depth = 0
 
@@ -331,6 +335,7 @@ class Operation:
             miniature=about if isinstance(about, Miniature) else None,
             gang=gang,
             kind=kind,
+            batch=self.batch,
             actor=self.actor,
             **deltas,
         )
@@ -350,6 +355,47 @@ class Operation:
         miniature.save(update_fields=["name", "modified"])
         self.event(miniature, LedgerEvent.Kind.RENAMED, note=f"{was} → {name}"[:255])
         return miniature
+
+    def rename_gang(self, name):
+        """Give the gang a new name, and say so in its own history.
+
+        The same act as renaming a model, one level up: the event stands
+        alone, about the gang rather than anything on it. The gang is
+        this operation's own — the one it was opened on — so there is no
+        second answer to which gang is being renamed.
+        """
+        gang = self.gang
+        was = gang.name
+        if was == name:
+            return gang
+        gang.name = name
+        gang.save(update_fields=["name", "modified"])
+        self.event(None, LedgerEvent.Kind.RENAMED, note=f"{was} → {name}"[:255])
+        return gang
+
+    def set_budget(self, credits):
+        """Change what this operation's gang may spend, and record it.
+
+        ``credits`` is the new budget, or ``None`` for no ceiling at all.
+        Nothing is priced here and no credits move: what the gang has
+        left is recomputed by ``settle`` from this figure less what the
+        ledger says was spent, which is also what refuses a budget the
+        spending history cannot fit. The note keeps both figures, since
+        the whole of what a reader wants from a budget change is what it
+        was and what it became.
+        """
+        gang = self.gang
+        was = gang.starting_credits
+        if was == credits:
+            return gang
+        gang.starting_credits = credits
+        gang.save(update_fields=["starting_credits", "modified"])
+        self.event(
+            None,
+            LedgerEvent.Kind.BUDGET_SET,
+            note=f"{_budget_word(was)} → {_budget_word(credits)}"[:255],
+        )
+        return gang
 
     def edit_notes(self, miniature, notes):
         """Store the owner's notes as written, and say they changed.
@@ -1263,6 +1309,11 @@ class Operation:
             if remaining is not None and remaining < 0:
                 raise NotEnoughCredits(self.gang, shortfall=-remaining)
             self.gang.repin_credits()
+
+
+def _budget_word(credits):
+    """A budget as the history says it: a figure, or no ceiling at all."""
+    return "unlimited" if credits is None else f"{credits}cr"
 
 
 def _reason_for(paid, caused_by):
