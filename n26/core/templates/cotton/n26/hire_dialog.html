@@ -87,10 +87,12 @@ itself.
                {% if rate_at_paid %}checked{% endif %}
                class="mt-0.5 size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
         <span class="text-sm text-ink-900 dark:text-ink-100">
-            Use the price-paid as their rating
+            Match rating to price
             <span class="block text-muted">
-                You can hire this fighter at their usual rating ({{ price }}¢) for a
-                discount, or use the price-paid as their rating.
+                By default, this fighter's rating matches the price you pay. If
+                you're paying less but they're still worth their full rating — for
+                example, one given to you for free — set the price accordingly and
+                untick this box to keep their rating at {{ price }}¢.
             </span>
         </span>
     </label>
