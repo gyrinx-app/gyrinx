@@ -1172,6 +1172,36 @@ def test_the_section_menu_asks_the_catalogue_and_not_the_menu(
     assert "picker.visibleSection" in body
 
 
+def test_two_sections_sharing_a_category_name_count_apart(
+    client, tester, gang, fighter
+):
+    """A category name is only unique inside its section — the rulebook
+    files Primitive Weapons under both Ranged and Close Combat. Counted by
+    name alone, the knife's match lands on both, and the ranged tab draws a
+    Primitive Weapons header with a 1 beside it and nothing underneath. So
+    each header asks for its own section's tally, while the filter keeps
+    the one entry for the name it is still filtering on."""
+    ranged = create_category("Ranged weapons", "Primitive weapons", position=0)
+    melee = create_category("Close combat weapons", "Primitive weapons", position=1)
+    collection = create_collection(
+        "Primitives",
+        entries=[
+            create_wargear("Blunderbuss", price=30, category=ranged),
+            create_wargear("Fighting knife", price=5, category=melee),
+        ],
+    )
+    with operation(gang, actor=tester) as op:
+        op.assign(collection, gang=gang)
+
+    client.force_login(tester)
+    response = client.get(equip_url(fighter, collection))
+    body = response.content.decode()
+
+    assert response.context["categories"].count("Primitive weapons") == 1
+    assert body.count('x-text="countIn(sectionName, categoryName)"') == 2
+    assert "countIn(categoryName)" not in body
+
+
 def test_the_count_above_the_list_counts_the_section_on_screen(
     client, tester, fighter, house_list
 ):
