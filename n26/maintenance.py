@@ -279,8 +279,11 @@ register_operation(
 )
 
 #: Declared for the task registry, which reads this from ``n26/core/tasks.py``.
-#: The deadline is the longest Pub/Sub allows: a conversion holds one
-#: transaction for as long as proving every affected gang takes, and a
-#: redelivery arriving mid-run would find the lock held and stand down —
-#: paying for a wasted delivery this avoids in the first place.
+#: The deadline is the longest Pub/Sub allows, because a conversion holds one
+#: transaction for as long as proving every affected gang takes. It is also
+#: the request timeout the service is deployed with, and the two belong
+#: together: a run outliving its deadline is delivered again while the first
+#: copy is still working, and the second — standing down at the lock — answers
+#: successfully and acknowledges the message out from under it. Change one and
+#: change the other (``--timeout`` in ``cloudbuild.yaml``).
 task_routes = [TaskRoute(convert_specialisation, ack_deadline=600, min_retry_delay=60)]
