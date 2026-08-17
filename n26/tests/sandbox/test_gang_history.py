@@ -344,6 +344,32 @@ class TestTheGangsOwnFacts:
         assert "set the budget to 1500cr" in told
 
 
+class TestTheCostDoesNotFollowTheLength:
+    """Telling a long story costs the same queries as a short one.
+
+    The reads are fixed by design — the events, the records they name,
+    who is still on the roster — and none of them is per act. A gang
+    played for a season would otherwise pay a query a line.
+    """
+
+    def _lengthen(self, gang, vex, acts):
+        for number in range(acts):
+            with edit(gang) as op:
+                op.rename(vex, f"Vex {number}")
+
+    def test_the_queries_stay_flat_as_the_history_grows(
+        self, gang, vex, django_assert_num_queries
+    ):
+        self._lengthen(gang, vex, 5)
+        short = Gang.objects.get(pk=gang.pk)
+        with django_assert_num_queries(3):
+            history.build(short, viewer=gang.owner)
+        self._lengthen(gang, vex, 60)
+        long = Gang.objects.get(pk=gang.pk)
+        with django_assert_num_queries(3):
+            history.build(long, viewer=gang.owner)
+
+
 class TestThePageIsTheOwners:
     """The history says things the roster does not, so only the owner
     reads it — and every narrowing is an address."""
