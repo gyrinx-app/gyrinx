@@ -269,6 +269,11 @@ def learn(request, pk):
     computed = compute(card, index)
 
     back = reverse("n26-gang", args=[gang.pk])
+    # The model's own page is the way out, because it is the only screen
+    # the skills control is drawn on: a reader who cancels, or who learns
+    # something, is put back where they clicked rather than a level above
+    # it. The gang is still the breadcrumb's parent, one step further up.
+    their_page = reverse("n26-edit-fighter", args=[miniature.pk])
 
     collections = learnable_for(computed)
     if not collections:
@@ -285,10 +290,11 @@ def learn(request, pk):
                 "nothing_to_learn": True,
                 "action": request.path,
                 "back": back,
+                "their_page": their_page,
                 # No act and no way out at the foot of the page: there is
                 # nothing to submit, and a lone Cancel under a page that
                 # asked nothing cancels nothing. The breadcrumb is the
-                # way back to the gang.
+                # way back, to the model and to the gang beyond them.
                 "submit_label": "",
                 "cancel_url": "",
                 "pick_lead": "",
@@ -360,7 +366,7 @@ def learn(request, pk):
             collection=chosen.name,
         )
         messages.success(request, f"{miniature.name} learned {picked.name}.")
-        return redirect(back)
+        return redirect(their_page)
 
     return render(
         request,
@@ -373,8 +379,9 @@ def learn(request, pk):
             "offer": offer,
             "action": here,
             "back": back,
+            "their_page": their_page,
             "submit_label": "Learn",
-            "cancel_url": back,
+            "cancel_url": their_page,
             # Which collection, when a fighter's grid reaches more than
             # one. Drawn as tabs only then: with a single collection
             # there is nothing to choose, and the heading names it.

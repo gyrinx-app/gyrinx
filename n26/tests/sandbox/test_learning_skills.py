@@ -145,6 +145,10 @@ def skills_url(miniature):
     return reverse("n26-learn", args=[miniature.pk])
 
 
+def edit_url(miniature):
+    return reverse("n26-edit-fighter", args=[miniature.pk])
+
+
 def card_for(miniature):
     card = build_card(miniature, with_statlines=True)
     index = build_modifier_index([node.assignable for node in card.all_nodes()])
@@ -394,6 +398,69 @@ class TestGettingToTheNextFighter:
 
         assert "Nobody Of Ours" not in body
         assert skills_url(elsewhere) not in body
+
+
+class TestTheWayOut:
+    """Where the screen leads when a reader is done with it.
+
+    The control opening it is drawn on the model's own page and nowhere
+    else, so that page is what a reader came from and what leaving owes
+    them: the gang sheet is a level above the screen they were working
+    on, and the skills control they clicked is not on it.
+    """
+
+    def test_cancel_leads_back_to_the_model_s_own_page(
+        self, client, player, yolanda, library
+    ):
+        client.force_login(player)
+        response = client.get(skills_url(yolanda))
+
+        assert response.context["cancel_url"] == edit_url(yolanda)
+        # The last of them: the breadcrumb leads to the same page from the
+        # top of the document, and the footer's way out is the one at the end.
+        body = response.content.decode()
+        out = body.rindex(f'href="{edit_url(yolanda)}"')
+        assert "Cancel" in body[out : body.index("</a>", out)]
+
+    def test_learning_something_lands_on_the_same_page_cancel_does(
+        self, client, player, yolanda, library
+    ):
+        """A save and a cancel leave by the same door: one of them landing
+        somewhere else would make the footer's two buttons disagree about
+        where the reader was."""
+        catfall = library["skills"]["Catfall"]
+        client.force_login(player)
+        response = client.post(
+            skills_url(yolanda),
+            {"thing": f"{catfall._meta.label_lower}:{catfall.pk}"},
+        )
+
+        assert response["Location"] == edit_url(yolanda)
+
+    def test_the_breadcrumb_names_the_model_under_the_gang(
+        self, client, player, yolanda, library
+    ):
+        """The model sits between the gang and this page, as it does on
+        every other screen addressed by one."""
+        client.force_login(player)
+        body = client.get(skills_url(yolanda)).content.decode()
+
+        gang_crumb = body.index(f'href="{reverse("n26-gang", args=[yolanda.gang.pk])}"')
+        model_crumb = body.index(f'href="{edit_url(yolanda)}"')
+        assert gang_crumb < model_crumb
+        assert "Yolanda" in body[model_crumb : body.index("</a>", model_crumb)]
+
+    def test_a_fighter_with_nothing_to_learn_still_has_the_way_back(
+        self, client, player, gang, gridless, catalogue
+    ):
+        """That page draws no Cancel — there is nothing to cancel — so the
+        breadcrumb is the whole of the way out, and it has to reach the
+        model whose screen this is."""
+        nobody = hire_with_option(gang, gridless, "Nobody")
+        client.force_login(player)
+        body = client.get(skills_url(nobody)).content.decode()
+
+        assert f'href="{edit_url(nobody)}"' in body
 
 
 # --- The write -------------------------------------------------------------
