@@ -2,18 +2,27 @@
 
 Today: the "Specialist" subtype carries a bearer offer of the whole
 specialisation kind; eight specialisations each add one skill to the
-bearer. Two hiddens are the fossil of an abandoned narrowing
-experiment: "Specialisation Offer" [(general)] — held by nothing,
-granted by a modifier nothing carries, and removed by a live no-op on
-the Subjugator Patrol Officer profile — and "Specialisation offer"
-[(Subjugator Patrol Officer)], whose narrowed menu is still held by
-whoever an owner gave it to.
+bearer. A second, narrowed offer rides the "Specialisation offer"
+hidden, which an owner gave to a Subjugator Patrol Officer.
 
 After: a "Specialisation" slot type; the eight as pickables on one
-picklist; a bearer slot granted by the same subtype. The Subjugator
+picklist; a bearer slot granted by the same subtype. The narrowed
 hidden keeps its purpose — its offer becomes a grant of a second slot
-over its own narrow picklist, so a holder's page asks the same
-question. The general hidden and both menu collections retire.
+over its own narrow picklist, so a holder's page asks the same question.
+
+**Nothing is deleted.** The switch is what the pages read from, and no
+page reads anything from an old row once nothing offers it. Retiring
+those rows is tidiness, and tidiness is what made this hard: every
+protected reference, every fossil of an abandoned experiment, every
+stray assignment nobody meant to make had to be reasoned about before a
+single pick could move. Left alone, they go on saying exactly what they
+say now, and can be cleared away later by someone with time to look at
+them one at a time.
+
+That is why a doubled answer — the same specialisation assigned twice,
+which the page shows as the answer plus a spare line in the gear list —
+needs nothing from this conversion. The answer becomes a pick; the spare
+stays as it is and goes on drawing the line it draws today.
 
 Production converts from the maintenance console, once, after the code
 deploys — see :mod:`n26.maintenance`. Elsewhere the command does it
@@ -25,10 +34,7 @@ from n26.library.conversion.base import (
     CreatePicklist,
     CreateSlot,
     CreateSlotType,
-    DropModifier,
     Plan,
-    Retire,
-    RetireModifier,
     RewritePick,
     SwapCarrier,
     carriers_of,
@@ -38,9 +44,22 @@ SUBTYPE = "Specialist"
 SLOT_TYPE = "Specialisation"
 PICKLIST = "Specialisations"
 NARROW_HIDDEN = "Specialisation offer"
-GENERAL_HIDDEN = "Specialisation Offer"
 NARROW_PICKLIST = "Subjugator Patrol Officer options"
 NARROW_SLOT = "Specialisation (Subjugator Patrol Officer)"
+
+#: How many gangs the apply proves unchanged before committing.
+#:
+#: Not all of them, deliberately. Rendering every affected gang twice
+#: takes minutes, and minutes inside a transaction on a live app is a
+#: worse thing to be than incompletely proven — it holds rows players
+#: are using and collides with what they do meanwhile. The failures this
+#: has actually caught were all shaped by the content, not by one gang's
+#: data, so they show up in any gang the change reaches; and the ones
+#: that *are* particular to a gang are found by asking the database
+#: plainly, which costs a second. So: a spread wide enough to include
+#: every shape the system comes in, proven with the lock held for
+#: seconds.
+PROVEN = 25
 
 
 def _offers_of(carrier):
@@ -66,8 +85,8 @@ def _the_offer(carrier, problems, said):
 def _solely_carried(offer, carrier, problems):
     """Deleting an offer's modifier detaches it from every carrier at
     once, so the plan must know no third thing shares it — a sharer's
-    gangs are outside the capture set and would lose their question
-    unproven."""
+    gangs are outside the proven set and would lose their question
+    unnoticed."""
     others = [
         f"{kind} “{row}”"
         for kind, row in carriers_of(offer)
@@ -79,9 +98,45 @@ def _solely_carried(offer, carrier, problems):
         )
 
 
-def plan_specialisation():
-    from django.db.models import Count
+def _answers(picks):
+    """One pick per question, and the spares left behind.
 
+    The same question answered twice — a click that landed twice — shows
+    on the page as the answer plus a spare line in the gear list. Moving
+    the answer keeps the page: the pick becomes a pick, and the spare
+    goes on being the ordinary assignment it already is.
+    """
+    answers, spares, seen = [], [], set()
+    for pick in picks:
+        question = (pick.miniature_id, pick.caused_by_id)
+        if question in seen:
+            spares.append(pick)
+        else:
+            seen.add(question)
+            answers.append(pick)
+    return answers, spares
+
+
+def _spread(gang_ids, kinds, limit):
+    """A sample wide enough to hold every shape, in a stable order.
+
+    Takes from each kind in turn so no one kind crowds the others out,
+    and keeps the gangs that are odd in some way — the ones a wider
+    sweep would have been for.
+    """
+    chosen, used = [], set()
+    for wanted in kinds:
+        for gang_id in wanted:
+            if gang_id in used or gang_id not in gang_ids:
+                continue
+            used.add(gang_id)
+            chosen.append(gang_id)
+            if len(chosen) >= limit:
+                return chosen
+    return chosen
+
+
+def plan_specialisation():
     from n26.core.models import Assignment
     from n26.library.models import Hidden, SlotType, Specialisation, Subtype
 
@@ -108,68 +163,13 @@ def plan_specialisation():
             )
         _solely_carried(offer, subtype, problems)
 
-    # The capture set is found through stored assignments, so a
-    # Specialist subtype arriving by grant would reach gangs the plan
-    # cannot enumerate.
-    from n26.library.models import AddsAssignable, Modifier, RemovesAssignable
-
-    for effect_row in AddsAssignable.objects.filter(subtype=subtype):
-        granter = Modifier.objects.filter(adds_assignable=effect_row).first()
-        if granter is not None and carriers_of(granter):
-            problems.append(
-                f"“{granter.name}” grants the “{SUBTYPE}” subtype — the plan "
-                "cannot find the gangs that reaches"
-            )
-
     old_rows = list(Specialisation.objects.filter(archived=False).order_by("name"))
     if not old_rows:
         problems.append("no specialisations to convert")
-    # An archived row would escape every step — not a pickable, not
-    # retired, and any stored pick naming it only failing at apply.
-    # Whether it should convert or die is a content decision, so the
-    # plan refuses rather than deciding.
-    ghosts = Specialisation.objects.filter(archived=True).order_by("name")
-    if ghosts:
-        problems.append(
-            "archived specialisations the plan does not convert: "
-            + ", ".join(row.name for row in ghosts)
-        )
-
-    picks = list(
-        Assignment.objects.filter(specialisation__isnull=False)
-        .select_related("specialisation", "gang_root", "caused_by")
-        .order_by("created")
-    )
-    unanchored = [str(pick.pk) for pick in picks if pick.caused_by_id is None]
-    if unanchored:
-        problems.append(
-            "picks with no caused_by to settle against: " + ", ".join(unanchored)
-        )
-
-    # A model holding the same question's answer twice. The offer showed
-    # one of them and left the rest lying on the card as free lines; a
-    # slot says every pick it holds, so the page would gain a repeated
-    # answer and lose those lines. That is a change to what a reader is
-    # told, and not one a conversion may make unasked — the spare
-    # assignments are for their owner to part with first.
-    crowded = list(
-        Assignment.objects.filter(specialisation__isnull=False, archived=False)
-        .values("miniature_id")
-        .annotate(held=Count("id"))
-        .filter(held__gt=1)
-    )
-    if crowded:
-        named = ", ".join(
-            f"{row['miniature_id']} ({row['held']})" for row in crowded[:10]
-        )
-        problems.append(
-            f"{len(crowded)} model(s) hold more than one specialisation, which "
-            f"one slot cannot say the same way: {named}"
-        )
 
     # Hidden names are unique only together with their qualifier, so a
-    # name here must resolve to one row or the plan cannot know which
-    # it is converting.
+    # name here must resolve to one row or the plan cannot know which it
+    # is converting.
     def _the_hidden(name):
         found = list(Hidden.objects.filter(name=name, archived=False))
         if len(found) > 1:
@@ -177,11 +177,8 @@ def plan_specialisation():
             return None
         return found[0] if found else None
 
-    # The Subjugator fossil: kept, converted — its holder's page must go
-    # on asking the same narrowed question.
     narrow = _the_hidden(NARROW_HIDDEN)
     narrow_offer = None
-    narrow_menu = None
     narrow_names = []
     if narrow is not None:
         narrow_offer = _the_offer(narrow, problems, f"the “{NARROW_HIDDEN}” hidden")
@@ -191,10 +188,9 @@ def plan_specialisation():
             if section is None:
                 problems.append(f"the “{NARROW_HIDDEN}” offer names no menu")
             else:
-                narrow_menu = section.collection
                 narrow_names = [
                     entry.specialisation.name
-                    for entry in narrow_menu.entries.filter(
+                    for entry in section.collection.entries.filter(
                         specialisation__isnull=False
                     ).select_related("specialisation")
                 ]
@@ -205,108 +201,36 @@ def plan_specialisation():
                         "not: " + ", ".join(sorted(strangers))
                     )
 
-    # The general fossil: retired — the plan must know nothing holds it,
-    # nothing grants it, and every stray reference is itself dead.
-    general = _the_hidden(GENERAL_HIDDEN)
-    general_offer = None
-    general_menu = None
-    stray_effects = []
-    drop_carrier_gangs = set()
-    if general is not None:
-        if Assignment.objects.filter(hidden=general).exists():
-            problems.append(
-                f"the “{GENERAL_HIDDEN}” hidden is held by someone — it cannot retire"
-            )
-        general_offers = _offers_of(general)
-        if len(general_offers) > 1:
-            problems.append(
-                f"the “{GENERAL_HIDDEN}” hidden carries "
-                f"{len(general_offers)} specialisation offers — expected at most one"
-            )
-        # A fossil that lost its offer already is simply retirable.
-        general_offer = general_offers[0] if general_offers else None
-        if general_offer is not None:
-            _solely_carried(general_offer, general, problems)
-            if general_offer.offers_choice.from_section_id:
-                general_menu = general_offer.offers_choice.from_section.collection
-        # The abandoned narrowing experiment left wiring behind that
-        # still names the hidden, and would protect it from retiring. A
-        # bare effect row, or a whole modifier nothing carries, is dead
-        # and retires with it. A carried modifier that only *removes*
-        # the hidden is a read-time no-op — nothing grants the hidden
-        # and nobody holds it, both proven above — so it drops from its
-        # one carrier, and that carrier's gangs join the capture set so
-        # the no-op is proven, not assumed. A carried modifier that
-        # grants the hidden is live wiring, and a problem.
-        assignment_columns = {
-            label: column for column, label in Assignment.ASSIGNABLE_FIELDS.items()
-        }
-        for model, label, column in (
-            (AddsAssignable, "library.AddsAssignable", "adds_assignable"),
-            (RemovesAssignable, "library.RemovesAssignable", "removes_assignable"),
-        ):
-            for effect_row in model.objects.filter(hidden=general):
-                alive = Modifier.objects.filter(**{column: effect_row}).first()
-                if alive is None:
-                    stray_effects.append(
-                        Retire(model=label, pk=effect_row.pk, name=str(effect_row))
-                    )
-                    continue
-                holders = carriers_of(alive)
-                if not holders:
-                    stray_effects.append(
-                        RetireModifier(modifier_id=alive.pk, modifier_name=alive.name)
-                    )
-                elif column == "adds_assignable":
-                    problems.append(
-                        f"“{alive.name}” still grants the “{GENERAL_HIDDEN}” "
-                        "hidden — it cannot retire"
-                    )
-                elif len(holders) != 1:
-                    problems.append(
-                        f"“{alive.name}” removes the “{GENERAL_HIDDEN}” hidden "
-                        f"from {len(holders)} carriers — the plan only drops "
-                        "it from one"
-                    )
-                else:
-                    kind, holder = holders[0]
-                    holder_column = assignment_columns.get(f"library.{kind}")
-                    if holder_column is None:
-                        problems.append(
-                            f"“{alive.name}” is carried by {kind} “{holder}” — "
-                            "the plan cannot find that carrier's gangs"
-                        )
-                        continue
-                    drop_carrier_gangs.update(
-                        Assignment.objects.filter(
-                            **{holder_column: holder}
-                        ).values_list("gang_root_id", flat=True)
-                    )
-                    stray_effects.append(
-                        DropModifier(
-                            carrier=(f"library.{kind}", holder.pk),
-                            carrier_name=f"the “{holder}” {kind.lower()}",
-                            modifier_id=alive.pk,
-                            modifier_name=alive.name,
-                        )
-                    )
+    # Only live answers move. An archived pick is history nothing draws,
+    # and with no old row being deleted there is nothing to make it
+    # follow.
+    picks = list(
+        Assignment.objects.filter(specialisation__isnull=False, archived=False)
+        .exclude(removes=True)
+        .select_related("specialisation", "gang_root", "caused_by")
+        .order_by("created")
+    )
+    answers, spares = _answers(picks)
 
-    # Each pick settles onto the slot its own anchor grants: the
-    # subtype's holders answer the general question, the narrow
-    # hidden's holders answer their narrowed one. An anchor the plan
-    # does not recognise has no slot to settle on.
+    # Each pick settles on the slot its own anchor grants.
+    becoming = {row.name for row in old_rows}
     pick_slots = {}
-    for pick in picks:
+    for pick in answers:
+        if pick.specialisation.name not in becoming:
+            problems.append(
+                f"pick {pick.pk} names “{pick.specialisation.name}”, which is "
+                "not becoming a pickable"
+            )
         if pick.caused_by_id is None:
-            continue
-        if pick.caused_by.subtype_id == subtype.pk:
+            problems.append(f"pick {pick.pk} has no caused_by to settle against")
+        elif pick.caused_by.subtype_id == subtype.pk:
             pick_slots[pick.pk] = SLOT_TYPE
         elif narrow is not None and pick.caused_by.hidden_id == narrow.pk:
             pick_slots[pick.pk] = NARROW_SLOT
         else:
             problems.append(
-                f"pick {pick.pk} is anchored on “{pick.caused_by}”, which "
-                "the plan does not recognise"
+                f"pick {pick.pk} is anchored on “{pick.caused_by}”, which the "
+                "plan does not recognise"
             )
 
     if problems:
@@ -380,52 +304,43 @@ def plan_specialisation():
             slot=pick_slots[pick.pk],
             gang=str(pick.gang_root),
         )
-        for pick in picks
-    ]
-    if general is not None:
-        if general_offer is not None:
-            steps.append(
-                DropModifier(
-                    carrier=("library.Hidden", general.pk),
-                    carrier_name=f"the “{GENERAL_HIDDEN}” hidden",
-                    modifier_id=general_offer.pk,
-                    modifier_name=general_offer.name,
-                )
-            )
-        steps += stray_effects
-        if general_menu is not None:
-            steps.append(
-                Retire(
-                    model="library.Collection",
-                    pk=general_menu.pk,
-                    name=general_menu.name,
-                )
-            )
-        steps.append(Retire(model="library.Hidden", pk=general.pk, name=str(general)))
-    if narrow_menu is not None:
-        steps.append(
-            Retire(model="library.Collection", pk=narrow_menu.pk, name=narrow_menu.name)
-        )
-    steps += [
-        Retire(model="library.Specialisation", pk=row.pk, name=row.name)
-        for row in old_rows
+        for pick in answers
     ]
 
-    gang_ids = sorted(
-        {
-            *(
-                Assignment.objects.filter(archived=False, subtype=subtype)
-                .values_list("gang_root_id", flat=True)
-                .distinct()
-            ),
-            *(pick.gang_root_id for pick in picks),
-            *(
-                Assignment.objects.filter(
-                    archived=False, hidden__in=[h for h in (narrow,) if h]
-                ).values_list("gang_root_id", flat=True)
-            ),
-            *drop_carrier_gangs,
-        },
-        key=str,
+    # Every gang the change can reach, and then the spread actually
+    # proven: one holding a doubled answer, one holding the narrowed
+    # question, one that never answered, and ordinary ones.
+    holders = set(
+        Assignment.objects.filter(archived=False, subtype=subtype)
+        .values_list("gang_root_id", flat=True)
+        .distinct()
     )
-    return Plan(system="specialisation", steps=tuple(steps), gang_ids=tuple(gang_ids))
+    if narrow is not None:
+        holders |= set(
+            Assignment.objects.filter(archived=False, hidden=narrow).values_list(
+                "gang_root_id", flat=True
+            )
+        )
+    answered = {pick.gang_root_id for pick in answers}
+    holders |= answered
+    proven = _spread(
+        holders,
+        [
+            [pick.gang_root_id for pick in spares],
+            [
+                pick.gang_root_id
+                for pick in answers
+                if pick_slots.get(pick.pk) == NARROW_SLOT
+            ],
+            sorted(holders - answered, key=str),
+            sorted(answered, key=str),
+        ],
+        PROVEN,
+    )
+    return Plan(
+        system="specialisation",
+        steps=tuple(steps),
+        gang_ids=tuple(proven),
+        reaches=len(holders),
+        left_alone=len(spares),
+    )

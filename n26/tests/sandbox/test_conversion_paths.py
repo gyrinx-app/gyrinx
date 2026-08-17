@@ -108,7 +108,7 @@ class TestThePlan:
         assert said.count("rewrite pick") == 1
         assert "retire library.Collection “Paths”" in said
         assert said.count("retire library.Affiliation") == 2
-        assert "prove 2 gangs read the same, or refuse" in said
+        assert "prove 2 of 2 reached gangs read the same, or refuse" in said
 
     def test_it_writes_nothing(self, gangs):
         before = Assignment.objects.count()

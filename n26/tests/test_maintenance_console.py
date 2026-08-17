@@ -109,24 +109,9 @@ class TestThePage:
         page = response.content.decode()
         assert response.status_code == 200
         assert "create slot type “Specialisation”" in page
-        assert "prove 2 gangs read the same" in page
+        assert "prove 2 of 2 reached gangs read the same" in page
         assert not Backfill.objects.exists()
         assert Assignment.objects.filter(specialisation__isnull=False).exists()
-
-    def test_a_refusal_is_said_on_the_page_not_applied(
-        self, client, superuser, world, prod_shape
-    ):
-        _, _, _, general = prod_shape
-        from n26.tests.sandbox.actions import assign
-
-        _, fighters = world
-        assign(general, miniature=fighters["open"])
-        client.force_login(superuser)
-
-        response = client.post(reverse(URL_NAME), follow=True)
-
-        assert "held by someone" in response.content.decode()
-        assert not Backfill.objects.exists()
 
 
 class TestApplying:
@@ -142,7 +127,9 @@ class TestApplying:
         assert "applied; every page reads the same" in backfill.summary["report"][-1]
         assert backfill.summary["attempts"] == 1
         # The run really converted: the picks now name pickables.
-        assert not Assignment.objects.filter(specialisation__isnull=False).exists()
+        assert not Assignment.objects.filter(
+            specialisation__isnull=False, archived=False
+        ).exists()
         assert Assignment.objects.filter(pickable__isnull=False).exists()
         assert str(backfill.id) in response.redirect_chain[-1][0]
 

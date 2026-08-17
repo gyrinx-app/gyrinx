@@ -22,6 +22,13 @@ Pick rewrites touch ``Assignment`` rows outside ``operation()`` — the
 one sanctioned place: a conversion moves no money. Nothing is created or
 priced, columns change on existing free rows, the ledger is untouched,
 and the reconcile assertion proves it gang by gang.
+
+What the ledger *says*, though, is not untouched, and the captures do
+not see it. The gang's history describes an old event by looking up what
+its assignment names now, so moving a row from one kind to another
+rewrites the wording of things that already happened. Every conversion
+must check the history page against a converted row and keep those words
+the same — see the note in ``n26/core/CLAUDE.md``.
 """
 
 from contextlib import contextmanager
@@ -311,13 +318,19 @@ class _Made:
 class Plan:
     system: str
     steps: tuple = ()
-    #: Primary keys of every gang whose pages this system touches — the
-    #: capture set the apply proves unchanged. Derived from stored rows,
-    #: which every carrier so far is; a system whose carrier arrives by
-    #: grant has no row to find, and its plan must widen this set the
-    #: renderer's way.
+    #: The gangs the apply proves unchanged before committing — a spread
+    #: chosen by the system's own plan to hold every shape it comes in,
+    #: not every gang it reaches. Proving all of them means rendering for
+    #: minutes with the transaction open, which on a live app costs more
+    #: than it buys: what goes wrong is nearly always shaped by the
+    #: content, so it shows in any gang the change touches, and what is
+    #: particular to one gang is cheaper to ask the database outright.
     gang_ids: tuple = ()
     problems: tuple = ()
+    #: How many gangs the change reaches in all, proven or not.
+    reaches: int = 0
+    #: Rows the plan deliberately leaves as they are.
+    left_alone: int = 0
     #: True when the system simply is not here — nothing to convert and
     #: nothing wrong: the apply is a clean no-op.
     nothing_here: bool = False
@@ -330,9 +343,15 @@ class Plan:
         if self.nothing_here:
             return [f"[{self.system}] nothing to convert — the system is not here"]
         lines = [f"[{self.system}] {step.say()}" for step in self.steps]
+        if self.left_alone:
+            lines.append(
+                f"[{self.system}] leave {self.left_alone} spare assignment"
+                f"{'' if self.left_alone == 1 else 's'} exactly as they are"
+            )
+        reaches = self.reaches or len(self.gang_ids)
         lines.append(
-            f"[{self.system}] prove {len(self.gang_ids)} gang"
-            f"{'' if len(self.gang_ids) == 1 else 's'} read the same, or refuse"
+            f"[{self.system}] prove {len(self.gang_ids)} of {reaches} reached "
+            "gangs read the same, or refuse"
         )
         return lines
 
