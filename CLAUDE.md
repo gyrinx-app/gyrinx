@@ -225,6 +225,15 @@ Keep the fully technical version for commit messages and code comments.
 
 - Manually test changes through the running app (dev server + browser) before
   shipping — skip only when the change is trivial
+- **Always smoke-test a migration, backfill, or any data-touching feature on a
+  real database before shipping it.** Fork the content mirror
+  (`createdb -T gyrinx_main gyrinx_smoke`), build a population at production's
+  measured volume — read the counts off `manage prodshell` first rather than
+  guessing them — run the real code path, and time it. Then verify from
+  *outside* the change: compare every affected record yourself, before and
+  after, instead of trusting whatever the feature checks internally. Tests
+  prove the logic on a handful of rows; this is what catches the volume, the
+  runtime, and the data shapes nobody thought to write a fixture for.
 
 **In CI/GitHub Actions:** MUST commit and push before finishing or work is lost.
 
