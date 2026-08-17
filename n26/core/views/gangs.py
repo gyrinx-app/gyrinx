@@ -555,17 +555,14 @@ def edit_gang(request, pk):
         if form.is_valid():
             try:
                 with operation(gang, actor=request.user) as op:
-                    gang.name = form.cleaned_data["name"]
+                    # The name and the budget are the gang's story and go
+                    # through their own verbs, which record them. The
+                    # colour is how a reader draws it and is nobody's
+                    # history, so it is a plain save.
+                    op.rename_gang(gang, form.cleaned_data["name"])
+                    op.set_budget(gang, form.cleaned_data["starting_credits"])
                     gang.colour = form.cleaned_data["colour"]
-                    gang.starting_credits = form.cleaned_data["starting_credits"]
-                    gang.save(
-                        update_fields=[
-                            "name",
-                            "colour",
-                            "starting_credits",
-                            "modified",
-                        ]
-                    )
+                    gang.save(update_fields=["colour", "modified"])
                     op.settle()
             except NotEnoughCredits as refusal:
                 # The ledger's own floor: a budget the spending history

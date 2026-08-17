@@ -368,7 +368,7 @@ def _tell(e, row, alive):
             return (Span("bought "), thing, *_for(model, at)), "money"
         case Kind.ADDED:
             if row is not None and row.gang_type_id is not None:
-                return (Span("created the gang, a "), thing, Span(" gang")), "kit"
+                return (Span("created the gang, a "), thing, Span(" gang")), "gang"
             if identity:
                 return (
                     Span("added the "),
@@ -406,9 +406,22 @@ def _tell(e, row, alive):
             return (Span("changed "), thing, *_for(model, at, "on")), "model"
         case Kind.RENAMED:
             was, _, now = e.note.rpartition(" → ")
+            # About no model, so about the gang: the same act one level up.
+            whose = "model" if model is not None else "gang"
+            if model is None:
+                if was:
+                    return (Span(f"renamed the gang {was} to {now}"),), "gang"
+                return (Span("renamed the gang"),), "gang"
             if was:
-                return (Span(f"renamed {was} to "), Span(now, at.href)), "model"
-            return (Span("renamed "), at), "model"
+                return (Span(f"renamed {was} to "), Span(now, at.href)), whose
+            return (Span("renamed "), at), whose
+        case Kind.BUDGET_SET:
+            _, _, now = e.note.rpartition(" → ")
+            if now == "unlimited":
+                return (Span("lifted the budget — the gang spends freely"),), "money"
+            if now:
+                return (Span(f"set the budget to {now}"),), "money"
+            return (Span("changed the budget"),), "money"
         case Kind.NOTED:
             return (Span("edited "), at, Span("'s notes")), "model"
         case Kind.STAT_SET:

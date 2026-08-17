@@ -286,6 +286,49 @@ class TestWhatAnActSaysAboutItself:
         assert "prints again" in act.note
 
 
+class TestTheGangsOwnFacts:
+    """Changing what the gang is called or may spend is part of its
+    story; how it is drawn is not."""
+
+    def test_the_budget_change_is_in_the_history(self, gang, vex):
+        with edit(gang) as op:
+            op.set_budget(gang, 1500)
+        act = act_saying(gang, "set the budget to 1500cr")
+        assert act.note == "1000cr → 1500cr"
+        assert act.category == "money"
+
+    def test_lifting_the_budget_says_the_gang_spends_freely(self, gang):
+        with edit(gang) as op:
+            op.set_budget(gang, None)
+        act = act_saying(gang, "lifted the budget")
+        assert act.note == "1000cr → unlimited"
+
+    def test_renaming_the_gang_keeps_both_names(self, gang):
+        with edit(gang) as op:
+            op.rename_gang(gang, "The Ashen Few")
+        act = act_saying(gang, "renamed the gang The Ashen Choir to The Ashen Few")
+        assert act.category == "gang"
+
+    def test_a_budget_that_did_not_move_says_nothing(self, gang):
+        before = len(sentences(gang))
+        with edit(gang) as op:
+            op.set_budget(gang, gang.starting_credits)
+            op.rename_gang(gang, gang.name)
+        assert len(sentences(gang)) == before
+
+    def test_the_edit_page_records_what_it_changed(self, client, gang):
+        """The screen an owner really uses, not the verb underneath."""
+        client.force_login(gang.owner)
+        response = client.post(
+            reverse("n26-edit-gang", args=[gang.pk]),
+            {"name": "The Ashen Few", "starting_credits": "1500", "colour": "red"},
+        )
+        assert response.status_code == 302
+        told = " ".join(sentences(gang))
+        assert "renamed the gang The Ashen Choir to The Ashen Few" in told
+        assert "set the budget to 1500cr" in told
+
+
 class TestThePageIsTheOwners:
     """The history says things the roster does not, so only the owner
     reads it — and every narrowing is an address."""

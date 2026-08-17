@@ -126,6 +126,12 @@ class LedgerEvent(Base):
         NOTED = "noted", "Notes edited"
         STAT_SET = "stat_set", "Characteristic set"
         STAT_CLEARED = "stat_cleared", "Characteristic cleared"
+        # What the gang may spend, changed after the founding. It moves no
+        # money of its own — the credits that follow are recomputed from
+        # the budget less what the ledger says was spent — but it changes
+        # what every later purchase is measured against, so a reader owed
+        # an explanation of "where did my credits go" is owed this too.
+        BUDGET_SET = "budget_set", "Budget set"
 
     assignment = models.ForeignKey(
         "n26.Assignment",

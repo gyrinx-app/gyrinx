@@ -24,6 +24,7 @@ KINDS = {
     "money": "Money",
     "kit": "Equipment",
     "model": "Models",
+    "gang": "The gang",
 }
 
 
