@@ -559,8 +559,8 @@ def edit_gang(request, pk):
                     # through their own verbs, which record them. The
                     # colour is how a reader draws it and is nobody's
                     # history, so it is a plain save.
-                    op.rename_gang(gang, form.cleaned_data["name"])
-                    op.set_budget(gang, form.cleaned_data["starting_credits"])
+                    op.rename_gang(form.cleaned_data["name"])
+                    op.set_budget(form.cleaned_data["starting_credits"])
                     gang.colour = form.cleaned_data["colour"]
                     gang.save(update_fields=["colour", "modified"])
                     op.settle()
@@ -569,6 +569,11 @@ def edit_gang(request, pk):
                 # cannot fit. The wealth floor usually refuses first, but
                 # the two figures part company where money was spent on
                 # things worth less than was paid.
+                #
+                # The database rolled back, so this instance is holding
+                # figures nothing ever took — a heading and a wealth line
+                # drawn from it would state a change that did not happen.
+                gang.refresh_from_db()
                 form.add_error("starting_credits", str(refusal))
             else:
                 record(

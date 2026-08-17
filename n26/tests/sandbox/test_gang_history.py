@@ -292,29 +292,44 @@ class TestTheGangsOwnFacts:
 
     def test_the_budget_change_is_in_the_history(self, gang, vex):
         with edit(gang) as op:
-            op.set_budget(gang, 1500)
+            op.set_budget(1500)
         act = act_saying(gang, "set the budget to 1500cr")
         assert act.note == "1000cr → 1500cr"
         assert act.category == "money"
 
     def test_lifting_the_budget_says_the_gang_spends_freely(self, gang):
         with edit(gang) as op:
-            op.set_budget(gang, None)
+            op.set_budget(None)
         act = act_saying(gang, "lifted the budget")
         assert act.note == "1000cr → unlimited"
 
     def test_renaming_the_gang_keeps_both_names(self, gang):
         with edit(gang) as op:
-            op.rename_gang(gang, "The Ashen Few")
+            op.rename_gang("The Ashen Few")
         act = act_saying(gang, "renamed the gang The Ashen Choir to The Ashen Few")
         assert act.category == "gang"
 
     def test_a_budget_that_did_not_move_says_nothing(self, gang):
         before = len(sentences(gang))
         with edit(gang) as op:
-            op.set_budget(gang, gang.starting_credits)
-            op.rename_gang(gang, gang.name)
+            op.set_budget(gang.starting_credits)
+            op.rename_gang(gang.name)
         assert len(sentences(gang)) == before
+
+    def test_a_refused_budget_leaves_the_page_stating_what_is_stored(
+        self, client, gang, vex
+    ):
+        """A budget the spending cannot fit is refused and rolled back,
+        so the screen must not show the figures it rejected."""
+        client.force_login(gang.owner)
+        response = client.post(
+            reverse("n26-edit-gang", args=[gang.pk]),
+            {"name": "The Ashen Few", "starting_credits": "10", "colour": "red"},
+        )
+        assert response.status_code == 200
+        assert response.context["gang"].name == "The Ashen Choir"
+        assert response.context["gang"].starting_credits == 1000
+        assert "budget" not in " ".join(sentences(gang))
 
     def test_the_edit_page_records_what_it_changed(self, client, gang):
         """The screen an owner really uses, not the verb underneath."""
@@ -349,6 +364,26 @@ class TestThePageIsTheOwners:
     def test_a_signed_out_reader_is_sent_to_sign_in(self, client, gang):
         response = client.get(reverse("n26-gang-history", args=[gang.pk]))
         assert response.status_code == 302
+
+    def test_a_long_story_is_read_a_page_at_a_time(self, client, gang, vex):
+        """A gang played for a season has more acts than a screen holds,
+        and the pager keeps whatever question the reader asked."""
+        from n26.core.views.history import PER_PAGE
+
+        for number in range(PER_PAGE + 2):
+            with edit(gang) as op:
+                op.rename(vex, f"Vex {number}")
+        client.force_login(gang.owner)
+        at = reverse("n26-gang-history", args=[gang.pk])
+        first = client.get(at)
+        assert first.context["shown"] == PER_PAGE
+        assert first.context["pages"]["of"] == 2
+        # The pager is really drawn, not merely computed.
+        assert "page=2" in first.content.decode()
+        second = client.get(at, {"page": 2, "q": "renamed"})
+        assert second.status_code == 200
+        assert "q=renamed" in second.context["pages"]["previous"]
+        assert "Page 2 of 2" in second.content.decode()
 
     def test_the_filters_narrow_and_the_address_says_how(self, client, gang, vex):
         with edit(gang) as op:

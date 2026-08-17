@@ -356,12 +356,15 @@ class Operation:
         self.event(miniature, LedgerEvent.Kind.RENAMED, note=f"{was} → {name}"[:255])
         return miniature
 
-    def rename_gang(self, gang, name):
+    def rename_gang(self, name):
         """Give the gang a new name, and say so in its own history.
 
         The same act as renaming a model, one level up: the event stands
-        alone, about the gang rather than anything on it.
+        alone, about the gang rather than anything on it. The gang is
+        this operation's own — the one it was opened on — so there is no
+        second answer to which gang is being renamed.
         """
+        gang = self.gang
         was = gang.name
         if was == name:
             return gang
@@ -370,8 +373,8 @@ class Operation:
         self.event(None, LedgerEvent.Kind.RENAMED, note=f"{was} → {name}"[:255])
         return gang
 
-    def set_budget(self, gang, credits):
-        """Change what the gang may spend, and record the change.
+    def set_budget(self, credits):
+        """Change what this operation's gang may spend, and record it.
 
         ``credits`` is the new budget, or ``None`` for no ceiling at all.
         Nothing is priced here and no credits move: what the gang has
@@ -381,6 +384,7 @@ class Operation:
         the whole of what a reader wants from a budget change is what it
         was and what it became.
         """
+        gang = self.gang
         was = gang.starting_credits
         if was == credits:
             return gang

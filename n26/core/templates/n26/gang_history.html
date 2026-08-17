@@ -86,7 +86,7 @@ that said it twice would be spending the width the name needs.
                 </c-ui.button>
                 {% if narrowed %}
                     <c-n26.link href="{% url 'n26-gang-history' gang.pk %}">Clear</c-n26.link>
-                    <span class="text-sm text-muted">{{ shown }} of {{ total }} acts</span>
+                    <span class="text-sm text-muted">{{ matched }} of {{ total }} act{{ total|pluralize }}</span>
                 {% endif %}
             </div>
         </form>
@@ -153,6 +153,28 @@ that said it twice would be spending the width the name needs.
                     Nothing yet — the history starts with the first thing done to the gang.
                 {% endif %}
             </p>
+        {% endif %}
+        {% comment %}
+        Every other parameter rides along in each page's address, so
+        turning the page keeps the question the reader asked.
+        {% endcomment %}
+        {% if pages %}
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <c-ui.pagination>
+                    <c-ui.pagination.prev href="{{ pages.previous }}" :disabled="not pages.previous" />
+                    {% for number in pages.numbers %}
+                        {% if number.elided %}
+                            <c-ui.pagination.ellipsis />
+                        {% else %}
+                            <c-ui.pagination.item href="{{ number.href }}" :current="number.current">
+                                {{ number.label }}
+                            </c-ui.pagination.item>
+                        {% endif %}
+                    {% endfor %}
+                    <c-ui.pagination.next href="{{ pages.next }}" :disabled="not pages.next" />
+                </c-ui.pagination>
+                <p class="text-sm text-muted">Page {{ pages.number }} of {{ pages.of }}</p>
+            </div>
         {% endif %}
     </div>
 {% endblock content %}
