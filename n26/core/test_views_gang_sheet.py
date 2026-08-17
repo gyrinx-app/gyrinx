@@ -263,8 +263,10 @@ def test_a_named_profile_opens_with_a_dash_under_its_weapon(
 
     for name in ("frag", "krak"):
         start = table.index(f"{name}</span>")
-        opened = table.rindex("<span", 0, start)
-        assert '<span aria-hidden="true">-</span>&nbsp;' in table[opened:start], (
+        # The mark and the name share one flex row, which is what stops a
+        # narrow column wrapping the dash onto a line of its own.
+        opened = table.rindex('<span class="flex', 0, start)
+        assert '<span aria-hidden="true">-</span>' in table[opened:start], (
             f"{name} is drawn without the dash that says it hangs off the gun"
         )
 

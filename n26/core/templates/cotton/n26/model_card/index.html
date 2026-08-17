@@ -288,11 +288,17 @@ reader learns they can write one.
                                             The dash is the mark the book and n26.render_text open a
                                             named profile with: it says this row hangs off the weapon
                                             above rather than standing as a gun of its own, so the
-                                            indent beside it stays narrow. Decorative, and bound to
-                                            the name so a wrapping cell cannot strand it on a line of
-                                            its own.
+                                            indent beside it stays narrow. Decorative, so a card read
+                                            aloud announces the profile's name alone.
+
+                                            The mark is a flex item beside the name rather than a
+                                            character in front of it: on a phone the name column is a
+                                            few characters wide, and inline the dash wrapped onto a
+                                            line of its own above a name it no longer looked attached
+                                            to. Beside it, the name wraps under itself and the dash
+                                            stays put.
                                             {% endcomment %}
-                                            <span class="pl-2"><span aria-hidden="true">-</span>&nbsp;{{ profile.name }}</span>
+                                            <span class="flex gap-1 pl-2"><span aria-hidden="true">-</span><span>{{ profile.name }}</span></span>
                                         </td>
                                     </c-slot>
                                 </c-n26.statline.cells>
