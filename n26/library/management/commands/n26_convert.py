@@ -27,9 +27,25 @@ class Command(BaseCommand):
             action="store_true",
             help="Perform the plan. Without this, the plan is printed and nothing is written.",
         )
+        parser.add_argument(
+            "--rehearse",
+            action="store_true",
+            help=(
+                "Perform the whole plan, prove every page, then unwind it. "
+                "Answers whether the conversion works on this database "
+                "without changing it."
+            ),
+        )
 
     def handle(self, *args, **options):
         plan = SYSTEMS[options["system"]]()
+        if options["rehearse"]:
+            try:
+                for line in apply(plan, keep=False):
+                    self.stdout.write(line)
+            except ConversionRefused as refused:
+                raise CommandError(str(refused)) from None
+            return
         if not options["apply"]:
             for problem in plan.problems:
                 self.stdout.write(self.style.ERROR(f"problem: {problem}"))

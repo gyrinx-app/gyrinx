@@ -336,17 +336,20 @@ class Plan:
         return lines
 
 
-def apply(plan):
+def apply(plan, *, keep=True):
     """Perform exactly the plan, prove the pages unchanged, or refuse.
 
     Returns the report lines. Raises :class:`ConversionRefused` — after
     unwinding everything — if the plan carries problems, any affected
     gang's pages change, or any touched gang stops reconciling.
-    """
-    from n26.core.capture import differences, gang_state
-    from n26.core.models import Gang
-    from n26.core.reconcile import assert_reconciled
 
+    With ``keep=False`` it does the whole thing and then throws it away:
+    every step performed, every page proven, and the transaction unwound
+    on purpose. That is the closest a live database can be asked "would
+    this work here?" without being changed by the answer, and it is worth
+    asking of one holding real players' gangs, where the surprises are.
+    A rehearsal that would have refused refuses, in the same words.
+    """
     if plan.problems:
         raise ConversionRefused(
             f"[{plan.system}] not applied: " + "; ".join(plan.problems)
@@ -355,6 +358,26 @@ def apply(plan):
         return list(plan.preview())
 
     report = list(plan.preview())
+    try:
+        _perform(plan, report, keep=keep)
+    except _Rehearsed:
+        report.append(
+            f"[{plan.system}] rehearsed; every page reads the same; nothing kept"
+        )
+        return report
+    report.append(f"[{plan.system}] applied; every page reads the same")
+    return report
+
+
+class _Rehearsed(Exception):
+    """Raised at the end of a rehearsal to unwind it. Never escapes."""
+
+
+def _perform(plan, report, *, keep):
+    from n26.core.capture import differences, gang_state
+    from n26.core.models import Gang
+    from n26.core.reconcile import assert_reconciled
+
     with transaction.atomic():
         before = {
             str(gang.pk): gang_state(gang)
@@ -388,5 +411,6 @@ def apply(plan):
                 raise ConversionRefused(
                     f"[{plan.system}] refused — {gang} no longer reconciles: {failed}"
                 ) from failed
-    report.append(f"[{plan.system}] applied; every page reads the same")
-    return report
+        if not keep:
+            # Everything held true. Unwind it anyway — that was the ask.
+            raise _Rehearsed

@@ -165,8 +165,13 @@ def _claim(backfill_id):
 
 
 @task
-def convert_specialisation(backfill_id):
+def convert_specialisation(backfill_id, keep=True):
     """Run the Specialisation conversion, once, and write down the outcome.
+
+    With ``keep=False`` it rehearses: the whole conversion performed and
+    every page proven, then unwound on purpose, so a database holding
+    real gangs can be asked whether this works without being changed by
+    the answer.
 
     Never raises: a task that fails is redelivered, and there is nowhere
     for a raised error to go but round again. Every ending — refused,
@@ -196,7 +201,7 @@ def convert_specialisation(backfill_id):
             return
 
         try:
-            report = apply(_plan())
+            report = apply(_plan(), keep=keep)
         except ConversionRefused as refused:
             # A refusal is the discipline working: nothing was written,
             # and the reason is already in words.
@@ -214,7 +219,7 @@ def convert_specialisation(backfill_id):
         _write(
             backfill_id,
             status=Backfill.Status.DONE,
-            summary_patch={"report": list(report)},
+            summary_patch={"report": list(report), "kept": bool(keep)},
         )
 
 
@@ -244,15 +249,23 @@ def convert_specialisation_view(request):
             return HttpResponseRedirect(
                 reverse("admin:maintenance_n26_convert_specialisation")
             )
+        # Keeping the work is the thing that must be asked for. A request
+        # that does not say so — a page from before there were two
+        # buttons, something calling the address directly — rehearses,
+        # which is the ending nobody has to undo.
+        keep = request.POST.get("keep") == "yes"
         backfill = Backfill.objects.create(
             operation=Operation.CONVERT_SPECIALISATION,
             triggered_by=request.user,
             status=Backfill.Status.RUNNING,
-            summary={"preview": list(plan.preview()), "attempts": 0},
+            summary={"preview": list(plan.preview()), "attempts": 0, "kept": keep},
         )
-        convert_specialisation.enqueue(backfill_id=str(backfill.id))
+        convert_specialisation.enqueue(backfill_id=str(backfill.id), keep=keep)
         messages.success(
-            request, "The conversion is running. This page shows what it did."
+            request,
+            "The conversion is running. This page shows what it did."
+            if keep
+            else "The rehearsal is running. Nothing will be kept.",
         )
         return HttpResponseRedirect(
             reverse("admin:maintenance_backfill_detail", args=[backfill.id])
