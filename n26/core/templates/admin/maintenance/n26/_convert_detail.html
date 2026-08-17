@@ -2,13 +2,6 @@
     The summary of one conversion run, on the Backfill detail page: what
     it was going to do, and — once it has finished — what it did.
 {% endcomment %}
-{% if backfill.summary.kept is False %}
-    <h2>A rehearsal — nothing was kept</h2>
-    <p>
-        This run performed the whole conversion, proved every affected gang's
-        pages, and then unwound it. The library is exactly as it was.
-    </p>
-{% endif %}
 {% if backfill.summary.report %}
     <h2>What it did</h2>
     <ul>
