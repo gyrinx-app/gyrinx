@@ -80,6 +80,8 @@ def _solely_carried(offer, carrier, problems):
 
 
 def plan_specialisation():
+    from django.db.models import Count
+
     from n26.core.models import Assignment
     from n26.library.models import Hidden, SlotType, Specialisation, Subtype
 
@@ -142,6 +144,27 @@ def plan_specialisation():
     if unanchored:
         problems.append(
             "picks with no caused_by to settle against: " + ", ".join(unanchored)
+        )
+
+    # A model holding the same question's answer twice. The offer showed
+    # one of them and left the rest lying on the card as free lines; a
+    # slot says every pick it holds, so the page would gain a repeated
+    # answer and lose those lines. That is a change to what a reader is
+    # told, and not one a conversion may make unasked — the spare
+    # assignments are for their owner to part with first.
+    crowded = list(
+        Assignment.objects.filter(specialisation__isnull=False, archived=False)
+        .values("miniature_id")
+        .annotate(held=Count("id"))
+        .filter(held__gt=1)
+    )
+    if crowded:
+        named = ", ".join(
+            f"{row['miniature_id']} ({row['held']})" for row in crowded[:10]
+        )
+        problems.append(
+            f"{len(crowded)} model(s) hold more than one specialisation, which "
+            f"one slot cannot say the same way: {named}"
         )
 
     # Hidden names are unique only together with their qualifier, so a
