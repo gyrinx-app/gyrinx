@@ -12,7 +12,6 @@ story never says it out loud, so no written history changes at all.
 """
 
 import pytest
-from django.contrib.auth.models import User
 
 from n26.core.capture import differences, gang_state
 from n26.core.models import Assignment
@@ -39,11 +38,6 @@ from n26.tests.sandbox.actions import (
 )
 
 pytestmark = pytest.mark.django_db
-
-
-@pytest.fixture
-def owner(db):
-    return User.objects.create_user("player")
 
 
 @pytest.fixture
@@ -348,7 +342,7 @@ class TestTheRefusals:
 
         plan = plan_gang_legacy()
 
-        assert not plan.ok or plan.problems  # refused, never guessed
+        assert not plan.ok
         assert any("expected one" in problem for problem in plan.problems)
 
     def test_an_offer_carried_off_a_profile_is_refused(self, world):
@@ -366,6 +360,82 @@ class TestTheRefusals:
 
         assert not plan.ok
         assert any("not profiles" in problem for problem in plan.problems)
+
+    def test_a_surviving_name_squatter_is_refused(self, world, prod_shape):
+        """A stray pickable wearing a house's name — a pilot remnant, a
+        hand experiment — would turn a valid-looking plan into a
+        mid-apply integrity error. The plan refuses it in words."""
+        from n26.tests.sandbox.actions import create_pickable
+
+        other_type = create_slot_type("Something Else")
+        create_pickable("Cawdor", other_type)
+
+        plan = plan_gang_legacy()
+
+        assert not plan.ok
+        assert any("already wear these names" in problem for problem in plan.problems)
+
+    def test_a_pick_the_menu_does_not_offer_is_refused(self, world, prod_shape):
+        """A live pick of an off-menu house anchored on a carrying
+        profile would keep its line and lose its question when the
+        offer is swapped — refused, never stranded."""
+        gang_type, houses, profiles, _ = prod_shape
+        gangs, fighters = world
+        offmenu = create_archetype("Ironhead Squat")
+        line = Assignment.objects.get(
+            profile=profiles[1], miniature_root=fighters["quiet_one"]
+        )
+        Assignment.objects.create(
+            archetype=offmenu,
+            miniature=fighters["quiet_one"],
+            caused_by=line,
+            chosen_for=line,
+            gang_root=gangs["quiet"],
+        )
+
+        plan = plan_gang_legacy()
+
+        assert not plan.ok
+        assert any("the menu does not offer" in problem for problem in plan.problems)
+
+    def test_an_archived_house_is_not_resurrected(self, world, prod_shape):
+        """A retired house on the menu must not come back as a live
+        pickable — and its standing picks refuse rather than strand."""
+        _, houses, _, _ = prod_shape
+        houses["Goliath"].archived = True
+        houses["Goliath"].save()
+
+        plan = plan_gang_legacy()
+
+        assert not plan.ok
+        assert any("Goliath" in problem for problem in plan.problems)
+
+    def test_a_carrier_arriving_after_the_plan_refuses_the_apply(
+        self, world, prod_shape
+    ):
+        """The plan proves the shared offer's carriers, but the world
+        can move between plan and apply — a carrier attached since must
+        end the run in a refusal, never lose its question silently."""
+        from n26.library.conversion import ConversionRefused
+        from n26.library.conversion.base import carriers_of
+        from n26.library.models import Modifier
+
+        plan = plan_gang_legacy()
+        offer = next(
+            m
+            for m in Modifier.objects.filter(offers_choice__isnull=False)
+            if m.offers_choice.label == "Gang Legacy" and carriers_of(m)
+        )
+        # Another profile of the same gang type: a carrier the plan
+        # would have accepted, arriving too late for it to know.
+        _, _, profiles, _ = prod_shape
+        latecomer = create_profile(
+            "House Hunter 3", profiles[0].profile_type, profiles[0].gang_type, price=50
+        )
+        attach_modifiers_to(latecomer, [offer])
+
+        with pytest.raises(ConversionRefused, match="the world moved"):
+            apply(plan)
 
     def test_a_pick_anchored_off_the_profiles_is_refused(self, world, prod_shape):
         """A house answered from an anchor the plan does not know means

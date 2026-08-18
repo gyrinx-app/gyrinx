@@ -313,6 +313,16 @@ class SwapCarrier:
         app_label, model_name = self.carrier[0].split(".")
         carrier = apps.get_model(app_label, model_name).objects.get(pk=self.carrier[1])
         dropped = Modifier.objects.get(pk=self.drop_modifier_id)
+        # The plan proved this modifier solely carried, but the plan was
+        # read outside this transaction: a carrier attached since would
+        # be detached silently by the delete below. Prove it again here,
+        # where the snapshot holds.
+        holders = {(kind, row.pk) for kind, row in carriers_of(dropped)}
+        if holders != {(model_name, self.carrier[1])}:
+            raise ConversionRefused(
+                f"“{self.drop_modifier_name}” is no longer carried only by "
+                f"{self.carrier_name} — the world moved since the plan was made"
+            )
         scope_row, effect_row = dropped.scope, dropped.effect
         carrier.modifiers.remove(dropped)
         dropped.delete()
@@ -370,6 +380,17 @@ class SwapSharedCarrier:
             for label, pk in self.carriers
         ]
         dropped = Modifier.objects.get(pk=self.drop_modifier_id)
+        # The plan proved exactly these carriers, but the plan was read
+        # outside this transaction: a carrier attached since would be
+        # detached silently by the delete below. Prove it again here,
+        # where the snapshot holds.
+        holders = {(kind, row.pk) for kind, row in carriers_of(dropped)}
+        named = {(label.split(".")[1], pk) for label, pk in self.carriers}
+        if holders != named:
+            raise ConversionRefused(
+                f"“{self.drop_modifier_name}” is no longer carried by exactly "
+                f"{self.carriers_said} — the world moved since the plan was made"
+            )
         scope_row, effect_row = dropped.scope, dropped.effect
         for carrier in rows:
             carrier.modifiers.remove(dropped)

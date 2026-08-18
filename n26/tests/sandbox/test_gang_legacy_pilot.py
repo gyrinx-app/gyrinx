@@ -8,7 +8,6 @@ rating must not move by a credit.
 """
 
 import pytest
-from django.contrib.auth.models import User
 
 from n26.core.models import Assignment, LedgerEvent
 from n26.core.reconcile import assert_reconciled
@@ -32,12 +31,11 @@ pytestmark = pytest.mark.django_db
 
 
 @pytest.fixture
-def owner(db):
-    return User.objects.create_user("player")
-
-
-@pytest.fixture
 def pilot_world(db, default_pack, person_type, owner):
+    return build_pilot(person_type, owner)
+
+
+def build_pilot(person_type, owner):
     """The pilot as production holds it: hollow machinery, and one test
     gang holding the slot by hand with answers behind it."""
     slot_type = create_slot_type("Gang Legacy")
@@ -45,7 +43,7 @@ def pilot_world(db, default_pack, person_type, owner):
     picklist = create_picklist("All Gang Legacies", slot_type, members=hollow)
     slot = create_slot("Gang Legacy", slot_type, picklist, min_picks=0)
 
-    gang_type = create_gang_type("Venators", starting_credits=2000)
+    gang_type = create_gang_type("Venator Pilots", starting_credits=2000)
     profile = create_profile("Squat Hunt Leader", person_type, gang_type, price=50)
     gang = found_gang("The Pilot Yard", gang_type, owner=owner, budget=2000)
     fighter = hire(gang, profile, "Grombrindal", paid=50)
@@ -92,6 +90,7 @@ class TestFindingThePilot:
         assert any("grown a purpose" in problem for problem in pilot.problems)
         with pytest.raises(Refused):
             apply(pilot)
+        assert_reconciled(pilot_world[0])
 
     def test_a_second_gang_answering_is_refused(self, pilot_world, person_type, owner):
         _, _, _, hollow, slot = pilot_world
@@ -108,6 +107,41 @@ class TestFindingThePilot:
 
         assert not pilot.ok
         assert any("2 gangs" in problem for problem in pilot.problems)
+        assert_reconciled(other)
+
+    def test_content_authored_against_the_pilot_is_refused(self, pilot_world):
+        """A built-in naming the pilot's slot is somebody's content: the
+        deletion must refuse in words, never crash on the constraint."""
+        from n26.library.models import DefaultAssignment
+        from n26.tests.sandbox.actions import create_default_set
+
+        _, _, _, _, slot = pilot_world
+        group = create_default_set("Someone's kit", members=[])
+        DefaultAssignment.objects.create(default_set=group, slot=slot)
+
+        pilot = find()
+
+        assert not pilot.ok
+        assert any("authored against it" in problem for problem in pilot.problems)
+
+    def test_a_child_hanging_off_the_doomed_is_refused(self, pilot_world):
+        """A child assignment riding a doomed one via its parent would
+        cascade silently — beyond what the preview names — so the plan
+        refuses it instead."""
+        gang, fighter, _, _, slot = pilot_world
+        held = Assignment.objects.get(slot=slot, miniature=fighter)
+        from n26.tests.sandbox.actions import create_rule
+
+        Assignment.objects.create(
+            rule=create_rule("Hanger On"),
+            parent=held,
+            gang_root=gang,
+        )
+
+        pilot = find()
+
+        assert not pilot.ok
+        assert any("hangs off" in problem for problem in pilot.problems)
 
 
 class TestRetiring:

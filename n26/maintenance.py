@@ -201,6 +201,56 @@ def _plan(system):
     return SYSTEMS[system]()
 
 
+def _run_recorded(backfill_id, operation, what, work, refusals):
+    """Run one operation's work, once, under the full runner discipline.
+
+    The discipline is the part that must never regress, so it is held
+    here once for everything the console runs: take the operation's own
+    lock and stand down silently if another copy holds it; count the
+    attempt on the record and give up past the cap; record a refusal in
+    its own words, an unexpected failure with its traceback, and a
+    finished report — and never raise, because a task that fails is
+    redelivered and there is nowhere for a raised error to go but round
+    again.
+    """
+    with _single_flight(LOCK_KEYS[operation]) as mine:
+        if not mine:
+            logger.info("%s already running; this copy stands down", what)
+            return
+
+        may_start, why_not = _claim(backfill_id)
+        if not may_start:
+            logger.info("%s not started: %s", what, why_not)
+            _write(
+                backfill_id,
+                status=Backfill.Status.FAILED,
+                error=f"Not started: {why_not}",
+            )
+            return
+
+        try:
+            report = work()
+        except refusals as refused:
+            # A refusal is the discipline working: nothing was written,
+            # and the reason is already in words.
+            _write(backfill_id, status=Backfill.Status.FAILED, error=str(refused))
+            return
+        except Exception as broke:  # noqa: BLE001 — the ending must be recorded
+            logger.exception("%s broke", what)
+            _write(
+                backfill_id,
+                status=Backfill.Status.FAILED,
+                error=f"{broke}\n\n{traceback.format_exc()}",
+            )
+            return
+
+        _write(
+            backfill_id,
+            status=Backfill.Status.DONE,
+            summary_patch={"report": list(report)},
+        )
+
+
 def _run_conversion(backfill_id, operation, system, **said_by_whoever_enqueued_it):
     """Run one conversion, once, and write down the outcome.
 
@@ -208,10 +258,6 @@ def _run_conversion(backfill_id, operation, system, **said_by_whoever_enqueued_i
     deploy, so a message can arrive naming arguments the version that
     enqueued it had and this one does not — and a task that refuses its
     own message is retried for ever, there being nowhere for it to go.
-
-    Never raises: a task that fails is redelivered, and there is nowhere
-    for a raised error to go but round again. Every ending — refused,
-    broken, already running — is recorded on the audit record instead.
     """
     from n26.library.conversion import ConversionRefused, apply
 
@@ -232,47 +278,13 @@ def _run_conversion(backfill_id, operation, system, **said_by_whoever_enqueued_i
         )
         return
 
-    # The lock comes first, and nothing is recorded before it is held. A
-    # redelivery arriving while the first copy is still working must leave
-    # no trace at all: count its arrival as an attempt and a long run could
-    # be declared failed out from under itself.
-    what = system.replace("_", " ").capitalize()
-    with _single_flight(LOCK_KEYS[operation]) as mine:
-        if not mine:
-            logger.info("%s conversion already running; this copy stands down", what)
-            return
-
-        may_start, why_not = _claim(backfill_id)
-        if not may_start:
-            logger.info("%s conversion not started: %s", what, why_not)
-            _write(
-                backfill_id,
-                status=Backfill.Status.FAILED,
-                error=f"Not started: {why_not}",
-            )
-            return
-
-        try:
-            report = apply(_plan(system))
-        except ConversionRefused as refused:
-            # A refusal is the discipline working: nothing was written,
-            # and the reason is already in words.
-            _write(backfill_id, status=Backfill.Status.FAILED, error=str(refused))
-            return
-        except Exception as broke:  # noqa: BLE001 — the ending must be recorded
-            logger.exception("%s conversion broke", what)
-            _write(
-                backfill_id,
-                status=Backfill.Status.FAILED,
-                error=f"{broke}\n\n{traceback.format_exc()}",
-            )
-            return
-
-        _write(
-            backfill_id,
-            status=Backfill.Status.DONE,
-            summary_patch={"report": list(report)},
-        )
+    _run_recorded(
+        backfill_id,
+        operation,
+        f"{system.replace('_', ' ').capitalize()} conversion",
+        lambda: apply(_plan(system)),
+        ConversionRefused,
+    )
 
 
 @task
@@ -318,40 +330,13 @@ def retire_gang_legacy_pilot(backfill_id, **said_by_whoever_enqueued_it):
     """
     from n26.library.gang_legacy_pilot import Refused, apply, find
 
-    with _single_flight(LOCK_KEYS[Operation.RETIRE_GANG_LEGACY_PILOT]) as mine:
-        if not mine:
-            logger.info("Pilot retirement already running; this copy stands down")
-            return
-
-        may_start, why_not = _claim(backfill_id)
-        if not may_start:
-            logger.info("Pilot retirement not started: %s", why_not)
-            _write(
-                backfill_id,
-                status=Backfill.Status.FAILED,
-                error=f"Not started: {why_not}",
-            )
-            return
-
-        try:
-            report = apply(find())
-        except Refused as refused:
-            _write(backfill_id, status=Backfill.Status.FAILED, error=str(refused))
-            return
-        except Exception as broke:  # noqa: BLE001 — the ending must be recorded
-            logger.exception("Pilot retirement broke")
-            _write(
-                backfill_id,
-                status=Backfill.Status.FAILED,
-                error=f"{broke}\n\n{traceback.format_exc()}",
-            )
-            return
-
-        _write(
-            backfill_id,
-            status=Backfill.Status.DONE,
-            summary_patch={"report": list(report)},
-        )
+    _run_recorded(
+        backfill_id,
+        Operation.RETIRE_GANG_LEGACY_PILOT,
+        "Pilot retirement",
+        lambda: apply(find()),
+        Refused,
+    )
 
 
 def _conversion_view(request, operation, system, task_fn):

@@ -114,22 +114,54 @@ def find():
         )
 
     # Nothing outside the pilot may be hanging off what dies: a child
-    # assignment would cascade with its cause, and this must never
-    # delete a row it has not named.
+    # assignment would cascade with its cause, its question, or its
+    # parent, and this must never delete anything it has not named.
     doomed_pks = {row.pk for row in doomed}
     for row in doomed:
-        for child in Assignment.objects.filter(caused_by=row):
+        hanging = (
+            Assignment.objects.filter(caused_by=row)
+            | Assignment.objects.filter(chosen_for=row)
+            | Assignment.objects.filter(parent=row)
+        )
+        for child in hanging:
             if child.pk not in doomed_pks:
                 problems.append(
-                    f"assignment {child.pk} hangs off the pilot's rows but "
-                    "is not part of the pilot"
+                    f"assignment {child.pk} hangs off what the pilot would "
+                    "delete but is not part of the pilot"
                 )
-        for child in Assignment.objects.filter(chosen_for=row):
-            if child.pk not in doomed_pks:
-                problems.append(
-                    f"pick {child.pk} answers the pilot's rows but is not "
-                    "part of the pilot"
-                )
+
+    # Library content naming the doomed machinery protects it from
+    # deletion — and means something has been authored against the
+    # pilot, which is a purpose. Refuse in words rather than let the
+    # delete crash.
+    from n26.library.models import (
+        AddsAssignable,
+        DefaultAssignment,
+        HasPickable,
+        RemovesAssignable,
+    )
+
+    for said, found in (
+        ("a built-in", DefaultAssignment.objects.filter(slot__in=slots)),
+        (
+            "a starting pick",
+            DefaultAssignment.objects.filter(default_pickable__in=pickables),
+        ),
+        ("a grant", AddsAssignable.objects.filter(slot__in=slots)),
+        ("a take-away", RemovesAssignable.objects.filter(slot__in=slots)),
+        ("a condition", HasPickable.objects.filter(pickables__in=pickables)),
+        (
+            "another slot",
+            Slot.objects.filter(picklist__in=picklists).exclude(
+                pk__in=[s.pk for s in slots]
+            ),
+        ),
+    ):
+        if found.exists():
+            problems.append(
+                f"{said} names the pilot's machinery — something has been "
+                "authored against it, which is a purpose"
+            )
 
     events = LedgerEvent.objects.filter(assignment__in=doomed_pks).count()
     gang_id = next(iter(gangs), None)
@@ -158,22 +190,36 @@ def apply(pilot):
     if pilot.nothing_here:
         return list(pilot.preview())
 
+    from django.db.models import ProtectedError
+
     report = list(pilot.preview())
-    with transaction.atomic():
-        Assignment.objects.filter(pk__in=pilot.assignment_ids).delete()
-        Slot.objects.filter(pk__in=pilot.slot_ids).delete()
-        # Members ride their picklist down; the pickables must outlive
-        # them, so the order here is the constraint order.
-        Picklist.objects.filter(pk__in=pilot.picklist_ids).delete()
-        Pickable.objects.filter(pk__in=pilot.pickable_ids).delete()
-        SlotType.objects.filter(pk=pilot.slot_type_id).delete()
-        if pilot.gang_id is not None:
-            gang = Gang.objects.get(pk=pilot.gang_id)
-            try:
-                assert_reconciled(gang)
-            except Exception as failed:
-                raise Refused(
-                    f"refused — {gang} no longer reconciles: {failed}"
-                ) from failed
+    try:
+        with transaction.atomic():
+            # The history events describing these assignments ride the
+            # deletion: ``LedgerEvent.assignment`` cascades, which is what
+            # lets the preview promise them by count.
+            Assignment.objects.filter(pk__in=pilot.assignment_ids).delete()
+            Slot.objects.filter(pk__in=pilot.slot_ids).delete()
+            # Members ride their picklist down; the pickables must outlive
+            # them, so the order here is the constraint order.
+            Picklist.objects.filter(pk__in=pilot.picklist_ids).delete()
+            Pickable.objects.filter(pk__in=pilot.pickable_ids).delete()
+            SlotType.objects.filter(pk=pilot.slot_type_id).delete()
+            if pilot.gang_id is not None:
+                gang = Gang.objects.get(pk=pilot.gang_id)
+                try:
+                    assert_reconciled(gang)
+                except Exception as failed:
+                    raise Refused(
+                        f"refused — {gang} no longer reconciles: {failed}"
+                    ) from failed
+    except ProtectedError as protected:
+        # The backstop behind find()'s enumerated checks: whatever this
+        # names is a referent nobody listed, and the answer is the same
+        # refusal in words, never a crash.
+        raise Refused(
+            "refused — something still names what the pilot would delete: "
+            f"{sorted(str(obj) for obj in protected.protected_objects)[:5]}"
+        ) from protected
     report.append("retired; the field is clean")
     return report

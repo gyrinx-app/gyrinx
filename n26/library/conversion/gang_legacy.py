@@ -121,11 +121,16 @@ def plan_gang_legacy():
         problems.append("the offer names no menu — expected the house list")
         old_rows = []
     else:
+        # Live entries of live houses only: an archived row on the menu
+        # is content somebody retired, and a conversion must not
+        # resurrect it as a pickable.
         old_rows = sorted(
             (
                 entry.archetype
                 for entry in section.collection.entries.filter(
-                    archetype__isnull=False
+                    archetype__isnull=False,
+                    archetype__archived=False,
+                    archived=False,
                 ).select_related("archetype", "archetype__category")
             ),
             key=lambda row: row.name,
@@ -135,6 +140,23 @@ def plan_gang_legacy():
     twice = duplicate_names(old_rows)
     if twice:
         problems.append("more than one live house is called: " + ", ".join(twice))
+
+    # The names the steps would create must be free in the default pack
+    # — a survivor of the pilot, or anything else wearing one, would
+    # turn a valid-looking plan into a mid-apply integrity error.
+    from n26.library.models import Pickable, Picklist, Slot
+
+    taken = Pickable.objects.filter(
+        pack_id=default_pack_id(), name__in=[row.name for row in old_rows]
+    ).values_list("name", flat=True)
+    if taken:
+        problems.append(
+            "pickables already wear these names: " + ", ".join(sorted(taken))
+        )
+    if Picklist.objects.filter(pack_id=default_pack_id(), name=PICKLIST).exists():
+        problems.append(f"a picklist named “{PICKLIST}” already stands")
+    if Slot.objects.filter(pack_id=default_pack_id(), name=SLOT).exists():
+        problems.append(f"a slot named “{SLOT}” already stands")
 
     # No granted-carrier check here: a profile is never granted by a
     # modifier — a fighter arrives by hire (or as a pet's model), and
@@ -153,6 +175,27 @@ def plan_gang_legacy():
         .order_by("created")
     )
     answers, spares = one_answer_per_question(picks)
+
+    # A live archetype pick anchored on a carrying profile but naming a
+    # house the menu does not offer would keep its line and lose its
+    # question when the offer is swapped — refuse, and let somebody
+    # decide what it means.
+    strays = (
+        Assignment.objects.filter(
+            archetype__isnull=False,
+            archived=False,
+            caused_by__profile__in=profile_pks,
+        )
+        .exclude(removes=True)
+        .exclude(archetype__in=list(becoming))
+        .select_related("archetype")
+    )
+    for stray in strays:
+        problems.append(
+            f"pick {stray.pk} names “{stray.archetype.name}”, which the "
+            "menu does not offer — it would lose its question unanswered"
+        )
+
     for pick in answers:
         if pick.caused_by_id is None:
             problems.append(f"pick {pick.pk} has no caused_by to settle against")

@@ -44,6 +44,7 @@ from n26.tests.sandbox.test_conversion_specialisation import (
     build_prod_shape,
     build_world,
 )
+from n26.tests.sandbox.test_gang_legacy_pilot import build_pilot
 
 pytestmark = pytest.mark.django_db
 
@@ -67,11 +68,6 @@ def _lock_held_elsewhere(operation=None):
             cursor.execute("SELECT pg_advisory_unlock(%s)", [key])
     finally:
         other.close()
-
-
-@pytest.fixture
-def owner(db):
-    return User.objects.create_user("player")
 
 
 @pytest.fixture
@@ -233,11 +229,9 @@ class TestTheGangLegacyPair:
         assert not Backfill.objects.exists()
 
     def test_the_conversion_refuses_while_the_pilot_stands(
-        self, client, superuser, legacy_world
+        self, client, superuser, legacy_world, person_type, owner
     ):
-        from n26.tests.sandbox.actions import create_slot_type
-
-        create_slot_type("Gang Legacy")
+        build_pilot(person_type, owner)
         client.force_login(superuser)
 
         response = client.get(reverse("admin:maintenance_n26_convert_gang_legacy"))
@@ -245,16 +239,23 @@ class TestTheGangLegacyPair:
         assert "retire the pilot first" in response.content.decode()
 
     def test_retire_then_convert_in_the_console_order(
-        self, client, superuser, legacy_world
+        self, client, superuser, legacy_world, person_type, owner
     ):
-        from n26.tests.sandbox.actions import create_slot_type
+        """The full pilot shape rides through the console flow, so the
+        retirement's deletion paths — assignments, machinery, the
+        reconcile proof — are all exercised from the page."""
+        from n26.core.models import Assignment as CoreAssignment
+        from n26.library.models import SlotType
 
-        create_slot_type("Gang Legacy")
+        pilot_gang, _, _, _, pilot_slot = build_pilot(person_type, owner)
         client.force_login(superuser)
 
         client.post(reverse("admin:maintenance_n26_retire_gang_legacy_pilot"))
         retired = Backfill.objects.get(operation=Operation.RETIRE_GANG_LEGACY_PILOT)
         assert retired.status == Backfill.Status.DONE
+        assert not SlotType.objects.filter(name="Gang Legacy").exists()
+        assert not CoreAssignment.objects.filter(slot=pilot_slot.pk).exists()
+        assert CoreAssignment.objects.filter(gang_root=pilot_gang).exists()
 
         client.post(reverse("admin:maintenance_n26_convert_gang_legacy"))
         converted = Backfill.objects.get(operation=Operation.CONVERT_GANG_LEGACY)
