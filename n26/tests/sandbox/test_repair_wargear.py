@@ -131,7 +131,11 @@ def armed(grenades, gang_type, fighter, equipment_list, owner):
     model = hire(gang, fighter, "Scarred", paid=50)
     entry = equipment_list.entries.get()
     bought = buy(model, thing=stray, entry=entry)
-    return gang, model, bought
+    yield gang, model, bought
+    # Whatever the test did, the gang's books must still fold — including
+    # where the repair refused and unwound.
+    gang.refresh_from_db()
+    assert_reconciled(gang)
 
 
 class TestWhatItFinds:
@@ -315,6 +319,8 @@ class TestTheMerge:
         assert result.gangs == 1
         assert result.gangs_proved == 0
         assert result.merged
+        # The real check has to be back before the gang is held to it.
+        monkeypatch.undo()
 
     def test_running_it_again_does_nothing(self, armed):
         apply()
@@ -512,3 +518,6 @@ class TestWhenItRefuses:
 
         assert Wargear.objects.filter(pk=stray.pk).exists()
         assert Assignment.objects.filter(wargear=stray).count() == 1
+        # The real check has to be back before the gang is held to it — an
+        # unwound run must leave the books exactly as it found them.
+        monkeypatch.undo()
