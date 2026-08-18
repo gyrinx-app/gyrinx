@@ -55,7 +55,6 @@ __all__ = [
     "Operation",
     "convert_skill_tree",
     "convert_specialisation",
-    "merge_wargear_into_weapon_view",
     "task_routes",
 ]
 
@@ -413,94 +412,12 @@ task_routes = [
 ]
 
 
-def merge_wargear_into_weapon_view(request):
-    """Preview the merge, or perform it.
-
-    Small enough to answer in the request, unlike the conversion above: a
-    few hundred rows move, and what proves the run is a reconcile per
-    affected gang rather than a render of every page.
-    """
-    from n26.library.repair import Refused, apply, find_candidates, gangs_holding
-
-    address = reverse("admin:maintenance_n26_merge_wargear_into_weapon")
-    if request.method == "POST":
-        try:
-            result = apply()
-        except Refused as refused:
-            # The repair unwound itself rather than move a number it must
-            # not. Nothing was written, and the reason is already in words.
-            Backfill.objects.create(
-                operation=Operation.MERGE_WARGEAR_INTO_WEAPON,
-                triggered_by=request.user,
-                status=Backfill.Status.FAILED,
-                error=str(refused),
-            )
-            messages.error(request, f"The repair refuses: {refused}")
-            return HttpResponseRedirect(address)
-        except Exception as broke:  # noqa: BLE001 — the ending must be recorded
-            logger.exception("Wargear merge broke")
-            Backfill.objects.create(
-                operation=Operation.MERGE_WARGEAR_INTO_WEAPON,
-                triggered_by=request.user,
-                status=Backfill.Status.FAILED,
-                error=f"{broke}\n\n{traceback.format_exc()}",
-            )
-            messages.error(request, f"The repair failed: {broke}")
-            return HttpResponseRedirect(address)
-
-        if not result.merged:
-            # A page left open across someone else's run, most likely.
-            # Recording a run that did nothing only clutters the history.
-            messages.info(request, "There is nothing to merge.")
-            return HttpResponseRedirect(address)
-
-        backfill = Backfill.objects.create(
-            operation=Operation.MERGE_WARGEAR_INTO_WEAPON,
-            triggered_by=request.user,
-            status=Backfill.Status.DONE,
-            summary=result.as_dict(),
-        )
-        messages.success(
-            request,
-            f"Merged {len(result.merged)} piece(s) of gear across "
-            f"{result.gangs} gang(s).",
-        )
-        return HttpResponseRedirect(
-            reverse("admin:maintenance_backfill_detail", args=[backfill.id])
-        )
-
-    candidates = find_candidates()
-    merges = [c for c in candidates if c.merges]
-    context = page_context(
-        request,
-        Operation.MERGE_WARGEAR_INTO_WEAPON.label,
-        merges=merges,
-        skips=[c for c in candidates if not c.merges],
-        entries=sum(c.entries for c in merges),
-        assignments=sum(c.assignments for c in merges),
-        gangs=len(gangs_holding(merges)),
-        apply_url=address,
-        recent=Backfill.objects.filter(
-            operation=Operation.MERGE_WARGEAR_INTO_WEAPON
-        ).order_by("-created")[:10],
-    )
-    return render(
-        request, "admin/maintenance/n26/merge_wargear_into_weapon.html", context
-    )
-
-
+# Retired: it has been run, and what it repaired cannot recur. Registered
+# with no view so the record of that run still reads as a name rather than
+# a bare slug.
 register_operation(
     MaintenanceOperation(
         operation=Operation.MERGE_WARGEAR_INTO_WEAPON.value,
         name=Operation.MERGE_WARGEAR_INTO_WEAPON.label,
-        description=(
-            "Some gear is stored twice — once as wargear, once as the "
-            "weapon carrying its firing line — so it lists twice and the "
-            "wargear copy prints no statline. Moves the equipment lists "
-            "and the purchases onto the weapon and drops the wargear row. "
-            "Moves no money, and proves it gang by gang."
-        ),
-        view=merge_wargear_into_weapon_view,
-        detail_template="admin/maintenance/n26/_merge_wargear_detail.html",
     )
 )

@@ -363,9 +363,19 @@ echo 'print(List.objects.filter(archived=False).count())' | manage prodshell
   written as a command has no way to be run. Put the logic in a module, add a `Backfill.Operation`
   choice (`n23/core/models/backfill.py`), and trigger it from the maintenance admin
   (`gyrinx/maintenance/admin.py`): GET previews a dry run, POST applies and records a `Backfill`
-  row holding the outcome. Small repairs apply synchronously (see `persistent_stash_view`); long
-  ones run as the self-re-enqueueing task chain in `n23/core/tasks.py`, reporting progress into
-  the same record.
+  row holding the outcome.
+- **The work itself MUST run on the tasks framework — never in the request.** POST enqueues a task
+  and redirects to the record; the task does the work and writes the outcome onto it. This holds
+  however small the repair looks: a request that does the work holds a worker and a database
+  transaction for its whole duration, dies at the request timeout with no record of how far it got,
+  and gives whoever triggered it a spinning tab instead of a page they can leave and come back to.
+  "It only takes a few seconds on my machine" is measured against a copy, not against production
+  under load. Follow `convert_specialisation` in `n26/maintenance.py`: a `@task` that takes the
+  record's id, an advisory lock so a redelivered message stands down rather than running twice, an
+  attempt count so a run too large to finish is noticed instead of repeating for ever, and every
+  ending — done, refused, broken — written onto the record rather than raised. Long repairs that
+  cannot finish in one go re-enqueue themselves in chunks (`n23/core/tasks.py`), reporting progress
+  into the same record.
 
 ## Key Models Reference
 
