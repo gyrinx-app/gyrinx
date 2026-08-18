@@ -37,7 +37,12 @@ from n26.library.conversion.base import (
     Plan,
     RewritePick,
     SwapCarrier,
-    carriers_of,
+    duplicate_names,
+    one_answer_per_question,
+    refuse_if_granted,
+    solely_carried,
+    spread,
+    the_offer,
 )
 
 SUBTYPE = "Specialist"
@@ -62,86 +67,10 @@ NARROW_SLOT = "Specialisation (Subjugator Patrol Officer)"
 PROVEN = 25
 
 
-def _offers_of(carrier):
-    return [
-        m
-        for m in carrier.modifiers.all()
-        if getattr(m, "offers_choice", None) is not None
-        and m.offers_choice.of_kind.model == "specialisation"
-    ]
-
-
-def _the_offer(carrier, problems, said):
-    """The carrier's one specialisation offer, or a stated problem."""
-    offers = _offers_of(carrier)
-    if len(offers) != 1:
-        problems.append(
-            f"{said} carries {len(offers)} specialisation offers — expected one"
-        )
-        return None
-    return offers[0]
-
-
-def _solely_carried(offer, carrier, problems):
-    """Deleting an offer's modifier detaches it from every carrier at
-    once, so the plan must know no third thing shares it — a sharer's
-    gangs are outside the proven set and would lose their question
-    unnoticed."""
-    others = [
-        f"{kind} “{row}”"
-        for kind, row in carriers_of(offer)
-        if not (kind == type(carrier).__name__ and row.pk == carrier.pk)
-    ]
-    if others:
-        problems.append(
-            f"“{offer.name}” is shared — also carried by " + ", ".join(others)
-        )
-
-
-def _answers(picks):
-    """One pick per question, and the spares left behind.
-
-    The same question answered twice — a click that landed twice — shows
-    on the page as the answer plus a spare line in the gear list. Moving
-    the answer keeps the page: the pick becomes a pick, and the spare
-    goes on being the ordinary assignment it already is.
-    """
-    answers, spares, seen = [], [], set()
-    for pick in picks:
-        question = (pick.miniature_id, pick.caused_by_id)
-        if question in seen:
-            spares.append(pick)
-        else:
-            seen.add(question)
-            answers.append(pick)
-    return answers, spares
-
-
-def _spread(gang_ids, kinds, limit):
-    """A sample wide enough to hold every shape, in a stable order.
-
-    Takes from each kind in turn so no one kind crowds the others out,
-    and keeps the gangs that are odd in some way — the ones a wider
-    sweep would have been for.
-    """
-    chosen, used = [], set()
-    for wanted in kinds:
-        for gang_id in wanted:
-            if gang_id in used or gang_id not in gang_ids:
-                continue
-            used.add(gang_id)
-            chosen.append(gang_id)
-            if len(chosen) >= limit:
-                return chosen
-    return chosen
-
-
 def plan_specialisation():
     from n26.core.models import Assignment
     from n26.library.models import (
-        AddsAssignable,
         Hidden,
-        Modifier,
         SlotType,
         Specialisation,
         Subtype,
@@ -162,24 +91,24 @@ def plan_specialisation():
         )
     subtype = subtypes[0]
 
-    offer = _the_offer(subtype, problems, f"the “{SUBTYPE}” subtype")
+    offer = the_offer(
+        subtype,
+        "specialisation",
+        "specialisation",
+        f"the “{SUBTYPE}” subtype",
+        problems,
+    )
     if offer is not None:
         if offer.offers_choice.from_section_id is not None:
             problems.append(
                 "the Specialist offer names a section — expected the whole kind"
             )
-        _solely_carried(offer, subtype, problems)
+        solely_carried(offer, subtype, problems)
 
     old_rows = list(Specialisation.objects.filter(archived=False).order_by("name"))
     if not old_rows:
         problems.append("no specialisations to convert")
-    # A pick is matched to its pickable by name, and a name is only unique
-    # within a pack and qualifier — so two live rows called the same thing
-    # would quietly become one pickable, and half the picks would land on
-    # the wrong one.
-    twice = sorted(
-        {row.name for row in old_rows if [r.name for r in old_rows].count(row.name) > 1}
-    )
+    twice = duplicate_names(old_rows)
     if twice:
         problems.append(
             "more than one live specialisation is called: " + ", ".join(twice)
@@ -199,9 +128,15 @@ def plan_specialisation():
     narrow_offer = None
     narrow_names = []
     if narrow is not None:
-        narrow_offer = _the_offer(narrow, problems, f"the “{NARROW_HIDDEN}” hidden")
+        narrow_offer = the_offer(
+            narrow,
+            "specialisation",
+            "specialisation",
+            f"the “{NARROW_HIDDEN}” hidden",
+            problems,
+        )
         if narrow_offer is not None:
-            _solely_carried(narrow_offer, narrow, problems)
+            solely_carried(narrow_offer, narrow, problems)
             section = narrow_offer.offers_choice.from_section
             if section is None:
                 problems.append(f"the “{NARROW_HIDDEN}” offer names no menu")
@@ -228,31 +163,15 @@ def plan_specialisation():
         .select_related("specialisation", "gang_root", "caused_by")
         .order_by("created")
     )
-    answers, spares = _answers(picks)
+    answers, spares = one_answer_per_question(picks)
 
-    # A carrier that arrives by grant has no assignment to find it by,
-    # so the gangs it reaches cannot be counted and cannot be drawn into
-    # the spread this proves. The number on the apply page would understate
-    # the change, and pages nothing checked would move. Refuse instead:
-    # nothing grants either of these today, and whoever makes one should
-    # decide what this ought to do.
     granted = (
         (subtype, f"the “{SUBTYPE}” subtype"),
         (narrow, f"the “{NARROW_HIDDEN}” hidden"),
     )
     for held, said in granted:
-        if held is None:
-            continue
-        for granter in Modifier.objects.filter(
-            adds_assignable__in=AddsAssignable.objects.filter(
-                **{type(held).__name__.lower(): held}
-            )
-        ):
-            if carriers_of(granter):
-                problems.append(
-                    f"“{granter.name}” grants {said}, so the gangs it reaches "
-                    "cannot be counted or proven"
-                )
+        if held is not None:
+            refuse_if_granted(held, said, problems)
 
     # Each pick settles on the slot its own anchor grants.
     becoming = {row.name for row in old_rows}
@@ -369,7 +288,7 @@ def plan_specialisation():
         )
     answered = {pick.gang_root_id for pick in answers}
     holders |= answered
-    proven = _spread(
+    proven = spread(
         holders,
         [
             [pick.gang_root_id for pick in spares],

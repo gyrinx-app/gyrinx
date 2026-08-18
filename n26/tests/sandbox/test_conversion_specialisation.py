@@ -445,19 +445,34 @@ class TestTheSpread:
     and this is the part carrying the claim that a sample is enough."""
 
     def test_it_takes_from_every_kind_before_filling_up(self):
-        from n26.library.conversion.specialisation import _spread
+        from n26.library.conversion.base import spread as _spread
 
         odd, narrow, quiet, ordinary = ["a"], ["b"], ["c", "d"], list("efghijkl")
         reached = set(odd + narrow + quiet + ordinary)
 
         chosen = _spread(reached, [odd, narrow, quiet, ordinary], 5)
 
-        # The odd ones first, in the order the kinds were given.
-        assert chosen[:4] == ["a", "b", "c", "d"]
-        assert len(chosen) == 5
+        # One of each kind first, in the order the kinds were given,
+        # then back around whatever still has gangs to give.
+        assert chosen == ["a", "b", "c", "e", "d"]
+
+    def test_a_plentiful_kind_cannot_crowd_a_later_one_out(self):
+        """The kinds are ordered odd-first, but the ordinary kinds are
+        the big ones — a sample the first big kind could fill would
+        never see the shapes queued behind it."""
+        from n26.library.conversion.base import spread as _spread
+
+        never_answered = [f"quiet{n}" for n in range(40)]
+        answered = [f"full{n}" for n in range(40)]
+        reached = set(never_answered + answered)
+
+        chosen = _spread(reached, [never_answered, answered], 25)
+
+        assert len(chosen) == 25
+        assert sum(1 for gang in chosen if gang.startswith("full")) == 12
 
     def test_it_stops_at_the_limit_and_repeats_nobody(self):
-        from n26.library.conversion.specialisation import _spread
+        from n26.library.conversion.base import spread as _spread
 
         everyone = [str(n) for n in range(40)]
 
@@ -467,14 +482,14 @@ class TestTheSpread:
         assert len(set(chosen)) == 25
 
     def test_it_offers_nobody_the_change_does_not_reach(self):
-        from n26.library.conversion.specialisation import _spread
+        from n26.library.conversion.base import spread as _spread
 
         chosen = _spread({"a"}, [["a", "stranger"]], 25)
 
         assert chosen == ["a"]
 
     def test_it_takes_everyone_when_there_are_fewer_than_the_limit(self):
-        from n26.library.conversion.specialisation import _spread
+        from n26.library.conversion.base import spread as _spread
 
         chosen = _spread({"a", "b"}, [["a"], ["b"]], 25)
 

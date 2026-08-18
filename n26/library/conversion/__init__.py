@@ -10,6 +10,7 @@ gang's pages still say the same things. The preview is the contract.
 
 from n26.library.conversion.base import ConversionRefused, Plan, apply
 from n26.library.conversion.paths import plan_paths
+from n26.library.conversion.skill_tree import plan_skill_tree
 from n26.library.conversion.specialisation import plan_specialisation
 
 #: Every convertible system, by the name the command — and any
@@ -18,6 +19,7 @@ from n26.library.conversion.specialisation import plan_specialisation
 SYSTEMS = {
     "paths": plan_paths,
     "specialisation": plan_specialisation,
+    "skill_tree": plan_skill_tree,
 }
 
 __all__ = [
@@ -26,5 +28,6 @@ __all__ = [
     "SYSTEMS",
     "apply",
     "plan_paths",
+    "plan_skill_tree",
     "plan_specialisation",
 ]

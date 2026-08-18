@@ -441,9 +441,12 @@ def hydrate_rows(rows, with_statlines=False, with_options=False):
         "profile_role",
         "counter_value",
         "profile__profile_type",
-        # A chosen-mode placement reads the chosen token's home off
-        # the assignment already in memory — never by a query.
+        # A chosen-mode placement reads the chosen thing's category off
+        # the assignment already in memory — never by a query. Both
+        # spellings of the answer: a tree token's home, and a pickable's
+        # linked category.
         "skill_tree__category",
+        "pickable__category",
         # Whether a slot type allows the same pickable twice is read
         # while a card's notes are worked out, which may not query. The
         # picklist behind the choice rides along for the picker, which

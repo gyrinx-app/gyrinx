@@ -1,4 +1,10 @@
 {% extends "admin/base_site.html" %}
+{% comment %}
+A conversion's console page, shared by every conversion operation:
+the plan as a preview, an apply button, and the recent runs. Context
+from _conversion_view (n26/maintenance.py): title, plan, preview,
+reaches, proven, apply_url, recent.
+{% endcomment %}
 {% block title %}
     {{ title }} | {{ site_title|default:_("Django site admin") }}
 {% endblock title %}

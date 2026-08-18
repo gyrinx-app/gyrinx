@@ -54,6 +54,117 @@ def carriers_of(modifier):
     return found
 
 
+def offers_of(carrier, kind):
+    """The carrier's choice offers of one kind, by the kind's model name."""
+    return [
+        m
+        for m in carrier.modifiers.all()
+        if getattr(m, "offers_choice", None) is not None
+        and m.offers_choice.of_kind.model == kind
+    ]
+
+
+def the_offer(carrier, kind, kind_word, said, problems):
+    """The carrier's one offer of the kind, or a stated problem."""
+    offers = offers_of(carrier, kind)
+    if len(offers) != 1:
+        problems.append(
+            f"{said} carries {len(offers)} {kind_word} offers — expected one"
+        )
+        return None
+    return offers[0]
+
+
+def solely_carried(offer, carrier, problems):
+    """Deleting an offer's modifier detaches it from every carrier at
+    once, so the plan must know no third thing shares it — a sharer's
+    gangs are outside the proven set and would lose their question
+    unnoticed."""
+    others = [
+        f"{kind} “{row}”"
+        for kind, row in carriers_of(offer)
+        if not (kind == type(carrier).__name__ and row.pk == carrier.pk)
+    ]
+    if others:
+        problems.append(
+            f"“{offer.name}” is shared — also carried by " + ", ".join(others)
+        )
+
+
+def duplicate_names(rows):
+    """Names two or more of the rows share. A pick is matched to its
+    pickable by name, and a name is only unique within a pack and
+    qualifier — so two live rows called the same thing would quietly
+    become one pickable, and half the picks would land on the wrong
+    one."""
+    names = [row.name for row in rows]
+    return sorted({name for name in names if names.count(name) > 1})
+
+
+def refuse_if_granted(held, said, problems):
+    """A carrier that arrives by grant has no assignment to find it by,
+    so the gangs it reaches can be neither counted nor drawn into the
+    spread a plan proves. The apply page would understate the change,
+    and pages nothing checked would move — refuse instead, and whoever
+    makes such a grant decides what a conversion ought to do."""
+    from n26.library.models import AddsAssignable, Modifier
+
+    for granter in Modifier.objects.filter(
+        adds_assignable__in=AddsAssignable.objects.filter(
+            **{type(held).__name__.lower(): held}
+        )
+    ):
+        if carriers_of(granter):
+            problems.append(
+                f"“{granter.name}” grants {said}, so the gangs it reaches "
+                "cannot be counted or proven"
+            )
+
+
+def one_answer_per_question(picks):
+    """One pick per question, and the spares left behind.
+
+    The same question answered twice — a click that landed twice — shows
+    on the page as the answer plus a spare line. Moving the answer keeps
+    the page: the pick becomes a pick, and the spare goes on being the
+    ordinary assignment it already is.
+    """
+    answers, spares, seen = [], [], set()
+    for pick in picks:
+        question = (pick.miniature_id, pick.caused_by_id)
+        if question in seen:
+            spares.append(pick)
+        else:
+            seen.add(question)
+            answers.append(pick)
+    return answers, spares
+
+
+def spread(gang_ids, kinds, limit):
+    """A sample wide enough to hold every shape, in a stable order.
+
+    One from each kind, round and round, so no kind crowds the others
+    out — a plentiful ordinary kind must not fill the sample before a
+    later kind's only gang is seen. The odd shapes lead each round, and
+    whatever room is left goes back around the kinds that still have
+    gangs to give.
+    """
+    chosen, used = [], set()
+    remaining = [list(wanted) for wanted in kinds]
+    while len(chosen) < limit and any(remaining):
+        for wanted in remaining:
+            while wanted:
+                gang_id = wanted.pop(0)
+                if gang_id in used or gang_id not in gang_ids:
+                    continue
+                used.add(gang_id)
+                chosen.append(gang_id)
+                break
+            if len(chosen) >= limit:
+                break
+    return chosen
+
+
 class ConversionRefused(Exception):
     """The apply found the world changed by its own hand — or not shaped
     the way the plan promised — and unwound. The message says exactly
@@ -67,7 +178,8 @@ class CreateSlotType:
     allows_repeats: bool = True
 
     def say(self):
-        return f"create slot type “{self.name}”"
+        refused = "" if self.allows_repeats else ", refusing repeats"
+        return f"create slot type “{self.name}”{refused}"
 
     def perform(self, made):
         from n26.library.authoring import create_slot_type
@@ -86,11 +198,16 @@ class CreatePickable:
     moved_modifier_ids: tuple = ()
     #: The old row the modifiers come off, as (model label, pk).
     moved_from: tuple = ()
+    #: The pickable's linked category, as (pk, name) — for a system
+    #: whose whole payload is the link itself: a chosen-mode placement
+    #: reads the chosen thing's ``category`` and nothing else.
+    linked: tuple = ()
 
     def say(self):
         n = len(self.moved_modifier_ids)
         moved = f", moving {n} modifier{'' if n == 1 else 's'}" if n else ""
-        return f"create pickable “{self.name}” ({self.slot_type}){moved}"
+        linked = f", linked to category “{self.linked[1]}”" if self.linked else ""
+        return f"create pickable “{self.name}” ({self.slot_type}){moved}{linked}"
 
     def perform(self, made):
         from django.apps import apps
@@ -98,7 +215,10 @@ class CreatePickable:
         from n26.library.authoring import create_pickable
         from n26.library.models import Modifier
 
-        pickable = create_pickable(self.name, made.slot_types[self.slot_type])
+        linking = {"category_id": self.linked[0]} if self.linked else {}
+        pickable = create_pickable(
+            self.name, made.slot_types[self.slot_type], **linking
+        )
         if self.moved_modifier_ids:
             app_label, model_name = self.moved_from[0].split(".")
             old = apps.get_model(app_label, model_name).objects.get(
