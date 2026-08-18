@@ -10,7 +10,9 @@ its burger.
     </c-n26.site.nav>
 
 The links live only in the drawer, at every width, so the space beside the brand
-belongs to the page's own name. A <noscript> strip under the bar draws the same
+belongs to the page's own name. That name gives ground — heading or switcher
+label, ellipsis — so the chevron beside it stays a control when the actions on
+the right leave little room. A <noscript> strip under the bar draws the same
 list flat, the drawer's panel being built by Alpine and absent without it.
 
 `heading` is a slot rather than an attribute because the base template fills it
@@ -59,14 +61,14 @@ prints as source; pass both and the attribute wins, silently.
         </a>
 
         {% if heading.strip or switcher.strip %}
+            {% comment %}
+            min-w-0 so this box, not the actions, is what shrinks when the row
+            runs out of room. The heading truncates here; the switcher's own
+            label truncates inside the switcher, because the chevron has to
+            remain a whole control and a panel opening inside a box that hides
+            its overflow comes out empty.
+            {% endcomment %}
             <span class="flex min-w-0 items-center gap-2">
-                {% comment %}
-                The name truncates inside a box of its own and the control sits
-                outside it. Truncating means hiding the overflow, and a panel
-                opening inside a box that hides its overflow comes out empty —
-                worse, focusing its filter scrolls the box and slides the bar's
-                contents out of the window.
-                {% endcomment %}
                 {% if heading.strip %}
                     <span class="min-w-0 truncate text-ink-600 dark:text-ink-400">{{ heading }}</span>
                 {% endif %}
@@ -75,9 +77,14 @@ prints as source; pass both and the attribute wins, silently.
                 with no script — and a flat panel inside a row fixed at 14
                 units tall spills over the page beneath it. Hidden here only:
                 the noscript strip under this bar reaches the same pages.
+
+                Not shrink-0: the label inside is what gives ground, and
+                pinning this wrap to the label's full width is what would
+                push the chevron into the actions. min-w-0 lets the wrap
+                shrink; overflow stays visible so the panel is not clipped.
                 {% endcomment %}
                 {% if switcher.strip %}
-                    <span class="shrink-0 [&_noscript]:hidden">{{ switcher }}</span>
+                    <span class="min-w-0 [&_noscript]:hidden">{{ switcher }}</span>
                 {% endif %}
             </span>
         {% endif %}

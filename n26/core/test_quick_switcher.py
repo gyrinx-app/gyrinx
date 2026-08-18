@@ -101,6 +101,21 @@ class TestTheLeadingLink:
         )
         assert 'aria-label="Your other gangs"' in html
 
+    def test_the_label_gives_ground_and_the_chevron_does_not(self):
+        """A tight row (the site bar on a phone) has to keep the chevron a
+        control. The kit button is whitespace-nowrap, so without min-w-0
+        and overflow-hidden the label's min-content is the whole word and
+        the chevron is what leaves the screen."""
+        html = render(
+            f"""
+            <c-n26.quick-switcher label="The Ashen Choir" href="/n26/gangs/1/"
+                                  heading="Switch gang">{ITEMS}</c-n26.quick-switcher>
+            """
+        )
+        assert "min-w-0 overflow-hidden px-2!" in html
+        assert html.count("shrink-0") >= 1
+        assert "inline-block min-w-0 max-w-full" in html
+
 
 class TestTheTriggerWords:
     """Words in the chevron's own button describe the panel; they never name

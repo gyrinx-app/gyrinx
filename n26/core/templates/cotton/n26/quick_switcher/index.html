@@ -9,7 +9,8 @@ siblings.
 
 A ghost button group: a link to the thing you are on, joined to a chevron that
 opens the rest. Without a `label` only the chevron is drawn, which is the shape
-for a placement whose heading already says what is current.
+for a placement whose heading already says what is current. The label is what
+gives ground in a tight row — it ellipsises — so the chevron stays a control.
 
 The panel is the kit's dropdown and stays hidden until Alpine runs, so the same
 rows are drawn again in a <noscript> strip below. Every row is a real <a>
@@ -56,16 +57,22 @@ aria-activedescendant so the tinted row and the spoken one agree.
         trigger_words=""
         hotkey=""
         class="" />
-<div {{ attrs }} data-quick-switcher class="inline-block max-w-full {{ class }}">
-    <c-n26.button-group>
+<div {{ attrs }} data-quick-switcher class="inline-block min-w-0 max-w-full {{ class }}">
+    <c-n26.button-group class="min-w-0 max-w-full">
         {% comment %}
         The padding is overridden rather than taken from a smaller size, which
         would shrink the text with it. Marked important: two plain padding
         utilities are settled by the order Tailwind emitted them.
+
+        min-w-0 overflow-hidden: the kit button is whitespace-nowrap, so
+        without both the label's min-content is the whole word and a row
+        that has run out of room pushes the chevron off instead of
+        ellipsising. Overflow is hidden on this half only — the panel
+        lives on the chevron, and hiding overflow around that clips it.
         {% endcomment %}
         {% if label %}
-            <c-ui.button variant="ghost" size="sm" class="px-2!" href="{{ href }}">
-                <span class="flex items-center gap-1.5">
+            <c-ui.button variant="ghost" size="sm" class="min-w-0 overflow-hidden px-2!" href="{{ href }}">
+                <span class="flex min-w-0 items-center gap-1.5">
                     {% if icon %}
                         <c-n26.icon name="{{ icon }}"
                                     class="size-4 shrink-0 text-ink-500 dark:text-ink-400" />
