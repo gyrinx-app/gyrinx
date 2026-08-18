@@ -263,6 +263,20 @@ class TestTheRunsOwnGuards:
         assert backfill.error == ""
         assert backfill.summary["report"] == report
 
+    def test_it_survives_a_message_from_another_version(self, world):
+        """Delivery outlives a deploy: a message can name arguments this
+        version no longer has, and a task that refuses its own message is
+        retried for ever."""
+        backfill = Backfill.objects.create(
+            operation=Operation.CONVERT_SPECIALISATION,
+            status=Backfill.Status.RUNNING,
+        )
+
+        convert_specialisation.enqueue(backfill_id=str(backfill.id), keep=False)
+
+        backfill.refresh_from_db()
+        assert backfill.status == Backfill.Status.DONE
+
     def test_a_cancelled_run_stays_cancelled(self, world):
         backfill = Backfill.objects.create(
             operation=Operation.CONVERT_SPECIALISATION,

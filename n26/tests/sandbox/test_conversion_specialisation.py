@@ -360,6 +360,22 @@ class TestTheApply:
 
 
 class TestTheRefusals:
+    def test_a_granted_carrier_is_refused(self, world, prod_shape):
+        """A carrier that arrives by grant has no assignment to find it
+        by, so the gangs it reaches can be neither counted nor proven."""
+        specialist, _, _, _ = prod_shape
+        modifier(
+            "Rank grants Specialist",
+            targets_model(),
+            ef_adds(specialist),
+            carried_by=create_subtype("Sergeant"),
+        )
+
+        plan = plan_specialisation()
+
+        assert not plan.ok
+        assert any("cannot be counted" in problem for problem in plan.problems)
+
     def test_two_hiddens_sharing_a_name_are_refused(self, world):
         create_hidden("Specialisation offer", qualifier="(a second one)")
 
@@ -421,3 +437,45 @@ def _story(acts):
         told.append("".join(span.text for span in act.spans))
         told.extend(f"{sub.name}|{sub.kind}|{sub.note}" for sub in act.subs)
     return told
+
+
+class TestTheSpread:
+    """Which gangs get proven, when there are more than the run will
+    prove. The world above holds two, so the choosing never bites there —
+    and this is the part carrying the claim that a sample is enough."""
+
+    def test_it_takes_from_every_kind_before_filling_up(self):
+        from n26.library.conversion.specialisation import _spread
+
+        odd, narrow, quiet, ordinary = ["a"], ["b"], ["c", "d"], list("efghijkl")
+        reached = set(odd + narrow + quiet + ordinary)
+
+        chosen = _spread(reached, [odd, narrow, quiet, ordinary], 5)
+
+        # The odd ones first, in the order the kinds were given.
+        assert chosen[:4] == ["a", "b", "c", "d"]
+        assert len(chosen) == 5
+
+    def test_it_stops_at_the_limit_and_repeats_nobody(self):
+        from n26.library.conversion.specialisation import _spread
+
+        everyone = [str(n) for n in range(40)]
+
+        chosen = _spread(set(everyone), [everyone, everyone], 25)
+
+        assert len(chosen) == 25
+        assert len(set(chosen)) == 25
+
+    def test_it_offers_nobody_the_change_does_not_reach(self):
+        from n26.library.conversion.specialisation import _spread
+
+        chosen = _spread({"a"}, [["a", "stranger"]], 25)
+
+        assert chosen == ["a"]
+
+    def test_it_takes_everyone_when_there_are_fewer_than_the_limit(self):
+        from n26.library.conversion.specialisation import _spread
+
+        chosen = _spread({"a", "b"}, [["a"], ["b"]], 25)
+
+        assert sorted(chosen) == ["a", "b"]

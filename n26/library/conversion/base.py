@@ -25,16 +25,19 @@ and the reconcile assertion proves it gang by gang.
 
 What the ledger *says*, though, is not untouched, and the captures do
 not see it. The gang's history describes an old event by looking up what
-its assignment names now, so moving a row from one kind to another
-rewrites the wording of things that already happened. Every conversion
-must check the history page against a converted row and keep those words
-the same — see the note in ``n26/core/CLAUDE.md``.
+its assignment names now, so moving an assignment from one kind to
+another rewrites the wording of things that already happened. Every
+conversion must check the history page against a converted assignment
+and keep those words the same — see the note in ``n26/core/CLAUDE.md``.
 """
 
+import logging
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 
 from django.db import transaction
+
+logger = logging.getLogger(__name__)
 
 
 def carriers_of(modifier):
@@ -329,7 +332,7 @@ class Plan:
     problems: tuple = ()
     #: How many gangs the change reaches in all, proven or not.
     reaches: int = 0
-    #: Rows the plan deliberately leaves as they are.
+    #: Assignments the plan deliberately leaves as they are.
     left_alone: int = 0
     #: True when the system simply is not here — nothing to convert and
     #: nothing wrong: the apply is a clean no-op.
@@ -399,9 +402,9 @@ def _one_snapshot():
     worked, refusing for a reason nobody can act on.
 
     Reading from one snapshot instead, what differs is what the run did.
-    Somebody changing a row it also writes ends it in a refusal rather
-    than a guess, which is the right ending for work that cannot be half
-    done. Set on the session, because a transaction's isolation can only
+    Somebody changing an assignment it also writes ends it in a refusal
+    rather than a guess, which is the right ending for work that cannot
+    be half done. Set on the session, because a transaction's isolation can only
     be chosen before it has read anything, and put back afterwards so a
     pooled connection is handed on as it was found.
     """
@@ -433,9 +436,19 @@ def _one_snapshot():
     try:
         yield
     finally:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                f"SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL {was}"
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    f"SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL {was}"
+                )
+        except Exception:
+            # Putting the setting back is courtesy to the next borrower of
+            # this connection, and must never be the thing the caller hears
+            # about. A run that ended badly can leave the connection unable
+            # to answer at all — and one that cannot answer is also one
+            # nobody will be handed again.
+            logger.warning(
+                "could not put the isolation level back to %s", was, exc_info=True
             )
 
 

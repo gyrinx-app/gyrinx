@@ -138,7 +138,14 @@ def _spread(gang_ids, kinds, limit):
 
 def plan_specialisation():
     from n26.core.models import Assignment
-    from n26.library.models import Hidden, SlotType, Specialisation, Subtype
+    from n26.library.models import (
+        AddsAssignable,
+        Hidden,
+        Modifier,
+        SlotType,
+        Specialisation,
+        Subtype,
+    )
 
     problems = []
 
@@ -166,6 +173,17 @@ def plan_specialisation():
     old_rows = list(Specialisation.objects.filter(archived=False).order_by("name"))
     if not old_rows:
         problems.append("no specialisations to convert")
+    # A pick is matched to its pickable by name, and a name is only unique
+    # within a pack and qualifier — so two live rows called the same thing
+    # would quietly become one pickable, and half the picks would land on
+    # the wrong one.
+    twice = sorted(
+        {row.name for row in old_rows if [r.name for r in old_rows].count(row.name) > 1}
+    )
+    if twice:
+        problems.append(
+            "more than one live specialisation is called: " + ", ".join(twice)
+        )
 
     # Hidden names are unique only together with their qualifier, so a
     # name here must resolve to one row or the plan cannot know which it
@@ -211,6 +229,26 @@ def plan_specialisation():
         .order_by("created")
     )
     answers, spares = _answers(picks)
+
+    # A carrier that arrives by grant has no assignment to find it by,
+    # so the gangs it reaches cannot be counted and cannot be drawn into
+    # the spread this proves. The number on the apply page would understate
+    # the change, and pages nothing checked would move. Refuse instead:
+    # nothing grants either of these today, and whoever makes one should
+    # decide what this ought to do.
+    for held, said in ((subtype, f"the “{SUBTYPE}” subtype"), (narrow, NARROW_HIDDEN)):
+        if held is None:
+            continue
+        for granter in Modifier.objects.filter(
+            adds_assignable__in=AddsAssignable.objects.filter(
+                **{type(held).__name__.lower(): held}
+            )
+        ):
+            if carriers_of(granter):
+                problems.append(
+                    f"“{granter.name}” grants {said}, so the gangs it reaches "
+                    "cannot be counted or proven"
+                )
 
     # Each pick settles on the slot its own anchor grants.
     becoming = {row.name for row in old_rows}

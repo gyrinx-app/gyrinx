@@ -165,8 +165,13 @@ def _claim(backfill_id):
 
 
 @task
-def convert_specialisation(backfill_id):
+def convert_specialisation(backfill_id, **said_by_whoever_enqueued_it):
     """Run the Specialisation conversion, once, and write down the outcome.
+
+    Takes whatever else it is handed and ignores it. Delivery outlives a
+    deploy, so a message can arrive naming arguments the version that
+    enqueued it had and this one does not — and a task that refuses its
+    own message is retried for ever, there being nowhere for it to go.
 
     Never raises: a task that fails is redelivered, and there is nowhere
     for a raised error to go but round again. Every ending — refused,

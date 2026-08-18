@@ -20,20 +20,6 @@
         This is the plan. Nothing has been changed. Every line below is a step
         the conversion would perform, in order.
     </p>
-    <p>
-        It reaches <strong>{{ reaches }}</strong> gang{{ reaches|pluralize }}, and
-        proves <strong>{{ proven }}</strong> of them unchanged before committing —
-        a spread wide enough to hold every shape the system comes in. Proving all
-        of them would mean holding the whole library for minutes while players are
-        using it.
-    </p>
-    <p>
-        Applying runs the whole conversion in one transaction. It captures what
-        every affected gang's pages say, performs the steps, captures again, and
-        commits only if the two readings match and every gang still reconciles.
-        Anything else — a difference, a refusal, an interruption — writes nothing
-        at all, so a run that does not finish can simply be run again.
-    </p>
     {% if plan.nothing_here %}
         <h2>Nothing to convert</h2>
         <p>This system is not here. It has been converted already, or was never present.</p>
@@ -44,6 +30,20 @@
         </ul>
         <p>Nothing can be applied while any of these stands.</p>
     {% else %}
+        <p>
+            It reaches <strong>{{ reaches }}</strong> gang{{ reaches|pluralize }}, and
+            proves <strong>{{ proven }}</strong> of them unchanged before committing —
+            a spread wide enough to hold every shape the system comes in. Proving all
+            of them would mean holding the whole library for minutes while players are
+            using it.
+        </p>
+        <p>
+            Applying runs the whole conversion in one transaction. It captures what
+            every affected gang's pages say, performs the steps, captures again, and
+            commits only if the two readings match and every gang still reconciles.
+            Anything else — a difference, a refusal, an interruption — writes nothing
+            at all, so a run that does not finish can simply be run again.
+        </p>
         <h2>What it would do</h2>
         <ul class="mt-plan">
             {% for line in preview %}<li>{{ line }}</li>{% endfor %}
