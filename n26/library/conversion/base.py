@@ -143,19 +143,25 @@ def one_answer_per_question(picks):
 def spread(gang_ids, kinds, limit):
     """A sample wide enough to hold every shape, in a stable order.
 
-    Takes from each kind in turn so no one kind crowds the others out,
-    and keeps the gangs that are odd in some way — the ones a wider
-    sweep would have been for.
+    One from each kind, round and round, so no kind crowds the others
+    out — a plentiful ordinary kind must not fill the sample before a
+    later kind's only gang is seen. The odd shapes lead each round, and
+    whatever room is left goes back around the kinds that still have
+    gangs to give.
     """
     chosen, used = [], set()
-    for wanted in kinds:
-        for gang_id in wanted:
-            if gang_id in used or gang_id not in gang_ids:
-                continue
-            used.add(gang_id)
-            chosen.append(gang_id)
+    remaining = [list(wanted) for wanted in kinds]
+    while len(chosen) < limit and any(remaining):
+        for wanted in remaining:
+            while wanted:
+                gang_id = wanted.pop(0)
+                if gang_id in used or gang_id not in gang_ids:
+                    continue
+                used.add(gang_id)
+                chosen.append(gang_id)
+                break
             if len(chosen) >= limit:
-                return chosen
+                break
     return chosen
 
 

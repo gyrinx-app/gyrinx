@@ -214,9 +214,7 @@ def plan_skill_tree():
     # taken away would otherwise read as one held, and count a gang the
     # change never reaches.
     holders = set(
-        Assignment.objects.filter(
-            archived=False, hidden__in=[c for c in carriers.values()]
-        )
+        Assignment.objects.filter(archived=False, hidden__in=list(carriers.values()))
         .exclude(removes=True)
         .values_list("gang_root_id", flat=True)
         .distinct()

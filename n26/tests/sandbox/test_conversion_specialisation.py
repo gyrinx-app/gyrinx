@@ -452,9 +452,24 @@ class TestTheSpread:
 
         chosen = _spread(reached, [odd, narrow, quiet, ordinary], 5)
 
-        # The odd ones first, in the order the kinds were given.
-        assert chosen[:4] == ["a", "b", "c", "d"]
-        assert len(chosen) == 5
+        # One of each kind first, in the order the kinds were given,
+        # then back around whatever still has gangs to give.
+        assert chosen == ["a", "b", "c", "e", "d"]
+
+    def test_a_plentiful_kind_cannot_crowd_a_later_one_out(self):
+        """The kinds are ordered odd-first, but the ordinary kinds are
+        the big ones — a sample the first big kind could fill would
+        never see the shapes queued behind it."""
+        from n26.library.conversion.base import spread as _spread
+
+        never_answered = [f"quiet{n}" for n in range(40)]
+        answered = [f"full{n}" for n in range(40)]
+        reached = set(never_answered + answered)
+
+        chosen = _spread(reached, [never_answered, answered], 25)
+
+        assert len(chosen) == 25
+        assert sum(1 for gang in chosen if gang.startswith("full")) == 12
 
     def test_it_stops_at_the_limit_and_repeats_nobody(self):
         from n26.library.conversion.base import spread as _spread

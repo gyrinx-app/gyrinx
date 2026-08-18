@@ -209,6 +209,7 @@ class TestTheApply:
         )
         assert archived.skill_tree.name == "Agility"
         assert archived.pickable_id is None
+        assert_reconciled(gangs["full"])
 
     def test_a_doubled_answer_keeps_its_spare_untouched(self, world):
         gangs, _ = world
@@ -224,6 +225,7 @@ class TestTheApply:
         )
         assert spare.skill_tree.name == "Brawn"
         assert spare.pickable_id is None
+        assert_reconciled(gangs["full"])
 
     def test_one_tree_ranked_twice_still_draws_its_note(self, world):
         """The doubling gang's page carries a warning today because an
