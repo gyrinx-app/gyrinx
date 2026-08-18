@@ -191,7 +191,7 @@ class TestMounted:
 class TestGrantedPower:
     """A power a modifier grants — the psyker entry whose sheet says it
     starts knowing one. A fact on the card while the granter stands,
-    filed in the Powers row where a learned power would sit."""
+    filed in the Powers row where a selected power would sit."""
 
     @pytest.fixture
     def haunted_mask(self, db):

@@ -35,7 +35,7 @@ class Family(models.TextChoices):
 
     #: The plumbing everything references: rules, counters, the taxonomy.
     BASE = "base", "Base"
-    #: What a model is and learns: subtypes, skills, powers, effects.
+    #: What a model is and selects: subtypes, skills, powers, effects.
     MODEL = "model", "Model"
     #: What a model carries: weapons, wargear, traits.
     GEAR = "gear", "Gear"
@@ -908,7 +908,7 @@ class Specialisation(Content, Assignable):
 
 
 class Skill(Content, Assignable, UsableBy):
-    """A skill a fighter has learned, homed in the set it comes from.
+    """A skill a fighter has selected, homed in the set it comes from.
 
     That set is its home category — the taxonomy every collection
     shares — and its D6 number in the book is its position within it."""
@@ -1151,7 +1151,7 @@ class Counter(Content, Assignable):
 
 
 class Power(Content, Assignable, UsableBy):
-    """A Wyrd power — manifested rather than learned.
+    """A Wyrd power — manifested, not taught.
 
     Not a skill, but its family is a category, so it shows up in the
     same fighter-sectioned views as the skill sets, with no special

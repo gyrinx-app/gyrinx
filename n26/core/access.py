@@ -147,7 +147,7 @@ def model_collections():
     One query, and the caller decides when to pay it: a roster asks once
     and tests every card against the answer, so a sheet of sixteen costs
     what a sheet of one does. Asked by family rather than by naming
-    kinds, so a new sort of thing a model learns qualifies its
+    kinds, so a new sort of thing a model selects qualifies its
     collections the day it exists — and a placement aimed at a *gear*
     collection's schema, which content may perfectly well write, never
     opens a skills screen.
@@ -168,13 +168,13 @@ def placed_collections(computed):
 
 
 def learnable_for(computed, among=None):
-    """The collections this fighter may learn from: the ones their grid
+    """The collections this fighter may select from: the ones their grid
     places a category into, kept to those holding what a model is.
 
     Both halves matter. Without the grid every fighter would be handed
     the whole skill library, which is the library rather than their own;
     without the family test a placement into an equipment list's schema
-    would open a learn screen onto gear.
+    would open a skills screen onto gear.
     """
     placed = placed_collections(computed)
     return [

@@ -452,7 +452,7 @@ class ModelCard:
     learn_href: str = ""
     #: The collections this model's grid places a category into, by id.
     #: Standing access, computed rather than assigned: it is what a
-    #: screen for learning is built on, and asking which of these hold
+    #: screen for selecting is built on, and asking which of these hold
     #: what a model *is* costs one query for a whole roster rather than
     #: one per card.
     placed_in: tuple[str, ...] = ()
@@ -888,7 +888,7 @@ def offer_from_view(view, *, label, chosen=None, current=None, held=(), granted=
 
     The half of a pick screen that has nothing to do with slots: a
     ``CollectionView`` goes in and groups of options come out, so
-    choosing within one tier and browsing everything a fighter may learn
+    choosing within one tier and browsing everything a fighter may select
     are two callers of one structure rather than two screens that look
     alike.
 

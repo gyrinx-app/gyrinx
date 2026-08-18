@@ -342,7 +342,7 @@ class TestTheModelCardsTooltips:
     def test_no_native_title_survives_on_the_card(self, reader):
         page = reader.get("/n26/design/c/model-card/").content.decode()
         assert 'title="Rating' not in page
-        assert 'title="Learn' not in page
+        assert 'title="Select' not in page
         assert 'title="From' not in page
         assert 'title="Granted' not in page
 

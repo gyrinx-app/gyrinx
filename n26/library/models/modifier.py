@@ -91,7 +91,7 @@ GRANTABLE_FIELDS = {
     # A named special rule the bearer gains — "all Escher fighters may…",
     # carried by the gang type and reaching each member.
     "rule": "library.Rule",
-    # A power the bearer knows without having learned it — a psyker entry
+    # A power the bearer knows without having selected it — a psyker entry
     # whose sheet says it manifests something from the start. Skill-like:
     # a fact on the card, gone when the granter goes.
     "power": "library.Power",

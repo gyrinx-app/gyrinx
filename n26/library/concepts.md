@@ -147,7 +147,7 @@ Fields of its own: none — the shared set. It takes option sets (plain talons o
 
 ### Skills and Powers
 
-*What a model has learned (skills) or manifests (powers), each homed in its set.*
+*What a model has selected (skills) or manifests (powers), each homed in its set.*
 
 Fields of their own: none. A skill's set is its home category — the same catalogue every collection shares — and its D6 number in the book is its position within that category. A power is the same shape: its home is a category too, so it appears in the same fighter-sectioned views as the skill sets with no special casing (the book's own move: Wyrds treat the powers list as a Secondary Skill Set). A power's annotation carries what the book prints in brackets — "(Free), Continuous Effect" — never rules text.
 

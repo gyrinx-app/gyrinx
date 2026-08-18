@@ -1448,7 +1448,7 @@ class TestWhatACollectionHolds:
 
     Surfaces ask that question to decide whether a collection belongs on
     them at all — a screen for buying kit wants the ones with gear in
-    them, a screen for learning skills the ones with skills. The question
+    them, a screen for selecting skills the ones with skills. The question
     is asked by family rather than by naming kinds, so a new sort of gear
     puts its collections on the buying screen the day it exists.
     """

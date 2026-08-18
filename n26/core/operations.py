@@ -1189,15 +1189,15 @@ class Operation:
         """Take on something a model *is* — a skill, a power.
 
         Free, and recorded as a reward. No credits move: what a fighter
-        learns is earned rather than bought, and a purchase is not the
+        selects is earned rather than bought, and a purchase is not the
         way to it. What it adds to the gang's rating is the thing's own
         reference price, which is nothing for a skill the rules hand
         out and whatever content says for one that is worth something.
 
         Nothing causes it. A skill is not a consequence of the assignment whose
         grid placed the set it came from, so swapping a profile — or
-        dropping the wargear that opened a set up — never unlearns
-        anything. That is the difference between this and ``choose``,
+        dropping the wargear that opened a set up — never takes one back.
+        That is the difference between this and ``choose``,
         where what was chosen belongs to the offer and dies with it.
         """
         from n26.library.models.collection import price_of

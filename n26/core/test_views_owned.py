@@ -451,7 +451,7 @@ class TestWhatMayBeClickedOn:
         self, client, tester, gang, fighter, route
     ):
         """A skill for five credits would be a tap, not a trade — and a
-        removal here would be a way to unlearn by URL."""
+        removal here would be a way to give one back by URL."""
         from n26.library.authoring import create_skill
 
         with operation(gang, actor=tester) as op:
