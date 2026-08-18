@@ -295,7 +295,26 @@ class TestTheMerge:
         assert result.entries_moved == 1
         assert result.assignments_moved == 1
         assert result.gangs == 1
+        assert result.gangs_proved == 1
         assert [row["name"] for row in result.merged] == ["Frag grenades"]
+
+    def test_a_gang_already_drifting_is_counted_but_not_proved(
+        self, armed, monkeypatch
+    ):
+        """Books that did not balance before the run are not this repair's
+        to answer for — so it neither refuses over them nor claims to have
+        proved them."""
+        from n26.core import reconcile
+
+        monkeypatch.setattr(
+            reconcile, "check_gang", lambda gang: ["rating pinned 100, ledger sums 130"]
+        )
+
+        result = apply()
+
+        assert result.gangs == 1
+        assert result.gangs_proved == 0
+        assert result.merged
 
     def test_running_it_again_does_nothing(self, armed):
         apply()

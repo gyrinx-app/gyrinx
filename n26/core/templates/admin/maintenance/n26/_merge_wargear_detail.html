@@ -8,8 +8,10 @@
         {{ backfill.summary.entries_moved }} equipment-list line{{ backfill.summary.entries_moved|pluralize }} moved,
         {{ backfill.summary.entries_dropped }} dropped as duplicates, and
         {{ backfill.summary.assignments_moved }} purchase{{ backfill.summary.assignments_moved|pluralize }} across
-        {{ backfill.summary.gangs }} gang{{ backfill.summary.gangs|pluralize }}. Every one of those gangs was
-        reconciled afterwards.
+        {{ backfill.summary.gangs }} gang{{ backfill.summary.gangs|pluralize }}.
+        {{ backfill.summary.gangs_proved }} of those balanced before the run and were held to their
+        numbers afterwards; any not counted there did not balance beforehand, which is not this
+        repair's to answer for.
     </p>
     <table>
         <thead>

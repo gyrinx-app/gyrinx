@@ -26,8 +26,10 @@
         equipment lists and the purchases onto the weapon and drops the wargear
         row, all in one transaction. It moves no money: the two agree on price,
         and what a purchase was worth lives on its ledger entry, which is not
-        touched. Every affected gang is reconciled afterwards and the whole run
-        unwinds if any of them stops balancing.
+        touched. Every affected gang whose books balance beforehand is reconciled
+        again afterwards, and the whole run unwinds if any of them stops
+        balancing. A gang already drifting is left out of that proof rather than
+        allowed to block the repair.
     </p>
     <p>
         One thing does change for a reader: a gang's history says what an

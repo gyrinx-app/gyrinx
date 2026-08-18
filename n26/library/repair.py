@@ -122,6 +122,10 @@ class Result:
     assignments_moved: int = 0
     lines_granted: int = 0
     gangs: int = 0
+    #: Of those, the ones actually held to their numbers afterwards. A gang
+    #: whose books did not balance before the run is exempt, so the two
+    #: differ and the record must not claim otherwise.
+    gangs_proved: int = 0
 
     def as_dict(self):
         return {
@@ -132,6 +136,7 @@ class Result:
             "assignments_moved": self.assignments_moved,
             "lines_granted": self.lines_granted,
             "gangs": self.gangs,
+            "gangs_proved": self.gangs_proved,
         }
 
 
@@ -276,6 +281,7 @@ def apply():
             problems = check_gang(gang)
             if problems:
                 raise Refused("; ".join(problems))
+            result.gangs_proved += 1
         result.gangs = len(gangs)
     return result
 
