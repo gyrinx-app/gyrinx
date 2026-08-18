@@ -411,6 +411,19 @@ class TestTheEditPage:
         )
         assert [line.name for line in card_for(rehired).rules] == ["Gaunt"]
 
+    def test_a_gang_held_rule_says_it_comes_from_the_gang(self, client, yolanda):
+        """A rule assigned straight to the gang rides every member's card
+        as a broadcast row — the box must say where it came from, not
+        read as if the owner ticked it themselves."""
+        gaunt = create_rule("Gaunt")
+        assign(gaunt, gang=yolanda.membership.gang)
+        client.force_login(yolanda.membership.gang.owner)
+        page = self._page(client, yolanda)
+
+        option = self._held(page, "rule_edits")[f"library.rule:{gaunt.pk}"]
+        assert option.is_current
+        assert option.detail == "from the gang"
+
     def test_a_paid_for_thing_is_not_offered_to_be_taken_away(self, client, yolanda):
         """A removal could not shift it, so its box is fixed and says
         why. Offering the act and then refusing it wrote a removal that
