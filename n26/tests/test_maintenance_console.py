@@ -126,11 +126,15 @@ class TestApplying:
         assert backfill.status == Backfill.Status.DONE
         assert "applied; every page reads the same" in backfill.summary["report"][-1]
         assert backfill.summary["attempts"] == 1
-        # The run really converted: the picks now name pickables.
-        assert not Assignment.objects.filter(
-            specialisation__isnull=False, archived=False
-        ).exists()
-        assert Assignment.objects.filter(pickable__isnull=False).exists()
+        # The run really converted: every answer this world holds now
+        # names a pickable. Said of the answers rather than of the column,
+        # because a spare left by a doubled click keeps the old one and is
+        # meant to.
+        answers = Assignment.objects.filter(
+            chosen_for_slot__isnull=False, archived=False
+        )
+        assert answers.count() == 3
+        assert all(row.pickable_id is not None for row in answers)
         assert str(backfill.id) in response.redirect_chain[-1][0]
 
     def test_the_detail_page_says_what_happened(self, client, superuser, world):

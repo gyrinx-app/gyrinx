@@ -18,8 +18,14 @@
     <h1>{{ title }}</h1>
     <p>
         This is the plan. Nothing has been changed. Every line below is a step
-        the conversion would perform, in order; the last line says how many
-        gangs it would prove unchanged before committing anything.
+        the conversion would perform, in order.
+    </p>
+    <p>
+        It reaches <strong>{{ reaches }}</strong> gang{{ reaches|pluralize }}, and
+        proves <strong>{{ proven }}</strong> of them unchanged before committing —
+        a spread wide enough to hold every shape the system comes in. Proving all
+        of them would mean holding the whole library for minutes while players are
+        using it.
     </p>
     <p>
         Applying runs the whole conversion in one transaction. It captures what
@@ -44,7 +50,7 @@
         </ul>
         <form method="post"
               class="mt-form"
-              onsubmit="return confirm('Convert {{ gangs }} gang(s)? It writes nothing unless every page reads the same.')">
+              onsubmit="return confirm('Convert {{ reaches }} gang(s)? It writes nothing unless every page it proves reads the same.')">
             {% csrf_token %}
             <button type="submit" class="button default">Apply conversion</button>
         </form>

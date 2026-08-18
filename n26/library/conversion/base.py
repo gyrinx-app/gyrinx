@@ -400,8 +400,14 @@ def _one_snapshot():
 
     outermost = not connection.in_atomic_block
     if not (outermost and connection.vendor == "postgresql"):
-        # Nested inside someone else's transaction — a test, a shell.
-        # Their snapshot is already the one this reads from.
+        # Nested inside a transaction somebody else opened — a test, a
+        # shell. Isolation can only be chosen before a transaction reads
+        # anything, so it is theirs to set and too late to ask here. That
+        # is not the same as being safe: at the ordinary level each
+        # statement reads afresh, so a caller nesting this while players
+        # are writing would not get the one snapshot promised above.
+        # Nothing does that today — a conversion from the console or the
+        # command opens the transaction itself.
         yield
         return
     with connection.cursor() as cursor:

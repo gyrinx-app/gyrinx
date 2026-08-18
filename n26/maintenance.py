@@ -264,7 +264,12 @@ def convert_specialisation_view(request):
         Operation.CONVERT_SPECIALISATION.label,
         plan=plan,
         preview=list(plan.preview()),
-        gangs=len(plan.gang_ids),
+        # Two different numbers, and confusing them on a page with an
+        # apply button would tell an operator the change is smaller than
+        # it is: one is how many gangs it reaches, the other how many of
+        # them it proves before committing.
+        reaches=plan.reaches,
+        proven=len(plan.gang_ids),
         apply_url=reverse("admin:maintenance_n26_convert_specialisation"),
         recent=Backfill.objects.filter(operation=Operation.CONVERT_SPECIALISATION)[:10],
     )
