@@ -38,7 +38,12 @@ from n26.library.conversion.base import (
     RewritePick,
     SwapCarrier,
     carriers_of,
+    one_answer_per_question,
+    spread,
 )
+
+_answers = one_answer_per_question
+_spread = spread
 
 SUBTYPE = "Specialist"
 SLOT_TYPE = "Specialisation"
@@ -96,44 +101,6 @@ def _solely_carried(offer, carrier, problems):
         problems.append(
             f"“{offer.name}” is shared — also carried by " + ", ".join(others)
         )
-
-
-def _answers(picks):
-    """One pick per question, and the spares left behind.
-
-    The same question answered twice — a click that landed twice — shows
-    on the page as the answer plus a spare line in the gear list. Moving
-    the answer keeps the page: the pick becomes a pick, and the spare
-    goes on being the ordinary assignment it already is.
-    """
-    answers, spares, seen = [], [], set()
-    for pick in picks:
-        question = (pick.miniature_id, pick.caused_by_id)
-        if question in seen:
-            spares.append(pick)
-        else:
-            seen.add(question)
-            answers.append(pick)
-    return answers, spares
-
-
-def _spread(gang_ids, kinds, limit):
-    """A sample wide enough to hold every shape, in a stable order.
-
-    Takes from each kind in turn so no one kind crowds the others out,
-    and keeps the gangs that are odd in some way — the ones a wider
-    sweep would have been for.
-    """
-    chosen, used = [], set()
-    for wanted in kinds:
-        for gang_id in wanted:
-            if gang_id in used or gang_id not in gang_ids:
-                continue
-            used.add(gang_id)
-            chosen.append(gang_id)
-            if len(chosen) >= limit:
-                return chosen
-    return chosen
 
 
 def plan_specialisation():

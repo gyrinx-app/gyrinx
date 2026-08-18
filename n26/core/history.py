@@ -145,7 +145,7 @@ def _rows_for(events):
             "miniature_root",
             "stash",
             # A pick says its kind through the question it answered.
-            "chosen_for_slot",
+            "chosen_for_slot__slot_type",
         )
     )
     return {row.pk: row for row in fetched}
@@ -481,16 +481,19 @@ def _kindword(row):
     for the kinds a player's page never names.
 
     A pick is one of those: "pickable" is plumbing, and no player has
-    ever seen the word. What they know it as is the question it answered
-    — a Specialisation, a Path — so the slot says it instead. Without
-    this a story that read "Sniper, specialisation" before its system
-    moved onto slots would afterwards read only "Sniper".
+    ever seen the word. What they know it as is the sort of question it
+    answered — a Specialisation, a Path — so the slot's type says it
+    instead. The type rather than the slot's own label, because a label
+    names one question among several ("Skill Tree 2") where a kind word
+    names what sort of thing arrived — and without this a story that
+    read "Sniper, specialisation" before its system moved onto slots
+    would afterwards read only "Sniper".
     """
     thing = row.assignable if row else None
     if thing is None:
         return ""
     if row.chosen_for_slot_id is not None and row.chosen_for_slot is not None:
-        return row.chosen_for_slot.choice_label.lower()
+        return row.chosen_for_slot.slot_type.name.lower()
     return kind_of(thing)
 
 

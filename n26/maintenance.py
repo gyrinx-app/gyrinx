@@ -53,6 +53,7 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "Operation",
+    "convert_skill_tree",
     "convert_specialisation",
     "merge_wargear_into_weapon_view",
     "task_routes",
@@ -79,16 +80,14 @@ class Operation(models.TextChoices):
         "n26_convert_specialisation",
         "n26: the specialisations become picks",
     )
+    CONVERT_SKILL_TREE = (
+        "n26_convert_skill_tree",
+        "n26: the Venator skill trees become picks",
+    )
     MERGE_WARGEAR_INTO_WEAPON = (
         "n26_merge_wargear_into_weapon",
         "n26: duplicated wargear becomes its weapon",
     )
-
-
-def _plan():
-    from n26.library.conversion import plan_specialisation
-
-    return plan_specialisation()
 
 
 def _write(backfill_id, *, status=None, summary_patch=None, error=""):
@@ -173,9 +172,8 @@ def _claim(backfill_id):
         return True, ""
 
 
-@task
-def convert_specialisation(backfill_id, **said_by_whoever_enqueued_it):
-    """Run the Specialisation conversion, once, and write down the outcome.
+def _run_conversion(backfill_id, plan_with, what, **said_by_whoever_enqueued_it):
+    """Run one conversion, once, and write down the outcome.
 
     Takes whatever else it is handed and ignores it. Delivery outlives a
     deploy, so a message can arrive naming arguments the version that
@@ -211,14 +209,12 @@ def convert_specialisation(backfill_id, **said_by_whoever_enqueued_it):
     # be declared failed out from under itself.
     with _single_flight() as mine:
         if not mine:
-            logger.info(
-                "Specialisation conversion already running; this copy stands down"
-            )
+            logger.info("%s conversion already running; this copy stands down", what)
             return
 
         may_start, why_not = _claim(backfill_id)
         if not may_start:
-            logger.info("Specialisation conversion not started: %s", why_not)
+            logger.info("%s conversion not started: %s", what, why_not)
             _write(
                 backfill_id,
                 status=Backfill.Status.FAILED,
@@ -227,14 +223,14 @@ def convert_specialisation(backfill_id, **said_by_whoever_enqueued_it):
             return
 
         try:
-            report = apply(_plan())
+            report = apply(plan_with())
         except ConversionRefused as refused:
             # A refusal is the discipline working: nothing was written,
             # and the reason is already in words.
             _write(backfill_id, status=Backfill.Status.FAILED, error=str(refused))
             return
         except Exception as broke:  # noqa: BLE001 — the ending must be recorded
-            logger.exception("Specialisation conversion broke")
+            logger.exception("%s conversion broke", what)
             _write(
                 backfill_id,
                 status=Backfill.Status.FAILED,
@@ -249,32 +245,64 @@ def convert_specialisation(backfill_id, **said_by_whoever_enqueued_it):
         )
 
 
-def convert_specialisation_view(request):
+def _plan_specialisation():
+    from n26.library.conversion import plan_specialisation
+
+    return plan_specialisation()
+
+
+def _plan_skill_tree():
+    from n26.library.conversion import plan_skill_tree
+
+    return plan_skill_tree()
+
+
+@task
+def convert_specialisation(backfill_id, **said_by_whoever_enqueued_it):
+    """The Specialisation conversion, as a task — see ``_run_conversion``."""
+    _run_conversion(
+        backfill_id,
+        _plan_specialisation,
+        "Specialisation",
+        **said_by_whoever_enqueued_it,
+    )
+
+
+@task
+def convert_skill_tree(backfill_id, **said_by_whoever_enqueued_it):
+    """The Skill Tree conversion, as a task — see ``_run_conversion``."""
+    _run_conversion(
+        backfill_id,
+        _plan_skill_tree,
+        "Skill tree",
+        **said_by_whoever_enqueued_it,
+    )
+
+
+def _conversion_view(request, operation, plan_with, task_fn):
+    """Preview a conversion (GET), or record a run and enqueue it (POST)."""
+    address = reverse(f"admin:maintenance_{operation.value}")
     if request.method == "POST":
-        running = running_guard(Operation.CONVERT_SPECIALISATION)
+        running = running_guard(operation)
         if running is not None:
             messages.warning(request, "That conversion is already running.")
             return HttpResponseRedirect(
                 reverse("admin:maintenance_backfill_detail", args=[running.id])
             )
-        plan = _plan()
+        plan = plan_with()
         if plan.nothing_here:
             # A page left open across someone else's run, most likely.
             # Recording a run that would do nothing only clutters the
             # history of what was really done.
             messages.info(request, "There is nothing to convert.")
-            return HttpResponseRedirect(
-                reverse("admin:maintenance_n26_convert_specialisation")
-            )
+            return HttpResponseRedirect(address)
         if not plan.ok:
             # Refusing here rather than in the task keeps the reason on
             # the screen of whoever asked for it.
             messages.error(
                 request, "The conversion refuses: " + "; ".join(plan.problems)
             )
-            return HttpResponseRedirect(
-                reverse("admin:maintenance_n26_convert_specialisation")
-            )
+            return HttpResponseRedirect(address)
         if request.POST.get("keep") == "no":
             # A page open since before the rehearsal was taken away. Its
             # gentler button would land here and convert for real.
@@ -283,16 +311,14 @@ def convert_specialisation_view(request):
                 "That page offered a rehearsal, which no longer exists. "
                 "Nothing has been run — reload and apply if you mean to.",
             )
-            return HttpResponseRedirect(
-                reverse("admin:maintenance_n26_convert_specialisation")
-            )
+            return HttpResponseRedirect(address)
         backfill = Backfill.objects.create(
-            operation=Operation.CONVERT_SPECIALISATION,
+            operation=operation,
             triggered_by=request.user,
             status=Backfill.Status.RUNNING,
             summary={"preview": list(plan.preview()), "attempts": 0},
         )
-        convert_specialisation.enqueue(backfill_id=str(backfill.id))
+        task_fn.enqueue(backfill_id=str(backfill.id))
         messages.success(
             request, "The conversion is running. This page shows what it did."
         )
@@ -300,10 +326,10 @@ def convert_specialisation_view(request):
             reverse("admin:maintenance_backfill_detail", args=[backfill.id])
         )
 
-    plan = _plan()
+    plan = plan_with()
     context = page_context(
         request,
-        Operation.CONVERT_SPECIALISATION.label,
+        operation.label,
         plan=plan,
         preview=list(plan.preview()),
         # Two different numbers, and confusing them on a page with an
@@ -312,10 +338,28 @@ def convert_specialisation_view(request):
         # them it proves before committing.
         reaches=plan.reaches,
         proven=len(plan.gang_ids),
-        apply_url=reverse("admin:maintenance_n26_convert_specialisation"),
-        recent=Backfill.objects.filter(operation=Operation.CONVERT_SPECIALISATION)[:10],
+        apply_url=address,
+        recent=Backfill.objects.filter(operation=operation)[:10],
     )
-    return render(request, "admin/maintenance/n26/convert_specialisation.html", context)
+    return render(request, "admin/maintenance/n26/convert.html", context)
+
+
+def convert_specialisation_view(request):
+    return _conversion_view(
+        request,
+        Operation.CONVERT_SPECIALISATION,
+        _plan_specialisation,
+        convert_specialisation,
+    )
+
+
+def convert_skill_tree_view(request):
+    return _conversion_view(
+        request,
+        Operation.CONVERT_SKILL_TREE,
+        _plan_skill_tree,
+        convert_skill_tree,
+    )
 
 
 register_operation(
@@ -333,15 +377,33 @@ register_operation(
     )
 )
 
+register_operation(
+    MaintenanceOperation(
+        operation=Operation.CONVERT_SKILL_TREE.value,
+        name=Operation.CONVERT_SKILL_TREE.label,
+        description=(
+            "Move the Venator ranked skill trees onto slots and picks: each "
+            "rank carrier grants a slot instead of offering a choice, and "
+            "every stored choice is re-said as a pick. Proves every affected "
+            "gang's pages read the same, or writes nothing."
+        ),
+        view=convert_skill_tree_view,
+        detail_template="admin/maintenance/n26/_convert_detail.html",
+    )
+)
+
 #: Declared for the task registry, which reads this from ``n26/core/tasks.py``.
 #: The deadline is the longest Pub/Sub allows, because a conversion holds one
-#: transaction for as long as proving every affected gang takes. It is also
+#: transaction for as long as proving its spread of gangs takes. It is also
 #: the request timeout the service is deployed with, and the two belong
 #: together: a run outliving its deadline is delivered again while the first
 #: copy is still working, and the second — standing down at the lock — answers
 #: successfully and acknowledges the message out from under it. Change one and
 #: change the other (``--timeout`` in ``cloudbuild.yaml``).
-task_routes = [TaskRoute(convert_specialisation, ack_deadline=600, min_retry_delay=60)]
+task_routes = [
+    TaskRoute(convert_specialisation, ack_deadline=600, min_retry_delay=60),
+    TaskRoute(convert_skill_tree, ack_deadline=600, min_retry_delay=60),
+]
 
 
 def merge_wargear_into_weapon_view(request):

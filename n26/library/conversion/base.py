@@ -54,6 +54,44 @@ def carriers_of(modifier):
     return found
 
 
+def one_answer_per_question(picks):
+    """One pick per question, and the spares left behind.
+
+    The same question answered twice — a click that landed twice — shows
+    on the page as the answer plus a spare line. Moving the answer keeps
+    the page: the pick becomes a pick, and the spare goes on being the
+    ordinary assignment it already is.
+    """
+    answers, spares, seen = [], [], set()
+    for pick in picks:
+        question = (pick.miniature_id, pick.caused_by_id)
+        if question in seen:
+            spares.append(pick)
+        else:
+            seen.add(question)
+            answers.append(pick)
+    return answers, spares
+
+
+def spread(gang_ids, kinds, limit):
+    """A sample wide enough to hold every shape, in a stable order.
+
+    Takes from each kind in turn so no one kind crowds the others out,
+    and keeps the gangs that are odd in some way — the ones a wider
+    sweep would have been for.
+    """
+    chosen, used = [], set()
+    for wanted in kinds:
+        for gang_id in wanted:
+            if gang_id in used or gang_id not in gang_ids:
+                continue
+            used.add(gang_id)
+            chosen.append(gang_id)
+            if len(chosen) >= limit:
+                return chosen
+    return chosen
+
+
 class ConversionRefused(Exception):
     """The apply found the world changed by its own hand — or not shaped
     the way the plan promised — and unwound. The message says exactly
@@ -67,7 +105,8 @@ class CreateSlotType:
     allows_repeats: bool = True
 
     def say(self):
-        return f"create slot type “{self.name}”"
+        refused = "" if self.allows_repeats else ", refusing repeats"
+        return f"create slot type “{self.name}”{refused}"
 
     def perform(self, made):
         from n26.library.authoring import create_slot_type
@@ -86,11 +125,16 @@ class CreatePickable:
     moved_modifier_ids: tuple = ()
     #: The old row the modifiers come off, as (model label, pk).
     moved_from: tuple = ()
+    #: Where the pickable is homed, as (category pk, category name) — for
+    #: a system whose whole payload is the home itself: a chosen-mode
+    #: placement reads the chosen thing's ``category`` and nothing else.
+    homed_in: tuple = ()
 
     def say(self):
         n = len(self.moved_modifier_ids)
         moved = f", moving {n} modifier{'' if n == 1 else 's'}" if n else ""
-        return f"create pickable “{self.name}” ({self.slot_type}){moved}"
+        homed = f", homed in “{self.homed_in[1]}”" if self.homed_in else ""
+        return f"create pickable “{self.name}” ({self.slot_type}){moved}{homed}"
 
     def perform(self, made):
         from django.apps import apps
@@ -98,7 +142,8 @@ class CreatePickable:
         from n26.library.authoring import create_pickable
         from n26.library.models import Modifier
 
-        pickable = create_pickable(self.name, made.slot_types[self.slot_type])
+        homing = {"category_id": self.homed_in[0]} if self.homed_in else {}
+        pickable = create_pickable(self.name, made.slot_types[self.slot_type], **homing)
         if self.moved_modifier_ids:
             app_label, model_name = self.moved_from[0].split(".")
             old = apps.get_model(app_label, model_name).objects.get(
