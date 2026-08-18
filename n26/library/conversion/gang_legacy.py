@@ -1,8 +1,8 @@
 """The Gang Legacy conversion — the Venator house-legacy system.
 
-Today: the twelve Venator hunt profiles share one offer of the
-archetype kind, labelled "Gang Legacy" and narrowed to the "House
-Legacies" menu; seven house-named archetype rows each carry one
+Today: the Venator hunt profiles share one offer of the archetype
+kind, labelled "Gang Legacy" and narrowed to the "House Legacies"
+menu; the house-named archetype rows it offers each carry one
 modifier — that house's equipment list, granted to the bearer. The
 kind is borrowed: when this was authored the concept had no kind of
 its own, and the label papered over the name — the card says
@@ -11,15 +11,15 @@ never says the borrowed word (these picks stand as their own acts), so
 no written story changes; where a surface asks a pick its sort, the
 answer becomes the card's word.
 
-After: a "Gang Legacy" slot type; the seven houses as pickables, each
-carrying its equipment-list modifier — moved, not copied; one picklist;
-one per-bearer slot granted by the same twelve profiles through one
+After: a "Gang Legacy" slot type; the menu's houses as pickables,
+each carrying its equipment-list modifier — moved, not copied; one
+picklist; one per-bearer slot granted by the same profiles through one
 shared modifier, preserving the factoring the authors chose. Every
 stored choice is re-said as a pick on its same anchor.
 
-**Nothing is deleted.** The emptied archetype rows, the old menu
-collection, and the one detached fossil offer stay where they are,
-saying what they say now.
+**Nothing is deleted.** The emptied archetype rows, any house the
+menu never offered, the old menu collection, and any detached fossil
+offer stay where they are, saying what they say now.
 
 This plan expects a clean field: the earlier slot pilot — a hollow
 slot type of the same name — must be retired first (the console offers
@@ -62,6 +62,7 @@ PROVEN = 25
 def plan_gang_legacy():
     from n26.core.models import Assignment
     from n26.library.models import Modifier, SlotType
+    from n26.library.models.pack import default_pack_id
 
     problems = []
 
@@ -95,7 +96,10 @@ def plan_gang_legacy():
     # The pilot must be retired before this can build: the names are
     # unique per pack, and a half-built slot type standing in this one's
     # place would make every step below a collision.
-    if SlotType.objects.filter(name=SLOT_TYPE).exists():
+    # Scoped to the default pack, where this builds: a custom pack's
+    # own slot type of the same name is somebody's content, not a
+    # collision.
+    if SlotType.objects.filter(name=SLOT_TYPE, pack_id=default_pack_id()).exists():
         problems.append(
             f"a slot type named “{SLOT_TYPE}” already stands — retire the "
             "pilot first (the console offers it)"

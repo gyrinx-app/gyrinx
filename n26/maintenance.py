@@ -546,11 +546,11 @@ register_operation(
         name=Operation.CONVERT_GANG_LEGACY.label,
         description=(
             "Move the Venator house legacies onto slots and picks: the "
-            "twelve hunt profiles grant a Gang Legacy slot instead of "
-            "offering an archetype, the seven houses become pickables "
-            "carrying their equipment lists, and every stored choice is "
-            "re-said as a pick. Proves every affected gang's pages read "
-            "the same, or writes nothing."
+            "hunt profiles grant a Gang Legacy slot instead of offering "
+            "an archetype, the menu's houses become pickables carrying "
+            "their equipment lists, and every stored choice is re-said "
+            "as a pick. Proves every affected gang's pages read the "
+            "same, or writes nothing."
         ),
         view=convert_gang_legacy_view,
         detail_template="admin/maintenance/n26/_convert_detail.html",

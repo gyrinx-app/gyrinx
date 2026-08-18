@@ -77,8 +77,14 @@ def find():
     """Read the pilot as it stands. Never writes."""
     from n26.core.models import Assignment, LedgerEvent
     from n26.library.models import Pickable, Picklist, Slot, SlotType
+    from n26.library.models.pack import default_pack_id
 
-    slot_type = SlotType.objects.filter(name=SLOT_TYPE).first()
+    # Scoped to the default pack: names are only unique per pack, and a
+    # custom pack's own slot type of this name is somebody's content,
+    # never the pilot.
+    slot_type = SlotType.objects.filter(
+        name=SLOT_TYPE, pack_id=default_pack_id()
+    ).first()
     if slot_type is None:
         return Pilot(nothing_here=True)
 
@@ -88,10 +94,11 @@ def find():
     pickables = list(Pickable.objects.filter(slot_type=slot_type))
 
     for pickable in pickables:
-        if pickable.modifiers.exists():
+        if pickable.modifiers.exists() or pickable.category_id is not None:
             problems.append(
-                f"pickable “{pickable.name}” carries modifiers — the pilot "
-                "was hollow, so this has grown a purpose and is not it"
+                f"pickable “{pickable.name}” carries modifiers or links a "
+                "category — the pilot was hollow, so this has grown a "
+                "purpose and is not it"
             )
 
     doomed = list(
