@@ -53,8 +53,10 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "Operation",
+    "convert_gang_legacy",
     "convert_skill_tree",
     "convert_specialisation",
+    "retire_gang_legacy_pilot",
     "task_routes",
 ]
 
@@ -88,6 +90,14 @@ class Operation(models.TextChoices):
         "n26_convert_skill_tree",
         "n26: the Venator skill trees become picks",
     )
+    CONVERT_GANG_LEGACY = (
+        "n26_convert_gang_legacy",
+        "n26: the Venator gang legacies become picks",
+    )
+    RETIRE_GANG_LEGACY_PILOT = (
+        "n26_retire_gang_legacy_pilot",
+        "n26: the gang legacy slot pilot retires",
+    )
     MERGE_WARGEAR_INTO_WEAPON = (
         "n26_merge_wargear_into_weapon",
         "n26: duplicated wargear becomes its weapon",
@@ -98,6 +108,8 @@ class Operation(models.TextChoices):
 LOCK_KEYS = {
     Operation.CONVERT_SPECIALISATION: 826_020_601,
     Operation.CONVERT_SKILL_TREE: 826_020_602,
+    Operation.CONVERT_GANG_LEGACY: 826_020_603,
+    Operation.RETIRE_GANG_LEGACY_PILOT: 826_020_604,
 }
 
 
@@ -285,6 +297,63 @@ def convert_skill_tree(backfill_id, **said_by_whoever_enqueued_it):
     )
 
 
+@task
+def convert_gang_legacy(backfill_id, **said_by_whoever_enqueued_it):
+    """The Gang Legacy conversion, as a task — see ``_run_conversion``."""
+    _run_conversion(
+        backfill_id,
+        Operation.CONVERT_GANG_LEGACY,
+        "gang_legacy",
+        **said_by_whoever_enqueued_it,
+    )
+
+
+@task
+def retire_gang_legacy_pilot(backfill_id, **said_by_whoever_enqueued_it):
+    """Retire the Gang Legacy slot pilot, once, and write down the outcome.
+
+    The same runner discipline as a conversion — the lock, the claim,
+    every ending recorded — but the work is the pilot module's own
+    find/apply: this deletes, which a conversion never does.
+    """
+    from n26.library.gang_legacy_pilot import Refused, apply, find
+
+    with _single_flight(LOCK_KEYS[Operation.RETIRE_GANG_LEGACY_PILOT]) as mine:
+        if not mine:
+            logger.info("Pilot retirement already running; this copy stands down")
+            return
+
+        may_start, why_not = _claim(backfill_id)
+        if not may_start:
+            logger.info("Pilot retirement not started: %s", why_not)
+            _write(
+                backfill_id,
+                status=Backfill.Status.FAILED,
+                error=f"Not started: {why_not}",
+            )
+            return
+
+        try:
+            report = apply(find())
+        except Refused as refused:
+            _write(backfill_id, status=Backfill.Status.FAILED, error=str(refused))
+            return
+        except Exception as broke:  # noqa: BLE001 — the ending must be recorded
+            logger.exception("Pilot retirement broke")
+            _write(
+                backfill_id,
+                status=Backfill.Status.FAILED,
+                error=f"{broke}\n\n{traceback.format_exc()}",
+            )
+            return
+
+        _write(
+            backfill_id,
+            status=Backfill.Status.DONE,
+            summary_patch={"report": list(report)},
+        )
+
+
 def _conversion_view(request, operation, system, task_fn):
     """Preview a conversion (GET), or record a run and enqueue it (POST)."""
     address = reverse(f"admin:maintenance_{operation.value}")
@@ -368,6 +437,63 @@ def convert_skill_tree_view(request):
     )
 
 
+def convert_gang_legacy_view(request):
+    return _conversion_view(
+        request,
+        Operation.CONVERT_GANG_LEGACY,
+        "gang_legacy",
+        convert_gang_legacy,
+    )
+
+
+def retire_gang_legacy_pilot_view(request):
+    """Preview the pilot retirement (GET), or record a run and enqueue it."""
+    from n26.library.gang_legacy_pilot import find
+
+    operation = Operation.RETIRE_GANG_LEGACY_PILOT
+    address = reverse(f"admin:maintenance_{operation.value}")
+    if request.method == "POST":
+        running = running_guard(operation)
+        if running is not None:
+            messages.warning(request, "That retirement is already running.")
+            return HttpResponseRedirect(
+                reverse("admin:maintenance_backfill_detail", args=[running.id])
+            )
+        pilot = find()
+        if pilot.nothing_here:
+            messages.info(request, "There is nothing to retire.")
+            return HttpResponseRedirect(address)
+        if not pilot.ok:
+            messages.error(
+                request, "The retirement refuses: " + "; ".join(pilot.problems)
+            )
+            return HttpResponseRedirect(address)
+        backfill = Backfill.objects.create(
+            operation=operation,
+            triggered_by=request.user,
+            status=Backfill.Status.RUNNING,
+            summary={"preview": list(pilot.preview()), "attempts": 0},
+        )
+        retire_gang_legacy_pilot.enqueue(backfill_id=str(backfill.id))
+        messages.success(
+            request, "The retirement is running. This page shows what it did."
+        )
+        return HttpResponseRedirect(
+            reverse("admin:maintenance_backfill_detail", args=[backfill.id])
+        )
+
+    pilot = find()
+    context = page_context(
+        request,
+        operation.label,
+        pilot=pilot,
+        preview=list(pilot.preview()),
+        apply_url=address,
+        recent=Backfill.objects.filter(operation=operation)[:10],
+    )
+    return render(request, "admin/maintenance/n26/retire_pilot.html", context)
+
+
 register_operation(
     MaintenanceOperation(
         operation=Operation.CONVERT_SPECIALISATION.value,
@@ -398,6 +524,39 @@ register_operation(
     )
 )
 
+register_operation(
+    MaintenanceOperation(
+        operation=Operation.RETIRE_GANG_LEGACY_PILOT.value,
+        name=Operation.RETIRE_GANG_LEGACY_PILOT.label,
+        description=(
+            "Delete the hand-built Gang Legacy slot experiment: its hollow "
+            "pickables, its slot machinery, and the one test gang's "
+            "assignments answering it. Runs before the Gang Legacy "
+            "conversion, which needs the names it squats on. Refuses if "
+            "anything outside the pilot has come to depend on it."
+        ),
+        view=retire_gang_legacy_pilot_view,
+        detail_template="admin/maintenance/n26/_convert_detail.html",
+    )
+)
+
+register_operation(
+    MaintenanceOperation(
+        operation=Operation.CONVERT_GANG_LEGACY.value,
+        name=Operation.CONVERT_GANG_LEGACY.label,
+        description=(
+            "Move the Venator house legacies onto slots and picks: the "
+            "twelve hunt profiles grant a Gang Legacy slot instead of "
+            "offering an archetype, the seven houses become pickables "
+            "carrying their equipment lists, and every stored choice is "
+            "re-said as a pick. Proves every affected gang's pages read "
+            "the same, or writes nothing."
+        ),
+        view=convert_gang_legacy_view,
+        detail_template="admin/maintenance/n26/_convert_detail.html",
+    )
+)
+
 #: Declared for the task registry, which reads this from ``n26/core/tasks.py``.
 #: The deadline is the longest Pub/Sub allows, because a conversion holds one
 #: transaction for as long as proving its spread of gangs takes. It is also
@@ -409,6 +568,8 @@ register_operation(
 task_routes = [
     TaskRoute(convert_specialisation, ack_deadline=600, min_retry_delay=60),
     TaskRoute(convert_skill_tree, ack_deadline=600, min_retry_delay=60),
+    TaskRoute(convert_gang_legacy, ack_deadline=600, min_retry_delay=60),
+    TaskRoute(retire_gang_legacy_pilot, ack_deadline=600, min_retry_delay=60),
 ]
 
 

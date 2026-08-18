@@ -1,0 +1,76 @@
+{% extends "admin/base_site.html" %}
+{% comment %}
+The pilot retirement's console page: what stands, what deleting it
+means, an apply button, and the recent runs. Context from
+retire_gang_legacy_pilot_view (n26/maintenance.py): title, pilot,
+preview, apply_url, recent.
+{% endcomment %}
+{% block title %}
+    {{ title }} | {{ site_title|default:_("Django site admin") }}
+{% endblock title %}
+{% block extrahead %}
+    {{ block.super }}
+    <style>
+    .mt-plan { font-family: monospace; line-height: 1.6; }
+    .mt-form { margin-top: 2rem; }
+    .mt-table { width: 100%; margin-top: 1rem; }
+    .mt-problems { color: var(--error-fg, #ba2121); }
+    </style>
+{% endblock extrahead %}
+{% block content %}
+    <p>
+        <a href="{% url 'admin:maintenance_index' %}">← Back to Maintenance</a>
+    </p>
+    <h1>{{ title }}</h1>
+    <p>
+        This deletes — the one operation that does. The pilot was a hand-built
+        experiment whose pickables carry nothing, and its rows squat on the
+        names the real Gang Legacy conversion needs. Every row it would
+        delete is listed below; it refuses if anything outside the pilot has
+        come to depend on them.
+    </p>
+    {% if pilot.nothing_here %}
+        <h2>Nothing to retire</h2>
+        <p>No slot type of the pilot's name stands. It has been retired already, or was never here.</p>
+    {% elif not pilot.ok %}
+        <h2 class="mt-problems">The retirement refuses</h2>
+        <ul class="mt-problems">
+            {% for problem in pilot.problems %}<li>{{ problem }}</li>{% endfor %}
+        </ul>
+        <p>Nothing can be applied while any of these stands.</p>
+    {% else %}
+        <h2>What it would do</h2>
+        <ul class="mt-plan">
+            {% for line in preview %}<li>{{ line }}</li>{% endfor %}
+        </ul>
+        <form method="post"
+              class="mt-form"
+              onsubmit="return confirm('Delete the pilot? This cannot be undone.')">
+            {% csrf_token %}
+            <button type="submit" class="button default">Retire the pilot</button>
+        </form>
+    {% endif %}
+    {% if recent %}
+        <h2>Recent runs</h2>
+        <table class="mt-table">
+            <thead>
+                <tr>
+                    <th>When</th>
+                    <th>Status</th>
+                    <th>Triggered by</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for run in recent %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'admin:maintenance_backfill_detail' run.id %}">{{ run.created }}</a>
+                        </td>
+                        <td>{{ run.get_status_display }}</td>
+                        <td>{{ run.triggered_by|default:"—" }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+{% endblock content %}

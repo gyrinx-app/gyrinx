@@ -328,6 +328,66 @@ class SwapCarrier:
 
 
 @dataclass(frozen=True)
+class SwapSharedCarrier:
+    """One offer shared by many carriers becomes one shared grant.
+
+    The offer modifier is a single row every carrier holds, so dropping
+    it detaches all of them at once — which is why the plan proves the
+    carriers are exactly the ones named here before this step exists.
+    The grant is one shared modifier too, so the factoring the authors
+    chose is preserved: one question's wiring, held in one place.
+    """
+
+    carriers: tuple  # ((model label, pk), ...) — every carrier, proven
+    carriers_said: str
+    drop_modifier_id: object
+    drop_modifier_name: str
+    grant_name: str
+    slot: str
+    reach: str = "model"
+
+    def say(self):
+        return (
+            f"on {self.carriers_said}: replace the shared "
+            f"“{self.drop_modifier_name}” with a shared grant of the "
+            f"“{self.slot}” slot"
+        )
+
+    def perform(self, made):
+        from django.apps import apps
+
+        from n26.library.authoring import (
+            attach_modifiers_to,
+            ef_adds,
+            modifier,
+            targets_gang_alone,
+            targets_model,
+        )
+        from n26.library.models import Modifier
+
+        rows = [
+            apps.get_model(*label.split(".")).objects.get(pk=pk)
+            for label, pk in self.carriers
+        ]
+        dropped = Modifier.objects.get(pk=self.drop_modifier_id)
+        scope_row, effect_row = dropped.scope, dropped.effect
+        for carrier in rows:
+            carrier.modifiers.remove(dropped)
+        dropped.delete()
+        scope_row.delete()
+        effect_row.delete()
+        scope = targets_gang_alone() if self.reach == "gang_alone" else targets_model()
+        grant = modifier(
+            self.grant_name,
+            scope,
+            ef_adds(made.slots[self.slot]),
+            attach_to=rows[0],
+        )
+        for carrier in rows[1:]:
+            attach_modifiers_to(carrier, [grant])
+
+
+@dataclass(frozen=True)
 class DropModifier:
     """A modifier retired outright — for behaviour that is ending, not
     moving. The plan must have proven the modifier does nothing on any

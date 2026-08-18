@@ -22,9 +22,17 @@ from n26.core.models import Assignment
 from n26.maintenance import (
     MAX_ATTEMPTS,
     Operation,
+    convert_gang_legacy_view,
     convert_skill_tree_view,
     convert_specialisation,
     convert_specialisation_view,
+    retire_gang_legacy_pilot_view,
+)
+from n26.tests.sandbox.test_conversion_gang_legacy import (
+    build_prod_shape as build_gang_legacy_shape,
+)
+from n26.tests.sandbox.test_conversion_gang_legacy import (
+    build_world as build_gang_legacy_world,
 )
 from n26.tests.sandbox.test_conversion_skill_tree import (
     build_prod_shape as build_skill_tree_shape,
@@ -183,6 +191,80 @@ class TestTheSkillTreeConversion:
             skill_tree__isnull=False, archived=False
         ).exclude(removes=True)
         assert left.count() == 1
+
+
+class TestTheGangLegacyPair:
+    """The pilot retirement and the Gang Legacy conversion, in the
+    order the console must run them: the conversion refuses while the
+    pilot stands, and converts once it is retired."""
+
+    @pytest.fixture
+    def legacy_world(self, person_type, owner, default_pack):
+        shape = build_gang_legacy_shape(person_type)
+        return build_gang_legacy_world(shape, owner)
+
+    def test_both_operations_are_registered_and_named(self):
+        registered = {op.operation for op in operations()}
+
+        assert Operation.CONVERT_GANG_LEGACY.value in registered
+        assert Operation.RETIRE_GANG_LEGACY_PILOT.value in registered
+        assert (
+            resolve_operation(Operation.CONVERT_GANG_LEGACY.value).view
+            is convert_gang_legacy_view
+        )
+        assert (
+            resolve_operation(Operation.RETIRE_GANG_LEGACY_PILOT.value).view
+            is retire_gang_legacy_pilot_view
+        )
+
+    def test_the_retirement_page_shows_the_plan_and_writes_nothing(
+        self, client, superuser, legacy_world
+    ):
+        from n26.tests.sandbox.actions import create_slot_type
+
+        create_slot_type("Gang Legacy")
+        client.force_login(superuser)
+
+        response = client.get(reverse("admin:maintenance_n26_retire_gang_legacy_pilot"))
+
+        page = response.content.decode()
+        assert response.status_code == 200
+        assert "hollow pickables" in page
+        assert not Backfill.objects.exists()
+
+    def test_the_conversion_refuses_while_the_pilot_stands(
+        self, client, superuser, legacy_world
+    ):
+        from n26.tests.sandbox.actions import create_slot_type
+
+        create_slot_type("Gang Legacy")
+        client.force_login(superuser)
+
+        response = client.get(reverse("admin:maintenance_n26_convert_gang_legacy"))
+
+        assert "retire the pilot first" in response.content.decode()
+
+    def test_retire_then_convert_in_the_console_order(
+        self, client, superuser, legacy_world
+    ):
+        from n26.tests.sandbox.actions import create_slot_type
+
+        create_slot_type("Gang Legacy")
+        client.force_login(superuser)
+
+        client.post(reverse("admin:maintenance_n26_retire_gang_legacy_pilot"))
+        retired = Backfill.objects.get(operation=Operation.RETIRE_GANG_LEGACY_PILOT)
+        assert retired.status == Backfill.Status.DONE
+
+        client.post(reverse("admin:maintenance_n26_convert_gang_legacy"))
+        converted = Backfill.objects.get(operation=Operation.CONVERT_GANG_LEGACY)
+        assert converted.status == Backfill.Status.DONE
+        assert any("applied" in line for line in converted.summary["report"])
+        left = Assignment.objects.filter(
+            archetype__isnull=False, archived=False
+        ).exclude(removes=True)
+        # The doubled click's spare and the other system's pick remain.
+        assert left.count() == 2
 
 
 class TestApplying:
