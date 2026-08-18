@@ -152,9 +152,7 @@
                                                     {% endif %}
                                                 </span>
                                             </td>
-                                            {% for stat in profile.statline %}
-                                                <td class="text-center {{ stat.classes }}">{{ stat.value }}</td>
-                                            {% endfor %}
+                                            {% for stat in profile.statline %}<td class="text-center {{ stat.classes }}">{{ stat.value }}</td>{% endfor %}
                                         </tr>
                                         {% if profile.traitline|length > 0 %}
                                             <tr>
