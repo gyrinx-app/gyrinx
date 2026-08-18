@@ -145,6 +145,11 @@ class TestTheApply:
         assert old.chosen_for_id == old.caused_by_id
         assert old.chosen_for == Assignment.objects.get(hidden=carrier, gang=settled)
         assert old.chosen_for_slot == Slot.objects.get(name="Path")
+        # Wherever a surface names what sort of thing this pick is, the
+        # word is the slot type's — the same word its old kind carried.
+        from n26.core.history import _kindword
+
+        assert _kindword(old) == "path"
 
     def test_the_old_system_is_gone(self, gangs):
         apply(plan_paths())

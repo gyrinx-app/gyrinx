@@ -42,9 +42,6 @@ from n26.library.conversion.base import (
     spread,
 )
 
-_answers = one_answer_per_question
-_spread = spread
-
 SUBTYPE = "Specialist"
 SLOT_TYPE = "Specialisation"
 PICKLIST = "Specialisations"
@@ -195,7 +192,7 @@ def plan_specialisation():
         .select_related("specialisation", "gang_root", "caused_by")
         .order_by("created")
     )
-    answers, spares = _answers(picks)
+    answers, spares = one_answer_per_question(picks)
 
     # A carrier that arrives by grant has no assignment to find it by,
     # so the gangs it reaches cannot be counted and cannot be drawn into
@@ -336,7 +333,7 @@ def plan_specialisation():
         )
     answered = {pick.gang_root_id for pick in answers}
     holders |= answered
-    proven = _spread(
+    proven = spread(
         holders,
         [
             [pick.gang_root_id for pick in spares],

@@ -445,7 +445,7 @@ class TestTheSpread:
     and this is the part carrying the claim that a sample is enough."""
 
     def test_it_takes_from_every_kind_before_filling_up(self):
-        from n26.library.conversion.specialisation import _spread
+        from n26.library.conversion.base import spread as _spread
 
         odd, narrow, quiet, ordinary = ["a"], ["b"], ["c", "d"], list("efghijkl")
         reached = set(odd + narrow + quiet + ordinary)
@@ -457,7 +457,7 @@ class TestTheSpread:
         assert len(chosen) == 5
 
     def test_it_stops_at_the_limit_and_repeats_nobody(self):
-        from n26.library.conversion.specialisation import _spread
+        from n26.library.conversion.base import spread as _spread
 
         everyone = [str(n) for n in range(40)]
 
@@ -467,14 +467,14 @@ class TestTheSpread:
         assert len(set(chosen)) == 25
 
     def test_it_offers_nobody_the_change_does_not_reach(self):
-        from n26.library.conversion.specialisation import _spread
+        from n26.library.conversion.base import spread as _spread
 
         chosen = _spread({"a"}, [["a", "stranger"]], 25)
 
         assert chosen == ["a"]
 
     def test_it_takes_everyone_when_there_are_fewer_than_the_limit(self):
-        from n26.library.conversion.specialisation import _spread
+        from n26.library.conversion.base import spread as _spread
 
         chosen = _spread({"a", "b"}, [["a"], ["b"]], 25)
 
