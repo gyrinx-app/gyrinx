@@ -376,6 +376,15 @@ def apply(plan):
     return report
 
 
+#: What Postgres may call an isolation level. The restore has to be
+#: written into the statement rather than passed as a value, so what
+#: goes in is checked against this rather than trusted — an answer
+#: nobody expected should stop the run, not travel into SQL.
+ISOLATION_LEVELS = frozenset(
+    {"read uncommitted", "read committed", "repeatable read", "serializable"}
+)
+
+
 @contextmanager
 def _one_snapshot():
     """Ask for the whole run to read one unchanging view of the database.
@@ -413,6 +422,11 @@ def _one_snapshot():
     with connection.cursor() as cursor:
         cursor.execute("SHOW default_transaction_isolation")
         was = cursor.fetchone()[0]
+        if was.lower() not in ISOLATION_LEVELS:
+            raise ConversionRefused(
+                f"the database calls its isolation “{was}”, which is not a "
+                "level this knows how to put back"
+            )
         cursor.execute(
             "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL REPEATABLE READ"
         )

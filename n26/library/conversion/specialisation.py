@@ -310,16 +310,20 @@ def plan_specialisation():
     # Every gang the change can reach, and then the spread actually
     # proven: one holding a doubled answer, one holding the narrowed
     # question, one that never answered, and ordinary ones.
+    # Removal machinery is not a holding: a subtype taken away would
+    # otherwise read as one held, and count a gang the change never
+    # reaches.
     holders = set(
         Assignment.objects.filter(archived=False, subtype=subtype)
+        .exclude(removes=True)
         .values_list("gang_root_id", flat=True)
         .distinct()
     )
     if narrow is not None:
         holders |= set(
-            Assignment.objects.filter(archived=False, hidden=narrow).values_list(
-                "gang_root_id", flat=True
-            )
+            Assignment.objects.filter(archived=False, hidden=narrow)
+            .exclude(removes=True)
+            .values_list("gang_root_id", flat=True)
         )
     answered = {pick.gang_root_id for pick in answers}
     holders |= answered
