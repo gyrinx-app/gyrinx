@@ -179,6 +179,23 @@ def convert_specialisation(backfill_id, **said_by_whoever_enqueued_it):
     """
     from n26.library.conversion import ConversionRefused, apply
 
+    # A message from a version that could be told not to keep its work.
+    # Ignoring the instruction would turn the careful thing somebody asked
+    # for into the committing one, which is the opposite of what they
+    # wanted; there is no rehearsing any more, so the honest answer is to
+    # decline it.
+    if said_by_whoever_enqueued_it.get("keep") is False:
+        _write(
+            backfill_id,
+            status=Backfill.Status.FAILED,
+            error=(
+                "This asked to be rehearsed and then thrown away, which this "
+                "version cannot do. Nothing was run. Ask for it again from "
+                "the page."
+            ),
+        )
+        return
+
     # The lock comes first, and nothing is recorded before it is held. A
     # redelivery arriving while the first copy is still working must leave
     # no trace at all: count its arrival as an attempt and a long run could
@@ -245,6 +262,17 @@ def convert_specialisation_view(request):
             # the screen of whoever asked for it.
             messages.error(
                 request, "The conversion refuses: " + "; ".join(plan.problems)
+            )
+            return HttpResponseRedirect(
+                reverse("admin:maintenance_n26_convert_specialisation")
+            )
+        if request.POST.get("keep") == "no":
+            # A page open since before the rehearsal was taken away. Its
+            # gentler button would land here and convert for real.
+            messages.warning(
+                request,
+                "That page offered a rehearsal, which no longer exists. "
+                "Nothing has been run — reload and apply if you mean to.",
             )
             return HttpResponseRedirect(
                 reverse("admin:maintenance_n26_convert_specialisation")
