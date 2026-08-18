@@ -96,6 +96,11 @@ event and is told to clear itself by `filter-reset`.
         A category's number ignores the category filter, so the filter menu
         can show what each choice would yield; a section's number respects
         it, so a section with every category unticked hides itself.
+
+        Categories are counted per section, because a category name is only
+        unique within one — the rulebook files Primitive Weapons under both
+        Ranged and Close Combat. Counted by name alone, one section's
+        matches draw the other section a header with nothing behind it.
         {% endcomment %}
         counts: { section: {}, category: {}, sectionTotal: {}, shown: 0, total: 0 },
         recount() {
@@ -104,7 +109,8 @@ event and is told to clear itself by `filter-reset`.
             for (const facets of this.items) {
                 sectionTotal[facets.section] = (sectionTotal[facets.section] || 0) + 1;
                 if (!this.matches(facets)) continue;
-                byCategory[facets.category] = (byCategory[facets.category] || 0) + 1;
+                const inSection = byCategory[facets.section] || (byCategory[facets.section] = {});
+                inSection[facets.category] = (inSection[facets.category] || 0) + 1;
                 if (this.categoryOn(facets.category)) {
                     bySection[facets.section] = (bySection[facets.section] || 0) + 1;
                     shown += 1;
@@ -139,7 +145,7 @@ event and is told to clear itself by `filter-reset`.
         },
 
         categoryOn(name) { return this.categories.includes(name) },
-        countIn(name) { return this.counts.category[name] || 0 },
+        countIn(section, name) { return (this.counts.category[section] || {})[name] || 0 },
         {% comment %}
         Which section is on screen is derived, never stored: chosenSection is
         only what was last clicked, and what shows is that section if it still

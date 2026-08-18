@@ -13,6 +13,10 @@ A category is the stable half of the pair — Pistols is Pistols for everyone,
 while library.PlacesCategory files the same category under different sections
 for different models — which is why the category filter keys off this one.
 
+Its count is asked for by section as well as by name: one name can be two
+categories, filed under two sections, and the header must count only the rows
+beneath it.
+
 It hides itself at zero matches, so filtering leaves no labelled gaps.
 
   name — the category's name: what items register against, and what the
@@ -22,7 +26,7 @@ It hides itself at zero matches, so filtering leaves no labelled gaps.
 <c-vars name="" :open="True" />
 
 <div x-data="{ open: {{ open|lower }}, categoryName: {{ name|json_dumps }} }"
-     x-show="categoryOn(categoryName) && countIn(categoryName) > 0"
+     x-show="categoryOn(categoryName) && countIn(sectionName, categoryName) > 0"
      @collection-picker-toggle.window="open = $event.detail.open"
      x-cloak>
 
@@ -42,7 +46,7 @@ It hides itself at zero matches, so filtering leaves no labelled gaps.
         <span class="min-w-0 flex-1 truncate text-xs font-semibold uppercase tracking-wide text-muted">{{ name }}</span>
 
         <span class="shrink-0 text-xs tabular-nums text-muted" aria-hidden="true"
-              x-text="countIn(categoryName)"></span>
+              x-text="countIn(sectionName, categoryName)"></span>
     </button>
 
     <div x-show="open || query.length > 0" x-collapse>{{ slot }}</div>
