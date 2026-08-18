@@ -54,7 +54,7 @@
 {% url 'account_logout' as logout_url_ %}
 {% if logout_url_ %}
     <li class="{{ list_item_class }}">
-        <a class="{{ list_a_class }} link-danger {% active_view 'account_logout' %} "
+        <a class="{{ list_a_class }} link-danger {% active_view 'account_logout' %}"
            {% active_aria 'account_logout' %}
            href="{{ logout_url_ }}">{% trans "Sign Out" %}</a>
     </li>
