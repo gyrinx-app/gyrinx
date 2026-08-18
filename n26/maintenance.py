@@ -51,7 +51,12 @@ from gyrinx.tasks import TaskRoute
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["Operation", "convert_specialisation", "task_routes"]
+__all__ = [
+    "Operation",
+    "convert_specialisation",
+    "merge_wargear_into_weapon_view",
+    "task_routes",
+]
 
 #: How many times a run may be started before the record gives up. A
 #: conversion that exhausts the request budget leaves nothing behind and
@@ -73,6 +78,10 @@ class Operation(models.TextChoices):
     CONVERT_SPECIALISATION = (
         "n26_convert_specialisation",
         "n26: the specialisations become picks",
+    )
+    MERGE_WARGEAR_INTO_WEAPON = (
+        "n26_merge_wargear_into_weapon",
+        "n26: duplicated wargear becomes its weapon",
     )
 
 
@@ -333,3 +342,96 @@ register_operation(
 #: successfully and acknowledges the message out from under it. Change one and
 #: change the other (``--timeout`` in ``cloudbuild.yaml``).
 task_routes = [TaskRoute(convert_specialisation, ack_deadline=600, min_retry_delay=60)]
+
+
+def merge_wargear_into_weapon_view(request):
+    """Preview the merge, or perform it.
+
+    Small enough to answer in the request, unlike the conversion above: a
+    few hundred rows move, and what proves the run is a reconcile per
+    affected gang rather than a render of every page.
+    """
+    from n26.library.repair import Refused, apply, find_candidates, gangs_holding
+
+    address = reverse("admin:maintenance_n26_merge_wargear_into_weapon")
+    if request.method == "POST":
+        try:
+            result = apply()
+        except Refused as refused:
+            # The repair unwound itself rather than move a number it must
+            # not. Nothing was written, and the reason is already in words.
+            Backfill.objects.create(
+                operation=Operation.MERGE_WARGEAR_INTO_WEAPON,
+                triggered_by=request.user,
+                status=Backfill.Status.FAILED,
+                error=str(refused),
+            )
+            messages.error(request, f"The repair refuses: {refused}")
+            return HttpResponseRedirect(address)
+        except Exception as broke:  # noqa: BLE001 — the ending must be recorded
+            logger.exception("Wargear merge broke")
+            Backfill.objects.create(
+                operation=Operation.MERGE_WARGEAR_INTO_WEAPON,
+                triggered_by=request.user,
+                status=Backfill.Status.FAILED,
+                error=f"{broke}\n\n{traceback.format_exc()}",
+            )
+            messages.error(request, f"The repair failed: {broke}")
+            return HttpResponseRedirect(address)
+
+        if not result.merged:
+            # A page left open across someone else's run, most likely.
+            # Recording a run that did nothing only clutters the history.
+            messages.info(request, "There is nothing to merge.")
+            return HttpResponseRedirect(address)
+
+        backfill = Backfill.objects.create(
+            operation=Operation.MERGE_WARGEAR_INTO_WEAPON,
+            triggered_by=request.user,
+            status=Backfill.Status.DONE,
+            summary=result.as_dict(),
+        )
+        messages.success(
+            request,
+            f"Merged {len(result.merged)} piece(s) of gear across "
+            f"{result.gangs} gang(s).",
+        )
+        return HttpResponseRedirect(
+            reverse("admin:maintenance_backfill_detail", args=[backfill.id])
+        )
+
+    candidates = find_candidates()
+    merges = [c for c in candidates if c.merges]
+    context = page_context(
+        request,
+        Operation.MERGE_WARGEAR_INTO_WEAPON.label,
+        merges=merges,
+        skips=[c for c in candidates if not c.merges],
+        entries=sum(c.entries for c in merges),
+        assignments=sum(c.assignments for c in merges),
+        gangs=len(gangs_holding(merges)),
+        apply_url=address,
+        recent=Backfill.objects.filter(
+            operation=Operation.MERGE_WARGEAR_INTO_WEAPON
+        ).order_by("-created")[:10],
+    )
+    return render(
+        request, "admin/maintenance/n26/merge_wargear_into_weapon.html", context
+    )
+
+
+register_operation(
+    MaintenanceOperation(
+        operation=Operation.MERGE_WARGEAR_INTO_WEAPON.value,
+        name=Operation.MERGE_WARGEAR_INTO_WEAPON.label,
+        description=(
+            "Some gear is stored twice — once as wargear, once as the "
+            "weapon carrying its firing line — so it lists twice and the "
+            "wargear copy prints no statline. Moves the equipment lists "
+            "and the purchases onto the weapon and drops the wargear row. "
+            "Moves no money, and proves it gang by gang."
+        ),
+        view=merge_wargear_into_weapon_view,
+        detail_template="admin/maintenance/n26/_merge_wargear_detail.html",
+    )
+)

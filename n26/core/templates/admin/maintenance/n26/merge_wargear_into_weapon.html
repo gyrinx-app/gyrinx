@@ -1,0 +1,129 @@
+{% extends "admin/base_site.html" %}
+{% block title %}
+    {{ title }} | {{ site_title|default:_("Django site admin") }}
+{% endblock title %}
+{% block extrahead %}
+    {{ block.super }}
+    <style>
+    .mt-form { margin-top: 2rem; }
+    .mt-table { width: 100%; margin-top: 1rem; }
+    .mt-skip { color: var(--body-quiet-color, #666); }
+    </style>
+{% endblock extrahead %}
+{% block content %}
+    <p>
+        <a href="{% url 'admin:maintenance_index' %}">← Back to Maintenance</a>
+    </p>
+    <h1>{{ title }}</h1>
+    <p>
+        Some gear is stored twice: once as wargear, and once as the weapon
+        carrying its firing line. Both are priced, so both list in the Trading
+        Post, and the wargear copy can hold no statline — anything bought
+        through it prints as a bare name.
+    </p>
+    <p>
+        This is a preview. Nothing has been changed. Applying moves the
+        equipment lists and the purchases onto the weapon and drops the wargear
+        row, all in one transaction. It moves no money: the two agree on price,
+        and what a purchase was worth lives on its ledger entry, which is not
+        touched. Every affected gang whose books balance beforehand is reconciled
+        again afterwards, and the whole run unwinds if any of them stops
+        balancing. A gang already drifting is left out of that proof rather than
+        allowed to block the repair.
+    </p>
+    <p>
+        One thing does change for a reader: a gang's history says what an
+        assignment names now, so these purchases will start reading "weapon"
+        where they read "wargear".
+    </p>
+    {% if not merges %}
+        <h2>Nothing to merge</h2>
+        <p>No wargear shares a pack and a name with a weapon that could hold its firing line.</p>
+    {% else %}
+        <h2>What it would merge</h2>
+        <p>
+            {{ merges|length }} piece{{ merges|length|pluralize }} of gear,
+            {{ entries }} equipment-list line{{ entries|pluralize }} and
+            {{ assignments }} purchase{{ assignments|pluralize }} across
+            {{ gangs }} gang{{ gangs|pluralize }}.
+        </p>
+        <table class="mt-table">
+            <thead>
+                <tr>
+                    <th>Gear</th>
+                    <th>Category</th>
+                    <th>Equipment lists</th>
+                    <th>Purchases</th>
+                    <th>Gangs</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for candidate in merges %}
+                    <tr>
+                        <td>{{ candidate.wargear.name }}</td>
+                        <td>{{ candidate.wargear.category }}</td>
+                        <td>{{ candidate.entries }}</td>
+                        <td>{{ candidate.assignments }}</td>
+                        <td>{{ candidate.gangs }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <form method="post"
+              class="mt-form"
+              onsubmit="return confirm('Merge {{ merges|length }} piece(s) of gear across {{ gangs }} gang(s)? It writes nothing unless every gang still balances.')">
+            {% csrf_token %}
+            <button type="submit" class="button default">Apply merge</button>
+        </form>
+    {% endif %}
+    {% if skips %}
+        <h2>Left alone</h2>
+        <p>
+            These share a name but not everything else, so they are not
+            obviously one thing. Each needs a decision rather than a sweep.
+        </p>
+        <table class="mt-table">
+            <thead>
+                <tr>
+                    <th>Gear</th>
+                    <th>As wargear</th>
+                    <th>As weapon</th>
+                    <th>Why</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for candidate in skips %}
+                    <tr>
+                        <td>{{ candidate.wargear.name }}</td>
+                        <td>{{ candidate.wargear.category }}</td>
+                        <td>{{ candidate.weapon.category }}</td>
+                        <td class="mt-skip">{{ candidate.reason }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+    {% if recent %}
+        <h2>Recent runs</h2>
+        <table class="mt-table">
+            <thead>
+                <tr>
+                    <th>When</th>
+                    <th>Status</th>
+                    <th>Triggered by</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for run in recent %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'admin:maintenance_backfill_detail' run.id %}">{{ run.created }}</a>
+                        </td>
+                        <td>{{ run.get_status_display }}</td>
+                        <td>{{ run.triggered_by|default:"—" }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+{% endblock content %}

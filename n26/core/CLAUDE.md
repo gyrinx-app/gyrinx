@@ -23,7 +23,13 @@ underlying spec.
 - **Never create or modify an `Assignment`, `LedgerEntry`, or
   `LedgerEvent` outside `operation(gang, actor=...)`.** A bare
   `objects.create()` skips the ledger entry, the event, and the repin;
-  nothing notices until `reconcile` runs.
+  nothing notices until `reconcile` runs. Two places in `n26.library`
+  are sanctioned exceptions, and both earn it the same way: a
+  conversion and a duplicate-content repair move no money, write their
+  own zero-valued entries where they must, and prove every affected
+  gang still reconciles or unwind whole. Neither writes an event —
+  what they change is how something was recorded, not something the
+  owner did.
 - **Removing an assignment cascades down its cause chain.** Everything
   `caused_by` the removed assignment goes too, recursively — hire,
   built-ins, and grants all rely on this to unwind cleanly.
