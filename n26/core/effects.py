@@ -1037,11 +1037,12 @@ def _acquisitions(log, dead):
 
 def _placed_category(effect, node, by_cause):
     """The category a placement puts somewhere: its own, or — chosen
-    mode — the home of whatever was chosen for its carrier's choice.
+    mode — the category of whatever was chosen for its carrier's choice.
 
     What was chosen is an assignment caused by the carrier's, exactly as
-    a slot resolves; its assignable's ``category`` home names the set
-    (a ``SkillTree`` token's whole payload). Nothing chosen, no category.
+    a slot resolves; its assignable's ``category`` names the set — a
+    ``SkillTree`` token's home, a pickable's linked category, either
+    way the chosen thing's whole payload. Nothing chosen, no category.
     """
     if not effect.the_chosen:
         return effect.category

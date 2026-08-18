@@ -43,19 +43,20 @@ URL_NAME = "admin:maintenance_n26_convert_specialisation"
 
 
 @contextmanager
-def _lock_held_elsewhere():
-    """Hold the run's lock on another connection, as a run in flight does."""
+def _lock_held_elsewhere(operation=None):
+    """Hold one run's lock on another connection, as a run in flight does."""
     from django.db import connections
 
-    from n26.maintenance import LOCK_KEY
+    from n26.maintenance import LOCK_KEYS
 
+    key = LOCK_KEYS[operation or Operation.CONVERT_SPECIALISATION]
     other = connections.create_connection("default")
     try:
         with other.cursor() as cursor:
-            cursor.execute("SELECT pg_advisory_lock(%s)", [LOCK_KEY])
+            cursor.execute("SELECT pg_advisory_lock(%s)", [key])
         yield
         with other.cursor() as cursor:
-            cursor.execute("SELECT pg_advisory_unlock(%s)", [LOCK_KEY])
+            cursor.execute("SELECT pg_advisory_unlock(%s)", [key])
     finally:
         other.close()
 
@@ -151,6 +152,21 @@ class TestTheSkillTreeConversion:
         assert "prove 4 of 4 reached gangs read the same" in page
         assert not Backfill.objects.exists()
         assert Assignment.objects.filter(skill_tree__isnull=False).exists()
+
+    def test_one_conversion_running_does_not_strand_the_other(
+        self, client, superuser, tree_world
+    ):
+        """The locks are per operation. Were they shared, this run would
+        stand down at the other conversion's lock without writing, its
+        message would be acknowledged, and its record would say RUNNING
+        for ever — with the running-guard then refusing every retry."""
+        client.force_login(superuser)
+
+        with _lock_held_elsewhere(Operation.CONVERT_SPECIALISATION):
+            client.post(reverse("admin:maintenance_n26_convert_skill_tree"))
+
+        run = Backfill.objects.get(operation=Operation.CONVERT_SKILL_TREE)
+        assert run.status == Backfill.Status.DONE
 
     def test_applying_records_what_it_did(self, client, superuser, tree_world):
         client.force_login(superuser)

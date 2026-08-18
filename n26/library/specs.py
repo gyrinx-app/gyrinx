@@ -994,6 +994,9 @@ def _build_registry():
                 "slot_type": One(
                     model=SlotType, source=(Pickable, "slot_type"), fixed=True
                 ),
+                "category": One(
+                    model=Category, source=(Pickable, "category"), optional=True
+                ),
                 "qualifier": Text(source=(Pickable, "qualifier")),
                 "library_author_help": Text(
                     source=(Pickable, "library_author_help"), long=True

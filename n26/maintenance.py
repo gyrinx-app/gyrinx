@@ -9,8 +9,8 @@ dependency on it — the registry, the audit record, the page furniture and
 the background-task route are imported here and nowhere else in ``n26/``,
 so the seam can be read and moved in one place.
 
-What it registers today is the Specialisation conversion. A conversion
-moves a hand-built choice system onto slots and picks and proves, before
+Most of what it registers is conversions. A conversion moves a
+hand-built choice system onto slots and picks and proves, before
 committing, that every affected gang's pages still say the same things;
 :mod:`n26.library.conversion` owns that discipline entirely, and this
 module only gives it somewhere to be triggered from and somewhere to
@@ -65,10 +65,15 @@ __all__ = [
 #: repeat for ever, each attempt paying the whole cost again.
 MAX_ATTEMPTS = 2
 
-#: The lock a run holds for as long as it is working. Postgres releases
-#: it when the connection goes, so a killed run frees it without anyone
-#: intervening.
-LOCK_KEY = 826_020_601
+#: The locks a run holds for as long as it is working — one per
+#: operation, declared beside their operations below. A lock fences the
+#: redeliveries of one operation's own run; shared between operations it
+#: would do worse than fence: the view's running-guard only sees its own
+#: operation's records, so one conversion could enqueue while another
+#: held the lock, stand down there without writing, acknowledge its
+#: message, and leave a record saying RUNNING for ever. Postgres
+#: releases an advisory lock when the connection goes, so a killed run
+#: frees it without anyone intervening.
 
 
 class Operation(models.TextChoices):
@@ -88,6 +93,13 @@ class Operation(models.TextChoices):
         "n26_merge_wargear_into_weapon",
         "n26: duplicated wargear becomes its weapon",
     )
+
+
+#: See the note on locks above: one per operation, never shared.
+LOCK_KEYS = {
+    Operation.CONVERT_SPECIALISATION: 826_020_601,
+    Operation.CONVERT_SKILL_TREE: 826_020_602,
+}
 
 
 def _write(backfill_id, *, status=None, summary_patch=None, error=""):
@@ -129,21 +141,21 @@ def _write(backfill_id, *, status=None, summary_patch=None, error=""):
 
 
 @contextmanager
-def _single_flight():
-    """Hold the lock for the length of a run, or yield False.
+def _single_flight(lock_key):
+    """Hold one operation's lock for the length of a run, or yield False.
 
     Postgres frees an advisory lock when the connection goes, so a run
     killed mid-flight leaves nothing to clean up by hand.
     """
     with connection.cursor() as cursor:
-        cursor.execute("SELECT pg_try_advisory_lock(%s)", [LOCK_KEY])
+        cursor.execute("SELECT pg_try_advisory_lock(%s)", [lock_key])
         held = cursor.fetchone()[0]
     try:
         yield held
     finally:
         if held:
             with connection.cursor() as cursor:
-                cursor.execute("SELECT pg_advisory_unlock(%s)", [LOCK_KEY])
+                cursor.execute("SELECT pg_advisory_unlock(%s)", [lock_key])
 
 
 def _claim(backfill_id):
@@ -172,7 +184,13 @@ def _claim(backfill_id):
         return True, ""
 
 
-def _run_conversion(backfill_id, plan_with, what, **said_by_whoever_enqueued_it):
+def _plan(system):
+    from n26.library.conversion import SYSTEMS
+
+    return SYSTEMS[system]()
+
+
+def _run_conversion(backfill_id, operation, system, **said_by_whoever_enqueued_it):
     """Run one conversion, once, and write down the outcome.
 
     Takes whatever else it is handed and ignores it. Delivery outlives a
@@ -207,7 +225,8 @@ def _run_conversion(backfill_id, plan_with, what, **said_by_whoever_enqueued_it)
     # redelivery arriving while the first copy is still working must leave
     # no trace at all: count its arrival as an attempt and a long run could
     # be declared failed out from under itself.
-    with _single_flight() as mine:
+    what = system.replace("_", " ").capitalize()
+    with _single_flight(LOCK_KEYS[operation]) as mine:
         if not mine:
             logger.info("%s conversion already running; this copy stands down", what)
             return
@@ -223,7 +242,7 @@ def _run_conversion(backfill_id, plan_with, what, **said_by_whoever_enqueued_it)
             return
 
         try:
-            report = apply(plan_with())
+            report = apply(_plan(system))
         except ConversionRefused as refused:
             # A refusal is the discipline working: nothing was written,
             # and the reason is already in words.
@@ -245,25 +264,13 @@ def _run_conversion(backfill_id, plan_with, what, **said_by_whoever_enqueued_it)
         )
 
 
-def _plan_specialisation():
-    from n26.library.conversion import plan_specialisation
-
-    return plan_specialisation()
-
-
-def _plan_skill_tree():
-    from n26.library.conversion import plan_skill_tree
-
-    return plan_skill_tree()
-
-
 @task
 def convert_specialisation(backfill_id, **said_by_whoever_enqueued_it):
     """The Specialisation conversion, as a task — see ``_run_conversion``."""
     _run_conversion(
         backfill_id,
-        _plan_specialisation,
-        "Specialisation",
+        Operation.CONVERT_SPECIALISATION,
+        "specialisation",
         **said_by_whoever_enqueued_it,
     )
 
@@ -273,13 +280,13 @@ def convert_skill_tree(backfill_id, **said_by_whoever_enqueued_it):
     """The Skill Tree conversion, as a task — see ``_run_conversion``."""
     _run_conversion(
         backfill_id,
-        _plan_skill_tree,
-        "Skill tree",
+        Operation.CONVERT_SKILL_TREE,
+        "skill_tree",
         **said_by_whoever_enqueued_it,
     )
 
 
-def _conversion_view(request, operation, plan_with, task_fn):
+def _conversion_view(request, operation, system, task_fn):
     """Preview a conversion (GET), or record a run and enqueue it (POST)."""
     address = reverse(f"admin:maintenance_{operation.value}")
     if request.method == "POST":
@@ -289,7 +296,7 @@ def _conversion_view(request, operation, plan_with, task_fn):
             return HttpResponseRedirect(
                 reverse("admin:maintenance_backfill_detail", args=[running.id])
             )
-        plan = plan_with()
+        plan = _plan(system)
         if plan.nothing_here:
             # A page left open across someone else's run, most likely.
             # Recording a run that would do nothing only clutters the
@@ -326,7 +333,7 @@ def _conversion_view(request, operation, plan_with, task_fn):
             reverse("admin:maintenance_backfill_detail", args=[backfill.id])
         )
 
-    plan = plan_with()
+    plan = _plan(system)
     context = page_context(
         request,
         operation.label,
@@ -348,7 +355,7 @@ def convert_specialisation_view(request):
     return _conversion_view(
         request,
         Operation.CONVERT_SPECIALISATION,
-        _plan_specialisation,
+        "specialisation",
         convert_specialisation,
     )
 
@@ -357,7 +364,7 @@ def convert_skill_tree_view(request):
     return _conversion_view(
         request,
         Operation.CONVERT_SKILL_TREE,
-        _plan_skill_tree,
+        "skill_tree",
         convert_skill_tree,
     )
 

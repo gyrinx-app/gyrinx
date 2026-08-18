@@ -197,9 +197,11 @@ A slot type puts a name on one or more slots, and groups pickables. It is not an
 
 *A value that goes into a slot.*
 
-Fields of its own: the **slot type** it belongs to — plus the shared assignable set, so whatever the pickable means rides it as ordinary modifiers.
+Fields of its own: the **slot type** it belongs to, and an optional **linked category** — plus the shared assignable set, so whatever the pickable means rides it as ordinary modifiers.
 
 One thing offered in a slot: a specific value, of a particular slot type, that carries behaviour as ordinary modifiers. It never draws a row of its own: it appears under its slot's choice row when chosen. Without its slot it shows nothing and does nothing, so it arrives chosen, given, or as a slot's starting value — never as a bare built-in; the authoring form refuses one. Reach: whatever its own modifiers say, from wherever the pick landed.
+
+The linked category is consulted for categorisation decisions: a rule that places "the chosen set" asks the pick which category it means, and the link is the answer. This is how a Skill Tree pick stands for the set it names — picking the Agility tree files the Agility category under whichever tier the asking rule says. Most pickables link nothing.
 
 ### Picklist
 

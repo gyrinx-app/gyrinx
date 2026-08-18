@@ -4,11 +4,11 @@ Today: four "Skill Tree 1"–"Skill Tree 4" hiddens ride the gang, each
 carrying a gang-wide offer of the whole skill tree kind and the per-rank
 chosen-mode placements that turn the gang's picks into every fighter's
 Primary and Secondary access. Six tree tokens exist to be chosen, each
-homed in the skill category it stands for — the home *is* the payload:
+naming the skill category it stands for — that link *is* the payload:
 a placement reads the chosen thing's category and nothing else.
 
 After: a "Skill Tree" slot type refusing repeats; the six as pickables
-on one picklist, homed where their tokens are homed; four slots named
+on one picklist, each linking the category its token names; four slots named
 as the hiddens' offers are, each granted by its own hidden. The
 placements stay exactly where they are — they read whatever was chosen
 through the same anchor before and after.
@@ -34,9 +34,12 @@ from n26.library.conversion.base import (
     Plan,
     RewritePick,
     SwapCarrier,
-    carriers_of,
+    duplicate_names,
     one_answer_per_question,
+    refuse_if_granted,
+    solely_carried,
     spread,
+    the_offer,
 )
 
 SLOT_TYPE = "Skill Tree"
@@ -53,51 +56,9 @@ HIDDENS = tuple(f"Skill Tree {rank}" for rank in RANKS)
 PROVEN = 25
 
 
-def _offers_of(carrier):
-    return [
-        m
-        for m in carrier.modifiers.all()
-        if getattr(m, "offers_choice", None) is not None
-        and m.offers_choice.of_kind.model == "skilltree"
-    ]
-
-
-def _the_offer(carrier, problems, said):
-    """The carrier's one skill tree offer, or a stated problem."""
-    offers = _offers_of(carrier)
-    if len(offers) != 1:
-        problems.append(
-            f"{said} carries {len(offers)} skill tree offers — expected one"
-        )
-        return None
-    return offers[0]
-
-
-def _solely_carried(offer, carrier, problems):
-    """Deleting an offer's modifier detaches it from every carrier at
-    once, so the plan must know no third thing shares it — a sharer's
-    gangs are outside the proven set and would lose their question
-    unnoticed."""
-    others = [
-        f"{kind} “{row}”"
-        for kind, row in carriers_of(offer)
-        if not (kind == type(carrier).__name__ and row.pk == carrier.pk)
-    ]
-    if others:
-        problems.append(
-            f"“{offer.name}” is shared — also carried by " + ", ".join(others)
-        )
-
-
 def plan_skill_tree():
     from n26.core.models import Assignment
-    from n26.library.models import (
-        AddsAssignable,
-        Hidden,
-        Modifier,
-        SkillTree,
-        SlotType,
-    )
+    from n26.library.models import Hidden, SkillTree, SlotType
 
     problems = []
 
@@ -125,14 +86,16 @@ def plan_skill_tree():
 
     offers = {}
     for name, carrier in carriers.items():
-        offer = _the_offer(carrier, problems, f"the “{name}” hidden")
+        offer = the_offer(
+            carrier, "skilltree", "skill tree", f"the “{name}” hidden", problems
+        )
         if offer is None:
             continue
         if offer.offers_choice.from_section_id is not None:
             problems.append(
                 f"the “{name}” offer names a menu — expected the whole kind"
             )
-        _solely_carried(offer, carrier, problems)
+        solely_carried(offer, carrier, problems)
         offers[name] = offer
 
     old_rows = list(
@@ -142,20 +105,16 @@ def plan_skill_tree():
     )
     if not old_rows:
         problems.append("no skill trees to convert")
-    # A pick is matched to its pickable by name, and a name is only unique
-    # within a pack and qualifier — so two live rows called the same thing
-    # would quietly become one pickable, and half the picks would land on
-    # the wrong one.
-    names = [row.name for row in old_rows]
-    twice = sorted({name for name in names if names.count(name) > 1})
+    twice = duplicate_names(old_rows)
     if twice:
         problems.append("more than one live skill tree is called: " + ", ".join(twice))
-    homeless = [row.name for row in old_rows if row.category_id is None]
-    if homeless:
-        # The home is the whole payload: a token homed nowhere places
-        # nothing today, and a pickable homed nowhere would carry that
-        # nothing forward — but nobody has decided that is what it means.
-        problems.append("skill trees homed nowhere: " + ", ".join(homeless))
+    unlinked = [row.name for row in old_rows if row.category_id is None]
+    if unlinked:
+        # The link is the whole payload: a token naming no category
+        # places nothing today, and a pickable linking none would carry
+        # that nothing forward — but nobody has decided that is what it
+        # means.
+        problems.append("skill trees naming no category: " + ", ".join(unlinked))
 
     # Only live answers move. An archived pick is history nothing draws,
     # and with no old row being deleted there is nothing to make it
@@ -168,19 +127,8 @@ def plan_skill_tree():
     )
     answers, spares = one_answer_per_question(picks)
 
-    # A carrier that arrives by grant has no assignment to find it by,
-    # so the gangs it reaches cannot be counted and cannot be drawn into
-    # the spread this proves. Refuse instead: nothing grants these today,
-    # and whoever makes one should decide what this ought to do.
     for name, carrier in carriers.items():
-        for granter in Modifier.objects.filter(
-            adds_assignable__in=AddsAssignable.objects.filter(hidden=carrier)
-        ):
-            if carriers_of(granter):
-                problems.append(
-                    f"“{granter.name}” grants the “{name}” hidden, so the "
-                    "gangs it reaches cannot be counted or proven"
-                )
+        refuse_if_granted(carrier, f"the “{name}” hidden", problems)
 
     # Each pick settles on the slot its own anchor grants.
     becoming = {row.name for row in old_rows}
@@ -216,7 +164,7 @@ def plan_skill_tree():
                 slot_type=SLOT_TYPE,
                 moved_modifier_ids=tuple(m.pk for m in row.modifiers.all()),
                 moved_from=("library.SkillTree", row.pk),
-                homed_in=(row.category_id, row.category.name),
+                linked=(row.category_id, row.category.name),
             )
             for row in old_rows
         ],

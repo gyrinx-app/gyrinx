@@ -552,12 +552,22 @@ def create_slot_type(name, plural_name="", allows_repeats=True, **kwargs):
 
 
 def create_pickable(
-    name, slot_type, effects=(), qualifier="", library_author_help="", **kwargs
+    name,
+    slot_type,
+    effects=(),
+    qualifier="",
+    library_author_help="",
+    category=None,
+    **kwargs,
 ):
     """One pickable a choice offers; ``effects`` are (scope, effect) pairs.
 
     Everything the pickable *means* rides it as ordinary modifiers — an
-    equipment list opened, a subtype granted, a further choice given.
+    equipment list opened, a subtype granted, a further choice given —
+    except a linked ``category``, consulted for categorisation
+    decisions: a rule placing "the chosen set" reads it to learn which
+    category the pick means, which is how a Skill Tree pick stands for
+    the set it names.
     """
     from n26.library.models import Pickable
 
@@ -566,6 +576,7 @@ def create_pickable(
         slot_type=slot_type,
         qualifier=qualifier,
         library_author_help=library_author_help,
+        category=category,
         **kwargs,
     )
     for scope, effect in effects:

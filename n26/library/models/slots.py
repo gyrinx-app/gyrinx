@@ -100,6 +100,11 @@ class Pickable(Content, Assignable):
     row when chosen. **Without its slot it shows nothing and does
     nothing**. So it arrives chosen, given, or as a slot's starting
     value, and never as a bare built-in.
+
+    A pickable may also link a category. The link is consulted for
+    categorisation decisions — a rule that places "the chosen set" asks
+    the pick which category it means, which is how a Skill Tree pick
+    stands for the set it names. Most pickables link nothing.
     """
 
     # Filed with the rest of the choice machinery, which is where an
@@ -118,6 +123,23 @@ class Pickable(Content, Assignable):
         on_delete=models.PROTECT,
         related_name="pickables",
         help_text="The slot type this pickable belongs to.",
+    )
+    # The inherited home-category column, re-presented: a pickable never
+    # stands in a collection, so on this kind the field is the link a
+    # pick can be asked about, not a filing address.
+    category = models.ForeignKey(
+        "library.Category",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="%(class)ss",
+        verbose_name="linked category",
+        help_text=(
+            "Consulted for categorisation decisions: a rule that places "
+            '"the chosen set" reads this to learn which category the pick '
+            "means — a Skill Tree pick links the set it names. Leave blank "
+            "for pickables that work by their own modifiers."
+        ),
     )
 
     class Meta:

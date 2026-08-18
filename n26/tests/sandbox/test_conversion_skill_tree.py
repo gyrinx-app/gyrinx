@@ -1,9 +1,9 @@
 """The Skill Tree conversion, proven on a prod-shaped world.
 
 The four rank hiddens' gang-wide offers become granted slots and the
-tree tokens become pickables homed where the tokens are homed — the
-home being this system's whole payload: the per-rank placements read
-whatever was chosen and place its category, before and after.
+tree tokens become pickables linking the categories the tokens name —
+that link being this system's whole payload: the per-rank placements
+read whatever was chosen and place its category, before and after.
 
 Nothing is deleted; the slot type refuses repeats, which is both the
 game's rule (four different trees) and what keeps a doubling gang's
@@ -64,7 +64,7 @@ def world(prod_shape, person_type, owner, default_pack):
 def build_prod_shape():
     """The system as production holds it: four rank hiddens each with a
     gang-wide whole-kind offer and a chosen-mode placement, and six tree
-    tokens homed in the sets they stand for."""
+    tokens naming the sets they stand for."""
     sets = {
         name.lower(): create_category("Skills", name, position)
         for position, name in enumerate(
@@ -164,7 +164,7 @@ class TestThePlan:
         said = "\n".join(plan.preview())
         assert "create slot type “Skill Tree”, refusing repeats" in said
         assert said.count("create pickable") == 6
-        assert "homed in “Agility”" in said
+        assert "linked to category “Agility”" in said
         assert said.count("drawing on") == 4
         assert said.count("replace “Skill Tree") == 4
         # Seven live answers. The archived re-choice stays where it is,
@@ -359,13 +359,13 @@ class TestTheRefusals:
         assert not plan.ok
         assert any("rank carriers missing" in problem for problem in plan.problems)
 
-    def test_a_tree_homed_nowhere_is_refused(self, world):
+    def test_a_tree_naming_no_category_is_refused(self, world):
         SkillTree.objects.filter(name="Brawn").update(category=None)
 
         plan = plan_skill_tree()
 
         assert not plan.ok
-        assert any("homed nowhere" in problem for problem in plan.problems)
+        assert any("naming no category" in problem for problem in plan.problems)
 
     def test_two_trees_sharing_a_name_are_refused(self, world, prod_shape):
         sets, _, _, _, _ = prod_shape
