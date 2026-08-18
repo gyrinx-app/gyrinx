@@ -140,7 +140,12 @@ def _rows_for(events):
     wanted = {e.assignment_id for e in events if e.assignment_id}
     fetched = Assignment.with_assignables(
         Assignment.objects.filter(pk__in=wanted).select_related(
-            "ledger_entry", "miniature", "miniature_root", "stash"
+            "ledger_entry",
+            "miniature",
+            "miniature_root",
+            "stash",
+            # A pick says its kind through the question it answered.
+            "chosen_for_slot",
         )
     )
     return {row.pk: row for row in fetched}
@@ -473,10 +478,19 @@ def _name(row):
 
 def _kindword(row):
     """What sort of thing this is, in the library's own word — empty
-    for the kinds a player's page never names."""
+    for the kinds a player's page never names.
+
+    A pick is one of those: "pickable" is plumbing, and no player has
+    ever seen the word. What they know it as is the question it answered
+    — a Specialisation, a Path — so the slot says it instead. Without
+    this a story that read "Sniper, specialisation" before its system
+    moved onto slots would afterwards read only "Sniper".
+    """
     thing = row.assignable if row else None
     if thing is None:
         return ""
+    if row.chosen_for_slot_id is not None and row.chosen_for_slot is not None:
+        return row.chosen_for_slot.choice_label.lower()
     return kind_of(thing)
 
 

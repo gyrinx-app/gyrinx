@@ -22,11 +22,22 @@ Pick rewrites touch ``Assignment`` rows outside ``operation()`` — the
 one sanctioned place: a conversion moves no money. Nothing is created or
 priced, columns change on existing free rows, the ledger is untouched,
 and the reconcile assertion proves it gang by gang.
+
+What the ledger *says*, though, is not untouched, and the captures do
+not see it. The gang's history describes an old event by looking up what
+its assignment names now, so moving an assignment from one kind to
+another rewrites the wording of things that already happened. Every
+conversion must check the history page against a converted assignment
+and keep those words the same — see the note in ``n26/core/CLAUDE.md``.
 """
 
+import logging
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 
 from django.db import transaction
+
+logger = logging.getLogger(__name__)
 
 
 def carriers_of(modifier):
@@ -310,13 +321,19 @@ class _Made:
 class Plan:
     system: str
     steps: tuple = ()
-    #: Primary keys of every gang whose pages this system touches — the
-    #: capture set the apply proves unchanged. Derived from stored rows,
-    #: which every carrier so far is; a system whose carrier arrives by
-    #: grant has no row to find, and its plan must widen this set the
-    #: renderer's way.
+    #: The gangs the apply proves unchanged before committing — a spread
+    #: chosen by the system's own plan to hold every shape it comes in,
+    #: not every gang it reaches. Proving all of them means rendering for
+    #: minutes with the transaction open, which on a live app costs more
+    #: than it buys: what goes wrong is nearly always shaped by the
+    #: content, so it shows in any gang the change touches, and what is
+    #: particular to one gang is cheaper to ask the database outright.
     gang_ids: tuple = ()
     problems: tuple = ()
+    #: How many gangs the change reaches in all, proven or not.
+    reaches: int = 0
+    #: Assignments the plan deliberately leaves as they are.
+    left_alone: int = 0
     #: True when the system simply is not here — nothing to convert and
     #: nothing wrong: the apply is a clean no-op.
     nothing_here: bool = False
@@ -329,26 +346,26 @@ class Plan:
         if self.nothing_here:
             return [f"[{self.system}] nothing to convert — the system is not here"]
         lines = [f"[{self.system}] {step.say()}" for step in self.steps]
+        if self.left_alone:
+            lines.append(
+                f"[{self.system}] leave {self.left_alone} spare assignment"
+                f"{'' if self.left_alone == 1 else 's'} exactly as they are"
+            )
+        reaches = self.reaches or len(self.gang_ids)
+        many = "gangs read" if reaches != 1 else "gang reads"
         lines.append(
-            f"[{self.system}] prove {len(self.gang_ids)} gang"
-            f"{'' if len(self.gang_ids) == 1 else 's'} read the same, or refuse"
+            f"[{self.system}] prove {len(self.gang_ids)} of {reaches} reached "
+            f"{many} the same, or refuse"
         )
         return lines
 
 
-def apply(plan, *, keep=True):
+def apply(plan):
     """Perform exactly the plan, prove the pages unchanged, or refuse.
 
     Returns the report lines. Raises :class:`ConversionRefused` — after
     unwinding everything — if the plan carries problems, any affected
     gang's pages change, or any touched gang stops reconciling.
-
-    With ``keep=False`` it does the whole thing and then throws it away:
-    every step performed, every page proven, and the transaction unwound
-    on purpose. That is the closest a live database can be asked "would
-    this work here?" without being changed by the answer, and it is worth
-    asking of one holding real players' gangs, where the surprises are.
-    A rehearsal that would have refused refuses, in the same words.
     """
     if plan.problems:
         raise ConversionRefused(
@@ -358,27 +375,90 @@ def apply(plan, *, keep=True):
         return list(plan.preview())
 
     report = list(plan.preview())
-    try:
-        _perform(plan, report, keep=keep)
-    except _Rehearsed:
-        report.append(
-            f"[{plan.system}] rehearsed; every page reads the same; nothing kept"
-        )
-        return report
+    _perform(plan, report)
     report.append(f"[{plan.system}] applied; every page reads the same")
     return report
 
 
-class _Rehearsed(Exception):
-    """Raised at the end of a rehearsal to unwind it. Never escapes."""
+#: What Postgres may call an isolation level. The restore has to be
+#: written into the statement rather than passed as a value, so what
+#: goes in is checked against this rather than trusted — an answer
+#: nobody expected should stop the run, not travel into SQL.
+ISOLATION_LEVELS = frozenset(
+    {"read uncommitted", "read committed", "repeatable read", "serializable"}
+)
 
 
-def _perform(plan, report, *, keep):
+@contextmanager
+def _one_snapshot():
+    """Ask for the whole run to read one unchanging view of the database.
+
+    The proof compares what the pages said before with what they say
+    after, and takes any difference to be this conversion's doing. On a
+    live database that only holds if both readings are of the same world.
+    Proving hundreds of gangs takes minutes and players go on playing
+    throughout, so reading whatever is committed at the time — the
+    ordinary way — puts their purchases in the second reading, and the
+    conversion is blamed for a hazard suit somebody bought while it
+    worked, refusing for a reason nobody can act on.
+
+    Reading from one snapshot instead, what differs is what the run did.
+    Somebody changing an assignment it also writes ends it in a refusal
+    rather than a guess, which is the right ending for work that cannot
+    be half done. Set on the session, because a transaction's isolation can only
+    be chosen before it has read anything, and put back afterwards so a
+    pooled connection is handed on as it was found.
+    """
+    from django.db import connection
+
+    outermost = not connection.in_atomic_block
+    if not (outermost and connection.vendor == "postgresql"):
+        # Nested inside a transaction somebody else opened — a test, a
+        # shell. Isolation can only be chosen before a transaction reads
+        # anything, so it is theirs to set and too late to ask here. That
+        # is not the same as being safe: at the ordinary level each
+        # statement reads afresh, so a caller nesting this while players
+        # are writing would not get the one snapshot promised above.
+        # Nothing does that today — a conversion from the console or the
+        # command opens the transaction itself.
+        yield
+        return
+    with connection.cursor() as cursor:
+        cursor.execute("SHOW default_transaction_isolation")
+        was = cursor.fetchone()[0]
+        if was.lower() not in ISOLATION_LEVELS:
+            raise ConversionRefused(
+                f"the database calls its isolation “{was}”, which is not a "
+                "level this knows how to put back"
+            )
+        cursor.execute(
+            "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL REPEATABLE READ"
+        )
+    try:
+        yield
+    finally:
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    f"SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL {was}"
+                )
+        except Exception:
+            # Putting the setting back is courtesy to the next borrower of
+            # this connection, and must never be the thing the caller hears
+            # about. A run that ended badly can leave the connection unable
+            # to answer at all — and one that cannot answer is also one
+            # nobody will be handed again.
+            logger.warning(
+                "could not put the isolation level back to %s", was, exc_info=True
+            )
+
+
+def _perform(plan, report):
     from n26.core.capture import differences, gang_state
     from n26.core.models import Gang
     from n26.core.reconcile import assert_reconciled
 
-    with transaction.atomic():
+    with _one_snapshot(), transaction.atomic():
         before = {
             str(gang.pk): gang_state(gang)
             for gang in Gang.objects.filter(pk__in=plan.gang_ids)
@@ -411,6 +491,3 @@ def _perform(plan, report, *, keep):
                 raise ConversionRefused(
                     f"[{plan.system}] refused — {gang} no longer reconciles: {failed}"
                 ) from failed
-        if not keep:
-            # Everything held true. Unwind it anyway — that was the ask.
-            raise _Rehearsed

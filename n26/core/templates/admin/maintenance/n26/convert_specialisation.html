@@ -18,15 +18,7 @@
     <h1>{{ title }}</h1>
     <p>
         This is the plan. Nothing has been changed. Every line below is a step
-        the conversion would perform, in order; the last line says how many
-        gangs it would prove unchanged before committing anything.
-    </p>
-    <p>
-        Applying runs the whole conversion in one transaction. It captures what
-        every affected gang's pages say, performs the steps, captures again, and
-        commits only if the two readings match and every gang still reconciles.
-        Anything else — a difference, a refusal, an interruption — writes nothing
-        at all, so a run that does not finish can simply be run again.
+        the conversion would perform, in order.
     </p>
     {% if plan.nothing_here %}
         <h2>Nothing to convert</h2>
@@ -38,30 +30,29 @@
         </ul>
         <p>Nothing can be applied while any of these stands.</p>
     {% else %}
+        <p>
+            It reaches <strong>{{ reaches }}</strong> gang{{ reaches|pluralize }}, and
+            proves <strong>{{ proven }}</strong> of them unchanged before committing —
+            a spread wide enough to hold every shape the system comes in. Proving all
+            of them would mean holding the whole library for minutes while players are
+            using it.
+        </p>
+        <p>
+            Applying runs the whole conversion in one transaction. It captures what
+            the gangs it proves say on their pages, performs the steps, captures them
+            again, and commits only if the two readings match and each of them still
+            reconciles. Anything else — a difference, a refusal, an interruption —
+            writes nothing at all, so a run that does not finish can simply be run
+            again.
+        </p>
         <h2>What it would do</h2>
         <ul class="mt-plan">
             {% for line in preview %}<li>{{ line }}</li>{% endfor %}
         </ul>
-        <h2>Rehearse it first</h2>
-        <p>
-            A rehearsal does the whole conversion — every step, every page
-            proven — and then unwinds it on purpose. It answers whether this
-            works on this database without changing it, which is worth asking
-            of one holding real gangs. It takes as long as the real run.
-        </p>
         <form method="post"
               class="mt-form"
-              onsubmit="return confirm('Rehearse the conversion over {{ gangs }} gang(s)? Nothing will be kept.')">
+              onsubmit="return confirm('Convert {{ reaches }} gang(s)? It writes nothing unless every page it proves reads the same.')">
             {% csrf_token %}
-            <input type="hidden" name="keep" value="no">
-            <button type="submit" class="button">Rehearse — change nothing</button>
-        </form>
-        <h2>Apply it</h2>
-        <form method="post"
-              class="mt-form"
-              onsubmit="return confirm('Convert {{ gangs }} gang(s) for real? It writes nothing unless every page reads the same.')">
-            {% csrf_token %}
-            <input type="hidden" name="keep" value="yes">
             <button type="submit" class="button default">Apply conversion</button>
         </form>
     {% endif %}

@@ -19,7 +19,6 @@ from django.urls import reverse
 from gyrinx.maintenance.models import Backfill
 from gyrinx.maintenance.registry import operations, resolve_operation
 from n26.core.models import Assignment
-from n26.library.models import SlotType, Specialisation
 from n26.maintenance import (
     MAX_ATTEMPTS,
     Operation,
@@ -110,31 +109,16 @@ class TestThePage:
         page = response.content.decode()
         assert response.status_code == 200
         assert "create slot type “Specialisation”" in page
-        assert "prove 2 gangs read the same" in page
+        assert "prove 2 of 2 reached gangs read the same" in page
         assert not Backfill.objects.exists()
         assert Assignment.objects.filter(specialisation__isnull=False).exists()
-
-    def test_a_refusal_is_said_on_the_page_not_applied(
-        self, client, superuser, world, prod_shape
-    ):
-        _, _, _, general = prod_shape
-        from n26.tests.sandbox.actions import assign
-
-        _, fighters = world
-        assign(general, miniature=fighters["open"])
-        client.force_login(superuser)
-
-        response = client.post(reverse(URL_NAME), follow=True)
-
-        assert "held by someone" in response.content.decode()
-        assert not Backfill.objects.exists()
 
 
 class TestApplying:
     def test_it_records_what_it_did(self, client, superuser, world):
         client.force_login(superuser)
 
-        response = client.post(reverse(URL_NAME), {"keep": "yes"}, follow=True)
+        response = client.post(reverse(URL_NAME), follow=True)
 
         backfill = Backfill.objects.get()
         assert backfill.operation == Operation.CONVERT_SPECIALISATION.value
@@ -142,14 +126,20 @@ class TestApplying:
         assert backfill.status == Backfill.Status.DONE
         assert "applied; every page reads the same" in backfill.summary["report"][-1]
         assert backfill.summary["attempts"] == 1
-        # The run really converted: the picks now name pickables.
-        assert not Assignment.objects.filter(specialisation__isnull=False).exists()
-        assert Assignment.objects.filter(pickable__isnull=False).exists()
+        # The run really converted: every answer this world holds now
+        # names a pickable. Said of the answers rather than of the column,
+        # because a spare left by a doubled click keeps the old one and is
+        # meant to.
+        answers = Assignment.objects.filter(
+            chosen_for_slot__isnull=False, archived=False
+        )
+        assert answers.count() == 3
+        assert all(row.pickable_id is not None for row in answers)
         assert str(backfill.id) in response.redirect_chain[-1][0]
 
     def test_the_detail_page_says_what_happened(self, client, superuser, world):
         client.force_login(superuser)
-        client.post(reverse(URL_NAME), {"keep": "yes"})
+        client.post(reverse(URL_NAME))
         backfill = Backfill.objects.get()
 
         response = client.get(
@@ -160,7 +150,7 @@ class TestApplying:
 
     def test_a_second_run_finds_nothing_to_convert(self, client, superuser, world):
         client.force_login(superuser)
-        client.post(reverse(URL_NAME), {"keep": "yes"})
+        client.post(reverse(URL_NAME))
 
         response = client.get(reverse(URL_NAME))
 
@@ -172,9 +162,9 @@ class TestApplying:
         """A page left open across someone else's run: submitting it
         again must not file a record for work there is none of."""
         client.force_login(superuser)
-        client.post(reverse(URL_NAME), {"keep": "yes"})
+        client.post(reverse(URL_NAME))
 
-        client.post(reverse(URL_NAME), {"keep": "yes"}, follow=True)
+        client.post(reverse(URL_NAME), follow=True)
 
         assert Backfill.objects.count() == 1
 
@@ -185,86 +175,10 @@ class TestApplying:
         )
         client.force_login(superuser)
 
-        client.post(reverse(URL_NAME), {"keep": "yes"}, follow=True)
+        client.post(reverse(URL_NAME), follow=True)
 
         assert Backfill.objects.count() == 1
         assert Assignment.objects.filter(specialisation__isnull=False).exists()
-
-
-class TestRehearsing:
-    """The whole conversion, proven and then thrown away — so a database
-    holding real gangs can be asked whether this works without being
-    changed by the answer."""
-
-    def test_it_proves_everything_and_keeps_nothing(self, client, superuser, world):
-        client.force_login(superuser)
-
-        client.post(reverse(URL_NAME), {"keep": "no"}, follow=True)
-
-        backfill = Backfill.objects.get()
-        assert backfill.status == Backfill.Status.DONE
-        assert backfill.summary["kept"] is False
-        assert "rehearsed" in backfill.summary["report"][-1]
-        assert "nothing kept" in backfill.summary["report"][-1]
-        # The library is exactly as it was.
-        assert not SlotType.objects.filter(name="Specialisation").exists()
-        assert Specialisation.objects.filter(archived=False).count() == 4
-        assert Assignment.objects.filter(specialisation__isnull=False).count() == 4
-        assert not Assignment.objects.filter(pickable__isnull=False).exists()
-
-    def test_the_page_says_a_rehearsal_kept_nothing(self, client, superuser, world):
-        client.force_login(superuser)
-        client.post(reverse(URL_NAME), {"keep": "no"})
-        backfill = Backfill.objects.get()
-
-        response = client.get(
-            reverse("admin:maintenance_backfill_detail", args=[backfill.id])
-        )
-
-        assert "nothing was kept" in response.content.decode()
-
-    def test_not_saying_which_rehearses(self, client, superuser, world):
-        """Keeping the work is the thing that must be asked for, so a
-        request that says nothing gets the ending nobody has to undo."""
-        client.force_login(superuser)
-
-        client.post(reverse(URL_NAME), follow=True)
-
-        assert Backfill.objects.get().summary["kept"] is False
-        assert Assignment.objects.filter(specialisation__isnull=False).exists()
-
-    def test_a_rehearsal_refuses_for_the_same_reasons(self, world, prod_shape):
-        from n26.library.authoring import attach_modifiers_to
-        from n26.tests.sandbox.actions import create_subtype
-
-        specialist, _, _, _ = prod_shape
-        offer = next(
-            m
-            for m in specialist.modifiers.all()
-            if getattr(m, "offers_choice", None) is not None
-        )
-        attach_modifiers_to(create_subtype("Understudy"), [offer])
-        backfill = Backfill.objects.create(
-            operation=Operation.CONVERT_SPECIALISATION,
-            status=Backfill.Status.RUNNING,
-        )
-
-        convert_specialisation.enqueue(backfill_id=str(backfill.id), keep=False)
-
-        backfill.refresh_from_db()
-        assert backfill.status == Backfill.Status.FAILED
-        assert "shared" in backfill.error
-
-    def test_converting_after_a_rehearsal_still_works(self, client, superuser, world):
-        client.force_login(superuser)
-        client.post(reverse(URL_NAME), {"keep": "no"})
-
-        client.post(reverse(URL_NAME), {"keep": "yes"})
-
-        applied = Backfill.objects.filter(summary__kept=True).get()
-        assert applied.status == Backfill.Status.DONE
-        assert "applied" in applied.summary["report"][-1]
-        assert not Assignment.objects.filter(specialisation__isnull=False).exists()
 
 
 class TestTheRunsOwnGuards:
@@ -337,7 +251,7 @@ class TestTheRunsOwnGuards:
         the copy that arrives to find the work already done is the likely
         one. It must not file a successful conversion as a failure."""
         client.force_login(superuser)
-        client.post(reverse(URL_NAME), {"keep": "yes"})
+        client.post(reverse(URL_NAME))
         backfill = Backfill.objects.get()
         assert backfill.status == Backfill.Status.DONE
         report = backfill.summary["report"]
@@ -348,6 +262,46 @@ class TestTheRunsOwnGuards:
         assert backfill.status == Backfill.Status.DONE
         assert backfill.error == ""
         assert backfill.summary["report"] == report
+
+    def test_it_survives_a_message_from_another_version(self, world):
+        """Delivery outlives a deploy: a message can name arguments this
+        version no longer has, and a task that refuses its own message is
+        retried for ever."""
+        backfill = Backfill.objects.create(
+            operation=Operation.CONVERT_SPECIALISATION,
+            status=Backfill.Status.RUNNING,
+        )
+
+        convert_specialisation.enqueue(backfill_id=str(backfill.id), unheard_of=1)
+
+        backfill.refresh_from_db()
+        assert backfill.status == Backfill.Status.DONE
+
+    def test_a_message_asking_not_to_keep_its_work_does_not_keep_it(self, world):
+        """A version ago this could be told to do the whole thing and
+        throw it away. Ignoring that instruction would commit what
+        somebody asked to be careful about."""
+        backfill = Backfill.objects.create(
+            operation=Operation.CONVERT_SPECIALISATION,
+            status=Backfill.Status.RUNNING,
+        )
+
+        convert_specialisation.enqueue(backfill_id=str(backfill.id), keep=False)
+
+        backfill.refresh_from_db()
+        assert backfill.status == Backfill.Status.FAILED
+        assert "cannot do" in backfill.error
+        assert Assignment.objects.filter(specialisation__isnull=False).exists()
+
+    def test_the_gentler_button_of_an_old_page_converts_nothing(
+        self, client, superuser, world
+    ):
+        client.force_login(superuser)
+
+        client.post(reverse(URL_NAME), {"keep": "no"}, follow=True)
+
+        assert not Backfill.objects.exists()
+        assert Assignment.objects.filter(specialisation__isnull=False).exists()
 
     def test_a_cancelled_run_stays_cancelled(self, world):
         backfill = Backfill.objects.create(

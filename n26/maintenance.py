@@ -165,19 +165,36 @@ def _claim(backfill_id):
 
 
 @task
-def convert_specialisation(backfill_id, keep=True):
+def convert_specialisation(backfill_id, **said_by_whoever_enqueued_it):
     """Run the Specialisation conversion, once, and write down the outcome.
 
-    With ``keep=False`` it rehearses: the whole conversion performed and
-    every page proven, then unwound on purpose, so a database holding
-    real gangs can be asked whether this works without being changed by
-    the answer.
+    Takes whatever else it is handed and ignores it. Delivery outlives a
+    deploy, so a message can arrive naming arguments the version that
+    enqueued it had and this one does not — and a task that refuses its
+    own message is retried for ever, there being nowhere for it to go.
 
     Never raises: a task that fails is redelivered, and there is nowhere
     for a raised error to go but round again. Every ending — refused,
     broken, already running — is recorded on the audit record instead.
     """
     from n26.library.conversion import ConversionRefused, apply
+
+    # A message from a version that could be told not to keep its work.
+    # Ignoring the instruction would turn the careful thing somebody asked
+    # for into the committing one, which is the opposite of what they
+    # wanted; there is no rehearsing any more, so the honest answer is to
+    # decline it.
+    if said_by_whoever_enqueued_it.get("keep") is False:
+        _write(
+            backfill_id,
+            status=Backfill.Status.FAILED,
+            error=(
+                "This asked to be rehearsed and then thrown away, which this "
+                "version cannot do. Nothing was run. Ask for it again from "
+                "the page."
+            ),
+        )
+        return
 
     # The lock comes first, and nothing is recorded before it is held. A
     # redelivery arriving while the first copy is still working must leave
@@ -201,7 +218,7 @@ def convert_specialisation(backfill_id, keep=True):
             return
 
         try:
-            report = apply(_plan(), keep=keep)
+            report = apply(_plan())
         except ConversionRefused as refused:
             # A refusal is the discipline working: nothing was written,
             # and the reason is already in words.
@@ -219,7 +236,7 @@ def convert_specialisation(backfill_id, keep=True):
         _write(
             backfill_id,
             status=Backfill.Status.DONE,
-            summary_patch={"report": list(report), "kept": bool(keep)},
+            summary_patch={"report": list(report)},
         )
 
 
@@ -249,23 +266,26 @@ def convert_specialisation_view(request):
             return HttpResponseRedirect(
                 reverse("admin:maintenance_n26_convert_specialisation")
             )
-        # Keeping the work is the thing that must be asked for. A request
-        # that does not say so — a page from before there were two
-        # buttons, something calling the address directly — rehearses,
-        # which is the ending nobody has to undo.
-        keep = request.POST.get("keep") == "yes"
+        if request.POST.get("keep") == "no":
+            # A page open since before the rehearsal was taken away. Its
+            # gentler button would land here and convert for real.
+            messages.warning(
+                request,
+                "That page offered a rehearsal, which no longer exists. "
+                "Nothing has been run — reload and apply if you mean to.",
+            )
+            return HttpResponseRedirect(
+                reverse("admin:maintenance_n26_convert_specialisation")
+            )
         backfill = Backfill.objects.create(
             operation=Operation.CONVERT_SPECIALISATION,
             triggered_by=request.user,
             status=Backfill.Status.RUNNING,
-            summary={"preview": list(plan.preview()), "attempts": 0, "kept": keep},
+            summary={"preview": list(plan.preview()), "attempts": 0},
         )
-        convert_specialisation.enqueue(backfill_id=str(backfill.id), keep=keep)
+        convert_specialisation.enqueue(backfill_id=str(backfill.id))
         messages.success(
-            request,
-            "The conversion is running. This page shows what it did."
-            if keep
-            else "The rehearsal is running. Nothing will be kept.",
+            request, "The conversion is running. This page shows what it did."
         )
         return HttpResponseRedirect(
             reverse("admin:maintenance_backfill_detail", args=[backfill.id])
@@ -277,7 +297,12 @@ def convert_specialisation_view(request):
         Operation.CONVERT_SPECIALISATION.label,
         plan=plan,
         preview=list(plan.preview()),
-        gangs=len(plan.gang_ids),
+        # Two different numbers, and confusing them on a page with an
+        # apply button would tell an operator the change is smaller than
+        # it is: one is how many gangs it reaches, the other how many of
+        # them it proves before committing.
+        reaches=plan.reaches,
+        proven=len(plan.gang_ids),
         apply_url=reverse("admin:maintenance_n26_convert_specialisation"),
         recent=Backfill.objects.filter(operation=Operation.CONVERT_SPECIALISATION)[:10],
     )

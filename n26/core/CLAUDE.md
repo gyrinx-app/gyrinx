@@ -84,6 +84,18 @@ underlying spec.
 
 ## Wiring — steps that are easy to miss
 
+- **The gang's history reads through the assignment, so changing one
+  rewrites the past.** `history.py` describes an old event by looking up
+  what its assignment names *now* (`_name`, `_kindword`), not by any
+  wording stored at the time. So anything that moves an assignment from
+  one kind to another — a conversion onto slots and picks, a new kind
+  replacing an old one — silently changes what already-written history
+  says. Check the history page against a converted assignment before
+  shipping such a change, and
+  keep the words the same: a pick reports the question it answered (its
+  slot's `choice_label`), because "pickable" is plumbing no player has
+  seen. The same goes for any new kind: decide what it calls itself in a
+  story before it can appear in one.
 - **A new assignable kind is three edits**: an entry in
   `ASSIGNABLE_FIELDS` (`models/assignment.py`), a matching nullable FK
   on `Assignment`, and a migration. Startup checks (`n26.E001`/`E002`)
