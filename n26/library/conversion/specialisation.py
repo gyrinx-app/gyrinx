@@ -236,7 +236,11 @@ def plan_specialisation():
     # the change, and pages nothing checked would move. Refuse instead:
     # nothing grants either of these today, and whoever makes one should
     # decide what this ought to do.
-    for held, said in ((subtype, f"the “{SUBTYPE}” subtype"), (narrow, NARROW_HIDDEN)):
+    granted = (
+        (subtype, f"the “{SUBTYPE}” subtype"),
+        (narrow, f"the “{NARROW_HIDDEN}” hidden"),
+    )
+    for held, said in granted:
         if held is None:
             continue
         for granter in Modifier.objects.filter(

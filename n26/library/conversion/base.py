@@ -352,9 +352,10 @@ class Plan:
                 f"{'' if self.left_alone == 1 else 's'} exactly as they are"
             )
         reaches = self.reaches or len(self.gang_ids)
+        many = "gangs read" if reaches != 1 else "gang reads"
         lines.append(
             f"[{self.system}] prove {len(self.gang_ids)} of {reaches} reached "
-            "gangs read the same, or refuse"
+            f"{many} the same, or refuse"
         )
         return lines
 
