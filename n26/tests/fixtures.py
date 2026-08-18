@@ -16,6 +16,14 @@ from n26.library.standard_content import MODEL_CHARACTERISTICS, MODEL_STATLINE
 
 
 @pytest.fixture
+def owner(db):
+    """A player to own the gangs a test founds."""
+    from django.contrib.auth.models import User
+
+    return User.objects.create_user("player")
+
+
+@pytest.fixture
 def default_pack(db):
     """The N26 pack."""
     return get_default_pack()
