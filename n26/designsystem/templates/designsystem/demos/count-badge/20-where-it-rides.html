@@ -1,0 +1,14 @@
+{# title: Where it rides #}
+{# layout: col #}
+{# note: The same pill in the two places a count belongs: the corner of the control that leads to the thing, and the line of text that names it. Placement is the caller's — on the corner it wants `absolute` and the control it sits on wants `relative`. #}
+<div class="flex items-center gap-6">
+    <button type="button"
+            class="relative inline-flex cursor-pointer items-center gap-1.5 rounded-control border border-ink-300 px-2.5 py-1.5 text-sm font-medium text-ink-700 focus-ring dark:border-ink-700 dark:text-ink-300">
+        tom
+        <c-n26.count-badge :count="3" class="absolute -top-0.5 -right-0.5" />
+    </button>
+    <span class="text-sm text-ink-700 dark:text-ink-300">
+        Notifications
+        <c-n26.count-badge :count="3" label="unread notifications" />
+    </span>
+</div>

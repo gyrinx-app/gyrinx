@@ -1540,6 +1540,22 @@ GROUPS: list[Group] = [
                 ),
             ),
             Component(
+                slug="count-badge",
+                tag="c-n26.count-badge",
+                template="n26/count_badge.html",
+                summary="How many are waiting, as a small filled pill.",
+                notes=(
+                    "Pass the count as :count, because written "
+                    'count="{{ n }}" it arrives the string "0", which is true, '
+                    "and something with nothing waiting gets a badge. Placement "
+                    "is the caller's — the same pill rides a button's corner "
+                    "and sits in a line of text. The number is never announced; "
+                    "`label` is what decides whether anything is, and it is "
+                    "wrong to give one inside a control whose aria-label "
+                    "already carries the count."
+                ),
+            ),
+            Component(
                 slug="statline",
                 tag="c-n26.statline",
                 template="n26/statline/index.html",
@@ -2094,7 +2110,11 @@ GROUPS: list[Group] = [
                     "wordmark, not the page's name or the switcher beside it; the "
                     "mark is still a link home. The colour scheme is a segmented "
                     "control of three in the account menu, where it takes no room "
-                    "the page wants."
+                    "the page wants. `unread` puts a count on the corner of the "
+                    "account button and into its accessible name; pass it as "
+                    ':unread, because written unread="{{ count }}" it arrives '
+                    'the string "0", which is true, and an empty inbox gets a '
+                    "badge."
                 ),
                 parts=(
                     Part(

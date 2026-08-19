@@ -6,6 +6,7 @@ from django.conf import settings
 from django.core.cache import cache
 from django.db import DatabaseError, InterfaceError, OperationalError
 
+from gyrinx.editions import N23, edition_for_path
 from gyrinx.site.models import (
     BANNER_CACHE_KEYS,
     BANNER_CACHE_TIMEOUT,
@@ -63,15 +64,16 @@ def site_banner(request):
     Add the current live banner to the context, if any exists and hasn't been dismissed.
 
     Each edition shows its own banner: a banner is live on n23, on n26, or both,
-    and the request's path says which side is asking — everything under /n26/ is
-    the new edition, everything else the classic site.
+    and the request's path says which side is asking. A page both editions share
+    gets the classic site's banner — it is drawn in the classic site's chrome,
+    whichever edition the reader came from.
 
     Note that this is disabled in tests by directly setting the BANNER_CACHE_KEYS
     entries to False.
     """
     context = {"banner": None}
 
-    edition = "n26" if request.path.startswith("/n26/") else "n23"
+    edition = edition_for_path(request.path) or N23
     cache_key = BANNER_CACHE_KEYS[edition]
 
     # Try to get banner from cache first

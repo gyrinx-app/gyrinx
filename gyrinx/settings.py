@@ -214,6 +214,10 @@ MIDDLEWARE = [
     # Admin impersonation overlay — after auth/allauth (so request.user is the real
     # admin when we authorize), before simple-history (so the swap is attributed).
     "gyrinx.middleware.ImpersonationMiddleware",
+    # Remembers which edition a reader is in. After auth (it only remembers
+    # signed-in readers) and after impersonation (the reader is whoever the
+    # request is being made as).
+    "gyrinx.middleware.EditionMiddleware",
     # simplehistory
     "simple_history.middleware.HistoryRequestMiddleware",
     # Serves admin-managed 301s. Must stay LAST: process_response runs in

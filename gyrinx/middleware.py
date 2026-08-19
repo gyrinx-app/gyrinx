@@ -4,11 +4,23 @@ from datetime import datetime
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import RequestDataTooBig
-from django.http import HttpResponse
+from django.http import HttpResponse, HttpResponseRedirect
 from django.shortcuts import render
 from django.template import TemplateDoesNotExist, TemplateSyntaxError
+from django.urls import reverse
 from django.utils import timezone
+from django.utils.cache import patch_vary_headers
 
+from gyrinx.editions import (
+    COOKIE_MAX_AGE,
+    COOKIE_NAME,
+    N23,
+    N26,
+    PARAM,
+    chosen_edition,
+    edition_for_path,
+    remembered_edition,
+)
 from gyrinx.impersonation import (
     IMPERSONATE_KEY,
     IMPERSONATE_LOG_KEY,
@@ -94,6 +106,97 @@ class RequestSizeExceptionMiddleware:
                     content_type="text/plain",
                 )
         return None
+
+
+class EditionMiddleware:
+    """Remember which edition a reader is in, and answer for them where the
+    address cannot.
+
+    Runs after ``AuthenticationMiddleware``: only signed-in readers are
+    remembered, because the edition pill is theirs and a visitor should not
+    collect a cookie they have no use for.
+
+    Two things come out of it. ``request.edition`` is the edition to show as
+    current — the address's own, or the remembered one on a page both editions
+    share. And the site root, which belongs to neither edition, redirects a
+    reader last seen in n26 to the n26 dashboard, so a trip out to the inbox or
+    the account pages and back does not quietly land them in the classic app.
+
+    Leaving n26 is a link to the root, which is the very address that redirects
+    back into it, so ``?edition=n23`` on that link says the reader means it.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        path_edition = edition_for_path(request.path)
+        chosen = chosen_edition(request)
+        user = getattr(request, "user", None)
+        signed_in = user is not None and user.is_authenticated
+        remembered = remembered_edition(request) if signed_in else None
+
+        request.path_edition = path_edition
+        request.edition = chosen or path_edition or remembered or N23
+
+        # The choice is an instruction, not part of the address: take it, then
+        # send the reader on to the address they were really asking for. Left
+        # in, it rides into the address bar, into bookmarks and into anything
+        # shared from there, pinning the next reader to somebody else's choice.
+        if chosen is not None and request.method in ("GET", "HEAD"):
+            response = HttpResponseRedirect(self._address_itself(request))
+            self._remember(request, response, chosen, remembered, signed_in)
+            return response
+
+        if (
+            signed_in
+            and remembered == N26
+            and request.path == "/"
+            and request.method in ("GET", "HEAD")
+        ):
+            response = HttpResponseRedirect(reverse("n26-dashboard"))
+            # The root answers differently depending on the cookie, so anything
+            # caching it has to be told to key on one.
+            patch_vary_headers(response, ("Cookie",))
+            return response
+
+        response = self.get_response(request)
+        self._remember(request, response, path_edition, remembered, signed_in)
+        return response
+
+    @staticmethod
+    def _address_itself(request):
+        """The address asked for, with the choice taken back out of it.
+
+        Every value of the parameter goes, not just the one that was read, so
+        a hand-written address naming two editions cannot redirect to itself
+        for ever.
+        """
+        params = request.GET.copy()
+        params.pop(PARAM, None)
+        query = params.urlencode()
+        return f"{request.path}?{query}" if query else request.path
+
+    @staticmethod
+    def _remember(request, response, edition, remembered, signed_in):
+        """Move the memory to ``edition``, if there is anywhere to move it to.
+
+        Only an address or an explicit choice gets this far. A page both
+        editions share must never move it: that would pin a reader to whichever
+        edition they happened to be in the first time they opened their account
+        settings. Nor is it rewritten when it already says so — a Set-Cookie on
+        every page of an edition is noise on the wire.
+        """
+        if not signed_in or edition is None or edition == remembered:
+            return
+        response.set_cookie(
+            COOKIE_NAME,
+            edition,
+            max_age=COOKIE_MAX_AGE,
+            samesite="Lax",
+            secure=request.is_secure(),
+            httponly=True,
+        )
 
 
 class ImpersonationMiddleware:

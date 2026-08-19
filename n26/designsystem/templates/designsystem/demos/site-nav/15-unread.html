@@ -1,0 +1,36 @@
+{# title: Something waiting #}
+{# layout: full #}
+{# note: `unread` puts a c-n26.count-badge on the corner of the account button, and the menu behind it draws the same pill against the entry it belongs to — so the mark seen from outside is the mark found inside. Nothing is drawn at zero. #}
+{% load static %}
+<c-n26.site.nav title="Gyrinx"
+                href="#"
+                user_label="tom"
+                :unread="sample_unread"
+                class="rounded-box border border-box-border">
+    <c-slot name="logo">
+        <img src="{% static 'n26/gyrinx-logo.svg' %}"
+             alt=""
+             width="24"
+             height="24"
+             class="size-6">
+    </c-slot>
+    <c-ui.navbar.item href="#" current="1">
+        Home
+    </c-ui.navbar.item>
+    <c-ui.navbar.item href="#">
+        Gangs
+    </c-ui.navbar.item>
+    <c-slot name="menu">
+        <c-ui.dropdown.item href="#">
+            Your account
+        </c-ui.dropdown.item>
+        <c-ui.dropdown.item href="#">
+            Notifications
+            <c-n26.count-badge :count="sample_unread" label="unread notifications" />
+        </c-ui.dropdown.item>
+        <c-ui.dropdown.separator />
+        <c-ui.dropdown.item href="#" variant="danger">
+            Sign out
+        </c-ui.dropdown.item>
+    </c-slot>
+</c-n26.site.nav>
