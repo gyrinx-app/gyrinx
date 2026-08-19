@@ -116,9 +116,6 @@ that said it twice would be spending the width the name needs.
                              href="{% url 'n26-hire-fighter' gang.pk %}">
                     Hire Fighters
                 </c-ui.button>
-                <c-ui.button size="sm" variant="primary" href="{% url 'n26-equip-gang' gang.pk %}">
-                    Buy Equipment
-                </c-ui.button>
             </c-slot>
             <c-slot name="secondary_actions">
                 <c-n26.button-group>
@@ -157,6 +154,13 @@ that said it twice would be spending the width the name needs.
                         </c-ui.dropdown.item>
                     </c-ui.dropdown>
                 </c-n26.button-group>
+            </c-slot>
+        {% endif %}
+        {% if yours %}
+            <c-slot name="stash_actions">
+                <c-ui.button size="xs" variant="primary" href="{% url 'n26-equip-gang' gang.pk %}">
+                    Equip
+                </c-ui.button>
             </c-slot>
         {% endif %}
         <c-slot name="stash_empty">
@@ -312,6 +316,7 @@ that said it twice would be spending the width the name needs.
                 effects land on whichever gun it ends up on.
             </c-slot>
             {% csrf_token %}
+            <input type="hidden" name="return" value="{{ refitting.cancel_url }}">
             <input type="hidden" name="to" value="weapon">
             {% if refitting.weapons %}
                 <c-ui.field label="Weapon" for="refit-weapon">

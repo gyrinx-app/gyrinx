@@ -1,29 +1,16 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
 {% comment %}
-Buying equipment into the gang's stash — the fighter equip page's gang-anchored
-twin. The rows are the shared ones (n26/includes/equip_row.html), so a change to
-either page's chrome still wants a look at the other.
+Equipping the gang's stash — buy into it and manage what it holds. The rows are
+the shared ones (n26/includes/equip_row.html), so a change to either page's
+chrome still wants a look at the fighter's equip page.
 
-The shell is the hire page's rather than the fighter's: this screen is about the
-gang, so it wears a gang heading and the gang's figures, and there is no model
-header to carry a fighter's tabs.
-
-Which list is URL state (?list=<pk>, or ?list=all for the whole library), so a
-list is linkable and the back button walks the choices. The Buy buttons submit
-the line's identity and nothing else; every price is the server's own
-derivation.
-
-No use notes on the rows. A restriction is about a model, and a stash is not
-one — the row simply has nothing to draw there. Nor is there any count of what
-the stash already holds: what the gang owns is drawn on the gang page, with the
-controls that act on it.
+Which list is URL state (?list=<pk>, ?list=all, or ?list=stash), so a list is
+linkable and the back button walks the choices. Gear the current list does not
+sell is drawn either beside the catalogue (?orphan_ui=a) or on its own tab
+(?orphan_ui=b, the default). Append ?orphan_ui=a to compare the two.
 {% endcomment %}
-{% block head_title %}Buy Equipment{% endblock head_title %}
-{% comment %}
-The bar names the gang and opens on the reader's others, as the hire page's
-does. The heading below says what this screen is for.
-{% endcomment %}
+{% block head_title %}Equip{% endblock head_title %}
 {% block nav_switcher %}
     {% gang_switcher gang as gang_switcher_ %}
     <c-n26.quick-switcher.of :switcher="gang_switcher_" hotkey="f" />
@@ -32,18 +19,21 @@ does. The heading below says what this screen is for.
     {% include 'n26/_nav.html' with here='gangs' %}
 {% endblock %}
 {% block content %}
-    {% comment %}
-    The frame is the one every form screen shares, and it draws no footer: every
-    Buy button in the catalogue is this form's submit, so a button at the end
-    would be a second answer to a question already answered.
-
-    It posts to this page's own address, state and all — an action that dropped
-    ?list= would answer a purchase from the library tab by snapping the reader
-    back to the first list.
-    {% endcomment %}
+    {% if dialog %}
+        <c-n26.owned-dialog :dialog="dialog">
+            {% csrf_token %}
+        </c-n26.owned-dialog>
+    {% endif %}
+    {% for panel in accessorise %}
+        <c-n26.owned-dialog :dialog="panel"
+                            :open="panel.open"
+                            id="n26-accessorise-{{ panel.id }}">
+            {% csrf_token %}
+        </c-n26.owned-dialog>
+    {% endfor %}
     <c-n26.form-page action="{{ action }}"
-                     title="Buy Equipment"
-                     lead="Everything bought here goes into the gang's stash. Reassign it to a fighter from the gang page, or buy on a fighter's own page to arm them directly.">
+                     title="Equip"
+                     lead="Buy into the stash and manage what the gang already holds. Hand gear to a fighter from here, or buy on a fighter's own page to arm them directly.">
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
                 <c-ui.breadcrumbs.item>
@@ -51,39 +41,38 @@ does. The heading below says what this screen is for.
                 </c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item href="{% url 'n26-gang' gang.pk %}">{{ gang.name }}</c-ui.breadcrumbs.item>
                 <c-ui.breadcrumbs.item :current="True">
-                    Buy Equipment
+                    Equip
                 </c-ui.breadcrumbs.item>
             </c-ui.breadcrumbs>
         </c-slot>
+        <c-slot name="header_actions">
+            <c-n26.gang-figures :gang="gang" :summary="summary" />
+        </c-slot>
         {% csrf_token %}
-        {% comment %}
-        The numbers a purchase is decided against, above the list: the credits a
-        click will spend are on the same screen as the click, and the redirect
-        after a purchase brings the strip back already updated.
-        {% endcomment %}
-        <c-n26.gang-figures :gang="gang" :summary="summary" />
-        {% comment %}
-        Which list, as the page's top-level choice, down the left of the
-        catalogue: the gang's own lists, then the Trading Post, then the whole
-        library. A rail rather than a strip over the rows, because choosing the
-        list you are buying from is a larger decision than narrowing what it shows.
-        On a phone the rail takes the full width above the catalogue.
-
-        Always drawn, because the library tab is always there — and a gang with
-        no lists of its own would otherwise have no way to reach it.
-
-        Links, not client state: a list is a place you can be, so it goes in the
-        URL — linkable, back-button-friendly, and the server renders the one you
-        are on.
-        {% endcomment %}
+        <p class="text-xs text-muted">
+            Orphan UI:
+            {% if orphan_ui == "a" %}
+                <c-n26.link href="{{ orphan_toggle_a }}" underline="always">
+                    Section beside catalogue
+                </c-n26.link>
+            {% else %}
+                <c-n26.link href="{{ orphan_toggle_a }}">
+                    Section beside catalogue
+                </c-n26.link>
+            {% endif %}
+            ·
+            {% if orphan_ui == "b" %}
+                <c-n26.link href="{{ orphan_toggle_b }}" underline="always">
+                    In stash tab
+                </c-n26.link>
+            {% else %}
+                <c-n26.link href="{{ orphan_toggle_b }}">
+                    In stash tab
+                </c-n26.link>
+            {% endif %}
+        </p>
         <div class="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-[11rem_minmax(0,1fr)]">
             <c-ui.navlist variant="sidebar" aria-label="Which list" class="self-start text-sm">
-                {% comment %}
-                The full name where the tab shortened it, empty where nothing
-                was lost — decided in the view, because a template tag written
-                inside a component's attributes is not read as one and lands in
-                the page as text.
-                {% endcomment %}
                 {% for tab in collection_tabs %}
                     <c-ui.navlist.item href="{{ tab.href }}" :current="tab.current" title="{{ tab.title }}">
                         {{ tab.label }}
@@ -91,90 +80,27 @@ does. The heading below says what this screen is for.
                 {% endfor %}
             </c-ui.navlist>
             {% if catalogue %}
-                <c-n26.collection-picker :categories="categories"
-                                         :sections="sections"
-                                         price_floor="{{ price_floor }}"
-                                         price_ceiling="{{ price_ceiling }}"
-                                         tp_ceiling="{{ tp_ceiling }}"
-                                         noun="items">
-                    <c-slot name="filters">
-                        <c-n26.search-bar :live="True"
-                                          :nested="True"
-                                          model="query"
-                                          placeholder="Search {{ browsing }}" />
-                        {% if category_options or price_ceiling > price_floor or has_trade_points %}
-                            {% comment %}
-                            A size under the search field above them: these refine
-                            what the field returned rather than competing with it.
-                            {% endcomment %}
-                            <div class="flex flex-wrap items-center gap-2">
-                                {% if category_options %}
-                                    <c-n26.filter-menu label="Category"
-                                                       name="category"
-                                                       size="xs"
-                                                       :options="category_options" />
-                                {% endif %}
-                                {% if price_ceiling > price_floor %}
-                                    <c-n26.range-menu label="Price"
-                                                      model_min="minPrice"
-                                                      model_max="maxPrice"
-                                                      min="{{ price_floor }}"
-                                                      max="{{ price_ceiling }}"
-                                                      step="5"
-                                                      suffix="¢"
-                                                      size="xs"
-                                                      at_max_label="Any" />
-                                {% endif %}
-                                {% if has_trade_points %}
-                                    <c-n26.range-menu label="Trade points"
-                                                      model="maxTradePoints"
-                                                      min="0"
-                                                      max="{{ tp_ceiling }}"
-                                                      step="1"
-                                                      prefix="≤ "
-                                                      size="xs"
-                                                      at_min_label="Freely available"
-                                                      at_max_label="Any" />
-                                {% endif %}
+                {% if orphan_rows %}
+                    <div class="flex flex-col gap-4 md:col-start-2">
+                        <section class="rounded-lg border border-box-border p-3">
+                            <h3 class="mb-2 text-sm font-semibold text-ink-900 dark:text-ink-100">In stash — not on this list</h3>
+                            <div class="flex flex-col gap-1">
+                                {% for row in orphan_rows %}
+                                    {% include "n26/includes/equip_stash_row.html" with row=row %}
+                                {% endfor %}
                             </div>
-                        {% endif %}
-                    </c-slot>
-                    {% comment %}
-                    Names are bound, not written into the attribute. A name with
-                    an ampersand in it — "Armour & field armour" — comes back
-                    from an attribute HTML-escaped, and the picker keys its
-                    filter and its counts on the string the view put in
-                    `categories`. The two would not match, and the whole category
-                    would count zero and hide itself.
-                    {% endcomment %}
-                    {% for section in catalogue.sections %}
-                        <c-n26.collection-picker.section :name="section.name" :open="forloop.first">
-                            {% for category in section.categories %}
-                                {% if category.name %}
-                                    <c-n26.collection-picker.category :name="category.name">
-                                        {% for row in category.rows %}
-                                            {% include "n26/includes/equip_row.html" %}
-                                        {% endfor %}
-                                    </c-n26.collection-picker.category>
-                                {% else %}
-                                    {% comment %}
-                                    Unnamed home: rows sit straight inside the
-                                    section, the same convention as the fighter's
-                                    page and the hire page.
-                                    {% endcomment %}
-                                    {% for row in category.rows %}
-                                        {% include "n26/includes/equip_row.html" %}
-                                    {% endfor %}
-                                {% endif %}
-                            {% endfor %}
-                        </c-n26.collection-picker.section>
-                    {% endfor %}
-                </c-n26.collection-picker>
+                        </section>
+                        {% include "n26/includes/gang_equip_catalogue.html" %}
+                    </div>
+                {% else %}
+                    {% include "n26/includes/gang_equip_catalogue.html" %}
+                {% endif %}
             {% else %}
-                <p class="text-muted">
+                <p class="text-muted md:col-start-2">
                     No equipment lists yet — this gang has none of its own to browse.
                     Lists arrive with the gang's own content; everything the library
-                    holds is on the All equipment tab.
+                    holds is on the All equipment tab, and everything held is on
+                    the In stash tab.
                 </p>
             {% endif %}
         </div>

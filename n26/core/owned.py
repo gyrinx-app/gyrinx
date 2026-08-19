@@ -35,9 +35,59 @@ nowhere.
 """
 
 from dataclasses import dataclass
+from enum import Enum
 from urllib.parse import urlencode
 
 from n26.library.models.assignable import Family
+
+
+class EquipAnchor(Enum):
+    """Which screen's possessions are being read — a fighter's card or the stash."""
+
+    FIGHTER = "fighter"
+    STASH = "stash"
+
+
+@dataclass(frozen=True)
+class EquipHost:
+    """Where an equip screen reads possessions from and sends the reader back.
+
+    One object carries the gang, the page address, the assignment roots to
+    walk, and which anchor this screen is — so the catalogue, the dialogs
+    and the POST redirects all agree without each guessing from the other.
+    """
+
+    gang: object
+    at: str
+    roots: tuple
+    anchor: EquipAnchor
+    miniature: object | None = None
+
+    @property
+    def held_label(self):
+        """Words for how many copies the reader already holds."""
+        return "equipped" if self.anchor is EquipAnchor.FIGHTER else "in stash"
+
+    @classmethod
+    def fighter(cls, gang, card, miniature, at):
+        return cls(
+            gang=gang,
+            at=at,
+            roots=tuple(card.roots),
+            anchor=EquipAnchor.FIGHTER,
+            miniature=miniature,
+        )
+
+    @classmethod
+    def stash(cls, gang, gang_card, at):
+        return cls(
+            gang=gang,
+            at=at,
+            roots=tuple(gang_card.stash_roots),
+            anchor=EquipAnchor.STASH,
+            miniature=None,
+        )
+
 
 #: The dialogs a screen can have open, each a query parameter naming one
 #: assignment on the card. Both sides read this tuple: the rows that draw
@@ -235,60 +285,36 @@ def _parts_of(node, at):
     return tuple(parts)
 
 
-def owned_things(card, at):
-    """Everything on this card, keyed the way a catalogue keys its rows.
+def possessions(host: EquipHost):
+    """Everything this host carries, keyed the way a catalogue keys its rows.
 
     Keyed by :func:`thing_key`, so a row looks its own key up and finds
-    the copies of itself the fighter is carrying — one dictionary read per
-    row, whatever the fighter owns.
+    the copies held — one dictionary read per row, however much is carried.
 
-    ``at`` is the page the reader is on, query string and all: the
+    ``host.at`` is the page the reader is on, query string and all: the
     confirmations open over it and Cancel returns to it, so the list they
     were reading is still the list underneath.
-
-    Two of the same weapon are two entries under one key, never one entry
-    counted twice: each is its own entry in the ledger, each may carry
-    different ammo, and each is sold, moved and dropped on its own.
-
-    Only what the model **owns** — see :func:`is_possession`. A card
-    carries a good deal more than kit, and none of the rest is something
-    to put a Sell button beside: the fighter's own profile is the
-    fighter, their skills are what they know, their equipment lists are
-    where they buy from.
-
-    The gang-hosted assignments are skipped for a second reason. They ride
-    every member's card so gang-wide rules reach them, but they are the gang's
-    property and not this fighter's to sell.
-
-    A **granted** weapon is skipped for a third: it is lent, not owned. A
-    modifier puts it on the card and nobody bought it, so there is
-    nothing to sell, nothing to hand to another fighter, and nothing for
-    an accessory to hang off. It is skipped twice over — this reads
-    ``card.roots``, which holds what the gang owns, while a grant lives
-    on ``card.granted``; and a granted line carries no assignment. The
-    consequence a reader should expect on the equipment screen: a row for
-    something the fighter owns replaces its Buy button, and a granted
-    weapon does not, so a fighter lent a pair of claws is still offered
-    claws. That is deliberate — the lent pair goes when its granter does,
-    and being unable to buy a pair of your own would be the worse
-    surprise.
     """
     from n26.library.models import Weapon
 
     index = {}
-    for node in card.roots:
-        if node.broadcast or node.assignment is None:
+    for node in host.roots:
+        if node.assignment is None:
             continue
-        if node.suppressed:
-            # A modifier has taken this away, so the card says the fighter
-            # does not have it — and a screen must not offer to sell
-            # something the card denies. The assignment is untouched
-            # underneath: drop whatever cancelled it and the controls come back.
-            continue
+        if host.anchor is EquipAnchor.FIGHTER:
+            if node.broadcast:
+                continue
+            if node.suppressed:
+                # A modifier has taken this away, so the card says the fighter
+                # does not have it — and a screen must not offer to sell
+                # something the card denies. The assignment is untouched
+                # underneath: drop whatever cancelled it and the controls come back.
+                continue
         if not is_possession(node.assignable):
             continue
         key = thing_key(node.assignable)
         pk = str(node.assignment.pk)
+        at = host.at
         index.setdefault(key, []).append(
             OwnedThing(
                 id=pk,
@@ -314,3 +340,8 @@ def owned_things(card, at):
             )
         )
     return index
+
+
+def owned_things(card, at):
+    """Everything on this fighter's card — see :func:`possessions`."""
+    return possessions(EquipHost.fighter(card.miniature.gang, card, card.miniature, at))

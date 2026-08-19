@@ -412,7 +412,7 @@ def equip(request, pk):
     from n26.core.card import build_card, build_modifier_index
     from n26.core.effects import compute
     from n26.core.listing import build_catalogue
-    from n26.core.owned import owned_things
+    from n26.core.owned import EquipHost, possessions
     from n26.core.views.owned import accessorise_dialogs, owned_dialog
 
     miniature = _own_miniature_or_404(request, pk)
@@ -476,7 +476,8 @@ def equip(request, pk):
     # over this page, on the list being read, and Cancel comes back to it,
     # so the page's own address is what the controls are built from.
     at = here(chosen)
-    owned = owned_things(card, at)
+    host = EquipHost.fighter(gang, card, miniature, at=at)
+    owned = possessions(host)
 
     # The whole screen, as one structure: the browsed list joined to what
     # the fighter holds. A row is a row for something on sale or a row for
@@ -524,15 +525,13 @@ def equip(request, pk):
             # remove one assignment on this fighter's card. A server state,
             # so it is a link, it survives a reload, and it is drawn rather than
             # revealed by a script.
-            "dialog": owned_dialog(
-                request, card, at=at, miniature=miniature, gang=gang
-            ),
+            "dialog": owned_dialog(request, host),
             # The accessory question for every gun the fighter is
             # carrying, drawn closed beside the rows. The one the address
             # names is drawn open, so the link works with no script; with
             # a script the click opens the panel that is already on the
             # page and never rebuilds the catalogue.
-            "accessorise": accessorise_dialogs(request, card, at=at),
+            "accessorise": accessorise_dialogs(request, host),
             **picker_context(catalogue, view),
         },
     )
@@ -608,33 +607,64 @@ ALL_SCOPE = "all"
 #: What that tab is called, on the tab and as the list being browsed.
 ALL_LABEL = "All equipment"
 
+#: The stash-holdings tab for orphan UI option B — not a collection.
+STASH_SCOPE = "stash"
 
-def gang_tabs(collections, chosen, everything):
+#: What that tab is called.
+STASH_LABEL = "In stash"
+
+
+def gang_tabs(collections, chosen, everything, *, stash=False, orphan_ui="b"):
     """The lists the gang can buy from, and the whole library after them.
 
     The library tab comes last because it is the fallback: what a gang
     buys from is its own lists, and everything else is there for the
     thing no list carries.
+
+    With ``orphan_ui=b``, an ``In stash`` tab lists everything held
+    regardless of which list sells it. With ``orphan_ui=a``, orphans are
+    drawn beside the catalogue instead, and this tab is omitted.
     """
-    tabs = collection_tabs(collections, None if everything else chosen)
+    tabs = collection_tabs(collections, chosen)
+    for tab, collection in zip(tabs, collections, strict=True):
+        tab["href"] = _gang_tab_href(collection.pk, orphan_ui=orphan_ui)
     tabs.append(
         {
             "label": ALL_LABEL,
             "title": "",
-            "href": f"?list={ALL_SCOPE}",
+            "href": _gang_tab_href(ALL_SCOPE, orphan_ui=orphan_ui),
             "current": everything,
         }
     )
+    if orphan_ui == "b":
+        tabs.insert(
+            0,
+            {
+                "label": STASH_LABEL,
+                "title": "Everything the gang holds in its stash",
+                "href": _gang_tab_href(STASH_SCOPE, orphan_ui=orphan_ui),
+                "current": stash,
+            },
+        )
     return tabs
+
+
+def _gang_tab_href(scope, *, orphan_ui="b", section=""):
+    params = [("list", scope)]
+    if orphan_ui and orphan_ui != "b":
+        params.append(("orphan_ui", orphan_ui))
+    if section:
+        params.append(("section", section))
+    return f"?{urlencode(params)}"
 
 
 @login_required
 def equip_gang(request, pk):
-    """Buy equipment into the gang's stash.
+    """Equip the gang's stash — buy into it and manage what it holds.
 
     The gang's own end of the equip page. What is bought here belongs to
     the gang rather than to anyone on the roster: it lands in the stash,
-    and the gang page is where it is handed to a fighter. The division is
+    and this screen is where it is handed to a fighter. The division is
     the anchor and nothing else — a fighter's page buys onto that
     fighter, this one buys into the store.
 
@@ -650,18 +680,23 @@ def equip_gang(request, pk):
     carries. Built only when the address asks for it — it prices the
     library, which is not something to pay for on every visit.
 
-    A row says what it sells and nothing about what the stash already
-    holds. What the gang owns is drawn on the gang page, with the
-    controls that act on it; a count here would need the same
-    confirmations again, on a screen whose one act is buying.
+    ``?list=stash`` (orphan UI option B) is everything held, regardless
+    of which list sells it. Option A draws the same orphans beside the
+    catalogue instead; switch with ``?orphan_ui=a`` to compare.
     """
     from n26.core.access import gang_collections
     from n26.core.browse import all_gear, browse
     from n26.core.card import build_gang_card, build_modifier_index
     from n26.core.effects import compute_gang
-    from n26.core.listing import build_catalogue
+    from n26.core.listing import (
+        build_catalogue,
+        build_stash_catalogue,
+        stash_orphan_rows,
+    )
+    from n26.core.owned import EquipHost, possessions
     from n26.core.render import roster as gang_roster
     from n26.core.render import summarise_roster
+    from n26.core.views.owned import accessorise_dialogs, owned_dialog
 
     gang = _own_gang_or_404(request, pk)
 
@@ -676,18 +711,23 @@ def equip_gang(request, pk):
         for access in gang_collections(gang, card=card, computed=computed)
     )
 
+    orphan_ui = request.POST.get("orphan_ui", request.GET.get("orphan_ui", "b"))[:1]
+    if orphan_ui not in ("a", "b"):
+        orphan_ui = "b"
+
     # Read from the POST as well as the URL: the form posts to the address
     # it was drawn at, and a click must buy from the list it was clicked
     # on whichever way the state arrived.
     wanted = request.POST.get("list", request.GET.get("list", ""))
+    stash_tab = wanted == STASH_SCOPE
     everything = wanted == ALL_SCOPE
     chosen = None
-    if not everything:
+    if not stash_tab and not everything:
         for collection in collections:
             if str(collection.pk) == wanted:
                 chosen = collection
                 break
-        if chosen is None and collections:
+        if chosen is None and collections and not stash_tab:
             chosen = collections[0]
 
     # Which of the picker's section tabs the reader was on — client state
@@ -695,23 +735,28 @@ def equip_gang(request, pk):
     # fighter's page.
     section = request.POST.get("section", request.GET.get("section", ""))[:100]
 
-    if everything:
-        params = [("list", ALL_SCOPE)]
+    params = []
+    if stash_tab:
+        params.append(("list", STASH_SCOPE))
+    elif everything:
+        params.append(("list", ALL_SCOPE))
     elif chosen is not None:
-        params = [("list", chosen.pk)]
-    else:
-        params = []
+        params.append(("list", chosen.pk))
     if section:
         params.append(("section", section))
+    if orphan_ui != "b":
+        params.append(("orphan_ui", orphan_ui))
     here = f"{request.path}?{urlencode(params)}" if params else request.path
 
     view = None
-    if everything:
+    if stash_tab:
+        pass
+    elif everything:
         view = all_gear(ALL_LABEL)
     elif chosen is not None:
         view = browse(chosen)
 
-    if request.method == "POST" and view is not None:
+    if request.method == "POST" and view is not None and not stash_tab:
         return _buy_clicked(
             request,
             gang,
@@ -722,10 +767,31 @@ def equip_gang(request, pk):
             collection=ALL_LABEL if everything else chosen.name,
         )
 
-    # Nothing joined in about what is already held: a row that said so
-    # would open onto the copies and their acts, and those confirmations
-    # live on the gang page, over the stash they are about.
-    catalogue = build_catalogue(view, {}) if view is not None else None
+    host = EquipHost.stash(gang, card, at=here)
+    owned = possessions(host)
+    refunds = not gang.credits_unlimited
+
+    if stash_tab:
+        catalogue = build_stash_catalogue(owned, refunds=refunds)
+        browsing = STASH_LABEL
+    elif view is not None:
+        catalogue = build_catalogue(view, owned, refunds=refunds)
+        browsing = ALL_LABEL if everything else str(chosen or "")
+    else:
+        catalogue = None
+        browsing = ""
+
+    orphan_rows = []
+    if orphan_ui == "a" and not stash_tab and catalogue is not None:
+        orphan_rows = stash_orphan_rows(catalogue, owned, refunds=refunds)
+
+    toggle_scope = (
+        STASH_SCOPE
+        if stash_tab
+        else (ALL_SCOPE if everything else str(chosen.pk) if chosen else "")
+    )
+    orphan_toggle_a = _gang_tab_href(toggle_scope, orphan_ui="a", section=section)
+    orphan_toggle_b = _gang_tab_href(toggle_scope, orphan_ui="b", section=section)
 
     return render(
         request,
@@ -733,17 +799,23 @@ def equip_gang(request, pk):
         {
             "gang": gang,
             "action": here,
-            "collection_tabs": gang_tabs(collections, chosen, everything),
-            # What is being browsed, as the search box says it. A name
-            # rather than the collection, because the library tab is no
-            # collection and the box asks the same question of both.
-            "browsing": ALL_LABEL if everything else str(chosen or ""),
+            "collection_tabs": gang_tabs(
+                collections,
+                chosen,
+                everything,
+                stash=stash_tab,
+                orphan_ui=orphan_ui,
+            ),
+            "browsing": browsing,
             "catalogue": catalogue,
-            # Who the gang fields, for the figures strip: a purchase into
-            # the store is decided against the roster it will arm, and the
-            # count opens onto the ranks it is made of. The gang card
-            # cannot answer it — its members are keyed by id and carry no
-            # model — so the roster is fetched, one query.
+            "orphan_rows": orphan_rows,
+            "orphan_ui": orphan_ui,
+            "orphan_toggle_a": orphan_toggle_a,
+            "orphan_toggle_b": orphan_toggle_b,
+            "stash_tab": stash_tab,
+            "held_label": host.held_label,
+            "dialog": owned_dialog(request, host),
+            "accessorise": accessorise_dialogs(request, host),
             "summary": summarise_roster(gang_roster(gang)),
             **picker_context(catalogue, view),
         },

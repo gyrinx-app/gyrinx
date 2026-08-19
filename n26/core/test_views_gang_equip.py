@@ -90,12 +90,19 @@ def choice_field(thing, group):
 class TestTheWayIn:
     """The gang page offers the act, and only to whoever owns the gang."""
 
-    def test_the_owner_is_offered_it_on_the_gang_page(self, client, tester, gang):
+    def test_the_owner_is_offered_equip_on_the_stash(self, client, tester, gang):
         client.force_login(tester)
         body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
 
-        assert "Buy Equipment" in body
+        assert "Equip" in body
         assert reverse("n26-equip-gang", args=[gang.pk]) in body
+        assert "Buy Equipment" not in body
+
+    def test_the_gang_header_does_not_offer_buy_equipment(self, client, tester, gang):
+        client.force_login(tester)
+        body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
+
+        assert "Buy Equipment" not in body
 
     def test_a_reader_who_does_not_own_it_is_offered_nothing(self, client, gang):
         """A roster anybody may read, with none of the acts on it: not a
@@ -121,11 +128,12 @@ class TestWhichListsAreOffered:
         tabs = client.get(equip_url(gang)).context["collection_tabs"]
 
         assert [tab["label"] for tab in tabs] == [
+            "In stash",
             "House List",
             "Trading Post",
             "All equipment",
         ]
-        assert tabs[0]["current"]
+        assert tabs[1]["current"]
         assert tabs[-1]["href"] == "?list=all"
 
     def test_a_list_of_skills_is_no_tab_however_the_gang_holds_it(
@@ -146,7 +154,11 @@ class TestWhichListsAreOffered:
         client.force_login(tester)
         tabs = client.get(equip_url(gang)).context["collection_tabs"]
 
-        assert [tab["label"] for tab in tabs] == ["House List", "All equipment"]
+        assert [tab["label"] for tab in tabs] == [
+            "In stash",
+            "House List",
+            "All equipment",
+        ]
 
     def test_a_shortened_tab_keeps_its_full_name_on_the_link(
         self, client, tester, gang
@@ -180,7 +192,8 @@ class TestWhichListsAreOffered:
 
         assert response.context["catalogue"] is None
         assert [tab["label"] for tab in response.context["collection_tabs"]] == [
-            "All equipment"
+            "In stash",
+            "All equipment",
         ]
         assert "No equipment lists yet" in response.content.decode()
 
@@ -612,3 +625,87 @@ class TestTheQueryBudget:
             create_wargear(f"Filler {index}", price=5)
             create_weapon(f"Filler gun {index}", price=5, profiles=[("", 0)])
         assert self.measure(client, url) == few
+
+
+class TestStashManagement:
+    """Held gear is manageable on the gang equip page, including orphans."""
+
+    def test_the_page_is_called_equip(self, client, tester, gang, house_list):
+        client.force_login(tester)
+        body = client.get(equip_url(gang, house_list)).content.decode()
+
+        assert "Equip" in body
+        assert "Buy Equipment" not in body
+
+    def test_a_held_item_on_the_browsed_list_draws_in_stash(
+        self, client, tester, gang, house_list
+    ):
+        from n26.library.models import Wargear
+
+        knife = Wargear.objects.get(name="Knife")
+        with operation(gang, actor=tester) as op:
+            bought = op.buy(gang.stash, thing=knife, paid=10)
+
+        client.force_login(tester)
+        body = client.get(equip_url(gang, house_list)).content.decode()
+
+        assert "in stash" in body
+        assert f"sell={bought.pk}" in body
+
+    def test_orphan_ui_a_draws_gear_the_list_does_not_sell(
+        self, client, tester, gang, house_list
+    ):
+        from n26.library.authoring import create_weapon
+
+        autogun = create_weapon("Autogun", price=20, profiles=[("", 0)])
+        with operation(gang, actor=tester) as op:
+            bought = op.buy(gang.stash, thing=autogun, paid=20)
+
+        client.force_login(tester)
+        url = f"{equip_url(gang, house_list)}&orphan_ui=a"
+        response = client.get(url)
+        body = response.content.decode()
+
+        assert response.context["orphan_rows"]
+        assert "In stash — not on this list" in body
+        assert f"sell={bought.pk}" in body
+
+    def test_orphan_ui_b_lists_everything_on_the_stash_tab(
+        self, client, tester, gang, house_list
+    ):
+        from n26.library.authoring import create_weapon
+
+        autogun = create_weapon("Autogun", price=20, profiles=[("", 0)])
+        with operation(gang, actor=tester) as op:
+            bought = op.buy(gang.stash, thing=autogun, paid=20)
+
+        client.force_login(tester)
+        url = equip_url(gang, scope="stash")
+        response = client.get(url)
+        body = response.content.decode()
+
+        assert response.context["stash_tab"] is True
+        assert "Autogun" in body
+        assert f"sell={bought.pk}" in body
+
+    def test_selling_from_the_stash_tab_returns_to_it(
+        self, client, tester, gang, house_list
+    ):
+        from n26.library.models import Wargear
+
+        knife = Wargear.objects.get(name="Knife")
+        with operation(gang, actor=tester) as op:
+            bought = op.buy(gang.stash, thing=knife, paid=10)
+
+        client.force_login(tester)
+        response = client.post(
+            reverse("n26-sell", args=[bought.pk]),
+            {
+                "list": "stash",
+                "orphan_ui": "b",
+                "return": equip_url(gang, scope="stash"),
+            },
+        )
+
+        assert response.status_code == 302
+        assert "list=stash" in response["Location"]

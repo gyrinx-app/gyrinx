@@ -20,8 +20,9 @@ contents shifts every fighter after it around the grid.
   :total — what the whole stash is pinned at, in credits. Drawn quietly: the
     wealth strip above is where that number lives.
   empty — what to say when there is nothing.
+  actions — controls beside the title, such as the way to the equip screen.
 {% endcomment %}
-<c-vars :lines="None" :total="0" empty="" class="" />
+<c-vars :lines="None" :total="0" empty="" actions="" class="" />
 
 <c-ui.card padding="none" class="{{ class }}">
     <c-slot name="header">
@@ -29,6 +30,9 @@ contents shifts every fighter after it around the grid.
         {# below are px-4, so the name would start further in than the contents. #}
         <div class="-mx-2 flex items-start gap-3">
             <div class="min-w-0 flex-1 font-semibold">Stash</div>
+            {% if actions.strip %}
+                <div class="shrink-0">{{ actions }}</div>
+            {% endif %}
             <span class="shrink-0 text-sm tabular-nums text-muted">{{ total }}¢</span>
         </div>
     </c-slot>
