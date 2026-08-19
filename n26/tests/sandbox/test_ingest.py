@@ -2063,10 +2063,11 @@ class TestTheUploadPage:
         assert "All Profiles" in body
         assert "Equipment lists" in body
 
-    def test_the_form_labels_the_profiles_field_with_the_sheet_name(self):
-        from n26.library.views import IngestForm
+    def test_a_sheets_own_upload_page_is_headed_with_the_sheet_name(self):
+        from n26.library.views import SheetUploadForm
 
-        assert IngestForm().fields["profiles"].label == "All Profiles"
+        form = SheetUploadForm(sheet="profiles")
+        assert form.fields["file"].label == "The All Profiles sheet"
 
 
 class TestClearing:

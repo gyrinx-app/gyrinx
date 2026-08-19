@@ -24,6 +24,15 @@ is the interface:
   the fields the preview named as changing, onto the row the preview
   measured.
 
+An uploaded file is **held** between those stages
+(``n26.library.models.staging``). A browser will not let a server fill a
+file input back in, so a page that previewed an upload and then asked
+for the file again was asking the author to promise it was the same one;
+holding it makes the preview and the import two readings of one thing.
+What is not held is the plan: it is made again on the visit that shows
+it and again on the post that imports, because the contract is about the
+library as it stands.
+
 Three standing rules are load-bearing here:
 
 * **Resolve, never create, across sheets.** An equipment-list line or a
@@ -87,10 +96,12 @@ import re
 from collections import Counter as TallyCounter
 from dataclasses import dataclass, field
 
+from django.core.files.base import ContentFile
 from django.db import transaction
 from django.db.models import Q
 
 from n26.library.models.profile import TYPE_NAMES
+from n26.library.sheets import SHEET_NAMES
 from n26.library.standard_content import (
     MODEL_CHARACTERISTICS,
     SKILLS_COLLECTION,
@@ -487,6 +498,110 @@ class Row(dict):
 def read_csv(text):
     """CSV text → rows. The file interface: everything after this is rows."""
     return [Row(row) for row in csv.DictReader(io.StringIO(text.strip()))]
+
+
+# --- Held uploads: the bytes a preview and its import both read --------------
+
+
+class SheetRefused(ValueError):
+    """An uploaded file that will not be kept, and the reason in words.
+
+    Refusing here rather than at planning time is the difference between an
+    author being told "that is not a CSV" beside the file picker and being
+    shown a preview of nothing.
+    """
+
+
+def store_sheet(owner, sheet, upload):
+    """Keep an uploaded file as this author's copy of ``sheet``.
+
+    Whatever they held for that sheet before is replaced: a corrected export
+    supersedes a wrong one, and two files claiming to be the Equipment sheet
+    would leave the planner to guess.
+
+    The replacement writes over one row rather than removing one and making
+    another, so an author whose upload fails halfway still holds the file
+    they had. The superseded bytes go only once the new ones are stored,
+    for the same reason.
+
+    The file is read once here, both to count its lines and to find out now
+    whether it can be read at all.
+    """
+    from n26.library.models.staging import MAX_SHEET_BYTES, UploadedSheet
+
+    if sheet not in SHEET_NAMES:
+        raise SheetRefused(f"{sheet!r} is not one of the sheets.")
+    if upload.size > MAX_SHEET_BYTES:
+        raise SheetRefused(
+            f"That file is {upload.size // 1024}KB, and a sheet may be at most "
+            f"{MAX_SHEET_BYTES // 1024}KB. It is probably not a CSV export."
+        )
+    raw = upload.read()
+    try:
+        text = raw.decode("utf-8-sig")
+    except UnicodeDecodeError as refused:
+        raise SheetRefused(
+            "That file is not text this can read. Export it as CSV (UTF-8) "
+            "and upload it again."
+        ) from refused
+    rows = read_csv(text)
+    if not rows:
+        raise SheetRefused(
+            "That file has a heading row and nothing under it, or is not a CSV at all."
+        )
+
+    with transaction.atomic():
+        # Locked, so an author who submits the same form twice replaces one
+        # row twice rather than racing themselves into the constraint that
+        # holds them to one sheet of each kind.
+        held = (
+            UploadedSheet.objects.select_for_update()
+            .filter(owner=owner, sheet=sheet)
+            .first()
+        ) or UploadedSheet(owner=owner, sheet=sheet)
+        superseded = held.file.name
+        held.filename = upload.name or f"{sheet}.csv"
+        held.lines = len(rows)
+        held.file.save(f"{sheet}.csv", ContentFile(raw), save=False)
+        held.save()
+
+    if superseded and superseded != held.file.name:
+        held.file.storage.delete(superseded)
+    return held
+
+
+def held_sheets(owner):
+    """What this author has uploaded, keyed by the planner's name for it."""
+    from n26.library.models.staging import UploadedSheet
+
+    return {
+        held.sheet: held
+        for held in UploadedSheet.objects.filter(owner=owner)
+        if held.sheet in SHEET_NAMES
+    }
+
+
+def rows_of(held):
+    """Held uploads → the rows :func:`plan_ingest` takes."""
+    return {name: read_csv(upload.text()) for name, upload in held.items()}
+
+
+def discard_sheets(owner, sheets=None):
+    """Remove held uploads, bytes and all; return how many went.
+
+    One at a time, because the stored file goes with the row and a queryset
+    delete would leave the bytes behind.
+    """
+    from n26.library.models.staging import UploadedSheet
+
+    held = UploadedSheet.objects.filter(owner=owner)
+    if sheets is not None:
+        held = held.filter(sheet__in=sheets)
+    gone = 0
+    for upload in held:
+        upload.delete()
+        gone += 1
+    return gone
 
 
 # --- Planning ----------------------------------------------------------------

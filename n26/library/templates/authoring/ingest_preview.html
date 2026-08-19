@@ -1,0 +1,202 @@
+{% extends "authoring/base.html" %}
+{% block head_title %}
+    Preview the held sheets
+{% endblock head_title %}
+{% block nav_heading %}Ingest{% endblock nav_heading %}
+{% block nav_items %}
+    {% include 'n26/_nav.html' with here='ingest' %}
+{% endblock nav_items %}
+{% block content %}
+    <c-n26.page-header title="What this upload says"
+                       lead="Read fresh from the held sheets against the library as it stands. Importing writes exactly this and nothing else.">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Content library</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-ingest' %}">Ingest</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Preview
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+    </c-n26.page-header>
+    <c-n26.form-section title="The sheets this reads" class="mt-8">
+        <c-ui.table>
+            <thead>
+                <tr>
+                    <th scope="col" class="w-full">Sheet</th>
+                    <th scope="col" class="text-right">Lines</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for entry in held %}
+                    <tr>
+                        <td>
+                            <span class="font-medium text-ink-900 dark:text-ink-100">{{ entry.label }}</span>
+                            <span class="text-muted">— {{ entry.upload.filename }}</span>
+                        </td>
+                        <td class="text-right tabular-nums">{{ entry.upload.lines }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </c-ui.table>
+        {% if missing %}
+            <c-n26.prose class="mt-3">
+                <p class="text-muted">
+                    Not held: {{ missing|join:", " }}. Whatever those sheets would
+                    have described is resolved against the library instead, and said
+                    below where it does not resolve.
+                </p>
+            </c-n26.prose>
+        {% endif %}
+    </c-n26.form-section>
+    <c-n26.form-section title="What it would do" class="mt-10">
+        <div class="flex flex-wrap items-center gap-2">
+            {% if preview.ok %}
+                <c-ui.badge color="green" size="sm">
+                    nothing blocking
+                </c-ui.badge>
+            {% else %}
+                <c-ui.badge color="red" size="sm">
+                    {{ preview.errors }} blocking
+                </c-ui.badge>
+            {% endif %}
+            <c-ui.badge color="amber" size="sm">
+                {{ preview.notes }} noted
+            </c-ui.badge>
+            <span class="text-muted">
+                {{ preview.actions.create|default:0 }} to create,
+                {{ preview.actions.update|default:0 }} to change,
+                {{ preview.actions.unchanged|default:0 }} unchanged
+            </span>
+        </div>
+        <c-ui.table class="mt-4">
+            <thead>
+                <tr>
+                    <th scope="col" class="w-full">Kind</th>
+                    <th scope="col" class="text-right">Rows</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for kind, count in preview.counts.items %}
+                    <tr>
+                        <td>{{ kind }}</td>
+                        <td class="text-right tabular-nums">{{ count }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </c-ui.table>
+        {% if preview.ok %}
+            <form method="post" class="mt-6">
+                {% csrf_token %}
+                <c-n26.form-actions submit_label="Import"
+                                    cancel_url="{% url 'authoring-ingest' %}"
+                                    cancel_label="Back to the sheets" />
+            </form>
+        {% else %}
+            <c-ui.alert variant="error"
+                        title="{{ preview.errors }} problem{{ preview.errors|pluralize }} block this upload"
+                        class="mt-6">
+                Nothing can be written while any of them stand. They are listed under
+                Problems below; fix the sheet and upload it again.
+            </c-ui.alert>
+            <div class="mt-4 flex justify-end">
+                <c-ui.button href="{% url 'authoring-ingest' %}" variant="ghost">Back to the sheets</c-ui.button>
+            </div>
+        {% endif %}
+    </c-n26.form-section>
+    {% if preview.diffs %}
+        <c-n26.form-section title="What would change"
+                            description="Rows the pack already holds that these sheets now describe differently. Grouped by what changed; importing writes exactly these fields and nothing else."
+                            class="mt-10">
+            {% if preview.mostly_changed %}
+                <c-ui.alert variant="warning"
+                            title="More than half the rows this upload recognises would change"
+                            class="mb-4">
+                    That is what uploading the wrong export looks like. Check the
+                    files before importing.
+                </c-ui.alert>
+            {% endif %}
+            <c-ui.table>
+                <tbody>
+                    {% for diff in preview.diffs %}
+                        <tr>
+                            <td>
+                                <div class="flex items-start gap-2">
+                                    <span class="text-muted tabular-nums">×{{ diff.count }}</span>
+                                    <span class="text-ink-900 dark:text-ink-100">{{ diff.shape }}</span>
+                                </div>
+                                <ul class="mt-1 space-y-0.5">
+                                    {% for example in diff.examples %}
+                                        <li class="text-sm text-muted">{{ example.name }} — {{ example.said }}</li>
+                                    {% endfor %}
+                                    {% if diff.count > diff.examples|length %}
+                                        <li class="text-sm text-muted">…and {{ diff.count|add:"-6" }} more</li>
+                                    {% endif %}
+                                </ul>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </c-ui.table>
+        </c-n26.form-section>
+    {% endif %}
+    {% if preview.shapes %}
+        <c-n26.form-section title="Problems"
+                            description="Grouped by what they are rather than where they happened — a long list is usually a few kinds of thing. A blocking problem stops the whole import; a noted one is carried past and said here."
+                            class="mt-10">
+            <c-ui.table>
+                <tbody>
+                    {% for shape in preview.shapes %}
+                        <tr>
+                            <td>
+                                <div class="flex items-start gap-2">
+                                    {% if shape.severity == "error" %}
+                                        <c-ui.badge color="red" size="sm">
+                                            blocking
+                                        </c-ui.badge>
+                                    {% else %}
+                                        <c-ui.badge color="amber" size="sm">
+                                            noted
+                                        </c-ui.badge>
+                                    {% endif %}
+                                    <span class="text-muted tabular-nums">×{{ shape.count }}</span>
+                                    <span class="text-ink-900 dark:text-ink-100">{{ shape.shape }}</span>
+                                </div>
+                                <ul class="mt-1 space-y-0.5">
+                                    {% for example in shape.examples %}
+                                        <li class="text-sm text-muted">
+                                            <span class="tabular-nums">{{ example.where }}</span>
+                                            — {{ example.message }}
+                                        </li>
+                                    {% endfor %}
+                                </ul>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </c-ui.table>
+        </c-n26.form-section>
+    {% endif %}
+    {% if preview.examples %}
+        <c-n26.form-section title="Worked rows"
+                            description="A sheet line, and every library row it becomes."
+                            class="mt-10">
+            {% for example in preview.examples %}
+                <div class="rounded-box border border-box-border px-4 py-3">
+                    <div class="text-sm font-medium text-ink-900 dark:text-ink-100">
+                        {{ example.source.sheet }}:{{ example.source.line }}
+                    </div>
+                    <ul class="mt-2 space-y-0.5">
+                        {% for created in example.creates %}
+                            <li class="text-sm text-muted">
+                                {{ created.kind }}
+                                {% if created.name %}— {{ created.name }}{% endif %}
+                                <span class="text-xs">({{ created.action }})</span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            {% endfor %}
+        </c-n26.form-section>
+    {% endif %}
+{% endblock content %}
