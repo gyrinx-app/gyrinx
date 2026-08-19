@@ -134,6 +134,30 @@ class TestHoldingTheSheets:
         assert held.filename == "corrected.csv"
         assert not held.file.storage.exists(first.file.name)
 
+    def test_a_refused_replacement_leaves_the_held_sheet_standing(
+        self, author, client, foundation
+    ):
+        """An author who uploads the wrong thing over a good sheet still
+        holds the good one."""
+        hold(client, "equipment")
+        standing = UploadedSheet.objects.get(owner=author)
+
+        client.post(
+            sheet_url("equipment"),
+            {"file": SimpleUploadedFile("notes.png", b"\x89PNG\r\n\x1a\n\x00\x01")},
+        )
+
+        held = UploadedSheet.objects.get(owner=author)
+        assert held.pk == standing.pk
+        assert held.filename == "equipment.csv"
+        assert held.file.storage.exists(held.file.name)
+
+    def test_removing_a_sheet_nothing_is_held_for_says_so(
+        self, author, client, foundation
+    ):
+        body = client.post(URL, {"remove": "equipment"}, follow=True).content.decode()
+        assert "No Equipment sheet was held" in body
+
     def test_a_held_sheet_can_be_removed(self, author, client, foundation):
         hold(client, "equipment")
         stored = UploadedSheet.objects.get(owner=author).file.name

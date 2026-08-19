@@ -52,7 +52,7 @@
                         </td>
                         <td class="text-right text-sm text-muted align-top">
                             {% if entry.upload %}
-                                {{ entry.upload.created|naturaltime }}
+                                {{ entry.upload.modified|naturaltime }}
                             {% else %}
                                 —
                             {% endif %}

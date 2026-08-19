@@ -3378,8 +3378,13 @@ def ingest(request):
                 f"Removed {gone} held sheet(s)." if gone else "Nothing was held.",
             )
         elif remove in SHEET_LABELS:
-            discard_sheets(request.user, [remove])
-            messages.success(request, f"Removed the {SHEET_LABELS[remove]} sheet.")
+            gone = discard_sheets(request.user, [remove])
+            messages.success(
+                request,
+                f"Removed the {SHEET_LABELS[remove]} sheet."
+                if gone
+                else f"No {SHEET_LABELS[remove]} sheet was held.",
+            )
         else:
             messages.error(request, "No such sheet.")
         return redirect("authoring-ingest")

@@ -35,7 +35,12 @@ MAX_SHEET_BYTES = 8 * 1024 * 1024
 
 
 class UploadedSheet(Base, Owned):
-    """One pre-ingest spreadsheet, held between being uploaded and imported."""
+    """One pre-ingest spreadsheet, held between being uploaded and imported.
+
+    A replacement writes over the row rather than making a new one, so
+    ``modified`` is when the file it holds now arrived and ``created`` is when
+    this sheet was first given one. The pages show the former.
+    """
 
     sheet = models.CharField(
         max_length=32,

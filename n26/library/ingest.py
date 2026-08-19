@@ -515,9 +515,14 @@ class SheetRefused(ValueError):
 def store_sheet(owner, sheet, upload):
     """Keep an uploaded file as this author's copy of ``sheet``.
 
-    Whatever they held for that sheet before is removed, bytes and all: a
-    corrected export replaces a wrong one, and two files claiming to be the
-    Equipment sheet would leave the planner to guess.
+    Whatever they held for that sheet before is replaced: a corrected export
+    supersedes a wrong one, and two files claiming to be the Equipment sheet
+    would leave the planner to guess.
+
+    The replacement writes over one row rather than removing one and making
+    another, so an author whose upload fails halfway still holds the file
+    they had. The superseded bytes go only once the new ones are stored,
+    for the same reason.
 
     The file is read once here, both to count its lines and to find out now
     whether it can be read at all.
@@ -545,16 +550,24 @@ def store_sheet(owner, sheet, upload):
             "That file has a heading row and nothing under it, or is not a CSV at all."
         )
 
-    held = UploadedSheet.objects.filter(owner=owner, sheet=sheet).first()
-    if held:
-        held.delete()
-    return UploadedSheet.objects.create(
-        owner=owner,
-        sheet=sheet,
-        filename=upload.name or f"{sheet}.csv",
-        file=ContentFile(raw, name=f"{sheet}.csv"),
-        lines=len(rows),
-    )
+    with transaction.atomic():
+        # Locked, so an author who submits the same form twice replaces one
+        # row twice rather than racing themselves into the constraint that
+        # holds them to one sheet of each kind.
+        held = (
+            UploadedSheet.objects.select_for_update()
+            .filter(owner=owner, sheet=sheet)
+            .first()
+        ) or UploadedSheet(owner=owner, sheet=sheet)
+        superseded = held.file.name
+        held.filename = upload.name or f"{sheet}.csv"
+        held.lines = len(rows)
+        held.file.save(f"{sheet}.csv", ContentFile(raw), save=False)
+        held.save()
+
+    if superseded and superseded != held.file.name:
+        held.file.storage.delete(superseded)
+    return held
 
 
 def held_sheets(owner):
