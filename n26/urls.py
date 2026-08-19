@@ -209,9 +209,19 @@ urlpatterns = [
     ),
     path("authoring/ingest/", authoring_views.ingest, name="authoring-ingest"),
     path(
+        "authoring/ingest/preview/",
+        authoring_views.ingest_preview,
+        name="authoring-ingest-preview",
+    ),
+    path(
         "authoring/ingest/clear/",
         authoring_views.ingest_clear,
         name="authoring-ingest-clear",
+    ),
+    path(
+        "authoring/ingest/sheet/<slug:sheet>/",
+        authoring_views.ingest_sheet,
+        name="authoring-ingest-sheet",
     ),
     path("authoring/<slug:kind>/", authoring_views.leaf, name="authoring-leaf"),
     # Before the pk route: "new" is a perfectly good primary key as far

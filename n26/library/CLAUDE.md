@@ -9,6 +9,7 @@ authoring.py     the verbs — the one API that writes content
 specs.py         each verb described as data (its fields, their types)
 forms.py         Django forms generated from the specs
 views.py         the staff authoring pages, driven by small registries
+sheets.py        the five pre-ingest sheets, named once
 ingest.py        spreadsheets in → a previewable plan → rows out
 standard_content.py  the seed rows nobody authors, planted idempotently
 offers.py        what a kind declares about itself; forms derive the rest
@@ -147,6 +148,18 @@ exactly the plan, through the authoring verbs, in one transaction).
 `perform()` does, changes included. Standing rules: resolve, never
 create, across sheets; built-ins are free; a missing seed row is a loud
 error, never quietly re-planted.
+
+An upload is **held** between the stages — an `UploadedSheet` row per
+sheet per author, the bytes in the site's storage. A file input cannot
+be filled back in by the server, so holding the file is what lets a
+preview be read, reloaded, and then imported without choosing the file
+again. The three acts are three pages, each named in the address:
+`/authoring/ingest/` says what is held, `…/ingest/sheet/<sheet>/`
+takes one file, `…/ingest/preview/` plans and imports. **The plan is
+never held** — it is made again on the visit that shows it and again on
+the post that imports it, because the contract is about the library as
+it stands, and an import redirects back to a fresh reading rather than
+rendering its own result.
 
 Planning ends in one settling pass that decides every row's action —
 `create`, `update`, `unchanged`, or `resolved` for a row that is only a

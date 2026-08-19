@@ -70,6 +70,7 @@ from n26.library.models.slots import (
     Slot,
     SlotType,
 )
+from n26.library.models.staging import UploadedSheet
 from n26.library.models.statline import (
     EMPTY_VALUE,
     Stat,
@@ -148,6 +149,7 @@ __all__ = [
     "StatlineTypeStat",
     "Subtype",
     "Trait",
+    "UploadedSheet",
     "UsableBy",
     "Weapon",
     "WeaponAccessory",

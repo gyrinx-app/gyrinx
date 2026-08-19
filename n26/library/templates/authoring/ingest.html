@@ -1,4 +1,5 @@
 {% extends "authoring/base.html" %}
+{% load humanize %}
 {% block head_title %}
     Ingest
 {% endblock head_title %}
@@ -8,7 +9,7 @@
 {% endblock nav_items %}
 {% block content %}
     <c-n26.page-header title="Ingest"
-                       lead="The pre-ingest spreadsheets in, library rows out. Preview says exactly what an import would write; importing does that and nothing else.">
+                       lead="The pre-ingest spreadsheets in, library rows out. Upload a sheet at a time; the files stay here, so previewing and importing read the same upload however long you take between them.">
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
                 <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Content library</c-ui.breadcrumbs.item>
@@ -19,175 +20,93 @@
         </c-slot>
     </c-n26.page-header>
     <c-n26.form-section title="The sheets"
-                        description="Every sheet is optional — upload the ones that changed. The two buttons take the same files: Preview writes nothing, Import writes what Preview showed."
+                        description="Every sheet is optional — upload the ones that changed. Uploading a sheet again replaces the file it is holding; what a missing sheet costs is said in the preview rather than refused here."
                         class="mt-8">
-        <form method="post" enctype="multipart/form-data" class="space-y-4">
-            {% csrf_token %}
-            {% include "authoring/_form.html" %}
-            <div class="flex items-center gap-3">
-                <c-ui.button type="submit" variant="default">
-                    Preview
-                </c-ui.button>
-                <c-ui.button type="submit" name="apply" value="1" variant="success">
-                    Import
-                </c-ui.button>
-            </div>
-        </form>
-    </c-n26.form-section>
-    {% if performed %}
-        <c-n26.form-section title="Imported" class="mt-10">
-            <c-ui.table>
-                <thead>
+        <c-ui.table>
+            <thead>
+                <tr>
+                    <th scope="col" class="w-full">Sheet</th>
+                    <th scope="col" class="text-right">Lines</th>
+                    <th scope="col" class="text-right">Held</th>
+                    <th scope="col"><span class="sr-only">Actions</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for entry in standing %}
                     <tr>
-                        <th scope="col" class="w-full">Kind</th>
-                        <th scope="col" class="text-right">Created</th>
+                        <td>
+                            <div class="font-medium text-ink-900 dark:text-ink-100">{{ entry.label }}</div>
+                            <div class="text-sm text-muted">{{ entry.holds }}</div>
+                            {% if entry.upload %}
+                                <div class="mt-1 text-sm text-ink-900 dark:text-ink-100">{{ entry.upload.filename }}</div>
+                            {% else %}
+                                <div class="mt-1 text-sm text-muted">Nothing held</div>
+                            {% endif %}
+                        </td>
+                        <td class="text-right tabular-nums align-top">
+                            {% if entry.upload %}
+                                {{ entry.upload.lines }}
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+                        <td class="text-right text-sm text-muted align-top">
+                            {% if entry.upload %}
+                                {{ entry.upload.created|naturaltime }}
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+                        <td class="text-right align-top whitespace-nowrap">
+                            <div class="flex items-center justify-end gap-2">
+                                <c-ui.button href="{% url 'authoring-ingest-sheet' entry.sheet %}"
+                                             variant="primary"
+                                             outlined
+                                             size="sm">
+                                    {% if entry.upload %}
+                                        Replace
+                                    {% else %}
+                                        Upload
+                                    {% endif %}
+                                </c-ui.button>
+                                {% if entry.upload %}
+                                    <form method="post">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="remove" value="{{ entry.sheet }}">
+                                        <c-ui.button type="submit" variant="danger" outlined size="sm">
+                                            Remove
+                                        </c-ui.button>
+                                    </form>
+                                {% endif %}
+                            </div>
+                        </td>
                     </tr>
-                </thead>
-                <tbody>
-                    {% for kind, count in performed.items %}
-                        <tr>
-                            <td>{{ kind }}</td>
-                            <td class="text-right tabular-nums">{{ count }}</td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </c-ui.table>
-        </c-n26.form-section>
-    {% endif %}
-    {% if preview %}
-        <c-n26.form-section title="What this upload says" class="mt-10">
-            <div class="flex flex-wrap items-center gap-2">
-                {% if preview.ok %}
-                    <c-ui.badge color="green" size="sm">
-                        nothing blocking
-                    </c-ui.badge>
-                {% else %}
-                    <c-ui.badge color="red" size="sm">
-                        {{ preview.errors }} blocking
-                    </c-ui.badge>
-                {% endif %}
-                <c-ui.badge color="amber" size="sm">
-                    {{ preview.notes }} noted
-                </c-ui.badge>
-                <span class="text-muted">
-                    {{ preview.actions.create|default:0 }} to create,
-                    {{ preview.actions.update|default:0 }} to change,
-                    {{ preview.actions.unchanged|default:0 }} unchanged
-                </span>
-            </div>
-            <c-ui.table class="mt-4">
-                <thead>
-                    <tr>
-                        <th scope="col" class="w-full">Kind</th>
-                        <th scope="col" class="text-right">Rows</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for kind, count in preview.counts.items %}
-                        <tr>
-                            <td>{{ kind }}</td>
-                            <td class="text-right tabular-nums">{{ count }}</td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </c-ui.table>
-        </c-n26.form-section>
-        {% if preview.diffs %}
-            <c-n26.form-section title="What would change"
-                                description="Rows the pack already holds that these sheets now describe differently. Grouped by what changed; importing writes exactly these fields and nothing else."
-                                class="mt-10">
-                {% if preview.mostly_changed %}
-                    <c-ui.alert variant="warning"
-                                title="More than half the rows this upload recognises would change"
-                                class="mb-4">
-                        That is what uploading the wrong export looks like. Check the
-                        files before importing.
-                    </c-ui.alert>
-                {% endif %}
-                <c-ui.table>
-                    <tbody>
-                        {% for diff in preview.diffs %}
-                            <tr>
-                                <td>
-                                    <div class="flex items-start gap-2">
-                                        <span class="text-muted tabular-nums">×{{ diff.count }}</span>
-                                        <span class="text-ink-900 dark:text-ink-100">{{ diff.shape }}</span>
-                                    </div>
-                                    <ul class="mt-1 space-y-0.5">
-                                        {% for example in diff.examples %}
-                                            <li class="text-sm text-muted">{{ example.name }} — {{ example.said }}</li>
-                                        {% endfor %}
-                                        {% if diff.count > diff.examples|length %}
-                                            <li class="text-sm text-muted">…and {{ diff.count|add:"-6" }} more</li>
-                                        {% endif %}
-                                    </ul>
-                                </td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </c-ui.table>
-            </c-n26.form-section>
-        {% endif %}
-        {% if preview.shapes %}
-            <c-n26.form-section title="Problems"
-                                description="Grouped by what they are rather than where they happened — a long list is usually a few kinds of thing. A blocking problem stops the whole import; a noted one is carried past and said here."
-                                class="mt-10">
-                <c-ui.table>
-                    <tbody>
-                        {% for shape in preview.shapes %}
-                            <tr>
-                                <td>
-                                    <div class="flex items-start gap-2">
-                                        {% if shape.severity == "error" %}
-                                            <c-ui.badge color="red" size="sm">
-                                                blocking
-                                            </c-ui.badge>
-                                        {% else %}
-                                            <c-ui.badge color="amber" size="sm">
-                                                noted
-                                            </c-ui.badge>
-                                        {% endif %}
-                                        <span class="text-muted tabular-nums">×{{ shape.count }}</span>
-                                        <span class="text-ink-900 dark:text-ink-100">{{ shape.shape }}</span>
-                                    </div>
-                                    <ul class="mt-1 space-y-0.5">
-                                        {% for example in shape.examples %}
-                                            <li class="text-sm text-muted">
-                                                <span class="tabular-nums">{{ example.where }}</span>
-                                                — {{ example.message }}
-                                            </li>
-                                        {% endfor %}
-                                    </ul>
-                                </td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </c-ui.table>
-            </c-n26.form-section>
-        {% endif %}
-        {% if preview.examples %}
-            <c-n26.form-section title="Worked rows"
-                                description="A sheet line, and every library row it becomes."
-                                class="mt-10">
-                {% for example in preview.examples %}
-                    <div class="rounded-box border border-box-border px-4 py-3">
-                        <div class="text-sm font-medium text-ink-900 dark:text-ink-100">
-                            {{ example.source.sheet }}:{{ example.source.line }}
-                        </div>
-                        <ul class="mt-2 space-y-0.5">
-                            {% for created in example.creates %}
-                                <li class="text-sm text-muted">
-                                    {{ created.kind }}
-                                    {% if created.name %}— {{ created.name }}{% endif %}
-                                    <span class="text-xs">({{ created.action }})</span>
-                                </li>
-                            {% endfor %}
-                        </ul>
-                    </div>
                 {% endfor %}
-            </c-n26.form-section>
+            </tbody>
+        </c-ui.table>
+    </c-n26.form-section>
+    <c-n26.form-section title="What happens next"
+                        description="Preview reads the held sheets against the library and says exactly what an import would write. Importing does that and nothing else."
+                        class="mt-10">
+        {% if held %}
+            <div class="flex flex-wrap items-center gap-3">
+                <c-ui.button href="{% url 'authoring-ingest-preview' %}" variant="primary">
+                    Preview {{ held|length }} held sheet{{ held|pluralize }}
+                </c-ui.button>
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="remove" value="everything">
+                    <c-ui.button type="submit" variant="danger" outlined size="sm">
+                        Remove all held sheets
+                    </c-ui.button>
+                </form>
+            </div>
+        {% else %}
+            <c-n26.prose>
+                <p>No sheets are held. Upload one above, and this is where the preview appears.</p>
+            </c-n26.prose>
         {% endif %}
-    {% endif %}
+    </c-n26.form-section>
     <c-n26.form-section title="Danger zone"
                         description="Delete everything an import writes, leaving the foundations standing. The sheets change while the edition is being built, so clearing and importing again is how a half-right spreadsheet is safely tried."
                         class="mt-12">

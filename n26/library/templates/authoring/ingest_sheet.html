@@ -1,0 +1,42 @@
+{% extends "authoring/base.html" %}
+{% load humanize %}
+{% block head_title %}
+    Upload the {{ label }} sheet
+{% endblock head_title %}
+{% block nav_heading %}Ingest{% endblock nav_heading %}
+{% block nav_items %}
+    {% include 'n26/_nav.html' with here='ingest' %}
+{% endblock nav_items %}
+{% block content %}
+    <c-n26.page-header title="{{ label }}" lead="{{ holds }}">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Content library</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-ingest' %}">Ingest</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    {{ label }}
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+    </c-n26.page-header>
+    {% if upload %}
+        <c-n26.form-section title="What this sheet is holding" class="mt-8">
+            <c-n26.prose>
+                <p>
+                    <span class="font-medium text-ink-900 dark:text-ink-100">{{ upload.filename }}</span>
+                    — {{ upload.lines }} line{{ upload.lines|pluralize }}, uploaded {{ upload.created|naturaltime }}.
+                    Uploading below replaces it.
+                </p>
+            </c-n26.prose>
+        </c-n26.form-section>
+    {% endif %}
+    <c-n26.form-section title="Choose the file"
+                        description="It is read on the way in, so a file that cannot be read is refused here rather than previewed as nothing."
+                        class="mt-10">
+        <form method="post" enctype="multipart/form-data" class="space-y-4">
+            {% csrf_token %}
+            {% include "authoring/_form.html" %}
+            <c-n26.form-actions submit_label="Upload" cancel_url="{% url 'authoring-ingest' %}" />
+        </form>
+    </c-n26.form-section>
+{% endblock content %}
