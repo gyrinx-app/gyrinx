@@ -1625,7 +1625,9 @@ GROUPS: list[Group] = [
                     "to everything is in the heading rather than a last row, which "
                     "would be the one row in the list that does not behave like "
                     "the list. Rows are clickable by the same stretched-anchor "
-                    "means c-n26.gang-table uses."
+                    "means c-n26.gang-table uses. A summary accepts sanitised rich "
+                    "text; links inside it are covered by the row link and become "
+                    "clickable on the full entry page."
                 ),
             ),
             Component(

@@ -1,0 +1,19 @@
+{% extends "n26/layouts/base.html" %}
+{% load richtext %}
+{% block head_title %}Changelog{% endblock head_title %}
+{% block nav_heading %}Changelog{% endblock nav_heading %}
+{% block content %}
+    <div class="mx-auto flex w-full max-w-2xl flex-col gap-6">
+        <c-n26.page-header title="Changelog"
+                           lead="Everything that has changed in the N26 preview." />
+        <c-n26.changelog heading="" empty="Nothing yet.">
+            {% for entry in entries %}
+                <c-n26.changelog.entry title="{{ entry.title }}"
+                                       date="{{ entry.date|date:'j M Y' }}"
+                                       href="{% url 'n26-changelog-entry' entry.pk %}">
+                    {{ entry.body|safe_rich_text }}
+                </c-n26.changelog.entry>
+            {% endfor %}
+        </c-n26.changelog>
+    </div>
+{% endblock content %}

@@ -6,6 +6,7 @@ from django.core.paginator import Paginator
 from django.shortcuts import redirect, render
 from django.urls import reverse
 
+from n26.core.views.changelog import changelog_entries
 from n26.core.views.permissions import _any_gang_or_404, _own_gang_or_404
 
 #: How many gangs a page of the list holds. A row carries a name, a
@@ -13,12 +14,6 @@ from n26.core.views.permissions import _any_gang_or_404, _own_gang_or_404
 #: and a half of scrolling — enough to read down, few enough that the
 #: page is not the whole table.
 GANGS_PER_PAGE = 25
-
-# The changelog belongs to the site and both editions read the same
-# table, so an entry reaches this dashboard only if someone tagged it for
-# this edition. An entry nobody tagged appears on neither dashboard: a
-# reader should not have to work out which edition a change was about.
-CHANGELOG_TAG = "N26"
 
 
 @login_required
@@ -36,22 +31,12 @@ def dashboard(request):
     The changelog is the site's, narrowed to the entries tagged for this
     edition.
     """
-    from gyrinx.site.models import ChangelogEntry
-
     return render(
         request,
         "n26/dashboard.html",
         {
             **_gang_table_context(request),
-            # Tag names are unique but case-sensitively so: "N26" and "n26"
-            # are two rows an admin can create, and an entry tagged with
-            # either is meant for this page. Matching both is also why the
-            # rows need deduplicating — an entry carrying both spellings
-            # matches the join twice and would otherwise be listed twice,
-            # taking two of the five places.
-            "changelog": ChangelogEntry.objects.filter(
-                archived=False, tags__name__iexact=CHANGELOG_TAG
-            ).distinct()[:5],
+            "changelog": changelog_entries()[:5],
         },
     )
 

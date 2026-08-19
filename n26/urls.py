@@ -12,6 +12,12 @@ from n26.library import views as authoring_views
 
 urlpatterns = [
     path("", views.dashboard, name="n26-dashboard"),
+    path("changelog/", views.changelog, name="n26-changelog"),
+    path(
+        "changelog/<uuid:pk>/",
+        views.changelog_entry,
+        name="n26-changelog-entry",
+    ),
     path("gangs/", views.gangs, name="n26-gangs"),
     path("gangs/new/", views.create_gang, name="n26-create-gang"),
     # After gangs/new/, which would otherwise resolve "new" as an id.

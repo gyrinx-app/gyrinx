@@ -1,0 +1,37 @@
+{% extends "n26/layouts/base.html" %}
+{% block head_title %}
+    {{ entry.title }}
+{% endblock head_title %}
+{% block nav_heading %}Changelog{% endblock nav_heading %}
+{% block content %}
+    <div class="grid items-start gap-8 lg:grid-cols-[15rem_minmax(0,1fr)]">
+        <aside class="hidden lg:block">
+            <c-ui.navlist variant="sidebar"
+                          aria-label="Changelog entries"
+                          class="sticky top-24 max-h-[70vh] overflow-y-auto">
+                {% for item in sidebar %}
+                    <c-ui.navlist.item href="{{ item.href }}" :current="item.current">
+                        <span class="block">{{ item.title }}</span>
+                        <span class="block text-xs text-muted">{{ item.date|date:"j M Y" }}</span>
+                    </c-ui.navlist.item>
+                {% endfor %}
+            </c-ui.navlist>
+        </aside>
+        <article class="min-w-0">
+            <c-n26.page-header title="{{ entry.title }}">
+                <c-slot name="breadcrumb">
+                    <c-ui.breadcrumbs>
+                        <c-ui.breadcrumbs.item href="{% url 'n26-changelog' %}">Changelog</c-ui.breadcrumbs.item>
+                        <c-ui.breadcrumbs.item :current="True">
+                            {{ entry.title }}
+                        </c-ui.breadcrumbs.item>
+                    </c-ui.breadcrumbs>
+                </c-slot>
+                <c-slot name="lead">
+                    <time datetime="{{ entry.date|date:'Y-m-d' }}">{{ entry.date|date:"j F Y" }}</time>
+                </c-slot>
+            </c-n26.page-header>
+            <c-n26.rich-text :value="entry.body" class="mt-6" />
+        </article>
+    </div>
+{% endblock content %}

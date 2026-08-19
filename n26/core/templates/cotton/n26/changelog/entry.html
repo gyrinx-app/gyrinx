@@ -1,5 +1,5 @@
 {% comment %}
-<c-n26.changelog.entry> — one update: a short title, two lines of it, a date.
+<c-n26.changelog.entry> — one update: a short title, two lines of rich text, a date.
 
     <c-n26.changelog.entry title="Vehicles" date="6 Aug" href="/changelog/vehicles/">
         Hire a Trazior and it brings its own card…
@@ -9,7 +9,9 @@ The whole row opens the entry: one real <a>, on the title, with .n26-row-link
 stretching its ::after over the row. Anything else clickable added here would
 need lifting above that ::after.
 
-The summary is clamped to two lines; the full text is one click away.
+The summary accepts rendered rich text. Its container is a div because editor
+output may contain paragraphs and lists, which cannot sit inside a paragraph.
+It is clamped to two small-text lines; the full text is one click away.
 
   title — the short header.
   date — when. Stays beside the title at phone width.
@@ -24,5 +26,5 @@ The summary is clamped to two lines; the full text is one click away.
         </h3>
         {% if date %}<span class="shrink-0 text-sm tabular-nums text-muted">{{ date }}</span>{% endif %}
     </div>
-    <p class="n26-clamp-2 mt-0.5 text-sm text-muted">{{ slot }}</p>
+    <div class="rich-text n26-clamp-2 mt-0.5 text-sm text-muted">{{ slot }}</div>
 </div>

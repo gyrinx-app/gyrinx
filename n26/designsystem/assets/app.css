@@ -744,6 +744,9 @@
         -webkit-line-clamp: 2;
         overflow: hidden;
     }
+    .n26-clamp-2 :is(p, ul, ol, blockquote) {
+        margin-bottom: 0;
+    }
 
     /* One price column, so every row in a list puts its number — and therefore
      * its buttons — in the same place. A column of buttons that almost lines up

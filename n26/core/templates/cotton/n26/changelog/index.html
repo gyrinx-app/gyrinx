@@ -10,19 +10,25 @@ A list, not a feed: nothing loads more. Four or five entries on a dashboard, and
 a way through to the rest. The link to the full changelog sits in the heading,
 so every clickable line in the list itself opens an entry.
 
-  heading — what the section is called. "Updates" by default.
+  heading — what the section is called. "Updates" by default; pass an empty
+    string when the page already has a heading.
   href — the full changelog. Without one the heading is plain text.
   empty — what to say when there is nothing.
 {% endcomment %}
 <c-vars heading="Updates" href="" empty="" class="" />
 
 <section class="flex flex-col gap-2 {{ class }}">
-    <div class="flex items-baseline justify-between gap-2">
-        <h2 class="text-lg font-semibold text-ink-900 dark:text-ink-100">{{ heading }}</h2>
-        {% if href %}
-            <c-n26.link href="{{ href }}" tone="muted" class="text-sm">All updates</c-n26.link>
-        {% endif %}
-    </div>
+    {% if heading or href %}
+        <div class="flex items-baseline justify-between gap-2">
+            {% if heading %}<h2 class="text-lg font-semibold text-ink-900 dark:text-ink-100">{{ heading }}</h2>{% endif %}
+            {% if href %}
+                <c-n26.link href="{{ href }}" tone="muted" class="text-sm">
+                    <c-slot name="trailing"><span aria-hidden="true">&nbsp;→</span></c-slot>
+                    View all
+                </c-n26.link>
+            {% endif %}
+        </div>
+    {% endif %}
 
     {% if slot.strip %}
         <div class="divide-y divide-box-border border-y border-box-border">{{ slot }}</div>
