@@ -1109,16 +1109,16 @@ def card_to_model_card(
         if computed
         else set()
     )
-    #: Every assignment standing on this card, so a pick can tell a
-    #: question asked here — drawn or hidden — from one asked of
-    #: somebody else entirely (``_speaks_for_itself``).
-    asked_here = {node.key for node in card.all_nodes()}
-
     # A line's cause is almost always another line on the same card — the
     # membership, the anchor subtype, the weapon a profile hangs off — so
     # its name is resolved from what is already in memory, never by a
     # query. A cause off the card degrades to the reason alone.
     nodes_by_key = {node.key: node for node in card.all_nodes()}
+    #: Every assignment standing on this card, so a pick can tell a
+    #: question asked here — drawn or hidden — from one asked of
+    #: somebody else entirely (``_speaks_for_itself``). The same keys
+    #: the causes are resolved from, and a card is walked once.
+    asked_here = nodes_by_key.keys()
 
     def provenance_of(node):
         cause = nodes_by_key.get(node.caused_by_key)
@@ -1363,7 +1363,12 @@ def _weapon_changes(weapon_state):
 
 
 def _provenance_within(card):
-    """A ``provenance_of`` resolving causes among one card's own nodes."""
+    """A ``provenance_of`` resolving causes among one card's own nodes.
+
+    The keys it resolved from ride along as ``standing_here``: every
+    assignment on the card, which is also what tells a pick whether the
+    question it answers is asked here at all.
+    """
     nodes_by_key = {node.key: node for node in card.all_nodes()}
 
     def provenance_of(node):
@@ -1375,6 +1380,7 @@ def _provenance_within(card):
             computed=node.computed,
         )
 
+    provenance_of.standing_here = nodes_by_key.keys()
     return provenance_of
 
 
@@ -1398,8 +1404,8 @@ def _gang_rows(gang_card, gang_computed):
         if gang_computed
         else set()
     )
-    asked_here = {node.key for node in gang_card.all_nodes()}
     provenance_of = _provenance_within(gang_card)
+    asked_here = provenance_of.standing_here
     rows = []
     rules = []
     for node in gang_card.roots:
