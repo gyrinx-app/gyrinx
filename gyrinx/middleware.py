@@ -16,6 +16,7 @@ from gyrinx.editions import (
     COOKIE_NAME,
     N23,
     N26,
+    PARAM,
     chosen_edition,
     edition_for_path,
     remembered_edition,
@@ -138,10 +139,18 @@ class EditionMiddleware:
         request.path_edition = path_edition
         request.edition = chosen or path_edition or remembered or N23
 
+        # The choice is an instruction, not part of the address: take it, then
+        # send the reader on to the address they were really asking for. Left
+        # in, it rides into the address bar, into bookmarks and into anything
+        # shared from there, pinning the next reader to somebody else's choice.
+        if chosen is not None and request.method in ("GET", "HEAD"):
+            response = HttpResponseRedirect(self._address_itself(request))
+            self._remember(request, response, chosen, remembered, signed_in)
+            return response
+
         if (
             signed_in
             and remembered == N26
-            and chosen is None
             and request.path == "/"
             and request.method in ("GET", "HEAD")
         ):
@@ -152,21 +161,42 @@ class EditionMiddleware:
             return response
 
         response = self.get_response(request)
-
-        # Only an address or an explicit choice moves the memory. A shared page
-        # must not: it would pin a reader to whichever edition they happened to
-        # have been in the first time they opened their account settings.
-        named = chosen or path_edition
-        if signed_in and named is not None and named != remembered:
-            response.set_cookie(
-                COOKIE_NAME,
-                named,
-                max_age=COOKIE_MAX_AGE,
-                samesite="Lax",
-                secure=request.is_secure(),
-                httponly=True,
-            )
+        self._remember(request, response, path_edition, remembered, signed_in)
         return response
+
+    @staticmethod
+    def _address_itself(request):
+        """The address asked for, with the choice taken back out of it.
+
+        Every value of the parameter goes, not just the one that was read, so
+        a hand-written address naming two editions cannot redirect to itself
+        for ever.
+        """
+        params = request.GET.copy()
+        params.pop(PARAM, None)
+        query = params.urlencode()
+        return f"{request.path}?{query}" if query else request.path
+
+    @staticmethod
+    def _remember(request, response, edition, remembered, signed_in):
+        """Move the memory to ``edition``, if there is anywhere to move it to.
+
+        Only an address or an explicit choice gets this far. A page both
+        editions share must never move it: that would pin a reader to whichever
+        edition they happened to be in the first time they opened their account
+        settings. Nor is it rewritten when it already says so — a Set-Cookie on
+        every page of an edition is noise on the wire.
+        """
+        if not signed_in or edition is None or edition == remembered:
+            return
+        response.set_cookie(
+            COOKIE_NAME,
+            edition,
+            max_age=COOKIE_MAX_AGE,
+            samesite="Lax",
+            secure=request.is_secure(),
+            httponly=True,
+        )
 
 
 class ImpersonationMiddleware:

@@ -23,8 +23,13 @@ COOKIE_MAX_AGE = 60 * 60 * 24 * 365
 
 #: Names an edition explicitly for one navigation. The link out of n26 points
 #: at the site root, which is exactly the address the memory redirects back
-#: into n26, so leaving needs a way to say so.
+#: into n26, so leaving needs a way to say so. The middleware takes it and
+#: redirects to the address without it: it is an instruction, and an
+#: instruction left in the address bar is one the next reader inherits.
 PARAM = "edition"
+
+#: The one address the parameter is read at. See :func:`chosen_edition`.
+PARAM_PATH = "/"
 
 
 def edition_for_path(path):
@@ -53,6 +58,17 @@ def remembered_edition(request):
 
 
 def chosen_edition(request):
-    """The edition named explicitly in the query string, or ``None``."""
+    """The edition named explicitly in the query string, or ``None``.
+
+    Read at the site root and nowhere else. That is the only address the
+    parameter is ever linked with, and the only one that needs it — the root
+    belongs to neither edition, so it is the only place the memory answers
+    for the reader and the only place a reader has to be able to overrule it.
+    Elsewhere ``edition`` is somebody else's word: the analytics dashboard
+    filters its charts by one, and a middleware that swallowed it would strip
+    the filter off every link into that page.
+    """
+    if request.path != PARAM_PATH:
+        return None
     value = request.GET.get(PARAM)
     return value if value in EDITIONS else None

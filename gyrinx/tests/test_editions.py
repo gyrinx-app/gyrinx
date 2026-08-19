@@ -91,10 +91,47 @@ def test_saying_so_explicitly_is_how_a_reader_leaves_n26(client, user):
     client.force_login(user)
     client.cookies[COOKIE_NAME] = "n26"
     response = client.get("/?edition=n23")
-    assert response.status_code == 200
+    assert response.status_code == 302
     assert remembered(response) == "n23"
     # And it sticks: the next plain visit to the root stays there.
     assert client.get("/").status_code == 200
+
+
+def test_the_choice_does_not_stay_in_the_address(client, user):
+    """It is an instruction, and an instruction left in the address bar goes
+    into bookmarks and into anything shared from there — pinning the next
+    reader to somebody else's choice."""
+    client.force_login(user)
+    client.cookies[COOKIE_NAME] = "n26"
+    response = client.get("/?edition=n23")
+    assert response.status_code == 302
+    assert response["Location"] == "/"
+
+
+def test_the_rest_of_the_address_survives_the_choice_being_taken_out(client, user):
+    client.force_login(user)
+    response = client.get("/?edition=n23&q=ashen")
+    assert response.status_code == 302
+    assert response["Location"] == "/?q=ashen"
+
+
+def test_the_word_edition_is_only_the_sites_at_the_root(client, user):
+    """Anywhere else it belongs to whoever wrote that page — the analytics
+    dashboard filters its charts by an `edition` of its own, and a middleware
+    that swallowed the word would strip the filter off every link into it."""
+    client.force_login(user)
+    client.cookies[COOKIE_NAME] = "n26"
+    response = client.get("/notifications/?edition=n23")
+    assert response.status_code == 200
+    assert COOKIE_NAME not in response.cookies
+
+
+def test_the_choice_lands_somewhere_rather_than_bouncing_for_ever(client, user):
+    """Following the redirect has to end on a page, not on another redirect
+    back to the choice."""
+    client.force_login(user)
+    client.cookies[COOKIE_NAME] = "n26"
+    assert client.get("/?edition=n23", follow=True).status_code == 200
 
 
 def test_a_visitor_is_neither_remembered_nor_redirected(client):
