@@ -1506,7 +1506,7 @@ class RosterSummary:
     rating: int
 
 
-def summarise_roster(members):
+def summarise_roster(members, recategorised=None):
     """Reduce the list :func:`roster` returns to a :class:`RosterSummary`.
 
     Takes the members already fetched — their profile and its rank came
@@ -1514,11 +1514,19 @@ def summarise_roster(members):
     total is the sum of the models listed, which is what the tally's
     last row must equal: the gang's own rating figure also counts what
     no single model carries.
+
+    ``recategorised`` is the same map :func:`_mustered` takes: a model's
+    pk to the category a rule re-files them under. The tally groups by
+    that rank when one is given, so a sheet that has already re-ordered
+    the roster does not then count the same model under a different one.
     """
+    recategorised = recategorised or {}
     tallies: dict[tuple[str, str], int] = {}
     for member in members:
         profile = member.membership.profile if member.membership else None
-        category = profile.category if profile is not None else None
+        category = recategorised.get(member.pk) or (
+            profile.category if profile is not None else None
+        )
         home = (
             profile.name if profile is not None else "",
             category.name if category is not None else "",
@@ -1573,6 +1581,7 @@ def render_gang(gang, with_effects=True):
 
     computed = {}
     gang_computed = None
+    recategorised = {}
     if with_effects:
         # One index for the whole gang, not one per model. The gang's own
         # nodes are listed too — they also ride member cards as broadcast,
@@ -1621,7 +1630,7 @@ def render_gang(gang, with_effects=True):
             )
             for model in models
         ],
-        summary=summarise_roster(models),
+        summary=summarise_roster(models, recategorised),
     )
 
 
