@@ -588,7 +588,7 @@ class GangSheet:
     #: each rank, and what each model is worth. Derived from the same
     #: members the cards are built from, so a sheet's count and its cards
     #: cannot disagree and asking for it costs no query.
-    summary: "RosterSummary | None" = None
+    summary: RosterSummary | None = None
 
     @property
     def questions(self):
