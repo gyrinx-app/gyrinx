@@ -1,0 +1,39 @@
+{% comment %}
+<c-n26.count-badge> — how many are waiting, as a small filled pill.
+
+    <c-n26.count-badge :count="unread" label="unread notifications" />
+    <c-n26.count-badge :count="unread" class="absolute -top-0.5 -right-0.5" />
+
+Nothing is drawn at zero. A badge saying none is still a badge, and a reader
+sees the mark before they read what it says.
+
+Pass the count with a colon so it arrives a number: written count="{{ n }}" it
+arrives the string "0", which is true, and an empty inbox gets a badge.
+
+Past `max` it stops counting and says so — three digits widen the pill past
+whatever it is riding.
+
+The number itself is never announced; `label` is what decides whether anything
+is. Give it one where the badge sits in a line that is read out, such as an
+item in a menu. Omit it where the control around it already carries the number
+in its own accessible name: aria-label replaces everything inside a control, so
+a labelled badge in there would be read to nobody and would only be a second
+place for the two to disagree.
+
+Placement is the caller's: this draws the pill and nothing else, so the same
+one rides a button's corner and sits in a line of text.
+
+  count — the number. Nothing is drawn at zero.
+  max — 99 by default. Above it the pill reads "99+"; `label` still says the
+    real number, having the room for it.
+  label — what the number means, for anything reading the line aloud.
+{% endcomment %}
+<c-vars count="" max="99" label="" class="" />
+{% if count %}
+    <span {{ attrs }}
+          class="inline-flex min-w-4 items-center justify-center rounded-full bg-red-600 px-1
+                 align-middle text-[0.625rem]/4 font-semibold text-white {{ class }}">
+        <span aria-hidden="true">{% if count|add:0 > max|add:0 %}{{ max }}+{% else %}{{ count }}{% endif %}</span>
+        {% if label %}<span class="sr-only">{{ count }} {{ label }}</span>{% endif %}
+    </span>
+{% endif %}

@@ -327,13 +327,15 @@ banner, is_impersonating / impersonator, gtm_container_id, messages, user.
                     page, named rather than spelled out, and it is drawn in the
                     site's own chrome when the reader arrives.
 
-                    The count is in the words rather than beside them: the
-                    corner badge on the button says something is waiting, and
-                    this says how much of it. Nothing at all when the inbox is
-                    empty, so the entry does not read as a score.
+                    The same pill as the one on the corner of the button that
+                    opens this menu, so the mark a reader saw from the outside
+                    is the mark they find inside. Labelled here and not there:
+                    this row is read out as it stands, where the button's own
+                    accessible name already carries the number.
                     {% endcomment %}
                     <c-ui.dropdown.item href="{% url 'core:notifications' %}">
-                        Notifications{% if unread_notification_count %} ({{ unread_notification_count }}){% endif %}
+                        Notifications
+                        <c-n26.count-badge :count="unread_notification_count" label="unread notifications" />
                     </c-ui.dropdown.item>
                     {% comment %}
                     The colour scheme, in the menu rather than in the bar. It is

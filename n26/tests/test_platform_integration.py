@@ -288,6 +288,16 @@ def reads_as(markup):
     return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", markup)).strip()
 
 
+def count_badge(markup):
+    """What the count pill in a fragment shows, or None where there is none.
+
+    The pill draws its number in a span of its own that says nothing aloud,
+    which is what tells it apart from the icons around it.
+    """
+    found = re.findall(r'<span\s+aria-hidden="true">\s*(.*?)\s*</span>', markup)
+    return found[0] if found else None
+
+
 def in_order(text, *fragments):
     """Where each fragment first appears, for asserting a running order."""
     return [text.index(fragment) for fragment in fragments]
@@ -787,10 +797,24 @@ class TestTheInbox:
     def test_the_page_it_leads_to_is_actually_there(self, tester, client, default_pack):
         assert client.get("/notifications/").status_code == 200
 
-    def test_the_entry_says_how_many_are_waiting(self, tester, client, default_pack):
+    def test_the_entry_wears_the_same_pill_as_the_button(
+        self, tester, client, default_pack
+    ):
+        """The mark seen from outside the menu is the mark found inside it,
+        so the two are one component rather than a badge and a bracketed
+        number that only happen to agree."""
+        self.unread(tester, 2)
+        body = client.get("/n26/").content.decode()
+        menu, button = account_menu(body), account_button(body)
+        assert "Notifications 2" in reads_as(menu)
+        assert count_badge(menu) == count_badge(button) == "2"
+
+    def test_the_entry_says_what_the_number_means(self, tester, client, default_pack):
+        """Unlike the button's, this pill is in a line that is read out as it
+        stands — a bare "2" after the word is not an answer."""
         self.unread(tester, 2)
         menu = account_menu(client.get("/n26/").content.decode())
-        assert "Notifications (2)" in reads_as(menu)
+        assert "2 unread notifications" in reads_as(menu)
 
     def test_the_button_wears_the_count_on_its_corner(
         self, tester, client, default_pack
@@ -805,21 +829,25 @@ class TestTheInbox:
         assert 'aria-label="Open account menu — 2 unread notifications"' in button
 
     def test_an_empty_inbox_says_nothing_at_all(self, tester, client, default_pack):
-        """A zero on the button and a "(0)" in the menu are a badge and a
-        score for having nothing, which is worse than silence."""
+        """A pill on the button and a pill in the menu, both saying none, are
+        two marks for having nothing — worse than silence. The entry itself
+        stays: the inbox is still where a reader goes to look."""
         body = client.get("/n26/").content.decode()
         assert reads_as(account_button(body)) == "tester"
-        assert "unread notifications" not in account_button(body)
+        assert "unread notifications" not in body
         assert "Notifications" in reads_as(account_menu(body))
-        assert "(0)" not in reads_as(account_menu(body))
+        assert count_badge(account_menu(body)) is None
 
     def test_a_crowded_inbox_stops_counting(self, tester, client, default_pack):
         """Three digits would push the pill across the burger beside it."""
         self.unread(tester, 120)
-        button = account_button(client.get("/n26/").content.decode())
+        body = client.get("/n26/").content.decode()
+        button = account_button(body)
         assert reads_as(button) == "tester 99+"
-        # The name still says the real number — it has the room.
+        assert count_badge(account_menu(body)) == "99+"
+        # Read aloud, both still say the real number — they have the room.
         assert 'aria-label="Open account menu — 120 unread notifications"' in button
+        assert "120 unread notifications" in reads_as(account_menu(body))
 
     def test_only_your_own_is_counted(self, tester, client, default_pack):
         self.unread(User.objects.create_user("rival"), 5)
@@ -849,8 +877,10 @@ class TestTheEditionToggle:
         link to it would be a way out that returns."""
         bar = nav_bar(client.get("/n26/").content.decode())
         assert 'href="/?edition=n23"' in bar
-        response = client.get("/?edition=n23")
+        # And following it lands on the classic app, at the plain root.
+        response = client.get("/?edition=n23", follow=True)
         assert response.status_code == 200
+        assert response.redirect_chain[-1][0] == "/"
 
     def test_the_pill_sits_left_of_the_account_menu(self, tester, client, default_pack):
         bar = nav_bar(client.get("/n26/").content.decode())

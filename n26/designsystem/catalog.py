@@ -1540,6 +1540,22 @@ GROUPS: list[Group] = [
                 ),
             ),
             Component(
+                slug="count-badge",
+                tag="c-n26.count-badge",
+                template="n26/count_badge.html",
+                summary="How many are waiting, as a small filled pill.",
+                notes=(
+                    "Pass the count as :count, because written "
+                    'count="{{ n }}" it arrives the string "0", which is true, '
+                    "and something with nothing waiting gets a badge. Placement "
+                    "is the caller's — the same pill rides a button's corner "
+                    "and sits in a line of text. The number is never announced; "
+                    "`label` is what decides whether anything is, and it is "
+                    "wrong to give one inside a control whose aria-label "
+                    "already carries the count."
+                ),
+            ),
+            Component(
                 slug="statline",
                 tag="c-n26.statline",
                 template="n26/statline/index.html",

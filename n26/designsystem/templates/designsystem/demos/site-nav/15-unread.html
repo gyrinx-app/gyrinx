@@ -1,6 +1,6 @@
 {# title: Something waiting #}
 {# layout: full #}
-{# note: `unread` puts the count on the corner of the account button, and the menu behind it says what it is. Nothing is drawn at zero, and anything past ninety-nine reads 99+ rather than pushing the pill across the burger. #}
+{# note: `unread` puts a c-n26.count-badge on the corner of the account button, and the menu behind it draws the same pill against the entry it belongs to — so the mark seen from outside is the mark found inside. Nothing is drawn at zero. #}
 {% load static %}
 <c-n26.site.nav title="Gyrinx"
                 href="#"
@@ -25,7 +25,8 @@
             Your account
         </c-ui.dropdown.item>
         <c-ui.dropdown.item href="#">
-            Notifications ({{ sample_unread }})
+            Notifications
+            <c-n26.count-badge :count="sample_unread" label="unread notifications" />
         </c-ui.dropdown.item>
         <c-ui.dropdown.separator />
         <c-ui.dropdown.item href="#" variant="danger">
