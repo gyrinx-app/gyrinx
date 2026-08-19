@@ -110,6 +110,19 @@ def plan_paths():
         problems.append(
             "picks with no caused_by to settle against: " + ", ".join(unanchored)
         )
+    # A pick hanging from anything but the carrier answers a question
+    # this slot does not ask: rewritten, it would name the slot while
+    # nothing drew it as that slot's answer. Refuse it by name — the
+    # plan knows, and saying so beats leaving it to the page proof.
+    strays = [
+        str(pick.pk)
+        for pick in picks
+        if pick.caused_by_id is not None and pick.caused_by.hidden_id != carrier.pk
+    ]
+    if strays:
+        problems.append(
+            "picks anchored on something other than the carrier: " + ", ".join(strays)
+        )
 
     if problems:
         return Plan(system="paths", problems=tuple(problems))

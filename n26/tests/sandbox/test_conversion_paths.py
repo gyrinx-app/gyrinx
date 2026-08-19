@@ -204,12 +204,12 @@ class TestTheRefusals:
             apply(plan)
         assert not SlotType.objects.filter(name="Path").exists()
 
-    def test_a_pick_anchored_on_the_wrong_row_refuses_and_unwinds(
+    def test_a_pick_anchored_on_the_wrong_row_is_refused(
         self, gangs, prod_shape, owner
     ):
-        """The safety net proves itself: a hand-made pick whose cause is
-        not the offer's carrier would stop reading as chosen after the
-        rewrite — the apply sees the page change and unwinds everything."""
+        """A hand-made pick whose cause is not the offer's carrier
+        answers a question this slot does not ask. The plan names it and
+        refuses; nothing is written."""
         from n26.tests.sandbox.actions import assign
 
         gang_type, carrier, paths = prod_shape
@@ -220,9 +220,12 @@ class TestTheRefusals:
         )
         stray.save()
 
-        with pytest.raises(ConversionRefused, match="pages would change"):
-            apply(plan_paths())
+        plan = plan_paths()
 
+        assert not plan.ok
+        assert any("other than the carrier" in problem for problem in plan.problems)
+        with pytest.raises(ConversionRefused):
+            apply(plan)
         assert not SlotType.objects.filter(name="Path").exists()
         stray.refresh_from_db()
         assert stray.affiliation == paths["Path of the Fanatic"]

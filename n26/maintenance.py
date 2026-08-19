@@ -53,6 +53,7 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "Operation",
+    "convert_archetype",
     "convert_gang_legacy",
     "convert_skill_tree",
     "convert_specialisation",
@@ -98,6 +99,10 @@ class Operation(models.TextChoices):
         "n26_retire_gang_legacy_pilot",
         "n26: the gang legacy slot pilot retires",
     )
+    CONVERT_ARCHETYPE = (
+        "n26_convert_archetype",
+        "n26: the Outcast archetypes become picks",
+    )
     MERGE_WARGEAR_INTO_WEAPON = (
         "n26_merge_wargear_into_weapon",
         "n26: duplicated wargear becomes its weapon",
@@ -110,6 +115,7 @@ LOCK_KEYS = {
     Operation.CONVERT_SKILL_TREE: 826_020_602,
     Operation.CONVERT_GANG_LEGACY: 826_020_603,
     Operation.RETIRE_GANG_LEGACY_PILOT: 826_020_604,
+    Operation.CONVERT_ARCHETYPE: 826_020_605,
 }
 
 
@@ -321,6 +327,17 @@ def convert_gang_legacy(backfill_id, **said_by_whoever_enqueued_it):
 
 
 @task
+def convert_archetype(backfill_id, **said_by_whoever_enqueued_it):
+    """The Archetype conversion, as a task — see ``_run_conversion``."""
+    _run_conversion(
+        backfill_id,
+        Operation.CONVERT_ARCHETYPE,
+        "archetype",
+        **said_by_whoever_enqueued_it,
+    )
+
+
+@task
 def retire_gang_legacy_pilot(backfill_id, **said_by_whoever_enqueued_it):
     """Retire the Gang Legacy slot pilot, once, and write down the outcome.
 
@@ -428,6 +445,15 @@ def convert_gang_legacy_view(request):
         Operation.CONVERT_GANG_LEGACY,
         "gang_legacy",
         convert_gang_legacy,
+    )
+
+
+def convert_archetype_view(request):
+    return _conversion_view(
+        request,
+        Operation.CONVERT_ARCHETYPE,
+        "archetype",
+        convert_archetype,
     )
 
 
@@ -542,6 +568,23 @@ register_operation(
     )
 )
 
+register_operation(
+    MaintenanceOperation(
+        operation=Operation.CONVERT_ARCHETYPE.value,
+        name=Operation.CONVERT_ARCHETYPE.label,
+        description=(
+            "Move the Outcast archetypes onto slots and picks: each Leader "
+            "profile grants the gang's Archetype slot and the Champion "
+            "profile grants its own, instead of offering a choice, and "
+            "every stored choice is re-said as a pick. What an archetype "
+            "does travels with it untouched. Proves every affected gang's "
+            "pages read the same, or writes nothing."
+        ),
+        view=convert_archetype_view,
+        detail_template="admin/maintenance/n26/_convert_detail.html",
+    )
+)
+
 #: Declared for the task registry, which reads this from ``n26/core/tasks.py``.
 #: The deadline is the longest Pub/Sub allows, because a conversion holds one
 #: transaction for as long as proving its spread of gangs takes. It is also
@@ -555,6 +598,7 @@ task_routes = [
     TaskRoute(convert_skill_tree, ack_deadline=600, min_retry_delay=60),
     TaskRoute(convert_gang_legacy, ack_deadline=600, min_retry_delay=60),
     TaskRoute(retire_gang_legacy_pilot, ack_deadline=600, min_retry_delay=60),
+    TaskRoute(convert_archetype, ack_deadline=600, min_retry_delay=60),
 ]
 
 

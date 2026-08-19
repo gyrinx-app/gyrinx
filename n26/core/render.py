@@ -33,6 +33,30 @@ from n26.library.standard_content import XP_COUNTER
 #: named in whatever they changed.
 DRAWS_NO_LINE = (Hidden, Slot, Pickable)
 
+
+def _speaks_for_itself(node, chosen_keys):
+    """A pick nothing on this card speaks for, which must draw its own
+    line rather than vanish.
+
+    A pick is normally drawn as its choice's answer, so it draws no line
+    of its own — but that assumes the choice is drawn *here*. It need
+    not be: a question asked of one holder may be answered onto another
+    (the Leader is asked the gang's archetype, and the gang holds it),
+    and then the card holding the answer shows no choice row to hang it
+    under. Left to the ordinary rule the thing the holder owns would
+    appear nowhere at all.
+
+    A pick with no choice behind it at all is a different case and keeps
+    drawing nothing: nobody was offered it, so it says nothing about its
+    holder (``effects.is_orphan_pick``).
+    """
+    return (
+        isinstance(node.assignable, Pickable)
+        and node.key not in chosen_keys
+        and node.chosen_for_key is not None
+    )
+
+
 #: The book's weapon slots on one card. Each weapon takes its own
 #: ``slots`` against this budget — asterisked weapons two, grenades none.
 #: Shown wherever a selection is being weighed; never enforced, because
@@ -1175,7 +1199,9 @@ def card_to_model_card(
             # has, and this is no longer part of it.
             continue
         thing = node.assignable
-        if isinstance(thing, DRAWS_NO_LINE):
+        if isinstance(thing, DRAWS_NO_LINE) and not _speaks_for_itself(
+            node, chosen_keys
+        ):
             # No row of its own. A hidden carrier's effects have already
             # landed (a shifted stat cell names it); a slot draws its
             # choice row instead; a pick appears as that row's answer, or
@@ -1370,7 +1396,8 @@ def _gang_rows(gang_card, gang_computed):
             # Taken away by a modifier — the assignment stays, the line goes.
             continue
         if isinstance(node.assignable, (*DRAWS_NO_LINE, Counter)):
-            continue
+            if not _speaks_for_itself(node, chosen_keys):
+                continue
         if isinstance(node.assignable, Rule):
             rules.append(AssignableLine(name=node.name, provenance=provenance_of(node)))
             continue
