@@ -102,7 +102,7 @@ def plan_paths():
     # PROTECT the retirement. The same rewrite keeps the history coherent.
     picks = list(
         Assignment.objects.filter(affiliation__in=old_paths)
-        .select_related("affiliation", "gang_root")
+        .select_related("affiliation", "gang_root", "caused_by")
         .order_by("created")
     )
     unanchored = [str(pick.pk) for pick in picks if pick.caused_by_id is None]

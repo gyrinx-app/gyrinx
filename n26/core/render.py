@@ -27,10 +27,12 @@ from n26.library.models import (
 )
 from n26.library.standard_content import XP_COUNTER
 
-#: The kinds that never draw a line of their own. A hidden carrier by
+#: The kinds that draw no line of their own. A hidden carrier by
 #: definition; a slot because its line *is* its choice row; a pick
-#: because it appears as that row's answer. Their effects still show,
-#: named in whatever they changed.
+#: because it appears as that row's answer — which holds only where
+#: that row is drawn on the same card, so ``_speaks_for_itself`` below
+#: reads the one case where it is not. Their effects still show, named
+#: in whatever they changed.
 DRAWS_NO_LINE = (Hidden, Slot, Pickable)
 
 
