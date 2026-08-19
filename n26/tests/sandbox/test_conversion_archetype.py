@@ -492,6 +492,28 @@ class TestTheRefusals:
         assert not plan.ok
         assert any("already wear these names" in p for p in plan.problems)
 
+    def test_a_differently_cased_collision_is_refused_in_words(self, world):
+        """The name constraint folds case, so the check must too: an
+        exact-match look would call “brawler” free and let the collision
+        arrive as a database error where a sentence was promised."""
+        from n26.tests.sandbox.actions import create_pickable
+
+        other = create_slot_type("Something Else")
+        create_pickable("brawler", other, qualifier="archetype")
+
+        plan = plan_archetype()
+
+        assert not plan.ok
+        assert any("already wear these names" in p for p in plan.problems)
+
+    def test_a_differently_cased_slot_type_is_refused(self, world):
+        create_slot_type("ARCHETYPE")
+
+        plan = plan_archetype()
+
+        assert not plan.ok
+        assert any("already stands" in problem for problem in plan.problems)
+
     def test_a_shared_offer_is_refused(self, world, prod_shape):
         """Every offer here is one profile's own; a shared one is a
         different shape and needs a different step."""
@@ -509,6 +531,26 @@ class TestTheRefusals:
 
         assert not plan.ok
         assert any("expected one profile" in p for p in plan.problems)
+
+    def test_a_profile_asking_both_questions_is_refused(self, world, prod_shape):
+        """A profile carrying both offers asks two questions no anchor
+        tells apart, so its picks could settle on either slot."""
+        from n26.library.authoring import attach_modifiers_to
+
+        _, _, leaders, champion, _, _ = prod_shape
+        champion_offer = next(
+            m
+            for m in champion.modifiers.all()
+            if getattr(m, "offers_choice", None) is not None
+        )
+        attach_modifiers_to(leaders[0], [champion_offer])
+
+        plan = plan_archetype()
+
+        assert not plan.ok
+        assert any("cannot be told apart" in p for p in plan.problems) or any(
+            "expected one profile" in p for p in plan.problems
+        )
 
     def test_an_off_menu_pick_is_refused(self, world, prod_shape):
         _, _, leaders, _, _, _ = prod_shape

@@ -73,6 +73,8 @@ PROVEN = 25
 
 
 def plan_archetype():
+    from django.db.models.functions import Lower
+
     from n26.core.models import Assignment
     from n26.library.models import (
         Modifier,
@@ -104,7 +106,11 @@ def plan_archetype():
     # Scoped to the default pack, where this builds: a custom pack's own
     # rows of these names are somebody's content, not a collision.
     pack = default_pack_id()
-    if SlotType.objects.filter(name=SLOT_TYPE, pack_id=pack).exists():
+    # Names are unique per pack under ``Lower``, so these look the same
+    # way the constraint does: an exact-match check calls a differently
+    # cased row free, and the collision then arrives as a database error
+    # where a sentence was promised.
+    if SlotType.objects.filter(name__iexact=SLOT_TYPE, pack_id=pack).exists():
         problems.append(f"a slot type named “{SLOT_TYPE}” already stands")
 
     # Each offer must name a profile, and all of them the same menu:
@@ -164,20 +170,23 @@ def plan_archetype():
     # The names the steps would create must be free in the default pack,
     # under the qualifier they will wear — a collision would turn a
     # valid-looking plan into a mid-apply integrity error.
-    taken = Pickable.objects.filter(
-        pack_id=pack,
-        qualifier=QUALIFIER,
-        name__in=[row.name for row in old_rows],
-    ).values_list("name", flat=True)
+    wanted = {row.name.lower() for row in old_rows}
+    taken = [
+        name
+        for name in Pickable.objects.filter(pack_id=pack)
+        .annotate(folded=Lower("name"), folded_qualifier=Lower("qualifier"))
+        .filter(folded__in=wanted, folded_qualifier=QUALIFIER.lower())
+        .values_list("name", flat=True)
+    ]
     if taken:
         problems.append(
             "pickables already wear these names and qualifier: "
             + ", ".join(sorted(taken))
         )
-    if Picklist.objects.filter(pack_id=pack, name=PICKLIST).exists():
+    if Picklist.objects.filter(pack_id=pack, name__iexact=PICKLIST).exists():
         problems.append(f"a picklist named “{PICKLIST}” already stands")
     for name in (GANG_SLOT, OWN_SLOT):
-        if Slot.objects.filter(pack_id=pack, name=name).exists():
+        if Slot.objects.filter(pack_id=pack, name__iexact=name).exists():
             problems.append(f"a slot named “{name}” already stands")
 
     # Only live answers move. An archived pick is history nothing draws,
@@ -196,6 +205,15 @@ def plan_archetype():
     # the same profile that carries the offer it answered.
     gang_profiles = {row.pk for _, held in to_gang for _, row in held}
     own_profiles = {row.pk for _, held in to_bearer for _, row in held}
+    # One profile carrying both a gang-landing offer and a bearer-landing
+    # one asks two questions this plan cannot tell apart by anchor, and
+    # its picks would settle on whichever slot the check reached first.
+    both = gang_profiles & own_profiles
+    if both:
+        problems.append(
+            f"{len(both)} profile(s) carry both a gang-landing offer and a "
+            "bearer-landing one, so their picks cannot be told apart"
+        )
     pick_slots = {}
     for pick in answers:
         if pick.caused_by_id is None:

@@ -555,6 +555,40 @@ class TestAHiddenChoice:
 
         assert drawn.remarks == []
 
+    def test_a_hand_made_pick_draws_no_line_either(
+        self, gang, bundled, houses, legacy, legacies
+    ):
+        """Answered outright rather than by a starting pick, which is
+        the other way into a hidden choice. Hidden means the card says
+        nothing, however the answer arrived — so the pick draws no line
+        of its own, and its holder shows only what it gives."""
+        from n26.core.models import Assignment
+        from n26.library.models import Slot
+
+        kaustos = hire(gang, bundled, "Kaustos", paid=100)
+        slot = Slot.objects.get(name="Hidden legacy")
+        standing = Assignment.objects.get(
+            miniature_root=kaustos, pickable__isnull=False, archived=False
+        )
+        remove(standing)
+        choose(
+            Assignment.objects.get(profile=bundled, miniature_root=kaustos),
+            houses["Escher"],
+            slot=slot,
+            miniature=kaustos,
+        )
+
+        drawn = drawn_card(kaustos)
+        assert drawn.choices == []
+        assert not any(
+            "Escher" in str(getattr(drawn, field))
+            for field in ("equipment", "rules", "skills", "subtypes")
+        )
+        _, computed = card_of(kaustos)
+        assert [line.name for line in computed.collections] == [
+            "House Escher Equipment List"
+        ]
+
 
 class TestAChoiceTheGangIsAsked:
     """A slot the gang holds is asked once, on the gang's own card. It

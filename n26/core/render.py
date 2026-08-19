@@ -36,26 +36,32 @@ from n26.library.standard_content import XP_COUNTER
 DRAWS_NO_LINE = (Hidden, Slot, Pickable)
 
 
-def _speaks_for_itself(node, chosen_keys):
-    """A pick nothing on this card speaks for, which must draw its own
-    line rather than vanish.
+def _speaks_for_itself(node, asked_here):
+    """A pick whose question this card never asks, which must draw its
+    own line rather than appear nowhere at all.
 
     A pick is normally drawn as its choice's answer, so it draws no line
-    of its own — but that assumes the choice is drawn *here*. It need
+    of its own — but that assumes the question is asked *here*. It need
     not be: a question asked of one holder may be answered onto another
     (the Leader is asked the gang's archetype, and the gang holds it),
-    and then the card holding the answer shows no choice row to hang it
-    under. Left to the ordinary rule the thing the holder owns would
-    appear nowhere at all.
+    and then the card holding the answer has no choice row to hang it
+    under.
 
-    A pick with no choice behind it at all is a different case and keeps
+    The test is the question's own line, not whether a choice row was
+    drawn: a hidden choice asks nothing and still speaks for its answer,
+    which is the whole of what hidden means. So a pick is left to the
+    ordinary rule wherever the assignment it answers stands on this
+    card, drawn or silent, and draws its own line only where that
+    assignment is somewhere else entirely.
+
+    A pick with no choice behind it at all is a third case and keeps
     drawing nothing: nobody was offered it, so it says nothing about its
     holder (``effects.is_orphan_pick``).
     """
     return (
         isinstance(node.assignable, Pickable)
-        and node.key not in chosen_keys
         and node.chosen_for_key is not None
+        and node.chosen_for_key not in asked_here
     )
 
 
@@ -1103,6 +1109,10 @@ def card_to_model_card(
         if computed
         else set()
     )
+    #: Every assignment standing on this card, so a pick can tell a
+    #: question asked here — drawn or hidden — from one asked of
+    #: somebody else entirely (``_speaks_for_itself``).
+    asked_here = {node.key for node in card.all_nodes()}
 
     # A line's cause is almost always another line on the same card — the
     # membership, the anchor subtype, the weapon a profile hangs off — so
@@ -1202,7 +1212,7 @@ def card_to_model_card(
             continue
         thing = node.assignable
         if isinstance(thing, DRAWS_NO_LINE) and not _speaks_for_itself(
-            node, chosen_keys
+            node, asked_here
         ):
             # No row of its own. A hidden carrier's effects have already
             # landed (a shifted stat cell names it); a slot draws its
@@ -1388,6 +1398,7 @@ def _gang_rows(gang_card, gang_computed):
         if gang_computed
         else set()
     )
+    asked_here = {node.key for node in gang_card.all_nodes()}
     provenance_of = _provenance_within(gang_card)
     rows = []
     rules = []
@@ -1398,7 +1409,7 @@ def _gang_rows(gang_card, gang_computed):
             # Taken away by a modifier — the assignment stays, the line goes.
             continue
         if isinstance(node.assignable, (*DRAWS_NO_LINE, Counter)):
-            if not _speaks_for_itself(node, chosen_keys):
+            if not _speaks_for_itself(node, asked_here):
                 continue
         if isinstance(node.assignable, Rule):
             rules.append(AssignableLine(name=node.name, provenance=provenance_of(node)))
