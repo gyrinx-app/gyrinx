@@ -722,6 +722,9 @@ def nav_context():
         ),
         # The chevron a model's own header carries: the gang's other
         # fighters, each row this same screen for them.
+        # An inbox with something in it. A number rather than a string,
+        # because the bar tests it for truth and "0" is true.
+        "sample_unread": 3,
         "sample_fighter_switcher": Switcher(
             heading="Fighters",
             menu_label="Switch to another model",

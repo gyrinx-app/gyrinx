@@ -13,8 +13,11 @@ The load-bearing ideas:
   assignment, and the type's built-ins, owned by the signed-in user;
 * the shell's drawer holds whatever links the area gave it and the
   reader's own gangs, while the account menu behind their name holds
-  the doors — and the staff-only ones only for staff.
+  the doors — and the staff-only ones only for staff, the inbox being
+  one of the doors and its count riding the button that opens them.
 """
+
+import re
 
 import pytest
 from django.contrib.auth.models import User
@@ -271,6 +274,18 @@ def account_menu(body):
     sits at the far end, after it."""
     bar = nav_bar(body)
     return bar[bar.rindex('role="menu"') :]
+
+
+def account_button(body):
+    """The control that opens the account menu, on its own."""
+    bar = nav_bar(body)
+    at = bar.index('aria-label="Open account menu')
+    return bar[bar.rindex("<button", 0, at) : bar.index("</button>", at)]
+
+
+def reads_as(markup):
+    """What a fragment says once its tags and its indentation are gone."""
+    return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", markup)).strip()
 
 
 def in_order(text, *fragments):
@@ -742,6 +757,78 @@ class TestTheNavigation:
         assert ">Foundations</a>" in nav_drawer(body)
 
 
+class TestTheInbox:
+    """One inbox serves both editions — a battle in the classic app and a
+    gang here write to the same place — so the entry is the site's page
+    rather than one of this edition's, and it sits in the account menu
+    under the account it belongs to.
+
+    What is waiting is said twice, because the menu is shut most of the
+    time: a count on the corner of the button that opens it, and the same
+    number in the words of the entry behind it.
+    """
+
+    def unread(self, recipient, count):
+        """Notifications waiting for someone. Written straight rather than
+        through the platform's notify(), which is one insert per row."""
+        from gyrinx.site.models import Notification
+
+        Notification.objects.bulk_create(
+            Notification(owner=recipient, subject=f"Something happened ({n})")
+            for n in range(count)
+        )
+
+    def test_the_menu_holds_the_way_to_it(self, tester, client, default_pack):
+        menu = account_menu(client.get("/n26/").content.decode())
+        assert 'href="/notifications/"' in menu
+        positions = in_order(menu, "Your account", "Notifications")
+        assert positions == sorted(positions)
+
+    def test_the_page_it_leads_to_is_actually_there(self, tester, client, default_pack):
+        assert client.get("/notifications/").status_code == 200
+
+    def test_the_entry_says_how_many_are_waiting(self, tester, client, default_pack):
+        self.unread(tester, 2)
+        menu = account_menu(client.get("/n26/").content.decode())
+        assert "Notifications (2)" in reads_as(menu)
+
+    def test_the_button_wears_the_count_on_its_corner(
+        self, tester, client, default_pack
+    ):
+        """The menu is shut most of the time, so the count has to be on
+        the outside of it. It is folded into the button's accessible name
+        as well: aria-label replaces everything inside a control, so a
+        badge in there is announced to nobody."""
+        self.unread(tester, 2)
+        button = account_button(client.get("/n26/").content.decode())
+        assert reads_as(button) == "tester 2"
+        assert 'aria-label="Open account menu — 2 unread notifications"' in button
+
+    def test_an_empty_inbox_says_nothing_at_all(self, tester, client, default_pack):
+        """A zero on the button and a "(0)" in the menu are a badge and a
+        score for having nothing, which is worse than silence."""
+        body = client.get("/n26/").content.decode()
+        assert reads_as(account_button(body)) == "tester"
+        assert "unread notifications" not in account_button(body)
+        assert "Notifications" in reads_as(account_menu(body))
+        assert "(0)" not in reads_as(account_menu(body))
+
+    def test_a_crowded_inbox_stops_counting(self, tester, client, default_pack):
+        """Three digits would push the pill across the burger beside it."""
+        self.unread(tester, 120)
+        button = account_button(client.get("/n26/").content.decode())
+        assert reads_as(button) == "tester 99+"
+        # The name still says the real number — it has the room.
+        assert 'aria-label="Open account menu — 120 unread notifications"' in button
+
+    def test_only_your_own_is_counted(self, tester, client, default_pack):
+        self.unread(User.objects.create_user("rival"), 5)
+        self.unread(tester, 1)
+        assert reads_as(account_button(client.get("/n26/").content.decode())) == (
+            "tester 1"
+        )
+
+
 class TestTheEditionToggle:
     """One pill in each edition's bar: the segment you are in filled, the
     other a plain link to the other edition's front page. Drawn for
@@ -755,6 +842,15 @@ class TestTheEditionToggle:
         assert 'title="Go to the classic app"' in bar
         # The segment you are in is a fact, said as one.
         assert 'title="You are in the N26 preview"' in bar
+
+    def test_the_way_back_says_the_reader_means_it(self, tester, client, default_pack):
+        """The classic app's front page is the site root, and the site
+        sends a reader last seen here back to here from the root. A bare
+        link to it would be a way out that returns."""
+        bar = nav_bar(client.get("/n26/").content.decode())
+        assert 'href="/?edition=n23"' in bar
+        response = client.get("/?edition=n23")
+        assert response.status_code == 200
 
     def test_the_pill_sits_left_of_the_account_menu(self, tester, client, default_pack):
         bar = nav_bar(client.get("/n26/").content.decode())

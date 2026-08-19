@@ -28,9 +28,15 @@ It takes either shape: an attribute for a plain name, or a slot for markup such
 as a <c-n26.user-link>. An attribute is escaped, so markup passed that way
 prints as source; pass both and the attribute wins, silently.
 
+`unread` rides the corner of that same trigger, because what is waiting is in
+the menu behind it. Pass it as :unread so it arrives a number — written
+unread="{{ count }}" it arrives the string "0", which is true, and a reader with
+an empty inbox gets a badge saying nothing is waiting.
+
   slot — the drawer's links, as <c-ui.navbar.item>; the current one marks itself.
   menu — the account items, as <c-ui.dropdown.item>. The caller draws its own
     separators, so a section only staff see leaves no rule behind for others.
+  unread — how many notifications are waiting. Nothing is drawn at zero.
 {% endcomment %}
 <c-vars
     title=""
@@ -44,6 +50,7 @@ prints as source; pass both and the attribute wins, silently.
     heading=""
     gangs=""
     menu=""
+    unread=""
     actions=""
     class=""
 />
@@ -100,10 +107,16 @@ prints as source; pass both and the attribute wins, silently.
             {% if user_label %}
                 <c-ui.dropdown align="end">
                     <c-slot name="trigger">
+                        {% comment %}
+                        The unread count is folded into the button's accessible
+                        name rather than left to be read out of the corner
+                        badge: aria-label replaces everything inside the
+                        control, so a badge in there is announced to nobody.
+                        {% endcomment %}
                         <button type="button"
-                                aria-label="{{ menu_label }}"
+                                aria-label="{{ menu_label }}{% if unread %} — {{ unread }} unread notifications{% endif %}"
                                 title="{{ menu_label }}"
-                                class="inline-flex cursor-pointer items-center gap-1.5 rounded-control px-2.5 py-1.5
+                                class="relative inline-flex cursor-pointer items-center gap-1.5 rounded-control px-2.5 py-1.5
                                        text-sm font-medium text-ink-600 hover:bg-ink-100 focus-ring
                                        dark:text-ink-300 dark:hover:bg-ink-800">
                             {% comment %}
@@ -118,6 +131,20 @@ prints as source; pass both and the attribute wins, silently.
                                 <c-n26.icon name="ellipsis-vertical" class="size-4" />
                                 <c-n26.icon name="chevron-down" class="size-3" stroke_width="2.5" />
                             </span>
+                            {% comment %}
+                            On the corner rather than in the row: the count is
+                            about what is behind the button, and a number
+                            sitting beside the name would read as part of it.
+                            Three digits would push the pill across the burger,
+                            so anything past ninety-nine stops counting.
+                            {% endcomment %}
+                            {% if unread %}
+                                <span aria-hidden="true"
+                                      class="absolute -top-0.5 -right-0.5 inline-flex min-w-4 items-center justify-center
+                                             rounded-full bg-red-600 px-1 text-[0.625rem]/4 font-semibold text-white">
+                                    {% if unread > 99 %}99+{% else %}{{ unread }}{% endif %}
+                                </span>
+                            {% endif %}
                         </button>
                     </c-slot>
                     {% if menu %}{{ menu }}{% endif %}

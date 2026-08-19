@@ -2093,7 +2093,11 @@ GROUPS: list[Group] = [
                     "wordmark, not the page's name or the switcher beside it; the "
                     "mark is still a link home. The colour scheme is a segmented "
                     "control of three in the account menu, where it takes no room "
-                    "the page wants."
+                    "the page wants. `unread` puts a count on the corner of the "
+                    "account button and into its accessible name; pass it as "
+                    ':unread, because written unread="{{ count }}" it arrives '
+                    'the string "0", which is true, and an empty inbox gets a '
+                    "badge."
                 ),
                 parts=(
                     Part(

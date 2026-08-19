@@ -105,8 +105,10 @@ Concretely:
   loaded by name in a template is the whole of the dependency.
 - **Templates may `{% url %}` a platform route** on the same test as a
   tag library: the page it leads to must be the account's or the
-  site's, not an edition's — today that is `core:account_home`, the one
-  account page both editions send a reader to. Writing the path out
+  site's, not an edition's — today that is `core:account_home` and
+  `core:notifications`, the account page and the inbox both editions
+  send a reader to, plus the banner's own dismiss and click-tracking
+  routes, which act on a platform-owned Banner. Writing the path out
   instead is the worse option, not the safer one: a name that stops
   resolving raises on render, while a path that stops existing serves a
   404 in silence for as long as nobody clicks it. What crosses is a

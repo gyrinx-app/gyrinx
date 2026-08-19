@@ -170,9 +170,16 @@ banner, is_impersonating / impersonator, gtm_container_id, messages, user.
         under this layout is an n26 page, and a logo that dumps a reader back on
         the n23 site reads as leaving the app rather than going home.
         {% endcomment %}
+        {% comment %}
+        The count is the site's rather than this edition's — one inbox serves
+        both — and it arrives in the context on every page from the platform's
+        notifications processor. Passed with a colon so it stays a number: the
+        string "0" is true, and the bar would carry an empty-inbox badge.
+        {% endcomment %}
         <c-n26.site.nav title="Gyrinx"
                         href="{% url 'n26-dashboard' %}"
                         sticky="1"
+                        :unread="unread_notification_count"
                         class="dark">
             {% comment %}
             The account button's name, with the badge the account holds. A slot
@@ -312,6 +319,21 @@ banner, is_impersonating / impersonator, gtm_container_id, messages, user.
                     <c-ui.dropdown.separator />
                     <c-ui.dropdown.item href="{% url 'core:account_home' %}">
                         Your account
+                    </c-ui.dropdown.item>
+                    {% comment %}
+                    The inbox, under the account it belongs to. One inbox
+                    serves both editions — a battle in the classic app and a
+                    gang here write to the same place — so this is the site's
+                    page, named rather than spelled out, and it is drawn in the
+                    site's own chrome when the reader arrives.
+
+                    The count is in the words rather than beside them: the
+                    corner badge on the button says something is waiting, and
+                    this says how much of it. Nothing at all when the inbox is
+                    empty, so the entry does not read as a score.
+                    {% endcomment %}
+                    <c-ui.dropdown.item href="{% url 'core:notifications' %}">
+                        Notifications{% if unread_notification_count %} ({{ unread_notification_count }}){% endif %}
                     </c-ui.dropdown.item>
                     {% comment %}
                     The colour scheme, in the menu rather than in the bar. It is
