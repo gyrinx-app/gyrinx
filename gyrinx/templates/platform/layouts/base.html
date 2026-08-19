@@ -127,6 +127,14 @@
                 </a>
                 <div class="hstack gap-2 align-items-center">
                     {% comment %}
+                        These pages belong to neither edition, so the bar says which one
+                        the reader is in and leads back to it. Without the pill, a reader
+                        who came here from n26 has nothing in the chrome naming where they
+                        were — the brand goes to the site root, which the middleware sends
+                        back to their edition, and this says which that is.
+                    {% endcomment %}
+                    {% include "platform/includes/edition_toggle.html" with extra_classes="d-inline-flex" %}
+                    {% comment %}
                         #bd-theme, #bd-theme-text, .theme-icon-active and
                         [data-bs-theme-value] are all queried by core/js/index.js — keep
                         these hooks in step with the edition base if either side changes

@@ -11,6 +11,11 @@ The N23 half is written as a path rather than a route name. Reversing the other
 edition's URLs here would cross the boundary n26/CLAUDE.md draws, and the site
 root is the one address that belongs to neither edition.
 
+It carries ?edition=n23, and must. The site remembers the last edition a reader
+was in and sends them from the root back to it, so a bare link to the root from
+an n26 page is a link that returns here — the parameter is how the reader says
+they mean to leave.
+
 Draw it only where the reader can follow both links: a signed-out visitor has
 nowhere yet to be sent.
 {% endcomment %}
@@ -19,7 +24,7 @@ nowhere yet to be sent.
       role="group"
       aria-label="Edition"
       class="inline-flex shrink-0 items-center rounded-full border border-ink-300 p-0.5 text-xs dark:border-ink-700 {{ class }}">
-    <a href="/"
+    <a href="/?edition=n23"
        title="Go to the classic app"
        class="rounded-full px-2 py-0.5 text-ink-500 transition-colors hover:text-ink-900 focus-ring
               dark:text-ink-400 dark:hover:text-white">N23</a>
