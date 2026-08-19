@@ -1,5 +1,4 @@
 {% extends "n26/layouts/base.html" %}
-{% load richtext %}
 {% block head_title %}Changelog{% endblock head_title %}
 {% block nav_heading %}Changelog{% endblock nav_heading %}
 {% block content %}
@@ -10,9 +9,8 @@
             {% for entry in entries %}
                 <c-n26.changelog.entry title="{{ entry.title }}"
                                        date="{{ entry.date|date:'j M Y' }}"
-                                       href="{% url 'n26-changelog-entry' entry.pk %}">
-                    {{ entry.body|safe_rich_text }}
-                </c-n26.changelog.entry>
+                                       href="{% url 'n26-changelog-entry' entry.pk %}"
+                                       :body="entry.body" />
             {% endfor %}
         </c-n26.changelog>
     </div>

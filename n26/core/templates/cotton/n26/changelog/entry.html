@@ -1,30 +1,28 @@
 {% comment %}
 <c-n26.changelog.entry> — one update: a short title, two lines of rich text, a date.
 
-    <c-n26.changelog.entry title="Vehicles" date="6 Aug" href="/changelog/vehicles/">
-        Hire a Trazior and it brings its own card…
-    </c-n26.changelog.entry>
+    <c-n26.changelog.entry title="Vehicles" date="6 Aug"
+                           href="/changelog/vehicles/" :body="entry.body" />
 
-The whole row opens the entry: one real <a>, on the title, with .n26-row-link
-stretching its ::after over the row. Anything else clickable added here would
-need lifting above that ::after.
+The title opens the entry. Links in the rich-text summary remain independent
+destinations, so the row is not covered by a stretched link.
 
-The summary accepts rendered rich text. Its container is a div because editor
-output may contain paragraphs and lists, which cannot sit inside a paragraph.
-It is clamped to two small-text lines; the full text is one click away.
+The body is sanitised here rather than at each call site. It is clamped to two
+small-text lines; the full text is one click away.
 
   title — the short header.
   date — when. Stays beside the title at phone width.
   href — the entry.
+  body — stored rich text, sanitised before rendering.
 {% endcomment %}
-<c-vars title="" date="" href="" class="" />
+<c-vars title="" date="" href="" body="" class="" />
 
-<div class="relative px-1 py-3 hover:bg-ink-500/5 {{ class }}">
+<div class="px-1 py-3 {{ class }}">
     <div class="flex items-baseline justify-between gap-3">
         <h3 class="min-w-0 text-base font-semibold text-ink-900 dark:text-ink-100">
-            <a href="{{ href }}" class="n26-row-link rounded-control focus-ring">{{ title }}</a>
+            <c-n26.link href="{{ href }}" tone="current">{{ title }}</c-n26.link>
         </h3>
         {% if date %}<span class="shrink-0 text-sm tabular-nums text-muted">{{ date }}</span>{% endif %}
     </div>
-    <div class="rich-text n26-clamp-2 mt-0.5 text-sm text-muted">{{ slot }}</div>
+    <c-n26.rich-text :value="body" class="n26-clamp-2 mt-0.5 text-sm text-muted" />
 </div>

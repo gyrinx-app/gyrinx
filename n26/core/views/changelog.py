@@ -8,7 +8,8 @@ an entry has the same meaning for every reader.
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 
-#: The label that assigns a site-wide changelog entry to this edition.
+#: Both editions read one table, so an entry appears here only when its
+#: author says which edition it concerns. Untagged news belongs to neither.
 CHANGELOG_TAG = "N26"
 
 
@@ -20,10 +21,14 @@ def changelog_entries():
     """
     from gyrinx.site.models import ChangelogEntry
 
-    return ChangelogEntry.objects.filter(
-        archived=False,
-        tags__name__iexact=CHANGELOG_TAG,
-    ).distinct()
+    return (
+        ChangelogEntry.objects.filter(
+            archived=False,
+            tags__name__iexact=CHANGELOG_TAG,
+        )
+        .distinct()
+        .order_by("-date", "-created")
+    )
 
 
 def changelog(request):
