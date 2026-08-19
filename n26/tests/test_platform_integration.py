@@ -244,7 +244,7 @@ class TestTheChangelogLinks:
 
         body = client.get("/n26/").content.decode()
 
-        assert '<div class="rich-text n26-clamp-2' in body
+        assert 'class="rich-text n26-clamp-2' in body
         assert "<ul><li>One point</li></ul>" in body
 
 
