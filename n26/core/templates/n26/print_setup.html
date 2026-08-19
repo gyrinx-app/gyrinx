@@ -18,6 +18,12 @@ is what you want.
 Loading a saved config (?config=) pre-fills the same form — editing a config
 and creating one are one screen, not two.
 
+A reader who does not own the gang gets the same boxes and none of the
+saving: no name field, no Edit beside a saved setup, and the form submits
+to the print page as a GET rather than writing a config here. Where it
+posts and what it says are the view's answers, not this template's — the
+two differ in more places than a template condition reads well in.
+
 The way out leads to the gang's sheet: this page is only ever reached from
 there, and a reader who decides against printing wants the gang back rather
 than whatever the browser's history holds.
@@ -36,9 +42,10 @@ that said it twice would be spending the width the name needs.
     {% include 'n26/_nav.html' with here='gangs' %}
 {% endblock %}
 {% block content %}
-    <c-n26.form-page action="{% url 'n26-print-setup' gang.pk %}"
+    <c-n26.form-page action="{{ form_action }}"
+                     method="{{ form_method }}"
                      title="Print {{ gang.name }}"
-                     lead="Pick what goes on paper. Name the setup to keep it for next time."
+                     lead="{{ lead }}"
                      submit_label="Print"
                      submit_variant="primary"
                      cancel_url="{% url 'n26-gang' gang.pk %}">
@@ -53,7 +60,17 @@ that said it twice would be spending the width the name needs.
                 </c-ui.breadcrumbs.item>
             </c-ui.breadcrumbs>
         </c-slot>
-        {% csrf_token %}
+        {% comment %}
+        The token rides the owner's POST only. A GET form would carry it in
+        the address, where it would end up in history, in a shared link and
+        in the logs, for a request that changes nothing.
+        {% endcomment %}
+        {% if yours %}
+            {% csrf_token %}
+        {% else %}
+            {# Says the address carries a choice: see _what_to_print. #}
+            <input type="hidden" name="pick" value="1">
+        {% endif %}
         {% if saved %}
             {% comment %}
             Its own heading at the section scale, not a form-section title:
@@ -74,9 +91,18 @@ that said it twice would be spending the width the name needs.
                                 </p>
                             </div>
                             <div class="flex shrink-0 items-center gap-2">
-                                <c-ui.button size="sm"
-                                             variant="default"
-                                             href="{% url 'n26-print-setup' gang.pk %}?config={{ config.pk }}">Edit</c-ui.button>
+                                {% comment %}
+                                Edit is the owner's: it loads the setup back into a
+                                form only they can save. Print is anybody's, which
+                                is the point of a named setup — the gang as its
+                                owner meant it to go on paper, one click away for
+                                whoever is doing the printing.
+                                {% endcomment %}
+                                {% if yours %}
+                                    <c-ui.button size="sm"
+                                                 variant="default"
+                                                 href="{% url 'n26-print-setup' gang.pk %}?config={{ config.pk }}">Edit</c-ui.button>
+                                {% endif %}
                                 <c-ui.button size="sm"
                                              variant="primary"
                                              href="{% url 'n26-print' gang.pk %}?config={{ config.pk }}">Print</c-ui.button>
@@ -87,15 +113,17 @@ that said it twice would be spending the width the name needs.
             </section>
             <c-n26.divider label="or set up a new print" icon="printer" />
         {% endif %}
-        <c-n26.form-section title="{% if saved %}New setup{% else %}Setup{% endif %}">
-            <c-ui.field label="Setup name"
-                        description="Optional — a named setup is saved and listed here for next time."
-                        for="print-name">
-                <c-ui.input id="print-name"
-                            name="name"
-                            autocomplete="off"
-                            value="{{ setup_name }}" />
-            </c-ui.field>
+        <c-n26.form-section title="{{ setup_title }}">
+            {% if yours %}
+                <c-ui.field label="Setup name"
+                            description="Optional — a named setup is saved and listed here for next time."
+                            for="print-name">
+                    <c-ui.input id="print-name"
+                                name="name"
+                                autocomplete="off"
+                                value="{{ setup_name }}" />
+                </c-ui.field>
+            {% endif %}
             {% comment %}
             Plain inputs, as the picker rows use — the kit's checkbox is wired
             for its own group scope and these are two independent toggles.

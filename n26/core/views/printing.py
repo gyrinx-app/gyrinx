@@ -2,6 +2,14 @@
 
 The layout decisions these draw on live in :mod:`n26.core.printing`;
 this is the pair of views around them.
+
+Reading a gang and saving a setup for it are two different permissions.
+Whoever can open the sheet can print it: players print rosters for each
+other, and the paper says nothing the sheet has not already shown. Saving
+a setup writes a row on somebody's gang, so that stays the owner's — a
+reader who does not own it picks what to print in the same boxes and
+carries the answer in the address instead. Signing in is the floor for
+both: a roster may be read by a visitor, and printed by a player.
 """
 
 from django.contrib.auth.decorators import login_required
@@ -9,7 +17,8 @@ from django.core.exceptions import ValidationError
 from django.shortcuts import redirect, render
 from django.urls import reverse
 
-from n26.core.views.permissions import _own_gang_or_404
+from n26.core.fields import to_ulid
+from n26.core.views.permissions import _any_gang_or_404, _own_gang_or_404
 
 
 class _Selection:
@@ -97,6 +106,71 @@ def _config_for(request, gang):
         return None
 
 
+def _ids(values):
+    """The values among ``values`` that are ids at all.
+
+    An address is a thing people edit, and one unreadable id should cost
+    that id rather than the whole print.
+    """
+    kept = []
+    for value in values:
+        try:
+            kept.append(to_ulid(value))
+        except ValueError, AttributeError, TypeError:
+            continue
+    return kept
+
+
+def _weapons_named(gang, values):
+    """The gang's own weapon assignments among ``values``.
+
+    Scoped to the gang, so an address naming somebody else's weapon adds
+    nothing to the paper.
+    """
+    from n26.core.models import Assignment
+
+    return set(
+        Assignment.objects.filter(
+            gang_root=gang, weapon__isnull=False, pk__in=_ids(values)
+        ).values_list("pk", flat=True)
+    )
+
+
+def _what_to_print(request, gang, config):
+    """What the address asks for: which models, which weapons, which blocks.
+
+    Three answers, in the order the address settles them. A saved setup is
+    the whole of what it says. A pick of its own is the setup screen
+    submitted by someone with nowhere to save it — the same boxes, carried
+    as a query rather than a row. Neither is the plain print address, which
+    means the whole gang.
+
+    ``pick`` is what says the address carries a choice at all: without it,
+    an address that ticked nothing and one that asked for everything would
+    be the same address, and they mean opposite things.
+
+    Models are answered as the strings the URL holds, matched against each
+    model's id where the roster is narrowed; weapons as real ids, because a
+    card is filtered by the assignments it holds. ``None`` in either place
+    means no narrowing.
+    """
+    if config is not None:
+        return (
+            {str(pk) for pk in config.miniatures.values_list("pk", flat=True)},
+            set(config.assignments.values_list("pk", flat=True)),
+            config.include_header,
+            config.include_stash,
+        )
+    if request.GET.get("pick"):
+        return (
+            set(request.GET.getlist("fighters")),
+            _weapons_named(gang, request.GET.getlist("weapons")),
+            bool(request.GET.get("include_header")),
+            bool(request.GET.get("include_stash")),
+        )
+    return None, None, True, True
+
+
 @login_required
 def print_setup(request, pk):
     """Choose what a print includes, before the paper is committed.
@@ -110,13 +184,19 @@ def print_setup(request, pk):
     POST writes a config and redirects to the print page carrying its
     id. A named POST saves under that name; an unnamed one rewrites the
     gang's single scratch config, so ad-hoc prints never pile up rows.
+
+    Two guards rather than one, because the screen and the act behind it
+    are not the same permission. Anyone signed in may read the setup —
+    the gang's saved setups included, each still one click to print. Only
+    the owner may POST, saving being a write on their gang; everyone else
+    submits the same boxes to the print page as a GET, which prints the
+    pick without keeping it.
     """
     from n26.core.models import Assignment, Miniature, PrintConfig
     from n26.core.render import render_gang
 
-    gang = _own_gang_or_404(request, pk)
-
     if request.method == "POST":
+        gang = _own_gang_or_404(request, pk)
         name = request.POST.get("name", "").strip()
         miniatures = Miniature.objects.filter(
             membership__gang=gang,
@@ -144,8 +224,14 @@ def print_setup(request, pk):
 
     from n26.core.render import WEAPON_SLOTS_PER_CARD
 
+    gang = _any_gang_or_404(pk)
+    yours = gang.owner_id == request.user.id
     loaded = _config_for(request, gang)
     sheet = render_gang(gang)
+    # The gang's named setups, whoever is reading: each is one click to
+    # print, and a reader printing for somebody else wants the setup that
+    # somebody else already settled on.
+    saved = list(gang.print_configs.exclude(name=""))
     if loaded is not None:
         ticked_models = {
             str(pk) for pk in loaded.miniatures.values_list("pk", flat=True)
@@ -179,7 +265,7 @@ def print_setup(request, pk):
                 }
                 for card in sheet.models
             ],
-            "saved": gang.print_configs.exclude(name=""),
+            "saved": saved,
             # Resolved here, not in the template: `loaded.include_header`
             # on a None resolves to the empty string, which default_if_none
             # does not catch — a template-side default silently unticks.
@@ -189,6 +275,24 @@ def print_setup(request, pk):
             "ticked_models": ticked_models,
             "ticked_weapons": ticked_weapons,
             "slot_budget": WEAPON_SLOTS_PER_CARD,
+            "yours": yours,
+            # Where the boxes are submitted, and how. The owner's form
+            # saves a setup and prints it; a reader who cannot save sends
+            # the same boxes straight to the paper, as a query the address
+            # then holds — so their print can be reloaded and sent on.
+            "form_action": reverse(
+                "n26-print-setup" if yours else "n26-print", args=[gang.pk]
+            ),
+            "form_method": "post" if yours else "get",
+            "lead": (
+                "Pick what goes on paper. Name the setup to keep it for next time."
+                if yours
+                else "Pick what goes on paper. Saved setups belong to whoever owns "
+                "the gang, so yours prints without being kept."
+            ),
+            "setup_title": (
+                ("New setup" if saved else "Setup") if yours else "This print"
+            ),
         },
     )
 
@@ -199,34 +303,29 @@ def print_gang(request, pk):
 
     A bare document, like the lab's sheet: this URL is what a phone opens
     and what turns into the PDF, so it carries no chrome to hide again
-    with print rules. With ?config= it prints that config's selection;
-    without one, everything.
+    with print rules. What goes on it is what the address says — a saved
+    setup, a pick of its own, or the whole gang; see ``_what_to_print``.
+
+    Readable by whoever can read the gang, which is how one player prints
+    for another. Signing in is the floor, so the address is worth sending
+    to a person and not to a crawler.
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.card import build_gang_card
     from n26.core.render import stash_lines
 
-    gang = _own_gang_or_404(request, pk)
+    gang = _any_gang_or_404(pk)
     config = _config_for(request, gang)
+    wanted, weapon_ids, include_header, include_stash = _what_to_print(
+        request, gang, config
+    )
     # One derivation serves the whole page — the header's figures, the
     # stash block and every model's card all read this build.
     gang_card = build_gang_card(gang)
     miniatures = _roster(gang)
-
-    if config is not None:
-        wanted = {str(pk) for pk in config.miniatures.values_list("pk", flat=True)}
-        rows = _print_rows(
-            gang,
-            gang_card,
-            [m for m in miniatures if str(m.pk) in wanted],
-            weapon_ids=set(config.assignments.values_list("pk", flat=True)),
-        )
-        include_header = config.include_header
-        include_stash = config.include_stash
-    else:
-        rows = _print_rows(gang, gang_card, miniatures)
-        include_header = True
-        include_stash = True
+    if wanted is not None:
+        miniatures = [m for m in miniatures if str(m.pk) in wanted]
+    rows = _print_rows(gang, gang_card, miniatures, weapon_ids=weapon_ids)
 
     # One event for the sheet, carrying how much of the gang it covers —
     # a card per model would make a big roster look like heavy use.
@@ -238,6 +337,7 @@ def print_gang(request, pk):
         cards=len(rows),
         saved_config=config is not None,
         include_stash=include_stash,
+        own_gang=gang.owner_id == request.user.id,
     )
 
     return render(
