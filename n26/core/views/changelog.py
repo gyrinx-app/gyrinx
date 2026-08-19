@@ -33,27 +33,33 @@ def changelog_entries():
 
 def changelog(request):
     """Every changelog entry about this edition."""
+    entries = list(changelog_entries())
     return render(
         request,
         "n26/changelog.html",
-        {"entries": changelog_entries()},
+        {"entries": entries, "sidebar": _sidebar(entries)},
     )
 
 
 def changelog_entry(request, pk):
     """One complete entry, with every edition entry beside it."""
     entry = get_object_or_404(changelog_entries(), pk=pk)
-    sidebar = [
-        {
-            "title": item.title,
-            "date": item.date,
-            "href": reverse("n26-changelog-entry", args=[item.pk]),
-            "current": item.pk == entry.pk,
-        }
-        for item in changelog_entries().only("id", "title", "date")
-    ]
+    sidebar = _sidebar(changelog_entries().only("id", "title", "date"), entry)
     return render(
         request,
         "n26/changelog_entry.html",
         {"entry": entry, "sidebar": sidebar},
     )
+
+
+def _sidebar(entries, current=None):
+    """Links shared by the index and every entry page."""
+    return [
+        {
+            "title": item.title,
+            "date": item.date,
+            "href": reverse("n26-changelog-entry", args=[item.pk]),
+            "current": current is not None and item.pk == current.pk,
+        }
+        for item in entries
+    ]

@@ -1,0 +1,16 @@
+<aside class="hidden lg:block">
+    <c-ui.navlist variant="sidebar"
+                  aria-label="Changelog entries"
+                  :persist_scroll="True"
+                  scroll_key="n26-changelog"
+                  class="sticky top-24 max-h-[70vh] overflow-y-auto">
+        {% for item in sidebar %}
+            <c-ui.navlist.item href="{{ item.href }}" :current="item.current">
+                <span class="flex min-w-0 flex-col">
+                    <span>{{ item.title }}</span>
+                    <span class="text-xs text-muted">{{ item.date|date:"j M Y" }}</span>
+                </span>
+            </c-ui.navlist.item>
+        {% endfor %}
+    </c-ui.navlist>
+</aside>

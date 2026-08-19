@@ -291,11 +291,31 @@ class TestTheChangelogIndex:
         changelog_entry("The older entry", CHANGELOG_TAG, date="2026-08-01")
 
         body = client.get("/n26/changelog/").content.decode()
+        sidebar = body[body.index("<aside") : body.index("</aside>")]
+        listing = body[body.index("<section", body.index("</aside>")) :]
 
-        assert body.count("The newest entry") == 1
-        assert in_order(body, "The newest entry", "The older entry") == sorted(
-            in_order(body, "The newest entry", "The older entry")
+        assert sidebar.count("The newest entry") == 1
+        assert listing.count("The newest entry") == 1
+        assert in_order(listing, "The newest entry", "The older entry") == sorted(
+            in_order(listing, "The newest entry", "The older entry")
         )
+
+    def test_the_sidebar_links_every_entry_in_the_same_order(
+        self, client, default_pack
+    ):
+        newest = changelog_entry("Newest in the menu", CHANGELOG_TAG, date="2026-08-19")
+        oldest = changelog_entry("Oldest in the menu", CHANGELOG_TAG, date="2026-08-01")
+        changelog_entry("Not in the menu", "N23", date="2026-08-20")
+
+        body = client.get("/n26/changelog/").content.decode()
+        sidebar = body[body.index("<aside") : body.index("</aside>")]
+
+        positions = in_order(sidebar, "Newest in the menu", "Oldest in the menu")
+        assert positions == sorted(positions)
+        assert f"/n26/changelog/{newest.pk}/" in sidebar
+        assert f"/n26/changelog/{oldest.pk}/" in sidebar
+        assert "Not in the menu" not in sidebar
+        assert 'aria-current="page"' not in sidebar
 
     def test_entries_are_rich_sanitised_previews_that_open_the_full_page(
         self, client, default_pack
