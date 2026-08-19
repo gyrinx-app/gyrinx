@@ -54,9 +54,10 @@ the bottom.
         <c-slot name="changelog">
             <c-n26.changelog href="#">
                 {% for entry in dashboard_changelog %}
-                    <c-n26.changelog.entry title="{{ entry.title }}" date="{{ entry.date }}" href="#">
-                        {{ entry.text }}
-                    </c-n26.changelog.entry>
+                    <c-n26.changelog.entry title="{{ entry.title }}"
+                                           date="{{ entry.date }}"
+                                           href="#"
+                                           :body="entry.text" />
                 {% endfor %}
             </c-n26.changelog>
         </c-slot>

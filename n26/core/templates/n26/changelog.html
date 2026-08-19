@@ -1,0 +1,20 @@
+{% extends "n26/layouts/base.html" %}
+{% block head_title %}Changelog{% endblock head_title %}
+{% block nav_heading %}Changelog{% endblock nav_heading %}
+{% block content %}
+    <div class="grid items-start gap-8 lg:grid-cols-[15rem_minmax(0,1fr)]">
+        {% include "n26/_changelog_sidebar.html" %}
+        <div class="min-w-0">
+            <c-n26.page-header title="Changelog"
+                               lead="Everything that has changed in the N26 preview." />
+            <c-n26.changelog heading="" empty="Nothing yet." class="mt-6">
+                {% for entry in entries %}
+                    <c-n26.changelog.entry title="{{ entry.title }}"
+                                           date="{{ entry.date|date:'j M Y' }}"
+                                           href="{% url 'n26-changelog-entry' entry.pk %}"
+                                           :body="entry.body" />
+                {% endfor %}
+            </c-n26.changelog>
+        </div>
+    </div>
+{% endblock content %}

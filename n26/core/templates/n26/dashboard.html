@@ -1,6 +1,5 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
-{% load richtext %}
 {% comment %}
 The edition's front page: the signed-in user's gangs and the site
 changelog, drawn entirely from the design system — the gallery's shell
@@ -60,11 +59,12 @@ places — the same pattern a gang's screens use for their siblings.
             </c-n26.gang-table>
         </c-slot>
         <c-slot name="changelog">
-            <c-n26.changelog empty="Nothing new yet.">
+            <c-n26.changelog href="{% url 'n26-changelog' %}" empty="Nothing new yet.">
                 {% for entry in changelog %}
-                    <c-n26.changelog.entry title="{{ entry.title }}" date="{{ entry.date|date:'j M' }}" href="#">
-                        {{ entry.body|safe_rich_text }}
-                    </c-n26.changelog.entry>
+                    <c-n26.changelog.entry title="{{ entry.title }}"
+                                           date="{{ entry.date|date:'j M' }}"
+                                           href="{% url 'n26-changelog-entry' entry.pk %}"
+                                           :body="entry.body" />
                 {% endfor %}
             </c-n26.changelog>
         </c-slot>

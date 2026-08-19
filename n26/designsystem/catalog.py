@@ -1624,8 +1624,9 @@ GROUPS: list[Group] = [
                     "two lines, the full text being a click away. The way through "
                     "to everything is in the heading rather than a last row, which "
                     "would be the one row in the list that does not behave like "
-                    "the list. Rows are clickable by the same stretched-anchor "
-                    "means c-n26.gang-table uses."
+                    "the list. The title opens the full entry; links in a rich-text "
+                    "summary keep their own destinations. The entry component "
+                    "sanitises its body rather than relying on each caller."
                 ),
             ),
             Component(

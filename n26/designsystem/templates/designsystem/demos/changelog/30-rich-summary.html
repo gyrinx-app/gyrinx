@@ -1,0 +1,8 @@
+{# title: Rich-text summary #}
+{# note: Paragraphs, emphasis and lists keep their rich-text styling while the whole summary remains a two-line preview. #}
+{# layout: full #}
+{% with rich_body="<p>Profiles now include <strong>their key changes</strong>.</p><ul><li>One concise point</li><li>Another concise point</li></ul>" %}
+<c-n26.changelog heading="Updates">
+    <c-n26.changelog.entry title="A richer update" date="19 Aug" href="#" :body="rich_body" />
+</c-n26.changelog>
+{% endwith %}

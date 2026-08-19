@@ -19,7 +19,7 @@ The load-bearing ideas:
 import pytest
 from django.contrib.auth.models import User
 
-from n26.core.views.gangs import CHANGELOG_TAG
+from n26.core.views.changelog import CHANGELOG_TAG
 
 pytestmark = pytest.mark.django_db
 
@@ -213,6 +213,205 @@ class TestTheChangelogPanel:
             assert client.get("/n26/").status_code == 200
 
         assert len(with_ten.captured_queries) == len(with_two.captured_queries)
+
+
+class TestTheChangelogLinks:
+    """The dashboard previews rich entries and leads to their full pages."""
+
+    def test_each_entry_links_to_its_full_page(self, tester, client, default_pack):
+        entry = changelog_entry("Trading post", CHANGELOG_TAG)
+
+        body = client.get("/n26/").content.decode()
+
+        assert f"/n26/changelog/{entry.pk}/" in body
+
+    def test_the_heading_links_to_every_update(self, tester, client, default_pack):
+        body = client.get("/n26/").content.decode()
+
+        assert 'href="/n26/changelog/"' in body
+        assert "View all" in body
+
+    def test_rich_summaries_stay_inside_the_small_clamped_container(
+        self, tester, client, default_pack
+    ):
+        """A block body must not close its summary container early and
+        escape the smaller two-line preview."""
+        changelog_entry(
+            "Several details",
+            CHANGELOG_TAG,
+            body="<p>First paragraph.</p><ul><li>One point</li></ul>",
+        )
+
+        body = client.get("/n26/").content.decode()
+
+        assert 'class="rich-text n26-clamp-2' in body
+        assert "<ul><li>One point</li></ul>" in body
+
+
+class TestTheChangelogIndex:
+    """The public index lists every live entry about this edition."""
+
+    def test_anybody_may_read_it_without_an_account(self, client, default_pack):
+        assert client.get("/n26/changelog/").status_code == 200
+
+    def test_it_lists_every_entry_not_just_the_dashboards_five(
+        self, client, default_pack
+    ):
+        for i in range(7):
+            changelog_entry(f"Entry number {i}", CHANGELOG_TAG)
+
+        body = client.get("/n26/changelog/").content.decode()
+
+        assert "Entry number 0" in body
+        assert "Entry number 6" in body
+
+    def test_it_keeps_only_live_news_for_this_edition(self, client, default_pack):
+        changelog_entry("The N26 entry", CHANGELOG_TAG)
+        changelog_entry("The old edition entry", "N23")
+        changelog_entry("The untagged entry")
+        archived = changelog_entry("The archived entry", CHANGELOG_TAG)
+        archived.archive()
+
+        body = client.get("/n26/changelog/").content.decode()
+
+        assert "The N26 entry" in body
+        assert "The old edition entry" not in body
+        assert "The untagged entry" not in body
+        assert "The archived entry" not in body
+
+    def test_it_deduplicates_two_spellings_and_orders_newest_first(
+        self, client, default_pack
+    ):
+        changelog_entry(
+            "The newest entry",
+            CHANGELOG_TAG,
+            CHANGELOG_TAG.lower(),
+            date="2026-08-19",
+        )
+        changelog_entry("The older entry", CHANGELOG_TAG, date="2026-08-01")
+
+        body = client.get("/n26/changelog/").content.decode()
+        sidebar = body[body.index("<aside") : body.index("</aside>")]
+        listing = body[body.index("<section", body.index("</aside>")) :]
+
+        assert sidebar.count("The newest entry") == 1
+        assert listing.count("The newest entry") == 1
+        assert in_order(listing, "The newest entry", "The older entry") == sorted(
+            in_order(listing, "The newest entry", "The older entry")
+        )
+
+    def test_the_sidebar_links_every_entry_in_the_same_order(
+        self, client, default_pack
+    ):
+        newest = changelog_entry("Newest in the menu", CHANGELOG_TAG, date="2026-08-19")
+        oldest = changelog_entry("Oldest in the menu", CHANGELOG_TAG, date="2026-08-01")
+        changelog_entry("Not in the menu", "N23", date="2026-08-20")
+
+        body = client.get("/n26/changelog/").content.decode()
+        sidebar = body[body.index("<aside") : body.index("</aside>")]
+
+        positions = in_order(sidebar, "Newest in the menu", "Oldest in the menu")
+        assert positions == sorted(positions)
+        assert f"/n26/changelog/{newest.pk}/" in sidebar
+        assert f"/n26/changelog/{oldest.pk}/" in sidebar
+        assert "Not in the menu" not in sidebar
+        assert 'aria-current="page"' not in sidebar
+
+    def test_entries_are_rich_sanitised_previews_that_open_the_full_page(
+        self, client, default_pack
+    ):
+        entry = changelog_entry(
+            "A careful preview",
+            CHANGELOG_TAG,
+            body='<script>alert("no")</script><ul><li><strong>Safe</strong></li></ul>',
+        )
+
+        body = client.get("/n26/changelog/").content.decode()
+
+        assert "alert" not in body
+        assert "<ul><li><strong>Safe</strong></li></ul>" in body
+        assert f"/n26/changelog/{entry.pk}/" in body
+
+
+class TestOneChangelogEntry:
+    """A public detail page shows the complete entry and an ordered menu."""
+
+    def test_anybody_may_read_the_full_rich_entry(self, client, default_pack):
+        entry = changelog_entry(
+            "Everything in this update",
+            CHANGELOG_TAG,
+            body=(
+                "<p>The opening.</p>"
+                "<ul><li><strong>First point</strong></li><li>Second point</li></ul>"
+            ),
+        )
+
+        response = client.get(f"/n26/changelog/{entry.pk}/")
+        body = response.content.decode()
+
+        assert response.status_code == 200
+        assert "<p>The opening.</p>" in body
+        assert "<ul><li><strong>First point</strong></li>" in body
+        assert "n26-clamp-2" not in body
+
+    def test_the_full_body_is_sanitised(self, client, default_pack):
+        entry = changelog_entry(
+            "A careful entry",
+            CHANGELOG_TAG,
+            body='<script>alert("no")</script><p><strong>Safe</strong></p>',
+        )
+
+        body = client.get(f"/n26/changelog/{entry.pk}/").content.decode()
+
+        assert "alert" not in body
+        assert "<strong>Safe</strong>" in body
+
+    @pytest.mark.parametrize("tags", [("N23",), ()])
+    def test_news_not_assigned_to_this_edition_is_not_reachable(
+        self, client, default_pack, tags
+    ):
+        entry = changelog_entry("Not for this edition", *tags)
+
+        assert client.get(f"/n26/changelog/{entry.pk}/").status_code == 404
+
+    def test_an_archived_entry_is_not_reachable(self, client, default_pack):
+        entry = changelog_entry("Archived news", CHANGELOG_TAG)
+        entry.archive()
+
+        assert client.get(f"/n26/changelog/{entry.pk}/").status_code == 404
+
+    def test_an_unknown_or_malformed_id_is_a_404(self, client, default_pack):
+        from uuid import uuid4
+
+        assert client.get(f"/n26/changelog/{uuid4()}/").status_code == 404
+        assert client.get("/n26/changelog/not-a-uuid/").status_code == 404
+
+    def test_the_sidebar_lists_every_entry_newest_first_and_marks_this_one(
+        self, client, default_pack
+    ):
+        import re
+
+        current = changelog_entry("The current entry", CHANGELOG_TAG, date="2026-08-10")
+        changelog_entry("The newest entry", CHANGELOG_TAG, date="2026-08-19")
+        changelog_entry("The oldest entry", CHANGELOG_TAG, date="2026-08-01")
+        changelog_entry("The other edition", "N23", date="2026-08-20")
+
+        body = client.get(f"/n26/changelog/{current.pk}/").content.decode()
+        sidebar = body[body.index("<aside") : body.index("</aside>")]
+
+        positions = in_order(
+            sidebar, "The newest entry", "The current entry", "The oldest entry"
+        )
+        assert positions == sorted(positions)
+        assert "The other edition" not in sidebar
+        current_url = f"/n26/changelog/{current.pk}/"
+        anchor = re.search(
+            rf'<a[^>]*href="{re.escape(current_url)}"[^>]*>',
+            sidebar,
+        )
+        assert anchor is not None
+        assert 'aria-current="page"' in anchor.group()
+        assert "is-current" in anchor.group()
 
 
 TELEPORT = '<template x-teleport="body">'

@@ -28,8 +28,9 @@ Concretely:
 
 - **No app code in `n26/` imports `n23.*` or `gyrinx.*`.** n26 is a
   parallel edition, not a layer on the old one. Seven deliberate
-  exceptions: the dashboard reads `gyrinx.site.models.ChangelogEntry`,
-  deferred inside the view; the gangs view searches with
+  exceptions: `n26/core/views/changelog.py` reads
+  `gyrinx.site.models.ChangelogEntry`, deferred inside its shared
+  queryset helper; the gangs view searches with
   `gyrinx.querysets.search_queryset`; the artwork tag cleans SVG with
   `gyrinx.svg.sanitize_inline_svg`; `n26/library/artwork.py` stores and
   reads uploads through `gyrinx.artwork`; `n26/analytics.py` records
