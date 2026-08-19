@@ -65,6 +65,28 @@ def test_draws_each_member(client, tester, gang, make_profile, make_statline):
     assert "Sull" in body
 
 
+def test_the_figures_carry_the_roster_count_and_its_breakdown(
+    client, tester, gang, make_profile, make_statline
+):
+    """The sheet keeps the same figures the model screens do: the wealth
+    strip and, beside it, the count of models the gang fields, holding the
+    tally of ranks and ratings a reader occasionally checks."""
+    profile = make_profile("Ganger", price=55)
+    make_statline(profile)
+    with operation(gang, actor=tester) as op:
+        op.hire(profile, "Vex")
+        op.hire(profile, "Sull")
+
+    client.force_login(tester)
+    body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
+    assert "Models in the gang" in body
+    assert "Roster breakdown: 2 models in the gang" in body
+    # The two readings the tally offers, drawn on the page rather than
+    # fetched when the dropdown opens.
+    assert "Profiles" in body
+    assert "Ratings" in body
+
+
 def test_draws_the_gangs_standing_facts(client, tester, gang):
     """A counter the gang keeps reaches the details list, name and value."""
     from n26.library.authoring import create_counter

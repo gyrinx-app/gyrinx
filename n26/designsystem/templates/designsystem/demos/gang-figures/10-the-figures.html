@@ -1,3 +1,3 @@
 {# title: Count and worth on one line #}
-{# note: The roster count first, then the wealth strip with the money fenced off behind the rule. The count is the one figure with no ¢ — it counts models, not credits. In the app this sits above the hire list and the equipment listing, and because it is server-rendered per request, the redirect after a purchase brings it back already updated. #}
-<c-n26.gang-figures :gang="gang" :count="9" />
+{# note: The roster count first, then the wealth strip with the money fenced off behind the rule. The count is a control rather than a figure — click it for the breakdown — and the one number here with no ¢, since it counts models and not credits. In the app this sits opposite the gang's name, above the hire list and above the equipment listing, and because it is server-rendered per request, the redirect after a purchase brings it back already updated. #}
+<c-n26.gang-figures :gang="gang" :summary="sample_roster_summary" />

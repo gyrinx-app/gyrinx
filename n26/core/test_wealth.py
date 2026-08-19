@@ -91,13 +91,43 @@ class TestAGangWithNoBudget:
 
 
 class TestTheCount:
-    """The roster count rides the same strip in <c-n26.gang-figures>, and it
-    counts models rather than money."""
+    """The count stands beside the strip in <c-n26.gang-figures> as the
+    control that opens the roster's own tally, and it counts models rather
+    than money."""
+
+    def figures(self, count=9) -> str:
+        from n26.core.render import RosterGroup, RosterLine, RosterSummary
+
+        return render(
+            '<c-n26.gang-figures :gang="sheet" :summary="summary" />',
+            sheet=gang(),
+            summary=RosterSummary(
+                groups=[RosterGroup(profile="Ganger", category="Ganger", count=count)],
+                models=[RosterLine(name=f"Model {n}", rating=55) for n in range(count)],
+                count=count,
+                rating=55 * count,
+            ),
+        )
 
     def test_the_count_carries_no_currency(self):
-        html = render(
-            '<c-n26.gang-figures :gang="sheet" :count="9" />',
-            sheet=gang(),
-        )
-        assert ">9</dd>" in html.replace("\n", "").replace(" ", "") or ">9<" in html
+        html = self.figures()
+        assert ">9<" in html
         assert "9¢" not in html
+
+    def test_the_count_is_the_control_that_opens_the_tally(self):
+        """One thing to look at and one thing to click: the figure a reader
+        glances at is the button holding the breakdown behind it."""
+        html = self.figures()
+        assert "Models in the gang" in html
+        assert "Roster breakdown: 9 models in the gang" in html
+
+    def test_a_gang_of_one_is_not_announced_as_one_models(self):
+        html = self.figures(count=1)
+        assert "Roster breakdown: 1 model in the gang" in html
+
+    def test_the_count_comes_off_the_tally_it_opens(self):
+        """Nothing is told the count separately, so the number on the button
+        and the total in the tally cannot fall out of step."""
+        html = self.figures(count=3)
+        assert ">3<" in html
+        assert "3 models in the gang" in html

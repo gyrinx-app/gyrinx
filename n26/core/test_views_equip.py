@@ -1545,7 +1545,7 @@ def test_the_figures_and_the_roster_line_stand_above_the_catalogue(
     client.force_login(tester)
     body = client.get(equip_url(fighter)).content.decode()
     assert "Models in the gang" in body
-    assert ">2</dd>" in body
+    assert "Roster breakdown: 2 models in the gang" in body
     gang.refresh_from_db()
     assert f">{gang.credits}\u00a2</dd>" in body
     # Karn links to his own equip screen, with his rating beside the name.

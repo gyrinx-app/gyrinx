@@ -1,26 +1,28 @@
 {% comment %}
 <c-n26.gang-figures> — the numbers a spending decision is made against.
 
-    <c-n26.gang-figures :gang="gang" :count="roster_count" />
+    <c-n26.gang-figures :gang="gang" :summary="summary" />
 
-The roster count, then <c-n26.wealth>. Drawn above the hire list and in the
-model screens' header, since both hiring and buying are decided against how
-many models the gang fields and what it has left to spend. Server-rendered per
-request, so the redirect after a purchase brings it back already updated.
+The roster count, then <c-n26.wealth>. Drawn on the gang sheet, above the hire
+list and in the model screens' header, since hiring and buying are decided
+against how many models the gang fields and what it has left to spend. Server-
+rendered per request, so the redirect after a purchase brings it back already
+updated.
 
-The count uses the wealth strip's own cell but is not wealth, so it sits in a
-strip of its own with the money fenced off by the rule <c-n26.wealth>
-documents for this seam.
+The count is <c-n26.roster-summary>, so it is a button holding the roster's own
+arithmetic rather than a figure beside a second control that repeats it. It is
+not wealth, so the money is fenced off by the rule <c-n26.wealth> documents for
+this seam — the gap here and the strip's own padding put the same air either side
+of it.
 
   :gang — anything carrying the four worth figures; the Gang model does, and so
     does a rendered GangSheet.
-  :count — how many models the gang fields.
+  :summary — a n26.render.RosterSummary. The count comes off it, so nothing has
+    to be told twice how many models there are.
 {% endcomment %}
-<c-vars :gang="None" :count="0" class="" />
+<c-vars :gang="None" :summary="None" class="" />
 
-<div {{ attrs }} class="flex items-center {{ class }}">
-    <dl class="flex w-max items-stretch">
-        <c-n26.wealth.figure short="M" full="Models in the gang" :value="count" unit="" />
-    </dl>
+<div {{ attrs }} class="flex items-center gap-3 {{ class }}">
+    <c-n26.roster-summary :summary="summary" />
     <c-n26.wealth :sheet="gang" class="border-l border-box-border pl-3" />
 </div>

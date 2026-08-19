@@ -584,6 +584,11 @@ class GangSheet:
     #: or quiet per the note's level; never a gate.
     notes: list = field(default_factory=list)
     models: list[ModelCard] = field(default_factory=list)
+    #: The roster reduced to its arithmetic — how many of each profile at
+    #: each rank, and what each model is worth. Derived from the same
+    #: members the cards are built from, so a sheet's count and its cards
+    #: cannot disagree and asking for it costs no query.
+    summary: RosterSummary | None = None
 
     @property
     def questions(self):
@@ -1616,6 +1621,7 @@ def render_gang(gang, with_effects=True):
             )
             for model in models
         ],
+        summary=summarise_roster(models),
     )
 
 

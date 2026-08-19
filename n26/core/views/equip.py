@@ -496,11 +496,9 @@ def equip(request, pk):
     from n26.core.render import summarise_roster
 
     # The whole roster in the gang list's own order, one query: the
-    # header's figures count it, and the roster tally beside them lists
+    # header's count is drawn from the tally it opens, which also lists
     # every model with its pinned rating — a reader equipping down a
-    # roster is deciding against both. The count is computed here
-    # because a filter inside a cotton :attribute silently comes out as
-    # nothing.
+    # roster is deciding against both.
     roster = gang_roster(gang)
 
     return render(
@@ -517,7 +515,6 @@ def equip(request, pk):
                 and miniature.membership.profile.category
                 else ""
             ),
-            "roster_count": len(roster),
             "summary": summarise_roster(roster),
             "collections": collections,
             "collection_tabs": tabs,
@@ -663,6 +660,8 @@ def equip_gang(request, pk):
     from n26.core.card import build_gang_card, build_modifier_index
     from n26.core.effects import compute_gang
     from n26.core.listing import build_catalogue
+    from n26.core.render import roster as gang_roster
+    from n26.core.render import summarise_roster
 
     gang = _own_gang_or_404(request, pk)
 
@@ -740,10 +739,12 @@ def equip_gang(request, pk):
             # collection and the box asks the same question of both.
             "browsing": ALL_LABEL if everything else str(chosen or ""),
             "catalogue": catalogue,
-            # The roster's size, off the card that is already built: the
-            # figures strip counts the models a purchase is decided
-            # against, and every live member has a card here.
-            "roster_count": len(card.members),
+            # Who the gang fields, for the figures strip: a purchase into
+            # the store is decided against the roster it will arm, and the
+            # count opens onto the ranks it is made of. The gang card
+            # cannot answer it — its members are keyed by id and carry no
+            # model — so the roster is fetched, one query.
+            "summary": summarise_roster(gang_roster(gang)),
             **picker_context(catalogue, view),
         },
     )

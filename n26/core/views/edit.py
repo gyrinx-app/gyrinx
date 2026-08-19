@@ -425,7 +425,6 @@ def edit_fighter(request, pk):
             "miniature": miniature,
             "gang": gang,
             "card": card,
-            "roster_count": len(members),
             "summary": summarise_roster(members),
             # The role beside the name: the rank the profile is filed
             # under, which is what a reader checking "which of my models
