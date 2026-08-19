@@ -91,12 +91,11 @@ breadcrumb above it has the gang as well, so nothing is lost.
         </c-slot>
         {% comment %}
         The numbers a purchase is decided against, in the corner the gang
-        sheet keeps its own — and beside them the roster's arithmetic,
+        sheet keeps its own — the count holding the roster's arithmetic
         one click away rather than a line of the page.
         {% endcomment %}
         <c-slot name="actions">
-            <c-n26.gang-figures :gang="gang" :count="roster_count" />
-            <c-n26.roster-summary :summary="summary" />
+            <c-n26.gang-figures :gang="gang" :summary="summary" />
         </c-slot>
     </c-n26.model-header>
     {% comment %}

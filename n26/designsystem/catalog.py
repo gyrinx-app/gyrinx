@@ -1681,28 +1681,32 @@ GROUPS: list[Group] = [
                 ),
                 needs=(ALPINE, KIT_JS),
                 notes=(
-                    "Drawn above the hire list's rows and in the far corner of "
-                    "the model screens' header, where a spending decision is "
-                    "being made. The count wears the wealth strip's own cell but "
-                    "stands in a strip of its own, with the money fenced off "
-                    "behind a rule. Being a count it takes no ¢ — the one place "
-                    "the figure cell's unit is turned off rather than assumed."
+                    "Drawn on the gang sheet, above the hire list's rows and in "
+                    "the far corner of the model screens' header, wherever a "
+                    "spending decision is being made. The count is "
+                    "c-n26.roster-summary rather than a figure cell, so it is a "
+                    "control; the money is fenced off behind a rule. Takes the "
+                    "tally rather than a number, and reads the count off it — a "
+                    "call site cannot tell it a count the breakdown disagrees "
+                    "with."
                 ),
             ),
             Component(
                 slug="roster-summary",
                 tag="c-n26.roster-summary",
                 template="n26/roster_summary.html",
-                summary="The roster's arithmetic behind a calculator: counts and ratings.",
+                summary="How many models, and the arithmetic behind the count.",
                 needs=(ALPINE, KIT_JS),
                 notes=(
-                    "Two readings of one list, in two tabs of a dropdown beside "
-                    "the gang's figures: which profiles at which ranks and how "
-                    "many of each, and every model with its pinned rating, "
-                    "totalled. Both keep the roster's own order, pets after their "
-                    "keepers. The ratings total is the sum of the models listed, "
-                    "which the gang's own rating figure need not equal — a gang "
-                    "can carry worth no single model does."
+                    "The count is the trigger: the number of models the gang "
+                    "fields, opening two readings of that roster in two tabs — "
+                    "which profiles at which ranks and how many of each, and "
+                    "every model with its pinned rating, totalled. Both keep the "
+                    "roster's own order, pets after their keepers. The ratings "
+                    "total is the sum of the models listed, which the gang's own "
+                    "rating figure need not equal — a gang can carry worth no "
+                    "single model does. Usually drawn through "
+                    "c-n26.gang-figures rather than on its own."
                 ),
             ),
             Component(

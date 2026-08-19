@@ -393,8 +393,8 @@ def hire_fighter(request, pk):
         section_hire_list,
         supplementary_profiles,
     )
-    from n26.core.models import Miniature
     from n26.core.operations import Refusal, operation
+    from n26.core.render import roster, summarise_roster
 
     gang = _own_gang_or_404(request, pk)
     scope = _scope(request)
@@ -624,12 +624,11 @@ def hire_fighter(request, pk):
             "scope_tabs": _scope_tabs(request, scope),
             "scope": scope,
             "scope_label": HIRE_SCOPES[scope],
-            # How many models the gang already fields, for the figures
-            # strip beside the wealth: hiring is decided against what is
-            # already on the roster as much as against the credits.
-            "roster_count": Miniature.objects.filter(
-                membership__gang=gang, membership__archived=False
-            ).count(),
+            # What the gang already fields, for the figures strip beside
+            # the wealth: hiring is decided against who is already on the
+            # roster as much as against the credits, and the count opens
+            # onto the ranks it is made of.
+            "summary": summarise_roster(roster(gang)),
             # The tab strip, one tab per section. This list is also the
             # picker's whole navigation once tabs are on: a section whose
             # name is missing here can never be the active tab, and its

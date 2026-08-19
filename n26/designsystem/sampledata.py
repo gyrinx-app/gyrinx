@@ -1853,7 +1853,31 @@ CARD_LORE = (
 
 def gang_sheet_context():
     """What the gang sheet view needs."""
+    from n26.core.render import RosterGroup, RosterLine, RosterSummary
+
     sheet = gang_sheet()
+    members = [
+        ("Vesna Krail", "Escher Gang Queen", 135),
+        ("Sister Yara", "Death Maiden", 105),
+        ("Ilse Vandt", "Matriarch", 95),
+        ("Vex", "Ganger", 55),
+        ("Sull", "Ganger", 55),
+    ]
+    # The sheet's own tally, over the cards this demo actually draws rather
+    # than the fuller one the tally component is shown with on its own page:
+    # a header counting twelve models above a grid of five is the kind of
+    # thing a reader takes for a bug in the component.
+    sheet.summary = RosterSummary(
+        groups=[
+            RosterGroup(profile="Escher Gang Queen", category="Leader", count=1),
+            RosterGroup(profile="Death Maiden", category="Champion", count=1),
+            RosterGroup(profile="Matriarch", category="Champion", count=1),
+            RosterGroup(profile="Ganger", category="Ganger", count=2),
+        ],
+        models=[RosterLine(name=name, rating=rating) for name, _, rating in members],
+        count=len(members),
+        rating=sum(rating for _, _, rating in members),
+    )
     return {
         "gang": sheet,
         "card_notes": CARD_NOTES,
@@ -1869,13 +1893,7 @@ def gang_sheet_context():
         # miniatures, and a card header that has to say which is which.
         "gang_members": [
             replace(sheet.models[0], name=name, profile_name=profile, rating=rating)
-            for name, profile, rating in (
-                ("Vesna Krail", "Escher Gang Queen", 135),
-                ("Sister Yara", "Death Maiden", 105),
-                ("Ilse Vandt", "Matriarch", 95),
-                ("Vex", "Ganger", 55),
-                ("Sull", "Ganger", 55),
-            )
+            for name, profile, rating in members
         ],
         "gang_owner": OWNER,
     }

@@ -10,7 +10,8 @@ The caller builds the breadcrumb's owner, the detail list, the action buttons an
 the fighter cards; this component decides only where each of them goes. The stash
 is drawn as the first card of the grid, ahead of `members`.
 
-  :sheet — a n26.render.GangSheet. Its wealth strip is drawn opposite the name.
+  :sheet — a n26.render.GangSheet. Its figures — the roster count and the wealth
+    strip — are drawn opposite the name, the count off the sheet's own tally.
   owner_flair_label, type_flair_label — what each badge means, for a screen
     reader and as its title. Left empty the badge is aria-hidden, which is right
     when it only repeats the text beside it.
@@ -88,9 +89,13 @@ is drawn as the first card of the grid, ahead of `members`.
         slots are context variables, and this view has an `actions` slot of its
         own: left unfilled here, the header resolves that one instead and draws
         the gang's Hire Fighters a second time, up beside the title.
+
+        The same figures the model screens keep in this corner, so a reader
+        moving between the sheet and a fighter reads one strip in one place —
+        the roster count included, holding its own breakdown.
         {% endcomment %}
         <c-slot name="actions">
-            <c-n26.wealth :sheet="sheet" />
+            <c-n26.gang-figures :gang="sheet" :summary="sheet.summary" />
         </c-slot>
     </c-n26.page-header>
 

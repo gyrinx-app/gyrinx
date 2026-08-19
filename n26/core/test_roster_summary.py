@@ -10,8 +10,9 @@ from types import SimpleNamespace
 from n26.core.render import summarise_roster
 
 
-def member(name, rating, profile, category):
+def member(name, rating, profile, category, pk=None):
     return SimpleNamespace(
+        pk=pk,
         name=name,
         rating=rating,
         membership=SimpleNamespace(
@@ -70,6 +71,23 @@ class TestTheProfilesReading:
             "Gyrinx Cat",
         ]
         assert [g.count for g in summary.groups] == [2, 2]
+
+    def test_a_refiled_model_groups_under_the_rank_the_roster_sorted_it_at(self):
+        """A rule that moves a model (ChangesCategory) is already folded
+        into the list's order. The tally uses that same rank, so it does
+        not count a model as a Ganger while listing it among Champions."""
+        champion = SimpleNamespace(name="Champion")
+        summary = summarise_roster(
+            [
+                member("Doug", 325, "Charter Master", "Leader", pk=1),
+                member("Promoted", 55, "Ganger", "Ganger", pk=2),
+            ],
+            recategorised={2: champion},
+        )
+        assert [(g.profile, g.category, g.count) for g in summary.groups] == [
+            ("Charter Master", "Leader", 1),
+            ("Ganger", "Champion", 1),
+        ]
 
 
 class TestTheRatingsReading:

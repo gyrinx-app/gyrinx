@@ -1,19 +1,25 @@
 {% comment %}
-<c-n26.roster-summary> — the roster's arithmetic, behind a calculator.
+<c-n26.roster-summary> — how many models, and the arithmetic behind the count.
 
     <c-n26.roster-summary :summary="summary" />
 
-A dropdown beside the gang's figures holding two readings of one roster: how
-many of each profile at each rank the gang fields, and what each model is
-worth. Numbers checked in passing mid-decision, which is why they are behind a
-control rather than on the page.
+The count is the control: a button reading the number of models the gang fields,
+which opens two readings of that same roster — how many of each profile at each
+rank, and what each model is worth. The figure a reader glances at and the
+breakdown they occasionally check are one thing, so there is one place to look
+and one thing to click.
 
 Both tables keep the roster's own order, pets after their keepers, so the tally
-reads down the way the sheet does. The counts total matches the M figure beside
-the trigger; the ratings total need not match the gang's rating figure, since a
-gang can carry worth that no single model does.
+reads down the way the sheet does. The counts total matches the number on the
+trigger; the ratings total need not match the gang's rating figure, since a gang
+can carry worth that no single model does.
 
-  :summary — a n26.render.RosterSummary.
+The number carries no unit, unlike every figure in <c-n26.wealth> beside it: it
+counts models, not credits. The icon says which, and the tooltip says it in
+words, because a drawing names nothing on its own.
+
+  :summary — a n26.render.RosterSummary. Its `count` is what the trigger draws,
+    so the button and the tally cannot disagree about how many there are.
 {% endcomment %}
 {% comment %}
 class is declared but deliberately not forwarded to c-ui.dropdown, which does
@@ -26,15 +32,26 @@ positioning context.
 <span class="{{ class }}">
 <c-ui.dropdown min_width="18rem">
     <c-slot name="trigger">
-        <c-ui.button size="sm"
-                     variant="default"
-                     aria-label="Roster breakdown"
-                     title="Roster breakdown">
-            <span class="n26-icon-only gap-0.5">
-                <c-n26.icon name="calculator" class="size-4" />
-                <c-n26.icon name="chevron-down" class="size-3" stroke_width="2.5" />
-            </span>
-        </c-ui.button>
+        {% comment %}
+        The tooltip wraps the button rather than the other way about: it opens on
+        hover and focus and never on click, and its bubble takes no pointer
+        events, so the click it sits over still reaches the trigger beneath.
+
+        No title attribute alongside it — the two would draw the same words
+        twice, one of them in the browser's own box.
+        {% endcomment %}
+        <c-ui.tooltip size="sm">
+            <c-ui.button size="sm"
+                         variant="default"
+                         aria-label="Roster breakdown: {{ summary.count }} model{{ summary.count|pluralize }} in the gang">
+                <span class="flex items-center gap-1">
+                    <c-n26.icon name="user-group" class="size-4.5" stroke_width="1.4" />
+                    <span class="tabular-nums">{{ summary.count }}</span>
+                    <c-n26.icon name="chevron-down" class="size-3" stroke_width="2.5" />
+                </span>
+            </c-ui.button>
+            <c-slot name="content">Models in the gang</c-slot>
+        </c-ui.tooltip>
     </c-slot>
     <div class="px-3 py-2">
         <c-ui.tabs size="sm">

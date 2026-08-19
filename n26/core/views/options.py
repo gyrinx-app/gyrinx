@@ -121,7 +121,6 @@ def fighter_options(request, pk):
             "miniature": miniature,
             "gang": gang,
             "role": (profile.category.name if profile and profile.category else ""),
-            "roster_count": len(members),
             "summary": summarise_roster(members),
             "groups": _option_rows(entry, chosen_pks),
             # The field scheme is the hire listing's, slugified pk and all,
