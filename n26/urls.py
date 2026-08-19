@@ -49,7 +49,7 @@ urlpatterns = [
     path("fighters/<str:pk>/delete/", views.delete_fighter, name="n26-delete-fighter"),
     path("fighters/<str:pk>/refund/", views.refund_fighter, name="n26-refund-fighter"),
     path("fighters/<str:pk>/equip/", views.equip, name="n26-equip"),
-    # Addressed by fighter, not by slot: what they may learn is their
+    # Addressed by fighter, not by slot: what they may select is their
     # grid rather than a question anybody asked — see n26.core.views.learn.
     path("fighters/<str:pk>/skills/", views.learn, name="n26-learn"),
     # What a gang already owns, addressed by the assignment rather than by

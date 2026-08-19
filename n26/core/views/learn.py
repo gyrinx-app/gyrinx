@@ -1,8 +1,8 @@
-"""Learning a skill — the standing half of the skills surface.
+"""Selecting a skill — the standing half of the skills surface.
 
 A founding pick is a question somebody asked ("a Leader starts with a
 Primary skill") and it is chosen for at its own address. This is the other
-half: what a fighter may learn at any time, which nobody asked and which
+half: what a fighter may select at any time, which nobody asked and which
 is not a question at all — it is their **grid**, the placements their
 profile and subtypes carry, read as a list.
 
@@ -13,11 +13,11 @@ So the address names a fighter rather than a slot::
 and the screen is the same shape the choose page draws: the fighter's
 own view of a collection, resectioned by their placements, with the
 unplaced tier dropped — a skill nobody placed for them is not theirs to
-learn, however visible it is on a browse (``n26.core.browse`` keeps it
+select, however visible it is on a browse (``n26.core.browse`` keeps it
 there deliberately, and the roll-anything pick wants exactly that).
 
 A fighter whose grid places nothing gets the screen anyway, saying
-there is nothing for them to learn. The grid is the access and an
+there is nothing for them to select. The grid is the access and an
 unauthored one is a content gap, but the address names a fighter rather
 than the gap: it is theirs whether or not anybody has graded them, so
 the switcher on the next fighter's screen can offer it without knowing
@@ -29,7 +29,7 @@ the set up to them.
 
 The same listing is offered a second way, as a box to tick on the
 fighter's own edit page (``ticked_offer`` and ``apply_ticks``). One
-screen learns a thing at a time and the other settles the whole list at
+screen selects a thing at a time and the other settles the whole list at
 once, but both read the same grid through the same browse: two ways of
 saying it, never two ideas of what a fighter may have.
 """
@@ -45,10 +45,10 @@ from n26.core.views.permissions import _own_miniature_or_404
 
 
 def link_skills(*cards):
-    """Point every card's Skills control at this fighter's learn screen.
+    """Point every card's Skills control at this fighter's skills screen.
 
     One query for a whole roster, and none per card: which collections
-    hold what a model learns is asked once, and each card already knows
+    hold what a model selects is asked once, and each card already knows
     which collections its own grid reaches. A card depicting nobody — a
     hire preview, a gallery sample — keeps an empty href and draws no
     control, which is what a print sheet wants too.
@@ -100,7 +100,7 @@ def _grants_on(computed):
 def ticked_offer(card, computed):
     """What this model may hold, as a list to tick rather than to click.
 
-    The learn screen's own listing: the same browse of the same
+    The skills screen's own listing: the same browse of the same
     collections, resectioned by the same placements and narrowed to the
     same tiers, so the two surfaces cannot come to disagree about what is
     theirs. Skills and powers alike — a tier holds whatever the content
@@ -157,11 +157,11 @@ def apply_ticks(op, miniature, card, computed, ticked):
 
     The listing is derived again here rather than trusted from the page,
     so a stale form or a hand-made click can only name things that are on
-    the list now. Nothing off the list is touched: a skill learned from a
+    the list now. Nothing off the list is touched: a skill selected from a
     set the grid has since stopped reaching keeps its assignment, because it is
     not being offered and so cannot have been cleared.
 
-    A newly ticked thing is learned — free, and caused by nothing, the
+    A newly ticked thing is selected — free, and caused by nothing, the
     same write the skills screen makes — and a cleared one is removed the
     way anything is taken off a card: archived, with the ledger still
     saying it was there. Granted things are on neither side of the
@@ -174,7 +174,7 @@ def apply_ticks(op, miniature, card, computed, ticked):
     granted = _grants_on(computed)
 
     # One entry per thing: two collections may both list a skill, and a
-    # second sighting of a ticked one must not learn it twice.
+    # second sighting of a ticked one must not select it twice.
     options = {}
     for group in offer.groups:
         for option in group.options:
@@ -197,7 +197,7 @@ def apply_ticks(op, miniature, card, computed, ticked):
 def _known_on(card):
     """What this model already has, keyed the way a pick list keys its
     options — so a listing can say "already known" rather than let
-    somebody learn the same skill twice in silence."""
+    somebody select the same skill twice in silence."""
     return {
         f"{node.assignable._meta.label_lower}:{node.assignable.pk}"
         for node in card.roots
@@ -227,7 +227,7 @@ def _marked(offer, known):
 
 @login_required
 def learn(request, pk):
-    """What this fighter may learn, and the click that learns it.
+    """What this fighter may select, and the click that selects it.
 
     GET asks and writes nothing. POST names one thing from the list the
     server has just re-derived — never a price, and never a free-text
@@ -269,11 +269,16 @@ def learn(request, pk):
     computed = compute(card, index)
 
     back = reverse("n26-gang", args=[gang.pk])
+    # The model's own page is the way out, because it is the only screen
+    # the skills control is drawn on: a reader who cancels, or who selects
+    # something, is put back where they clicked rather than a level above
+    # it. The gang is still the breadcrumb's parent, one step further up.
+    their_page = reverse("n26-edit-fighter", args=[miniature.pk])
 
     collections = learnable_for(computed)
     if not collections:
         # Nobody has graded this fighter in a category, so there is
-        # nothing they could learn — a gap in the content, and a page
+        # nothing they could select — a gap in the content, and a page
         # that says so. Refusing instead would put a dead row in the
         # switcher every other fighter's skills screen draws.
         return render(
@@ -285,10 +290,11 @@ def learn(request, pk):
                 "nothing_to_learn": True,
                 "action": request.path,
                 "back": back,
+                "their_page": their_page,
                 # No act and no way out at the foot of the page: there is
                 # nothing to submit, and a lone Cancel under a page that
                 # asked nothing cancels nothing. The breadcrumb is the
-                # way back to the gang.
+                # way back, to the model and to the gang beyond them.
                 "submit_label": "",
                 "cancel_url": "",
                 "pick_lead": "",
@@ -313,7 +319,7 @@ def learn(request, pk):
         # Only the tiers their grid names. The browse keeps every
         # unplaced category under the fallback so nothing is hidden from
         # a reader buying from a list; here the tiers *are* the offer, and
-        # another house's sets are not this fighter's to learn.
+        # another house's sets are not this fighter's to select.
         sections=[placement.section.name for placement in placements.values()],
     )
     offer = _marked(offer_from_view(listed, label=str(chosen)), _known_on(card))
@@ -335,7 +341,7 @@ def learn(request, pk):
             # selected. The list itself is the reply either way.
             messages.error(request, "That is not one of the things available to pick.")
             return redirect(here)
-        # A skill the model already has, by any route — learned, granted,
+        # A skill the model already has, by any route — selected, granted,
         # or chosen for a founding choice. A second copy means nothing
         # in the game and reads as a bug on the card, so this is refused
         # like a stale click rather than left to the owner: it is not a
@@ -359,8 +365,8 @@ def learn(request, pk):
             thing=picked.name,
             collection=chosen.name,
         )
-        messages.success(request, f"{miniature.name} learned {picked.name}.")
-        return redirect(back)
+        messages.success(request, f"{miniature.name} selected {picked.name}.")
+        return redirect(their_page)
 
     return render(
         request,
@@ -373,8 +379,9 @@ def learn(request, pk):
             "offer": offer,
             "action": here,
             "back": back,
-            "submit_label": "Learn",
-            "cancel_url": back,
+            "their_page": their_page,
+            "submit_label": "Select",
+            "cancel_url": their_page,
             # Which collection, when a fighter's grid reaches more than
             # one. Drawn as tabs only then: with a single collection
             # there is nothing to choose, and the heading names it.
@@ -383,6 +390,6 @@ def learn(request, pk):
             # component on the page with a slot of that name — the site
             # footer's columns have one — draws whatever the page
             # happens to have under it.
-            "pick_lead": (f"Pick skills for {miniature.name}."),
+            "pick_lead": (f"Select skills for {miniature.name}."),
         },
     )

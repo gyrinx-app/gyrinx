@@ -204,7 +204,7 @@ left on 2–5 keeps the printed number, and the card just says.
 
 The Master of Shadow's Master of Whispers, the Psyrender, a bought Wyrd —
 one build: a model knows one power of the player's choice from a named
-family, and may learn more of that family as if they were Primary skills.
+family, and may select more of that family as if they were Primary skills.
 
 1. Create a **category** for the family — "Psychoteric Whispers" — under
    the Wyrd Powers section, and file every power in the family there. A
@@ -233,5 +233,5 @@ model*, and the placement is what puts the family there. **An offer with
 no placement behind it is a question with nothing on it** — the player
 clicks Choose and lands on an empty page. The reverse is a real setup
 rather than a mistake: place the family and offer nothing, and the model
-may learn powers from it whenever they like, but was never handed the
+may select powers from it whenever they like, but was never handed the
 founding one.

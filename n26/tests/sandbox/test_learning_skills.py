@@ -1,4 +1,4 @@
-"""What a fighter may learn, and what learning writes.
+"""What a fighter may select, and what selecting writes.
 
 The founding pick has its own suite (``test_skills_and_powers.py``,
 TestPickingASkill). This is the standing half:
@@ -7,13 +7,15 @@ TestPickingASkill). This is the standing half:
   exactly where their placements put a category into one of its
   sections, and a profile whose grid nobody authored reaches none;
 * **only their tiers** — the browse keeps every unplaced set visible on
-  purpose, and the learn screen drops them: another house's sets are not
-  this fighter's to learn;
-* **learning is free and nobody's consequence** — no credits move, the
+  purpose, and the skills screen drops them: another house's sets are not
+  this fighter's to select;
+* **selecting is free and nobody's consequence** — no credits move, the
   rating follows the thing's own reference price, and the row is caused
-  by nothing, so swapping the profile that opened the set up never
-  unlearns anything.
+  by nothing, so swapping the profile that opened the set up never takes
+  one back.
 """
+
+import re
 
 import pytest
 from django.contrib.auth.models import User
@@ -145,6 +147,10 @@ def skills_url(miniature):
     return reverse("n26-learn", args=[miniature.pk])
 
 
+def edit_url(miniature):
+    return reverse("n26-edit-fighter", args=[miniature.pk])
+
+
 def card_for(miniature):
     card = build_card(miniature, with_statlines=True)
     index = build_modifier_index([node.assignable for node in card.all_nodes()])
@@ -184,7 +190,7 @@ class TestTheGridIsTheAccess:
         remove(carried)
         assert learnable_for(computed_for(nobody)) == []
 
-    def test_a_gear_collection_is_never_learnable(
+    def test_a_gear_collection_is_never_selectable(
         self, gang, gang_sister, sets, catalogue
     ):
         """A placement may aim at any collection's schema, including an
@@ -209,7 +215,7 @@ class TestTheGridIsTheAccess:
     def test_asking_the_roster_costs_one_query(
         self, gang, gang_sister, catalogue, library
     ):
-        """A sheet asks which collections hold what a model learns once
+        """A sheet asks which collections hold what a model selects once
         and tests every card against the answer."""
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
@@ -227,6 +233,62 @@ class TestTheGridIsTheAccess:
 
 
 # --- The screen ------------------------------------------------------------
+
+
+class TestTheWordForIt:
+    """One verb for the act, on every surface that names it: select.
+
+    The screen, the control leading to it and the sentence afterwards each
+    used to say something slightly different — learn, pick, learned — for
+    one act. A reader deciding what a button will do should not have to
+    work out whether three words mean three things.
+    """
+
+    def test_the_screen_asks_for_a_selection(self, client, player, yolanda, library):
+        client.force_login(player)
+        response = client.get(skills_url(yolanda))
+
+        assert response.context["pick_lead"] == f"Select skills for {yolanda.name}."
+        assert response.context["submit_label"] == "Select"
+
+    def test_the_sentence_afterwards_says_selected(
+        self, client, player, yolanda, library
+    ):
+        catfall = library["skills"]["Catfall"]
+        client.force_login(player)
+        response = client.post(
+            skills_url(yolanda),
+            {"thing": f"{catfall._meta.label_lower}:{catfall.pk}"},
+            follow=True,
+        )
+
+        assert "Yolanda selected Catfall." in response.content.decode()
+
+    def test_the_control_leading_here_says_selecting_too(
+        self, client, player, yolanda, library
+    ):
+        """The card's Skills row carries the way in, and it is drawn on the
+        model's own page — so the word on it is read before the screen's."""
+        client.force_login(player)
+        body = client.get(edit_url(yolanda)).content.decode()
+
+        assert 'aria-label="Select a skill"' in body
+
+    def test_no_surface_still_says_learn(self, client, player, yolanda, library):
+        """A discovering check rather than a list: every rendered word of
+        this feature is swept, so a surface added later cannot quietly
+        reintroduce the old verb."""
+        client.force_login(player)
+        pages = [
+            client.get(skills_url(yolanda)).content.decode(),
+            client.get(edit_url(yolanda)).content.decode(),
+        ]
+
+        for body in pages:
+            # The href and the URL name keep "learn" — those are code, not
+            # words anybody reads. Only drawn text is swept.
+            drawn = re.sub(r"<[^>]*>", " ", body)
+            assert not re.search(r"\blearn(s|ed|ing)?\b", drawn, re.IGNORECASE)
 
 
 class TestWhatTheScreenShows:
@@ -259,7 +321,7 @@ class TestWhatTheScreenShows:
     def test_a_fighter_with_no_grid_gets_a_page_that_says_so(
         self, client, player, gang, gridless, catalogue
     ):
-        """Nothing to learn is a thing to say, not a page to withhold: the
+        """Nothing to select is a thing to say, not a page to withhold: the
         address names the fighter, and the gap is in the content."""
         nobody = hire_with_option(gang, gridless, "Nobody")
         client.force_login(player)
@@ -269,16 +331,16 @@ class TestWhatTheScreenShows:
         body = response.content.decode()
         assert "not graded in any skill category" in body
 
-    def test_a_fighter_with_no_grid_is_not_asked_to_learn_anything(
+    def test_a_fighter_with_no_grid_is_not_asked_to_select_anything(
         self, client, player, gang, gridless, catalogue
     ):
-        """No list, so no act at the foot of the page — a Learn button with
+        """No list, so no act at the foot of the page — a Select button with
         nothing selectable above it is a click that can only fail."""
         nobody = hire_with_option(gang, gridless, "Nobody")
         client.force_login(player)
         body = client.get(skills_url(nobody)).content.decode()
 
-        # The page's only act would be Learn, and there is nothing to learn.
+        # The page's only act would be Select, and there is nothing to select.
         assert 'type="submit"' not in body
 
     def test_somebody_else_s_fighter_is_not_there(self, client, yolanda, catalogue):
@@ -326,7 +388,7 @@ class TestGettingToTheNextFighter:
     Every row leads to that fighter's own skills screen. Picking skills is
     a job done down a roster, and a row that landed on a different screen
     would break off halfway through it — which is also why the screen
-    exists for a fighter with nothing to learn.
+    exists for a fighter with nothing to select.
     """
 
     def test_the_gang_s_other_fighters_are_offered(
@@ -339,7 +401,7 @@ class TestGettingToTheNextFighter:
         assert skills_url(mad_donna) in body
         assert "Mad Donna" in body
 
-    def test_a_fighter_with_nothing_to_learn_is_still_offered(
+    def test_a_fighter_with_nothing_to_select_is_still_offered(
         self, client, player, gang, gridless, yolanda, catalogue
     ):
         """The row leads to a page that says there is nothing there, which
@@ -377,7 +439,7 @@ class TestGettingToTheNextFighter:
         client.force_login(player)
         body = client.get(skills_url(yolanda)).content.decode()
 
-        assert 'aria-label="Pick skills for another fighter"' in body
+        assert 'aria-label="Select skills for another fighter"' in body
         assert 'aria-label="Switch to another gang"' in body
 
     def test_somebody_else_s_roster_is_not_in_it(
@@ -396,10 +458,73 @@ class TestGettingToTheNextFighter:
         assert skills_url(elsewhere) not in body
 
 
+class TestTheWayOut:
+    """Where the screen leads when a reader is done with it.
+
+    The control opening it is drawn on the model's own page and nowhere
+    else, so that page is what a reader came from and what leaving owes
+    them: the gang sheet is a level above the screen they were working
+    on, and the skills control they clicked is not on it.
+    """
+
+    def test_cancel_leads_back_to_the_model_s_own_page(
+        self, client, player, yolanda, library
+    ):
+        client.force_login(player)
+        response = client.get(skills_url(yolanda))
+
+        assert response.context["cancel_url"] == edit_url(yolanda)
+        # The last of them: the breadcrumb leads to the same page from the
+        # top of the document, and the footer's way out is the one at the end.
+        body = response.content.decode()
+        out = body.rindex(f'href="{edit_url(yolanda)}"')
+        assert "Cancel" in body[out : body.index("</a>", out)]
+
+    def test_selecting_something_lands_on_the_same_page_cancel_does(
+        self, client, player, yolanda, library
+    ):
+        """A save and a cancel leave by the same door: one of them landing
+        somewhere else would make the footer's two buttons disagree about
+        where the reader was."""
+        catfall = library["skills"]["Catfall"]
+        client.force_login(player)
+        response = client.post(
+            skills_url(yolanda),
+            {"thing": f"{catfall._meta.label_lower}:{catfall.pk}"},
+        )
+
+        assert response["Location"] == edit_url(yolanda)
+
+    def test_the_breadcrumb_names_the_model_under_the_gang(
+        self, client, player, yolanda, library
+    ):
+        """The model sits between the gang and this page, as it does on
+        every other screen addressed by one."""
+        client.force_login(player)
+        body = client.get(skills_url(yolanda)).content.decode()
+
+        gang_crumb = body.index(f'href="{reverse("n26-gang", args=[yolanda.gang.pk])}"')
+        model_crumb = body.index(f'href="{edit_url(yolanda)}"')
+        assert gang_crumb < model_crumb
+        assert "Yolanda" in body[model_crumb : body.index("</a>", model_crumb)]
+
+    def test_a_fighter_with_nothing_to_select_still_has_the_way_back(
+        self, client, player, gang, gridless, catalogue
+    ):
+        """That page draws no Cancel — there is nothing to cancel — so the
+        breadcrumb is the whole of the way out, and it has to reach the
+        model whose screen this is."""
+        nobody = hire_with_option(gang, gridless, "Nobody")
+        client.force_login(player)
+        body = client.get(skills_url(nobody)).content.decode()
+
+        assert f'href="{edit_url(nobody)}"' in body
+
+
 # --- The write -------------------------------------------------------------
 
 
-class TestLearning:
+class TestSelecting:
     def test_a_click_on_the_screen_writes_it(
         self, client, player, gang, yolanda, library
     ):
@@ -420,7 +545,7 @@ class TestLearning:
         self, client, player, gang, yolanda, library
     ):
         """A duplicate skill means nothing in the game, so the click is
-        refused — and "already has it" covers every route in, a learned
+        refused — and "already has it" covers every route in, a selected
         one and one granted by a settled choice alike. A card reading
         "Marksman, Marksman" is a bug however honestly each row was
         written."""
@@ -474,11 +599,11 @@ class TestLearning:
         assert gang.rating == 55 + 30
         assert_reconciled(gang)
 
-    def test_a_learned_skill_survives_the_profile_that_placed_the_set(
+    def test_a_selected_skill_survives_the_profile_that_placed_the_set(
         self, gang, yolanda, gang_sister, make_profile, library, sets, tiers
     ):
         """A Legacy profile brings a grid; dropping it takes the tiers
-        away and leaves what was learned from them. An earned skill is not
+        away and leaves what was selected from them. An earned skill is not
         a consequence of a row still being there."""
         legacy = make_profile("Cawdor Bonepicker", price=40)
         modifier(
@@ -497,7 +622,7 @@ class TestLearning:
         assert "Bull Charge" in [line.name for line in card_for(yolanda).skills]
         assert_reconciled(gang)
 
-    def test_a_learned_power_draws_on_the_powers_row(self, yolanda, library):
+    def test_a_selected_power_draws_on_the_powers_row(self, yolanda, library):
         learn(yolanda, library["powers"]["Terrify"])
         card = card_for(yolanda)
         assert [line.name for line in card.powers] == ["Terrify (Double)"]

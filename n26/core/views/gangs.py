@@ -206,7 +206,7 @@ def gang_sheet(request, pk):
 
     The way into a fighter's skills is pointed the same way, and costs
     one query for the whole roster: which collections hold what a model
-    learns is asked once, and each card already carries the collections
+    selects is asked once, and each card already carries the collections
     its own grid reaches. A fighter with no grid gets no control, which
     is a content gap showing rather than a screen being withheld.
     """

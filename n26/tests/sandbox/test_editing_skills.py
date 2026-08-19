@@ -1,6 +1,6 @@
 """Ticking a model's skills and powers on their own page.
 
-The skills screen learns one thing at a time, at its own address. This is
+The skills screen selects one thing at a time, at its own address. This is
 the same list as a box on the model's edit page: everything their grid
 puts within reach, ticked where they have it, settled in one click.
 
@@ -14,12 +14,12 @@ The rules this file pins:
 * **Skills and powers alike.** A tier holds whatever the content swept
   into it, so a family of powers placed for a fighter ticks like a skill
   set does.
-* **A tick learns and a cleared box takes away**, in one operation: a
+* **A tick selects and a cleared box takes away**, in one operation: a
   save that fails writes nothing at all.
 * **What a rule grants is fixed.** It is drawn ticked and disabled,
   saying what grants it — there is no stored row behind it, so the
   square never offers a removal it could not do.
-* None of it is money. Learning is free, and a gang still reconciles.
+* None of it is money. Selecting is free, and a gang still reconciles.
 """
 
 import re
@@ -467,7 +467,7 @@ class TestSavingTheSquare:
     def test_a_skill_from_a_set_no_longer_reached_is_left_alone(
         self, client, player, gang, gang_sister, wyrd, library
     ):
-        """What is not offered cannot have been cleared. A power learned
+        """What is not offered cannot have been cleared. A power selected
         while a subtype revealed the family keeps its row once the subtype
         goes: an earned thing is nobody's consequence."""
         from n26.tests.sandbox.actions import remove
@@ -489,7 +489,7 @@ class TestSavingTheSquare:
             client, yolanda, library["skills"]["Catfall"], follow=True
         )
 
-        assert "Yolanda learned Catfall." in response.content.decode()
+        assert "Yolanda selected Catfall." in response.content.decode()
 
     def test_saving_the_notes_leaves_the_skills_alone(
         self, client, player, gang, yolanda, library
@@ -512,7 +512,7 @@ class TestSavingTheSquare:
         assert_reconciled(gang)
 
     def test_none_of_it_is_money(self, client, player, gang, yolanda, library):
-        """Learning is earned rather than bought: no credits move, and a
+        """A selection is earned rather than bought: no credits move, and a
         skill the rules hand out is worth nothing to the gang."""
         client.force_login(player)
         gang.refresh_from_db()

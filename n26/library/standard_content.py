@@ -362,7 +362,7 @@ def _check_progression_counters():
 
 
 def skills_collection_sweeps():
-    """Every kind this collection lists: what a model learns rather than
+    """Every kind this collection lists: what a model selects rather than
     carries. A power is not a skill, and both are here because a grid
     places both into the same tiers — a kind missing from here is one no
     fighter can be shown."""
@@ -669,7 +669,7 @@ STANDARD_CONTENT = {
                 "tiers the printed skill grids place skill sets into. "
                 "A gang list's Primary column is a placement aimed at "
                 "its Primary tier. It sweeps in every skill and every "
-                "power, so what a fighter may learn follows from their "
+                "power, so what a fighter may select follows from their "
                 "grid alone."
             ),
             check=_check_skills_collection,

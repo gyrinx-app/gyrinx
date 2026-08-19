@@ -247,7 +247,7 @@ class TestWhichFightersAreListed:
             reverse("n26-learn", args=[here.pk]),
             reverse("n26-learn", args=[other.pk]),
         }
-        assert switcher.menu_label == "Pick skills for another fighter"
+        assert switcher.menu_label == "Select skills for another fighter"
 
     def test_the_kit_screen_is_where_it_leads_by_default(self, make_gang, hire):
         gang = make_gang("The Ashen Choir")

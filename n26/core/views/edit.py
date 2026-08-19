@@ -236,7 +236,7 @@ def edit_fighter(request, pk):
     in the owner's name, clearing stores a removal whatever route the
     thing arrived by, and each section's Reset archives the owner's
     edits so the content's own answer returns. The skills a model
-    holds post the same way, and learning writes an assignment while
+    holds post the same way, and selecting writes an assignment while
     clearing archives one, so the whole difference lands or none of it
     does.
 
@@ -300,7 +300,7 @@ def edit_fighter(request, pk):
         moved = [
             phrase
             for phrase in (
-                f"learned {', '.join(learned)}" if learned else "",
+                f"selected {', '.join(learned)}" if learned else "",
                 f"lost {', '.join(cleared)}" if cleared else "",
             )
             if phrase
