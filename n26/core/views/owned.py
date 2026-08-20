@@ -214,7 +214,6 @@ def _panel(request, assignment, kind, at):
         # listing's own form does this with a hidden field the picker
         # writes; a dialog is a form of its own and has to say it here.
         "section": request.GET.get("section", ""),
-        "orphan_ui": request.GET.get("orphan_ui", ""),
     }
 
 
@@ -544,7 +543,7 @@ def _back_to(request, assignment, gang):
         base = reverse("n26-gang", args=[gang.pk])
     where = {
         key: value
-        for key in ("list", "section", "orphan_ui")
+        for key in ("list", "section")
         if (value := request.POST.get(key, ""))
     }
     return with_query(base, **where) if where else base

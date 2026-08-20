@@ -70,7 +70,6 @@ itself.
     <input type="hidden" name="return" value="{{ dialog.cancel_url }}">
     {% if dialog.list %}<input type="hidden" name="list" value="{{ dialog.list }}">{% endif %}
     {% if dialog.section %}<input type="hidden" name="section" value="{{ dialog.section }}">{% endif %}
-    {% if dialog.orphan_ui %}<input type="hidden" name="orphan_ui" value="{{ dialog.orphan_ui }}">{% endif %}
 
     {% comment %}
     The listing's own include, so a set is asked about the same way wherever it

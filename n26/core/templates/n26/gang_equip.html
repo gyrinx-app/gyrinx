@@ -7,8 +7,7 @@ chrome still wants a look at the fighter's equip page.
 
 Which list is URL state (?list=<pk>, ?list=all, or ?list=stash), so a list is
 linkable and the back button walks the choices. Gear the current list does not
-sell is drawn either beside the catalogue (?orphan_ui=a) or on its own tab
-(?orphan_ui=b, the default). Append ?orphan_ui=a to compare the two.
+sell is managed from the In stash tab.
 {% endcomment %}
 {% block head_title %}Equip{% endblock head_title %}
 {% block nav_switcher %}
@@ -49,28 +48,6 @@ sell is drawn either beside the catalogue (?orphan_ui=a) or on its own tab
             <c-n26.gang-figures :gang="gang" :summary="summary" />
         </c-slot>
         {% csrf_token %}
-        <p class="text-xs text-muted">
-            Orphan UI:
-            {% if orphan_ui == "a" %}
-                <c-n26.link href="{{ orphan_toggle_a }}" underline="always">
-                    Section beside catalogue
-                </c-n26.link>
-            {% else %}
-                <c-n26.link href="{{ orphan_toggle_a }}">
-                    Section beside catalogue
-                </c-n26.link>
-            {% endif %}
-            ·
-            {% if orphan_ui == "b" %}
-                <c-n26.link href="{{ orphan_toggle_b }}" underline="always">
-                    In stash tab
-                </c-n26.link>
-            {% else %}
-                <c-n26.link href="{{ orphan_toggle_b }}">
-                    In stash tab
-                </c-n26.link>
-            {% endif %}
-        </p>
         <div class="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-[11rem_minmax(0,1fr)]">
             <c-ui.navlist variant="sidebar" aria-label="Which list" class="self-start text-sm">
                 {% for tab in collection_tabs %}
@@ -80,21 +57,7 @@ sell is drawn either beside the catalogue (?orphan_ui=a) or on its own tab
                 {% endfor %}
             </c-ui.navlist>
             {% if catalogue %}
-                {% if orphan_rows %}
-                    <div class="flex flex-col gap-4 md:col-start-2">
-                        <section class="rounded-lg border border-box-border p-3">
-                            <h3 class="mb-2 text-sm font-semibold text-ink-900 dark:text-ink-100">In stash — not on this list</h3>
-                            <div class="flex flex-col gap-1">
-                                {% for row in orphan_rows %}
-                                    {% include "n26/includes/equip_stash_row.html" with row=row %}
-                                {% endfor %}
-                            </div>
-                        </section>
-                        {% include "n26/includes/gang_equip_catalogue.html" %}
-                    </div>
-                {% else %}
-                    {% include "n26/includes/gang_equip_catalogue.html" %}
-                {% endif %}
+                {% include "n26/includes/gang_equip_catalogue.html" %}
             {% else %}
                 <p class="text-muted md:col-start-2">
                     No equipment lists yet — this gang has none of its own to browse.

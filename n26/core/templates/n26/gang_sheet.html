@@ -158,9 +158,7 @@ that said it twice would be spending the width the name needs.
         {% endif %}
         {% if yours %}
             <c-slot name="stash_actions">
-                <c-ui.button size="xs" variant="primary" href="{% url 'n26-equip-gang' gang.pk %}">
-                    Equip
-                </c-ui.button>
+                <c-n26.action-link href="{% url 'n26-equip-gang' gang.pk %}">Equip</c-n26.action-link>
             </c-slot>
         {% endif %}
         <c-slot name="stash_empty">

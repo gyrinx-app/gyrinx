@@ -511,16 +511,6 @@ def owned_row_manage_only(key, copies, refunds=True):
     )
 
 
-def stash_orphan_rows(catalogue, owned, refunds=True):
-    """Held copies whose content this catalogue does not sell."""
-    listed = {row.key for row in catalogue.all_rows()}
-    rows = []
-    for key, copies in owned.items():
-        if key not in listed:
-            rows.append(owned_row_manage_only(key, copies, refunds=refunds))
-    return sorted(rows, key=lambda row: row.name.casefold())
-
-
 def build_stash_catalogue(owned, name="In stash", refunds=True):
     """Every held copy on the stash tab — manage-only, no buy underneath."""
     catalogue = Catalogue(name=name)

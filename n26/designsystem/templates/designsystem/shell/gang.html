@@ -87,11 +87,7 @@ a page and its chrome is not visible in either one alone.
             </c-n26.button-group>
         </c-slot>
         <c-slot name="stash_actions">
-            <c-ui.button size="xs"
-                         variant="primary"
-                         href="{% url 'designsystem:shell_shop' %}">
-                Equip
-            </c-ui.button>
+            <c-n26.action-link href="{% url 'designsystem:shell_shop' %}">Equip</c-n26.action-link>
         </c-slot>
         <c-slot name="stash_empty">
             Nothing in the stash yet.

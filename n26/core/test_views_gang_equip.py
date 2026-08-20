@@ -652,7 +652,7 @@ class TestStashManagement:
         assert "in stash" in body
         assert f"sell={bought.pk}" in body
 
-    def test_orphan_ui_a_draws_gear_the_list_does_not_sell(
+    def test_gear_the_list_does_not_sell_is_on_the_stash_tab(
         self, client, tester, gang, house_list
     ):
         from n26.library.authoring import create_weapon
@@ -662,31 +662,17 @@ class TestStashManagement:
             bought = op.buy(gang.stash, thing=autogun, paid=20)
 
         client.force_login(tester)
-        url = f"{equip_url(gang, house_list)}&orphan_ui=a"
-        response = client.get(url)
-        body = response.content.decode()
+        on_house = client.get(equip_url(gang, house_list))
+        on_stash = client.get(equip_url(gang, scope="stash"))
+        body = on_stash.content.decode()
 
-        assert response.context["orphan_rows"]
-        assert "In stash — not on this list" in body
-        assert f"sell={bought.pk}" in body
-
-    def test_orphan_ui_b_lists_everything_on_the_stash_tab(
-        self, client, tester, gang, house_list
-    ):
-        from n26.library.authoring import create_weapon
-
-        autogun = create_weapon("Autogun", price=20, profiles=[("", 0)])
-        with operation(gang, actor=tester) as op:
-            bought = op.buy(gang.stash, thing=autogun, paid=20)
-
-        client.force_login(tester)
-        url = equip_url(gang, scope="stash")
-        response = client.get(url)
-        body = response.content.decode()
-
-        assert response.context["stash_tab"] is True
+        assert "Autogun" not in {
+            row.name for row in on_house.context["catalogue"].all_rows()
+        }
+        assert on_stash.context["stash_tab"] is True
         assert "Autogun" in body
         assert f"sell={bought.pk}" in body
+        assert "Everything the gang holds in its stash" not in body
 
     def test_selling_from_the_stash_tab_returns_to_it(
         self, client, tester, gang, house_list
@@ -702,7 +688,6 @@ class TestStashManagement:
             reverse("n26-sell", args=[bought.pk]),
             {
                 "list": "stash",
-                "orphan_ui": "b",
                 "return": equip_url(gang, scope="stash"),
             },
         )

@@ -607,52 +607,49 @@ ALL_SCOPE = "all"
 #: What that tab is called, on the tab and as the list being browsed.
 ALL_LABEL = "All equipment"
 
-#: The stash-holdings tab for orphan UI option B — not a collection.
+#: The stash-holdings tab — not a collection. Gear the current list does
+#: not sell is reached from here, rather than drawn beside the catalogue.
 STASH_SCOPE = "stash"
 
 #: What that tab is called.
 STASH_LABEL = "In stash"
 
 
-def gang_tabs(collections, chosen, everything, *, stash=False, orphan_ui="b"):
+def gang_tabs(collections, chosen, everything, *, stash=False):
     """The lists the gang can buy from, and the whole library after them.
 
     The library tab comes last because it is the fallback: what a gang
     buys from is its own lists, and everything else is there for the
     thing no list carries.
 
-    With ``orphan_ui=b``, an ``In stash`` tab lists everything held
-    regardless of which list sells it. With ``orphan_ui=a``, orphans are
-    drawn beside the catalogue instead, and this tab is omitted.
+    ``In stash`` comes first: everything held, regardless of which list
+    sells it, so gear bought elsewhere still has somewhere to be managed.
     """
     tabs = collection_tabs(collections, chosen)
     for tab, collection in zip(tabs, collections, strict=True):
-        tab["href"] = _gang_tab_href(collection.pk, orphan_ui=orphan_ui)
+        tab["href"] = _gang_tab_href(collection.pk)
     tabs.append(
         {
             "label": ALL_LABEL,
             "title": "",
-            "href": _gang_tab_href(ALL_SCOPE, orphan_ui=orphan_ui),
+            "href": _gang_tab_href(ALL_SCOPE),
             "current": everything,
         }
     )
-    if orphan_ui == "b":
-        tabs.insert(
-            0,
-            {
-                "label": STASH_LABEL,
-                "title": "Everything the gang holds in its stash",
-                "href": _gang_tab_href(STASH_SCOPE, orphan_ui=orphan_ui),
-                "current": stash,
-            },
-        )
+    tabs.insert(
+        0,
+        {
+            "label": STASH_LABEL,
+            "title": "",
+            "href": _gang_tab_href(STASH_SCOPE),
+            "current": stash,
+        },
+    )
     return tabs
 
 
-def _gang_tab_href(scope, *, orphan_ui="b", section=""):
+def _gang_tab_href(scope, *, section=""):
     params = [("list", scope)]
-    if orphan_ui and orphan_ui != "b":
-        params.append(("orphan_ui", orphan_ui))
     if section:
         params.append(("section", section))
     return f"?{urlencode(params)}"
@@ -680,19 +677,15 @@ def equip_gang(request, pk):
     carries. Built only when the address asks for it — it prices the
     library, which is not something to pay for on every visit.
 
-    ``?list=stash`` (orphan UI option B) is everything held, regardless
-    of which list sells it. Option A draws the same orphans beside the
-    catalogue instead; switch with ``?orphan_ui=a`` to compare.
+    ``?list=stash`` is everything held, regardless of which list sells
+    it — so gear bought from All equipment still has somewhere to be sold
+    or handed on when browsing a narrower list.
     """
     from n26.core.access import gang_collections
     from n26.core.browse import all_gear, browse
     from n26.core.card import build_gang_card, build_modifier_index
     from n26.core.effects import compute_gang
-    from n26.core.listing import (
-        build_catalogue,
-        build_stash_catalogue,
-        stash_orphan_rows,
-    )
+    from n26.core.listing import build_catalogue, build_stash_catalogue
     from n26.core.owned import EquipHost, possessions
     from n26.core.render import roster as gang_roster
     from n26.core.render import summarise_roster
@@ -710,10 +703,6 @@ def equip_gang(request, pk):
         access.collection
         for access in gang_collections(gang, card=card, computed=computed)
     )
-
-    orphan_ui = request.POST.get("orphan_ui", request.GET.get("orphan_ui", "b"))[:1]
-    if orphan_ui not in ("a", "b"):
-        orphan_ui = "b"
 
     # Read from the POST as well as the URL: the form posts to the address
     # it was drawn at, and a click must buy from the list it was clicked
@@ -744,8 +733,6 @@ def equip_gang(request, pk):
         params.append(("list", chosen.pk))
     if section:
         params.append(("section", section))
-    if orphan_ui != "b":
-        params.append(("orphan_ui", orphan_ui))
     here = f"{request.path}?{urlencode(params)}" if params else request.path
 
     view = None
@@ -781,18 +768,6 @@ def equip_gang(request, pk):
         catalogue = None
         browsing = ""
 
-    orphan_rows = []
-    if orphan_ui == "a" and not stash_tab and catalogue is not None:
-        orphan_rows = stash_orphan_rows(catalogue, owned, refunds=refunds)
-
-    toggle_scope = (
-        STASH_SCOPE
-        if stash_tab
-        else (ALL_SCOPE if everything else str(chosen.pk) if chosen else "")
-    )
-    orphan_toggle_a = _gang_tab_href(toggle_scope, orphan_ui="a", section=section)
-    orphan_toggle_b = _gang_tab_href(toggle_scope, orphan_ui="b", section=section)
-
     return render(
         request,
         "n26/gang_equip.html",
@@ -804,14 +779,9 @@ def equip_gang(request, pk):
                 chosen,
                 everything,
                 stash=stash_tab,
-                orphan_ui=orphan_ui,
             ),
             "browsing": browsing,
             "catalogue": catalogue,
-            "orphan_rows": orphan_rows,
-            "orphan_ui": orphan_ui,
-            "orphan_toggle_a": orphan_toggle_a,
-            "orphan_toggle_b": orphan_toggle_b,
             "stash_tab": stash_tab,
             "held_label": host.held_label,
             "dialog": owned_dialog(request, host),
