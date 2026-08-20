@@ -41,7 +41,8 @@ def test_draws_the_gang(client, tester, gang):
     assert str(gang.gang_type) in body
 
 
-def test_the_sheet_builds_the_gang_card_once(client, tester, gang, monkeypatch):
+@pytest.mark.parametrize("query", ["", "?sell=nonsense"])
+def test_the_sheet_builds_the_gang_card_once(client, tester, gang, monkeypatch, query):
     from n26.core import card
 
     built = []
@@ -54,7 +55,7 @@ def test_the_sheet_builds_the_gang_card_once(client, tester, gang, monkeypatch):
     monkeypatch.setattr(card, "build_gang_card", counted)
     client.force_login(tester)
 
-    assert client.get(reverse("n26-gang", args=[gang.pk])).status_code == 200
+    assert client.get(reverse("n26-gang", args=[gang.pk]) + query).status_code == 200
     assert len(built) == 1
 
 

@@ -991,6 +991,28 @@ def test_the_gangs_own_rows_are_not_the_fighters_to_sell(gang, fighter, tester):
     assert thing_key(crate) not in owned_things(build_card(fighter), AT)
 
 
+def test_a_suppressed_possession_has_no_dialog(fighter, sword):
+    from django.test import RequestFactory
+
+    from n26.core.card import build_card
+    from n26.core.owned import EquipHost
+    from n26.core.views.owned import owned_dialog
+
+    card = build_card(fighter)
+    node = next(
+        node
+        for node in card.all_nodes()
+        if node.assignment is not None and node.assignment.pk == sword.pk
+    )
+    node.suppressed = True
+    request = RequestFactory().get(AT, {"sell": str(sword.pk)})
+
+    assert (
+        owned_dialog(request, EquipHost.fighter(fighter.gang, card, fighter, AT))
+        is None
+    )
+
+
 def test_an_unowned_row_is_counted_as_nothing(gang, fighter):
     from n26.core.card import build_card
     from n26.core.owned import owned_things, thing_key

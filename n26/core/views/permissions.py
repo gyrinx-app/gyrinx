@@ -7,8 +7,20 @@ only ever a bad link and a 500 is the wrong answer to one.
 """
 
 from django.core.exceptions import ValidationError
-from django.http import Http404
+from django.http import Http404, HttpResponseRedirect
 from django.shortcuts import get_object_or_404
+from django.utils.http import url_has_allowed_host_and_scheme
+
+
+def _safe_redirect(request, url, fallback_url="/"):
+    """Redirect only to this request's host."""
+    if url and url_has_allowed_host_and_scheme(
+        url,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return HttpResponseRedirect(url)
+    return HttpResponseRedirect(fallback_url)
 
 
 def _own_gang_or_404(request, pk):

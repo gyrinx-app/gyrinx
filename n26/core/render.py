@@ -1569,13 +1569,13 @@ def stash_lines(gang_card):
     ]
 
 
-def render_gang(gang, with_effects=True):
+def render_gang(gang, with_effects=True, *, card=None):
     """A whole gang sheet. A fixed number of queries, whatever its size."""
     from n26.core.card import build_gang_card, build_modifier_index
     from n26.core.effects import compute, compute_gang, counter_readings
 
     models = roster(gang)
-    gang_card = build_gang_card(gang)
+    gang_card = card or build_gang_card(gang)
     cards = gang_card.members
 
     computed = {}

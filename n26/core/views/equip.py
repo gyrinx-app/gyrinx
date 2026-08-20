@@ -447,11 +447,13 @@ def equip(request, pk):
     # lands the reader back on the third tab; an unknown name just leaves
     # the picker on its first.
     section = request.POST.get("section", request.GET.get("section", ""))[:100]
+    expanded_key = request.POST.get("owned", request.GET.get("owned", ""))[:200]
 
     def here(collection):
         params = [
             *([("list", collection.pk)] if collection is not None else []),
             *([("section", section)] if section else []),
+            *([("owned", expanded_key)] if expanded_key else []),
         ]
         return f"{request.path}?{urlencode(params)}" if params else request.path
 
@@ -484,7 +486,12 @@ def equip(request, pk):
     # something they are carrying, and which it is is the structure's
     # answer rather than a question the template asks of the card.
     catalogue = (
-        build_catalogue(view, owned, refunds=not gang.credits_unlimited)
+        build_catalogue(
+            view,
+            owned,
+            refunds=not gang.credits_unlimited,
+            expanded_key=expanded_key,
+        )
         if view is not None
         else None
     )
@@ -683,6 +690,7 @@ def equip_gang(request, pk):
 
     # Preserve the collection picker's section across purchases.
     section = request.POST.get("section", request.GET.get("section", ""))[:100]
+    expanded_key = request.POST.get("owned", request.GET.get("owned", ""))[:200]
 
     params = []
     if stash_tab:
@@ -693,6 +701,8 @@ def equip_gang(request, pk):
         params.append(("list", chosen.pk))
     if section:
         params.append(("section", section))
+    if expanded_key:
+        params.append(("owned", expanded_key))
     here = f"{request.path}?{urlencode(params)}" if params else request.path
 
     view = None
@@ -717,10 +727,20 @@ def equip_gang(request, pk):
     refunds = not gang.credits_unlimited
 
     if stash_tab:
-        catalogue = build_stash_catalogue(owned, STASH_LABEL, refunds=refunds)
+        catalogue = build_stash_catalogue(
+            owned,
+            STASH_LABEL,
+            refunds=refunds,
+            expanded_key=expanded_key,
+        )
         browsing = STASH_LABEL
     elif view is not None:
-        catalogue = build_catalogue(view, owned, refunds=refunds)
+        catalogue = build_catalogue(
+            view,
+            owned,
+            refunds=refunds,
+            expanded_key=expanded_key,
+        )
         browsing = ALL_LABEL if everything else str(chosen or "")
     else:
         catalogue = None

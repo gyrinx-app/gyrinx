@@ -51,7 +51,6 @@ from django.http import Http404
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
-from gyrinx.http import safe_redirect
 from n26.core.owned import (
     DIALOGS,
     EquipHost,
@@ -59,7 +58,7 @@ from n26.core.owned import (
     thing_key,
     with_query,
 )
-from n26.core.views.permissions import _own_assignment_or_404
+from n26.core.views.permissions import _own_assignment_or_404, _safe_redirect
 
 
 def _possession_or_404(request, pk):
@@ -101,7 +100,7 @@ def _held(host, pk):
     """
     for root in host.roots:
         for node in root.walk():
-            if node.broadcast:
+            if node.broadcast or node.suppressed:
                 continue
             if node.assignment is None:
                 continue
@@ -476,7 +475,7 @@ def _back_to(request, assignment, gang):
 
 
 def _return_to(request, fallback):
-    return safe_redirect(request, request.POST.get("return"), fallback_url=fallback)
+    return _safe_redirect(request, request.POST.get("return"), fallback_url=fallback)
 
 
 @login_required

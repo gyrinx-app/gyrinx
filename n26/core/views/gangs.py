@@ -205,7 +205,8 @@ def gang_sheet(request, pk):
     gang = _any_gang_or_404(pk)
     yours = gang.owner_id == getattr(request.user, "id", None)
     at = reverse("n26-gang", args=[gang.pk])
-    sheet = render_gang(gang)
+    card = build_gang_card(gang)
+    sheet = render_gang(gang, card=card)
     dialog = None
     if yours:
         link_slots(gang, sheet, *sheet.models)
@@ -221,7 +222,7 @@ def gang_sheet(request, pk):
         and not renaming
         and any(request.GET.get(kind) for kind in DIALOGS)
     ):
-        host = EquipHost.stash(gang, build_gang_card(gang), at=at)
+        host = EquipHost.stash(gang, card, at=at)
         dialog = owned_dialog(request, host)
     return render(
         request,

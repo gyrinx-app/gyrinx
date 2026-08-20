@@ -253,6 +253,7 @@ class OwnedRow:
     #: buy another. Absent on a manage-only row — gear held but not sold
     #: by the list being read.
     buy: Listing | None = None
+    expanded: bool = False
 
 
 @dataclass
@@ -454,31 +455,38 @@ def copy_row(copy, refunds=True):
     )
 
 
-def owned_row(row, copies, refunds=True):
+def owned_row(row, copies, refunds=True, expanded=False):
     return OwnedRow(
         key=row.key,
         name=row.name,
         count=len(copies),
         copies=tuple(copy_row(copy, refunds=refunds) for copy in copies),
         buy=row,
+        expanded=expanded,
     )
 
 
-def owned_row_manage_only(key, copies, refunds=True):
+def owned_row_manage_only(key, copies, refunds=True, expanded=False):
     return OwnedRow(
         key=key,
         name=copies[0].name,
         count=len(copies),
         copies=tuple(copy_row(copy, refunds=refunds) for copy in copies),
         buy=None,
+        expanded=expanded,
     )
 
 
-def build_stash_catalogue(owned, name, refunds=True):
+def build_stash_catalogue(owned, name, refunds=True, expanded_key=""):
     catalogue = Catalogue(name=name)
     section = CatalogueSection(name=name)
     rows = [
-        owned_row_manage_only(key, copies, refunds=refunds)
+        owned_row_manage_only(
+            key,
+            copies,
+            refunds=refunds,
+            expanded=key == expanded_key,
+        )
         for key, copies in sorted(
             owned.items(), key=lambda item: item[1][0].name.casefold()
         )
@@ -488,7 +496,7 @@ def build_stash_catalogue(owned, name, refunds=True):
     return catalogue
 
 
-def build_catalogue(view, owned, name=None, refunds=True):
+def build_catalogue(view, owned, name=None, refunds=True, expanded_key=""):
     """A browsed collection joined to what one fighter already holds.
 
     ``owned`` is the index :func:`n26.core.owned.possessions` returns,
@@ -511,7 +519,16 @@ def build_catalogue(view, owned, name=None, refunds=True):
             for line in category.lines:
                 row = listing_row(line)
                 copies = owned.get(row.key)
-                rows.append(owned_row(row, copies, refunds=refunds) if copies else row)
+                rows.append(
+                    owned_row(
+                        row,
+                        copies,
+                        refunds=refunds,
+                        expanded=row.key == expanded_key,
+                    )
+                    if copies
+                    else row
+                )
             drawn.categories.append(CatalogueCategory(name=category.name, rows=rows))
         catalogue.sections.append(drawn)
     return catalogue

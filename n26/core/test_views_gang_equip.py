@@ -655,15 +655,23 @@ class TestStashManagement:
 
         client.force_login(tester)
         on_house = client.get(equip_url(gang, house_list))
-        on_stash = client.get(equip_url(gang, scope="stash"))
+        on_stash = client.get(
+            f"{equip_url(gang, scope='stash')}&owned={key_of(autogun)}"
+        )
         body = on_stash.content.decode()
 
         assert "Autogun" not in {
             row.name for row in on_house.context["catalogue"].all_rows()
         }
         assert on_stash.context["stash_tab"] is True
+        (row,) = on_stash.context["catalogue"].all_rows()
+        assert row.expanded is True
         assert "Autogun" in body
         assert f"sell={bought.pk}" in body
+        assert 'aria-expanded="true"' in body
+        assert '@click="expanded = !expanded"' not in body
+        sell = body.index(f"sell={bought.pk}")
+        assert body.rfind("<template", 0, sell) <= body.rfind("</template>", 0, sell)
 
     def test_selling_from_the_stash_tab_returns_to_it(
         self, client, tester, gang, house_list

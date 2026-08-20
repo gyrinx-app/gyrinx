@@ -5,6 +5,11 @@ and `held_label` from the page when the host is the stash.
 Owning something is a *state of its row*, not a list of its own: where a copy is
 held, the count stands where Buy would be and opens the row onto what they have.
 {% endcomment %}
+{% if row.expanded %}
+    {% querystring owned=None as owned_toggle_href %}
+{% else %}
+    {% querystring owned=row.key as owned_toggle_href %}
+{% endif %}
 {% if row.buy %}
     <c-n26.collection-picker.item name="{{ row.name }}"
                                   :price="row.buy.price"
@@ -12,21 +17,21 @@ held, the count stands where Buy would be and opens the row onto what they have.
                                   :exclusive="row.buy.is_exclusive"
                                   :notes="row.buy.notes"
                                   :disclosure="False"
+                                  :open="row.expanded"
                                   state="quoted: {{ row.buy.price }}, price: {{ row.buy.price }}">
         <c-slot name="price_control">
             <span aria-hidden="true"></span>
         </c-slot>
         <c-slot name="actions">
-            <c-ui.button size="sm"
+            <c-ui.button href="{{ owned_toggle_href }}"
+                         size="sm"
                          class="inline-flex items-center gap-1.5"
-                         @click="expanded = !expanded"
-                         ::aria-expanded="expanded">
+                         aria-expanded="{{ row.expanded|yesno:'true,false' }}">
                 <span><span class="tabular-nums">{{ row.count }}</span> {{ held_label|default:"equipped" }}</span>
                 <span class="n26-icon-only">
                     <c-n26.icon name="chevron-down"
-                                class="size-3 transition-transform"
-                                stroke_width="2.5"
-                                ::class="{ 'rotate-180': expanded }" />
+                                class="size-3 transition-transform{% if row.expanded %} rotate-180{% endif %}"
+                                stroke_width="2.5" />
                 </span>
             </c-ui.button>
         </c-slot>
@@ -55,21 +60,21 @@ held, the count stands where Buy would be and opens the row onto what they have.
     <c-n26.collection-picker.item name="{{ row.name }}"
                                   :price="0"
                                   :disclosure="False"
+                                  :open="row.expanded"
                                   state="quoted: 0, price: 0">
         <c-slot name="price_control">
             <span aria-hidden="true"></span>
         </c-slot>
         <c-slot name="actions">
-            <c-ui.button size="sm"
+            <c-ui.button href="{{ owned_toggle_href }}"
+                         size="sm"
                          class="inline-flex items-center gap-1.5"
-                         @click="expanded = !expanded"
-                         ::aria-expanded="expanded">
+                         aria-expanded="{{ row.expanded|yesno:'true,false' }}">
                 <span><span class="tabular-nums">{{ row.count }}</span> {{ held_label|default:"equipped" }}</span>
                 <span class="n26-icon-only">
                     <c-n26.icon name="chevron-down"
-                                class="size-3 transition-transform"
-                                stroke_width="2.5"
-                                ::class="{ 'rotate-180': expanded }" />
+                                class="size-3 transition-transform{% if row.expanded %} rotate-180{% endif %}"
+                                stroke_width="2.5" />
                 </span>
             </c-ui.button>
         </c-slot>
