@@ -483,32 +483,6 @@ class TestTheRunsOwnGuards:
         backfill.refresh_from_db()
         assert backfill.status == Backfill.Status.DONE
 
-    def test_a_message_asking_not_to_keep_its_work_does_not_keep_it(self, world):
-        """A version ago this could be told to do the whole thing and
-        throw it away. Ignoring that instruction would commit what
-        somebody asked to be careful about."""
-        backfill = Backfill.objects.create(
-            operation=Operation.CONVERT_SPECIALISATION,
-            status=Backfill.Status.RUNNING,
-        )
-
-        convert_specialisation.enqueue(backfill_id=str(backfill.id), keep=False)
-
-        backfill.refresh_from_db()
-        assert backfill.status == Backfill.Status.FAILED
-        assert "cannot do" in backfill.error
-        assert Assignment.objects.filter(specialisation__isnull=False).exists()
-
-    def test_the_gentler_button_of_an_old_page_converts_nothing(
-        self, client, superuser, world
-    ):
-        client.force_login(superuser)
-
-        client.post(reverse(URL_NAME), {"keep": "no"}, follow=True)
-
-        assert not Backfill.objects.exists()
-        assert Assignment.objects.filter(specialisation__isnull=False).exists()
-
     def test_a_cancelled_run_stays_cancelled(self, world):
         backfill = Backfill.objects.create(
             operation=Operation.CONVERT_SPECIALISATION,

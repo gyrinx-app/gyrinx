@@ -419,59 +419,6 @@ class SwapSharedCarrier:
 
 
 @dataclass(frozen=True)
-class DropModifier:
-    """A modifier retired outright — for behaviour that is ending, not
-    moving. The plan must have proven the modifier does nothing on any
-    page: either nothing holds its carrier, or the modifier itself is
-    inert wherever the carrier appears."""
-
-    carrier: tuple  # (model label, pk)
-    carrier_name: str
-    modifier_id: object
-    modifier_name: str
-
-    def say(self):
-        return f"on {self.carrier_name}: retire “{self.modifier_name}”"
-
-    def perform(self, made):
-        from django.apps import apps
-
-        from n26.library.models import Modifier
-
-        app_label, model_name = self.carrier[0].split(".")
-        carrier = apps.get_model(app_label, model_name).objects.get(pk=self.carrier[1])
-        dropped = Modifier.objects.get(pk=self.modifier_id)
-        scope_row, effect_row = dropped.scope, dropped.effect
-        carrier.modifiers.remove(dropped)
-        dropped.delete()
-        scope_row.delete()
-        effect_row.delete()
-
-
-@dataclass(frozen=True)
-class RetireModifier:
-    """A modifier nothing carries, deleted with its scope and effect
-    rows. A detached modifier does nothing on any page, but its effect
-    row still names whatever it granted or removed — and protects that
-    thing from retiring."""
-
-    modifier_id: object
-    modifier_name: str
-
-    def say(self):
-        return f"retire the carrierless modifier “{self.modifier_name}”"
-
-    def perform(self, made):
-        from n26.library.models import Modifier
-
-        dropped = Modifier.objects.get(pk=self.modifier_id)
-        scope_row, effect_row = dropped.scope, dropped.effect
-        dropped.delete()
-        scope_row.delete()
-        effect_row.delete()
-
-
-@dataclass(frozen=True)
 class RewritePick:
     """One stored choice, re-said as a pick: the old kind's column moves
     to ``pickable``, the anchor it already hangs from (``caused_by``)

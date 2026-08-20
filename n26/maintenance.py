@@ -267,23 +267,6 @@ def _run_conversion(backfill_id, operation, system, **said_by_whoever_enqueued_i
     """
     from n26.library.conversion import ConversionRefused, apply
 
-    # A message from a version that could be told not to keep its work.
-    # Ignoring the instruction would turn the careful thing somebody asked
-    # for into the committing one, which is the opposite of what they
-    # wanted; there is no rehearsing any more, so the honest answer is to
-    # decline it.
-    if said_by_whoever_enqueued_it.get("keep") is False:
-        _write(
-            backfill_id,
-            status=Backfill.Status.FAILED,
-            error=(
-                "This asked to be rehearsed and then thrown away, which this "
-                "version cannot do. Nothing was run. Ask for it again from "
-                "the page."
-            ),
-        )
-        return
-
     _run_recorded(
         backfill_id,
         operation,
@@ -378,15 +361,6 @@ def _conversion_view(request, operation, system, task_fn):
             # the screen of whoever asked for it.
             messages.error(
                 request, "The conversion refuses: " + "; ".join(plan.problems)
-            )
-            return HttpResponseRedirect(address)
-        if request.POST.get("keep") == "no":
-            # A page open since before the rehearsal was taken away. Its
-            # gentler button would land here and convert for real.
-            messages.warning(
-                request,
-                "That page offered a rehearsal, which no longer exists. "
-                "Nothing has been run — reload and apply if you mean to.",
             )
             return HttpResponseRedirect(address)
         backfill = Backfill.objects.create(
