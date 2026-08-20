@@ -28,6 +28,11 @@ that said it twice would be spending the width the name needs.
     {% include 'n26/_nav.html' with here='gangs' %}
 {% endblock %}
 {% block content %}
+    {% if dialog %}
+        <c-n26.owned-dialog :dialog="dialog">
+            {% csrf_token %}
+        </c-n26.owned-dialog>
+    {% endif %}
     {% badge_for gang.owner as owner_badge %}
     <c-n26.view.gang-sheet :sheet="sheet"
                            owner="{{ gang.owner.username }}"
@@ -295,41 +300,6 @@ that said it twice would be spending the width the name needs.
                 {% endif %}
             </c-n26.dialog>
         {% endif %}
-    {% endif %}
-    {% comment %}
-    The stash's own question: a sight kept back from a sale is gear waiting for
-    a gun, and this is where it goes back on one. Every gun in the gang is
-    offered rather than only the ones it fits — fitting shortens a long list,
-    and a gang's guns are few enough that hiding one would be a refusal in
-    disguise. With no gun anywhere there is nothing to click, so no submit is
-    drawn.
-    {% endcomment %}
-    {% if refitting %}
-        <c-n26.dialog title="{{ refitting.title }}"
-                      action="{{ refitting.action }}"
-                      cancel_url="{{ refitting.cancel_url }}"
-                      submit_label="{{ refitting.submit_label }}">
-            <c-slot name="lead">
-                It keeps what it is worth — a move never re-prices — and its
-                effects land on whichever gun it ends up on.
-            </c-slot>
-            {% csrf_token %}
-            <input type="hidden" name="return" value="{{ refitting.cancel_url }}">
-            <input type="hidden" name="to" value="weapon">
-            {% if refitting.weapons %}
-                <c-ui.field label="Weapon" for="refit-weapon">
-                    <c-ui.select.native name="weapon" id="refit-weapon" placeholder="">
-                        {% for weapon in refitting.weapons %}
-                            <c-ui.select.option value="{{ weapon.pk }}">
-                                {{ weapon.label }}
-                            </c-ui.select.option>
-                        {% endfor %}
-                    </c-ui.select.native>
-                </c-ui.field>
-            {% else %}
-                <p class="text-muted">Nobody in the gang is carrying a weapon.</p>
-            {% endif %}
-        </c-n26.dialog>
     {% endif %}
     {% if renaming %}
         <c-n26.dialog title="Rename {{ renaming.name }}"

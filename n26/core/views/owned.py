@@ -441,94 +441,41 @@ def owned_dialog(request, host: EquipHost):
     }
 
 
-def link_refits(sheet, at):
-    """Point every stashed accessory at the dialog that fits it to a gun.
+def link_stash_actions(sheet, at, *, refunds=True):
+    """Every stashed possession as a menu of acts on the gang sheet.
 
-    Costs no queries: the line already knows its own assignment and whether it
-    is the sort of thing that goes on a weapon, and this only turns that
-    into a URL. A line without one draws as a name with nothing to click,
-    which is what a print-out wants.
+    Costs no queries: the line already knows its assignment and whether
+    it is the sort of thing that goes on a weapon, and this only turns
+    that into URLs. A line without a menu draws as a name alone, which
+    is what a print-out and a reader who does not own the gang want.
     """
+    from n26.core.listing import DANGER, LINK, SECONDARY, Action
+
     for line in sheet.stash:
-        if line.can_refit and line.id:
-            line.refit_href = with_query(at, refit=line.id)
-
-
-def refit_dialog(request, gang, at):
-    """The "fit this to which gun?" panel, when ``?refit=`` names something
-    in the stash.
-
-    The reverse of the equipment screen's accessory picker: there the
-    weapon is known and the accessory chosen, here the accessory is known
-    and the weapon chosen. Both end with one assignment hanging off
-    another.
-
-    Every gun the gang has is offered, not only the ones the accessory
-    fits — the same rule as everywhere else, said the other way round.
-    Fitting narrows a list of accessories because that list is long; a
-    gang's guns are few, and hiding the one a reader meant would be a
-    refusal wearing a shorter list as a disguise.
-
-    A name that is not a stashed accessory of this gang's draws nothing:
-    a stale link is a page without a dialog rather than an error worth a
-    screen.
-    """
-    from n26.core.models import Assignment
-
-    named = request.GET.get("refit")
-    if not named:
-        return None
-    stash = getattr(gang, "stash", None)
-    if stash is None:
-        return None
-    try:
-        accessory = (
-            Assignment.objects.filter(pk=named, stash=stash, archived=False)
-            .exclude(weapon_accessory=None)
-            .select_related("weapon_accessory")
-            .first()
-        )
-    except ValidationError:
-        return None
-    if accessory is None:
-        return None
-
-    # Every live weapon in the gang, wherever it is — a gun in the stash
-    # is somewhere to fit a sight as much as one on a fighter is.
-    weapons = list(
-        Assignment.objects.filter(gang_root=gang, archived=False)
-        .exclude(weapon=None)
-        .select_related("weapon", "miniature_root")
-        .order_by("miniature_root__name", "weapon__name")
-    )
-    name = str(accessory.assignable)
-    return {
-        "name": name,
-        "title": f"Fit {name} to a weapon",
-        "action": reverse("n26-reassign", args=[accessory.pk]),
-        "cancel_url": at,
-        "weapons": [
-            {
-                "pk": str(weapon.pk),
-                # Whose gun it is, because a gang can hold three autoguns
-                # and the answer to "which one" is the fighter carrying it.
-                "label": (
-                    f"{weapon.assignable} ({weapon.miniature_root.name})"
-                    if weapon.miniature_root is not None
-                    else f"{weapon.assignable} (stash)"
-                ),
-            }
-            for weapon in weapons
-        ],
-        "submit_label": "Fit" if weapons else "",
-    }
+        if not line.id:
+            continue
+        menu = [
+            Action(
+                "Fit to a weapon" if line.can_refit else "Reassign",
+                LINK,
+                with_query(at, reassign=line.id),
+                SECONDARY,
+            ),
+            Action("Sell", LINK, with_query(at, sell=line.id), DANGER),
+        ]
+        if refunds:
+            menu.append(
+                Action("Refund", LINK, with_query(at, refund=line.id), SECONDARY)
+            )
+        menu.append(Action("Delete", LINK, with_query(at, remove=line.id), SECONDARY))
+        line.menu = tuple(menu)
 
 
 def _back_to(request, assignment, gang):
     """Where a click lands: the screen it was clicked on.
 
     A hidden ``return`` field names the address exactly when the form
-    knows it — the gang sheet's refit dialog, or an equip screen with its
+    knows it — the gang sheet's stash menu, or an equip screen with its
     list state. Without one, the assignment's host before the act is read:
     stash-held gear lands on the gang equip page, carried gear on the
     fighter's.

@@ -195,26 +195,29 @@ def gang_sheet(request, pk):
     its own grid reaches. A fighter with no grid gets no control, which
     is a content gap showing rather than a screen being withheld.
     """
+    from n26.core.card import build_gang_card
+    from n26.core.owned import EquipHost
     from n26.core.render import render_gang
     from n26.core.views.choose import link_slots
     from n26.core.views.learn import link_skills
-    from n26.core.views.owned import link_refits, refit_dialog
+    from n26.core.views.owned import link_stash_actions, owned_dialog
 
     gang = _any_gang_or_404(pk)
     yours = gang.owner_id == getattr(request.user, "id", None)
     at = reverse("n26-gang", args=[gang.pk])
     sheet = render_gang(gang)
+    dialog = None
     if yours:
         link_slots(gang, sheet, *sheet.models)
         link_skills(*sheet.models)
-        # A stashed accessory is somewhere to click: it is gear waiting
-        # for a gun, and the sheet is the screen where the gang's spare
-        # kit is read.
-        link_refits(sheet, at)
+        link_stash_actions(sheet, at, refunds=not gang.credits_unlimited)
     # One question at a time: a URL naming two dialogs draws the leaving
     # one, because two open modals is not a state the page can mean.
     leaving = _leaving(request, gang) if yours else None
     renaming = None if leaving or not yours else _renaming(request, gang)
+    if yours and not leaving and not renaming:
+        host = EquipHost.stash(gang, build_gang_card(gang), at=at)
+        dialog = owned_dialog(request, host)
     return render(
         request,
         "n26/gang_sheet.html",
@@ -228,11 +231,7 @@ def gang_sheet(request, pk):
             "card_mode": "gang" if yours else "view",
             "renaming": renaming,
             "leaving": leaving,
-            "refitting": (
-                None
-                if leaving or renaming or not yours
-                else refit_dialog(request, gang, at)
-            ),
+            "dialog": dialog,
             # A gang founded without a budget never spent credits, so
             # there is nothing a refund could give back: its cards offer
             # Delete alone.

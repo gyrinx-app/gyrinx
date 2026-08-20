@@ -536,13 +536,14 @@ class StashLine:
     #: assignments and nothing computed.
     id: str = ""
     #: Whether this is something that goes on a weapon rather than on a
-    #: model, which is to say an accessory. That there is a control to
-    #: draw follows from what the thing is; where it leads does not.
+    #: model — an accessory. The label on its reassign act follows from
+    #: that; where the act leads is filled in by the screen drawing it.
     can_refit: bool = False
-    #: Where that control goes, filled in by the screen drawing it (see
-    #: ``n26.core.views.owned.link_refits``). Empty is a line with
-    #: nothing to click, which is right for a print-out.
-    refit_href: str = ""
+    #: What can happen to this line, each a link to a dialog on the page
+    #: that drew it — see ``n26.core.views.owned.link_stash_actions``.
+    #: Empty is a name with nothing to click, which is what a print-out
+    #: and a reader who does not own the gang want.
+    menu: tuple = ()
 
 
 @dataclass
