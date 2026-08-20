@@ -25,6 +25,12 @@ def staff(db):
 
 
 @pytest.fixture
+def clerk(db):
+    """Staff, but not a superuser — the admin's ordinary reader."""
+    return User.objects.create_user("clerk", "", "password", is_staff=True)
+
+
+@pytest.fixture
 def gang(gang_type, staff, make_profile):
     gang = Gang.objects.create(name="The Ashen Choir", owner=staff, gang_type=gang_type)
     with operation(gang, actor=staff) as op:
@@ -95,3 +101,50 @@ def test_readonly_admin_is_what_the_registry_uses():
     permission overrides."""
     for model in (Assignment, LedgerEntry, LedgerEvent, Stash):
         assert isinstance(django_admin.site._registry[model], core_admin.ReadOnlyAdmin)
+
+
+class TestWhatTheGuardStillRefuses:
+    """Writing is refused of everyone; removing is a superuser's."""
+
+    def _asked(self, user):
+        from django.test import RequestFactory
+
+        request = RequestFactory().get("/")
+        request.user = user
+        return request
+
+    def test_nobody_may_write_through_it(self, staff, clerk):
+        guard = django_admin.site._registry[Assignment]
+
+        for user in (staff, clerk):
+            asked = self._asked(user)
+            assert guard.has_add_permission(asked) is False
+            assert guard.has_change_permission(asked) is False
+
+    def test_a_superuser_may_remove_and_a_staffer_may_not(self, staff, clerk):
+        guard = django_admin.site._registry[Assignment]
+
+        assert guard.has_delete_permission(self._asked(staff)) is True
+        assert guard.has_delete_permission(self._asked(clerk)) is False
+
+
+@pytest.mark.django_db
+def test_a_superuser_can_delete_a_gang_and_everything_it_owns(client, staff, gang):
+    """The whole reason removing is allowed: Django asks for the
+    permission on every model the cascade reaches, so refusing it on
+    the ledger-adjacent ones left no way to delete a gang at all."""
+    assert Assignment.objects.filter(gang_root=gang).exists()
+    # An entry hangs off its assignment rather than the gang, so it goes
+    # the same way: down the cascade, one step further along.
+    assert LedgerEntry.objects.filter(assignment__gang_root=gang).exists()
+    client.force_login(staff)
+
+    response = client.post(
+        reverse("admin:n26_gang_delete", args=[gang.pk]), {"post": "yes"}
+    )
+
+    assert response.status_code == 302
+    assert not Gang.objects.filter(pk=gang.pk).exists()
+    assert not Assignment.objects.filter(gang_root=gang.pk).exists()
+    assert not LedgerEntry.objects.filter(assignment__gang_root=gang.pk).exists()
+    assert not LedgerEvent.objects.filter(gang=gang.pk).exists()
