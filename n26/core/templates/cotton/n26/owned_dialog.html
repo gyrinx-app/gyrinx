@@ -42,31 +42,30 @@ itself.
             {% endif %}
         {% elif dialog.kind == "sell" %}
             {% if dialog.keepable %}
-                {{ dialog.sum }} The gun leaves the card and stops counting
-                towards the gang's rating.
+                {{ dialog.sum }} The gun is removed from the gang.
             {% else %}
-                {{ dialog.sum }} It leaves the card with anything attached to it,
-                and stops counting towards the gang's rating.
+                {{ dialog.sum }} It and anything attached to it are removed from
+                the gang.
             {% endif %}
         {% elif dialog.kind == "rechoose" %}
             You will be charged or refunded the difference.
         {% elif dialog.kind == "reassign" %}
-            Where it lives changes; what it is worth does not — a move never
-            re-prices.
+            Moving it does not change its rating.
         {% elif dialog.kind == "refund" %}
-            {{ dialog.sum }} It leaves the card with anything attached to it,
-            and the purchase is undone rather than traded away.
+            {{ dialog.sum }} It and anything attached to it are removed from the
+            gang, undoing the purchase.
         {% else %}
-            It comes off the card, along with anything attached to it. What was
-            paid for it stays spent.
+            It and anything attached to it are permanently removed from the gang.
+            No credits are returned.
+            {% if dialog.can_refund %}
+                Use Refund instead to recover the amount paid.
+            {% endif %}
         {% endif %}
     </c-slot>
 
     {{ slot }}
-    {% comment %}
-    Which collection was being bought from and which section tab was open, so
-    the answer lands back where the question was asked.
-    {% endcomment %}
+    {# Preserve the page and picker state that opened the dialog. #}
+    <input type="hidden" name="return" value="{{ dialog.cancel_url }}">
     {% if dialog.list %}<input type="hidden" name="list" value="{{ dialog.list }}">{% endif %}
     {% if dialog.section %}<input type="hidden" name="section" value="{{ dialog.section }}">{% endif %}
 
@@ -123,7 +122,18 @@ itself.
     {% endif %}
 
     {% if dialog.kind == "reassign" %}
-        {% if dialog.models %}
+        {% if dialog.weapons %}
+            <input type="hidden" name="to" value="weapon">
+            <c-ui.field label="Weapon" for="reassign-weapon">
+                <c-ui.select.native name="weapon" id="reassign-weapon" placeholder="">
+                    {% for weapon in dialog.weapons %}
+                        <c-ui.select.option value="{{ weapon.pk }}">
+                            {{ weapon.label }}
+                        </c-ui.select.option>
+                    {% endfor %}
+                </c-ui.select.native>
+            </c-ui.field>
+        {% elif dialog.models %}
             {% comment %}
             No placeholder option: the first name on the roster is selected
             from the start, so Move always has an answer.
@@ -135,16 +145,18 @@ itself.
                     {% endfor %}
                 </c-ui.select.native>
             </c-ui.field>
-            <c-slot name="actions">
-                {% comment %}
-                The kit writes its own type="button" after {{ attrs }}, and
-                HTML keeps the first of a duplicate pair — which is the only
-                reason the type set here wins and this stays a submit.
-                {% endcomment %}
-                <c-ui.button type="submit" name="to" value="stash" size="md">
-                    To the stash
-                </c-ui.button>
-            </c-slot>
+            {% if not dialog.stash_host %}
+                <c-slot name="actions">
+                    {% comment %}
+                    The kit writes its own type="button" after {{ attrs }}, and
+                    HTML keeps the first of a duplicate pair — which is the only
+                    reason the type set here wins and this stays a submit.
+                    {% endcomment %}
+                    <c-ui.button type="submit" name="to" value="stash" size="md">
+                        To the stash
+                    </c-ui.button>
+                </c-slot>
+            {% endif %}
         {% else %}
             <input type="hidden" name="to" value="stash">
         {% endif %}

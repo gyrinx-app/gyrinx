@@ -567,14 +567,13 @@ class StashLine:
     #: line names. Every stash line has one; the stash holds stored
     #: assignments and nothing computed.
     id: str = ""
-    #: Whether this is something that goes on a weapon rather than on a
-    #: model, which is to say an accessory. That there is a control to
-    #: draw follows from what the thing is; where it leads does not.
-    can_refit: bool = False
-    #: Where that control goes, filled in by the screen drawing it (see
-    #: ``n26.core.views.owned.link_refits``). Empty is a line with
-    #: nothing to click, which is right for a print-out.
-    refit_href: str = ""
+    #: An accessory moves onto a weapon rather than a model.
+    is_accessory: bool = False
+    #: What can happen to this line, each a link to a dialog on the page
+    #: that drew it — see ``n26.core.views.owned.link_stash_actions``.
+    #: Empty is a name with nothing to click, which is what a print-out
+    #: and a reader who does not own the gang want.
+    menu: tuple = ()
 
 
 @dataclass
@@ -1607,7 +1606,7 @@ def stash_lines(gang_card):
             kind=kind_of(node.assignable),
             provenance=stash_provenance(node),
             id=str(node.assignment.pk) if node.assignment is not None else "",
-            can_refit=isinstance(node.assignable, WeaponAccessory),
+            is_accessory=isinstance(node.assignable, WeaponAccessory),
         )
         for node in gang_card.stash_roots
         # No row of its own is the kind's whole contract — a chosen
@@ -1616,13 +1615,13 @@ def stash_lines(gang_card):
     ]
 
 
-def render_gang(gang, with_effects=True):
+def render_gang(gang, with_effects=True, *, card=None):
     """A whole gang sheet. A fixed number of queries, whatever its size."""
     from n26.core.card import build_gang_card, build_modifier_index
     from n26.core.effects import compute, compute_gang, counter_readings
 
     models = roster(gang)
-    gang_card = build_gang_card(gang)
+    gang_card = card or build_gang_card(gang)
     cards = gang_card.members
 
     computed = {}

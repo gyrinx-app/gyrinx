@@ -1,10 +1,8 @@
-"""Buying equipment for the gang: the stash's own end of the equip page.
+"""Buying and managing equipment in a gang's stash.
 
 ``browse``, ``Operation.buy`` and the fighter's equip page have their own
-tests — these are about what the gang anchor changes. A purchase lands in
-the stash rather than on anybody's card, the lists offered are the gang's
-own, one tab is the whole library, and no line is marked usable or not,
-because a restriction is about a model and the stash is not one.
+tests. These cover the gang-specific destination, lists, stash management,
+and the absence of fighter usability rules.
 """
 
 import pytest
@@ -90,12 +88,13 @@ def choice_field(thing, group):
 class TestTheWayIn:
     """The gang page offers the act, and only to whoever owns the gang."""
 
-    def test_the_owner_is_offered_it_on_the_gang_page(self, client, tester, gang):
+    def test_the_owner_is_offered_equip_on_the_stash(self, client, tester, gang):
         client.force_login(tester)
         body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
 
-        assert "Buy Equipment" in body
+        assert "Equip" in body
         assert reverse("n26-equip-gang", args=[gang.pk]) in body
+        assert "Buy Equipment" not in body
 
     def test_a_reader_who_does_not_own_it_is_offered_nothing(self, client, gang):
         """A roster anybody may read, with none of the acts on it: not a
@@ -121,11 +120,12 @@ class TestWhichListsAreOffered:
         tabs = client.get(equip_url(gang)).context["collection_tabs"]
 
         assert [tab["label"] for tab in tabs] == [
+            "In stash",
             "House List",
             "Trading Post",
             "All equipment",
         ]
-        assert tabs[0]["current"]
+        assert tabs[1]["current"]
         assert tabs[-1]["href"] == "?list=all"
 
     def test_a_list_of_skills_is_no_tab_however_the_gang_holds_it(
@@ -146,7 +146,11 @@ class TestWhichListsAreOffered:
         client.force_login(tester)
         tabs = client.get(equip_url(gang)).context["collection_tabs"]
 
-        assert [tab["label"] for tab in tabs] == ["House List", "All equipment"]
+        assert [tab["label"] for tab in tabs] == [
+            "In stash",
+            "House List",
+            "All equipment",
+        ]
 
     def test_a_shortened_tab_keeps_its_full_name_on_the_link(
         self, client, tester, gang
@@ -180,7 +184,8 @@ class TestWhichListsAreOffered:
 
         assert response.context["catalogue"] is None
         assert [tab["label"] for tab in response.context["collection_tabs"]] == [
-            "All equipment"
+            "In stash",
+            "All equipment",
         ]
         assert "No equipment lists yet" in response.content.decode()
 
@@ -612,3 +617,76 @@ class TestTheQueryBudget:
             create_wargear(f"Filler {index}", price=5)
             create_weapon(f"Filler gun {index}", price=5, profiles=[("", 0)])
         assert self.measure(client, url) == few
+
+
+class TestStashManagement:
+    """Held gear is manageable on the gang equip page, including orphans."""
+
+    def test_the_page_is_called_equip(self, client, tester, gang, house_list):
+        client.force_login(tester)
+        body = client.get(equip_url(gang, house_list)).content.decode()
+
+        assert ">Equip</h1>" in body
+        assert "Buy Equipment" not in body
+
+    def test_a_held_item_on_the_browsed_list_draws_in_stash(
+        self, client, tester, gang, house_list
+    ):
+        from n26.library.models import Wargear
+
+        knife = Wargear.objects.get(name="Knife")
+        with operation(gang, actor=tester) as op:
+            bought = op.buy(gang.stash, thing=knife, paid=10)
+
+        client.force_login(tester)
+        body = client.get(equip_url(gang, house_list)).content.decode()
+
+        assert "in stash" in body
+        assert f"sell={bought.pk}" in body
+
+    def test_gear_the_list_does_not_sell_is_on_the_stash_tab(
+        self, client, tester, gang, house_list
+    ):
+        from n26.library.authoring import create_weapon
+
+        autogun = create_weapon("Autogun", price=20, profiles=[("", 0)])
+        with operation(gang, actor=tester) as op:
+            bought = op.buy(gang.stash, thing=autogun, paid=20)
+
+        client.force_login(tester)
+        on_house = client.get(equip_url(gang, house_list))
+        on_stash = client.get(
+            f"{equip_url(gang, scope='stash')}&owned={key_of(autogun)}"
+        )
+        body = on_stash.content.decode()
+
+        assert "Autogun" not in {
+            row.name for row in on_house.context["catalogue"].all_rows()
+        }
+        assert on_stash.context["stash_tab"] is True
+        (row,) = on_stash.context["catalogue"].all_rows()
+        assert row.expanded is True
+        assert "Autogun" in body
+        assert f"sell={bought.pk}" in body
+        assert 'aria-expanded="true"' in body
+        assert '@click="expanded = !expanded"' not in body
+        sell = body.index(f"sell={bought.pk}")
+        assert body.rfind("<template", 0, sell) <= body.rfind("</template>", 0, sell)
+
+    def test_selling_from_the_stash_tab_returns_to_it(
+        self, client, tester, gang, house_list
+    ):
+        from n26.library.models import Wargear
+
+        knife = Wargear.objects.get(name="Knife")
+        with operation(gang, actor=tester) as op:
+            bought = op.buy(gang.stash, thing=knife, paid=10)
+
+        client.force_login(tester)
+        response = client.post(
+            reverse("n26-sell", args=[bought.pk]),
+            {"return": equip_url(gang, scope="stash")},
+        )
+
+        assert response.status_code == 302
+        assert response["Location"] == equip_url(gang, scope="stash")

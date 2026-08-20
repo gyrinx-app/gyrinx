@@ -781,14 +781,40 @@ class TestFittingOneBackOntoAGun:
         assert gang.credits == before
         assert_reconciled(gang)
 
-    def test_the_click_lands_on_the_sheet_it_was_made_from(
+    def test_the_click_lands_on_the_stash_equip_page_without_a_return_field(
         self, client, tester, gang, gun, stashed
     ):
         client.force_login(tester)
         response = client.post(
             url("n26-reassign", stashed), {"to": "weapon", "weapon": str(gun.pk)}
         )
-        assert response.url == reverse("n26-gang", args=[gang.pk])
+        assert response.url.startswith(reverse("n26-equip-gang", args=[gang.pk]))
+
+    def test_a_return_field_sends_the_reader_back_to_the_sheet(
+        self, client, tester, gang, gun, stashed
+    ):
+        client.force_login(tester)
+        sheet = reverse("n26-gang", args=[gang.pk])
+        response = client.post(
+            url("n26-reassign", stashed),
+            {"to": "weapon", "weapon": str(gun.pk), "return": sheet},
+        )
+        assert response.url == sheet
+
+    def test_an_external_return_field_is_ignored(
+        self, client, tester, gang, gun, stashed
+    ):
+        client.force_login(tester)
+        response = client.post(
+            url("n26-reassign", stashed),
+            {
+                "to": "weapon",
+                "weapon": str(gun.pk),
+                "return": "https://example.com/elsewhere",
+            },
+        )
+
+        assert response.url.startswith(reverse("n26-equip-gang", args=[gang.pk]))
 
     def test_a_weapon_in_another_gang_is_nowhere_to_fit_it(
         self, client, tester, gang, stashed, gang_type, make_profile, make_statline
@@ -965,6 +991,28 @@ def test_the_gangs_own_rows_are_not_the_fighters_to_sell(gang, fighter, tester):
     assert thing_key(crate) not in owned_things(build_card(fighter), AT)
 
 
+def test_a_suppressed_possession_has_no_dialog(fighter, sword):
+    from django.test import RequestFactory
+
+    from n26.core.card import build_card
+    from n26.core.owned import EquipHost
+    from n26.core.views.owned import owned_dialog
+
+    card = build_card(fighter)
+    node = next(
+        node
+        for node in card.all_nodes()
+        if node.assignment is not None and node.assignment.pk == sword.pk
+    )
+    node.suppressed = True
+    request = RequestFactory().get(AT, {"sell": str(sword.pk)})
+
+    assert (
+        owned_dialog(request, EquipHost.fighter(fighter.gang, card, fighter, AT))
+        is None
+    )
+
+
 def test_an_unowned_row_is_counted_as_nothing(gang, fighter):
     from n26.core.card import build_card
     from n26.core.owned import owned_things, thing_key
@@ -993,10 +1041,13 @@ class TestThePanelsAPageCarries:
         from django.test import RequestFactory
 
         from n26.core.card import build_card
+        from n26.core.owned import EquipHost
         from n26.core.views.owned import accessorise_dialogs
 
+        card = build_card(fighter)
         request = RequestFactory().get(AT, query)
-        return accessorise_dialogs(request, build_card(fighter), at=AT)
+        host = EquipHost.fighter(fighter.gang, card, fighter, AT)
+        return accessorise_dialogs(request, host)
 
     def test_every_gun_gets_one_and_nothing_else_does(self, fighter, gun, sight, sword):
         """A sword is a possession, and a gun is somewhere to bolt a sight

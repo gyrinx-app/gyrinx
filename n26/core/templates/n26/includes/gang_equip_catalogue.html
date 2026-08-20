@@ -1,0 +1,74 @@
+{% comment %}
+The gang stash equip catalogue — expects `catalogue`, picker context, `action`,
+`browsing`, `held_label`, and `stash_tab`.
+{% endcomment %}
+<c-n26.collection-picker :categories="categories"
+                         :sections="sections"
+                         price_floor="{{ price_floor }}"
+                         price_ceiling="{{ price_ceiling }}"
+                         tp_ceiling="{{ tp_ceiling }}"
+                         noun="items"
+                         class="md:col-start-2">
+    <c-slot name="filters">
+        {% if not stash_tab %}
+            <c-n26.search-bar :live="True"
+                              :nested="True"
+                              model="query"
+                              placeholder="Search {{ browsing }}" />
+            {% if category_options or price_ceiling > price_floor or has_trade_points %}
+                <div class="flex flex-wrap items-center gap-2">
+                    {% if category_options %}
+                        <c-n26.filter-menu label="Category"
+                                           name="category"
+                                           size="xs"
+                                           :options="category_options" />
+                    {% endif %}
+                    {% if price_ceiling > price_floor %}
+                        <c-n26.range-menu label="Price"
+                                          model_min="minPrice"
+                                          model_max="maxPrice"
+                                          min="{{ price_floor }}"
+                                          max="{{ price_ceiling }}"
+                                          step="5"
+                                          suffix="¢"
+                                          size="xs"
+                                          at_max_label="Any" />
+                    {% endif %}
+                    {% if has_trade_points %}
+                        <c-n26.range-menu label="Trade points"
+                                          model="maxTradePoints"
+                                          min="0"
+                                          max="{{ tp_ceiling }}"
+                                          step="1"
+                                          prefix="≤ "
+                                          size="xs"
+                                          at_min_label="Freely available"
+                                          at_max_label="Any" />
+                    {% endif %}
+                </div>
+            {% endif %}
+        {% endif %}
+    </c-slot>
+    {% if stash_tab %}
+        <c-slot name="empty">
+            Nothing in the stash yet.
+        </c-slot>
+    {% endif %}
+    {% for section in catalogue.sections %}
+        <c-n26.collection-picker.section :name="section.name" :open="forloop.first">
+            {% for category in section.categories %}
+                {% if category.name %}
+                    <c-n26.collection-picker.category :name="category.name">
+                        {% for row in category.rows %}
+                            {% include "n26/includes/equip_row.html" %}
+                        {% endfor %}
+                    </c-n26.collection-picker.category>
+                {% else %}
+                    {% for row in category.rows %}
+                        {% include "n26/includes/equip_row.html" %}
+                    {% endfor %}
+                {% endif %}
+            {% endfor %}
+        </c-n26.collection-picker.section>
+    {% endfor %}
+</c-n26.collection-picker>

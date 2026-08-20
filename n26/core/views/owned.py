@@ -21,7 +21,7 @@ nothing is written, because the refusal unwinds the transaction.
 The acts are deliberately distinct, and the ledger says which happened:
 
 ``sell``
-    Half of what the thing is worth, rounded up, into the gang's credits.
+    Half of the thing's rating, rounded up, into the gang's credits.
     Not a refund: what was paid has nothing to do with it. A gun with
     something bolted to it asks one more question — whether the
     accessories are being sold with it or kept — because those are two
@@ -31,11 +31,11 @@ The acts are deliberately distinct, and the ledger says which happened:
     and no re-pricing. The last of the three is how a stashed accessory
     is fitted to a gun: the same act, one level down the chain.
 ``refund``
-    Undoing the purchase: every credit that was paid comes back. What was
-    paid and what the thing is worth part company at the first discount,
-    which is why this is not a sale.
+    Undoing the purchase: every credit that was paid comes back. The amount
+    paid and the rating part company at the first discount, which is why
+    this is not a sale.
 ``remove``
-    Off the card, money stays spent.
+    Permanently removed from the gang, with no credit change.
 ``accessorise``
     A purchase, hosted on the weapon rather than on the fighter. The only
     one that adds something.
@@ -48,12 +48,17 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.http import Http404
-from django.shortcuts import redirect
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
-from n26.core.owned import DIALOGS, is_possession, thing_key, with_query
-from n26.core.views.permissions import _own_assignment_or_404
+from n26.core.owned import (
+    DIALOGS,
+    EquipHost,
+    is_possession,
+    thing_key,
+    with_query,
+)
+from n26.core.views.permissions import _own_assignment_or_404, _safe_redirect
 
 
 def _possession_or_404(request, pk):
@@ -80,40 +85,58 @@ def _possession_or_404(request, pk):
     return assignment
 
 
-def _held(card, pk):
-    """The stored possession ``pk`` names, if this card is carrying it.
+def _held(host, pk):
+    """The stored possession ``pk`` names, if this host is carrying it.
 
-    The card is the fighter's own, so finding an assignment on it is the
-    whole of the permission check for drawing a dialog about it — and it is
-    free, where fetching it again would be a query per click. The gang's
-    broadcast assignments are skipped: they ride the card so gang-wide rules
-    reach it, and they are not this fighter's to sell.
+    The host's roots are the whole of the permission check for drawing a
+    dialog about it — and it is free, where fetching it again would be a
+    query per click. Broadcast assignments are skipped on a fighter's card:
+    they ride it so gang-wide rules reach it, and they are not this
+    fighter's to sell.
 
     The same kind test the routes apply, so a URL naming the fighter's own
     profile draws no dialog rather than a confirmation whose click would
     404 — a screen must not ask a question its answer refuses.
     """
-    return next(
-        (
-            node.assignment
-            for node in card.all_nodes()
-            if not node.broadcast
-            and node.assignment is not None
-            and str(node.assignment.pk) == pk
-            and is_possession(node.assignable)
-        ),
-        None,
-    )
+    for root in host.roots:
+        for node in root.walk():
+            if node.broadcast or node.suppressed:
+                continue
+            if node.assignment is None:
+                continue
+            if str(node.assignment.pk) != pk:
+                continue
+            if not is_possession(node.assignable):
+                continue
+            return node.assignment
+    return None
 
 
-def _other_models(gang, miniature):
-    """Everyone else on the roster — where a thing could go instead."""
+def _roster(gang):
     from n26.core.models import Miniature
 
     return list(
         Miniature.objects.filter(
             membership__gang=gang, membership__archived=False
-        ).exclude(pk=miniature.pk)
+        ).order_by("name")
+    )
+
+
+def _other_models(gang, miniature):
+    """Everyone else on the roster — where a thing could go instead."""
+    if miniature is None:
+        return _roster(gang)
+    return [model for model in _roster(gang) if model.pk != miniature.pk]
+
+
+def _gang_weapons(gang):
+    from n26.core.models import Assignment
+
+    return list(
+        Assignment.objects.filter(gang_root=gang, archived=False)
+        .exclude(weapon=None)
+        .select_related("weapon", "miniature_root")
+        .order_by("miniature_root__name", "weapon__name")
     )
 
 
@@ -190,8 +213,8 @@ def _panel(request, assignment, kind, at):
     }
 
 
-def accessorise_dialogs(request, card, *, at):
-    """The accessory question for every weapon on this card, all of them.
+def accessorise_dialogs(request, host: EquipHost):
+    """The accessory question for every weapon on this host, all of them.
 
     Not only the one the URL names. A page draws the lot — closed, and
     each one addressed by the id of the assignment it is about — so the click
@@ -201,19 +224,19 @@ def accessorise_dialogs(request, card, *, at):
     button is a link, and the one it names is the one drawn open here.
 
     Every weapon costs the same single read of the accessory table.
-    Fitting is then arithmetic on what the card already holds, so a
-    fighter carrying six guns asks the database exactly what a fighter
-    carrying one does — and a fighter carrying none asks nothing.
+    Fitting is then arithmetic on what the host already holds, so a screen
+    carrying six guns asks the database exactly what a screen carrying one
+    does — and a screen carrying none asks nothing.
     """
     from n26.library.models import Weapon
 
     kind, named = _asked(request)
     weapons = [
         node
-        for node in card.roots
-        if not node.broadcast
+        for node in host.roots
+        if node.assignment is not None
         and not node.suppressed
-        and node.assignment is not None
+        and not node.broadcast
         and isinstance(node.assignable, Weapon)
     ]
     if not weapons:
@@ -224,7 +247,7 @@ def accessorise_dialogs(request, card, *, at):
     for node in weapons:
         pk = str(node.assignment.pk)
         accessories = fitting_accessories(node.assignable, catalogue)
-        panel = _panel(request, node.assignment, "accessorise", at)
+        panel = _panel(request, node.assignment, "accessorise", host.at)
         dialogs.append(
             panel
             | {
@@ -245,16 +268,16 @@ def accessorise_dialogs(request, card, *, at):
     return dialogs
 
 
-def owned_dialog(request, card, *, at, miniature, gang):
+def owned_dialog(request, host: EquipHost):
     """The dialog the URL says is open, as a template's worth of facts.
 
     One of the query parameters in :data:`n26.core.owned.DIALOGS`, naming
-    an assignment on this card. A name that is not on the card draws nothing at
+    an assignment on this host. A name that is not on the host draws nothing at
     all: a stale link is a page without a dialog, not an error worth a
     screen.
 
     ``accessorise`` is not among them: that question is drawn for every
-    weapon on the card by :func:`accessorise_dialogs`, one of which the
+    weapon on the host by :func:`accessorise_dialogs`, one of which the
     address opens. Answering it here as well would draw the same panel
     twice.
     """
@@ -269,13 +292,14 @@ def owned_dialog(request, card, *, at, miniature, gang):
     if kind is None or kind == "accessorise":
         return None
 
+    gang = host.gang
     # A gang founded without a budget never paid credits, so there is
     # nothing a refund could give back: a refund address asks the remove
     # question instead, exactly as the fighter-level flow answers.
     if kind == "refund" and gang.credits_unlimited:
         kind = "remove"
 
-    assignment = _held(card, named)
+    assignment = _held(host, named)
     if assignment is None:
         return None
 
@@ -284,7 +308,10 @@ def owned_dialog(request, card, *, at, miniature, gang):
     # bolted to it. It is removed rather than deleted, because what is
     # left afterwards is still the fighter's gun.
     is_part = assignment.parent_id is not None
-    dialog = _panel(request, assignment, kind, at)
+    dialog = _panel(request, assignment, kind, host.at) | {
+        "stash_host": host.is_stash,
+        "can_refund": not gang.credits_unlimited,
+    }
 
     if kind == "sell":
         # Anything bolted on that the gang could keep instead of selling.
@@ -310,10 +337,10 @@ def owned_dialog(request, card, *, at, miniature, gang):
             "proceeds": proceeds,
             "rating": rating,
             "sum": (
-                f"Half of {rating}¢, rounded up — {proceeds}¢."
+                f"Half of its {rating}¢ rating, rounded up — {proceeds}¢."
                 if halved
-                else f"{proceeds}¢: half of {rating}¢ is less than the "
-                f"{MINIMUM_PROCEEDS}¢ a sale never goes under."
+                else f"{proceeds}¢: half of its {rating}¢ rating is below the "
+                f"{MINIMUM_PROCEEDS}¢ minimum sale price."
             ),
             "submit_label": "Sell",
             "submit_variant": "danger",
@@ -337,14 +364,29 @@ def owned_dialog(request, card, *, at, miniature, gang):
         }
 
     if kind == "reassign":
-        models = _other_models(gang, miniature)
+        if host.is_stash and assignment.weapon_accessory_id:
+            weapons = _gang_weapons(gang)
+            return dialog | {
+                "title": f"Fit {name} to a weapon",
+                "weapons": [
+                    {
+                        "pk": str(weapon.pk),
+                        "label": (
+                            f"{weapon.assignable} ({weapon.miniature_root.name})"
+                            if weapon.miniature_root_id
+                            else f"{weapon.assignable} (stash)"
+                        ),
+                    }
+                    for weapon in weapons
+                ],
+                "submit_label": "Fit" if weapons else "",
+                "submit_variant": "primary",
+            }
+        models = _other_models(gang, host.miniature)
         return dialog | {
             "title": f"Move {name}",
             "models": models,
-            # With nobody else on the roster the stash is not one of two
-            # places it could go — it is the only one, so it stops being
-            # a second control and becomes the act.
-            "submit_label": "Move" if models else "To the stash",
+            "submit_label": "Move" if host.is_stash or models else "To the stash",
             "submit_variant": "primary",
         }
 
@@ -377,7 +419,7 @@ def owned_dialog(request, card, *, at, miniature, gang):
             "title": f"Refund {name}?",
             "proceeds": paid,
             "sum": (
-                f"{paid}¢ comes back — what was paid for it, not what it is worth."
+                f"{paid}¢ comes back — the amount paid, not its rating."
                 if paid
                 else "Nothing was paid for this, so nothing comes back."
             ),
@@ -392,115 +434,56 @@ def owned_dialog(request, card, *, at, miniature, gang):
     }
 
 
-def link_refits(sheet, at):
-    """Point every stashed accessory at the dialog that fits it to a gun.
+def link_stash_actions(sheet, at, *, refunds=True):
+    """Add dialog links without querying; print and read-only sheets stay plain."""
+    from n26.core.listing import DANGER, LINK, SECONDARY, Action
 
-    Costs no queries: the line already knows its own assignment and whether it
-    is the sort of thing that goes on a weapon, and this only turns that
-    into a URL. A line without one draws as a name with nothing to click,
-    which is what a print-out wants.
-    """
     for line in sheet.stash:
-        if line.can_refit and line.id:
-            line.refit_href = with_query(at, refit=line.id)
+        if not line.id:
+            continue
+        menu = [
+            Action(
+                "Fit to a weapon" if line.is_accessory else "Reassign",
+                LINK,
+                with_query(at, reassign=line.id),
+                SECONDARY,
+            ),
+            Action("Sell", LINK, with_query(at, sell=line.id), DANGER),
+        ]
+        if refunds:
+            menu.append(
+                Action("Refund", LINK, with_query(at, refund=line.id), SECONDARY)
+            )
+        menu.append(Action("Delete", LINK, with_query(at, remove=line.id), SECONDARY))
+        line.menu = tuple(menu)
 
 
-def refit_dialog(request, gang, at):
-    """The "fit this to which gun?" panel, when ``?refit=`` names something
-    in the stash.
-
-    The reverse of the equipment screen's accessory picker: there the
-    weapon is known and the accessory chosen, here the accessory is known
-    and the weapon chosen. Both end with one assignment hanging off
-    another.
-
-    Every gun the gang has is offered, not only the ones the accessory
-    fits — the same rule as everywhere else, said the other way round.
-    Fitting narrows a list of accessories because that list is long; a
-    gang's guns are few, and hiding the one a reader meant would be a
-    refusal wearing a shorter list as a disguise.
-
-    A name that is not a stashed accessory of this gang's draws nothing:
-    a stale link is a page without a dialog rather than an error worth a
-    screen.
-    """
-    from n26.core.models import Assignment
-
-    named = request.GET.get("refit")
-    if not named:
-        return None
-    stash = getattr(gang, "stash", None)
-    if stash is None:
-        return None
-    try:
-        accessory = (
-            Assignment.objects.filter(pk=named, stash=stash, archived=False)
-            .exclude(weapon_accessory=None)
-            .select_related("weapon_accessory")
-            .first()
-        )
-    except ValidationError:
-        return None
-    if accessory is None:
-        return None
-
-    # Every live weapon in the gang, wherever it is — a gun in the stash
-    # is somewhere to fit a sight as much as one on a fighter is.
-    weapons = list(
-        Assignment.objects.filter(gang_root=gang, archived=False)
-        .exclude(weapon=None)
-        .select_related("weapon", "miniature_root")
-        .order_by("miniature_root__name", "weapon__name")
-    )
-    name = str(accessory.assignable)
-    return {
-        "name": name,
-        "title": f"Fit {name} to a weapon",
-        "action": reverse("n26-reassign", args=[accessory.pk]),
-        "cancel_url": at,
-        "weapons": [
-            {
-                "pk": str(weapon.pk),
-                # Whose gun it is, because a gang can hold three autoguns
-                # and the answer to "which one" is the fighter carrying it.
-                "label": (
-                    f"{weapon.assignable} ({weapon.miniature_root.name})"
-                    if weapon.miniature_root is not None
-                    else f"{weapon.assignable} (stash)"
-                ),
-            }
-            for weapon in weapons
-        ],
-        "submit_label": "Fit" if weapons else "",
-    }
-
-
-def _back_to(request, miniature, gang):
-    """Where a click lands: the screen it was clicked on.
-
-    The fighter's own equip screen, on the list they were reading and
-    the section tab they had open — kitting a fighter out is a run of
-    clicks, and one that drops the reader back at the top of the first
-    list has undone their place in it. With no fighter to return to, the
-    gang's sheet.
-    """
-    if miniature is None:
-        return reverse("n26-gang", args=[gang.pk])
-    url = reverse("n26-equip", args=[miniature.pk])
+def _back_to(request, assignment, gang):
+    """Infer the source screen before an operation moves the assignment."""
+    if assignment.stash_root_id or assignment.stash_id:
+        base = reverse("n26-equip-gang", args=[gang.pk])
+    elif assignment.miniature_root_id:
+        base = reverse("n26-equip", args=[assignment.miniature_root_id])
+    else:
+        base = reverse("n26-gang", args=[gang.pk])
     where = {
         key: value
         for key in ("list", "section")
         if (value := request.POST.get(key, ""))
     }
-    return with_query(url, **where) if where else url
+    return with_query(base, **where) if where else base
+
+
+def _return_to(request, fallback):
+    return _safe_redirect(request, request.POST.get("return"), fallback_url=fallback)
 
 
 @login_required
 @require_POST
 def sell_assignment(request, pk):
-    """Sell something on: it archives, and half its worth comes back.
+    """Sell something on: it archives, and half its rating comes back.
 
-    Half of what it *is worth*, not of what was paid — see
+    Half of its rating, not of what was paid — see
     ``Operation.sell``. The confirmation names the figure because with
     the arithmetic done by the server there is nothing on the page for a
     reader to check it against.
@@ -519,7 +502,7 @@ def sell_assignment(request, pk):
     gang = assignment.gang_root
     miniature = assignment.miniature_root
     name = str(assignment.assignable)
-    back = _back_to(request, miniature, gang)
+    back = _back_to(request, assignment, gang)
 
     stash = getattr(gang, "stash", None)
     keeping = (
@@ -538,7 +521,7 @@ def sell_assignment(request, pk):
             proceeds = op.sell(assignment)
     except Refusal as refusal:
         messages.error(request, str(refusal))
-        return redirect(back)
+        return _return_to(request, back)
 
     record(
         request,
@@ -559,7 +542,7 @@ def sell_assignment(request, pk):
         )
     else:
         messages.success(request, f"Sold {name} for {proceeds}¢.")
-    return redirect(back)
+    return _return_to(request, back)
 
 
 @login_required
@@ -588,7 +571,7 @@ def reassign_assignment(request, pk):
     # Read before the move, because afterwards it names the new home and
     # the reader wants the screen they clicked on.
     came_from = assignment.miniature_root
-    back = _back_to(request, came_from, gang)
+    back = _back_to(request, assignment, gang)
     name = str(assignment.assignable)
 
     wanted = request.POST.get("to")
@@ -618,14 +601,14 @@ def reassign_assignment(request, pk):
             destination = None
     if destination is None:
         messages.error(request, f"There is nowhere to move {name} to.")
-        return redirect(back)
+        return _return_to(request, back)
 
     try:
         with operation(gang, actor=request.user) as op:
             op.move(assignment, destination)
     except Refusal as refusal:
         messages.error(request, str(refusal))
-        return redirect(back)
+        return _return_to(request, back)
 
     record(
         request,
@@ -644,7 +627,7 @@ def reassign_assignment(request, pk):
         messages.success(request, f"Fitted {name} to {destination.assignable}.")
     else:
         messages.success(request, f"Moved {name} to {destination.name}.")
-    return redirect(back)
+    return _return_to(request, back)
 
 
 @login_required
@@ -679,7 +662,7 @@ def rechoose_assignment(request, pk):
         raise Http404("Nothing to choose")
     gang = assignment.gang_root
     miniature = assignment.miniature_root
-    back = _back_to(request, miniature, gang)
+    back = _back_to(request, assignment, gang)
 
     picked = _choices_picked(request.POST, thing_key(thing), offered_choices(thing))
     taken = {row.default_set_id for row in assignment.chosen_options.all()}
@@ -690,7 +673,7 @@ def rechoose_assignment(request, pk):
             op.rechoose(assignment, option=[option.default_set for option in picked])
     except Refusal as refusal:
         messages.error(request, str(refusal))
-        return redirect(back)
+        return _return_to(request, back)
     if entry is not None:
         entry.refresh_from_db()
     after = entry.paid if entry is not None else 0
@@ -713,7 +696,7 @@ def rechoose_assignment(request, pk):
     now = {row.default_set_id for row in assignment.chosen_options.all()}
     if now == taken:
         messages.success(request, f"{thing}'s options are unchanged.")
-        return redirect(back)
+        return _return_to(request, back)
     holds = ", ".join(option.name for option in thing.options_taken(now))
     settled = (
         f" — {after - before}¢ more."
@@ -723,7 +706,7 @@ def rechoose_assignment(request, pk):
         else "."
     )
     messages.success(request, f"{thing} now has {holds}{settled}")
-    return redirect(back)
+    return _return_to(request, back)
 
 
 @login_required
@@ -757,7 +740,7 @@ def accessorise_assignment(request, pk):
         raise Http404("Not a weapon")
     gang = assignment.gang_root
     miniature = assignment.miniature_root
-    back = _back_to(request, miniature, gang)
+    back = _back_to(request, assignment, gang)
 
     try:
         accessory = WeaponAccessory.objects.selectable().get(
@@ -767,14 +750,14 @@ def accessorise_assignment(request, pk):
         # A stale dialog or a hand-made click. The screen it came from is
         # the answer, with the list on it as it now stands.
         messages.error(request, "That accessory is not one to fit.")
-        return redirect(back)
+        return _return_to(request, back)
 
     try:
         with operation(gang, actor=request.user) as op:
             bought = op.buy(assignment, thing=accessory)
     except Refusal as refusal:
         messages.error(request, str(refusal))
-        return redirect(back)
+        return _return_to(request, back)
 
     record(
         request,
@@ -793,13 +776,13 @@ def accessorise_assignment(request, pk):
         f"Fitted {accessory.name} to {assignment.assignable} — "
         f"{bought.ledger_entry.paid}¢.",
     )
-    return redirect(back)
+    return _return_to(request, back)
 
 
 @login_required
 @require_POST
 def remove_assignment(request, pk):
-    """Take something off the card. The money stays spent.
+    """Remove something from the gang without changing credits.
 
     ``Operation.remove`` archives rather than deletes, so the ledger goes
     on saying the gang once owned this — it simply stops counting.
@@ -811,14 +794,14 @@ def remove_assignment(request, pk):
     gang = assignment.gang_root
     miniature = assignment.miniature_root
     name = str(assignment.assignable)
-    back = _back_to(request, miniature, gang)
+    back = _back_to(request, assignment, gang)
 
     try:
         with operation(gang, actor=request.user) as op:
             op.remove(assignment)
     except Refusal as refusal:
         messages.error(request, str(refusal))
-        return redirect(back)
+        return _return_to(request, back)
 
     record(
         request,
@@ -831,7 +814,7 @@ def remove_assignment(request, pk):
         action="remove",
     )
     messages.success(request, f"Removed {name}.")
-    return redirect(back)
+    return _return_to(request, back)
 
 
 @login_required
@@ -839,7 +822,7 @@ def remove_assignment(request, pk):
 def refund_assignment(request, pk):
     """Undo the purchase: it archives, and every credit paid comes back.
 
-    What was *paid*, not what it is worth — see ``Operation.refund``. The
+    What was *paid*, not its rating — see ``Operation.refund``. The
     figure is read before the write, because afterwards every entry in
     the subtree has been settled to zero and there is nothing left to add
     up.
@@ -856,14 +839,14 @@ def refund_assignment(request, pk):
     miniature = assignment.miniature_root
     name = str(assignment.assignable)
     _, paid = refund_of(assignment)
-    back = _back_to(request, miniature, gang)
+    back = _back_to(request, assignment, gang)
 
     try:
         with operation(gang, actor=request.user) as op:
             op.refund(assignment)
     except Refusal as refusal:
         messages.error(request, str(refusal))
-        return redirect(back)
+        return _return_to(request, back)
 
     record(
         request,
@@ -877,4 +860,4 @@ def refund_assignment(request, pk):
         refunded=paid,
     )
     messages.success(request, f"Refunded {name} — {paid}¢ back.")
-    return redirect(back)
+    return _return_to(request, back)

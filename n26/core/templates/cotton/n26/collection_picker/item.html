@@ -23,6 +23,8 @@ everything else is shrink-0, so the actions stay put and stay hittable.
     name grows a disclosure button, and the content is built only once opened.
   :disclosure — draw that button. Off where the row's own actions set
     `expanded` instead, so there are not two controls saying one thing.
+  :open — render details open on the server. URL-driven rows use this so
+    their controls remain available without JavaScript.
   details_label — what the disclosure says it will show: "card", "details".
   rows — further rows under this one, always visible. For options a reader
     chooses between, which is not something to hide.
@@ -46,6 +48,7 @@ everything else is shrink-0, so the actions stay put and stay hittable.
     keywords=""
     details_label="card"
     :disclosure="True"
+    :open="False"
     :notes="[]"
     price_control=""
     state=""
@@ -60,7 +63,7 @@ everything else is shrink-0, so the actions stay put and stay hittable.
         search: {% if keywords %}{{ name|add:' '|add:keywords|lower|json_dumps }}{% else %}{{ name|lower|json_dumps }}{% endif %},
         section: '',
         category: ''
-     }, expanded: false{% if state %}, {{ state }}{% endif %} }"
+     }, expanded: {{ open|yesno:"true,false" }}{% if state %}, {{ state }}{% endif %} }"
      x-init="
         facets.section = sectionName;
         facets.category = categoryName || sectionName;
@@ -73,7 +76,6 @@ everything else is shrink-0, so the actions stay put and stay hittable.
             .filter(Boolean).join(' ').toLowerCase();
         register(facets)"
      x-show="matches(facets)"
-     x-cloak
      class="min-h-11 px-1 py-1 hover:bg-ink-500/5 {{ class }}">
     <div class="flex min-h-9 items-center gap-2">
 
@@ -141,18 +143,21 @@ everything else is shrink-0, so the actions stay put and stay hittable.
     {% endfor %}
 
     {% comment %}
-    x-if inside the x-show, so Alpine does not walk the details until they are
-    first opened: the markup is served either way, but forty unopened rows
-    would otherwise hold forty model cards' worth of bindings alive.
-
-    x-if needs a <template>, and a template cannot be a flex child, which is
-    why the details hang below the row rather than inside it.
+    Closed details stay in an x-if so Alpine does not bind every hidden row.
+    URL-open details are rendered directly so they remain available without
+    JavaScript.
     {% endcomment %}
     {% if details %}
-        <div x-show="expanded" x-collapse x-cloak>
-            <template x-if="expanded">
+        {% if open %}
+            <div x-show="expanded" x-collapse>
                 <div class="n26-cp-inset pb-2 pt-1">{{ details }}</div>
-            </template>
-        </div>
+            </div>
+        {% else %}
+            <div x-show="expanded" x-collapse x-cloak>
+                <template x-if="expanded">
+                    <div class="n26-cp-inset pb-2 pt-1">{{ details }}</div>
+                </template>
+            </div>
+        {% endif %}
     {% endif %}
 </div>

@@ -41,6 +41,24 @@ def test_draws_the_gang(client, tester, gang):
     assert str(gang.gang_type) in body
 
 
+@pytest.mark.parametrize("query", ["", "?sell=nonsense"])
+def test_the_sheet_builds_the_gang_card_once(client, tester, gang, monkeypatch, query):
+    from n26.core import card
+
+    built = []
+    build_gang_card = card.build_gang_card
+
+    def counted(*args, **kwargs):
+        built.append(None)
+        return build_gang_card(*args, **kwargs)
+
+    monkeypatch.setattr(card, "build_gang_card", counted)
+    client.force_login(tester)
+
+    assert client.get(reverse("n26-gang", args=[gang.pk]) + query).status_code == 200
+    assert len(built) == 1
+
+
 def test_the_way_to_the_gang_list_is_named_for_what_it_offers(client, tester, gang):
     """The screen it leads to holds a reader through several hires, so the
     control says so. Hiring a vehicle is its own control and stays
@@ -297,10 +315,8 @@ def test_a_named_profile_opens_with_a_dash_under_its_weapon(
     assert "aria-hidden" not in table[table.rindex("<td", 0, gun) : gun]
 
 
-class TestRefittingAStashedAccessory:
-    """A sight kept back from a sale is gear waiting for a gun, and the
-    sheet is where the gang's spare kit is read — so the way back onto a
-    gun is here."""
+class TestStashActions:
+    """Gear in the stash can be handed on from the gang sheet itself."""
 
     @pytest.fixture
     def kit(self, gang, tester, make_profile, make_statline):
@@ -321,7 +337,24 @@ class TestRefittingAStashedAccessory:
             op.move(bolted, stash)
         return gun, bolted
 
-    def test_the_stash_line_offers_a_way_back_onto_a_gun(
+    def test_a_stashed_wargear_line_offers_reassign(
+        self, client, tester, gang, gang_type
+    ):
+        from n26.library.authoring import create_wargear
+
+        knife = create_wargear("Knife", price=10)
+        with operation(gang, actor=tester) as op:
+            op.found(gang_type)
+            bought = op.buy(gang.stash, thing=knife, paid=10)
+
+        client.force_login(tester)
+        body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
+
+        assert "Reassign" in body
+        assert f"reassign={bought.pk}" in body
+        assert "Actions for Knife" in body
+
+    def test_a_stashed_accessory_offers_fit_to_a_weapon_in_its_menu(
         self, client, tester, gang, kit
     ):
         _, bolted = kit
@@ -329,40 +362,41 @@ class TestRefittingAStashedAccessory:
         body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
 
         assert "Telescopic sight" in body
-        assert f"?refit={bolted.pk}" in body
+        assert f"reassign={bolted.pk}" in body
         assert "Fit to a weapon" in body
 
-    def test_the_address_opens_a_picker_over_the_gangs_guns(
+    def test_reassign_opens_a_picker_over_the_gangs_guns(
         self, client, tester, gang, kit
     ):
         gun, bolted = kit
         client.force_login(tester)
         response = client.get(
-            reverse("n26-gang", args=[gang.pk]) + f"?refit={bolted.pk}"
+            reverse("n26-gang", args=[gang.pk]) + f"?reassign={bolted.pk}"
         )
         body = response.content.decode()
+        dialog = response.context["dialog"]
 
-        assert response.context["refitting"]["weapons"] == [
-            {"pk": str(gun.pk), "label": "Autogun (Vex)"}
-        ]
+        assert dialog["weapons"] == [{"pk": str(gun.pk), "label": "Autogun (Vex)"}]
         assert "<dialog open" in body
-        # The picker posts the same move a fighter's row does, one level
-        # down the chain.
         assert reverse("n26-reassign", args=[bolted.pk]) in body
         assert 'name="to" value="weapon"' in body
 
-    def test_something_that_is_not_a_stashed_accessory_opens_nothing(
+    def test_something_that_is_not_in_the_stash_opens_nothing(
         self, client, tester, gang, kit
     ):
         gun, _ = kit
         client.force_login(tester)
-        response = client.get(reverse("n26-gang", args=[gang.pk]) + f"?refit={gun.pk}")
-        assert response.context["refitting"] is None
+        response = client.get(
+            reverse("n26-gang", args=[gang.pk]) + f"?reassign={gun.pk}"
+        )
+        assert response.context["dialog"] is None
 
     def test_a_pk_that_is_not_a_ulid_opens_nothing(self, client, tester, gang, kit):
         client.force_login(tester)
-        response = client.get(reverse("n26-gang", args=[gang.pk]) + "?refit=nonsense")
-        assert response.context["refitting"] is None
+        response = client.get(
+            reverse("n26-gang", args=[gang.pk]) + "?reassign=nonsense"
+        )
+        assert response.context["dialog"] is None
 
     def test_another_gangs_stash_is_not_reachable(
         self, client, tester, gang, kit, gang_type
@@ -385,6 +419,6 @@ class TestRefittingAStashedAccessory:
 
         client.force_login(tester)
         response = client.get(
-            reverse("n26-gang", args=[gang.pk]) + f"?refit={hidden.pk}"
+            reverse("n26-gang", args=[gang.pk]) + f"?reassign={hidden.pk}"
         )
-        assert response.context["refitting"] is None
+        assert response.context["dialog"] is None

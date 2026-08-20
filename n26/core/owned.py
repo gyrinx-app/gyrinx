@@ -1,37 +1,8 @@
-"""What a model already holds, as a catalogue needs to see it.
+"""Possessions as catalogue rows, read from an already-built card.
 
-A catalogue asks two questions of a fighter's card. Does this fighter
-already own one of these? And if so, what exactly — which copy, worth
-what, with what hanging off it — so the reader can sell it, hand it to
-somebody else, undo the purchase, or take it off the card.
-
-Both answers come off the card the page has already built. Nothing here
-queries, which is the whole point: a catalogue is hundreds of rows, and an
-owned-count fetched per row would be hundreds of queries.
-
-What is owned is drawn as a *state of an equip row*: where the fighter holds
-one of the thing a row names, the row says so instead of offering another.
-Anything they own that the list on screen does not sell has nowhere to be
-drawn, which is a known gap and not one to be closed from here.
-
-A **thing** is a root assignment: the fighter owns it and may re-home it.
-A **part** is one of its children — a paid ammo type, a sight bolted to a
-gun. A part is sold and removed like anything else. Whether it can be
-re-homed on its own depends on what sort of part it is, and
-:func:`is_detachable` is where that is said.
-
-Neither is *anything* the gang holds. Selling, handing on and dropping
-are acts on **possessions**, and :func:`is_possession` is the one place
-that says what one is — read by the catalogue that draws the controls and
-by the routes behind them, so a screen can never offer what a route
-would refuse, nor the other way round.
-
-Where a control leads is settled here too, in the same pass that finds
-the copy. A confirmation is a query parameter on the page the reader is
-already on, so what a row needs is that page's address and nothing more;
-building the rows half-formed and walking them again to fill the links in
-would leave anyone who called this directly holding controls that lead
-nowhere.
+The index built here issues no queries. It keeps root gear separate from
+parts such as ammunition and accessories, and gives every allowed act a URL
+on the page that supplied the card.
 """
 
 from dataclasses import dataclass
@@ -39,18 +10,44 @@ from urllib.parse import urlencode
 
 from n26.library.models.assignable import Family
 
-#: The dialogs a screen can have open, each a query parameter naming one
-#: assignment on the card. Both sides read this tuple: the rows that draw
-#: the controls and the view that answers the URL behind them, so neither
-#: can invent a question the other does not know.
-#:
-#: Three of them confirm something about the assignment named. The last
-#: two ask a question instead — which accessory to bolt onto the weapon
-#: named, and which of its alternatives a thing is taken with — and they
-#: sit here because they are the same sort of state: one assignment on
-#: this card, open because the address says so, closed by going back to
-#: the address without it. A screen draws one at a time, so a URL naming
-#: two draws whichever comes first here.
+
+@dataclass(frozen=True)
+class EquipHost:
+    """The assignment roots and return address behind an equip screen."""
+
+    gang: object
+    at: str
+    roots: tuple
+    miniature: object | None = None
+
+    @property
+    def is_stash(self):
+        return self.miniature is None
+
+    @property
+    def held_label(self):
+        return "in stash" if self.is_stash else "equipped"
+
+    @classmethod
+    def fighter(cls, gang, card, miniature, at):
+        return cls(
+            gang=gang,
+            at=at,
+            roots=tuple(card.roots),
+            miniature=miniature,
+        )
+
+    @classmethod
+    def stash(cls, gang, gang_card, at):
+        return cls(
+            gang=gang,
+            at=at,
+            roots=tuple(gang_card.stash_roots),
+        )
+
+
+#: URL parameters that can open one assignment dialog. Their order is the
+#: precedence when an address names more than one.
 DIALOGS = ("sell", "reassign", "refund", "remove", "accessorise", "rechoose")
 
 
@@ -235,60 +232,31 @@ def _parts_of(node, at):
     return tuple(parts)
 
 
-def owned_things(card, at):
-    """Everything on this card, keyed the way a catalogue keys its rows.
+def possessions(host: EquipHost):
+    """Everything this host carries, keyed the way a catalogue keys its rows.
 
     Keyed by :func:`thing_key`, so a row looks its own key up and finds
-    the copies of itself the fighter is carrying — one dictionary read per
-    row, whatever the fighter owns.
+    the copies held — one dictionary read per row, however much is carried.
 
-    ``at`` is the page the reader is on, query string and all: the
+    ``host.at`` is the page the reader is on, query string and all: the
     confirmations open over it and Cancel returns to it, so the list they
     were reading is still the list underneath.
-
-    Two of the same weapon are two entries under one key, never one entry
-    counted twice: each is its own entry in the ledger, each may carry
-    different ammo, and each is sold, moved and dropped on its own.
-
-    Only what the model **owns** — see :func:`is_possession`. A card
-    carries a good deal more than kit, and none of the rest is something
-    to put a Sell button beside: the fighter's own profile is the
-    fighter, their skills are what they know, their equipment lists are
-    where they buy from.
-
-    The gang-hosted assignments are skipped for a second reason. They ride
-    every member's card so gang-wide rules reach them, but they are the gang's
-    property and not this fighter's to sell.
-
-    A **granted** weapon is skipped for a third: it is lent, not owned. A
-    modifier puts it on the card and nobody bought it, so there is
-    nothing to sell, nothing to hand to another fighter, and nothing for
-    an accessory to hang off. It is skipped twice over — this reads
-    ``card.roots``, which holds what the gang owns, while a grant lives
-    on ``card.granted``; and a granted line carries no assignment. The
-    consequence a reader should expect on the equipment screen: a row for
-    something the fighter owns replaces its Buy button, and a granted
-    weapon does not, so a fighter lent a pair of claws is still offered
-    claws. That is deliberate — the lent pair goes when its granter does,
-    and being unable to buy a pair of your own would be the worse
-    surprise.
     """
     from n26.library.models import Weapon
 
     index = {}
-    for node in card.roots:
-        if node.broadcast or node.assignment is None:
+    for node in host.roots:
+        if node.assignment is None:
             continue
-        if node.suppressed:
-            # A modifier has taken this away, so the card says the fighter
-            # does not have it — and a screen must not offer to sell
-            # something the card denies. The assignment is untouched
-            # underneath: drop whatever cancelled it and the controls come back.
+        if node.broadcast or node.suppressed:
+            # Suppressed assignments remain stored but are not possessions on
+            # this card; broadcast roots belong to the gang, not the fighter.
             continue
         if not is_possession(node.assignable):
             continue
         key = thing_key(node.assignable)
         pk = str(node.assignment.pk)
+        at = host.at
         index.setdefault(key, []).append(
             OwnedThing(
                 id=pk,
@@ -314,3 +282,8 @@ def owned_things(card, at):
             )
         )
     return index
+
+
+def owned_things(card, at):
+    """Everything on this fighter's card — see :func:`possessions`."""
+    return possessions(EquipHost.fighter(card.miniature.gang, card, card.miniature, at))
