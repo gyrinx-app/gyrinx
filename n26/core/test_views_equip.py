@@ -1392,7 +1392,8 @@ def test_a_sale_confirmation_states_its_arithmetic(
     body = response.content.decode()
 
     assert response.context["dialog"]["proceeds"] == 18
-    assert "Half of 35¢, rounded up — 18¢." in body
+    assert "Half of its 35¢ rating, rounded up — 18¢." in body
+    assert "removed from the gang" in body
     assert "<dialog open" in body
     assert reverse("n26-sell", args=[sword.pk]) in body
 
@@ -1408,7 +1409,7 @@ def test_a_sale_of_something_worth_almost_nothing_names_the_floor(
         f"{equip_url(fighter, house_list)}&sell={trinket.pk}"
     ).content.decode()
 
-    assert "5¢: half of 4¢ is less than the 5¢ a sale never goes under." in body
+    assert "5¢: half of its 4¢ rating is below the 5¢ minimum sale price." in body
 
 
 def test_a_move_offers_the_stash_and_the_roster(
@@ -1425,6 +1426,7 @@ def test_a_move_offers_the_stash_and_the_roster(
     body = response.content.decode()
 
     assert [model.name for model in response.context["dialog"]["models"]] == ["Nell"]
+    assert "Moving it does not change its rating." in body
     assert 'name="to" value="stash"' in body
     assert 'name="miniature"' in body
 
@@ -1446,9 +1448,7 @@ def test_a_move_with_nobody_else_on_the_roster_is_a_move_to_the_stash(
     assert 'name="miniature"' not in body
 
 
-def test_a_removal_says_the_money_stays_spent(
-    client, tester, gang, fighter, house_list
-):
+def test_a_removal_says_it_is_permanent(client, tester, gang, fighter, house_list):
     from n26.library.models import Wargear
 
     knife = buy_one(gang, fighter, tester, Wargear.objects.get(name="Knife"), paid=10)
@@ -1457,11 +1457,11 @@ def test_a_removal_says_the_money_stays_spent(
         f"{equip_url(fighter, house_list)}&remove={knife.pk}"
     ).content.decode()
 
-    assert "stays spent" in body
+    assert "permanently removed from the gang" in body
     assert reverse("n26-remove", args=[knife.pk]) in body
 
 
-def test_a_refund_names_what_was_paid_and_not_what_it_is_worth(
+def test_a_refund_names_what_was_paid_and_not_its_rating(
     client, tester, gang, fighter, house_list
 ):
     """Three acts take a thing away and the money is the whole difference
@@ -1485,7 +1485,8 @@ def test_a_refund_names_what_was_paid_and_not_what_it_is_worth(
     ).content.decode()
 
     assert "5¢ comes back" in body
-    assert "not what it is worth" in body
+    assert "the amount paid, not its rating" in body
+    assert "removed from the gang, undoing the purchase" in body
     assert reverse("n26-refund", args=[knife.pk]) in body
 
 

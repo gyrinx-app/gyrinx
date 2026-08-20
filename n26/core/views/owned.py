@@ -21,7 +21,7 @@ nothing is written, because the refusal unwinds the transaction.
 The acts are deliberately distinct, and the ledger says which happened:
 
 ``sell``
-    Half of what the thing is worth, rounded up, into the gang's credits.
+    Half of the thing's rating, rounded up, into the gang's credits.
     Not a refund: what was paid has nothing to do with it. A gun with
     something bolted to it asks one more question — whether the
     accessories are being sold with it or kept — because those are two
@@ -31,11 +31,11 @@ The acts are deliberately distinct, and the ledger says which happened:
     and no re-pricing. The last of the three is how a stashed accessory
     is fitted to a gun: the same act, one level down the chain.
 ``refund``
-    Undoing the purchase: every credit that was paid comes back. What was
-    paid and what the thing is worth part company at the first discount,
-    which is why this is not a sale.
+    Undoing the purchase: every credit that was paid comes back. The amount
+    paid and the rating part company at the first discount, which is why
+    this is not a sale.
 ``remove``
-    Off the card, money stays spent.
+    Permanently removed from the gang, with no credit change.
 ``accessorise``
     A purchase, hosted on the weapon rather than on the fighter. The only
     one that adds something.
@@ -337,10 +337,10 @@ def owned_dialog(request, host: EquipHost):
             "proceeds": proceeds,
             "rating": rating,
             "sum": (
-                f"Half of {rating}¢, rounded up — {proceeds}¢."
+                f"Half of its {rating}¢ rating, rounded up — {proceeds}¢."
                 if halved
-                else f"{proceeds}¢: half of {rating}¢ is less than the "
-                f"{MINIMUM_PROCEEDS}¢ a sale never goes under."
+                else f"{proceeds}¢: half of its {rating}¢ rating is below the "
+                f"{MINIMUM_PROCEEDS}¢ minimum sale price."
             ),
             "submit_label": "Sell",
             "submit_variant": "danger",
@@ -419,7 +419,7 @@ def owned_dialog(request, host: EquipHost):
             "title": f"Refund {name}?",
             "proceeds": paid,
             "sum": (
-                f"{paid}¢ comes back — what was paid for it, not what it is worth."
+                f"{paid}¢ comes back — the amount paid, not its rating."
                 if paid
                 else "Nothing was paid for this, so nothing comes back."
             ),
@@ -481,9 +481,9 @@ def _return_to(request, fallback):
 @login_required
 @require_POST
 def sell_assignment(request, pk):
-    """Sell something on: it archives, and half its worth comes back.
+    """Sell something on: it archives, and half its rating comes back.
 
-    Half of what it *is worth*, not of what was paid — see
+    Half of its rating, not of what was paid — see
     ``Operation.sell``. The confirmation names the figure because with
     the arithmetic done by the server there is nothing on the page for a
     reader to check it against.
@@ -782,7 +782,7 @@ def accessorise_assignment(request, pk):
 @login_required
 @require_POST
 def remove_assignment(request, pk):
-    """Take something off the card. The money stays spent.
+    """Remove something from the gang without changing credits.
 
     ``Operation.remove`` archives rather than deletes, so the ledger goes
     on saying the gang once owned this — it simply stops counting.
@@ -822,7 +822,7 @@ def remove_assignment(request, pk):
 def refund_assignment(request, pk):
     """Undo the purchase: it archives, and every credit paid comes back.
 
-    What was *paid*, not what it is worth — see ``Operation.refund``. The
+    What was *paid*, not its rating — see ``Operation.refund``. The
     figure is read before the write, because afterwards every entry in
     the subtree has been settled to zero and there is nothing left to add
     up.
