@@ -1390,10 +1390,11 @@ def test_a_sale_confirmation_states_its_arithmetic(
     client.force_login(tester)
     response = client.get(f"{equip_url(fighter, house_list)}&sell={sword.pk}")
     body = response.content.decode()
+    copy = " ".join(body.split())
 
     assert response.context["dialog"]["proceeds"] == 18
-    assert "Half of its 35¢ rating, rounded up — 18¢." in body
-    assert "removed from the gang" in body
+    assert "Half of its 35¢ rating, rounded up — 18¢." in copy
+    assert "It and anything attached to it are removed from the gang." in copy
     assert "<dialog open" in body
     assert reverse("n26-sell", args=[sword.pk]) in body
 
@@ -1483,10 +1484,13 @@ def test_a_refund_names_what_was_paid_and_not_its_rating(
     body = client.get(
         f"{equip_url(fighter, house_list)}&refund={knife.pk}"
     ).content.decode()
+    copy = " ".join(body.split())
 
-    assert "5¢ comes back" in body
-    assert "the amount paid, not its rating" in body
-    assert "removed from the gang, undoing the purchase" in body
+    assert "5¢ comes back — the amount paid, not its rating." in copy
+    assert (
+        "It and anything attached to it are removed from the gang, undoing the purchase."
+        in copy
+    )
     assert reverse("n26-refund", args=[knife.pk]) in body
 
 
