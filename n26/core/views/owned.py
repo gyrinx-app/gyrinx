@@ -311,6 +311,7 @@ def owned_dialog(request, host: EquipHost):
     is_part = assignment.parent_id is not None
     dialog = _panel(request, assignment, kind, host.at) | {
         "stash_host": host.is_stash,
+        "can_refund": not gang.credits_unlimited,
     }
 
     if kind == "sell":

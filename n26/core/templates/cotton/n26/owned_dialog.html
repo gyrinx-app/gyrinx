@@ -56,6 +56,10 @@ itself.
             gang, undoing the purchase.
         {% else %}
             It and anything attached to it are permanently removed from the gang.
+            No credits are returned.
+            {% if dialog.can_refund %}
+                Use Refund instead to recover the amount paid.
+            {% endif %}
         {% endif %}
     </c-slot>
 

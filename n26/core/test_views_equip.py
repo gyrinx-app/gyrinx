@@ -1457,8 +1457,13 @@ def test_a_removal_says_it_is_permanent(client, tester, gang, fighter, house_lis
     body = client.get(
         f"{equip_url(fighter, house_list)}&remove={knife.pk}"
     ).content.decode()
+    copy = " ".join(body.split())
 
-    assert "permanently removed from the gang" in body
+    assert (
+        "It and anything attached to it are permanently removed from the gang. "
+        "No credits are returned. Use Refund instead to recover the amount paid."
+        in copy
+    )
     assert reverse("n26-remove", args=[knife.pk]) in body
 
 
@@ -1589,6 +1594,7 @@ def test_a_gang_with_no_budget_is_offered_no_refund(
     ).content.decode()
     assert "Delete" in asked
     assert "Refund" not in asked
+    assert "No credits are returned." in asked
 
 
 @pytest.fixture
