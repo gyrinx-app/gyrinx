@@ -102,13 +102,26 @@ def plan_paths():
     # PROTECT the retirement. The same rewrite keeps the history coherent.
     picks = list(
         Assignment.objects.filter(affiliation__in=old_paths)
-        .select_related("affiliation", "gang_root")
+        .select_related("affiliation", "gang_root", "caused_by")
         .order_by("created")
     )
     unanchored = [str(pick.pk) for pick in picks if pick.caused_by_id is None]
     if unanchored:
         problems.append(
             "picks with no caused_by to settle against: " + ", ".join(unanchored)
+        )
+    # A pick hanging from anything but the carrier answers a question
+    # this slot does not ask: rewritten, it would name the slot while
+    # nothing drew it as that slot's answer. Refuse it by name — the
+    # plan knows, and saying so beats leaving it to the page proof.
+    strays = [
+        str(pick.pk)
+        for pick in picks
+        if pick.caused_by_id is not None and pick.caused_by.hidden_id != carrier.pk
+    ]
+    if strays:
+        problems.append(
+            "picks anchored on something other than the carrier: " + ", ".join(strays)
         )
 
     if problems:

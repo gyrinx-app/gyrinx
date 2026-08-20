@@ -204,12 +204,12 @@ class TestTheRefusals:
             apply(plan)
         assert not SlotType.objects.filter(name="Path").exists()
 
-    def test_a_pick_anchored_on_the_wrong_row_refuses_and_unwinds(
+    def test_a_pick_anchored_on_the_wrong_row_is_refused(
         self, gangs, prod_shape, owner
     ):
-        """The safety net proves itself: a hand-made pick whose cause is
-        not the offer's carrier would stop reading as chosen after the
-        rewrite — the apply sees the page change and unwinds everything."""
+        """A hand-made pick whose cause is not the offer's carrier
+        answers a question this slot does not ask. The plan names it and
+        refuses; nothing is written."""
         from n26.tests.sandbox.actions import assign
 
         gang_type, carrier, paths = prod_shape
@@ -220,12 +220,51 @@ class TestTheRefusals:
         )
         stray.save()
 
-        with pytest.raises(ConversionRefused, match="pages would change"):
-            apply(plan_paths())
+        plan = plan_paths()
 
+        assert not plan.ok
+        assert any("other than the carrier" in problem for problem in plan.problems)
+        with pytest.raises(ConversionRefused):
+            apply(plan)
         assert not SlotType.objects.filter(name="Path").exists()
         stray.refresh_from_db()
         assert stray.affiliation == paths["Path of the Fanatic"]
+
+    def test_a_page_that_would_change_unwinds_the_whole_run(
+        self, gangs, prod_shape, monkeypatch
+    ):
+        """The last safety net, and the one every conversion leans on:
+        whatever the plan believed, a page that reads differently after
+        the steps have run ends the whole thing. Proven by making a step
+        do something the plan never said — the only way to reach a net
+        that exists for what nobody predicted."""
+        from n26.library.conversion import base
+
+        gang_type, carrier, paths = prod_shape
+        settled, _ = gangs
+        real_perform = base.RewritePick.perform
+
+        def and_something_else(self, made):
+            real_perform(self, made)
+            # A rule the gang never had: nothing in the plan says this,
+            # so the pages part company and the run must unwind.
+            from n26.tests.sandbox.actions import assign, create_rule
+
+            if not getattr(and_something_else, "done", False):
+                and_something_else.done = True
+                assign(create_rule("Uninvited"), gang=settled)
+
+        monkeypatch.setattr(base.RewritePick, "perform", and_something_else)
+
+        with pytest.raises(ConversionRefused, match="pages would change"):
+            apply(plan_paths())
+
+        # Unwound whole: no slot type, no stray rule, every pick as it was.
+        assert not SlotType.objects.filter(name="Path").exists()
+        assert not Assignment.objects.filter(rule__name="Uninvited").exists()
+        assert Assignment.objects.filter(
+            affiliation__name="Path of the Pious", gang=settled
+        ).exists()
 
     def test_a_shared_offer_is_a_problem_not_a_silent_detach(
         self, gangs, prod_shape, default_pack

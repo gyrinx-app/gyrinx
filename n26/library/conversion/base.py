@@ -202,12 +202,19 @@ class CreatePickable:
     #: whose whole payload is the link itself: a chosen-mode placement
     #: reads the chosen thing's ``category`` and nothing else.
     linked: tuple = ()
+    #: What tells this one apart from another pickable of the same name
+    #: — author-facing only, and never drawn for a player. A name is
+    #: unique per pack and qualifier, so a system whose names are
+    #: already spoken for by another slot type's pickables converts by
+    #: qualifying its own.
+    qualifier: str = ""
 
     def say(self):
         n = len(self.moved_modifier_ids)
         moved = f", moving {n} modifier{'' if n == 1 else 's'}" if n else ""
         linked = f", linked to category “{self.linked[1]}”" if self.linked else ""
-        return f"create pickable “{self.name}” ({self.slot_type}){moved}{linked}"
+        told = f", told apart as “{self.qualifier}”" if self.qualifier else ""
+        return f"create pickable “{self.name}” ({self.slot_type}){moved}{linked}{told}"
 
     def perform(self, made):
         from django.apps import apps
@@ -217,7 +224,10 @@ class CreatePickable:
 
         linking = {"category_id": self.linked[0]} if self.linked else {}
         pickable = create_pickable(
-            self.name, made.slot_types[self.slot_type], **linking
+            self.name,
+            made.slot_types[self.slot_type],
+            qualifier=self.qualifier,
+            **linking,
         )
         if self.moved_modifier_ids:
             app_label, model_name = self.moved_from[0].split(".")

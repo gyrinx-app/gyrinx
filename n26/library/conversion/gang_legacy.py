@@ -99,7 +99,9 @@ def plan_gang_legacy():
     # Scoped to the default pack, where this builds: a custom pack's
     # own slot type of the same name is somebody's content, not a
     # collision.
-    if SlotType.objects.filter(name=SLOT_TYPE, pack_id=default_pack_id()).exists():
+    if SlotType.objects.filter(
+        name__iexact=SLOT_TYPE, pack_id=default_pack_id()
+    ).exists():
         problems.append(
             f"a slot type named “{SLOT_TYPE}” already stands — retire the "
             "pilot first (the console offers it)"
@@ -144,18 +146,27 @@ def plan_gang_legacy():
     # The names the steps would create must be free in the default pack
     # — a survivor of the pilot, or anything else wearing one, would
     # turn a valid-looking plan into a mid-apply integrity error.
+    from django.db.models.functions import Lower
+
     from n26.library.models import Pickable, Picklist, Slot
 
-    taken = Pickable.objects.filter(
-        pack_id=default_pack_id(), name__in=[row.name for row in old_rows]
-    ).values_list("name", flat=True)
+    wanted = {row.name.lower() for row in old_rows}
+    taken = [
+        name
+        for name in Pickable.objects.filter(pack_id=default_pack_id())
+        .annotate(folded=Lower("name"))
+        .filter(folded__in=wanted)
+        .values_list("name", flat=True)
+    ]
     if taken:
         problems.append(
             "pickables already wear these names: " + ", ".join(sorted(taken))
         )
-    if Picklist.objects.filter(pack_id=default_pack_id(), name=PICKLIST).exists():
+    if Picklist.objects.filter(
+        pack_id=default_pack_id(), name__iexact=PICKLIST
+    ).exists():
         problems.append(f"a picklist named “{PICKLIST}” already stands")
-    if Slot.objects.filter(pack_id=default_pack_id(), name=SLOT).exists():
+    if Slot.objects.filter(pack_id=default_pack_id(), name__iexact=SLOT).exists():
         problems.append(f"a slot named “{SLOT}” already stands")
 
     # No granted-carrier check here: a profile is never granted by a

@@ -27,11 +27,43 @@ from n26.library.models import (
 )
 from n26.library.standard_content import XP_COUNTER
 
-#: The kinds that never draw a line of their own. A hidden carrier by
+#: The kinds that draw no line of their own. A hidden carrier by
 #: definition; a slot because its line *is* its choice row; a pick
-#: because it appears as that row's answer. Their effects still show,
-#: named in whatever they changed.
+#: because it appears as that row's answer — which holds only where
+#: that row is drawn on the same card, so ``_speaks_for_itself`` below
+#: reads the one case where it is not. Their effects still show, named
+#: in whatever they changed.
 DRAWS_NO_LINE = (Hidden, Slot, Pickable)
+
+
+def _speaks_for_itself(node, asked_here):
+    """A pick whose question this card never asks, which must draw its
+    own line rather than appear nowhere at all.
+
+    A pick is normally drawn as its choice's answer, so it draws no line
+    of its own — but that assumes the question is asked *here*. It need
+    not be: a question asked of one holder may be answered onto another
+    (the Leader is asked the gang's archetype, and the gang holds it),
+    and then the card holding the answer has no choice row to hang it
+    under.
+
+    The test is the question's own line, not whether a choice row was
+    drawn: a hidden choice asks nothing and still speaks for its answer,
+    which is the whole of what hidden means. So a pick is left to the
+    ordinary rule wherever the assignment it answers stands on this
+    card, drawn or silent, and draws its own line only where that
+    assignment is somewhere else entirely.
+
+    A pick with no choice behind it at all is a third case and keeps
+    drawing nothing: nobody was offered it, so it says nothing about its
+    holder (``effects.is_orphan_pick``).
+    """
+    return (
+        isinstance(node.assignable, Pickable)
+        and node.chosen_for_key is not None
+        and node.chosen_for_key not in asked_here
+    )
+
 
 #: The book's weapon slots on one card. Each weapon takes its own
 #: ``slots`` against this budget — asterisked weapons two, grenades none.
@@ -1077,12 +1109,16 @@ def card_to_model_card(
         if computed
         else set()
     )
-
     # A line's cause is almost always another line on the same card — the
     # membership, the anchor subtype, the weapon a profile hangs off — so
     # its name is resolved from what is already in memory, never by a
     # query. A cause off the card degrades to the reason alone.
     nodes_by_key = {node.key: node for node in card.all_nodes()}
+    #: Every assignment standing on this card, so a pick can tell a
+    #: question asked here — drawn or hidden — from one asked of
+    #: somebody else entirely (``_speaks_for_itself``). The same keys
+    #: the causes are resolved from, and a card is walked once.
+    asked_here = nodes_by_key.keys()
 
     def provenance_of(node):
         cause = nodes_by_key.get(node.caused_by_key)
@@ -1175,7 +1211,9 @@ def card_to_model_card(
             # has, and this is no longer part of it.
             continue
         thing = node.assignable
-        if isinstance(thing, DRAWS_NO_LINE):
+        if isinstance(thing, DRAWS_NO_LINE) and not _speaks_for_itself(
+            node, asked_here
+        ):
             # No row of its own. A hidden carrier's effects have already
             # landed (a shifted stat cell names it); a slot draws its
             # choice row instead; a pick appears as that row's answer, or
@@ -1325,7 +1363,12 @@ def _weapon_changes(weapon_state):
 
 
 def _provenance_within(card):
-    """A ``provenance_of`` resolving causes among one card's own nodes."""
+    """A ``provenance_of`` resolving causes among one card's own nodes.
+
+    The keys it resolved from ride along as ``standing_here``: every
+    assignment on the card, which is also what tells a pick whether the
+    question it answers is asked here at all.
+    """
     nodes_by_key = {node.key: node for node in card.all_nodes()}
 
     def provenance_of(node):
@@ -1337,6 +1380,7 @@ def _provenance_within(card):
             computed=node.computed,
         )
 
+    provenance_of.standing_here = nodes_by_key.keys()
     return provenance_of
 
 
@@ -1361,6 +1405,7 @@ def _gang_rows(gang_card, gang_computed):
         else set()
     )
     provenance_of = _provenance_within(gang_card)
+    asked_here = provenance_of.standing_here
     rows = []
     rules = []
     for node in gang_card.roots:
@@ -1370,7 +1415,8 @@ def _gang_rows(gang_card, gang_computed):
             # Taken away by a modifier — the assignment stays, the line goes.
             continue
         if isinstance(node.assignable, (*DRAWS_NO_LINE, Counter)):
-            continue
+            if not _speaks_for_itself(node, asked_here):
+                continue
         if isinstance(node.assignable, Rule):
             rules.append(AssignableLine(name=node.name, provenance=provenance_of(node)))
             continue

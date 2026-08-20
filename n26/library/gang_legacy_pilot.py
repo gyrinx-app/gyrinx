@@ -83,7 +83,7 @@ def find():
     # custom pack's own slot type of this name is somebody's content,
     # never the pilot.
     slot_type = SlotType.objects.filter(
-        name=SLOT_TYPE, pack_id=default_pack_id()
+        name__iexact=SLOT_TYPE, pack_id=default_pack_id()
     ).first()
     if slot_type is None:
         return Pilot(nothing_here=True)

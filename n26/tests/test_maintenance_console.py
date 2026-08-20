@@ -22,11 +22,18 @@ from n26.core.models import Assignment
 from n26.maintenance import (
     MAX_ATTEMPTS,
     Operation,
+    convert_archetype_view,
     convert_gang_legacy_view,
     convert_skill_tree_view,
     convert_specialisation,
     convert_specialisation_view,
     retire_gang_legacy_pilot_view,
+)
+from n26.tests.sandbox.test_conversion_archetype import (
+    build_prod_shape as build_archetype_shape,
+)
+from n26.tests.sandbox.test_conversion_archetype import (
+    build_world as build_archetype_world,
 )
 from n26.tests.sandbox.test_conversion_gang_legacy import (
     build_prod_shape as build_gang_legacy_shape,
@@ -266,6 +273,51 @@ class TestTheGangLegacyPair:
         ).exclude(removes=True)
         # The doubled click's spare and the other system's pick remain.
         assert left.count() == 2
+
+
+class TestTheArchetypeConversion:
+    """The last conversion the console offers, and the first whose
+    answers live on a different holder from the question."""
+
+    @pytest.fixture
+    def archetype_world(self, person_type, owner, default_pack):
+        shape = build_archetype_shape(person_type)
+        return build_archetype_world(shape, owner)
+
+    def test_the_operation_is_registered_and_named(self):
+        registered = {op.operation for op in operations()}
+
+        assert Operation.CONVERT_ARCHETYPE.value in registered
+        found = resolve_operation(Operation.CONVERT_ARCHETYPE.value)
+        assert found.name == Operation.CONVERT_ARCHETYPE.label
+        assert found.view is convert_archetype_view
+
+    def test_its_page_shows_the_plan_and_writes_nothing(
+        self, client, superuser, archetype_world
+    ):
+        client.force_login(superuser)
+
+        response = client.get(reverse("admin:maintenance_n26_convert_archetype"))
+
+        page = response.content.decode()
+        assert response.status_code == 200
+        assert "create slot type “Archetype”" in page
+        assert "pick landing on the gang" in page
+        assert not Backfill.objects.exists()
+
+    def test_applying_records_what_it_did(self, client, superuser, archetype_world):
+        client.force_login(superuser)
+
+        response = client.post(reverse("admin:maintenance_n26_convert_archetype"))
+
+        assert response.status_code == 302
+        run = Backfill.objects.get(operation=Operation.CONVERT_ARCHETYPE)
+        assert run.status == Backfill.Status.DONE
+        assert any("applied" in line for line in run.summary["report"])
+        left = Assignment.objects.filter(
+            archetype__isnull=False, archived=False
+        ).exclude(removes=True)
+        assert left.count() == 0
 
 
 class TestApplying:

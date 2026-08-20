@@ -8,6 +8,7 @@ one transaction and proves, before committing, that every affected
 gang's pages still say the same things. The preview is the contract.
 """
 
+from n26.library.conversion.archetype import plan_archetype
 from n26.library.conversion.base import ConversionRefused, Plan, apply
 from n26.library.conversion.gang_legacy import plan_gang_legacy
 from n26.library.conversion.paths import plan_paths
@@ -22,6 +23,7 @@ SYSTEMS = {
     "specialisation": plan_specialisation,
     "skill_tree": plan_skill_tree,
     "gang_legacy": plan_gang_legacy,
+    "archetype": plan_archetype,
 }
 
 __all__ = [
@@ -29,6 +31,7 @@ __all__ = [
     "Plan",
     "SYSTEMS",
     "apply",
+    "plan_archetype",
     "plan_gang_legacy",
     "plan_paths",
     "plan_skill_tree",
