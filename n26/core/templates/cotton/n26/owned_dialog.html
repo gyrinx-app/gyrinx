@@ -63,10 +63,7 @@ itself.
     </c-slot>
 
     {{ slot }}
-    {% comment %}
-    Which collection was being bought from and which section tab was open, so
-    the answer lands back where the question was asked.
-    {% endcomment %}
+    {# Preserve the page and picker state that opened the dialog. #}
     <input type="hidden" name="return" value="{{ dialog.cancel_url }}">
     {% if dialog.list %}<input type="hidden" name="list" value="{{ dialog.list }}">{% endif %}
     {% if dialog.section %}<input type="hidden" name="section" value="{{ dialog.section }}">{% endif %}

@@ -48,13 +48,12 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.http import Http404
-from django.shortcuts import redirect
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
+from gyrinx.http import safe_redirect
 from n26.core.owned import (
     DIALOGS,
-    EquipAnchor,
     EquipHost,
     is_possession,
     thing_key,
@@ -102,7 +101,7 @@ def _held(host, pk):
     """
     for root in host.roots:
         for node in root.walk():
-            if host.anchor is EquipAnchor.FIGHTER and node.broadcast:
+            if node.broadcast:
                 continue
             if node.assignment is None:
                 continue
@@ -115,7 +114,6 @@ def _held(host, pk):
 
 
 def _roster(gang):
-    """Everyone live on the roster."""
     from n26.core.models import Miniature
 
     return list(
@@ -133,14 +131,13 @@ def _other_models(gang, miniature):
 
 
 def _gang_weapons(gang):
-    """Every live weapon in the gang, wherever it is."""
     from n26.core.models import Assignment
 
     return list(
         Assignment.objects.filter(gang_root=gang, archived=False)
         .exclude(weapon=None)
-        .select_related("weapon", "miniature", "stash")
-        .order_by("weapon__name")
+        .select_related("weapon", "miniature_root")
+        .order_by("miniature_root__name", "weapon__name")
     )
 
 
@@ -240,7 +237,7 @@ def accessorise_dialogs(request, host: EquipHost):
         for node in host.roots
         if node.assignment is not None
         and not node.suppressed
-        and (host.anchor is not EquipAnchor.FIGHTER or not node.broadcast)
+        and not node.broadcast
         and isinstance(node.assignable, Weapon)
     ]
     if not weapons:
@@ -313,7 +310,7 @@ def owned_dialog(request, host: EquipHost):
     # left afterwards is still the fighter's gun.
     is_part = assignment.parent_id is not None
     dialog = _panel(request, assignment, kind, host.at) | {
-        "stash_host": host.anchor is EquipAnchor.STASH,
+        "stash_host": host.is_stash,
     }
 
     if kind == "sell":
@@ -367,7 +364,7 @@ def owned_dialog(request, host: EquipHost):
         }
 
     if kind == "reassign":
-        if host.anchor is EquipAnchor.STASH and assignment.weapon_accessory_id:
+        if host.is_stash and assignment.weapon_accessory_id:
             weapons = _gang_weapons(gang)
             return dialog | {
                 "title": f"Fit {name} to a weapon",
@@ -389,11 +386,7 @@ def owned_dialog(request, host: EquipHost):
         return dialog | {
             "title": f"Move {name}",
             "models": models,
-            # With nobody on the roster a fighter's move is to the stash
-            # alone; on the stash screen there is nowhere else to offer.
-            "submit_label": (
-                "Move" if host.anchor is EquipAnchor.STASH or models else "To the stash"
-            ),
+            "submit_label": "Move" if host.is_stash or models else "To the stash",
             "submit_variant": "primary",
         }
 
@@ -442,13 +435,7 @@ def owned_dialog(request, host: EquipHost):
 
 
 def link_stash_actions(sheet, at, *, refunds=True):
-    """Every stashed possession as a menu of acts on the gang sheet.
-
-    Costs no queries: the line already knows its assignment and whether
-    it is the sort of thing that goes on a weapon, and this only turns
-    that into URLs. A line without a menu draws as a name alone, which
-    is what a print-out and a reader who does not own the gang want.
-    """
+    """Add dialog links without querying; print and read-only sheets stay plain."""
     from n26.core.listing import DANGER, LINK, SECONDARY, Action
 
     for line in sheet.stash:
@@ -456,7 +443,7 @@ def link_stash_actions(sheet, at, *, refunds=True):
             continue
         menu = [
             Action(
-                "Fit to a weapon" if line.can_refit else "Reassign",
+                "Fit to a weapon" if line.is_accessory else "Reassign",
                 LINK,
                 with_query(at, reassign=line.id),
                 SECONDARY,
@@ -472,16 +459,7 @@ def link_stash_actions(sheet, at, *, refunds=True):
 
 
 def _back_to(request, assignment, gang):
-    """Where a click lands: the screen it was clicked on.
-
-    A hidden ``return`` field names the address exactly when the form
-    knows it — the gang sheet's stash menu, or an equip screen with its
-    list state. Without one, the assignment's host before the act is read:
-    stash-held gear lands on the gang equip page, carried gear on the
-    fighter's.
-    """
-    if return_to := request.POST.get("return", ""):
-        return return_to
+    """Infer the source screen before an operation moves the assignment."""
     if assignment.stash_root_id or assignment.stash_id:
         base = reverse("n26-equip-gang", args=[gang.pk])
     elif assignment.miniature_root_id:
@@ -494,6 +472,10 @@ def _back_to(request, assignment, gang):
         if (value := request.POST.get(key, ""))
     }
     return with_query(base, **where) if where else base
+
+
+def _return_to(request, fallback):
+    return safe_redirect(request, request.POST.get("return"), fallback_url=fallback)
 
 
 @login_required
@@ -539,7 +521,7 @@ def sell_assignment(request, pk):
             proceeds = op.sell(assignment)
     except Refusal as refusal:
         messages.error(request, str(refusal))
-        return redirect(back)
+        return _return_to(request, back)
 
     record(
         request,
@@ -560,7 +542,7 @@ def sell_assignment(request, pk):
         )
     else:
         messages.success(request, f"Sold {name} for {proceeds}¢.")
-    return redirect(back)
+    return _return_to(request, back)
 
 
 @login_required
@@ -619,14 +601,14 @@ def reassign_assignment(request, pk):
             destination = None
     if destination is None:
         messages.error(request, f"There is nowhere to move {name} to.")
-        return redirect(back)
+        return _return_to(request, back)
 
     try:
         with operation(gang, actor=request.user) as op:
             op.move(assignment, destination)
     except Refusal as refusal:
         messages.error(request, str(refusal))
-        return redirect(back)
+        return _return_to(request, back)
 
     record(
         request,
@@ -645,7 +627,7 @@ def reassign_assignment(request, pk):
         messages.success(request, f"Fitted {name} to {destination.assignable}.")
     else:
         messages.success(request, f"Moved {name} to {destination.name}.")
-    return redirect(back)
+    return _return_to(request, back)
 
 
 @login_required
@@ -691,7 +673,7 @@ def rechoose_assignment(request, pk):
             op.rechoose(assignment, option=[option.default_set for option in picked])
     except Refusal as refusal:
         messages.error(request, str(refusal))
-        return redirect(back)
+        return _return_to(request, back)
     if entry is not None:
         entry.refresh_from_db()
     after = entry.paid if entry is not None else 0
@@ -714,7 +696,7 @@ def rechoose_assignment(request, pk):
     now = {row.default_set_id for row in assignment.chosen_options.all()}
     if now == taken:
         messages.success(request, f"{thing}'s options are unchanged.")
-        return redirect(back)
+        return _return_to(request, back)
     holds = ", ".join(option.name for option in thing.options_taken(now))
     settled = (
         f" — {after - before}¢ more."
@@ -724,7 +706,7 @@ def rechoose_assignment(request, pk):
         else "."
     )
     messages.success(request, f"{thing} now has {holds}{settled}")
-    return redirect(back)
+    return _return_to(request, back)
 
 
 @login_required
@@ -768,14 +750,14 @@ def accessorise_assignment(request, pk):
         # A stale dialog or a hand-made click. The screen it came from is
         # the answer, with the list on it as it now stands.
         messages.error(request, "That accessory is not one to fit.")
-        return redirect(back)
+        return _return_to(request, back)
 
     try:
         with operation(gang, actor=request.user) as op:
             bought = op.buy(assignment, thing=accessory)
     except Refusal as refusal:
         messages.error(request, str(refusal))
-        return redirect(back)
+        return _return_to(request, back)
 
     record(
         request,
@@ -794,7 +776,7 @@ def accessorise_assignment(request, pk):
         f"Fitted {accessory.name} to {assignment.assignable} — "
         f"{bought.ledger_entry.paid}¢.",
     )
-    return redirect(back)
+    return _return_to(request, back)
 
 
 @login_required
@@ -819,7 +801,7 @@ def remove_assignment(request, pk):
             op.remove(assignment)
     except Refusal as refusal:
         messages.error(request, str(refusal))
-        return redirect(back)
+        return _return_to(request, back)
 
     record(
         request,
@@ -832,7 +814,7 @@ def remove_assignment(request, pk):
         action="remove",
     )
     messages.success(request, f"Removed {name}.")
-    return redirect(back)
+    return _return_to(request, back)
 
 
 @login_required
@@ -864,7 +846,7 @@ def refund_assignment(request, pk):
             op.refund(assignment)
     except Refusal as refusal:
         messages.error(request, str(refusal))
-        return redirect(back)
+        return _return_to(request, back)
 
     record(
         request,
@@ -878,4 +860,4 @@ def refund_assignment(request, pk):
         refunded=paid,
     )
     messages.success(request, f"Refunded {name} — {paid}¢ back.")
-    return redirect(back)
+    return _return_to(request, back)

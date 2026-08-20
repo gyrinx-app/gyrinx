@@ -611,28 +611,17 @@ ALL_LABEL = "All equipment"
 #: not sell is reached from here, rather than drawn beside the catalogue.
 STASH_SCOPE = "stash"
 
-#: What that tab is called.
 STASH_LABEL = "In stash"
 
 
 def gang_tabs(collections, chosen, everything, *, stash=False):
-    """The lists the gang can buy from, and the whole library after them.
-
-    The library tab comes last because it is the fallback: what a gang
-    buys from is its own lists, and everything else is there for the
-    thing no list carries.
-
-    ``In stash`` comes first: everything held, regardless of which list
-    sells it, so gear bought elsewhere still has somewhere to be managed.
-    """
+    """The stash, buyable collections, and library tabs."""
     tabs = collection_tabs(collections, chosen)
-    for tab, collection in zip(tabs, collections, strict=True):
-        tab["href"] = _gang_tab_href(collection.pk)
     tabs.append(
         {
             "label": ALL_LABEL,
             "title": "",
-            "href": _gang_tab_href(ALL_SCOPE),
+            "href": f"?list={ALL_SCOPE}",
             "current": everything,
         }
     )
@@ -641,45 +630,21 @@ def gang_tabs(collections, chosen, everything, *, stash=False):
         {
             "label": STASH_LABEL,
             "title": "",
-            "href": _gang_tab_href(STASH_SCOPE),
+            "href": f"?list={STASH_SCOPE}",
             "current": stash,
         },
     )
     return tabs
 
 
-def _gang_tab_href(scope, *, section=""):
-    params = [("list", scope)]
-    if section:
-        params.append(("section", section))
-    return f"?{urlencode(params)}"
-
-
 @login_required
 def equip_gang(request, pk):
-    """Equip the gang's stash — buy into it and manage what it holds.
+    """Buy into the stash and manage what it holds.
 
-    The gang's own end of the equip page. What is bought here belongs to
-    the gang rather than to anyone on the roster: it lands in the stash,
-    and this screen is where it is handed to a fighter. The division is
-    the anchor and nothing else — a fighter's page buys onto that
-    fighter, this one buys into the store.
-
-    Which list is URL state (``?list=``), and the lists are the gang's
-    own: the collections it carries or was granted, kept to the ones
-    holding gear, plus the standard Trading Post. There is no fighter
-    here, so no line is marked usable or not — a restriction is about a
-    model, and the stash is not one. The gang's card is built once and
-    answers which lists it holds.
-
-    ``?list=all`` is the whole library instead: every kind of gear a list
-    could sell, filed under its own categories, for the thing no list
-    carries. Built only when the address asks for it — it prices the
-    library, which is not something to pay for on every visit.
-
-    ``?list=stash`` is everything held, regardless of which list sells
-    it — so gear bought from All equipment still has somewhere to be sold
-    or handed on when browsing a narrower list.
+    The chosen collection is URL state. ``all`` browses the library and
+    ``stash`` lists every possession, including gear absent from narrower
+    lists. Usability notes are omitted because they apply to fighters, not
+    the stash.
     """
     from n26.core.access import gang_collections
     from n26.core.browse import all_gear, browse
@@ -693,8 +658,7 @@ def equip_gang(request, pk):
 
     gang = _own_gang_or_404(request, pk)
 
-    # One card build serves the page: which lists the gang carries is read
-    # off it, and building it twice is the easy mistake here.
+    # One card answers both collection access and possessions.
     card = build_gang_card(gang, with_statlines=False)
     index = build_modifier_index([node.assignable for node in card.all_nodes()])
     computed = compute_gang(card, index)
@@ -704,9 +668,7 @@ def equip_gang(request, pk):
         for access in gang_collections(gang, card=card, computed=computed)
     )
 
-    # Read from the POST as well as the URL: the form posts to the address
-    # it was drawn at, and a click must buy from the list it was clicked
-    # on whichever way the state arrived.
+    # The collection picker posts its URL state back with a purchase.
     wanted = request.POST.get("list", request.GET.get("list", ""))
     stash_tab = wanted == STASH_SCOPE
     everything = wanted == ALL_SCOPE
@@ -716,12 +678,10 @@ def equip_gang(request, pk):
             if str(collection.pk) == wanted:
                 chosen = collection
                 break
-        if chosen is None and collections and not stash_tab:
+        if chosen is None and collections:
             chosen = collections[0]
 
-    # Which of the picker's section tabs the reader was on — client state
-    # the picker posts along and reads back from the URL, as on a
-    # fighter's page.
+    # Preserve the collection picker's section across purchases.
     section = request.POST.get("section", request.GET.get("section", ""))[:100]
 
     params = []
@@ -736,14 +696,12 @@ def equip_gang(request, pk):
     here = f"{request.path}?{urlencode(params)}" if params else request.path
 
     view = None
-    if stash_tab:
-        pass
-    elif everything:
+    if everything:
         view = all_gear(ALL_LABEL)
     elif chosen is not None:
         view = browse(chosen)
 
-    if request.method == "POST" and view is not None and not stash_tab:
+    if request.method == "POST" and view is not None:
         return _buy_clicked(
             request,
             gang,
@@ -759,7 +717,7 @@ def equip_gang(request, pk):
     refunds = not gang.credits_unlimited
 
     if stash_tab:
-        catalogue = build_stash_catalogue(owned, refunds=refunds)
+        catalogue = build_stash_catalogue(owned, STASH_LABEL, refunds=refunds)
         browsing = STASH_LABEL
     elif view is not None:
         catalogue = build_catalogue(view, owned, refunds=refunds)

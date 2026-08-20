@@ -1,72 +1,32 @@
-"""What a model already holds, as a catalogue needs to see it.
+"""Possessions as catalogue rows, read from an already-built card.
 
-A catalogue asks two questions of a fighter's card. Does this fighter
-already own one of these? And if so, what exactly — which copy, worth
-what, with what hanging off it — so the reader can sell it, hand it to
-somebody else, undo the purchase, or take it off the card.
-
-Both answers come off the card the page has already built. Nothing here
-queries, which is the whole point: a catalogue is hundreds of rows, and an
-owned-count fetched per row would be hundreds of queries.
-
-What is owned is drawn as a *state of an equip row*: where the fighter holds
-one of the thing a row names, the row says so instead of offering another.
-Anything they own that the list on screen does not sell has nowhere to be
-drawn, which is a known gap and not one to be closed from here.
-
-A **thing** is a root assignment: the fighter owns it and may re-home it.
-A **part** is one of its children — a paid ammo type, a sight bolted to a
-gun. A part is sold and removed like anything else. Whether it can be
-re-homed on its own depends on what sort of part it is, and
-:func:`is_detachable` is where that is said.
-
-Neither is *anything* the gang holds. Selling, handing on and dropping
-are acts on **possessions**, and :func:`is_possession` is the one place
-that says what one is — read by the catalogue that draws the controls and
-by the routes behind them, so a screen can never offer what a route
-would refuse, nor the other way round.
-
-Where a control leads is settled here too, in the same pass that finds
-the copy. A confirmation is a query parameter on the page the reader is
-already on, so what a row needs is that page's address and nothing more;
-building the rows half-formed and walking them again to fill the links in
-would leave anyone who called this directly holding controls that lead
-nowhere.
+The index built here issues no queries. It keeps root gear separate from
+parts such as ammunition and accessories, and gives every allowed act a URL
+on the page that supplied the card.
 """
 
 from dataclasses import dataclass
-from enum import Enum
 from urllib.parse import urlencode
 
 from n26.library.models.assignable import Family
 
 
-class EquipAnchor(Enum):
-    """Which screen's possessions are being read — a fighter's card or the stash."""
-
-    FIGHTER = "fighter"
-    STASH = "stash"
-
-
 @dataclass(frozen=True)
 class EquipHost:
-    """Where an equip screen reads possessions from and sends the reader back.
-
-    One object carries the gang, the page address, the assignment roots to
-    walk, and which anchor this screen is — so the catalogue, the dialogs
-    and the POST redirects all agree without each guessing from the other.
-    """
+    """The assignment roots and return address behind an equip screen."""
 
     gang: object
     at: str
     roots: tuple
-    anchor: EquipAnchor
     miniature: object | None = None
 
     @property
+    def is_stash(self):
+        return self.miniature is None
+
+    @property
     def held_label(self):
-        """Words for how many copies the reader already holds."""
-        return "equipped" if self.anchor is EquipAnchor.FIGHTER else "in stash"
+        return "in stash" if self.is_stash else "equipped"
 
     @classmethod
     def fighter(cls, gang, card, miniature, at):
@@ -74,7 +34,6 @@ class EquipHost:
             gang=gang,
             at=at,
             roots=tuple(card.roots),
-            anchor=EquipAnchor.FIGHTER,
             miniature=miniature,
         )
 
@@ -84,23 +43,11 @@ class EquipHost:
             gang=gang,
             at=at,
             roots=tuple(gang_card.stash_roots),
-            anchor=EquipAnchor.STASH,
-            miniature=None,
         )
 
 
-#: The dialogs a screen can have open, each a query parameter naming one
-#: assignment on the card. Both sides read this tuple: the rows that draw
-#: the controls and the view that answers the URL behind them, so neither
-#: can invent a question the other does not know.
-#:
-#: Three of them confirm something about the assignment named. The last
-#: two ask a question instead — which accessory to bolt onto the weapon
-#: named, and which of its alternatives a thing is taken with — and they
-#: sit here because they are the same sort of state: one assignment on
-#: this card, open because the address says so, closed by going back to
-#: the address without it. A screen draws one at a time, so a URL naming
-#: two draws whichever comes first here.
+#: URL parameters that can open one assignment dialog. Their order is the
+#: precedence when an address names more than one.
 DIALOGS = ("sell", "reassign", "refund", "remove", "accessorise", "rechoose")
 
 
@@ -301,15 +248,10 @@ def possessions(host: EquipHost):
     for node in host.roots:
         if node.assignment is None:
             continue
-        if host.anchor is EquipAnchor.FIGHTER:
-            if node.broadcast:
-                continue
-            if node.suppressed:
-                # A modifier has taken this away, so the card says the fighter
-                # does not have it — and a screen must not offer to sell
-                # something the card denies. The assignment is untouched
-                # underneath: drop whatever cancelled it and the controls come back.
-                continue
+        if node.broadcast or node.suppressed:
+            # Suppressed assignments remain stored but are not possessions on
+            # this card; broadcast roots belong to the gang, not the fighter.
+            continue
         if not is_possession(node.assignable):
             continue
         key = thing_key(node.assignable)

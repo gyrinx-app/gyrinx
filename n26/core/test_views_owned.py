@@ -801,6 +801,21 @@ class TestFittingOneBackOntoAGun:
         )
         assert response.url == sheet
 
+    def test_an_external_return_field_is_ignored(
+        self, client, tester, gang, gun, stashed
+    ):
+        client.force_login(tester)
+        response = client.post(
+            url("n26-reassign", stashed),
+            {
+                "to": "weapon",
+                "weapon": str(gun.pk),
+                "return": "https://example.com/elsewhere",
+            },
+        )
+
+        assert response.url.startswith(reverse("n26-equip-gang", args=[gang.pk]))
+
     def test_a_weapon_in_another_gang_is_nowhere_to_fit_it(
         self, client, tester, gang, stashed, gang_type, make_profile, make_statline
     ):

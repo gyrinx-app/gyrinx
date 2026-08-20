@@ -535,10 +535,8 @@ class StashLine:
     #: line names. Every stash line has one; the stash holds stored
     #: assignments and nothing computed.
     id: str = ""
-    #: Whether this is something that goes on a weapon rather than on a
-    #: model — an accessory. The label on its reassign act follows from
-    #: that; where the act leads is filled in by the screen drawing it.
-    can_refit: bool = False
+    #: An accessory moves onto a weapon rather than a model.
+    is_accessory: bool = False
     #: What can happen to this line, each a link to a dialog on the page
     #: that drew it — see ``n26.core.views.owned.link_stash_actions``.
     #: Empty is a name with nothing to click, which is what a print-out
@@ -1562,7 +1560,7 @@ def stash_lines(gang_card):
             kind=kind_of(node.assignable),
             provenance=stash_provenance(node),
             id=str(node.assignment.pk) if node.assignment is not None else "",
-            can_refit=isinstance(node.assignable, WeaponAccessory),
+            is_accessory=isinstance(node.assignable, WeaponAccessory),
         )
         for node in gang_card.stash_roots
         # No row of its own is the kind's whole contract — a chosen

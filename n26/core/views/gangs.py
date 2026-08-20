@@ -196,7 +196,7 @@ def gang_sheet(request, pk):
     is a content gap showing rather than a screen being withheld.
     """
     from n26.core.card import build_gang_card
-    from n26.core.owned import EquipHost
+    from n26.core.owned import DIALOGS, EquipHost
     from n26.core.render import render_gang
     from n26.core.views.choose import link_slots
     from n26.core.views.learn import link_skills
@@ -215,7 +215,12 @@ def gang_sheet(request, pk):
     # one, because two open modals is not a state the page can mean.
     leaving = _leaving(request, gang) if yours else None
     renaming = None if leaving or not yours else _renaming(request, gang)
-    if yours and not leaving and not renaming:
+    if (
+        yours
+        and not leaving
+        and not renaming
+        and any(request.GET.get(kind) for kind in DIALOGS)
+    ):
         host = EquipHost.stash(gang, build_gang_card(gang), at=at)
         dialog = owned_dialog(request, host)
     return render(

@@ -49,6 +49,11 @@ The gang stash equip catalogue — expects `catalogue`, picker context, `action`
             {% endif %}
         {% endif %}
     </c-slot>
+    {% if stash_tab %}
+        <c-slot name="empty">
+            Nothing in the stash yet.
+        </c-slot>
+    {% endif %}
     {% for section in catalogue.sections %}
         <c-n26.collection-picker.section :name="section.name" :open="forloop.first">
             {% for category in section.categories %}

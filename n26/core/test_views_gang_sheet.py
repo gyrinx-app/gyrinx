@@ -41,6 +41,23 @@ def test_draws_the_gang(client, tester, gang):
     assert str(gang.gang_type) in body
 
 
+def test_the_sheet_builds_the_gang_card_once(client, tester, gang, monkeypatch):
+    from n26.core import card
+
+    built = []
+    build_gang_card = card.build_gang_card
+
+    def counted(*args, **kwargs):
+        built.append(None)
+        return build_gang_card(*args, **kwargs)
+
+    monkeypatch.setattr(card, "build_gang_card", counted)
+    client.force_login(tester)
+
+    assert client.get(reverse("n26-gang", args=[gang.pk])).status_code == 200
+    assert len(built) == 1
+
+
 def test_the_way_to_the_gang_list_is_named_for_what_it_offers(client, tester, gang):
     """The screen it leads to holds a reader through several hires, so the
     control says so. Hiring a vehicle is its own control and stays
@@ -319,7 +336,9 @@ class TestStashActions:
             op.move(bolted, stash)
         return gun, bolted
 
-    def test_a_stashed_wargear_line_offers_reassign(self, client, tester, gang, gang_type):
+    def test_a_stashed_wargear_line_offers_reassign(
+        self, client, tester, gang, gang_type
+    ):
         from n26.library.authoring import create_wargear
 
         knife = create_wargear("Knife", price=10)

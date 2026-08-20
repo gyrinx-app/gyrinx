@@ -1,47 +1,12 @@
-"""A collection as one fighter sees it: what is for sale, and what they hold.
+"""A browsed collection joined to possessions.
 
-:mod:`n26.core.browse` renders a collection knowing nothing about who is
-reading it — a taxonomy of priced lines, the same shape whether the
-collection was written out by hand or swept together by a selector.
-:mod:`n26.core.owned` reads the other half off the fighter's card: which
-copies of which content they are already carrying.
+A category contains either :class:`Listing` or :class:`OwnedRow` for a
+piece of content. An owned row keeps its listing when another copy can be
+bought; stash-only rows have no listing. Actions state their meaning and
+target while templates decide how to draw them.
 
-A catalogue is the two joined. It is what the equip screen draws, and
-it is a structure rather than a bag of dictionaries so that the join has
-one definition: a test can build one and ask what a row offers without
-going through a request, and a gallery can build one without a database.
-
-  --- owning something replaces its row ---
-
-A category holds :class:`Listing` or :class:`OwnedRow`, one or the
-other for a given piece of content, never both and never a flag on one type.
-Where the fighter holds one of the thing a row names, the row says so
-instead of offering another: the count stands where Buy would be and
-opens onto the copies themselves.
-
-The ordinary row is not lost when that happens — it is nested, as
-:attr:`OwnedRow.buy`, unconditionally. That is how a reader buys a
-second, and it is the same row they would have seen had they owned none,
-so there is one definition of what buying this thing looks like.
-
-  --- a row's actions say what they mean, never how to draw it ---
-
-Buy is a submit: the catalogue is one form, and a purchase names its
-line and clicks. Sell, Reassign and Delete are links, because each opens
-a confirmation that is a server-rendered state of the page it was
-clicked on. A template that had to know which of the four was which
-would decide that by name, and the first act added would be drawn wrong.
-
-Tones are the row's own vocabulary — what the control *means* — and a
-template maps them to whatever the button kit calls those colours. So
-nothing here knows that a sale is red.
-
-  --- what a row submits ---
-
-Each input's name is derived from the row's key and carried on the row.
-The server derives the same names when it reads the click back, and a
-name computed twice from two places is a name that eventually disagrees
-with itself.
+Input names live on the rows because the server must derive the same names
+when it validates a purchase.
 """
 
 from dataclasses import dataclass, field
@@ -490,7 +455,6 @@ def copy_row(copy, refunds=True):
 
 
 def owned_row(row, copies, refunds=True):
-    """The same row, for a fighter who is carrying some of these."""
     return OwnedRow(
         key=row.key,
         name=row.name,
@@ -501,7 +465,6 @@ def owned_row(row, copies, refunds=True):
 
 
 def owned_row_manage_only(key, copies, refunds=True):
-    """A row for gear held but not sold by the list being browsed."""
     return OwnedRow(
         key=key,
         name=copies[0].name,
@@ -511,8 +474,7 @@ def owned_row_manage_only(key, copies, refunds=True):
     )
 
 
-def build_stash_catalogue(owned, name="In stash", refunds=True):
-    """Every held copy on the stash tab — manage-only, no buy underneath."""
+def build_stash_catalogue(owned, name, refunds=True):
     catalogue = Catalogue(name=name)
     section = CatalogueSection(name=name)
     rows = [
@@ -529,7 +491,7 @@ def build_stash_catalogue(owned, name="In stash", refunds=True):
 def build_catalogue(view, owned, name=None, refunds=True):
     """A browsed collection joined to what one fighter already holds.
 
-    ``owned`` is the index :func:`n26.core.owned.owned_things` returns,
+    ``owned`` is the index :func:`n26.core.owned.possessions` returns,
     keyed the way rows are keyed — so the join is one dictionary read per
     row, however much the fighter is carrying and however long the list.
 

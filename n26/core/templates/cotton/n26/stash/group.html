@@ -3,18 +3,9 @@
 
     <c-n26.stash.group label="wargear" :lines="lines" />
 
-The kind as the label, the items beside it as a comma-separated run drawn by
-<c-n26.assignable-lines> — so the commas are that component's business, and
-something granted by a modifier carries the same mark it would on a fighter's
-card. Each item's rating sits against its own name rather than in a column;
-nothing is compared down a stash, so a column would spend the width the names
-want.
-
-A group whose lines have acts on them is stacked instead, one line each with a
-menu on the right: gear in the stash is waiting to be handed to someone, and a
-comma-separated run has nowhere to put a control. The choice is read off the
-first line, since a group is all one kind. Print-outs and readers who do not
-own the gang always take the compact form, having no menu at all.
+A read-only group is a compact comma-separated run. Actions require one row per
+item so each menu stays beside the assignment it changes; print and read-only
+sheets therefore remain compact.
 
   label — the kind. Capitalised here because kinds arrive from a model's
     verbose_name, written lower case to appear mid-sentence.

@@ -1,10 +1,8 @@
-"""Buying equipment for the gang: the stash's own end of the equip page.
+"""Buying and managing equipment in a gang's stash.
 
 ``browse``, ``Operation.buy`` and the fighter's equip page have their own
-tests — these are about what the gang anchor changes. A purchase lands in
-the stash rather than on anybody's card, the lists offered are the gang's
-own, one tab is the whole library, and no line is marked usable or not,
-because a restriction is about a model and the stash is not one.
+tests. These cover the gang-specific destination, lists, stash management,
+and the absence of fighter usability rules.
 """
 
 import pytest
@@ -96,12 +94,6 @@ class TestTheWayIn:
 
         assert "Equip" in body
         assert reverse("n26-equip-gang", args=[gang.pk]) in body
-        assert "Buy Equipment" not in body
-
-    def test_the_gang_header_does_not_offer_buy_equipment(self, client, tester, gang):
-        client.force_login(tester)
-        body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
-
         assert "Buy Equipment" not in body
 
     def test_a_reader_who_does_not_own_it_is_offered_nothing(self, client, gang):
@@ -634,7 +626,7 @@ class TestStashManagement:
         client.force_login(tester)
         body = client.get(equip_url(gang, house_list)).content.decode()
 
-        assert "Equip" in body
+        assert ">Equip</h1>" in body
         assert "Buy Equipment" not in body
 
     def test_a_held_item_on_the_browsed_list_draws_in_stash(
@@ -672,7 +664,6 @@ class TestStashManagement:
         assert on_stash.context["stash_tab"] is True
         assert "Autogun" in body
         assert f"sell={bought.pk}" in body
-        assert "Everything the gang holds in its stash" not in body
 
     def test_selling_from_the_stash_tab_returns_to_it(
         self, client, tester, gang, house_list
@@ -686,11 +677,8 @@ class TestStashManagement:
         client.force_login(tester)
         response = client.post(
             reverse("n26-sell", args=[bought.pk]),
-            {
-                "list": "stash",
-                "return": equip_url(gang, scope="stash"),
-            },
+            {"return": equip_url(gang, scope="stash")},
         )
 
         assert response.status_code == 302
-        assert "list=stash" in response["Location"]
+        assert response["Location"] == equip_url(gang, scope="stash")
