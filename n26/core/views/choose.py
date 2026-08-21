@@ -115,6 +115,46 @@ def _find_slot(gang, key):
     raise Http404("No such choice")
 
 
+def _one_at_a_time(gang):
+    """Hold the gang while this answer is written.
+
+    A question with one answer is settled by replacing what stands, and
+    two answers arriving together would each look first and find nothing
+    standing — a double click on Choose is exactly that, and it leaves
+    the question answered twice. Taking the gang's own line first makes
+    the second wait for the first, so it reads what the first wrote.
+
+    Held for the length of the operation's transaction, and only against
+    others taking it: one gang's answers are settled one at a time,
+    while everything else goes on as before.
+    """
+    from n26.core.models import Gang
+
+    Gang.objects.select_for_update().filter(pk=gang.pk).first()
+
+
+def _standing_answers(found):
+    """Whatever already answers this question, read afresh.
+
+    The page named the picks it drew, but it was built before this
+    answer — and before any other in flight. What settles the question
+    is what the database says now: the live assignments hanging from
+    this anchor that name this choice.
+    """
+    from n26.core.models import Assignment
+
+    standing = Assignment.objects.filter(
+        caused_by=found.anchor, archived=False
+    ).exclude(removes=True)
+    slot = found.slot.slot
+    if slot is not None:
+        return list(standing.filter(chosen_for_slot=slot))
+    offer = found.slot.offer
+    if offer is not None:
+        return list(standing.filter(chosen_for_offer=offer))
+    return []
+
+
 def _host(found):
     """Whose choice this is, when the carrier cannot say.
 
@@ -226,18 +266,17 @@ def choose(request, pk, slot):
         landing = request.path if offer.takes_several else back
         try:
             with operation(gang, actor=request.user) as op:
+                _one_at_a_time(gang)
                 if dropped:
                     op.remove(held.assignment)
                 else:
-                    if (
-                        not offer.takes_several
-                        and found.slot.is_full
-                        and found.slot.picks
-                    ):
-                        # One pick, already made: the new pick replaces it.
-                        standing = found.slot.picks[0]
-                        if standing.assignment is not None:
-                            op.remove(standing.assignment)
+                    if not offer.takes_several:
+                        # One pick, already made: the new pick replaces
+                        # it. Read from the database rather than from the
+                        # page, which was built before this answer — and
+                        # possibly before another one landed.
+                        for standing in _standing_answers(found):
+                            op.remove(standing)
                     op.choose(
                         found.anchor,
                         picked.thing,

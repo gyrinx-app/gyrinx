@@ -206,6 +206,69 @@ def top_level_rows(gang):
     ]
 
 
+class TestAnAnswerArrivingTwice:
+    """A question with one answer keeps one answer, however the second
+    arrives.
+
+    Answering replaces what stands, and the picker used to decide what
+    stood from the page it had drawn. Two answers sent at once are each
+    drawn from a page where the question is open, so each found nothing
+    to replace and both landed — a double click on Choose, and the
+    question answered twice ever after. What stands is read from the
+    database now, inside the operation, with the gang held while it is
+    written.
+    """
+
+    def test_a_second_answer_replaces_the_first(
+        self, client, owner, gang, affiliations
+    ):
+        top, _ = affiliations
+        client.force_login(owner)
+        url = picker_url(gang, "Affiliation")
+
+        client.post(url, {"thing": thing_key(top["Clanless"])})
+        client.post(url, {"thing": thing_key(top["Mutant"])})
+
+        assert [str(row.assignable) for row in top_level_rows(gang)] == [
+            "Mutant Outcast"
+        ]
+
+    @pytest.mark.django_db(transaction=True)
+    def test_two_answers_at_once_still_leave_one(self, owner, gang, affiliations):
+        """The double click, as it happens: two posts in flight together,
+        neither able to see what the other is writing."""
+        import threading
+
+        from django.db import connections
+        from django.test import Client
+
+        top, _ = affiliations
+        url = picker_url(gang, "Affiliation")
+        payload = {"thing": thing_key(top["Clanless"])}
+        together = threading.Barrier(2, timeout=10)
+        went_wrong = []
+
+        def answer():
+            try:
+                each = Client()
+                each.force_login(owner)
+                together.wait()
+                each.post(url, payload)
+            except Exception as bad:  # noqa: BLE001 — reported, not raised
+                went_wrong.append(repr(bad))
+            finally:
+                connections.close_all()
+
+        clicks = [threading.Thread(target=answer) for _ in range(2)]
+        for click in clicks:
+            click.start()
+        for click in clicks:
+            click.join(timeout=30)
+
+        assert went_wrong == []
+        assert len(top_level_rows(gang)) == 1
+
+
 class TestTheAffiliationPicker:
     """The first question: four things on offer, and only those."""
 
