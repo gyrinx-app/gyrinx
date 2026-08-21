@@ -17,8 +17,14 @@ set -euo pipefail
 # repository is public and the config names the Google Cloud project. Writing it
 # here rather than in install.sh keeps it out of the build snapshot.
 #
-# The file lands outside the workspace so it never appears in git status.
-# GOOGLE_APPLICATION_CREDENTIALS must point at this same path, and
+# The path is a fixed absolute location rather than anything under $HOME. It has
+# to be stated identically in the GOOGLE_APPLICATION_CREDENTIALS environment
+# variable, and a path that depends on which user the agent runs as is a silent
+# mismatch waiting to happen. It also sits outside the workspace, so it never
+# appears in git status and cannot be committed to a public repository by
+# accident.
+#
+# GOOGLE_APPLICATION_CREDENTIALS must name this same path and
 # GOOGLE_EXTERNAL_ACCOUNT_ALLOW_EXECUTABLES must be 1; both are set as Cursor
 # environment variables, because exports from this script do not reach the
 # agent's own shell.
@@ -26,7 +32,7 @@ set -euo pipefail
 # An unset variable is the normal case: agents that do not need production
 # access simply skip this.
 # ---------------------------------------------------------------------------
-WIF_CONFIG_PATH="${HOME}/.gcp/cursor-wif.json"
+WIF_CONFIG_PATH="/tmp/cursor-wif.json"
 if [ -n "${GCP_WIF_CONFIG:-}" ]; then
   if printf '%s' "$GCP_WIF_CONFIG" | jq -e 'type == "object"' >/dev/null 2>&1; then
     mkdir -p "$(dirname "$WIF_CONFIG_PATH")"
