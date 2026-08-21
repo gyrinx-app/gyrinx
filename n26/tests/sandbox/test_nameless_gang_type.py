@@ -230,6 +230,20 @@ class TestRepointing:
         assert "Escher" in told
         assert opening_act.actor
 
+    def test_a_gang_with_no_founding_counts_nothing_of_anybody_elses(
+        self, played_on_it, escher
+    ):
+        """Asked what a founding caused when there is no founding, the
+        question becomes "caused by nothing" — which every assignment
+        anybody was ever given answers."""
+        played_on_it.founding = None
+        played_on_it.save(update_fields=["founding", "modified"])
+
+        found = find()
+
+        assert found.replaced == 0
+        assert found.repoint == ((played_on_it.pk, escher.pk),)
+
     def test_the_nameless_type_goes_once_nothing_stands_on_it(
         self, played_on_it, founded_on_it, escher
     ):

@@ -270,8 +270,12 @@ def find():
         # built-ins arrive. A nameless type carrying built-ins is refused
         # above, so this is normally nothing — counted rather than
         # assumed, because the preview promises the gang keeps what it
-        # owns and that promise should be checked.
-        replaced += Assignment.objects.filter(caused_by_id=gang.founding_id).count()
+        # owns and that promise should be checked. Only where there is a
+        # founding to have caused anything: asked about no founding at
+        # all, the question becomes "caused by nothing", which every
+        # assignment a gang was ever given answers.
+        if gang.founding_id:
+            replaced += Assignment.objects.filter(caused_by_id=gang.founding_id).count()
 
     doomed_gang_ids = {gang.pk for gang in doomed_gangs}
     foundings = {gang.founding_id for gang in doomed_gangs if gang.founding_id}

@@ -680,6 +680,9 @@ class Operation:
         if founding is None:
             return self.found(gang_type)
         founding.caused.all().delete()
+        # Any option recorded against the founding was an option of the
+        # type it used to name, and the new one does not offer it.
+        founding.chosen_options.all().delete()
         founding.gang_type = gang_type
         founding.save()
         Stash.objects.get_or_create(gang=self.gang)
