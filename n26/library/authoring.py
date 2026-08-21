@@ -61,8 +61,11 @@ def create_gang_type(
 ):
     """A kind of gang. The name is the whole of what a player sees when
     the create-gang page offers it, so a blank one is refused here rather
-    than drawn as an empty card — whatever path asked for it."""
-    if not (name or "").strip():
+    than drawn as an empty card — whatever path asked for it. Stored
+    stripped, since a padded name draws with the padding.
+    """
+    name = (name or "").strip()
+    if not name:
         raise ValidationError("A gang type needs a name.")
     return GangType.objects.create(
         name=name,

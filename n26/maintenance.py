@@ -462,13 +462,14 @@ def convert_archetype_view(request):
 PILOT_WORDS = {
     "noun": "retirement",
     "intro": (
-        "This deletes — one of the two operations that do. The pilot was a "
-        "hand-built experiment whose pickables carry nothing, and its rows "
+        "This deletes library rows and the assignments answering them. The "
+        "pilot was a hand-built experiment whose pickables carry nothing, and its rows "
         "squat on the names the real Gang Legacy conversion needs. Every row "
         "it would delete is listed below; it refuses if anything outside the "
         "pilot has come to depend on them."
     ),
     "nothing_heading": "Nothing to retire",
+    "nothing_flash": "There was nothing to retire.",
     "nothing_words": (
         "No slot type of the pilot's name stands. It has been retired "
         "already, or was never here."
@@ -481,7 +482,7 @@ PILOT_WORDS = {
 NAMELESS_WORDS = {
     "noun": "deletion",
     "intro": (
-        "This deletes — one of the two operations that do. An ingest planned "
+        "This deletes a library row and a player's gang. An ingest planned "
         "a gang type from a blank Gang cell, so a type with no name was "
         "founded and drew as an empty card on the create-gang page. This "
         "deletes that row, and any gang founded on it — a gang of nothing, "
@@ -489,6 +490,7 @@ NAMELESS_WORDS = {
         "been played: anything beyond its founding assignment, and it stays."
     ),
     "nothing_heading": "Nothing to delete",
+    "nothing_flash": "There was nothing to delete — every gang type has a name.",
     "nothing_words": "Every gang type in the pack has a name.",
     "refuses_heading": "The deletion refuses",
     "button": "Delete the nameless gang type",
@@ -514,7 +516,7 @@ def _deletion_view(request, operation, find_fn, task_fn, words):
             )
         plan = find_fn()
         if plan.nothing_here:
-            messages.info(request, words["nothing_words"])
+            messages.info(request, words["nothing_flash"])
             return HttpResponseRedirect(address)
         if not plan.ok:
             messages.error(
@@ -550,6 +552,7 @@ def _deletion_view(request, operation, find_fn, task_fn, words):
 
 
 def retire_gang_legacy_pilot_view(request):
+    """Preview the pilot retirement (GET), or record a run and enqueue it."""
     from n26.library.gang_legacy_pilot import find
 
     return _deletion_view(
@@ -562,6 +565,7 @@ def retire_gang_legacy_pilot_view(request):
 
 
 def delete_nameless_gang_type_view(request):
+    """Preview the deletion (GET), or record a run and enqueue it."""
     from n26.library.nameless_gang_type import find
 
     return _deletion_view(
@@ -615,7 +619,7 @@ register_operation(
             "anything outside the pilot has come to depend on it."
         ),
         view=retire_gang_legacy_pilot_view,
-        detail_template="admin/maintenance/n26/_convert_detail.html",
+        detail_template="admin/maintenance/n26/_delete_detail.html",
     )
 )
 
@@ -665,7 +669,7 @@ register_operation(
             "anything has been authored onto."
         ),
         view=delete_nameless_gang_type_view,
-        detail_template="admin/maintenance/n26/_convert_detail.html",
+        detail_template="admin/maintenance/n26/_delete_detail.html",
     )
 )
 

@@ -1042,9 +1042,9 @@ def _plan_profiles(plan, rows):
 
         gang_name = _clean(row.get("Gang", ""))
         if not gang_name:
-            # Planned anyway, a blank cell founds a gang type with no
-            # name, which draws as an empty card on the create-gang page
-            # — and lands first, nothing sorting before nothing.
+            # Every entry is hired off a gang list, and a gang type with
+            # no name draws as an empty card on the create-gang page,
+            # landing before every real one — nothing sorts before nothing.
             plan.problem(
                 source,
                 f"{name!r} names no Gang — every entry is hired off a gang "

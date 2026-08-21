@@ -1,0 +1,26 @@
+{% comment %}
+    The summary of one deletion run, on the Backfill detail page: what it
+    was going to delete, and — once it has finished — what it did. A
+    conversion's caption cannot stand in here: it promises that nothing is
+    written until every affected gang is proven, which is a promise a
+    deletion does not make.
+{% endcomment %}
+{% if backfill.summary.report %}
+    <h2>What it did</h2>
+    <ul>
+        {% for line in backfill.summary.report %}<li>{{ line }}</li>{% endfor %}
+    </ul>
+{% elif backfill.summary.preview %}
+    <h2>What it is doing</h2>
+    <p>
+        These are the rows it planned to delete. The deletion is one transaction,
+        so a run still working has deleted nothing yet, and a run that fails or is
+        interrupted leaves every row standing.
+    </p>
+    <ul>
+        {% for line in backfill.summary.preview %}<li>{{ line }}</li>{% endfor %}
+    </ul>
+{% endif %}
+{% if backfill.summary.attempts %}
+    <p>Started {{ backfill.summary.attempts }} time{{ backfill.summary.attempts|pluralize }}.</p>
+{% endif %}

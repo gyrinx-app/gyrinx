@@ -35,12 +35,13 @@ class CreateGangForm(forms.Form):
     # type. Only this screen narrows: a gang founded before a type was turned
     # off still names it everywhere it is drawn.
     gang_type = forms.ModelChoiceField(
-        # Nameless is excluded as well as unfoundable: a type with no name
-        # draws as an empty card that sorts before everything, and there is
-        # no answer a player could give it. Belt and braces — nothing may
-        # author one (n26.library.authoring.create_gang_type) — but one
-        # already in a pack must not be offered.
-        queryset=GangType.objects.filter(foundable=True).exclude(name=""),
+        # Nameless is narrowed away as well as unfoundable. A type whose
+        # name is empty — or only whitespace, which draws the same — is an
+        # empty card sorting before every real one, and no answer a player
+        # could give. The verb refuses to author one
+        # (n26.library.authoring.create_gang_type); a row already in a pack
+        # is what this excludes.
+        queryset=GangType.objects.filter(foundable=True).exclude(name__regex=r"^\s*$"),
         label="Gang type",
         help_text=(
             "What the gang is, which fixes who you can hire and what they may carry."
