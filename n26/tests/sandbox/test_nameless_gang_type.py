@@ -175,7 +175,9 @@ class TestRepointing:
         assert {
             m.pk for m in Miniature.objects.filter(membership__gang=played_on_it)
         } == models
-        assert played_on_it.rating >= was_rating
+        # Not "no less than": built-ins arrive free, so a repoint cannot
+        # move the rating at all, and anything that does is a regression.
+        assert played_on_it.rating == was_rating
         assert_reconciled(played_on_it)
 
     def test_the_new_type_brings_its_built_ins(self, played_on_it, escher):

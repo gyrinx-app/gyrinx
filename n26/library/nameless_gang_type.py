@@ -252,7 +252,8 @@ def find():
             standing_on.add(gang.gang_type_id)
             continue
         repoint.append((gang.pk, target))
-        said[target] = str(GangType.objects.get(pk=target))
+        if target not in said:
+            said[target] = str(GangType.objects.get(pk=target))
         # What the old type gave the gang goes when the new type's
         # built-ins arrive. A nameless type carrying built-ins is refused
         # above, so this is normally nothing — counted rather than
