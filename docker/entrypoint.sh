@@ -48,7 +48,12 @@ manage ensuresuperuser --no-input
 # No access log: Cloud Run request logs already cover it.
 # The DB pool in gyrinx/settings_prod.py is sized per worker process —
 # change the worker count and the pool max_size together.
+# --limit-request-line: a print pick rides in the address, one parameter per
+#   ticked model and weapon, so a big roster makes a long request line. Past
+#   the limit gunicorn answers 414 itself — no Django, no page, no log line —
+#   so the room is worth having rather than discovering.
 exec gunicorn --bind "0.0.0.0:${PORT:-8000}" --workers 2 --threads 20 --timeout 0 \
   --max-requests 1000 --max-requests-jitter 100 \
+  --limit-request-line 8190 \
   --error-logfile /dev/stdout \
   "gyrinx.wsgi:application"

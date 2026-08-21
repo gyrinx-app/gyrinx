@@ -14,6 +14,7 @@ both: a roster may be read by a visitor, and printed by a player.
 
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
+from django.db.models import Count
 from django.shortcuts import redirect, render
 from django.urls import reverse
 
@@ -149,10 +150,13 @@ def _what_to_print(request, gang, config):
     an address that ticked nothing and one that asked for everything would
     be the same address, and they mean opposite things.
 
-    Models are answered as the strings the URL holds, matched against each
-    model's id where the roster is narrowed; weapons as real ids, because a
-    card is filtered by the assignments it holds. ``None`` in either place
-    means no narrowing.
+    Both are read as ids and answered in the shape their reader wants:
+    models as strings, matched against each model's id where the roster is
+    narrowed, weapons as ids themselves, because a card is filtered by the
+    assignments it holds. Reading both the same way is what stops the two
+    spellings of an id — the short one and the long one — meaning
+    different things in the one address. ``None`` in either place means no
+    narrowing.
     """
     if config is not None:
         return (
@@ -163,7 +167,7 @@ def _what_to_print(request, gang, config):
         )
     if request.GET.get("pick"):
         return (
-            set(request.GET.getlist("fighters")),
+            {str(model_id) for model_id in _ids(request.GET.getlist("fighters"))},
             _weapons_named(gang, request.GET.getlist("weapons")),
             bool(request.GET.get("include_header")),
             bool(request.GET.get("include_stash")),
@@ -185,12 +189,12 @@ def print_setup(request, pk):
     id. A named POST saves under that name; an unnamed one rewrites the
     gang's single scratch config, so ad-hoc prints never pile up rows.
 
-    Two guards rather than one, because the screen and the act behind it
-    are not the same permission. Anyone signed in may read the setup —
-    the gang's saved setups included, each still one click to print. Only
-    the owner may POST, saving being a write on their gang; everyone else
-    submits the same boxes to the print page as a GET, which prints the
-    pick without keeping it.
+    Two guards, because the screen and the act behind it are not the same
+    permission. Anyone signed in may read the setup — the gang's saved
+    setups included, each still one click to print. Only the owner may
+    POST, saving being a write on their gang; everyone else submits the
+    same boxes to the print page as a GET, which prints the pick without
+    keeping it.
     """
     from n26.core.models import Assignment, Miniature, PrintConfig
     from n26.core.render import render_gang
@@ -201,12 +205,12 @@ def print_setup(request, pk):
         miniatures = Miniature.objects.filter(
             membership__gang=gang,
             membership__archived=False,
-            pk__in=request.POST.getlist("fighters"),
+            pk__in=_ids(request.POST.getlist("fighters")),
         )
         weapons = Assignment.objects.filter(
             gang_root=gang,
             weapon__isnull=False,
-            pk__in=request.POST.getlist("weapons"),
+            pk__in=_ids(request.POST.getlist("weapons")),
         )
         # Matched on the lowercased name, which is what the gang is
         # unique over: saving "Roster" where the gang already holds
@@ -230,8 +234,11 @@ def print_setup(request, pk):
     sheet = render_gang(gang)
     # The gang's named setups, whoever is reading: each is one click to
     # print, and a reader printing for somebody else wants the setup that
-    # somebody else already settled on.
-    saved = list(gang.print_configs.exclude(name=""))
+    # somebody else already settled on. The model count is counted in the
+    # same query, the row saying it being drawn once per setup.
+    saved = list(
+        gang.print_configs.exclude(name="").annotate(model_count=Count("miniatures"))
+    )
     if loaded is not None:
         ticked_models = {
             str(pk) for pk in loaded.miniatures.values_list("pk", flat=True)

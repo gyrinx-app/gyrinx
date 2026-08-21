@@ -165,7 +165,7 @@ that said it twice would be spending the width the name needs.
                     </c-ui.dropdown>
                 </c-n26.button-group>
             </c-slot>
-        {% elif user.is_authenticated %}
+        {% elif may_print %}
             <c-slot name="secondary_actions">
                 <c-ui.button size="sm"
                              variant="default"

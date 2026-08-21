@@ -21,8 +21,7 @@ and creating one are one screen, not two.
 A reader who does not own the gang gets the same boxes and none of the
 saving: no name field, no Edit beside a saved setup, and the form submits
 to the print page as a GET rather than writing a config here. Where it
-posts and what it says are the view's answers, not this template's — the
-two differ in more places than a template condition reads well in.
+posts and what it says are the view's answers, not this template's.
 
 The way out leads to the gang's sheet: this page is only ever reached from
 there, and a reader who decides against printing wants the gang back rather
@@ -85,7 +84,7 @@ that said it twice would be spending the width the name needs.
                             <div class="min-w-0 flex-1">
                                 <p class="font-medium text-ink-900 dark:text-ink-100">{{ config.name }}</p>
                                 <p class="text-sm text-muted">
-                                    {{ config.miniatures.count }} model{{ config.miniatures.count|pluralize }}
+                                    {{ config.model_count }} model{{ config.model_count|pluralize }}
                                     {% if not config.include_header %}· no header{% endif %}
                                     {% if not config.include_stash %}· no stash{% endif %}
                                 </p>

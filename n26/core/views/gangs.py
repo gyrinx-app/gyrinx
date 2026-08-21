@@ -231,6 +231,10 @@ def gang_sheet(request, pk):
             "gang": gang,
             "sheet": sheet,
             "yours": yours,
+            # Printing follows reading rather than owning, so a reader
+            # who does not own the gang is still offered it — but a
+            # visitor who has not signed in is not.
+            "may_print": request.user.is_authenticated,
             # A reader who does not own this gang reads it and nothing
             # more: the cards drop every control, and a choice still to
             # be made is the words alone.

@@ -122,9 +122,9 @@ class TestNothingToClick:
     so a reader who does not own it gets none of them — not a disabled
     one, which is a control saying no, but nothing at all.
 
-    Printing is the one exception, and has a class of its own below: it
-    is not an act on the gang, only the reader's own copy of what they
-    are already reading."""
+    Printing is the one exception, and has its own class in
+    ``TestPuttingItOnPaper``: it is not an act on the gang, only the
+    reader's own copy of what they are already reading."""
 
     def test_the_gang_level_controls_are_the_owners_alone(
         self, client, owner, gang, at
@@ -194,8 +194,9 @@ class TestPuttingItOnPaper:
         assert "Vex" in paper.content.decode()
 
     def test_printing_is_all_it_buys_them(self, client, stranger, gang, at):
-        """The Print control is an exception to the rule above it, not a
-        crack in it: the acts on the gang are still the owner's."""
+        """The Print control is an exception to the rule in
+        ``TestNothingToClick``, not a crack in it: the acts on the gang
+        are still the owner's."""
         client.force_login(stranger)
         body = read(client, at)
 

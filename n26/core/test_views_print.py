@@ -356,6 +356,9 @@ class TestPrintingSomebodyElsesGang:
         body = client.get(setup_url(gang)).content.decode()
 
         assert "Tournament crew" in body
+        # The count is counted in the view; a missing one would draw as
+        # nothing here rather than raising.
+        assert "1 model" in body
         assert f"{print_url(gang)}?config={config.pk}" in body
         # Editing it would mean saving it, which is not theirs to do.
         assert f"{setup_url(gang)}?config={config.pk}" not in body
@@ -376,6 +379,19 @@ class TestPrintingSomebodyElsesGang:
         # history and into any link the reader sends on.
         assert "csrfmiddlewaretoken" not in body
 
+    def test_the_owners_screen_still_saves(self, client, tester, gang, roster):
+        """The other side of the test above, which alone would stay green
+        if the owner's form regressed to the reader's arm — their Print
+        would then quietly print without saving, or refuse on the token."""
+        client.force_login(tester)
+
+        body = client.get(setup_url(gang)).content.decode()
+
+        assert f'action="{setup_url(gang)}"' in body
+        assert 'method="post"' in body
+        assert "csrfmiddlewaretoken" in body
+        assert 'name="name"' in body
+
     def test_the_boxes_on_the_screen_print_what_they_say(
         self, client, stranger, gang, roster
     ):
@@ -394,9 +410,17 @@ class TestPrintingSomebodyElsesGang:
         client.force_login(stranger)
         body = client.get(setup_url(gang)).content.decode()
 
-        action = re.search(r'action="([^"]*)"', body).group(1)
+        # The print form alone, found by the marker only it carries — the
+        # layout's own forms and inputs would otherwise be read as part of
+        # this one, and a retargeted action would go unnoticed.
+        form = next(
+            piece for piece in body.split("<form ")[1:] if 'name="pick"' in piece
+        )
+        opening = form.split(">")[0]
+        assert 'method="get"' in opening
+        action = re.search(r'action="([^"]*)"', opening).group(1)
         sent = []
-        for chunk in body.split("<input")[1:]:
+        for chunk in form.split("<input")[1:]:
             chunk = chunk.split(">")[0]
             name = re.search(r'name="([^"]+)"', chunk)
             if name is None:
@@ -418,6 +442,24 @@ class TestPrintingSomebodyElsesGang:
         assert "Lasgun" in paper
         assert "Stub Gun" in paper
         assert "Rating" in paper
+
+    def test_an_unreadable_id_costs_that_id_when_the_owner_saves_too(
+        self, client, tester, gang, roster
+    ):
+        """The owner's save reads ids the same way the reader's print
+        does. Handed one that is not an id, it drops that one rather than
+        raising the field's refusal up as a 500."""
+        vex, _ = roster
+        client.force_login(tester)
+
+        response = client.post(
+            setup_url(gang),
+            {"name": "Vex alone", "fighters": [str(vex.pk), "not-an-id"]},
+        )
+
+        assert response.status_code == 302
+        config = PrintConfig.objects.get(gang=gang, name="Vex alone")
+        assert list(config.miniatures.all()) == [vex]
 
     def test_a_strangers_post_saves_nothing(self, client, stranger, gang, roster):
         vex, _ = roster
@@ -509,6 +551,23 @@ class TestPrintingSomebodyElsesGang:
 
         assert "Vex" in body
         assert "Lasgun" in body
+
+    def test_either_spelling_of_an_id_names_the_same_model(
+        self, client, stranger, gang, roster
+    ):
+        """An id has a short spelling and a long one, and an address is a
+        thing people build. Weapons have always read both; models reading
+        only one would print an empty sheet for a link that named them."""
+        vex, _ = roster
+        client.force_login(stranger)
+
+        body = client.get(
+            print_url(gang),
+            {"pick": "1", "fighters": [str(vex.pk.to_uuid())]},
+        ).content.decode()
+
+        assert "Vex" in body
+        assert "Sull" not in body
 
     def test_another_gangs_weapon_cannot_be_smuggled_onto_the_paper(
         self, client, stranger, gang, roster, gang_type, make_profile
