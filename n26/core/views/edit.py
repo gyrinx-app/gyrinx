@@ -404,7 +404,8 @@ def edit_fighter(request, pk):
             messages.success(request, "Notes saved.")
         else:
             # The picture is the one field that can refuse — a file that
-            # is not an image. The page rebuilds below with the reason.
+            # is not an image. The reason travels as a message to the
+            # page this redirects back to.
             for wrong in form.errors.get("image", []):
                 messages.error(request, wrong)
         return redirect("n26-edit-fighter", pk=miniature.pk)
