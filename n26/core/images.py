@@ -54,14 +54,15 @@ def to_shape(upload, ratio):
 def _fitted(size, ratio):
     """The largest ``ratio``-shaped box the picture can fill, capped.
 
-    The crop window first: as much of the picture as the ratio allows.
-    Then the cap, shrinking the window's scale and never its shape.
+    Whole multiples of the ratio pair, so the stored shape is the ratio
+    exactly — rounding each side on its own drifts on small pictures,
+    and the surfaces drawing these assume the shape rather than
+    measuring the file. The pair is coprime, so multiples lose at most
+    a sliver of a ratio-step off each edge.
     """
     width, height = size
     across, down = ratio
-    scale = min(width / across, height / down)
-    box_w, box_h = across * scale, down * scale
-    if max(box_w, box_h) > MAX_PX:
-        shrink = MAX_PX / max(box_w, box_h)
-        box_w, box_h = box_w * shrink, box_h * shrink
-    return (max(1, round(box_w)), max(1, round(box_h)))
+    times = int(min(width / across, height / down))
+    cap = MAX_PX // max(across, down)
+    times = max(1, min(times, cap))
+    return (across * times, down * times)

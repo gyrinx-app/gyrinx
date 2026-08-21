@@ -94,14 +94,17 @@ reads the config after that listener has run.
                                  description="Shown against the gang wherever it is listed." />
         </c-n26.form-section>
         <c-n26.form-section title="Notes &amp; Lore">
-            <c-ui.field label="Notes"
-                        description="{{ form.notes.help_text }}"
-                        for="gang-notes">
-                <c-n26.rich-text :field="form.notes" />
-            </c-ui.field>
-            <c-ui.field label="Lore" description="{{ form.lore.help_text }}" for="gang-lore">
-                <c-n26.rich-text :field="form.lore" />
-            </c-ui.field>
+            {% comment %}
+            The editor wraps itself in the field — label, description and
+            errors ride the component, and a second wrapper would draw the
+            frame twice.
+            {% endcomment %}
+            <c-n26.rich-text :field="form.notes"
+                             label="Notes"
+                             description="{{ form.notes.help_text }}" />
+            <c-n26.rich-text :field="form.lore"
+                             label="Lore"
+                             description="{{ form.lore.help_text }}" />
         </c-n26.form-section>
         <c-n26.form-section title="Picture">
             {% comment %}

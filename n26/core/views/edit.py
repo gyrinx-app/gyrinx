@@ -390,7 +390,7 @@ def edit_fighter(request, pk):
             record(request, N26Noun.MODEL, EventVerb.UPDATE, miniature, lore=True)
             messages.success(request, "Lore saved.")
         return redirect("n26-edit-fighter", pk=miniature.pk)
-    elif request.method == "POST":
+    elif request.method == "POST" and request.POST.get("act", "notes") == "notes":
         form = FighterNotesForm(request.POST, request.FILES)
         if form.is_valid():
             with operation(gang, actor=request.user) as op:
@@ -408,6 +408,11 @@ def edit_fighter(request, pk):
             # page this redirects back to.
             for wrong in form.errors.get("image", []):
                 messages.error(request, wrong)
+        return redirect("n26-edit-fighter", pk=miniature.pk)
+    elif request.method == "POST":
+        # An act this page does not know writes nothing — the notes form
+        # is not a place for a stray submit to land, because its empty
+        # box is a real answer and would clear what is written.
         return redirect("n26-edit-fighter", pk=miniature.pk)
 
     if statline_edit is None and statline_class is not None:

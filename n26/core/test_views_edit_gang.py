@@ -251,6 +251,22 @@ class TestNotesLoreAndPicture:
             == 1
         )
 
+    def test_the_history_says_what_happened_in_gang_words(self, client, tester, gang):
+        client.force_login(tester)
+        client.post(
+            edit_url(gang),
+            {
+                "name": gang.name,
+                "notes": "<p>Meet at the sump gate.</p>",
+                "lore": "<p>Founded on a debt.</p>",
+            },
+        )
+        body = client.get(reverse("n26-gang-history", args=[gang.pk])).content.decode()
+        assert (
+            "edited the gang&#x27;s notes" in body or "edited the gang's notes" in body
+        )
+        assert "edited the gang&#x27;s lore" in body or "edited the gang's lore" in body
+
     def test_the_form_reads_them_back(self, client, tester, gang):
         gang.notes = "<p>Meet at the sump gate.</p>"
         gang.save(update_fields=["notes"])

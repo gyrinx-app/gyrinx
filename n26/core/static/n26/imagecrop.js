@@ -50,6 +50,10 @@
         var zoom = sliders[0];
         var panX = sliders[1];
         var panY = sliders[2];
+        // toBlob is asynchronous and a dragged slider redraws many times;
+        // the encodings can finish out of order, so each redraw takes a
+        // number and only the newest is allowed to set the file.
+        var latest = 0;
 
         // The window's base size: the largest ratio-shaped box the picture
         // holds. Zoom shrinks the window (showing less, larger); pan slides
@@ -85,9 +89,10 @@
                     canvas.width,
                     canvas.height,
                 );
+            var drawn = ++latest;
             canvas.toBlob(
                 function (blob) {
-                    if (!blob) return;
+                    if (!blob || drawn !== latest) return;
                     var transfer = new DataTransfer();
                     var stem = name.replace(/\.[^.]+$/, "");
                     transfer.items.add(

@@ -5,14 +5,15 @@
                             empty="No notes yet.">{{ notes }}</c-n26.model-card.prose>
 
 The written text and a muted Edit under it. With nothing written the empty
-sentence is drawn instead, which is the only thing telling a reader the
-section can be written at all.
+sentence is drawn instead — but only where there is somewhere to edit: the
+sentence exists to tell a reader the section can be written, and a read-only
+card has nothing to tell, so its blank section stays bare.
 
   heading — a title over the text, where the section is not already under one.
     A tab panel is: its tab names it.
-  href — where Edit goes. Without one no link is drawn, which is what a
-    read-only card wants.
-  empty — what to say when there is nothing written.
+  href — where Edit goes. Without one no link is drawn and no empty sentence
+    either, which is what a read-only card wants.
+  empty — what to say when there is nothing written and href says it can be.
 {% endcomment %}
 <c-vars heading="" href="" empty="" class="" />
 
@@ -28,7 +29,7 @@ section can be written at all.
     {% endcomment %}
     {% if slot.strip %}
         <c-n26.prose :measure="False" class="mt-1 text-sm">{{ slot }}</c-n26.prose>
-    {% elif empty %}
+    {% elif empty and href %}
         <p class="mt-1 text-sm text-muted">{{ empty }}</p>
     {% endif %}
 
