@@ -27,6 +27,7 @@ from n26.maintenance import (
     convert_skill_tree_view,
     convert_specialisation,
     convert_specialisation_view,
+    delete_nameless_gang_type_view,
     retire_gang_legacy_pilot_view,
 )
 from n26.tests.sandbox.test_conversion_archetype import (
@@ -493,3 +494,80 @@ class TestTheRunsOwnGuards:
 
         backfill.refresh_from_db()
         assert backfill.status == Backfill.Status.CANCELLED
+
+
+class TestTheNamelessGangTypeDeletion:
+    """The second operation that deletes: an empty-named gang type an
+    ingest founded from a blank Gang cell, and the gang of nothing
+    founded on it."""
+
+    @pytest.fixture
+    def nameless_world(self, owner, default_pack):
+        from n26.library.models import GangType
+        from n26.tests.sandbox.actions import create_gang_type, found_gang
+
+        nameless = GangType.objects.create(name="")
+        create_gang_type("Escher", starting_credits=1000)
+        return found_gang("A Gang Of Nothing", nameless, owner=owner)
+
+    def test_the_operation_is_registered_and_named(self):
+        registered = {op.operation for op in operations()}
+
+        assert Operation.DELETE_NAMELESS_GANG_TYPE.value in registered
+        found = resolve_operation(Operation.DELETE_NAMELESS_GANG_TYPE.value)
+        assert found.name == Operation.DELETE_NAMELESS_GANG_TYPE.label
+        assert found.view is delete_nameless_gang_type_view
+
+    def test_its_page_shows_the_plan_and_writes_nothing(
+        self, client, superuser, nameless_world
+    ):
+        from n26.library.models import GangType
+
+        client.force_login(superuser)
+
+        response = client.get(
+            reverse("admin:maintenance_n26_delete_nameless_gang_type")
+        )
+
+        page = response.content.decode()
+        assert response.status_code == 200
+        assert "delete 1 gang founded on a nameless type" in page
+        assert not Backfill.objects.exists()
+        assert GangType.objects.filter(name="").exists()
+
+    def test_applying_records_what_it_deleted(self, client, superuser, nameless_world):
+        from n26.core.models import Gang
+        from n26.library.models import GangType
+
+        client.force_login(superuser)
+
+        response = client.post(
+            reverse("admin:maintenance_n26_delete_nameless_gang_type")
+        )
+
+        assert response.status_code == 302
+        run = Backfill.objects.get(operation=Operation.DELETE_NAMELESS_GANG_TYPE)
+        assert run.status == Backfill.Status.DONE
+        assert any("deleted" in line for line in run.summary["report"])
+        assert not GangType.objects.filter(name="").exists()
+        assert not Gang.objects.filter(pk=nameless_world.pk).exists()
+        assert GangType.objects.filter(name="Escher").exists()
+
+    def test_a_gang_that_has_been_played_stops_the_run_before_it_records(
+        self, client, superuser, nameless_world, person_type
+    ):
+        """The refusal belongs on the screen of whoever asked for it,
+        not filed as a failed run."""
+        from n26.core.models import Gang
+        from n26.tests.sandbox.actions import create_profile, hire
+
+        profile = create_profile(
+            "Somebody", person_type, nameless_world.gang_type, price=50
+        )
+        hire(nameless_world, profile, "Somebody At All")
+        client.force_login(superuser)
+
+        client.post(reverse("admin:maintenance_n26_delete_nameless_gang_type"))
+
+        assert not Backfill.objects.exists()
+        assert Gang.objects.filter(pk=nameless_world.pk).exists()

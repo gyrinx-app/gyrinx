@@ -710,6 +710,25 @@ Chaos Helot Cult,2-5,,4+,,4,5,2,3,2,5+,,,,,,,,,,,,,
         assert not plan.ok
         assert "another sheet" in plan.problems[0].message
 
+    def test_a_row_with_no_gang_is_sent_back_rather_than_founding_a_nameless_type(
+        self, foundation
+    ):
+        """A gang type planned from a blank Gang cell has no name, and
+        draws on the create-gang page as an empty card that sorts before
+        every real type — with no answer a player could give it."""
+        plan = plan_ingest(
+            profiles=read_csv(
+                """
+Gang,Section,Category,Name,M,WS,BS,S,T,W,I,A,Sv,Ld,Cl,Wil,Int,Type,Subtype(s),Starting XP,Rating,Special Rules,Default skills,Default assignment,Primary Skill Sets,Secondary Skill Sets
+,Dramatis Personae,Hired Gun,Nameless Blade,5",3+,3+,3,3,2,4,2,5+,7,7,7,7,Fighter,Ganger,,80,,,,,
+"""
+            )
+        )
+        assert not plan.ok
+        assert any("names no Gang" in problem.message for problem in plan.problems)
+        assert not [row for row in plan.planned if row.kind == "GangType"]
+        assert plan.get("Profile:nameless blade") is None
+
 
 # --- Stage 3: plan → rows ------------------------------------------------------
 
