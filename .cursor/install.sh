@@ -126,26 +126,30 @@ fi
 # checksum sidecar, so these were computed from the pinned release.
 CSP_VERSION="v2.25.3"
 CSP_BIN="/usr/local/bin/cloud-sql-proxy"
-if ! "$CSP_BIN" --version 2>/dev/null | grep -q "${CSP_VERSION#v}"; then
-  case "$(uname -m)" in
-    x86_64)
-      CSP_ARCH="amd64"
-      CSP_SHA="f0584d79e877a8a46300fe2513840972c44e704c15dc3da6a49d5408f7d6f233"
-      ;;
-    aarch64)
-      CSP_ARCH="arm64"
-      CSP_SHA="9ffbf512ee24dbeca527eb12fc43d7a322724afccf369d7c172995fca35444d9"
-      ;;
-    *)
-      echo "Unsupported architecture $(uname -m) for cloud-sql-proxy" >&2
-      exit 1
-      ;;
-  esac
+case "$(uname -m)" in
+  x86_64)
+    CSP_ARCH="amd64"
+    CSP_SHA="f0584d79e877a8a46300fe2513840972c44e704c15dc3da6a49d5408f7d6f233"
+    ;;
+  aarch64)
+    CSP_ARCH="arm64"
+    CSP_SHA="9ffbf512ee24dbeca527eb12fc43d7a322724afccf369d7c172995fca35444d9"
+    ;;
+  *)
+    echo "Unsupported architecture $(uname -m) for cloud-sql-proxy" >&2
+    exit 1
+    ;;
+esac
+
+# Whether the right binary is already present is decided by its digest rather
+# than by matching its reported version, which would treat 2.25.30 as 2.25.3 and
+# says nothing about whether the file has been altered since it was installed.
+if ! echo "${CSP_SHA}  ${CSP_BIN}" | sha256sum -c --status - 2>/dev/null; then
   log "Installing cloud-sql-proxy ${CSP_VERSION} (${CSP_ARCH})"
   CSP_TMP=$(mktemp)
   curl -sfLo "$CSP_TMP" \
     "https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/${CSP_VERSION}/cloud-sql-proxy.linux.${CSP_ARCH}"
-  echo "${CSP_SHA}  ${CSP_TMP}" | sha256sum -c - >/dev/null
+  echo "${CSP_SHA}  ${CSP_TMP}" | sha256sum -c --status -
   sudo install -m 0755 "$CSP_TMP" "$CSP_BIN"
   rm -f "$CSP_TMP"
 fi

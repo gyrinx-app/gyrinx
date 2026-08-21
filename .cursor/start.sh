@@ -34,16 +34,22 @@ set -euo pipefail
 # agent's own shell.
 #
 # An unset variable is the normal case: agents that do not need production
-# access simply skip this.
+# access simply skip this. Whatever the outcome, what is on disk ends up
+# reflecting the variable, so withdrawing the variable withdraws the access
+# rather than leaving an earlier boot's config in place.
 # ---------------------------------------------------------------------------
 WIF_CONFIG_DIR="/etc/gyrinx"
 WIF_CONFIG_PATH="${WIF_CONFIG_DIR}/cursor-wif.json"
 
-if [ -n "${GCP_WIF_CONFIG:-}" ]; then
+if [ -z "${GCP_WIF_CONFIG:-}" ]; then
+  rm -f "$WIF_CONFIG_PATH"
+else
   if ! printf '%s' "$GCP_WIF_CONFIG" | jq -e 'type == "object"' >/dev/null 2>&1; then
     # Warn rather than exit: a malformed variable should not stop the dev
-    # server from coming up.
+    # server from coming up. The old config goes anyway, so a typo fails closed
+    # instead of quietly leaving the previous credentials usable.
     echo "GCP_WIF_CONFIG is set but is not a JSON object; skipping." >&2
+    rm -f "$WIF_CONFIG_PATH"
   elif ! sudo install -d -m 700 -o "$(id -u)" -g "$(id -g)" "$WIF_CONFIG_DIR" 2>/dev/null; then
     echo "Could not create ${WIF_CONFIG_DIR}; skipping credential config." >&2
   else
