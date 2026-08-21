@@ -1435,11 +1435,11 @@ def _sold_separately(line, entry, weapon):
 def _hold(gang):
     """Take the gang's own line, before this operation touches anything.
 
-    Every operation ends by rewriting the gang's pinned numbers, so each
-    one takes this line before it commits whatever else it did. Taking it
-    first instead gives every writer the same order: one gang's work
-    settles an act at a time, each act reads what the act before it
-    wrote, and no two ever wait on each other's rows in opposite orders.
+    Every operation ends by rewriting the gang's pinned numbers, so all
+    of them take this line either way. Taking it first gives every writer
+    one order: one gang's work settles an act at a time, each act reads
+    what the act before it wrote, and no two wait on each other's rows in
+    opposite orders.
 
     Held for the length of the transaction, and only against others
     taking it — one gang at a time, while every other gang goes on

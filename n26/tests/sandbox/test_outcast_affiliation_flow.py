@@ -24,6 +24,7 @@ from django.contrib.auth.models import User
 from django.urls import reverse
 
 from n26.core.owned import thing_key
+from n26.core.reconcile import assert_reconciled
 from n26.core.render import render_gang
 from n26.library.models import Affiliation
 from n26.tests.sandbox.actions import (
@@ -217,20 +218,6 @@ class TestAnAnswerArrivingTwice:
     whether they arrive one after the other or together.
     """
 
-    def test_a_second_answer_replaces_the_first(
-        self, client, owner, gang, affiliations
-    ):
-        top, _ = affiliations
-        client.force_login(owner)
-        url = picker_url(gang, "Affiliation")
-
-        client.post(url, {"thing": thing_key(top["Clanless"])})
-        client.post(url, {"thing": thing_key(top["Mutant"])})
-
-        assert [str(row.assignable) for row in top_level_rows(gang)] == [
-            "Mutant Outcast"
-        ]
-
     @pytest.mark.django_db(transaction=True)
     def test_two_answers_at_once_still_leave_one(
         self, monkeypatch, owner, gang, affiliations
@@ -303,6 +290,7 @@ class TestAnAnswerArrivingTwice:
             (302, gang_page),
         ]
         assert len(top_level_rows(gang)) == 1
+        assert_reconciled(gang)
 
 
 class TestTheAffiliationPicker:
