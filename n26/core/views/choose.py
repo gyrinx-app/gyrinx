@@ -115,44 +115,27 @@ def _find_slot(gang, key):
     raise Http404("No such choice")
 
 
-def _one_at_a_time(gang):
-    """Hold the gang while this answer is written.
+def _settled(found):
+    """The picks that answer this question, as the card reads them.
 
-    A question with one answer is settled by replacing what stands, and
-    two answers arriving together would each look first and find nothing
-    standing — a double click on Choose is exactly that, and it leaves
-    the question answered twice. Taking the gang's own line first makes
-    the second wait for the first, so it reads what the first wrote.
-
-    Held for the length of the operation's transaction, and only against
-    others taking it: one gang's answers are settled one at a time,
-    while everything else goes on as before.
+    The card is the one authority on what answers what: it scopes a
+    question broadcast onto many cards to the one whose card was
+    clicked, and it adopts an answer that names no question — or names
+    one this card no longer asks — rather than leaving it stranded. A
+    query written here would have to repeat all of that and would drift
+    from it, so the card is asked instead.
     """
-    from n26.core.models import Gang
-
-    Gang.objects.select_for_update().filter(pk=gang.pk).first()
+    return [pick for pick in found.slot.picks if pick.assignment is not None]
 
 
-def _standing_answers(found):
-    """Whatever already answers this question, read afresh.
+def _pick_of(found, wanted):
+    """The pick behind one option on the list, or None if it is not there."""
+    from n26.core.render import option_key
 
-    The page named the picks it drew, but it was built before this
-    answer — and before any other in flight. What settles the question
-    is what the database says now: the live assignments hanging from
-    this anchor that name this choice.
-    """
-    from n26.core.models import Assignment
-
-    standing = Assignment.objects.filter(
-        caused_by=found.anchor, archived=False
-    ).exclude(removes=True)
-    slot = found.slot.slot
-    if slot is not None:
-        return list(standing.filter(chosen_for_slot=slot))
-    offer = found.slot.offer
-    if offer is not None:
-        return list(standing.filter(chosen_for_offer=offer))
-    return []
+    return next(
+        (pick for pick in _settled(found) if option_key(pick.assignable) == wanted),
+        None,
+    )
 
 
 def _host(found):
@@ -198,7 +181,7 @@ def choose(request, pk, slot):
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.operations import Refusal, operation
-    from n26.core.render import NONE_KEY, build_choice_offer, option_key
+    from n26.core.render import NONE_KEY, build_choice_offer
 
     gang = _own_gang_or_404(request, pk)
     found = _find_slot(gang, slot)
@@ -223,11 +206,8 @@ def choose(request, pk, slot):
                     request, "That is not one of the things available to pick."
                 )
                 return redirect(request.path)
-            standing = [
-                pick for pick in found.slot.picks if pick.assignment is not None
-            ]
             with operation(gang, actor=request.user) as op:
-                for pick in standing:
+                for pick in _settled(_find_slot(gang, slot)):
                     op.remove(pick.assignment)
             record(
                 request,
@@ -248,15 +228,7 @@ def choose(request, pk, slot):
             ),
             None,
         )
-        held = next(
-            (
-                pick
-                for pick in found.slot.picks
-                if option_key(pick.assignable) == wanted and pick.assignment is not None
-            ),
-            None,
-        )
-        if picked is None or (dropped and held is None):
+        if picked is None or (dropped and _pick_of(found, wanted) is None):
             # Nothing on the list, or nothing behind the option a click
             # asked to take back — a stale page either way, and the list
             # itself is the reply.
@@ -266,23 +238,42 @@ def choose(request, pk, slot):
         landing = request.path if offer.takes_several else back
         try:
             with operation(gang, actor=request.user) as op:
-                _one_at_a_time(gang)
+                # The page named the picks it drew, but it was drawn
+                # before this answer and before any other in flight. The
+                # card is computed again with the gang held, so what
+                # settles the question is what stands at the moment of
+                # writing — and a question that has since gone stops
+                # resolving here rather than growing an answer nobody
+                # asked for.
+                fresh = _find_slot(gang, slot)
                 if dropped:
-                    op.remove(held.assignment)
+                    taken = _pick_of(fresh, wanted)
+                    if taken is not None:
+                        op.remove(taken.assignment)
+                elif offer.takes_several and _pick_of(fresh, wanted) is not None:
+                    # A worked-at choice, and this pick is already among
+                    # them: the click has landed once already, and once is
+                    # what it asked for.
+                    pass
                 else:
                     if not offer.takes_several:
-                        # One pick, already made: the new pick replaces
-                        # it. Read from the database rather than from the
-                        # page, which was built before this answer — and
-                        # possibly before another one landed.
-                        for standing in _standing_answers(found):
-                            op.remove(standing)
+                        # One pick, already made: the new pick replaces it.
+                        for standing in _settled(fresh):
+                            op.remove(standing.assignment)
+                    elif fresh.slot.is_full:
+                        # Filled while this page stood open. The way to
+                        # something else is to take a pick back, never to
+                        # have one pushed out unasked.
+                        raise Refusal(
+                            f"{offer.label} holds all the picks it will "
+                            "take. Take one back to make room."
+                        )
                     op.choose(
-                        found.anchor,
+                        fresh.anchor,
                         picked.thing,
-                        slot=found.slot.slot,
-                        offer=found.slot.offer,
-                        **_host(found),
+                        slot=fresh.slot.slot,
+                        offer=fresh.slot.offer,
+                        **_host(fresh),
                     )
         except Refusal as refusal:
             messages.error(request, str(refusal))
