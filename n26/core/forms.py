@@ -135,6 +135,20 @@ class EditGangForm(forms.Form):
         label="Colour",
         help_text="Shown against the gang wherever it is listed.",
     )
+    notes = forms.CharField(
+        required=False,
+        widget=RichText(),
+        label="Notes",
+        help_text="Printed with the gang sheet. Anyone reading the gang can see them.",
+    )
+    lore = forms.CharField(
+        required=False,
+        widget=RichText(),
+        label="Lore",
+        help_text="The gang's story. Shown on the lore page, never printed.",
+    )
+    image = forms.ImageField(required=False, label="Picture")
+    remove_image = forms.BooleanField(required=False, label="Remove the picture")
 
     def clean_starting_credits(self):
         budget = self.cleaned_data["starting_credits"]
@@ -170,14 +184,25 @@ class HireFighterForm(forms.Form):
 
 
 class FighterNotesForm(forms.Form):
-    """The edit page's notes box.
+    """The edit page's notes box, and the model's picture with it.
 
-    Optional, because an emptied box is a real answer — it clears the
-    notes. What the editor produces is stored as written; sanitising
-    happens at render time, which is why nothing here strips tags.
+    Every field is optional, because an emptied box is a real answer —
+    it clears the notes. What the editor produces is stored as written;
+    sanitising happens at render time, which is why nothing here strips
+    tags. The picture rides this form because the two are saved with one
+    button: ``image`` replaces what is stored, ``remove_image`` alone
+    clears it, and a submit touching neither leaves the picture be.
     """
 
     notes = forms.CharField(required=False, widget=RichText())
+    image = forms.ImageField(required=False)
+    remove_image = forms.BooleanField(required=False)
+
+
+class FighterLoreForm(forms.Form):
+    """The edit page's lore box. One field, the notes box's shape."""
+
+    lore = forms.CharField(required=False, widget=RichText())
 
 
 def statline_override_form_for(profile):

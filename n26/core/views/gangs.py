@@ -545,16 +545,23 @@ def edit_gang(request, pk):
 
     gang = _own_gang_or_404(request, pk)
     if request.method == "POST":
-        form = EditGangForm(gang, request.POST)
+        form = EditGangForm(gang, request.POST, request.FILES)
         if form.is_valid():
             try:
                 with operation(gang, actor=request.user) as op:
-                    # The name and the budget are the gang's story and go
-                    # through their own verbs, which record them. The
-                    # colour is how a reader draws it and is nobody's
-                    # history, so it is a plain save.
+                    # The name, the budget, the written fields and the
+                    # picture are the gang's story and go through their
+                    # own verbs, which record them. The colour is how a
+                    # reader draws it and is nobody's history, so it is
+                    # a plain save.
                     op.rename_gang(form.cleaned_data["name"])
                     op.set_budget(form.cleaned_data["starting_credits"])
+                    op.edit_gang_notes(form.cleaned_data["notes"])
+                    op.edit_gang_lore(form.cleaned_data["lore"])
+                    op.set_gang_image(
+                        form.cleaned_data["image"],
+                        clear=form.cleaned_data["remove_image"],
+                    )
                     gang.colour = form.cleaned_data["colour"]
                     gang.save(update_fields=["colour", "modified"])
                     op.settle()
@@ -586,6 +593,8 @@ def edit_gang(request, pk):
                 "name": gang.name,
                 "starting_credits": gang.starting_credits,
                 "colour": gang.colour,
+                "notes": gang.notes,
+                "lore": gang.lore,
             },
         )
 

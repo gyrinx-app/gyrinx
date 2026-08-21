@@ -10,7 +10,7 @@ import pytest
 from django.contrib.auth.models import User
 from django.urls import reverse
 
-from n26.core.models import Gang, LedgerEntry
+from n26.core.models import Gang, LedgerEntry, LedgerEvent
 
 pytestmark = pytest.mark.django_db
 
@@ -128,6 +128,113 @@ class TestSavingNotes:
         assert response.status_code == 404
         vex.refresh_from_db()
         assert vex.notes == ""
+
+
+def png_upload(name="vex.png"):
+    from io import BytesIO
+
+    from django.core.files.uploadedfile import SimpleUploadedFile
+    from PIL import Image
+
+    buffer = BytesIO()
+    Image.new("RGB", (10, 8), "purple").save(buffer, format="PNG")
+    return SimpleUploadedFile(name, buffer.getvalue(), content_type="image/png")
+
+
+class TestSavingLore:
+    """The lore box: its own form, its own act, its own journal verb."""
+
+    def test_the_owner_saves_and_lands_back_here(self, client, tester, gang, vex):
+        client.force_login(tester)
+        response = client.post(
+            edit_url(vex), {"act": "lore", "lore": "<p>Third dome, third life.</p>"}
+        )
+        assert response.status_code == 302
+        assert response.url == edit_url(vex)
+        vex.refresh_from_db()
+        assert vex.lore == "<p>Third dome, third life.</p>"
+        assert LedgerEvent.objects.filter(
+            miniature=vex, kind=LedgerEvent.Kind.LORE_EDITED
+        ).exists()
+
+    def test_hostile_lore_never_reaches_the_page_alive(self, client, tester, gang, vex):
+        client.force_login(tester)
+        client.post(
+            edit_url(vex),
+            {"act": "lore", "lore": "<script>alert(1)</script><p>a story</p>"},
+        )
+        body = client.get(edit_url(vex)).content.decode()
+        assert "<script>alert(1)</script>" not in body
+        assert "a story" in body
+
+    def test_a_stranger_saves_nothing(self, client, gang, vex):
+        client.force_login(User.objects.create_user("someone-else"))
+        assert (
+            client.post(edit_url(vex), {"act": "lore", "lore": "<p>x</p>"}).status_code
+            == 404
+        )
+        vex.refresh_from_db()
+        assert vex.lore == ""
+
+
+class TestThePicture:
+    """The picture rides the notes form: a file replaces, the box alone
+    removes, and a save touching neither leaves it be."""
+
+    def test_an_upload_is_stored_and_recorded(
+        self, client, tester, gang, vex, own_storage
+    ):
+        client.force_login(tester)
+        client.post(edit_url(vex), {"notes": "", "image": png_upload()})
+        vex.refresh_from_db()
+        assert vex.image.name.startswith("model-images/")
+        assert LedgerEvent.objects.filter(
+            miniature=vex, kind=LedgerEvent.Kind.IMAGE_SET
+        ).exists()
+        # The card's picture control appears with it.
+        assert vex.image.url in client.get(edit_url(vex)).content.decode()
+
+    def test_the_box_alone_removes_it(self, client, tester, gang, vex, own_storage):
+        client.force_login(tester)
+        client.post(edit_url(vex), {"notes": "", "image": png_upload()})
+        client.post(edit_url(vex), {"notes": "", "remove_image": "on"})
+        vex.refresh_from_db()
+        assert not vex.image
+        assert LedgerEvent.objects.filter(
+            miniature=vex, kind=LedgerEvent.Kind.IMAGE_CLEARED
+        ).exists()
+
+    def test_saving_notes_leaves_the_picture_be(
+        self, client, tester, gang, vex, own_storage
+    ):
+        client.force_login(tester)
+        client.post(edit_url(vex), {"notes": "", "image": png_upload()})
+        vex.refresh_from_db()
+        held = vex.image.name
+        client.post(edit_url(vex), {"notes": "<p>New base needed.</p>"})
+        vex.refresh_from_db()
+        assert vex.image.name == held
+
+    def test_a_file_that_is_not_an_image_is_refused(
+        self, client, tester, gang, vex, own_storage
+    ):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        client.force_login(tester)
+        response = client.post(
+            edit_url(vex),
+            {
+                "notes": "",
+                "image": SimpleUploadedFile(
+                    "story.txt", b"not a picture", content_type="text/plain"
+                ),
+            },
+            follow=True,
+        )
+        vex.refresh_from_db()
+        assert not vex.image
+        # Refused with a reason on the page, never a server error.
+        assert response.status_code == 200
 
 
 class TestRenamingFromHere:

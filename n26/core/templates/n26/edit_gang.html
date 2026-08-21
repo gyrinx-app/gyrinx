@@ -1,5 +1,6 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
+{% load static %}
 {% comment %}
 Editing a standing gang — the create form's shape over a gang that exists.
 Same frame (c-n26.form-page), same field order, one difference of substance:
@@ -7,6 +8,15 @@ the type is a fact rather than a question, because it fixed who could be
 hired and what the founding brought, and those rows exist.
 {% endcomment %}
 {% block head_title %}Edit {{ gang.name }}{% endblock head_title %}
+{% comment %}
+richtext.js before form.media: it registers the listener that swaps the
+editor's skin with the colour mode, and django-tinymce's own initialiser
+reads the config after that listener has run.
+{% endcomment %}
+{% block extra_head %}
+    <script src="{% static 'n26/richtext.js' %}"></script>
+    {{ form.media }}
+{% endblock extra_head %}
 {% block nav_switcher %}
     {% gang_switcher gang as gang_switcher_ %}
     <c-n26.quick-switcher.of :switcher="gang_switcher_" hotkey="f" />
@@ -16,6 +26,7 @@ hired and what the founding brought, and those rows exist.
 {% endblock %}
 {% block content %}
     <c-n26.form-page action="{% url 'n26-edit-gang' gang.pk %}"
+                     enctype="multipart/form-data"
                      :form="form"
                      title="Edit {{ gang.name }}"
                      lead="Required fields are marked with an asterisk (*)."
@@ -80,6 +91,38 @@ hired and what the founding brought, and those rows exist.
                                  value="{{ form.colour.value|default:'' }}"
                                  label="Colour"
                                  description="Shown against the gang wherever it is listed." />
+        </c-n26.form-section>
+        <c-n26.form-section title="Notes &amp; Lore">
+            <c-ui.field label="Notes"
+                        description="{{ form.notes.help_text }}"
+                        for="gang-notes">
+                <c-n26.rich-text :field="form.notes" />
+            </c-ui.field>
+            <c-ui.field label="Lore" description="{{ form.lore.help_text }}" for="gang-lore">
+                <c-n26.rich-text :field="form.lore" />
+            </c-ui.field>
+        </c-n26.form-section>
+        <c-n26.form-section title="Picture">
+            {% comment %}
+            A new file replaces what is stored; the box alone removes it;
+            touching neither leaves the picture be.
+            {% endcomment %}
+            {% if gang.image %}
+                <img src="{{ gang.image.url }}"
+                     alt="A picture of {{ gang.name }}"
+                     class="w-64 rounded-control">
+                <label class="flex items-center gap-2 text-sm text-ink-700 dark:text-ink-300">
+                    <input type="checkbox" name="remove_image" class="rounded">
+                    Remove the picture
+                </label>
+            {% endif %}
+            <c-ui.field label="Picture" error="x" :form="form" name="image" for="gang-image">
+                <input type="file"
+                       id="gang-image"
+                       name="image"
+                       accept="image/*"
+                       class="block w-full text-sm text-ink-700 file:mr-3 file:rounded-control file:border file:border-ink-300 file:bg-ink-50 file:px-3 file:py-1.5 file:text-sm dark:text-ink-300 dark:file:border-ink-700 dark:file:bg-ink-800">
+            </c-ui.field>
         </c-n26.form-section>
     </c-n26.form-page>
 {% endblock content %}

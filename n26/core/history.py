@@ -42,6 +42,9 @@ PERSONAL = {
     Kind.TOOK_AWAY,
     Kind.RENAMED,
     Kind.NOTED,
+    Kind.LORE_EDITED,
+    Kind.IMAGE_SET,
+    Kind.IMAGE_CLEARED,
     Kind.STAT_SET,
     Kind.STAT_CLEARED,
 }
