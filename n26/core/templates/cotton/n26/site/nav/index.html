@@ -37,6 +37,8 @@ an empty inbox gets a badge saying nothing is waiting.
   menu — the account items, as <c-ui.dropdown.item>. The caller draws its own
     separators, so a section only staff see leaves no rule behind for others.
   unread — how many notifications are waiting. Nothing is drawn at zero.
+  brand_actions — icon links beside the name in the drawer's header, drawn at
+    every width. Where anything the bar hides as it narrows goes.
 {% endcomment %}
 <c-vars
     title=""
@@ -52,6 +54,7 @@ an empty inbox gets a badge saying nothing is waiting.
     menu=""
     unread=""
     actions=""
+    brand_actions=""
     class=""
 />
 
@@ -173,6 +176,7 @@ an empty inbox gets a badge saying nothing is waiting.
                         {% if logo %}{{ logo }}{% endif %}
                         {% if title %}<span>{{ title }}</span>{% endif %}
                     </a>
+                    {% if brand_actions.strip %}{{ brand_actions }}{% endif %}
                 </c-slot>
                 <c-slot name="content">
                     {% comment %}

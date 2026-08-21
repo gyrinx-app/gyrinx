@@ -205,6 +205,14 @@ banner, is_impersonating / impersonator, gtm_container_id, messages, user.
                      height="24"
                      class="size-6">
             </c-slot>
+            <c-slot name="brand_actions">
+                <a href="{% url 'core:dice' %}"
+                   title="Dice roller"
+                   aria-label="Dice roller"
+                   class="inline-flex shrink-0 items-center rounded-control p-1.5 text-ink-500 transition-colors hover:bg-ink-100 hover:text-ink-900 focus-ring dark:text-ink-400 dark:hover:bg-ink-800 dark:hover:text-white">
+                    <c-n26.icon name="dice" class="size-5" />
+                </a>
+            </c-slot>
             <c-slot name="heading">
                 {% block nav_heading %}
                 {% endblock nav_heading %}
@@ -396,6 +404,16 @@ banner, is_impersonating / impersonator, gtm_container_id, messages, user.
                     <c-n26.icon name="question-mark-circle" class="size-5" />
                 </a>
                 {# djlint:on #}
+                {% comment %}
+                Goes before help does as the bar narrows; the drawer's copy is
+                what a narrow reader gets instead.
+                {% endcomment %}
+                <a href="{% url 'core:dice' %}"
+                   title="Dice roller"
+                   aria-label="Dice roller"
+                   class="hidden shrink-0 items-center text-ink-500 transition-colors hover:text-ink-900 focus-ring lg:inline-flex dark:text-ink-400 dark:hover:text-white">
+                    <c-n26.icon name="dice" class="size-5" />
+                </a>
                 {% comment %}
                 The way to the other edition, left of the account menu.
                 Both editions are open to the same accounts, so there is

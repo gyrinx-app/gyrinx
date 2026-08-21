@@ -108,7 +108,8 @@ Concretely:
   tag library: the page it leads to must be the account's or the
   site's, not an edition's — today that is `core:account_home` and
   `core:notifications`, the account page and the inbox both editions
-  send a reader to, plus the banner's own dismiss and click-tracking
+  send a reader to, plus `core:dice`, a roller that knows nothing about
+  either game, plus the banner's own dismiss and click-tracking
   routes, which act on a platform-owned Banner. Writing the path out
   instead is the worse option, not the safer one: a name that stops
   resolving raises on render, while a path that stops existing serves a
