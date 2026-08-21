@@ -17,12 +17,16 @@ set -euo pipefail
 # repository is public and the config names the Google Cloud project. Writing it
 # here rather than in install.sh keeps it out of the build snapshot.
 #
-# The path is a fixed absolute location rather than anything under $HOME. It has
-# to be stated identically in the GOOGLE_APPLICATION_CREDENTIALS environment
-# variable, and a path that depends on which user the agent runs as is a silent
-# mismatch waiting to happen. It also sits outside the workspace, so it never
-# appears in git status and cannot be committed to a public repository by
-# accident.
+# The path is fixed and absolute rather than derived from $HOME. It has to be
+# repeated verbatim in GOOGLE_APPLICATION_CREDENTIALS, and a path that depends
+# on which user the agent runs as is a silent mismatch waiting to happen.
+#
+# It is NOT in /tmp. A shared, world-writable directory lets any other process
+# on the machine pre-place a symlink at the destination, in which case the write
+# lands wherever that link points -- an arbitrary file overwrite running as this
+# user. A private directory removes the exposure entirely; the directory is
+# re-created with restrictive ownership on every boot, so tampering between runs
+# is repaired rather than inherited.
 #
 # GOOGLE_APPLICATION_CREDENTIALS must name this same path and
 # GOOGLE_EXTERNAL_ACCOUNT_ALLOW_EXECUTABLES must be 1; both are set as Cursor
@@ -32,18 +36,26 @@ set -euo pipefail
 # An unset variable is the normal case: agents that do not need production
 # access simply skip this.
 # ---------------------------------------------------------------------------
-WIF_CONFIG_PATH="/tmp/cursor-wif.json"
+WIF_CONFIG_DIR="/etc/gyrinx"
+WIF_CONFIG_PATH="${WIF_CONFIG_DIR}/cursor-wif.json"
+
 if [ -n "${GCP_WIF_CONFIG:-}" ]; then
-  if printf '%s' "$GCP_WIF_CONFIG" | jq -e 'type == "object"' >/dev/null 2>&1; then
-    mkdir -p "$(dirname "$WIF_CONFIG_PATH")"
-    # Subshell so the restrictive umask applies to the file at creation rather
-    # than leaving it briefly world-readable before a chmod.
-    ( umask 077; printf '%s' "$GCP_WIF_CONFIG" > "$WIF_CONFIG_PATH" )
-    echo "Wrote Google credential config to ${WIF_CONFIG_PATH}."
-  else
+  if ! printf '%s' "$GCP_WIF_CONFIG" | jq -e 'type == "object"' >/dev/null 2>&1; then
     # Warn rather than exit: a malformed variable should not stop the dev
     # server from coming up.
     echo "GCP_WIF_CONFIG is set but is not a JSON object; skipping." >&2
+  elif ! sudo install -d -m 700 -o "$(id -u)" -g "$(id -g)" "$WIF_CONFIG_DIR" 2>/dev/null; then
+    echo "Could not create ${WIF_CONFIG_DIR}; skipping credential config." >&2
+  else
+    # Written to a fresh file inside the private directory and renamed into
+    # place. rename(2) replaces a symlink at the destination rather than
+    # following it, so there is no window in which the final path can be
+    # redirected. mktemp creates at mode 600 to begin with.
+    WIF_TMP=$(mktemp "${WIF_CONFIG_DIR}/.cursor-wif.XXXXXX")
+    printf '%s' "$GCP_WIF_CONFIG" > "$WIF_TMP"
+    chmod 600 "$WIF_TMP"
+    mv -f "$WIF_TMP" "$WIF_CONFIG_PATH"
+    echo "Wrote Google credential config to ${WIF_CONFIG_PATH}."
   fi
 fi
 
