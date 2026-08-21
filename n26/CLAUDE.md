@@ -8,6 +8,13 @@ pages and the component gallery want staff (`staff_member_required`). There
 is no fence over the prefix, so a new view ships open unless it says who may
 see it.
 
+Owner-scoping is the rule for *acting* on a gang, not for reading one. A gang
+sheet opens for anybody holding its address, signed in or not, and its
+printout for anybody signed in — a roster is a thing players send each other,
+and neither page changes anything. What each of those screens then offers is
+decided by asking whether the reader owns the gang. Weigh a new view by what
+it does, not by which table it reads.
+
 ## The map
 
 | package | what it holds |

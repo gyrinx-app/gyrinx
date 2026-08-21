@@ -109,10 +109,15 @@ that said it twice would be spending the width the name needs.
         of the two a reader wants is which screen they start from.
         {% endcomment %}
         {% comment %}
-        Every control on this page belongs to whoever owns the gang. A
-        reader who does not gets the roster and none of them — not a
+        Every control on this page belongs to whoever owns the gang, bar
+        one. A reader who does not gets the roster and none of them — not a
         disabled button, which is a control saying no, but nothing at all:
         the page is the gang, and the acts are the owner's.
+
+        Printing is the exception, because it is not an act on the gang: it
+        puts on paper what the reader is already reading, and players print
+        rosters for each other. Signed out there is no Print either — a
+        visitor may read a gang, a player may print one.
         {% endcomment %}
         {% if yours %}
             <c-slot name="actions">
@@ -159,6 +164,14 @@ that said it twice would be spending the width the name needs.
                         </c-ui.dropdown.item>
                     </c-ui.dropdown>
                 </c-n26.button-group>
+            </c-slot>
+        {% elif may_print %}
+            <c-slot name="secondary_actions">
+                <c-ui.button size="sm"
+                             variant="default"
+                             href="{% url 'n26-print-setup' gang.pk %}">
+                    Print
+                </c-ui.button>
             </c-slot>
         {% endif %}
         {% if yours %}

@@ -1,9 +1,12 @@
 """Who may act on what — the guards every player-facing view starts with.
 
-Both scope to the owner and answer a stranger with 404 rather than 403:
-which gangs and fighters exist is not something to be probed for. Both
-also catch the ULIDField refusal, because a pk that is not a ULID is
-only ever a bad link and a 500 is the wrong answer to one.
+Most scope to the owner and answer a stranger with 404 rather than 403:
+which gangs and fighters exist is not something to be probed for. The
+exception is ``_any_gang_or_404``, which scopes to nobody, because a
+roster is a thing players send each other — owner-scoping is the rule
+for acting on a gang, not for reading one. All of them catch the
+ULIDField refusal, because a pk that is not a ULID is only ever a bad
+link and a 500 is the wrong answer to one.
 """
 
 from django.core.exceptions import ValidationError
