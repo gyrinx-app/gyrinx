@@ -99,6 +99,30 @@ class TestAReadOnlyPlan:
 
 
 class TestStoredMembers:
+    def test_explicit_provenance_identifies_the_member_and_its_acquisition(
+        self, ganger, gang
+    ):
+        rule = create_rule("Hot-headed")
+        member = add_built_in(ganger, rule)
+        yolanda = hire(gang, ganger, "Yolanda", paid=50)
+        standing = Assignment.objects.get(
+            caused_by=yolanda.membership,
+            rule=rule,
+            archived=False,
+        )
+        standing.materialised_from = member
+        standing.materialised_for = yolanda.membership
+        standing.save(
+            update_fields=["materialised_from", "materialised_for", "modified"]
+        )
+
+        plan = plan_default_member(member)
+
+        assert plan.uses[0].action == BuiltInAction.MATERIALISED
+        assert plan.uses[0].existing == standing
+        assert list(member.materialisations.all()) == [standing]
+        assert list(yolanda.membership.materialised_defaults.all()) == [standing]
+
     def test_a_member_materialised_before_provenance_fields_is_recognised(
         self, ganger, gang
     ):
