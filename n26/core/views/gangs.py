@@ -525,6 +525,40 @@ def create_gang(request):
     )
 
 
+def gang_lore(request, pk):
+    """The gang's story, then every model's — the written half of a roster.
+
+    Anyone may read it, as anyone may read the sheet: lore is what a
+    player shows people. Owning the gang adds the Edit links and nothing
+    else. Models with nothing written and no picture are left off rather
+    than listed as empty headings.
+    """
+    from n26.core.render import roster
+
+    gang = _any_gang_or_404(pk)
+    yours = gang.owner_id == getattr(request.user, "id", None)
+    entries = [
+        {
+            "name": model.name,
+            "lore": model.lore,
+            "image_url": model.image.url if model.image else "",
+            "edit_url": reverse("n26-edit-fighter", args=[model.pk]) if yours else "",
+        }
+        for model in roster(gang)
+        if model.lore or model.image
+    ]
+    return render(
+        request,
+        "n26/gang_lore.html",
+        {
+            "gang": gang,
+            "gang_image_url": gang.image.url if gang.image else "",
+            "entries": entries,
+            "yours": yours,
+        },
+    )
+
+
 @login_required
 def edit_gang(request, pk):
     """Edit a standing gang: name, colour, and the credits budget.

@@ -35,6 +35,7 @@ urlpatterns = [
     ),
     path("gangs/<str:pk>/edit/", views.edit_gang, name="n26-edit-gang"),
     path("gangs/<str:pk>/history/", views.gang_history, name="n26-gang-history"),
+    path("gangs/<str:pk>/lore/", views.gang_lore, name="n26-gang-lore"),
     path("gangs/<str:pk>/delete/", views.delete_gang, name="n26-delete-gang"),
     # The slot's own address. It names the card, the assignment carrying
     # the offer and the offer itself, so one route serves a fighter's
