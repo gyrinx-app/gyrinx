@@ -439,6 +439,18 @@
         align-items: center;
     }
 
+    /* The model card's tab strip, inset from the card's edges.
+     *
+     * The kit's tabs component is one element: the strip, then a wrapper
+     * holding every panel. The card wants the strip held off its border the
+     * way its header band is padded, while the panels stay full-bleed — the
+     * statline and the weapon table draw their own edges. The component takes
+     * no class of its own, so the wrapper reaches in; the selector leans on
+     * the kit's strip-then-panels order and nothing deeper. */
+    .n26-card-tabs > div > div:first-child {
+        margin: 0.75rem 1rem 0;
+    }
+
     /* A slider with one thumb or two.
      *
      * Real <input type="range"> elements — two of them for a range — because

@@ -1808,7 +1808,10 @@ GROUPS: list[Group] = [
                     "settled, an open one being information rather than an error. "
                     "Every control is drawn from an href on the structure, so a "
                     "print sheet and a hire preview draw none of them without "
-                    "asking. Two modes: gang, the sheet's — dense, with the open "
+                    "asking. A stored model's card is three segmented tabs — Card, "
+                    "then Lore and Notes, the sections a player writes; a card with "
+                    "no id (a preview, a picker option) draws the body plain. "
+                    "Two modes: gang, the sheet's — dense, with the open "
                     "questions shown but their buttons held back — and edit, the "
                     "model's own page, where those buttons come out outlined and "
                     "the Gear and Weapons rows carry the way to the Equip tab. A "
@@ -1833,9 +1836,17 @@ GROUPS: list[Group] = [
                         "stay one line.",
                     ),
                     Part(
+                        "c-n26.model-card.body",
+                        "n26/model_card/body.html",
+                        "The rules' half of the card — statline, rows, weapon "
+                        "table — split out so the tabbed card and the tabless "
+                        "preview draw the same thing.",
+                        required=True,
+                    ),
+                    Part(
                         "c-n26.model-card.prose",
                         "n26/model_card/prose.html",
-                        "A written section at the foot of a card: Notes, Lore.",
+                        "A written section of a card: the Lore and Notes panels.",
                     ),
                 ),
             ),

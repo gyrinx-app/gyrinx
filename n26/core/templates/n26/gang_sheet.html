@@ -184,7 +184,10 @@ that said it twice would be spending the width the name needs.
         </c-slot>
         <c-slot name="members">
             {% for member in sheet.models %}
-                <c-n26.model-card :card="member" mode="{{ card_mode }}">
+                <c-n26.model-card :card="member"
+                                  mode="{{ card_mode }}"
+                                  notes_href="{% if yours %}{% url 'n26-edit-fighter' member.id %}{% endif %}"
+                                  lore_href="{% if yours %}{% url 'n26-edit-fighter' member.id %}{% endif %}">
                     {% comment %}
                     The way to a fighter's own name: a quiet pencil on the
                     name's line, leading to the rename dialog the URL opens

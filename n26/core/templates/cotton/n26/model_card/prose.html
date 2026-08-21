@@ -1,22 +1,25 @@
 {% comment %}
-<c-n26.model-card.prose> — a written section at the foot of a card: Notes, Lore.
+<c-n26.model-card.prose> — a written section of a card: Notes, Lore.
 
-    <c-n26.model-card.prose heading="Notes" href="/fighters/1/notes/"
+    <c-n26.model-card.prose href="/fighters/1/edit/"
                             empty="No notes yet.">{{ notes }}</c-n26.model-card.prose>
 
-A heading, the written text, and a muted Edit under it. With nothing written
-the empty sentence is drawn instead, which is the only thing telling a reader
-the section can be written at all.
+The written text and a muted Edit under it. With nothing written the empty
+sentence is drawn instead, which is the only thing telling a reader the
+section can be written at all.
 
-  heading — "Notes", "Lore".
-  href — where Edit goes. Without one no link is drawn, which is what a print
-    sheet or a read-only card wants.
+  heading — a title over the text, where the section is not already under one.
+    A tab panel is: its tab names it.
+  href — where Edit goes. Without one no link is drawn, which is what a
+    read-only card wants.
   empty — what to say when there is nothing written.
 {% endcomment %}
 <c-vars heading="" href="" empty="" class="" />
 
-<section class="border-t border-box-border px-4 py-3 {{ class }}">
-    <h3 class="text-sm font-semibold text-ink-900 dark:text-ink-100">{{ heading }}</h3>
+<section class="px-4 py-3 {{ class }}">
+    {% if heading %}
+        <h3 class="text-sm font-semibold text-ink-900 dark:text-ink-100">{{ heading }}</h3>
+    {% endif %}
 
     {% comment %}
     slot.strip, not slot: a slot written across several lines holds the
