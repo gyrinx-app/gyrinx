@@ -218,6 +218,12 @@ def apply(nameless):
                 or set(now.gang_ids) != set(nameless.gang_ids)
                 or set(now.gang_type_ids) != set(nameless.gang_type_ids)
                 or set(now.assignment_ids) != set(nameless.assignment_ids)
+                # The counts too, not only the rows named: the preview
+                # promises everything that dies, and a history event or a
+                # saved layout written since it was read would die
+                # unannounced.
+                or now.events != nameless.events
+                or now.print_configs != nameless.print_configs
             ):
                 raise Refused(
                     "not deleted: what stands has changed since the plan was "

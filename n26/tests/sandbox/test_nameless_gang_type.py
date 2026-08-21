@@ -244,6 +244,20 @@ class TestApplying:
 
         assert Gang.objects.filter(pk=founded_on_it.pk).exists()
         assert GangType.objects.filter(name="").exists()
+        assert_reconciled(founded_on_it)
+
+    def test_a_layout_saved_since_the_plan_was_read_refuses_too(self, founded_on_it):
+        """The preview promises everything that dies by count, and a
+        print layout cascades with its gang."""
+        from n26.core.models import PrintConfig
+
+        stale = find()
+        PrintConfig.objects.create(gang=founded_on_it, name="For the table")
+
+        with pytest.raises(Refused, match="changed since the plan was read"):
+            apply(stale)
+
+        assert Gang.objects.filter(pk=founded_on_it.pk).exists()
 
     def test_running_it_twice_finds_nothing_the_second_time(self, founded_on_it):
         apply(find())
