@@ -106,7 +106,7 @@ class Operation(models.TextChoices):
     )
     DELETE_NAMELESS_GANG_TYPE = (
         "n26_delete_nameless_gang_type",
-        "n26: the gang type with no name is deleted",
+        "n26: the gang type with no name is retired",
     )
     MERGE_WARGEAR_INTO_WEAPON = (
         "n26_merge_wargear_into_weapon",
@@ -345,21 +345,33 @@ def retire_gang_legacy_pilot(backfill_id, **said_by_whoever_enqueued_it):
     )
 
 
+def _who_asked(backfill_id):
+    """The operator a run acts as, for the history it writes.
+
+    A repoint founds a gang again, and a founding is something somebody
+    did — filed against nobody it reads as the gang having done it to
+    itself.
+    """
+    backfill = Backfill.objects.filter(pk=backfill_id).first()
+    return backfill.triggered_by if backfill else None
+
+
 @task
 def delete_nameless_gang_type(backfill_id, **said_by_whoever_enqueued_it):
-    """Delete the nameless gang type and the gang founded on it, once.
+    """Retire the nameless gang type and settle what stood on it, once.
 
     The same runner discipline as a conversion — the lock, the claim,
-    every ending recorded — around work that deletes, which is why the
-    module it calls proves the gang untouched before it does.
+    every ending recorded — around work that deletes and rewrites a
+    player's gang, which is why the module it calls reads every gang
+    before it touches one.
     """
     from n26.library.nameless_gang_type import Refused, apply, find
 
     _run_recorded(
         backfill_id,
         Operation.DELETE_NAMELESS_GANG_TYPE,
-        "Nameless gang type deletion",
-        lambda: apply(find()),
+        "Nameless gang type retirement",
+        lambda: apply(find(), actor=_who_asked(backfill_id)),
         Refused,
     )
 
@@ -480,21 +492,25 @@ PILOT_WORDS = {
 }
 
 NAMELESS_WORDS = {
-    "noun": "deletion",
+    "noun": "retirement",
     "intro": (
-        "This deletes a library row and a player's gang. An ingest planned "
-        "a gang type from a blank Gang cell, so a type with no name was "
-        "founded and drew as an empty card on the create-gang page. This "
-        "deletes that row, and any gang founded on it — a gang of nothing, "
-        "with no list to hire from. It refuses for any such gang that has "
-        "been played: anything beyond its founding assignment, and it stays."
+        "This deletes a library row, and rewrites what a player's gang is. "
+        "An ingest planned a gang type from a blank Gang cell, so a type "
+        "with no name was founded and drew as an empty card on the "
+        "create-gang page. A gang founded on it and never played is "
+        "deleted with it. A gang somebody has played is not: it is "
+        "repointed to the list its models were actually hired from, which "
+        "reissues its founding so that type's built-ins and gang-wide "
+        "rules arrive — nothing it owns is touched. A gang whose models "
+        "come from no one list is left exactly as it stands, and so is "
+        "the type it names."
     ),
-    "nothing_heading": "Nothing to delete",
-    "nothing_flash": "There was nothing to delete — every gang type has a name.",
+    "nothing_heading": "Nothing to retire",
+    "nothing_flash": "There was nothing to retire — every gang type has a name.",
     "nothing_words": "Every gang type in the pack has a name.",
-    "refuses_heading": "The deletion refuses",
-    "button": "Delete the nameless gang type",
-    "confirm": "Delete the nameless gang type and the gang founded on it? This cannot be undone.",
+    "refuses_heading": "The retirement refuses",
+    "button": "Retire the nameless gang type",
+    "confirm": "Retire the nameless gang type? Untouched gangs on it are deleted and played ones are repointed. This cannot be undone.",
 }
 
 
@@ -662,11 +678,12 @@ register_operation(
         operation=Operation.DELETE_NAMELESS_GANG_TYPE.value,
         name=Operation.DELETE_NAMELESS_GANG_TYPE.label,
         description=(
-            "Delete the gang type an ingest founded from a blank Gang cell — "
+            "Retire the gang type an ingest founded from a blank Gang cell — "
             "the nameless one that drew as an empty card on the create-gang "
-            "page — and any gang founded on it, which has no list to hire "
-            "from. Refuses for a gang that has been played, or a type "
-            "anything has been authored onto."
+            "page. An untouched gang founded on it goes with it; a played "
+            "one is repointed to the list its models were hired from, "
+            "founding again so that type's built-ins arrive. A gang that "
+            "cannot be read, and the type it names, are left standing."
         ),
         view=delete_nameless_gang_type_view,
         detail_template="admin/maintenance/n26/_delete_detail.html",

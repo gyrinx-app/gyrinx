@@ -1,19 +1,21 @@
-"""The nameless gang type, and the repair that deletes it.
+"""The nameless gang type, and the repair that retires it.
 
 An ingest planned a gang type from a blank Gang cell, so a ``GangType``
 with no name stood in the pack — foundable by default, drawn as an empty
 card sorting before every real type, and foundable into a gang of
-nothing. Three things are proven here: nothing may author such a row,
-the create page does not offer one that already stands, and the repair
-deletes exactly the accident — refusing the moment a gang founded on it
-turns out to have been played.
+nothing. Nothing may author such a row and the create page does not
+offer one that already stands; what is left is what to do with the gangs
+already founded on it, and they are not alike. One nobody played is
+deleted. One somebody played is repointed to the list its models were
+really hired from, which is what it has been all along. One nobody can
+read is left exactly as it stands.
 """
 
 import pytest
 from django.core.exceptions import ValidationError
 
 from n26.core.forms import CreateGangForm
-from n26.core.models import Assignment, Gang
+from n26.core.models import Assignment, Gang, Miniature
 from n26.core.reconcile import assert_reconciled
 from n26.library import authoring
 from n26.library.models import GangType
@@ -39,9 +41,34 @@ def nameless(db, default_pack):
 
 
 @pytest.fixture
+def escher(db, default_pack):
+    """A real gang list, with something to hire off it."""
+    return create_gang_type("Escher", starting_credits=1000)
+
+
+@pytest.fixture
+def escher_ganger(escher, person_type):
+    return create_profile("Ganger", person_type, escher, price=50)
+
+
+@pytest.fixture
 def founded_on_it(nameless, owner):
     """A gang of nothing — founded on the empty card and untouched since."""
     return found_gang("A Gang Of Nothing", nameless, owner=owner)
+
+
+@pytest.fixture
+def played_on_it(nameless, owner, escher_ganger):
+    """The same founding, then played: models hired off a real list.
+
+    Nothing stops a gang hiring from a list its own type does not name,
+    so a gang founded on nothing gets filled from somewhere real — which
+    is what tells the repair what it has been all along.
+    """
+    gang = found_gang("Played As Escher", nameless, owner=owner)
+    hire(gang, escher_ganger, "One", paid=50)
+    hire(gang, escher_ganger, "Two", paid=50)
+    return gang
 
 
 class TestNothingMayAuthorOne:
@@ -54,16 +81,12 @@ class TestNothingMayAuthorOne:
 
 
 class TestTheCreatePageDoesNotOfferOne:
-    def test_a_nameless_type_is_not_a_card(self, nameless):
-        real = create_gang_type("Escher", starting_credits=1000)
-
+    def test_a_nameless_type_is_not_a_card(self, nameless, escher):
         offered = CreateGangForm().gang_type_choices()
 
-        assert [card["value"] for card in offered] == [str(real.pk)]
+        assert [card["value"] for card in offered] == [str(escher.pk)]
 
-    def test_it_is_not_an_answer_either(self, nameless):
-        create_gang_type("Escher", starting_credits=1000)
-
+    def test_it_is_not_an_answer_either(self, nameless, escher):
         form = CreateGangForm(data={"name": "The Nothings", "gang_type": nameless.pk})
 
         assert not form.is_valid()
@@ -84,12 +107,10 @@ class TestWhitespaceIsNoNameEither:
 
         assert authoring.create_gang_type("  Escher  ").name == "Escher"
 
-    def test_the_create_page_does_not_offer_it(self, padded):
-        real = create_gang_type("Escher", starting_credits=1000)
-
+    def test_the_create_page_does_not_offer_it(self, padded, escher):
         offered = CreateGangForm().gang_type_choices()
 
-        assert [card["value"] for card in offered] == [str(real.pk)]
+        assert [card["value"] for card in offered] == [str(escher.pk)]
 
     def test_the_repair_finds_it(self, padded):
         found = find()
@@ -102,51 +123,139 @@ class TestWhitespaceIsNoNameEither:
         assert not GangType.objects.filter(pk=padded.pk).exists()
 
 
-class TestFindingIt:
-    def test_it_names_the_type_and_the_gang_founded_on_it(self, founded_on_it):
+class TestReadingWhatStandsOnIt:
+    def test_an_untouched_gang_is_named_for_deleting(self, founded_on_it):
         found = find()
 
         assert found.ok and not found.nothing_here
-        assert len(found.gang_type_ids) == 1
-        assert found.gang_ids == (founded_on_it.pk,)
+        assert found.doomed_gang_ids == (founded_on_it.pk,)
+        assert found.repoint == ()
         assert found.assignment_ids == (founded_on_it.founding_id,)
         said = "\n".join(found.preview())
-        assert "delete 1 gang founded on a nameless type" in said
+        assert "delete 1 untouched gang founded on a nameless type" in said
         assert "delete 1 gang type with no name" in said
+
+    def test_a_played_gang_is_named_for_repointing(self, played_on_it, escher):
+        found = find()
+
+        assert found.ok
+        assert found.doomed_gang_ids == ()
+        assert found.repoint == ((played_on_it.pk, escher.pk),)
+        said = "\n".join(found.preview())
+        assert "repoint a played gang onto Escher" in said
+        assert "nothing the gang owns is touched" in said
 
     def test_a_type_with_no_gang_on_it_still_goes(self, nameless):
         found = find()
 
-        assert found.ok and found.gang_ids == ()
-        assert "nothing of a player's dies" in "\n".join(found.preview())
+        assert found.ok and found.doomed_gang_ids == () and found.repoint == ()
+        assert "delete 1 gang type with no name" in "\n".join(found.preview())
 
-    def test_a_pack_of_named_types_has_nothing_to_delete(self, db, default_pack):
-        create_gang_type("Escher", starting_credits=1000)
-
+    def test_a_pack_of_named_types_has_nothing_to_retire(self, db, escher):
         found = find()
 
         assert found.nothing_here
         assert apply(found) == found.preview()
 
 
-class TestRefusing:
-    def test_a_gang_that_has_been_hired_into_is_left_alone(
-        self, founded_on_it, person_type
-    ):
-        profile = create_profile(
-            "Somebody", person_type, founded_on_it.gang_type, price=50
+class TestRepointing:
+    """A played gang is what its models say it is. Saying so must take
+    nothing away and must leave the gang's books straight."""
+
+    def test_it_keeps_everything_the_gang_owns(self, played_on_it, escher):
+        was_rating = played_on_it.rating
+        models = {m.pk for m in Miniature.objects.filter(membership__gang=played_on_it)}
+
+        apply(find())
+
+        played_on_it.refresh_from_db()
+        assert played_on_it.gang_type_id == escher.pk
+        assert {
+            m.pk for m in Miniature.objects.filter(membership__gang=played_on_it)
+        } == models
+        assert played_on_it.rating >= was_rating
+        assert_reconciled(played_on_it)
+
+    def test_the_new_type_brings_its_built_ins(self, played_on_it, escher):
+        """A gang type hands its gang things through the founding
+        assignment, so a repoint that did not found again would leave the
+        gang without what its type gives."""
+        escher.built_ins = authoring.create_default_set(
+            "Escher built-ins", members=[create_rule("Wise")]
         )
-        hire(founded_on_it, profile, "Somebody At All", paid=50)
-        assert_reconciled(founded_on_it)
+        escher.save()
+
+        apply(find())
+
+        played_on_it.refresh_from_db()
+        assert played_on_it.founding is not None
+        assert played_on_it.founding.assignable == escher
+        arrived = Assignment.objects.filter(
+            gang_root=played_on_it, caused_by=played_on_it.founding
+        )
+        assert [str(row.assignable) for row in arrived] == ["Wise"]
+        assert_reconciled(played_on_it)
+
+    def test_the_nameless_type_goes_once_nothing_stands_on_it(
+        self, played_on_it, founded_on_it, escher
+    ):
+        """One gang of each kind on the same type: the untouched one is
+        deleted, the played one repointed, and only then may the type go."""
+        report = apply(find())
+
+        assert not Gang.objects.filter(pk=founded_on_it.pk).exists()
+        assert Gang.objects.filter(pk=played_on_it.pk).exists()
+        assert not GangType.objects.filter(name="").exists()
+        assert any("repointed gangs" in line for line in report)
+
+    def test_a_gang_read_from_no_one_list_is_left_standing(
+        self, played_on_it, nameless, person_type
+    ):
+        """Models from two lists, and nobody can say which the gang is.
+        It keeps what it has, and so does the type it names."""
+        other = create_gang_type("Goliath", starting_credits=1000)
+        hire(
+            played_on_it,
+            create_profile("Bruiser", person_type, other, price=50),
+            "Three",
+            paid=50,
+        )
 
         found = find()
 
-        assert not found.ok
-        assert any("has been played" in problem for problem in found.problems)
-        with pytest.raises(Refused, match="not deleted"):
-            apply(found)
-        assert Gang.objects.filter(pk=founded_on_it.pk).exists()
+        assert found.ok
+        assert found.repoint == ()
+        assert found.gang_type_ids == ()
+        assert found.kept_type_ids == (nameless.pk,)
+        assert any("no one gang list" in reason for reason in found.stranded)
 
+        apply(found)
+
+        played_on_it.refresh_from_db()
+        assert played_on_it.gang_type_id == nameless.pk
+        assert GangType.objects.filter(pk=nameless.pk).exists()
+
+    def test_an_untouched_gang_still_goes_beside_one_left_standing(
+        self, played_on_it, founded_on_it, nameless, person_type
+    ):
+        """Per gang, not all or nothing: the unreadable one holding up
+        the type must not hold up the empty one's deletion."""
+        other = create_gang_type("Goliath", starting_credits=1000)
+        hire(
+            played_on_it,
+            create_profile("Bruiser", person_type, other, price=50),
+            "Three",
+            paid=50,
+        )
+
+        apply(find())
+
+        assert not Gang.objects.filter(pk=founded_on_it.pk).exists()
+        assert Gang.objects.filter(pk=played_on_it.pk).exists()
+        assert GangType.objects.filter(pk=nameless.pk).exists()
+
+
+class TestRefusing:
     def test_a_type_something_is_hired_off_wants_a_name_instead(
         self, nameless, person_type
     ):
@@ -178,23 +287,21 @@ class TestRefusing:
         assert not found.ok
         assert any("authored onto it" in problem for problem in found.problems)
 
-    def test_an_assignment_naming_it_that_is_not_a_founding_is_refused(
-        self, founded_on_it
+    def test_an_assignment_naming_it_on_no_such_gang_is_refused(
+        self, nameless, escher, owner
     ):
         """``Assignment.gang_type`` is PROTECT, so the delete would fail
-        anyway — refusing in words beats a crash, and says which rows."""
-        stranger = Assignment.objects.create(
-            gang_type=founded_on_it.gang_type, gang=founded_on_it
-        )
+        anyway — refusing in words beats a crash, and says how many."""
+        elsewhere = found_gang("Somewhere Else", escher, owner=owner)
+        Assignment.objects.create(gang_type=nameless, gang=elsewhere)
 
         found = find()
 
         assert not found.ok
         assert any(
-            "one of these gangs' foundings" in problem for problem in found.problems
+            "belong to no gang founded on one" in problem for problem in found.problems
         )
-        assert stranger.pk not in found.assignment_ids
-        with pytest.raises(Refused, match="not deleted"):
+        with pytest.raises(Refused, match="not retired"):
             apply(found)
 
     def test_a_nameless_type_in_another_pack_is_left_alone(self, db, default_pack):
@@ -210,8 +317,8 @@ class TestRefusing:
 
 
 class TestApplying:
-    def test_it_deletes_the_gang_and_then_the_type(self, founded_on_it):
-        named = create_gang_type("Escher", starting_credits=1000)
+    def test_it_deletes_the_untouched_gang_and_then_the_type(self, founded_on_it):
+        named = create_gang_type("Cawdor", starting_credits=1000)
         kept = found_gang("The Real Thing", named, owner=founded_on_it.owner)
 
         report = apply(find())
@@ -223,10 +330,10 @@ class TestApplying:
         assert not Assignment.objects.filter(gang_root=founded_on_it).exists()
         assert Gang.objects.filter(pk=kept.pk).exists()
         assert GangType.objects.filter(pk=named.pk).exists()
-        assert "deleted; every gang type in the pack has a name" in report
+        assert "retired; every gang type in the pack has a name" in report
 
     def test_a_plan_read_before_the_world_moved_is_refused(
-        self, founded_on_it, person_type
+        self, founded_on_it, escher_ganger
     ):
         """A gang's assignments cascade rather than protect, so a gang
         hired into between reading the plan and deleting would ride the
@@ -234,10 +341,7 @@ class TestApplying:
         anything that has moved refuses."""
         stale = find()
         assert stale.ok
-        profile = create_profile(
-            "Somebody", person_type, founded_on_it.gang_type, price=50
-        )
-        hire(founded_on_it, profile, "Somebody At All", paid=50)
+        hire(founded_on_it, escher_ganger, "Somebody At All", paid=50)
 
         with pytest.raises(Refused, match="changed since the plan was read"):
             apply(stale)
@@ -259,7 +363,9 @@ class TestApplying:
 
         assert Gang.objects.filter(pk=founded_on_it.pk).exists()
 
-    def test_running_it_twice_finds_nothing_the_second_time(self, founded_on_it):
+    def test_running_it_twice_finds_nothing_the_second_time(
+        self, played_on_it, founded_on_it
+    ):
         apply(find())
 
         again = find()

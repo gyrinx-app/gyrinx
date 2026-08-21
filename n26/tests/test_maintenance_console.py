@@ -496,10 +496,10 @@ class TestTheRunsOwnGuards:
         assert backfill.status == Backfill.Status.CANCELLED
 
 
-class TestTheNamelessGangTypeDeletion:
+class TestTheNamelessGangTypeRetirement:
     """The second operation that deletes: an empty-named gang type an
-    ingest founded from a blank Gang cell, and the gang of nothing
-    founded on it."""
+    ingest founded from a blank Gang cell, the gang of nothing founded
+    on it, and — where somebody played one — a repoint instead."""
 
     @pytest.fixture
     def nameless_world(self, owner, default_pack):
@@ -531,11 +531,11 @@ class TestTheNamelessGangTypeDeletion:
 
         page = response.content.decode()
         assert response.status_code == 200
-        assert "delete 1 gang founded on a nameless type" in page
+        assert "delete 1 untouched gang founded on a nameless type" in page
         assert not Backfill.objects.exists()
         assert GangType.objects.filter(name="").exists()
 
-    def test_applying_records_what_it_deleted(self, client, superuser, nameless_world):
+    def test_applying_records_what_it_retired(self, client, superuser, nameless_world):
         from n26.core.models import Gang
         from n26.library.models import GangType
 
@@ -553,21 +553,51 @@ class TestTheNamelessGangTypeDeletion:
         assert not Gang.objects.filter(pk=nameless_world.pk).exists()
         assert GangType.objects.filter(name="Escher").exists()
 
-    def test_a_gang_that_has_been_played_stops_the_run_before_it_records(
+    def test_a_played_gang_is_repointed_rather_than_deleted(
         self, client, superuser, nameless_world, person_type
     ):
-        """The refusal belongs on the screen of whoever asked for it,
-        not filed as a failed run."""
+        """The whole point of the operation running at all: a gang
+        somebody has played keeps everything, and stops naming nothing."""
         from n26.core.models import Gang
+        from n26.library.models import GangType
         from n26.tests.sandbox.actions import create_profile, hire
 
-        profile = create_profile(
-            "Somebody", person_type, nameless_world.gang_type, price=50
-        )
-        hire(nameless_world, profile, "Somebody At All")
+        escher = GangType.objects.get(name="Escher")
+        profile = create_profile("Ganger", person_type, escher, price=50)
+        hire(nameless_world, profile, "Somebody At All", paid=50)
         client.force_login(superuser)
 
         client.post(reverse("admin:maintenance_n26_delete_nameless_gang_type"))
 
-        assert not Backfill.objects.exists()
-        assert Gang.objects.filter(pk=nameless_world.pk).exists()
+        run = Backfill.objects.get(operation=Operation.DELETE_NAMELESS_GANG_TYPE)
+        assert run.status == Backfill.Status.DONE
+        assert Gang.objects.get(pk=nameless_world.pk).gang_type_id == escher.pk
+        assert not GangType.objects.filter(name="").exists()
+
+    def test_a_gang_nobody_can_read_stops_the_type_going(
+        self, client, superuser, nameless_world, person_type
+    ):
+        """Two lists in one gang and nobody can say what it is, so the
+        gang and the type it names are both left standing."""
+        from n26.core.models import Gang
+        from n26.library.models import GangType
+        from n26.tests.sandbox.actions import create_gang_type, create_profile, hire
+
+        for house in ("Escher", "Goliath"):
+            gang_type = GangType.objects.filter(name=house).first() or create_gang_type(
+                house, starting_credits=1000
+            )
+            hire(
+                nameless_world,
+                create_profile(f"{house} Ganger", person_type, gang_type, price=50),
+                f"From {house}",
+                paid=50,
+            )
+        client.force_login(superuser)
+
+        client.post(reverse("admin:maintenance_n26_delete_nameless_gang_type"))
+
+        run = Backfill.objects.get(operation=Operation.DELETE_NAMELESS_GANG_TYPE)
+        assert run.status == Backfill.Status.DONE
+        assert GangType.objects.filter(name="").exists()
+        assert Gang.objects.get(pk=nameless_world.pk).gang_type.name == ""
