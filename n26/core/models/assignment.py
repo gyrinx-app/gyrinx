@@ -246,6 +246,26 @@ class Assignment(NamesAnAssignable, Base, Archived):
         "self", on_delete=models.CASCADE, null=True, blank=True, related_name="caused"
     )
 
+    # The built-in member and acquisition whose materialisation this is.
+    # ``caused_by`` usually names the acquisition too, but bundled ammunition
+    # is caused by its weapon; keeping both facts makes reconciliation exact.
+    # Null is meaningful for every assignment that did not come from a
+    # built-in, and for historical defaults until the backfill identifies them.
+    materialised_from = models.ForeignKey(
+        "library.DefaultAssignment",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="materialisations",
+    )
+    materialised_for = models.ForeignKey(
+        "self",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="materialised_defaults",
+    )
+
     # An assignment that takes its assignable away rather than holding
     # it: the owner's own removal of a subtype or rule. Never a line on
     # a card — it is compiled at read time to an unconditional removal,
