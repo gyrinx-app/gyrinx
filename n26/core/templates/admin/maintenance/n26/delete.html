@@ -1,9 +1,11 @@
 {% extends "admin/base_site.html" %}
 {% comment %}
-The pilot retirement's console page: what stands, what deleting it
-means, an apply button, and the recent runs. Context from
-retire_gang_legacy_pilot_view (n26/maintenance.py): title, pilot,
-preview, apply_url, recent.
+A deletion's console page: what stands, what deleting it means, an apply
+button, and the recent runs. Shared by every operation that deletes —
+the shape is the same for all of them and only the wording differs, so
+the words arrive in context rather than being written here twice.
+Context from _deletion_view (n26/maintenance.py): title, plan, preview,
+words, apply_url, recent.
 {% endcomment %}
 {% block title %}
     {{ title }} | {{ site_title|default:_("Django site admin") }}
@@ -22,20 +24,14 @@ preview, apply_url, recent.
         <a href="{% url 'admin:maintenance_index' %}">← Back to Maintenance</a>
     </p>
     <h1>{{ title }}</h1>
-    <p>
-        This deletes — the one operation that does. The pilot was a hand-built
-        experiment whose pickables carry nothing, and its rows squat on the
-        names the real Gang Legacy conversion needs. Every row it would
-        delete is listed below; it refuses if anything outside the pilot has
-        come to depend on them.
-    </p>
-    {% if pilot.nothing_here %}
-        <h2>Nothing to retire</h2>
-        <p>No slot type of the pilot's name stands. It has been retired already, or was never here.</p>
-    {% elif not pilot.ok %}
-        <h2 class="mt-problems">The retirement refuses</h2>
+    <p>{{ words.intro }}</p>
+    {% if plan.nothing_here %}
+        <h2>{{ words.nothing_heading }}</h2>
+        <p>{{ words.nothing_words }}</p>
+    {% elif not plan.ok %}
+        <h2 class="mt-problems">{{ words.refuses_heading }}</h2>
         <ul class="mt-problems">
-            {% for problem in pilot.problems %}<li>{{ problem }}</li>{% endfor %}
+            {% for problem in plan.problems %}<li>{{ problem }}</li>{% endfor %}
         </ul>
         <p>Nothing can be applied while any of these stands.</p>
     {% else %}
@@ -45,9 +41,9 @@ preview, apply_url, recent.
         </ul>
         <form method="post"
               class="mt-form"
-              onsubmit="return confirm('Delete the pilot? This cannot be undone.')">
+              onsubmit="return confirm('{{ words.confirm|escapejs }}')">
             {% csrf_token %}
-            <button type="submit" class="button default">Retire the pilot</button>
+            <button type="submit" class="button default">{{ words.button }}</button>
         </form>
     {% endif %}
     {% if recent %}

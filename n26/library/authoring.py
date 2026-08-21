@@ -59,6 +59,11 @@ def create_gang_type(
     library_author_help="",
     **kwargs,
 ):
+    """A kind of gang. The name is the whole of what a player sees when
+    the create-gang page offers it, so a blank one is refused here rather
+    than drawn as an empty card — whatever path asked for it."""
+    if not (name or "").strip():
+        raise ValidationError("A gang type needs a name.")
     return GangType.objects.create(
         name=name,
         starting_credits=starting_credits,

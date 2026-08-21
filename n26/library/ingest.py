@@ -1041,6 +1041,16 @@ def _plan_profiles(plan, rows):
             continue
 
         gang_name = _clean(row.get("Gang", ""))
+        if not gang_name:
+            # Planned anyway, a blank cell founds a gang type with no
+            # name, which draws as an empty card on the create-gang page
+            # — and lands first, nothing sorting before nothing.
+            plan.problem(
+                source,
+                f"{name!r} names no Gang — every entry is hired off a gang "
+                f"list, and the sheet has not said which",
+            )
+            continue
         gang_key = f"GangType:{_norm(gang_name)}"
         if not plan.get(gang_key):
             plan.add("GangType", gang_name, {}, source, key=gang_key)

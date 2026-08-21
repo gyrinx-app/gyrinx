@@ -57,6 +57,7 @@ __all__ = [
     "convert_gang_legacy",
     "convert_skill_tree",
     "convert_specialisation",
+    "delete_nameless_gang_type",
     "retire_gang_legacy_pilot",
     "task_routes",
 ]
@@ -103,6 +104,10 @@ class Operation(models.TextChoices):
         "n26_convert_archetype",
         "n26: the Outcast archetypes become picks",
     )
+    DELETE_NAMELESS_GANG_TYPE = (
+        "n26_delete_nameless_gang_type",
+        "n26: the gang type with no name is deleted",
+    )
     MERGE_WARGEAR_INTO_WEAPON = (
         "n26_merge_wargear_into_weapon",
         "n26: duplicated wargear becomes its weapon",
@@ -116,6 +121,7 @@ LOCK_KEYS = {
     Operation.CONVERT_GANG_LEGACY: 826_020_603,
     Operation.RETIRE_GANG_LEGACY_PILOT: 826_020_604,
     Operation.CONVERT_ARCHETYPE: 826_020_605,
+    Operation.DELETE_NAMELESS_GANG_TYPE: 826_020_606,
 }
 
 
@@ -339,6 +345,25 @@ def retire_gang_legacy_pilot(backfill_id, **said_by_whoever_enqueued_it):
     )
 
 
+@task
+def delete_nameless_gang_type(backfill_id, **said_by_whoever_enqueued_it):
+    """Delete the nameless gang type and the gang founded on it, once.
+
+    The same runner discipline as a conversion — the lock, the claim,
+    every ending recorded — around work that deletes, which is why the
+    module it calls proves the gang untouched before it does.
+    """
+    from n26.library.nameless_gang_type import Refused, apply, find
+
+    _run_recorded(
+        backfill_id,
+        Operation.DELETE_NAMELESS_GANG_TYPE,
+        "Nameless gang type deletion",
+        lambda: apply(find()),
+        Refused,
+    )
+
+
 def _conversion_view(request, operation, system, task_fn):
     """Preview a conversion (GET), or record a run and enqueue it (POST)."""
     address = reverse(f"admin:maintenance_{operation.value}")
@@ -431,52 +456,121 @@ def convert_archetype_view(request):
     )
 
 
-def retire_gang_legacy_pilot_view(request):
-    """Preview the pilot retirement (GET), or record a run and enqueue it."""
-    from n26.library.gang_legacy_pilot import find
+#: The words one deletion page says for itself. Everything else about
+#: the page — the plan, the refusals, the apply button, the recent runs —
+#: is the same for every deletion, so only these differ.
+PILOT_WORDS = {
+    "noun": "retirement",
+    "intro": (
+        "This deletes — one of the two operations that do. The pilot was a "
+        "hand-built experiment whose pickables carry nothing, and its rows "
+        "squat on the names the real Gang Legacy conversion needs. Every row "
+        "it would delete is listed below; it refuses if anything outside the "
+        "pilot has come to depend on them."
+    ),
+    "nothing_heading": "Nothing to retire",
+    "nothing_words": (
+        "No slot type of the pilot's name stands. It has been retired "
+        "already, or was never here."
+    ),
+    "refuses_heading": "The retirement refuses",
+    "button": "Retire the pilot",
+    "confirm": "Delete the pilot? This cannot be undone.",
+}
 
-    operation = Operation.RETIRE_GANG_LEGACY_PILOT
+NAMELESS_WORDS = {
+    "noun": "deletion",
+    "intro": (
+        "This deletes — one of the two operations that do. An ingest planned "
+        "a gang type from a blank Gang cell, so a type with no name was "
+        "founded and drew as an empty card on the create-gang page. This "
+        "deletes that row, and any gang founded on it — a gang of nothing, "
+        "with no list to hire from. It refuses for any such gang that has "
+        "been played: anything beyond its founding assignment, and it stays."
+    ),
+    "nothing_heading": "Nothing to delete",
+    "nothing_words": "Every gang type in the pack has a name.",
+    "refuses_heading": "The deletion refuses",
+    "button": "Delete the nameless gang type",
+    "confirm": "Delete the nameless gang type and the gang founded on it? This cannot be undone.",
+}
+
+
+def _deletion_view(request, operation, find_fn, task_fn, words):
+    """Preview a deletion (GET), or record a run and enqueue it.
+
+    Shared by every operation that deletes. The discipline is the
+    conversion view's — a running guard, nothing recorded for a run with
+    nothing to do, a refusal shown to whoever asked for it rather than
+    filed as a failure — and only ``words`` differs between pages.
+    """
     address = reverse(f"admin:maintenance_{operation.value}")
     if request.method == "POST":
         running = running_guard(operation)
         if running is not None:
-            messages.warning(request, "That retirement is already running.")
+            messages.warning(request, f"That {words['noun']} is already running.")
             return HttpResponseRedirect(
                 reverse("admin:maintenance_backfill_detail", args=[running.id])
             )
-        pilot = find()
-        if pilot.nothing_here:
-            messages.info(request, "There is nothing to retire.")
+        plan = find_fn()
+        if plan.nothing_here:
+            messages.info(request, words["nothing_words"])
             return HttpResponseRedirect(address)
-        if not pilot.ok:
+        if not plan.ok:
             messages.error(
-                request, "The retirement refuses: " + "; ".join(pilot.problems)
+                request,
+                f"The {words['noun']} refuses: " + "; ".join(plan.problems),
             )
             return HttpResponseRedirect(address)
         backfill = Backfill.objects.create(
             operation=operation,
             triggered_by=request.user,
             status=Backfill.Status.RUNNING,
-            summary={"preview": list(pilot.preview()), "attempts": 0},
+            summary={"preview": list(plan.preview()), "attempts": 0},
         )
-        retire_gang_legacy_pilot.enqueue(backfill_id=str(backfill.id))
+        task_fn.enqueue(backfill_id=str(backfill.id))
         messages.success(
-            request, "The retirement is running. This page shows what it did."
+            request, f"The {words['noun']} is running. This page shows what it did."
         )
         return HttpResponseRedirect(
             reverse("admin:maintenance_backfill_detail", args=[backfill.id])
         )
 
-    pilot = find()
+    plan = find_fn()
     context = page_context(
         request,
         operation.label,
-        pilot=pilot,
-        preview=list(pilot.preview()),
+        plan=plan,
+        preview=list(plan.preview()),
+        words=words,
         apply_url=address,
         recent=Backfill.objects.filter(operation=operation)[:10],
     )
-    return render(request, "admin/maintenance/n26/retire_pilot.html", context)
+    return render(request, "admin/maintenance/n26/delete.html", context)
+
+
+def retire_gang_legacy_pilot_view(request):
+    from n26.library.gang_legacy_pilot import find
+
+    return _deletion_view(
+        request,
+        Operation.RETIRE_GANG_LEGACY_PILOT,
+        find,
+        retire_gang_legacy_pilot,
+        PILOT_WORDS,
+    )
+
+
+def delete_nameless_gang_type_view(request):
+    from n26.library.nameless_gang_type import find
+
+    return _deletion_view(
+        request,
+        Operation.DELETE_NAMELESS_GANG_TYPE,
+        find,
+        delete_nameless_gang_type,
+        NAMELESS_WORDS,
+    )
 
 
 register_operation(
@@ -559,6 +653,22 @@ register_operation(
     )
 )
 
+register_operation(
+    MaintenanceOperation(
+        operation=Operation.DELETE_NAMELESS_GANG_TYPE.value,
+        name=Operation.DELETE_NAMELESS_GANG_TYPE.label,
+        description=(
+            "Delete the gang type an ingest founded from a blank Gang cell — "
+            "the nameless one that drew as an empty card on the create-gang "
+            "page — and any gang founded on it, which has no list to hire "
+            "from. Refuses for a gang that has been played, or a type "
+            "anything has been authored onto."
+        ),
+        view=delete_nameless_gang_type_view,
+        detail_template="admin/maintenance/n26/_convert_detail.html",
+    )
+)
+
 #: Declared for the task registry, which reads this from ``n26/core/tasks.py``.
 #: The deadline is the longest Pub/Sub allows, because a conversion holds one
 #: transaction for as long as proving its spread of gangs takes. It is also
@@ -573,6 +683,7 @@ task_routes = [
     TaskRoute(convert_gang_legacy, ack_deadline=600, min_retry_delay=60),
     TaskRoute(retire_gang_legacy_pilot, ack_deadline=600, min_retry_delay=60),
     TaskRoute(convert_archetype, ack_deadline=600, min_retry_delay=60),
+    TaskRoute(delete_nameless_gang_type, ack_deadline=600, min_retry_delay=60),
 ]
 
 
