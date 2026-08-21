@@ -108,6 +108,10 @@ expiry=$(printf '%s' "$payload" | jq -r '.expires_at // empty' 2>/dev/null) \
 # the quotes.
 case "$expiry" in
   '' | *[!0-9]*) emit_failure "mint response carried no usable expiry" ;;
+  # Twelve digits or more is no time in seconds anyone will see, and a value too
+  # large for shell arithmetic makes the bounds below fail rather than compare --
+  # which, with errexit off, would pass it through untested.
+  ????????????*) emit_failure "mint response expiry is implausibly large; expected epoch seconds" ;;
 esac
 
 # Google wants an absolute time in seconds. A relative lifetime would read as a

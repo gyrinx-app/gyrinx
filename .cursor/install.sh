@@ -154,7 +154,9 @@ else
     CSP_TMP=$(mktemp)
     curl -sfLo "$CSP_TMP" \
       "https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/${CSP_VERSION}/cloud-sql-proxy.linux.${CSP_ARCH}"
-    echo "${CSP_SHA}  ${CSP_TMP}" | sha256sum -c --status -
+    # Reported rather than silenced: a mismatch here means the download did not
+    # produce the pinned binary, which is the one failure worth a message.
+    echo "${CSP_SHA}  ${CSP_TMP}" | sha256sum -c -
     sudo install -m 0755 "$CSP_TMP" "$CSP_BIN"
     rm -f "$CSP_TMP"
   fi

@@ -47,23 +47,31 @@ set -euo pipefail
 WIF_CONFIG_DIR="/etc/gyrinx"
 WIF_CONFIG_PATH="${WIF_CONFIG_DIR}/cursor-wif.json"
 
+# Every path that does not write a fresh config discards the old one, so what is
+# on disk always reflects the variable: rotating it to a different project, or
+# withdrawing it, cannot leave an earlier boot's credentials in use. rm -f
+# forgives a missing file but not a permission error, which would otherwise end
+# the boot before PostgreSQL had started.
+discard_config() { rm -f "$WIF_CONFIG_PATH" 2>/dev/null || true; }
+
 if [ -z "${GCP_WIF_CONFIG:-}" ]; then
-  # rm -f forgives a missing file but not a permission error, which would
-  # otherwise end the boot before PostgreSQL had started.
-  rm -f "$WIF_CONFIG_PATH" 2>/dev/null || true
+  discard_config
 elif ! command -v jq >/dev/null 2>&1; then
   # Distinguished from a malformed variable so the reader is sent after the
   # right thing: jq arrives late in install.sh, so a partial build lands here.
   echo "jq is not installed; skipping credential config." >&2
+  discard_config
 elif ! printf '%s' "$GCP_WIF_CONFIG" | jq -e 'type == "object"' >/dev/null 2>&1; then
-  # The old config goes anyway, so a typo fails closed instead of quietly
-  # leaving the previous credentials usable.
+  # A typo fails closed rather than quietly leaving the previous credentials
+  # usable.
   echo "GCP_WIF_CONFIG is set but is not a JSON object; skipping." >&2
-  rm -f "$WIF_CONFIG_PATH" 2>/dev/null || true
+  discard_config
 elif ! sudo install -d -m 700 -o "$(id -u)" -g "$(id -g)" "$WIF_CONFIG_DIR" 2>/dev/null; then
   echo "Could not create ${WIF_CONFIG_DIR}; skipping credential config." >&2
+  discard_config
 elif ! WIF_TMP=$(mktemp "${WIF_CONFIG_DIR}/.cursor-wif.XXXXXX" 2>/dev/null); then
   echo "Could not create a temporary file in ${WIF_CONFIG_DIR}; skipping credential config." >&2
+  discard_config
 else
   # Written to a fresh file inside the private directory and renamed into place.
   # rename(2) replaces a symlink at the destination rather than following it, so
@@ -76,6 +84,7 @@ else
   else
     rm -f "$WIF_TMP" 2>/dev/null || true
     echo "Could not write ${WIF_CONFIG_PATH}; skipping credential config." >&2
+    discard_config
   fi
 fi
 
