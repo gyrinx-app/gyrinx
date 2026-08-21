@@ -900,7 +900,7 @@ class TestFamilies:
         assert positions == sorted(positions)
         # A kind sits under its family.
         assert positions[2] < body.index("wargear")
-        assert positions[3] < body.index("archetype")
+        assert positions[3] < body.index("affiliation")
 
     def test_the_family_table(self):
         """The grouping as agreed, pinned so it changes deliberately."""
@@ -1136,6 +1136,33 @@ class TestASlotTypeReadsAsAKind:
 
     def page(self, client, slot_type):
         return client.get(f"/n26/authoring/slot-type/{slot_type.pk}/").content.decode()
+
+    def test_the_index_offers_none_of_the_retired_kinds(
+        self, author, client, default_pack
+    ):
+        """What an archetype, a skill tree and a specialisation said is
+        said by slots and picks. The menu stops inviting another one."""
+        from n26.library.views import RETIRED_KINDS
+
+        body = client.get("/n26/authoring/").content.decode()
+
+        for kind in RETIRED_KINDS:
+            assert f"/n26/authoring/{kind}/new/" not in body, kind
+
+    def test_a_retired_kinds_page_still_opens(self, author, client, default_pack):
+        """The rows are still there — answers a gang took back point at
+        them — so they stay reachable and editable. Only the invitation
+        to make another one goes."""
+        from n26.tests.sandbox.actions import create_specialisation
+
+        held = create_specialisation("Sniper")
+
+        listing = client.get("/n26/authoring/specialisation/")
+        page = client.get(f"/n26/authoring/specialisation/{held.pk}/")
+
+        assert listing.status_code == 200
+        assert page.status_code == 200
+        assert "Sniper" in page.content.decode()
 
     def test_the_index_groups_the_choice_kinds_together(
         self, author, client, default_pack
