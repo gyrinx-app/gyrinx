@@ -682,20 +682,26 @@ class Operation:
         """
         from n26.core.models import Stash
 
-        # The gang says what it is as well as its founding, and the two
-        # disagreeing is a gang whose pages and whose history describe
-        # different types.
-        self.gang.gang_type = gang_type
-        self.gang.save(update_fields=["gang_type", "modified"])
+        # Refused before anything is written, in memory as much as in the
+        # database: a caller that catches this and carries on would
+        # otherwise hold a gang saying it is something the database says
+        # it is not.
         founding = self.gang.founding
-        if founding is None:
-            return self.found(gang_type)
-        if founding.caused.exists() or founding.chosen_options.exists():
+        if founding is not None and (
+            founding.caused.exists() or founding.chosen_options.exists()
+        ):
             raise Refusal(
                 f"{self.gang} was founded on a type that gave it things, and "
                 "those would have to be given back before it can be said to "
                 "be a different type."
             )
+        # The gang says what it is as well as its founding, and the two
+        # disagreeing is a gang whose pages and whose history describe
+        # different types.
+        self.gang.gang_type = gang_type
+        self.gang.save(update_fields=["gang_type", "modified"])
+        if founding is None:
+            return self.found(gang_type)
         founding.gang_type = gang_type
         founding.save()
         Stash.objects.get_or_create(gang=self.gang)

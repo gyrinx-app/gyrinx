@@ -511,6 +511,10 @@ class TestRefoundTheVerb:
             with operation(played_on_it, actor=owner) as op:
                 op.refound(escher)
 
+        # In memory as well as in the database: a caller that catches the
+        # refusal and carries on must not hold a gang saying it is
+        # something the database says it is not.
+        assert played_on_it.gang_type_id != escher.pk
         played_on_it.refresh_from_db()
         assert played_on_it.gang_type_id != escher.pk
 
