@@ -75,9 +75,10 @@ class Nameless:
     assignment_ids: tuple = ()
     events: int = 0
     print_configs: int = 0
-    #: What a nameless type granted the gangs being repointed. A type
-    #: that granted anything is refused: giving it back is a refund's
-    #: work rather than this repair's.
+    #: What a nameless type granted the gangs being repointed —
+    #: assignments and options alike, since the verb refuses for either.
+    #: A type that granted anything is refused: giving it back is a
+    #: refund's work rather than this repair's.
     replaced: int = 0
     #: Gangs left alone, each with the reason in words. Not a refusal —
     #: the rest of the plan still runs.
@@ -178,7 +179,14 @@ def _played_as(gang, doomed_type_ids):
 
 def find():
     """Read the nameless types as they stand. Never writes."""
-    from n26.core.models import Assignment, Gang, LedgerEvent, Miniature, PrintConfig
+    from n26.core.models import (
+        Assignment,
+        ChosenProfileOption,
+        Gang,
+        LedgerEvent,
+        Miniature,
+        PrintConfig,
+    )
     from n26.library.models import GangType, Profile
     from n26.library.models.pack import default_pack_id
 
@@ -254,13 +262,18 @@ def find():
         # all, the question becomes "caused by nothing", which every
         # assignment a gang was ever given answers.
         if gang.founding_id:
-            replaced += Assignment.objects.filter(caused_by_id=gang.founding_id).count()
+            replaced += (
+                Assignment.objects.filter(caused_by_id=gang.founding_id).count()
+                + ChosenProfileOption.objects.filter(
+                    assignment_id=gang.founding_id
+                ).count()
+            )
 
     if replaced:
         problems.append(
-            f"a founding being repointed granted its gang {replaced} "
-            "assignments — giving those back is a refund's work, not this "
-            "repair's, so it is left alone"
+            f"a founding being repointed granted its gang {replaced} things — "
+            "giving those back is a refund's work, not this repair's, so it "
+            "is left alone"
         )
 
     doomed_gang_ids = {gang.pk for gang in doomed_gangs}
@@ -328,8 +341,6 @@ def _repoint(gang, target, actor=None):
     """
     from n26.core.operations import operation
 
-    gang.gang_type = target
-    gang.save(update_fields=["gang_type", "modified"])
     with operation(gang, actor=actor) as op:
         op.refound(target)
 

@@ -682,6 +682,11 @@ class Operation:
         """
         from n26.core.models import Stash
 
+        # The gang says what it is as well as its founding, and the two
+        # disagreeing is a gang whose pages and whose history describe
+        # different types.
+        self.gang.gang_type = gang_type
+        self.gang.save(update_fields=["gang_type", "modified"])
         founding = self.gang.founding
         if founding is None:
             return self.found(gang_type)
