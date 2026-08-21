@@ -164,6 +164,7 @@ def _what_to_print(request, gang, config):
             set(config.assignments.values_list("pk", flat=True)),
             config.include_header,
             config.include_stash,
+            config.include_notes,
         )
     if request.GET.get("pick"):
         return (
@@ -171,8 +172,9 @@ def _what_to_print(request, gang, config):
             _weapons_named(gang, request.GET.getlist("weapons")),
             bool(request.GET.get("include_header")),
             bool(request.GET.get("include_stash")),
+            bool(request.GET.get("include_notes")),
         )
-    return None, None, True, True
+    return None, None, True, True, True
 
 
 @login_required
@@ -221,6 +223,7 @@ def print_setup(request, pk):
             config = PrintConfig(gang=gang, name=name)
         config.include_header = bool(request.POST.get("include_header"))
         config.include_stash = bool(request.POST.get("include_stash"))
+        config.include_notes = bool(request.POST.get("include_notes"))
         config.save()
         config.miniatures.set(miniatures)
         config.assignments.set(weapons)
@@ -279,6 +282,7 @@ def print_setup(request, pk):
             "setup_name": loaded.name if loaded else "",
             "include_header": loaded.include_header if loaded else True,
             "include_stash": loaded.include_stash if loaded else True,
+            "include_notes": loaded.include_notes if loaded else True,
             "ticked_models": ticked_models,
             "ticked_weapons": ticked_weapons,
             "slot_budget": WEAPON_SLOTS_PER_CARD,
@@ -323,7 +327,7 @@ def print_gang(request, pk):
 
     gang = _any_gang_or_404(pk)
     config = _config_for(request, gang)
-    wanted, weapon_ids, include_header, include_stash = _what_to_print(
+    wanted, weapon_ids, include_header, include_stash, include_notes = _what_to_print(
         request, gang, config
     )
     # One derivation serves the whole page — the header's figures, the
@@ -356,6 +360,7 @@ def print_gang(request, pk):
             "stash": stash_lines(gang_card),
             "stash_rating": gang_card.stash_rating,
             "include_header": include_header,
+            "include_notes": include_notes,
             "include_stash": include_stash,
         },
     )
