@@ -398,6 +398,29 @@ class TestRefusing:
             apply(found)
         assert GangType.objects.filter(pk=nameless.pk).exists()
 
+    def test_a_founding_that_granted_something_is_left_alone(
+        self, played_on_it, escher
+    ):
+        """Taking back what a type gave means unwinding purchases that
+        hang off it and saying in the ledger that they went, which is a
+        refund's work. This repair repoints a founding that granted
+        nothing, and says so rather than deleting quietly."""
+        Assignment.objects.create(
+            rule=create_rule("A Gift"),
+            gang=played_on_it,
+            caused_by=played_on_it.founding,
+        )
+
+        found = find()
+
+        assert not found.ok
+        assert found.replaced == 1
+        assert any("refund's work" in problem for problem in found.problems)
+        with pytest.raises(Refused, match="not retired"):
+            apply(found)
+        played_on_it.refresh_from_db()
+        assert played_on_it.gang_type_id != escher.pk
+
     def test_a_nameless_type_in_another_pack_is_left_alone(self, db, default_pack):
         """Names are unique per pack, and another pack's rows are
         somebody's content rather than this accident."""
@@ -467,3 +490,42 @@ class TestApplying:
         assert again.nothing_here
         assert apply(again) == again.preview()
         assert_reconciled(Gang.objects.get(pk=played_on_it.pk))
+
+
+class TestRefoundTheVerb:
+    """``operation.refound`` is a verb of its own, and a second caller
+    would not have this repair's proof that the old type gave nothing."""
+
+    def test_it_refuses_a_founding_that_granted_something(
+        self, played_on_it, escher, owner
+    ):
+        from n26.core.operations import Refusal, operation
+
+        Assignment.objects.create(
+            rule=create_rule("A Gift"),
+            gang=played_on_it,
+            caused_by=played_on_it.founding,
+        )
+
+        with pytest.raises(Refusal, match="given back"):
+            with operation(played_on_it, actor=owner) as op:
+                op.refound(escher)
+
+        played_on_it.refresh_from_db()
+        assert played_on_it.gang_type_id != escher.pk
+
+    def test_a_gang_with_no_founding_is_simply_founded(
+        self, played_on_it, escher, owner
+    ):
+        from n26.core.operations import operation
+
+        played_on_it.founding = None
+        played_on_it.save(update_fields=["founding", "modified"])
+
+        with operation(played_on_it, actor=owner) as op:
+            op.refound(escher)
+
+        played_on_it.refresh_from_db()
+        assert played_on_it.founding is not None
+        assert played_on_it.founding.assignable == escher
+        assert_reconciled(played_on_it)

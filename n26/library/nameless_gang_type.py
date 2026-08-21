@@ -75,8 +75,9 @@ class Nameless:
     assignment_ids: tuple = ()
     events: int = 0
     print_configs: int = 0
-    #: What the nameless type materialised onto the gangs being
-    #: repointed, which the new type's built-ins replace.
+    #: What a nameless type granted the gangs being repointed. A type
+    #: that granted anything is refused: giving it back is a refund's
+    #: work rather than this repair's.
     replaced: int = 0
     #: Gangs left alone, each with the reason in words. Not a refusal —
     #: the rest of the plan still runs.
@@ -103,12 +104,7 @@ class Nameless:
                 "gang-wide rules arrive. Its models, its gear and its budget "
                 "are untouched"
             )
-        if self.replaced:
-            lines.append(
-                f"remove {self.replaced} assignment"
-                f"{'' if self.replaced == 1 else 's'} the nameless type gave "
-                "those gangs, replaced by what the new type gives"
-            )
+
         if self.doomed_gang_ids:
             gangs = len(self.doomed_gang_ids)
             rides = [
@@ -145,13 +141,15 @@ class Nameless:
 
 
 def _played_as(gang, doomed_type_ids):
-    """The gang type this gang's models were really hired from.
+    """What this gang's models were really hired from, or why nobody
+    can say.
 
-    One answer or none: a gang whose living models all come from one
-    list is that list's gang under another name, and one whose models
-    come from several is a gang nobody can read on its owner's behalf.
-    Archived rows are left out — a model long since dead says less about
-    what the gang is than the ones standing in it now.
+    Returns ``(target, reason)`` — one of them, never both. One answer
+    or none: a gang whose living models all come from one list is that
+    list's gang under another name, and one whose models come from
+    several is a gang nobody can read on its owner's behalf. Archived
+    rows are left out — a model long since dead says less about what the
+    gang is than the ones standing in it now.
 
     The one answer must also be a list a player could found a gang on,
     or the repair would move somebody's gang somewhere they could never
@@ -164,36 +162,18 @@ def _played_as(gang, doomed_type_ids):
         gang_root=gang, profile__isnull=False, archived=False
     ).values_list("profile__gang_type_id", flat=True)
     types = set(hired) - {None} - set(doomed_type_ids)
-    # Only onto a type somebody could have founded. A pet or a hired gun
-    # carries a profile off a list nobody plays as — Dramatis Personae,
-    # Allies — and a gang moved onto one of those would be a gang no
-    # player could have made.
+    if not types:
+        return None, "no gang list at all"
+    if len(types) > 1:
+        return None, f"{len(types)} different gang lists"
     foundable = set(
         GangType.objects.filter(pk__in=types, foundable=True).values_list(
             "pk", flat=True
         )
     )
-    return next(iter(foundable)) if len(foundable) == 1 and len(types) == 1 else None
-
-
-def _why_unreadable(gang, doomed_type_ids):
-    """Which of the two shapes a gang nobody can read is in."""
-    from n26.core.models import Assignment
-
-    found = (
-        set(
-            Assignment.objects.filter(
-                gang_root=gang, profile__isnull=False, archived=False
-            ).values_list("profile__gang_type_id", flat=True)
-        )
-        - {None}
-        - set(doomed_type_ids)
-    )
-    if not found:
-        return "no gang list at all"
-    if len(found) > 1:
-        return f"{len(found)} different gang lists"
-    return "a list nobody can found a gang on"
+    if not foundable:
+        return None, "a list nobody can found a gang on"
+    return next(iter(foundable)), ""
 
 
 def find():
@@ -254,13 +234,12 @@ def find():
             doomed_gangs.append(gang)
             continue
 
-        target = _played_as(gang, doomed_type_ids)
+        target, why = _played_as(gang, doomed_type_ids)
         if target is None:
             stranded.append(
                 f"a gang holding {models_in} models and {strays} assignments "
-                f"beyond its founding, whose models come from "
-                f"{_why_unreadable(gang, doomed_type_ids)} — nobody can say "
-                "what it was played as, so it keeps the type it has"
+                f"beyond its founding, whose models come from {why} — nobody "
+                "can say what it was played as, so it keeps the type it has"
             )
             standing_on.add(gang.gang_type_id)
             continue
@@ -276,6 +255,13 @@ def find():
         # assignment a gang was ever given answers.
         if gang.founding_id:
             replaced += Assignment.objects.filter(caused_by_id=gang.founding_id).count()
+
+    if replaced:
+        problems.append(
+            f"a founding being repointed granted its gang {replaced} "
+            "assignments — giving those back is a refund's work, not this "
+            "repair's, so it is left alone"
+        )
 
     doomed_gang_ids = {gang.pk for gang in doomed_gangs}
     foundings = {gang.founding_id for gang in doomed_gangs if gang.founding_id}
@@ -400,6 +386,7 @@ def apply(nameless, actor=None):
                 # unannounced.
                 or now.events != nameless.events
                 or now.print_configs != nameless.print_configs
+                or now.replaced != nameless.replaced
             ):
                 raise Refused(
                     "not retired: what stands has changed since the plan was "

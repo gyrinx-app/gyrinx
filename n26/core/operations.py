@@ -670,19 +670,27 @@ class Operation:
         with the assignment — and write a new one in whatever name did
         the founding.
 
-        What the old type materialised goes, and the new type's built-ins
-        arrive in its place. A gang with no founding at all is simply
-        founded.
+        The new type's built-ins arrive caused by that same founding. A
+        gang with no founding at all is simply founded.
+
+        Refused where the founding already granted something. Taking the
+        old type's kit away means unwinding purchases that hang off it
+        and saying in the ledger that they went, which is a refund's job
+        — deleting the rows here would take their entries and events
+        with them and say nothing, and the ledger is written to once and
+        never altered.
         """
         from n26.core.models import Stash
 
         founding = self.gang.founding
         if founding is None:
             return self.found(gang_type)
-        founding.caused.all().delete()
-        # Any option recorded against the founding was an option of the
-        # type it used to name, and the new one does not offer it.
-        founding.chosen_options.all().delete()
+        if founding.caused.exists() or founding.chosen_options.exists():
+            raise Refusal(
+                f"{self.gang} was founded on a type that gave it things, and "
+                "those would have to be given back before it can be said to "
+                "be a different type."
+            )
         founding.gang_type = gang_type
         founding.save()
         Stash.objects.get_or_create(gang=self.gang)
