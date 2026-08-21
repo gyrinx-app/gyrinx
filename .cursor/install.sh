@@ -120,12 +120,15 @@ if ! command -v jq >/dev/null 2>&1; then
   sudo apt-get install -y -qq jq
 fi
 
-# Version and checksums are pinned rather than resolved at build time: the
-# GitHub releases API is rate limited for unauthenticated callers, so resolving
-# "latest" here would make builds fail unpredictably. Google publishes no
-# checksum sidecar, so these were computed from the pinned release.
+# The version and its digests are pinned rather than resolved at build time:
+# the GitHub releases API is rate limited for unauthenticated callers, so
+# resolving "latest" here would make builds fail unpredictably. Google publishes
+# no checksum sidecar, so compute these from the release artefacts when bumping
+# the version.
 CSP_VERSION="v2.25.3"
 CSP_BIN="/usr/local/bin/cloud-sql-proxy"
+CSP_ARCH=""
+CSP_SHA=""
 case "$(uname -m)" in
   x86_64)
     CSP_ARCH="amd64"
@@ -135,24 +138,27 @@ case "$(uname -m)" in
     CSP_ARCH="arm64"
     CSP_SHA="9ffbf512ee24dbeca527eb12fc43d7a322724afccf369d7c172995fca35444d9"
     ;;
-  *)
-    echo "Unsupported architecture $(uname -m) for cloud-sql-proxy" >&2
-    exit 1
-    ;;
 esac
 
-# Whether the right binary is already present is decided by its digest rather
-# than by matching its reported version, which would treat 2.25.30 as 2.25.3 and
-# says nothing about whether the file has been altered since it was installed.
-if ! echo "${CSP_SHA}  ${CSP_BIN}" | sha256sum -c --status - 2>/dev/null; then
-  log "Installing cloud-sql-proxy ${CSP_VERSION} (${CSP_ARCH})"
-  CSP_TMP=$(mktemp)
-  curl -sfLo "$CSP_TMP" \
-    "https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/${CSP_VERSION}/cloud-sql-proxy.linux.${CSP_ARCH}"
-  echo "${CSP_SHA}  ${CSP_TMP}" | sha256sum -c --status -
-  sudo install -m 0755 "$CSP_TMP" "$CSP_BIN"
-  rm -f "$CSP_TMP"
+if [ -z "$CSP_ARCH" ]; then
+  # Production database access is an optional extra. An architecture with no
+  # published build must not discard the interpreter, the database, the
+  # migrations and the assets that everything else depends on.
+  log "No cloud-sql-proxy build for $(uname -m); skipping it. Production database access will be unavailable."
+else
+  # Whether the right binary is already present is decided by its digest rather
+  # than by matching its reported version, which would treat 2.25.30 as 2.25.3
+  # and says nothing about whether the file has been altered since installation.
+  if ! echo "${CSP_SHA}  ${CSP_BIN}" | sha256sum -c --status - 2>/dev/null; then
+    log "Installing cloud-sql-proxy ${CSP_VERSION} (${CSP_ARCH})"
+    CSP_TMP=$(mktemp)
+    curl -sfLo "$CSP_TMP" \
+      "https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/${CSP_VERSION}/cloud-sql-proxy.linux.${CSP_ARCH}"
+    echo "${CSP_SHA}  ${CSP_TMP}" | sha256sum -c --status -
+    sudo install -m 0755 "$CSP_TMP" "$CSP_BIN"
+    rm -f "$CSP_TMP"
+  fi
+  log "$("$CSP_BIN" --version 2>/dev/null | head -1)"
 fi
-log "$("$CSP_BIN" --version 2>/dev/null | head -1)"
 
 log "Install complete"
