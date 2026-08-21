@@ -8,10 +8,11 @@ are registered read-only: the admin is for finding and inspecting, not
 for writing what only an operation may write. The pinned caches on Gang
 and Miniature are read-only fields for the same reason.
 
-Removing is the exception, and a superuser's alone. A gang that has to
-go takes everything it owns with it, and refusing that left no way to
-delete one at all — Django asks for the permission on every model the
-cascade would reach.
+Removing is the exception, and a superuser's alone. Django asks for
+the delete permission on every model a cascade reaches, so a gang is
+deletable only where the models its deletion touches allow it. It is
+taken one at a time, on the page that says what goes: the changelists
+offer no batch delete.
 
 Display-only state (AssignmentSet, PrintConfig, StatOverride) is
 editable — it moves no money, changes no rating and touches no ledger —
@@ -35,21 +36,36 @@ from n26.core.models import (
 from n26.core.models.assignment import ASSIGNABLE_FIELDS
 
 
-class ReadOnlyAdmin(admin.ModelAdmin):
+class OneAtATime:
+    """No batch delete from a list.
+
+    Deleting player data is a deliberate act, taken on the page that
+    says what goes with it. The changelist's batch offers the same
+    power a checkbox at a time, over things whose consequences differ
+    one from the next, and with no such page in between.
+    """
+
+    def get_actions(self, request):
+        actions = super().get_actions(request)
+        actions.pop("delete_selected", None)
+        return actions
+
+
+class ReadOnlyAdmin(OneAtATime, admin.ModelAdmin):
     """Look, don't write — but a superuser may still remove.
 
-    Writing is what the guard is for: a row created or edited here skips
-    the ledger entry, the event and the repin, and nothing notices until
-    reconcile runs. Removing is a different act, and one somebody needs
-    when a test gang has to go: everything a gang owns is deleted with
-    it, so nothing is left half-referring to what went.
+    Writing is what the guard is for: an assignment created or edited
+    here skips the ledger entry, the event and the repin, and nothing
+    notices until reconcile runs. Removing is a different act, and a
+    superuser's: a gang that has to go takes its assignments, its
+    ledger and its stash with it. Its models stay — belonging to a gang
+    is an assignment, and a model outlives the one that placed it.
 
-    It is not free of edges. Deleting *part* of a gang — one assignment
-    out of a live chain — leaves that gang's pinned totals standing for
-    rows that are gone, which reconcile then reports as a discrepancy;
-    the repair is to recompute, or to delete the gang whole. Given to
-    superusers only, who are also the ones the maintenance console
-    opens for.
+    Deleting *part* of a gang is possible and is the sharp edge: one
+    assignment out of a live chain leaves that gang's pinned totals
+    standing for what has gone, which reconcile reports as a
+    discrepancy, and a lone ledger event is the audit trail losing a
+    line. The repair is to recompute, or to delete the gang whole.
     """
 
     def has_add_permission(self, request):
@@ -63,7 +79,7 @@ class ReadOnlyAdmin(admin.ModelAdmin):
 
 
 @admin.register(Gang)
-class GangAdmin(admin.ModelAdmin):
+class GangAdmin(OneAtATime, admin.ModelAdmin):
     list_display = [
         "name",
         "gang_type",

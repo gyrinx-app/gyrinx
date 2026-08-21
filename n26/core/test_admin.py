@@ -13,7 +13,14 @@ from django.contrib.auth.models import User
 from django.urls import reverse
 
 from n26.core import admin as core_admin
-from n26.core.models import Assignment, Gang, LedgerEntry, LedgerEvent, Stash
+from n26.core.models import (
+    Assignment,
+    Gang,
+    LedgerEntry,
+    LedgerEvent,
+    Miniature,
+    Stash,
+)
 from n26.core.operations import operation
 
 pytestmark = pytest.mark.django_db
@@ -127,16 +134,34 @@ class TestWhatTheGuardStillRefuses:
         assert guard.has_delete_permission(self._asked(staff)) is True
         assert guard.has_delete_permission(self._asked(clerk)) is False
 
+    def test_no_changelist_offers_a_batch_delete(self, staff):
+        """Deletion is deliberate, one at a time, on the page that says
+        what goes with it — including the gang's own changelist."""
+        for model in (Assignment, LedgerEntry, LedgerEvent, Stash, Gang):
+            guard = django_admin.site._registry[model]
+            assert "delete_selected" not in guard.get_actions(self._asked(staff))
+
+    def test_a_single_row_may_still_be_removed(self, staff):
+        """The escape hatch the guard exists to keep open: one thing,
+        deliberately, from its own page."""
+        guard = django_admin.site._registry[LedgerEvent]
+
+        assert guard.has_delete_permission(self._asked(staff)) is True
+
 
 @pytest.mark.django_db
 def test_a_superuser_can_delete_a_gang_and_everything_it_owns(client, staff, gang):
-    """The whole reason removing is allowed: Django asks for the
-    permission on every model the cascade reaches, so refusing it on
-    the ledger-adjacent ones left no way to delete a gang at all."""
+    """A gang deleted through the admin takes its assignments, its
+    ledger and its events. Its models stay, gangless, as they do
+    whenever a membership ends."""
     assert Assignment.objects.filter(gang_root=gang).exists()
     # An entry hangs off its assignment rather than the gang, so it goes
     # the same way: down the cascade, one step further along.
     assert LedgerEntry.objects.filter(assignment__gang_root=gang).exists()
+    hired = list(
+        Miniature.objects.filter(membership__gang=gang).values_list("pk", flat=True)
+    )
+    assert hired
     client.force_login(staff)
 
     response = client.post(
@@ -148,3 +173,23 @@ def test_a_superuser_can_delete_a_gang_and_everything_it_owns(client, staff, gan
     assert not Assignment.objects.filter(gang_root=gang.pk).exists()
     assert not LedgerEntry.objects.filter(assignment__gang_root=gang.pk).exists()
     assert not LedgerEvent.objects.filter(gang=gang.pk).exists()
+    # The models stay, and stay gangless: a membership is an assignment
+    # like any other, and a model is not deleted by the ending of one
+    # (test_miniature.py pins the same rule from the other side).
+    left = Miniature.objects.filter(pk__in=hired)
+    assert left.count() == len(hired)
+    assert all(model.gang is None for model in left)
+
+
+@pytest.mark.django_db
+def test_a_staffer_is_refused_the_same_deletion(client, clerk, gang):
+    """The other half of the gate, asked through the door rather than
+    of the permission method."""
+    client.force_login(clerk)
+
+    response = client.post(
+        reverse("admin:n26_gang_delete", args=[gang.pk]), {"post": "yes"}
+    )
+
+    assert response.status_code in (302, 403)
+    assert Gang.objects.filter(pk=gang.pk).exists()
