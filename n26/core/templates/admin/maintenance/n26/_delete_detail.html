@@ -1,9 +1,9 @@
 {% comment %}
     The summary of one deletion run, on the Backfill detail page: what it
     was going to delete, and — once it has finished — what it did. A
-    conversion's caption cannot stand in here: it promises that nothing is
-    written until every affected gang is proven, which is a promise a
-    deletion does not make.
+    deletion promises only that it is one transaction; the promise that
+    nothing is written until every affected gang reads the same is a
+    conversion's, and belongs on a conversion's record alone.
 {% endcomment %}
 {% if backfill.summary.report %}
     <h2>What it did</h2>

@@ -23,12 +23,17 @@ Two endings, per gang, because the gangs are not alike:
   from. A gang whose models all come from the Outcast list is an Outcast
   gang naming the wrong type, and saying so takes nothing away.
 
-Repointing is not a change of column. What a gang type brings — its
-built-ins and its gang-wide modifiers — arrives *caused by the founding
-assignment*, so a repoint retires the old founding and founds again
-through ``operation.found``, which is what materialises the new type's
-built-ins and gives its modifiers a carrier every member's card can
-find. The operation rewrites the pinned numbers as it closes.
+Repointing is not a change of column, and it is not a second founding
+either. What a gang type brings — its built-ins and its gang-wide
+modifiers — arrives *caused by the founding assignment*, so the repoint
+goes through ``operation.refound``: the founding the owner made is kept
+and made to name the new type, and that type's built-ins arrive caused
+by it. Keeping it is the point. The founding carries the gang's opening
+ledger entry and the history event that says its owner created it, and
+both cascade with the assignment — a gang founded afresh would open its
+history with a stranger creating it, dated the day of the repair. The
+operation rewrites the pinned numbers as it closes; built-ins arrive
+free, so the gang's rating cannot move.
 
 A gang that cannot be read this way — models from several lists, or from
 none — is left exactly as it stands, and the type it names is left with
@@ -70,6 +75,9 @@ class Nameless:
     assignment_ids: tuple = ()
     events: int = 0
     print_configs: int = 0
+    #: What the nameless type materialised onto the gangs being
+    #: repointed, which the new type's built-ins replace.
+    replaced: int = 0
     #: Gangs left alone, each with the reason in words. Not a refusal —
     #: the rest of the plan still runs.
     stranded: tuple = ()
@@ -89,9 +97,17 @@ class Nameless:
         for _, target_id in self.repoint:
             lines.append(
                 f"repoint a played gang onto {self.said.get(target_id, target_id)}, "
-                "the list its models were hired from — its founding is reissued, "
-                "so that type's built-ins and gang-wide rules arrive as they "
-                "would at founding, and nothing the gang owns is touched"
+                "the list its models were hired from — the act that founded it "
+                "is kept and made to name that type, so its history still opens "
+                "with its owner creating it, and that type's built-ins and "
+                "gang-wide rules arrive. Its models, its gear and its budget "
+                "are untouched"
+            )
+        if self.replaced:
+            lines.append(
+                f"remove {self.replaced} assignment"
+                f"{'' if self.replaced == 1 else 's'} the nameless type gave "
+                "those gangs, replaced by what the new type gives"
             )
         if self.doomed_gang_ids:
             gangs = len(self.doomed_gang_ids)
@@ -136,16 +152,48 @@ def _played_as(gang, doomed_type_ids):
     come from several is a gang nobody can read on its owner's behalf.
     Archived rows are left out — a model long since dead says less about
     what the gang is than the ones standing in it now.
+
+    The one answer must also be a list a player could found a gang on,
+    or the repair would move somebody's gang somewhere they could never
+    have put it themselves.
     """
     from n26.core.models import Assignment
+    from n26.library.models import GangType
 
     hired = Assignment.objects.filter(
         gang_root=gang, profile__isnull=False, archived=False
-    ).select_related("profile")
-    types = {
-        row.profile.gang_type_id for row in hired if row.profile.gang_type_id
-    } - set(doomed_type_ids)
-    return next(iter(types)) if len(types) == 1 else None
+    ).values_list("profile__gang_type_id", flat=True)
+    types = set(hired) - {None} - set(doomed_type_ids)
+    # Only onto a type somebody could have founded. A pet or a hired gun
+    # carries a profile off a list nobody plays as — Dramatis Personae,
+    # Allies — and a gang moved onto one of those would be a gang no
+    # player could have made.
+    foundable = set(
+        GangType.objects.filter(pk__in=types, foundable=True).values_list(
+            "pk", flat=True
+        )
+    )
+    return next(iter(foundable)) if len(foundable) == 1 and len(types) == 1 else None
+
+
+def _why_unreadable(gang, doomed_type_ids):
+    """Which of the two shapes a gang nobody can read is in."""
+    from n26.core.models import Assignment
+
+    found = (
+        set(
+            Assignment.objects.filter(
+                gang_root=gang, profile__isnull=False, archived=False
+            ).values_list("profile__gang_type_id", flat=True)
+        )
+        - {None}
+        - set(doomed_type_ids)
+    )
+    if not found:
+        return "no gang list at all"
+    if len(found) > 1:
+        return f"{len(found)} different gang lists"
+    return "a list nobody can found a gang on"
 
 
 def find():
@@ -155,13 +203,11 @@ def find():
     from n26.library.models.pack import default_pack_id
 
     # Scoped to the default pack: a custom pack's own rows are somebody's
-    # content and not this accident, and the create page no longer offers
-    # a nameless one from anywhere.
+    # content and not this accident, and the create page offers no
+    # nameless type from any pack.
     doomed_types = list(
         GangType.objects.filter(
-            # Whitespace draws the same empty card as nothing at all, and
-            # the verb stores a stripped name, so a padded one can only be
-            # a row that predates the guard.
+            # Whitespace draws the same empty card as nothing at all.
             name__regex=BLANK,
             pack_id=default_pack_id(),
         ).order_by("created")
@@ -189,6 +235,7 @@ def find():
     gangs = list(Gang.objects.filter(gang_type__in=doomed_types))
     doomed_gangs, repoint, stranded, said = [], [], [], {}
     standing_on = set()
+    replaced = 0
 
     for gang in gangs:
         # Untouched means: the founding assignment and nothing else. Both
@@ -211,30 +258,48 @@ def find():
         if target is None:
             stranded.append(
                 f"a gang holding {models_in} models and {strays} assignments "
-                "beyond its founding, whose models come from no one gang list "
-                "— nobody can say what it was played as, so it keeps the type "
-                "it has"
+                f"beyond its founding, whose models come from "
+                f"{_why_unreadable(gang, doomed_type_ids)} — nobody can say "
+                "what it was played as, so it keeps the type it has"
             )
             standing_on.add(gang.gang_type_id)
             continue
         repoint.append((gang.pk, target))
         said[target] = str(GangType.objects.get(pk=target))
+        # What the old type gave the gang goes when the new type's
+        # built-ins arrive. A nameless type carrying built-ins is refused
+        # above, so this is normally nothing — counted rather than
+        # assumed, because the preview promises the gang keeps what it
+        # owns and that promise should be checked.
+        replaced += Assignment.objects.filter(caused_by_id=gang.founding_id).count()
 
     doomed_gang_ids = {gang.pk for gang in doomed_gangs}
     foundings = {gang.founding_id for gang in doomed_gangs if gang.founding_id}
+    repointing = {pk for pk, _ in repoint}
 
-    # An assignment naming a nameless type on no gang founded on one is
-    # something this has not accounted for; ``PROTECT`` would stop the
-    # delete anyway, and a refusal in words beats a crash.
+    # Only the types actually going are at issue: a gang left standing
+    # goes on naming the type it names, which is why that type stays.
+    # Every assignment naming a type that *is* going has to be one this
+    # plan takes away — the founding of a gang being deleted, or of one
+    # being repointed, whose founding is reissued. Anything else still
+    # names the type when the delete comes, and ``PROTECT`` would fail
+    # the run whole: a refusal in words beats a rollback nobody can read.
+    going = [row for row in doomed_types if row.pk not in standing_on]
+    settled = {
+        *foundings,
+        *(
+            gang.founding_id
+            for gang in gangs
+            if gang.pk in repointing and gang.founding_id
+        ),
+    }
     strangers = (
-        Assignment.objects.filter(gang_type__in=doomed_types)
-        .exclude(gang_root__in=[gang.pk for gang in gangs])
-        .count()
+        Assignment.objects.filter(gang_type__in=going).exclude(pk__in=settled).count()
     )
     if strangers:
         problems.append(
-            f"{strangers} assignments name a nameless gang type but belong to "
-            "no gang founded on one"
+            f"{strangers} assignments name a nameless gang type that would be "
+            "deleted and are not a founding this takes away"
         )
 
     events = LedgerEvent.objects.filter(gang_id__in=doomed_gang_ids).count()
@@ -252,6 +317,7 @@ def find():
         assignment_ids=tuple(sorted(foundings, key=str)),
         events=events,
         print_configs=layouts,
+        replaced=replaced,
         stranded=tuple(stranded),
         problems=tuple(problems),
         said=said,
@@ -261,25 +327,21 @@ def find():
 def _repoint(gang, target, actor=None):
     """Say what a gang really is, and give it what that brings.
 
-    The founding assignment is the carrier for everything a gang type
-    hands its gang, so the old one is retired and the gang founded
-    again. Nothing the gang owns hangs off that assignment — models are
-    hired, not caused — so what it holds is untouched. What changes is
-    the type it names, the built-ins that arrive with the new one, and
-    the pinned numbers the operation rewrites as it closes.
+    The founding assignment is repointed rather than replaced, because
+    it carries the gang's opening ledger entry and the history event
+    that says its owner created it. Deleting it would take that act out
+    of the gang's history — entry and event cascade with the assignment
+    — and write a new one, dated today, in the name of whoever ran the
+    repair. What changes is the type the gang names, the built-ins that
+    arrive with it, and the pinned numbers the operation rewrites as it
+    closes.
     """
-    from n26.core.models import Assignment
     from n26.core.operations import operation
 
-    was_id = gang.founding_id
-    if was_id is not None:
-        # Anything the old type caused goes with it: the gang stops
-        # carrying what a type it was never really of had given it.
-        Assignment.objects.filter(pk=was_id).delete()
     gang.gang_type = target
     gang.save(update_fields=["gang_type", "modified"])
     with operation(gang, actor=actor) as op:
-        op.found(target)
+        op.refound(target)
 
 
 def apply(nameless, actor=None):
@@ -287,7 +349,8 @@ def apply(nameless, actor=None):
     from django.db.models import ProtectedError
 
     from n26.core.models import Gang
-    from n26.core.reconcile import assert_reconciled
+    from n26.core.operations import Refusal
+    from n26.core.reconcile import Discrepancy, assert_reconciled
     from n26.library.models import GangType
 
     if nameless.problems:
@@ -312,6 +375,14 @@ def apply(nameless, actor=None):
                 .filter(pk__in=[*nameless.doomed_gang_ids, *repointed])
                 .order_by("pk")
             )
+            # The types as well as the gangs: a gang founded on one after
+            # the re-read would fail the delete as a database error
+            # rather than as a refusal anybody can read.
+            list(
+                GangType.objects.select_for_update()
+                .filter(pk__in=nameless.gang_type_ids)
+                .order_by("pk")
+            )
             now = find()
             if (
                 now.problems
@@ -334,23 +405,32 @@ def apply(nameless, actor=None):
             # Played gangs first: each stops naming a nameless type, which
             # is what lets the type go at the end.
             for gang_id, target_id in nameless.repoint:
-                _repoint(
-                    Gang.objects.get(pk=gang_id),
-                    GangType.objects.get(pk=target_id),
-                    actor=actor,
-                )
+                try:
+                    _repoint(
+                        Gang.objects.get(pk=gang_id),
+                        GangType.objects.get(pk=target_id),
+                        actor=actor,
+                    )
+                except Refusal as refused:
+                    # An operation that turns something away says why in
+                    # words; that is an ending the record can carry,
+                    # never a traceback.
+                    raise Refused(
+                        f"refused — a repoint was turned away: {refused}"
+                    ) from refused
 
             Gang.objects.filter(pk__in=nameless.doomed_gang_ids).delete()
             GangType.objects.filter(pk__in=nameless.gang_type_ids).delete()
 
-            # A repoint moves what a gang is worth — the new type's
-            # built-ins are things it now owns — so the pinned numbers
-            # must still describe the ledger they came from.
+            # A repoint must leave the books exactly as it found them:
+            # built-ins arrive free, so the rating cannot move, and the
+            # pinned numbers must still describe the ledger they came
+            # from.
             for gang_id in repointed:
                 gang = Gang.objects.get(pk=gang_id)
                 try:
                     assert_reconciled(gang)
-                except Exception as failed:
+                except Discrepancy as failed:
                     raise Refused(
                         f"refused — a repointed gang no longer reconciles: {failed}"
                     ) from failed
@@ -368,16 +448,16 @@ def apply(nameless, actor=None):
             "repointed gangs "
             + ", ".join(f"{pk} → {target}" for pk, target in nameless.repoint)
         )
-    if nameless.gang_type_ids:
-        deleted_gangs = (
-            "; deleted gangs " + ", ".join(str(pk) for pk in nameless.doomed_gang_ids)
-            if nameless.doomed_gang_ids
-            else "; no untouched gangs stood on them"
-        )
+    # A gang can be deleted while the type it stood on stays, and a
+    # destructive outcome the record does not name is a deletion nobody
+    # can trace.
+    if nameless.doomed_gang_ids:
         report.append(
-            "deleted gang types "
-            + ", ".join(str(pk) for pk in nameless.gang_type_ids)
-            + deleted_gangs
+            "deleted gangs " + ", ".join(str(pk) for pk in nameless.doomed_gang_ids)
+        )
+    if nameless.gang_type_ids:
+        report.append(
+            "deleted gang types " + ", ".join(str(pk) for pk in nameless.gang_type_ids)
         )
     report.append(
         "done; a nameless type stands where a gang could not be read"

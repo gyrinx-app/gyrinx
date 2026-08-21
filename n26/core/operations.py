@@ -658,6 +658,34 @@ class Operation:
         self._materialise_defaults(founding, list(taken), gang=self.gang)
         return founding
 
+    def refound(self, gang_type):
+        """Say the gang is a different type, keeping the act that founded it.
+
+        Founding is something the owner did, and the founding assignment
+        carries the ledger entry and the history event that say so.
+        Repointing that assignment keeps both: the gang's history still
+        opens with its own creation, on its own date and in its owner's
+        name, and now names the type the gang really is. Founding again
+        instead would delete that act — the entry and the event cascade
+        with the assignment — and write a new one in whatever name did
+        the founding.
+
+        What the old type materialised goes, and the new type's built-ins
+        arrive in its place. A gang with no founding at all is simply
+        founded.
+        """
+        from n26.core.models import Stash
+
+        founding = self.gang.founding
+        if founding is None:
+            return self.found(gang_type)
+        founding.caused.all().delete()
+        founding.gang_type = gang_type
+        founding.save()
+        Stash.objects.get_or_create(gang=self.gang)
+        self._materialise_defaults(founding, [], gang=self.gang)
+        return founding
+
     def rechoose(self, carrier, option=None, note=""):
         """Change which of its options an assignment's thing is taken with.
 

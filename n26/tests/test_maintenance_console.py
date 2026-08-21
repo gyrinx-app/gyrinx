@@ -19,6 +19,7 @@ from django.urls import reverse
 from gyrinx.maintenance.models import Backfill
 from gyrinx.maintenance.registry import operations, resolve_operation
 from n26.core.models import Assignment
+from n26.core.reconcile import assert_reconciled
 from n26.maintenance import (
     MAX_ATTEMPTS,
     Operation,
@@ -573,6 +574,7 @@ class TestTheNamelessGangTypeRetirement:
         assert run.status == Backfill.Status.DONE
         assert Gang.objects.get(pk=nameless_world.pk).gang_type_id == escher.pk
         assert not GangType.objects.filter(name="").exists()
+        assert_reconciled(Gang.objects.get(pk=nameless_world.pk))
 
     def test_a_gang_nobody_can_read_stops_the_type_going(
         self, client, superuser, nameless_world, person_type
@@ -601,3 +603,4 @@ class TestTheNamelessGangTypeRetirement:
         assert run.status == Backfill.Status.DONE
         assert GangType.objects.filter(name="").exists()
         assert Gang.objects.get(pk=nameless_world.pk).gang_type.name == ""
+        assert_reconciled(Gang.objects.get(pk=nameless_world.pk))

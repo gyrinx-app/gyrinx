@@ -348,9 +348,10 @@ def retire_gang_legacy_pilot(backfill_id, **said_by_whoever_enqueued_it):
 def _who_asked(backfill_id):
     """The operator a run acts as, for the history it writes.
 
-    A repoint founds a gang again, and a founding is something somebody
-    did — filed against nobody it reads as the gang having done it to
-    itself.
+    A repair that hands a gang something writes that down, and an act
+    filed against nobody reads as the gang having done it to itself.
+    The gang's own acts keep their own actor: what a repair may not do
+    is put its name on those.
     """
     backfill = Backfill.objects.filter(pk=backfill_id).first()
     return backfill.triggered_by if backfill else None
@@ -499,11 +500,12 @@ NAMELESS_WORDS = {
         "with no name was founded and drew as an empty card on the "
         "create-gang page. A gang founded on it and never played is "
         "deleted with it. A gang somebody has played is not: it is "
-        "repointed to the list its models were actually hired from, which "
-        "reissues its founding so that type's built-ins and gang-wide "
-        "rules arrive — nothing it owns is touched. A gang whose models "
-        "come from no one list is left exactly as it stands, and so is "
-        "the type it names."
+        "repointed to the list its models were actually hired from. The "
+        "act that founded it is kept and made to name that type, so its "
+        "history still opens with its owner creating it, and that type's "
+        "built-ins and gang-wide rules arrive — its models, its gear and "
+        "its budget are untouched. A gang whose models come from no one "
+        "list is left exactly as it stands, and so is the type it names."
     ),
     "nothing_heading": "Nothing to retire",
     "nothing_flash": "There was nothing to retire — every gang type has a name.",
@@ -682,8 +684,9 @@ register_operation(
             "the nameless one that drew as an empty card on the create-gang "
             "page. An untouched gang founded on it goes with it; a played "
             "one is repointed to the list its models were hired from, "
-            "founding again so that type's built-ins arrive. A gang that "
-            "cannot be read, and the type it names, are left standing."
+            "keeping the act that founded it so its history is not "
+            "rewritten. A gang that cannot be read, and the type it "
+            "names, are left standing."
         ),
         view=delete_nameless_gang_type_view,
         detail_template="admin/maintenance/n26/_delete_detail.html",

@@ -143,7 +143,9 @@ class TestReadingWhatStandsOnIt:
         assert found.repoint == ((played_on_it.pk, escher.pk),)
         said = "\n".join(found.preview())
         assert "repoint a played gang onto Escher" in said
-        assert "nothing the gang owns is touched" in said
+        assert "its history still opens with its owner creating it" in said
+        assert "Its models, its gear and its budget are untouched" in said
+        assert_reconciled(played_on_it)
 
     def test_a_type_with_no_gang_on_it_still_goes(self, nameless):
         found = find()
@@ -196,6 +198,38 @@ class TestRepointing:
         assert [str(row.assignable) for row in arrived] == ["Wise"]
         assert_reconciled(played_on_it)
 
+    def test_the_gang_keeps_its_own_founding_act(self, played_on_it, escher, owner):
+        """Founding is something the owner did, and the history says so.
+
+        A repoint that deleted the founding assignment would take that
+        act with it — entry and event cascade — and write a new one,
+        dated today, in the name of whoever ran the repair. The owner
+        would open their history and find their hires first and a
+        stranger creating their gang last.
+        """
+        from n26.core.history import build
+
+        founding_id = played_on_it.founding_id
+        opening = played_on_it.ledger_events.order_by("created", "id").first()
+        was = (opening.pk, opening.created, opening.actor_id)
+
+        apply(find())
+
+        played_on_it.refresh_from_db()
+        assert played_on_it.founding_id == founding_id
+        still = played_on_it.ledger_events.order_by("created", "id").first()
+        assert (still.pk, still.created, still.actor_id) == was
+        assert still.actor_id == owner.pk
+
+        # And it now says what the gang really is, because the history
+        # reads the assignment as it stands rather than any stored wording.
+        acts = build(played_on_it, viewer=owner)
+        opening_act = acts[0]
+        told = "".join(span.text for span in opening_act.spans)
+        assert "created the gang" in told
+        assert "Escher" in told
+        assert opening_act.actor
+
     def test_the_nameless_type_goes_once_nothing_stands_on_it(
         self, played_on_it, founded_on_it, escher
     ):
@@ -207,6 +241,8 @@ class TestRepointing:
         assert Gang.objects.filter(pk=played_on_it.pk).exists()
         assert not GangType.objects.filter(name="").exists()
         assert any("repointed gangs" in line for line in report)
+        assert any("deleted gangs" in line for line in report)
+        assert_reconciled(Gang.objects.get(pk=played_on_it.pk))
 
     def test_a_gang_read_from_no_one_list_is_left_standing(
         self, played_on_it, nameless, person_type
@@ -227,13 +263,35 @@ class TestRepointing:
         assert found.repoint == ()
         assert found.gang_type_ids == ()
         assert found.kept_type_ids == (nameless.pk,)
-        assert any("no one gang list" in reason for reason in found.stranded)
+        assert any("2 different gang lists" in reason for reason in found.stranded)
 
         apply(found)
 
         played_on_it.refresh_from_db()
         assert played_on_it.gang_type_id == nameless.pk
         assert GangType.objects.filter(pk=nameless.pk).exists()
+        assert_reconciled(played_on_it)
+
+    def test_a_list_nobody_can_found_is_not_a_target(
+        self, nameless, owner, person_type
+    ):
+        """Hired guns and pets carry profiles off lists nobody plays as.
+        A gang moved onto one of those would be a gang no player could
+        have made, so it is left standing instead."""
+        hangers_on = create_gang_type("Dramatis Personae", foundable=False)
+        gang = found_gang("Odd One", nameless, owner=owner)
+        hire(
+            gang,
+            create_profile("Hired Gun", person_type, hangers_on, price=50),
+            "For Hire",
+            paid=50,
+        )
+
+        found = find()
+
+        assert found.repoint == ()
+        assert found.kept_type_ids == (nameless.pk,)
+        assert_reconciled(gang)
 
     def test_an_untouched_gang_still_goes_beside_one_left_standing(
         self, played_on_it, founded_on_it, nameless, person_type
@@ -248,11 +306,15 @@ class TestRepointing:
             paid=50,
         )
 
-        apply(find())
+        report = apply(find())
 
         assert not Gang.objects.filter(pk=founded_on_it.pk).exists()
         assert Gang.objects.filter(pk=played_on_it.pk).exists()
         assert GangType.objects.filter(pk=nameless.pk).exists()
+        # The record must still name the gang it destroyed, even though
+        # the type it stood on outlived it.
+        assert any("deleted gangs" in line for line in report)
+        assert_reconciled(played_on_it)
 
 
 class TestRefusing:
@@ -299,10 +361,28 @@ class TestRefusing:
 
         assert not found.ok
         assert any(
-            "belong to no gang founded on one" in problem for problem in found.problems
+            "not a founding this takes away" in problem for problem in found.problems
         )
         with pytest.raises(Refused, match="not retired"):
             apply(found)
+
+    def test_a_row_naming_the_type_on_a_repointed_gang_is_refused(
+        self, played_on_it, nameless
+    ):
+        """A repointed gang keeps its own assignments, so one of those
+        naming the nameless type would still name it when the delete
+        came — and PROTECT would fail the whole run."""
+        Assignment.objects.create(gang_type=nameless, gang=played_on_it)
+
+        found = find()
+
+        assert not found.ok
+        assert any(
+            "not a founding this takes away" in problem for problem in found.problems
+        )
+        with pytest.raises(Refused, match="not retired"):
+            apply(found)
+        assert GangType.objects.filter(pk=nameless.pk).exists()
 
     def test_a_nameless_type_in_another_pack_is_left_alone(self, db, default_pack):
         """Names are unique per pack, and another pack's rows are
@@ -372,3 +452,4 @@ class TestApplying:
 
         assert again.nothing_here
         assert apply(again) == again.preview()
+        assert_reconciled(Gang.objects.get(pk=played_on_it.pk))
