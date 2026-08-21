@@ -75,6 +75,14 @@ LEAF_KINDS = {
 }
 
 
+#: Kinds a menu no longer offers. What they said is said by slots and
+#: picks now, and the rows that remain are history: pointed at by
+#: answers a gang took back, and by nothing a reader can still choose.
+#: They keep their pages, so those rows stay reachable and editable —
+#: it is the invitation to make another one that goes.
+RETIRED_KINDS = frozenset({"archetype", "skill-tree", "specialisation"})
+
+
 #: Kinds whose page is a place you come back to: the thing, and the
 #: parts you add to it over time. ``kind -> the verb that adds a part``.
 def _describe_weapon_profile(profile):
@@ -927,6 +935,8 @@ def index(request):
     qualities, the kit, the gang-scale picks."""
     grouped = {family: [] for family in Family}
     for kind, verb_name in LEAF_KINDS.items():
+        if kind in RETIRED_KINDS:
+            continue
         model = _model_for(specs()[verb_name])
         grouped[model.family].append(
             {
@@ -3221,7 +3231,8 @@ def foundations(request):
                     "count": _model_for(specs()[verb]).objects.count(),
                 }
                 for kind, verb in LEAF_KINDS.items()
-                if _model_for(specs()[verb]).family == Family.FOUNDATION
+                if kind not in RETIRED_KINDS
+                and _model_for(specs()[verb]).family == Family.FOUNDATION
             ],
         },
     )
