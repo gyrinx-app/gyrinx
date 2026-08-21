@@ -451,6 +451,35 @@
         margin: 0.75rem 1rem 0;
     }
 
+    /* The crop chooser a picture input grows (n26/imagecrop.js): the
+     * preview holds the target shape whatever the picture, and the
+     * sliders sit under it. The canvas *is* the upload — what this box
+     * shows is exactly what the form sends. */
+    .n26-crop {
+        display: flex;
+        max-width: 20rem;
+        flex-direction: column;
+        gap: calc(var(--spacing) * 2);
+        margin-top: calc(var(--spacing) * 2);
+    }
+
+    .n26-crop canvas {
+        width: 100%;
+        border-radius: var(--radius-control);
+    }
+
+    .n26-crop label {
+        display: flex;
+        align-items: center;
+        gap: calc(var(--spacing) * 2);
+        font-size: var(--text-sm);
+        color: var(--color-ink-500);
+    }
+
+    .n26-crop input[type="range"] {
+        flex: 1;
+    }
+
     /* A slider with one thumb or two.
      *
      * Real <input type="range"> elements — two of them for a range — because

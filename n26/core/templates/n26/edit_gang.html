@@ -15,6 +15,7 @@ reads the config after that listener has run.
 {% endcomment %}
 {% block extra_head %}
     <script src="{% static 'n26/richtext.js' %}"></script>
+    <script defer src="{% static 'n26/imagecrop.js' %}"></script>
     {{ form.media }}
 {% endblock extra_head %}
 {% block nav_switcher %}
@@ -121,6 +122,7 @@ reads the config after that listener has run.
                        id="gang-image"
                        name="image"
                        accept="image/*"
+                       data-crop="16:9"
                        class="block w-full text-sm text-ink-700 file:mr-3 file:rounded-control file:border file:border-ink-300 file:bg-ink-50 file:px-3 file:py-1.5 file:text-sm dark:text-ink-300 dark:file:border-ink-700 dark:file:bg-ink-800">
             </c-ui.field>
         </c-n26.form-section>

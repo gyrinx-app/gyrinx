@@ -150,6 +150,12 @@ class EditGangForm(forms.Form):
     image = forms.ImageField(required=False, label="Picture")
     remove_image = forms.BooleanField(required=False, label="Remove the picture")
 
+    def clean_image(self):
+        from n26.core.images import LANDSCAPE, to_shape
+
+        upload = self.cleaned_data["image"]
+        return to_shape(upload, LANDSCAPE) if upload else upload
+
     def clean_starting_credits(self):
         budget = self.cleaned_data["starting_credits"]
         # The floor binds the change, not the standing state: granted
@@ -197,6 +203,12 @@ class FighterNotesForm(forms.Form):
     notes = forms.CharField(required=False, widget=RichText())
     image = forms.ImageField(required=False)
     remove_image = forms.BooleanField(required=False)
+
+    def clean_image(self):
+        from n26.core.images import PORTRAIT, to_shape
+
+        upload = self.cleaned_data["image"]
+        return to_shape(upload, PORTRAIT) if upload else upload
 
 
 class FighterLoreForm(forms.Form):
