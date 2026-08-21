@@ -24,6 +24,7 @@ from django.contrib.auth.models import User
 from django.urls import reverse
 
 from n26.core.owned import thing_key
+from n26.core.reconcile import assert_reconciled
 from n26.core.render import render_gang
 from n26.library.models import Affiliation
 from n26.tests.sandbox.actions import (
@@ -204,6 +205,92 @@ def top_level_rows(gang):
         for a in gang.assignments.filter(archived=False)
         if isinstance(a.assignable, Affiliation)
     ]
+
+
+class TestAnAnswerArrivingTwice:
+    """A question taking one answer holds one answer, however the second
+    arrives.
+
+    Answering replaces what stands, so the two acts — take back, write —
+    have to be one act. The gang is held for the length of it and the
+    card is computed inside that hold, so a second answer waits for the
+    first and then reads what the first wrote. Two clicks land one row,
+    whether they arrive one after the other or together.
+    """
+
+    @pytest.mark.django_db(transaction=True)
+    def test_two_answers_at_once_still_leave_one(
+        self, monkeypatch, owner, gang, affiliations
+    ):
+        """The double click, as it happens.
+
+        Both requests are made to read the open question before either is
+        allowed to write, which is the ordering that used to produce two
+        rows: each looked, each saw nothing standing, and each wrote. The
+        reading is synchronised rather than merely the posting, so the
+        race is forced rather than hoped for.
+        """
+        import threading
+        from importlib import import_module
+
+        from django.db import connections
+        from django.test import Client
+
+        top, _ = affiliations
+        url = picker_url(gang, "Affiliation")
+        payload = {"thing": thing_key(top["Clanless"])}
+        both_have_read = threading.Barrier(2, timeout=30)
+        guard = threading.Lock()
+        has_read = set()
+        picker = import_module("n26.core.views.choose")
+        read_slot = picker._find_slot
+        went_wrong = []
+        landed = []
+
+        def read_then_wait(gang, key):
+            """Hold each request at its first look, so neither writes
+            until both have seen the question open."""
+            found = read_slot(gang, key)
+            with guard:
+                first_look = threading.current_thread().ident not in has_read
+                has_read.add(threading.current_thread().ident)
+            if first_look:
+                both_have_read.wait()
+            return found
+
+        monkeypatch.setattr(picker, "_find_slot", read_then_wait)
+
+        def answer():
+            try:
+                each = Client()
+                each.force_login(owner)
+                landed.append(each.post(url, payload))
+            except Exception as bad:  # noqa: BLE001 — reported, not raised
+                went_wrong.append(repr(bad))
+                both_have_read.abort()
+            finally:
+                connections.close_all()
+
+        clicks = [threading.Thread(target=answer) for _ in range(2)]
+        for click in clicks:
+            click.start()
+        for click in clicks:
+            click.join(timeout=60)
+
+        # A thread still running is a request that never came back —
+        # a deadlock or a stall, which a row count alone would not show.
+        assert [click.is_alive() for click in clicks] == [False, False]
+        assert went_wrong == []
+        # Both clicks were taken. One row because the second replaced the
+        # first, not because a click was turned away — a refusal comes
+        # back to the picker rather than to the gang.
+        gang_page = reverse("n26-gang", args=[gang.pk])
+        assert [(r.status_code, r["Location"]) for r in landed] == [
+            (302, gang_page),
+            (302, gang_page),
+        ]
+        assert len(top_level_rows(gang)) == 1
+        assert_reconciled(gang)
 
 
 class TestTheAffiliationPicker:

@@ -283,6 +283,31 @@ def names_on(offer):
     return {option.name for group in offer.groups for option in group.options}
 
 
+def _slot_href(gang, miniature, kind_label):
+    """A question's address even once it has been answered.
+
+    A card files an answered skill question into the Skills row rather
+    than drawing it again, so the sheet stops listing it — but the
+    question is still asked and still has an address, which is what a
+    stale page or a second click posts to.
+    """
+    computed = fighter_computed(miniature)
+    slot = next(
+        line
+        for line in computed.choices
+        if line.kind_label == kind_label
+        and getattr(line.anchor, "assignment", None) is not None
+        and line.identity is not None
+    )
+    key = f"{miniature.pk}:{slot.anchor.assignment.pk}:{slot.identity.pk}"
+    return reverse("n26-choose", args=[gang.pk, key])
+
+
+def _skills_of(gang, name):
+    card = next(c for c in render_gang(gang).models if c.name == name)
+    return sorted(line.name for line in card.skills)
+
+
 def gang_computed(gang):
     card = build_gang_card(gang)
     index = build_modifier_index([node.assignable for node in card.all_nodes()])
@@ -550,6 +575,41 @@ class TestMakingOneChoice:
         assert "Sorrow: Primary skill" not in slots
         assert not slots["Ash: Primary skill"].is_resolved
         assert second.name == "Ash"
+        assert_reconciled(gang)
+
+    def test_answering_again_leaves_the_other_fighters_answer_alone(
+        self, client, owner, gang, crew, profiles, archetypes, skills
+    ):
+        """One question broadcast onto two cards is two questions.
+
+        The skill offer rides the gang type and reaches every Leader, so
+        both Leaders' answers hang off the one line that asked and name
+        the one offer. Only the fighter whose card was clicked tells them
+        apart — so changing one Leader's mind leaves the other Leader's
+        skill exactly where it is.
+        """
+        # The Primary tier is empty until an archetype opens a set into it.
+        choose(gang_anchor(gang, "Outcast Leader", crew), archetypes["Brawler"])
+        ash = hire_with_option(gang, profiles["leader"], "Ash")
+        client.force_login(owner)
+        self.post(
+            client, sheet_slots(gang)["Sorrow: Primary skill"].href, skills["Berserker"]
+        )
+        self.post(
+            client, sheet_slots(gang)["Ash: Primary skill"].href, skills["Berserker"]
+        )
+        assert _skills_of(gang, "Sorrow") == ["Berserker"]
+        assert _skills_of(gang, "Ash") == ["Berserker"]
+
+        self.post(
+            client,
+            _slot_href(gang, crew["leader"], "Primary skill"),
+            skills["Parry"],
+        )
+
+        assert _skills_of(gang, "Sorrow") == ["Parry"]
+        assert _skills_of(gang, "Ash") == ["Berserker"]
+        assert ash.name == "Ash"
         assert_reconciled(gang)
 
     def test_what_was_chosen_dies_with_its_carrier(

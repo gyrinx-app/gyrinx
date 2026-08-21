@@ -1432,10 +1432,30 @@ def _sold_separately(line, entry, weapon):
     return frozenset()
 
 
+def _hold(gang):
+    """Take the gang's own line, before this operation touches anything.
+
+    Every operation ends by rewriting the gang's pinned numbers, so all
+    of them take this line either way. Taking it first gives every writer
+    one order: one gang's work settles an act at a time, each act reads
+    what the act before it wrote, and no two wait on each other's rows in
+    opposite orders.
+
+    Held for the length of the transaction, and only against others
+    taking it — one gang at a time, while every other gang goes on
+    untouched.
+    """
+    from n26.core.models import Gang
+
+    Gang.objects.select_for_update().filter(pk=gang.pk).first()
+
+
 @contextmanager
 def operation(gang, actor=None):
     """One transaction; pinned numbers rewritten when it closes."""
     op = Operation(gang, actor=actor)
     with transaction.atomic():
+        if gang is not None and gang.pk is not None:
+            _hold(gang)
         yield op
         op.settle()
