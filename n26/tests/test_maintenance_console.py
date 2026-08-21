@@ -30,6 +30,7 @@ from n26.maintenance import (
     convert_specialisation_view,
     delete_nameless_gang_type_view,
     retire_gang_legacy_pilot_view,
+    sweep_archived_view,
 )
 from n26.tests.sandbox.test_conversion_archetype import (
     build_prod_shape as build_archetype_shape,
@@ -320,6 +321,65 @@ class TestTheArchetypeConversion:
             archetype__isnull=False, archived=False
         ).exclude(removes=True)
         assert left.count() == 0
+
+
+class TestTheArchivedSweep:
+    """The last operation of the programme: what the conversions left
+    behind, moved across so the old kinds can be retired."""
+
+    @pytest.fixture
+    def swept_world(self, person_type, owner, default_pack):
+        """A converted specialisation system with an answer taken back
+        before the conversion ran."""
+        from n26.library.conversion import apply as apply_conversion
+        from n26.library.conversion import plan_specialisation
+        from n26.tests.sandbox.test_conversion_specialisation import (
+            build_prod_shape,
+            build_world,
+        )
+
+        shape = build_prod_shape()
+        gangs, fighters = build_world(shape, person_type, owner)
+        apply_conversion(plan_specialisation())
+        return gangs, fighters
+
+    def test_the_operation_is_registered_and_named(self):
+        registered = {op.operation for op in operations()}
+
+        assert Operation.SWEEP_ARCHIVED.value in registered
+        found = resolve_operation(Operation.SWEEP_ARCHIVED.value)
+        assert found.name == Operation.SWEEP_ARCHIVED.label
+        assert found.view is sweep_archived_view
+
+    def test_its_page_shows_the_plan_and_writes_nothing(
+        self, client, superuser, swept_world
+    ):
+        client.force_login(superuser)
+
+        response = client.get(reverse("admin:maintenance_n26_sweep_archived"))
+
+        page = response.content.decode()
+        assert response.status_code == 200
+        assert "rewrite the archived" in page
+        assert not Backfill.objects.exists()
+        assert Assignment.objects.filter(
+            specialisation__isnull=False, archived=True
+        ).exists()
+
+    def test_applying_leaves_nothing_naming_the_old_kind(
+        self, client, superuser, swept_world
+    ):
+        client.force_login(superuser)
+
+        response = client.post(reverse("admin:maintenance_n26_sweep_archived"))
+
+        assert response.status_code == 302
+        run = Backfill.objects.get(operation=Operation.SWEEP_ARCHIVED)
+        assert run.status == Backfill.Status.DONE
+        assert any(
+            "every story reads the same" in line for line in run.summary["report"]
+        )
+        assert not Assignment.objects.filter(specialisation__isnull=False).exists()
 
 
 class TestApplying:
