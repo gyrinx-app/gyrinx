@@ -102,4 +102,53 @@ npm install
 npm run build
 manage collectstatic --noinput
 
+# ---------------------------------------------------------------------------
+# 7. Read-only production database access.
+#
+#    A cloud agent authenticates to Google Cloud with a five-minute token that
+#    scripts/cursor/mint-gcp-token.sh obtains from the local Cursor socket. The
+#    token is federated into a service account that can only SELECT, so there is
+#    no service account key anywhere on the machine.
+#
+#    Only the TOOLS are installed here. The credential config itself is written
+#    on every boot by .cursor/start.sh, because it arrives in an environment
+#    variable and a build snapshot must not capture it.
+# ---------------------------------------------------------------------------
+if ! command -v jq >/dev/null 2>&1; then
+  log "Installing jq"
+  sudo apt-get update -qq
+  sudo apt-get install -y -qq jq
+fi
+
+# Version and checksums are pinned rather than resolved at build time: the
+# GitHub releases API is rate limited for unauthenticated callers, so resolving
+# "latest" here would make builds fail unpredictably. Google publishes no
+# checksum sidecar, so these were computed from the pinned release.
+CSP_VERSION="v2.25.3"
+CSP_BIN="/usr/local/bin/cloud-sql-proxy"
+if ! "$CSP_BIN" --version 2>/dev/null | grep -q "${CSP_VERSION#v}"; then
+  case "$(uname -m)" in
+    x86_64)
+      CSP_ARCH="amd64"
+      CSP_SHA="f0584d79e877a8a46300fe2513840972c44e704c15dc3da6a49d5408f7d6f233"
+      ;;
+    aarch64)
+      CSP_ARCH="arm64"
+      CSP_SHA="9ffbf512ee24dbeca527eb12fc43d7a322724afccf369d7c172995fca35444d9"
+      ;;
+    *)
+      echo "Unsupported architecture $(uname -m) for cloud-sql-proxy" >&2
+      exit 1
+      ;;
+  esac
+  log "Installing cloud-sql-proxy ${CSP_VERSION} (${CSP_ARCH})"
+  CSP_TMP=$(mktemp)
+  curl -sfLo "$CSP_TMP" \
+    "https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/${CSP_VERSION}/cloud-sql-proxy.linux.${CSP_ARCH}"
+  echo "${CSP_SHA}  ${CSP_TMP}" | sha256sum -c - >/dev/null
+  sudo install -m 0755 "$CSP_TMP" "$CSP_BIN"
+  rm -f "$CSP_TMP"
+fi
+log "$("$CSP_BIN" --version 2>/dev/null | head -1)"
+
 log "Install complete"
