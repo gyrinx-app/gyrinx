@@ -219,6 +219,8 @@ class Operation:
         chosen_for=None,
         chosen_for_slot=None,
         chosen_for_offer=None,
+        materialised_from=None,
+        materialised_for=None,
         paid=0,
         list_price=None,
         discount=0,
@@ -245,6 +247,10 @@ class Operation:
         ``chosen_for_slot`` and ``chosen_for_offer`` name which of that
         assignment's choices, for the case where one asks more than once —
         the first for a slot's question, the second for an offer's.
+
+        ``materialised_from`` and ``materialised_for`` are the provenance
+        of a built-in: which set membership this copy came from, and for
+        which carrier. Only ``_materialise_defaults`` sets them.
         """
         assignment = Assignment.objects.create(
             assignable=assignable,
@@ -256,6 +262,8 @@ class Operation:
             chosen_for=chosen_for,
             chosen_for_slot=chosen_for_slot,
             chosen_for_offer=chosen_for_offer,
+            materialised_from=materialised_from,
+            materialised_for=materialised_for,
             removes=removes,
         )
         if list_price is None:
@@ -859,12 +867,34 @@ class Operation:
     def _granted_rows(self, carrier, default_set):
         """The live assignments one chosen set materialised, one per member.
 
+        Provenance answers directly: each materialised copy names the
+        member it came from and the carrier it came for, so the set's
+        grants are the copies whose member belongs to it — archived
+        members included, because a copy an author's removal left
+        standing still leaves when its set is no longer taken.
+
+        Copies written before provenance was recorded carry no link and
+        are found by the shape they were written in, below.
+        """
+        rows = list(
+            Assignment.objects.filter(
+                archived=False,
+                materialised_from__default_set=default_set,
+                materialised_for=carrier,
+            )
+        )
+        rows.extend(self._granted_rows_without_provenance(carrier, default_set, rows))
+        return rows
+
+    def _granted_rows_without_provenance(self, carrier, default_set, found):
+        """The set's grants among assignments with no provenance recorded.
+
         Most of a set's members landed caused by the carrier itself; an
         ammo member landed caused by its weapon's own assignment, wherever
         that weapon came from. Where the built-ins grant the same
         assignable as the set, the set's copy is the newer one — the
         built-ins materialise first — so the newest live match is taken,
-        as many as the set granted.
+        as many as the set granted and provenance has not already found.
         """
         from n26.core.models import Reason
         from n26.library.models import WeaponProfile
@@ -875,12 +905,18 @@ class Operation:
             if assignable is None:
                 continue
             wanted[assignable] = wanted.get(assignable, 0) + 1
+        for row in found:
+            if row.assignable in wanted:
+                wanted[row.assignable] -= 1
 
         rows = []
         for assignable, count in wanted.items():
+            if count <= 0:
+                continue
             scope = {
                 Assignment.field_for(assignable): assignable,
                 "archived": False,
+                "materialised_from__isnull": True,
                 "ledger_entry__reason": Reason.DEFAULT,
                 "gang_root": carrier.gang_root,
                 "miniature_root": carrier.miniature_root,
@@ -946,18 +982,23 @@ class Operation:
         for default_set in sets:
             if default_set is None:
                 continue
-            for member in default_set.members.all():
+            # An archived member is a built-in an author has taken off:
+            # future acquisitions come without it, while every copy it
+            # already materialised stands untouched.
+            for member in default_set.members.filter(archived=False):
                 assignable = member.assignable
                 if assignable is None:
                     continue
                 if kinds is not None and not isinstance(assignable, kinds):
                     continue
                 if isinstance(assignable, WeaponProfile):
-                    ammo.append(assignable)
+                    ammo.append(member)
                     continue
                 assignment = self.assign(
                     assignable,
                     caused_by=carrier,
+                    materialised_from=member,
+                    materialised_for=carrier,
                     paid=0,
                     reason=Reason.DEFAULT,
                     **host,
@@ -977,7 +1018,8 @@ class Operation:
                     CounterValue.objects.create(
                         assignment=assignment, value=member.amount
                     )
-        for weapon_profile in ammo:
+        for member in ammo:
+            weapon_profile = member.assignable
             gun = weapon_assignments.get(weapon_profile.weapon_id)
             if gun is None:
                 # The weapon may already be there — a set chosen after the
@@ -1003,10 +1045,15 @@ class Operation:
                 )
             # Caused by the weapon, like its free profiles: the card says
             # "from the grenade launcher array", not "from the profile".
+            # Provenance names the member and the carrier all the same —
+            # it records which set membership this satisfies, and the gun
+            # is only where the copy landed.
             self.assign(
                 weapon_profile,
                 parent=gun,
                 caused_by=gun,
+                materialised_from=member,
+                materialised_for=carrier,
                 paid=0,
                 reason=Reason.DEFAULT,
             )
