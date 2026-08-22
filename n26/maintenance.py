@@ -54,6 +54,7 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "Operation",
     "convert_archetype",
+    "sweep_archived",
     "convert_gang_legacy",
     "convert_skill_tree",
     "convert_specialisation",
@@ -104,6 +105,10 @@ class Operation(models.TextChoices):
         "n26_convert_archetype",
         "n26: the Outcast archetypes become picks",
     )
+    SWEEP_ARCHIVED = (
+        "n26_sweep_archived",
+        "n26: the answers already taken back become picks",
+    )
     DELETE_NAMELESS_GANG_TYPE = (
         "n26_delete_nameless_gang_type",
         "n26: the gang type with no name is retired",
@@ -122,6 +127,7 @@ LOCK_KEYS = {
     Operation.RETIRE_GANG_LEGACY_PILOT: 826_020_604,
     Operation.CONVERT_ARCHETYPE: 826_020_605,
     Operation.DELETE_NAMELESS_GANG_TYPE: 826_020_606,
+    Operation.SWEEP_ARCHIVED: 826_020_607,
 }
 
 
@@ -327,6 +333,26 @@ def convert_archetype(backfill_id, **said_by_whoever_enqueued_it):
 
 
 @task
+def sweep_archived(backfill_id, **said_by_whoever_enqueued_it):
+    """Rewrite the archived answers, once, and write down the outcome.
+
+    The same runner as a conversion, over a plan and apply of its own:
+    what it proves is the history rather than the pages, an answer
+    already taken back drawing nothing on either.
+    """
+    from n26.library.conversion import ConversionRefused
+    from n26.library.conversion.archived import apply_archived, plan_archived
+
+    _run_recorded(
+        backfill_id,
+        Operation.SWEEP_ARCHIVED,
+        "Archived answers sweep",
+        lambda: apply_archived(plan_archived()),
+        ConversionRefused,
+    )
+
+
+@task
 def retire_gang_legacy_pilot(backfill_id, **said_by_whoever_enqueued_it):
     """Retire the Gang Legacy slot pilot, once, and write down the outcome.
 
@@ -375,6 +401,28 @@ def delete_nameless_gang_type(backfill_id, **said_by_whoever_enqueued_it):
         lambda: apply(find(), actor=_who_asked(backfill_id)),
         Refused,
     )
+
+
+#: What a conversion's page says about its own proof. Each operation
+#: proves something different, and a page that named the wrong one would
+#: promise a safety nobody is being given.
+def _proof_words(plan):
+    return {
+        "reach_words": (
+            f"It reaches {plan.reaches} gang"
+            f"{'' if plan.reaches == 1 else 's'}, and proves "
+            f"{len(plan.gang_ids)} of them read the same before committing — "
+            "a spread wide enough to hold every shape the system comes in. "
+            "Proving all of them would mean holding the whole library for "
+            "minutes while players are using it."
+        ),
+        "confirm_words": (
+            f"Convert {plan.reaches} gang(s)? It writes nothing unless every "
+            "page it proves reads the same."
+        ),
+        "button_words": "Apply conversion",
+        "leaves_behind": "",
+    }
 
 
 def _conversion_view(request, operation, system, task_fn):
@@ -429,6 +477,7 @@ def _conversion_view(request, operation, system, task_fn):
         proven=len(plan.gang_ids),
         apply_url=address,
         recent=Backfill.objects.filter(operation=operation)[:10],
+        **_proof_words(plan),
     )
     return render(request, "admin/maintenance/n26/convert.html", context)
 
@@ -569,6 +618,93 @@ def _deletion_view(request, operation, find_fn, task_fn, words):
     return render(request, "admin/maintenance/n26/delete.html", context)
 
 
+def _spares_left():
+    """What this sweep does not reach, said plainly on its own page.
+
+    A doubled click leaves a live answer beside the one that settled the
+    question, and the conversions left those exactly as they were. They
+    are live, so this sweep — which is for what was taken back — does not
+    touch them, and while they stand the kinds they name still cannot be
+    retired.
+    """
+    from n26.core.models import Assignment
+    from n26.library.conversion.archived import OLD_COLUMNS
+
+    live = Assignment.objects.filter(archived=False).exclude(removes=True)
+    standing = sum(
+        live.filter(**{f"{column}__isnull": False}).count() for column in OLD_COLUMNS
+    )
+    if not standing:
+        return ""
+    return (
+        f"{standing} live answer{'' if standing == 1 else 's'} still name a "
+        "retired kind and are left as they are: spares from a click that "
+        "landed twice, which are somebody's page rather than history. "
+        "Retiring those kinds has to deal with them separately."
+    )
+
+
+def sweep_archived_view(request):
+    """Preview the sweep (GET), or record a run and enqueue it (POST)."""
+    from n26.library.conversion.archived import plan_archived
+
+    operation = Operation.SWEEP_ARCHIVED
+    address = reverse(f"admin:maintenance_{operation.value}")
+    if request.method == "POST":
+        running = running_guard(operation)
+        if running is not None:
+            messages.warning(request, "That sweep is already running.")
+            return HttpResponseRedirect(
+                reverse("admin:maintenance_backfill_detail", args=[running.id])
+            )
+        plan = plan_archived()
+        if plan.nothing_here:
+            messages.info(request, "There is nothing left to sweep.")
+            return HttpResponseRedirect(address)
+        if not plan.ok:
+            messages.error(request, "The sweep refuses: " + "; ".join(plan.problems))
+            return HttpResponseRedirect(address)
+        backfill = Backfill.objects.create(
+            operation=operation,
+            triggered_by=request.user,
+            status=Backfill.Status.RUNNING,
+            summary={"preview": list(plan.preview()), "attempts": 0},
+        )
+        sweep_archived.enqueue(backfill_id=str(backfill.id))
+        messages.success(request, "The sweep is running. This page shows what it did.")
+        return HttpResponseRedirect(
+            reverse("admin:maintenance_backfill_detail", args=[backfill.id])
+        )
+
+    plan = plan_archived()
+    context = page_context(
+        request,
+        operation.label,
+        plan=plan,
+        preview=list(plan.preview()),
+        reaches=plan.reaches,
+        proven=plan.reaches,
+        apply_url=address,
+        recent=Backfill.objects.filter(operation=operation)[:10],
+        reach_words=(
+            f"It reaches {plan.reaches} gang"
+            f"{'' if plan.reaches == 1 else 's'} and proves every one of them, "
+            "not a spread: what it rewrites are answers already taken back, "
+            "which draw nothing on any card, so what is read twice is each "
+            "gang's history rather than its pages. Folding a story costs a "
+            "fraction of what building the pages costs, which is what makes "
+            "proving all of them affordable."
+        ),
+        confirm_words=(
+            f"Rewrite {len(plan.steps)} archived answer(s)? It writes nothing "
+            "unless every gang's history reads the same afterwards."
+        ),
+        button_words="Apply sweep",
+        leaves_behind=_spares_left(),
+    )
+    return render(request, "admin/maintenance/n26/convert.html", context)
+
+
 def retire_gang_legacy_pilot_view(request):
     """Preview the pilot retirement (GET), or record a run and enqueue it."""
     from n26.library.gang_legacy_pilot import find
@@ -693,6 +829,22 @@ register_operation(
     )
 )
 
+register_operation(
+    MaintenanceOperation(
+        operation=Operation.SWEEP_ARCHIVED.value,
+        name=Operation.SWEEP_ARCHIVED.label,
+        description=(
+            "Rewrite the answers a gang took back — archived, still "
+            "naming the kinds the conversions replaced, and the last "
+            "thing standing between those kinds and retirement. Reads "
+            "every affected gang's history before and after and refuses "
+            "on any word that moves."
+        ),
+        view=sweep_archived_view,
+        detail_template="admin/maintenance/n26/_convert_detail.html",
+    )
+)
+
 #: Declared for the task registry, which reads this from ``n26/core/tasks.py``.
 #: The deadline is the longest Pub/Sub allows, because a conversion holds one
 #: transaction for as long as proving its spread of gangs takes. It is also
@@ -708,6 +860,7 @@ task_routes = [
     TaskRoute(retire_gang_legacy_pilot, ack_deadline=600, min_retry_delay=60),
     TaskRoute(convert_archetype, ack_deadline=600, min_retry_delay=60),
     TaskRoute(delete_nameless_gang_type, ack_deadline=600, min_retry_delay=60),
+    TaskRoute(sweep_archived, ack_deadline=600, min_retry_delay=60),
 ]
 
 
