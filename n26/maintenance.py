@@ -36,6 +36,7 @@ attempt may be started before the record gives up and says so.
 import logging
 import traceback
 from contextlib import contextmanager
+from datetime import date
 
 from django.contrib import messages
 from django.db import connection, models, transaction
@@ -741,6 +742,7 @@ register_operation(
     MaintenanceOperation(
         operation=Operation.CONVERT_SPECIALISATION.value,
         name=Operation.CONVERT_SPECIALISATION.label,
+        added=date(2026, 8, 17),
         description=(
             "Move the specialisations onto slots and picks: the Specialist "
             "subtype grants a slot instead of offering a choice, and every "
@@ -756,6 +758,7 @@ register_operation(
     MaintenanceOperation(
         operation=Operation.CONVERT_SKILL_TREE.value,
         name=Operation.CONVERT_SKILL_TREE.label,
+        added=date(2026, 8, 18),
         description=(
             "Move the Venator ranked skill trees onto slots and picks: each "
             "rank carrier grants a slot instead of offering a choice, and "
@@ -771,6 +774,7 @@ register_operation(
     MaintenanceOperation(
         operation=Operation.RETIRE_GANG_LEGACY_PILOT.value,
         name=Operation.RETIRE_GANG_LEGACY_PILOT.label,
+        added=date(2026, 8, 18),
         description=(
             "Delete the hand-built Gang Legacy slot experiment: its hollow "
             "pickables, its slot machinery, and the one test gang's "
@@ -787,6 +791,7 @@ register_operation(
     MaintenanceOperation(
         operation=Operation.CONVERT_GANG_LEGACY.value,
         name=Operation.CONVERT_GANG_LEGACY.label,
+        added=date(2026, 8, 18),
         description=(
             "Move the Venator house legacies onto slots and picks: the "
             "hunt profiles grant a Gang Legacy slot instead of offering "
@@ -804,6 +809,7 @@ register_operation(
     MaintenanceOperation(
         operation=Operation.CONVERT_ARCHETYPE.value,
         name=Operation.CONVERT_ARCHETYPE.label,
+        added=date(2026, 8, 20),
         description=(
             "Move the Outcast archetypes onto slots and picks: each Leader "
             "profile grants the gang's Archetype slot and the Champion "
@@ -821,6 +827,7 @@ register_operation(
     MaintenanceOperation(
         operation=Operation.DELETE_NAMELESS_GANG_TYPE.value,
         name=Operation.DELETE_NAMELESS_GANG_TYPE.label,
+        added=date(2026, 8, 21),
         description=(
             "Retire the gang type an ingest founded from a blank Gang cell — "
             "the nameless one that drew as an empty card on the create-gang "
@@ -839,6 +846,7 @@ register_operation(
     MaintenanceOperation(
         operation=Operation.SWEEP_ARCHIVED.value,
         name=Operation.SWEEP_ARCHIVED.label,
+        added=date(2026, 8, 22),
         description=(
             "Rewrite the answers a gang took back — archived, still "
             "naming the kinds the conversions replaced, and the last "
@@ -877,5 +885,6 @@ register_operation(
     MaintenanceOperation(
         operation=Operation.MERGE_WARGEAR_INTO_WEAPON.value,
         name=Operation.MERGE_WARGEAR_INTO_WEAPON.label,
+        added=date(2026, 8, 18),
     )
 )

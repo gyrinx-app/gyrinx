@@ -13,6 +13,7 @@ is ``admin.py``'s job, so no view can be published without the gate.
 import uuid as uuid_module
 
 from django.contrib import admin, messages
+from django.db.models import Count
 from django.http import HttpResponseForbidden, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
@@ -89,18 +90,60 @@ def maintenance_index_view(request):
     ctx = page_context(
         request,
         "Maintenance",
-        operations=[
-            {
-                "key": op.operation,
-                "name": op.name,
-                "url": reverse(f"admin:{op.url_name}"),
-                "description": op.description,
-            }
-            for op in operations()
-        ],
+        operations=_operations_listing(),
         recent_backfills=Backfill.objects.order_by("-created")[:25],
     )
     return render(request, "admin/maintenance/index.html", ctx)
+
+
+def _operations_listing():
+    """The repairs on offer, newest first, each with how often it has run.
+
+    Newest first because these are one-off repairs rather than a standing
+    menu: the list only grows, and whoever opens the page has almost always
+    come for something written this week. Registration order buried that at
+    the bottom.
+
+    An operation with no date given sorts last rather than first — undated
+    means nobody said, which is not a claim to be recent.
+    """
+    ran = _runs_by_operation()
+    listing = [
+        {
+            "key": op.operation,
+            "name": op.name,
+            "url": reverse(f"admin:{op.url_name}"),
+            "description": op.description,
+            "added": op.added,
+            "runs": ran.get(op.operation, 0),
+        }
+        for op in operations()
+    ]
+    # Sorted on a key rather than by ``added`` directly, since a date and
+    # None do not compare. Stable, so registration order still separates
+    # two repairs written on one day.
+    listing.sort(key=lambda op: (op["added"] is None, _reverse_date(op["added"])))
+    return listing
+
+
+def _reverse_date(added):
+    """A sort key putting later dates first."""
+    return -added.toordinal() if added else 0
+
+
+def _runs_by_operation():
+    """How many records each operation has, in one query.
+
+    ``order_by()`` clears the model's own ordering, which would otherwise
+    join the created column into the grouping and count every row on its
+    own.
+    """
+    return dict(
+        Backfill.objects.values_list("operation")
+        .order_by()
+        .annotate(runs=Count("id"))
+        .values_list("operation", "runs")
+    )
 
 
 def backfill_detail_view(request, pk):

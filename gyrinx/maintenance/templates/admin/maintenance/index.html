@@ -7,6 +7,7 @@
     <style>
     .mt-page-intro { margin-bottom: 1.5rem; }
     .mt-table { width: 100%; margin-bottom: 2rem; }
+    .mt-nowrap { white-space: nowrap; }
     </style>
 {% endblock extrahead %}
 {% block content %}
@@ -16,21 +17,32 @@
         on these pages are gated to superusers and write an audit trail.
     </p>
     <h2>Available data repairs</h2>
+    <p class="mt-page-intro">Newest first.</p>
     <table class="table mt-table">
         <thead>
             <tr>
+                <th>Added</th>
                 <th>Operation</th>
                 <th>Description</th>
+                <th>Runs</th>
                 <th></th>
             </tr>
         </thead>
         <tbody>
             {% for op in operations %}
                 <tr>
+                    <td class="mt-nowrap">{{ op.added|date:"Y-m-d"|default:"—" }}</td>
                     <td>
                         <strong>{{ op.name }}</strong>
                     </td>
                     <td>{{ op.description }}</td>
+                    <td class="mt-nowrap">
+                        {% if op.runs %}
+                            {{ op.runs }}
+                        {% else %}
+                            never run
+                        {% endif %}
+                    </td>
                     <td>
                         <a class="button" href="{{ op.url }}">Open</a>
                     </td>

@@ -18,6 +18,7 @@ Imported by ``n23.core.admin``; drop that import and the console goes empty.
 
 import logging
 import traceback
+from datetime import date
 
 from django.contrib import messages
 from django.http import HttpResponseRedirect
@@ -226,6 +227,7 @@ register_operation(
         # The published URL predates the slug, so keep them apart.
         slug="persistent_stash",
         name=Operation.MIGRATE_PERSISTENT_STASH.label,
+        added=date(2026, 6, 6),
         description=(
             "Move persistent-category gear off stash fighters back "
             "to the dying Fighter where provenance is provable from "
@@ -240,6 +242,7 @@ register_operation(
     MaintenanceOperation(
         operation=Operation.RECONCILE_LISTS.value,
         name=Operation.RECONCILE_LISTS.label,
+        added=date(2026, 7, 4),
         description=(
             "True up every list's cached costs from live resolution, "
             "recording movement as RECONCILE ledger actions. Runs on "
@@ -254,6 +257,7 @@ register_operation(
     MaintenanceOperation(
         operation=Operation.BACKFILL_PINS.value,
         name=Operation.BACKFILL_PINS.label,
+        added=date(2026, 7, 4),
         description=(
             "Write acquisition receipts onto every legacy assignment "
             "via the pinning choke point. Idempotent, resumable, "
