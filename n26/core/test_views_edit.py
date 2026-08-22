@@ -224,7 +224,7 @@ class TestThePicture:
         response = client.post(
             edit_url(vex),
             {
-                "notes": "",
+                "notes": "<p>Typed beside the bad file.</p>",
                 "image": SimpleUploadedFile(
                     "story.txt", b"not a picture", content_type="text/plain"
                 ),
@@ -233,8 +233,10 @@ class TestThePicture:
         )
         vex.refresh_from_db()
         assert not vex.image
-        # Refused with a reason on the page, never a server error.
+        # Refused with a reason on the page, never a server error — and
+        # the notes typed in the same submit are not the price of it.
         assert response.status_code == 200
+        assert vex.notes == "<p>Typed beside the bad file.</p>"
 
 
 class TestRenamingFromHere:

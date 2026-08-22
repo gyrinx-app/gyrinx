@@ -404,8 +404,15 @@ def edit_fighter(request, pk):
             messages.success(request, "Notes saved.")
         else:
             # The picture is the one field that can refuse — a file that
-            # is not an image. The reason travels as a message to the
-            # page this redirects back to.
+            # is not an image. The notes beside it validated and still
+            # save: a refused picture should not cost the words typed
+            # with it. The reason travels as a message to the page this
+            # redirects back to.
+            if "notes" in form.cleaned_data:
+                with operation(gang, actor=request.user) as op:
+                    op.edit_notes(miniature, form.cleaned_data["notes"])
+                record(request, N26Noun.MODEL, EventVerb.UPDATE, miniature, notes=True)
+                messages.success(request, "Notes saved.")
             for wrong in form.errors.get("image", []):
                 messages.error(request, wrong)
         return redirect("n26-edit-fighter", pk=miniature.pk)

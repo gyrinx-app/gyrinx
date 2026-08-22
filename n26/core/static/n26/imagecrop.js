@@ -17,6 +17,9 @@
     function wire(input) {
         var parts = (input.dataset.crop || "1:1").split(":");
         var ratio = parseFloat(parts[0]) / parseFloat(parts[1]);
+        // A malformed shape declaration falls back to square rather than
+        // poisoning every window computation with NaN.
+        if (!isFinite(ratio) || ratio <= 0) ratio = 1;
         var ui = null;
 
         input.addEventListener("change", function () {
@@ -30,6 +33,11 @@
             image.onload = function () {
                 URL.revokeObjectURL(image.src);
                 ui = build(input, image, ratio, file.name);
+            };
+            // A file the browser cannot decode gets no chooser — the
+            // original upload goes as picked and the server answers.
+            image.onerror = function () {
+                URL.revokeObjectURL(image.src);
             };
             image.src = URL.createObjectURL(file);
         });
