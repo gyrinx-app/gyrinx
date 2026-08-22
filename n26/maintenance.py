@@ -978,6 +978,7 @@ register_operation(
     MaintenanceOperation(
         operation=Operation.CLEAR_SPARE_ANSWERS.value,
         name=Operation.CLEAR_SPARE_ANSWERS.label,
+        added=date(2026, 8, 22),
         description=(
             "Delete the second answer a doubled click left standing beside "
             "the one that settled the question. Each draws a line on a "
@@ -994,6 +995,7 @@ register_operation(
     MaintenanceOperation(
         operation=Operation.DELETE_RETIRED_KINDS.value,
         name=Operation.DELETE_RETIRED_KINDS.label,
+        added=date(2026, 8, 22),
         description=(
             "Delete what the conversions left behind: the emptied kind rows, "
             "the menus nothing offers from, and the detached offers. All "
