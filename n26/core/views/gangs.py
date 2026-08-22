@@ -533,18 +533,29 @@ def gang_lore(request, pk):
     else. Models with nothing written and no picture are left off rather
     than listed as empty headings.
     """
-    from n26.core.render import roster
+    from n26.core.render import roster, summarise_roster
 
     gang = _any_gang_or_404(pk)
     yours = gang.owner_id == getattr(request.user, "id", None)
+    members = roster(gang)
     entries = [
         {
             "name": model.name,
+            # The library entry beside the owner's name, as the card
+            # header says it — and skipped the same way when nobody has
+            # renamed the model, so it is not named twice.
+            "profile": (
+                str(model.membership.profile)
+                if model.membership
+                and model.membership.profile
+                and str(model.membership.profile) != model.name
+                else ""
+            ),
             "lore": model.lore,
             "image_url": model.image.url if model.image else "",
             "edit_url": reverse("n26-edit-fighter", args=[model.pk]) if yours else "",
         }
-        for model in roster(gang)
+        for model in members
         if model.lore or model.image
     ]
     return render(
@@ -555,6 +566,7 @@ def gang_lore(request, pk):
             "gang_image_url": gang.image.url if gang.image else "",
             "entries": entries,
             "yours": yours,
+            "summary": summarise_roster(members),
         },
     )
 

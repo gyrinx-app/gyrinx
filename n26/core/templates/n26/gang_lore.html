@@ -1,10 +1,16 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
 {% load richtext %}
+{% load badge_tags %}
 {% comment %}
 The gang's lore — its story and picture, then every model's. The written
 half of a roster, readable by anyone holding the address: lore is what a
 player shows people. Owning the gang adds Edit links and nothing else.
+
+The header is the sheet's, so the two pages read as one place: the
+colour swatch in the name, the owner's flair in the trail, the type as
+the lead, the gang's figures in the corner. Pictures float beside their
+prose; a section with no picture is just its words.
 {% endcomment %}
 {% block head_title %}Lore of {{ gang.name }}{% endblock head_title %}
 {% block nav_switcher %}
@@ -15,12 +21,25 @@ player shows people. Owning the gang adds Edit links and nothing else.
     {% include 'n26/_nav.html' with here='gangs' %}
 {% endblock %}
 {% block content %}
-    <div class="mx-auto flex w-full max-w-2xl flex-col gap-6">
-        <c-n26.page-header title="Lore" lead="The story of {{ gang.name }}.">
+    {% badge_for gang.owner as owner_badge %}
+    <div class="flex flex-col gap-6">
+        <c-n26.page-header title="{{ gang.name }}">
+            {% if gang.colour %}
+                <c-slot name="leading">
+                    <c-n26.color-swatch color="{{ gang.colour }}" />
+                </c-slot>
+            {% endif %}
             <c-slot name="breadcrumb">
                 <c-ui.breadcrumbs>
                     <c-ui.breadcrumbs.item>
-                        <c-n26.user-link :user="gang.owner" tone="current" href="{% url 'n26-dashboard' %}" />
+                        <c-n26.flair-link text="{{ gang.owner.username }}"
+                                          href="{% url 'n26-dashboard' %}"
+                                          tone="current"
+                                          label="{{ owner_badge.description }}">
+                            {% if owner_badge %}
+                                {% badge_svg owner_badge %}
+                            {% endif %}
+                        </c-n26.flair-link>
                     </c-ui.breadcrumbs.item>
                     <c-ui.breadcrumbs.item href="{% url 'n26-gang' gang.pk %}">{{ gang.name }}</c-ui.breadcrumbs.item>
                     <c-ui.breadcrumbs.item :current="True">
@@ -28,42 +47,62 @@ player shows people. Owning the gang adds Edit links and nothing else.
                     </c-ui.breadcrumbs.item>
                 </c-ui.breadcrumbs>
             </c-slot>
+            <c-slot name="lead">
+                <c-n26.flair-link text="{{ gang.gang_type.name }}" tone="current">
+                    <c-n26.flair.gang-type :icon="gang.gang_type.artwork" />
+                </c-n26.flair-link>
+            </c-slot>
+            <c-slot name="actions">
+                <c-n26.gang-figures :gang="gang" :summary="summary" />
+            </c-slot>
         </c-n26.page-header>
-        {% if gang_image_url %}
-            <img src="{{ gang_image_url }}"
-                 alt="A picture of {{ gang.name }}"
-                 class="w-full rounded-box">
-        {% endif %}
-        {% if gang.lore %}
-            <c-n26.prose>
-                {{ gang.lore|safe_rich_text }}
-            </c-n26.prose>
-        {% elif yours %}
-            <p class="text-muted">
-                Nothing written yet — the gang's lore is written on
-                <c-n26.link href="{% url 'n26-edit-gang' gang.pk %}">its edit page</c-n26.link>.
-            </p>
-        {% endif %}
-        {% if yours and gang.lore %}
-            <c-n26.action-links class="text-sm">
-                <c-n26.action-link href="{% url 'n26-edit-gang' gang.pk %}" tone="muted">Edit</c-n26.action-link>
-            </c-n26.action-links>
-        {% endif %}
+        {% comment %}
+        flow-root contains each section's float, so a tall picture never
+        leaks under the next model's heading.
+        {% endcomment %}
+        <div class="flow-root">
+            {% if gang_image_url %}
+                <img src="{{ gang_image_url }}"
+                     alt="A picture of {{ gang.name }}"
+                     class="float-start mb-3 me-6 w-full max-w-md rounded-box">
+            {% endif %}
+            {% if gang.lore %}
+                <c-n26.prose>
+                    {{ gang.lore|safe_rich_text }}
+                </c-n26.prose>
+            {% elif yours %}
+                <p class="text-muted">
+                    Nothing written yet — the gang's lore is written on
+                    <c-n26.link href="{% url 'n26-edit-gang' gang.pk %}">its edit page</c-n26.link>.
+                </p>
+            {% endif %}
+            {% if yours and gang.lore %}
+                <c-n26.action-links class="mt-2 text-sm">
+                    <c-n26.action-link href="{% url 'n26-edit-gang' gang.pk %}" tone="muted">Edit</c-n26.action-link>
+                </c-n26.action-links>
+            {% endif %}
+        </div>
         {% for entry in entries %}
-            <section class="flex flex-col gap-3 border-t border-box-border pt-6">
-                <h2 class="text-xl font-semibold text-ink-900 dark:text-ink-100">{{ entry.name }}</h2>
+            <section class="flow-root border-t border-box-border pt-6"
+                     data-lore-entry="{{ entry.name }}">
                 {% if entry.image_url %}
                     <img src="{{ entry.image_url }}"
                          alt="A picture of {{ entry.name }}"
-                         class="w-48 rounded-box">
+                         class="float-start mb-3 me-6 w-40 rounded-box sm:w-48">
                 {% endif %}
+                <h2 class="text-xl font-semibold text-ink-900 dark:text-ink-100">
+                    {{ entry.name }}
+                    {% if entry.profile %}
+                        <span class="text-base font-normal text-muted">{{ entry.profile }}</span>
+                    {% endif %}
+                </h2>
                 {% if entry.lore %}
-                    <c-n26.prose>
+                    <c-n26.prose class="mt-2">
                         {{ entry.lore|safe_rich_text }}
                     </c-n26.prose>
                 {% endif %}
                 {% if entry.edit_url %}
-                    <c-n26.action-links class="text-sm">
+                    <c-n26.action-links class="mt-2 text-sm">
                         <c-n26.action-link href="{{ entry.edit_url }}" tone="muted">
                             Edit
                         </c-n26.action-link>

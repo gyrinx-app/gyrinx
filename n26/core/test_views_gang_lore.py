@@ -47,8 +47,11 @@ class TestReadingTheLore:
         assert "Nobody knows where Vex came from" in body
 
     def test_a_model_with_nothing_written_is_left_off(self, client, gang, roster):
+        # The roster tally in the header names every model; what a bare
+        # model must not get is a section of its own.
         body = client.get(lore_url(gang)).content.decode()
-        assert "Sull" not in body
+        assert 'data-lore-entry="Vex"' in body
+        assert 'data-lore-entry="Sull"' not in body
 
     def test_hostile_lore_never_reaches_the_page_alive(
         self, client, tester, gang, roster
