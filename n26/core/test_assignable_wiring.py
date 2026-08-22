@@ -189,6 +189,24 @@ class TestSettlingAChoice:
         assert named.null is True
 
 
+class TestBuiltInProvenance:
+    """A materialised default remembers both pieces of its origin."""
+
+    def test_the_member_is_protected_and_optional(self):
+        from django.db.models.deletion import PROTECT
+
+        source = Assignment._meta.get_field("materialised_from")
+        assert source.remote_field.on_delete is PROTECT
+        assert source.null is True
+
+    def test_the_acquisition_cascades_and_is_optional(self):
+        from django.db.models.deletion import CASCADE
+
+        carrier = Assignment._meta.get_field("materialised_for")
+        assert carrier.remote_field.on_delete is CASCADE
+        assert carrier.null is True
+
+
 class TestTheStartupCheck:
     def test_it_passes_as_things_stand(self):
         assert every_assignable_has_a_column(None) == []
