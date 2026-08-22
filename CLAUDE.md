@@ -363,7 +363,7 @@ There are two ways in, and `prodshell` picks between them automatically:
   credentials. Requires the `gcloud` CLI, `cloud-sql-proxy`, and both `gcloud auth login` and
   `gcloud auth application-default login`.
 - **On a cloud agent** (`--auth=iam`): uses the agent's federated credentials to connect as
-  `cursor-prodshell-ro`, a role the database grants `SELECT` and nothing else. No `gcloud`, no
+  a dedicated role the database grants `SELECT` and nothing else. No `gcloud`, no
   password, and no key on disk — the agent mints a five-minute token and exchanges it. Chosen
   automatically when `GOOGLE_APPLICATION_CREDENTIALS` names an `external_account` config.
 

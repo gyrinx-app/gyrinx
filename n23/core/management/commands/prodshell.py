@@ -5,8 +5,10 @@ import shutil
 import socket
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
+from urllib.parse import unquote
 
 from django.core.management.base import BaseCommand, CommandError
 
@@ -17,8 +19,15 @@ CLOUD_RUN_SERVICE = "gyrinx"
 PROXY_PORT = 5433
 PROXY_STARTUP_TIMEOUT = 15  # seconds
 
-# The database the federated role is granted SELECT on.
+# The database the federated role is granted SELECT on. The other path reads the
+# name off the running service; this one cannot, so it is stated here.
 IAM_DB_NAME = "app"
+
+# Where a cloud agent's credential configuration is written on every boot. Only a
+# login or interactive shell picks up the environment variable naming it, so a
+# command run through `bash -c` would otherwise see nothing and fall back to the
+# path meant for a workstation.
+AGENT_CREDENTIAL_PATH = Path("/etc/gyrinx/cursor-wif.json")
 
 # Scopes must be requested explicitly. Without them the impersonation call sends
 # an empty scope list and Google rejects the whole request as malformed, which
@@ -92,11 +101,7 @@ class Command(BaseCommand):
         finally:
             if proxy_process:
                 self.stdout.write("Stopping Cloud SQL Auth Proxy...")
-                proxy_process.terminate()
-                try:
-                    proxy_process.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    proxy_process.kill()
+                self._stop_proxy(proxy_process)
                 self.stdout.write("Cloud SQL Auth Proxy stopped.")
 
     # -- Pre-flight checks --
@@ -147,24 +152,49 @@ class Command(BaseCommand):
     # -- Federated credentials --
 
     @staticmethod
-    def _credential_config():
-        """The external_account config ADC is pointed at, if that is what it is.
+    def _load_config(path, required):
+        """Read a credential configuration, or nothing if there is not one there.
+
+        A file that was named and then could not be read is an error rather than
+        an absence. Treating it as an absence would quietly fall back to the
+        workstation path, which connects with the application's own full
+        privileges -- the opposite of what someone configuring a restricted
+        identity was asking for.
+        """
+        try:
+            config = json.loads(Path(path).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as e:
+            if required:
+                raise CommandError(f"{path} could not be read: {e}") from e
+            return None
+        if not isinstance(config, dict):
+            if required:
+                raise CommandError(
+                    f"{path} could not be read as a credential configuration."
+                )
+            return None
+        return config
+
+    @classmethod
+    def _credential_config(cls):
+        """The federated configuration in play, if there is one.
 
         A cloud agent authenticates by exchanging a short-lived token for
         permission to act as a service account, and the file describing that
         exchange is what distinguishes it from a developer signed in with
         gcloud.
         """
-        path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
-        if not path:
-            return None
-        try:
-            config = json.loads(Path(path).read_text(encoding="utf-8"))
-        except OSError, json.JSONDecodeError:
-            return None
-        if not isinstance(config, dict) or config.get("type") != "external_account":
-            return None
-        return config
+        named = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
+        if named:
+            config = cls._load_config(named, required=True)
+            # A service account key is a credential configuration too, and a
+            # perfectly good reason to take the other path.
+            return config if config.get("type") == "external_account" else None
+
+        config = cls._load_config(AGENT_CREDENTIAL_PATH, required=False)
+        if config is not None and config.get("type") == "external_account":
+            return config
+        return None
 
     def _use_iam_auth(self, mode):
         if mode == "iam":
@@ -178,7 +208,9 @@ class Command(BaseCommand):
         """The account the federated credentials act as, from the config."""
         url = config.get("service_account_impersonation_url", "")
         match = re.search(r"/serviceAccounts/([^:/]+):", url)
-        return match.group(1) if match else None
+        # A hand-written configuration can escape the @, which would otherwise
+        # survive into the database role name and fail to match anything.
+        return unquote(match.group(1)) if match else None
 
     def _iam_db_config(self, db_name):
         """Work out who to connect as, and prove we can become them first.
@@ -202,10 +234,17 @@ class Command(BaseCommand):
                 "account, so there is no database role to connect as."
             )
 
+        # The proxy is a separate process and reads these from the environment,
+        # as does the credential lookup below. Set when the configuration was
+        # found at its known location rather than named by the environment.
+        if not os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"):
+            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(AGENT_CREDENTIAL_PATH)
+            os.environ.setdefault("GOOGLE_EXTERNAL_ACCOUNT_ALLOW_EXECUTABLES", "1")
+
         try:
             import google.auth
             import google.auth.transport.requests
-        except ImportError as e:  # pragma: no cover - google-auth is installed
+        except ImportError as e:  # pragma: no cover - a hard dependency
             raise CommandError(f"google-auth is not available: {e}") from e
 
         try:
@@ -219,6 +258,11 @@ class Command(BaseCommand):
                 "condition."
             ) from e
 
+        # The credentials know who they ended up as. Where that disagrees with a
+        # second reading of the configuration file, they are the authority.
+        service_account = (
+            getattr(credentials, "service_account_email", None) or service_account
+        )
         self.stdout.write(f"Authenticated as {service_account}.")
 
         # Cloud SQL drops the trailing domain from a service account's name.
@@ -228,7 +272,7 @@ class Command(BaseCommand):
             "user": db_user,
             # The proxy authenticates the connection, so there is no password to
             # hold, fetch, or leak.
-            "password": "",  # nosec B105 - the absence of a credential, not one
+            "password": "",  # nosec B105
         }
 
     # -- Credential fetching --
@@ -331,7 +375,7 @@ class Command(BaseCommand):
 
     # -- Cloud SQL Auth Proxy --
 
-    def _start_proxy(self, project, port, use_iam=False):
+    def _start_proxy(self, project, port, use_iam):
         """Start Cloud SQL Auth Proxy and wait for it to be ready."""
         instance_connection = f"{project}:{GCP_REGION}:{CLOUD_SQL_INSTANCE}"
         command = ["cloud-sql-proxy", instance_connection, f"--port={port}"]
@@ -339,33 +383,54 @@ class Command(BaseCommand):
             # Hands the connection an access token for the impersonated account
             # instead of a password.
             command.append("--auto-iam-authn")
+
+        # Diagnostics go to a file rather than a pipe. The proxy outlives this
+        # function and keeps logging -- a line per connection, and more again
+        # when it refreshes tokens -- and nothing reads a pipe once startup is
+        # over, so it would eventually fill and the proxy would block on writing
+        # to it, stalling every query with no indication why.
+        stderr_file = tempfile.TemporaryFile()
         proxy_process = subprocess.Popen(
             command,
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.PIPE,
+            stderr=stderr_file,
         )
+
+        def proxy_output():
+            stderr_file.seek(0)
+            return stderr_file.read().decode(errors="replace")
 
         # Wait for the proxy to be ready by polling the port
         start = time.monotonic()
         while time.monotonic() - start < PROXY_STARTUP_TIMEOUT:
             # Check if process died
             if proxy_process.poll() is not None:
-                stderr = (
-                    proxy_process.stderr.read().decode() if proxy_process.stderr else ""
-                )
                 raise CommandError(
-                    f"Cloud SQL Auth Proxy exited unexpectedly:\n{stderr}"
+                    f"Cloud SQL Auth Proxy exited unexpectedly:\n{proxy_output()}"
                 )
             if self._port_is_open(port):
                 self.stdout.write(f"Cloud SQL Auth Proxy ready on port {port}.")
                 return proxy_process
             time.sleep(0.5)
 
-        proxy_process.terminate()
+        self._stop_proxy(proxy_process)
         raise CommandError(
-            f"Cloud SQL Auth Proxy did not start within {PROXY_STARTUP_TIMEOUT}s. "
-            "Check your gcloud credentials and network."
+            f"Cloud SQL Auth Proxy did not start within {PROXY_STARTUP_TIMEOUT}s:\n"
+            f"{proxy_output()}"
         )
+
+    @staticmethod
+    def _stop_proxy(proxy_process):
+        """Stop the proxy, and insist if it declines to go.
+
+        A proxy that survives keeps port 5433, so the next run fails to bind
+        with no hint as to what is holding it.
+        """
+        proxy_process.terminate()
+        try:
+            proxy_process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proxy_process.kill()
 
     @staticmethod
     def _port_is_open(port):
@@ -375,16 +440,17 @@ class Command(BaseCommand):
 
     # -- Shell --
 
-    def _print_banner(self, port, use_iam=False, db_config=None):
+    def _print_banner(self, port, use_iam, db_config):
+        # Under gcloud the restriction is this command's own doing and reaches
+        # only what goes through the ORM: raw SQL on a cursor consults no router,
+        # and the connection holds the application's full privileges. Under iam
+        # the database refuses this role a write however it is asked.
         if use_iam:
-            # Worth distinguishing: under gcloud the read-only rule is this
-            # command's own doing and holds only inside it, whereas the database
-            # itself refuses to let this role write.
-            enforcement = "READ-ONLY (granted SELECT only; also enforced here)"
+            enforcement = "READ-ONLY (granted SELECT only; ORM writes also blocked)"
         else:
-            enforcement = "READ-ONLY (enforced by this command)"
-        connected_as = (db_config or {}).get("user", "unknown")
-        database = (db_config or {}).get("name", "unknown")
+            enforcement = "READ-ONLY (ORM writes blocked; raw SQL is not)"
+        connected_as = db_config["user"]
+        database = db_config["name"]
         banner = f"""
 {"=" * 54}
   WARNING: CONNECTED TO PRODUCTION DATABASE
@@ -393,7 +459,7 @@ class Command(BaseCommand):
   Connected as: {connected_as}
   Proxy port: {port}
   Mode: {enforcement}
-  All write operations will raise RuntimeError
+  Writes through the ORM raise RuntimeError
 {"=" * 54}
 """
         self.stdout.write(self.style.ERROR(banner))
@@ -431,8 +497,14 @@ DATABASE_ROUTERS = [
         settings_path = Path(gyrinx.__file__).parent / "_prodshell_settings.py"
 
         try:
+            # The mode passed to open applies only when the file is created, so
+            # one left behind by a run that was killed would keep whatever
+            # permissions it had while a production password is written into it.
+            settings_path.unlink(missing_ok=True)
             fd = os.open(
-                str(settings_path), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600
+                str(settings_path),
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                0o600,
             )
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 f.write(settings_content)
