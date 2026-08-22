@@ -135,7 +135,30 @@ partial unique constraint. Move `_granted_rows`/`rechoose` to
 provenance-first with legacy `reason=DEFAULT` fallback (fallback removed
 in C8). No behaviour change for players. Regression test: rechoose still
 unwinds correctly for provenance-tagged and legacy rows.
-*Status: not started.*
+*Status: PR [#2276](https://github.com/gyrinx-app/gyrinx/pull/2276) open
+2026-08-22 (branch `issue-2165-c1-provenance`); full suite green.*
+Findings later chunks must honour:
+
+- **D4/satisfaction checks must NOT filter on member archived state**
+  when following provenance — an archived member's copies still resolve
+  through the FK, and `_granted_rows` relies on that for unwinds.
+- **Ammo copies match by the provenance pair, never by `caused_by`** —
+  their cause is the gun; `materialised_for` is the carrier.
+- **Option sets referenced by provenance are permanent**: member
+  deletion cascading from a set delete raises `ProtectedError`, which
+  `stop_offering`'s existing except-branch treats as "something holds
+  it". C6's removal-propagation should expect this.
+- `ChosenProfileOption`'s `(assignment, default_set)` unique constraint
+  is what makes one-live-copy-per-member-per-carrier safe on hire.
+- Two member reads filter archived in **Python** to keep prefetches
+  warm (`card.py` hire preview, `_describe_profile`) — C2/C5 readers
+  over prefetched members should do the same.
+- After archival, `add_default_member` can reuse a live position number
+  (live count vs surviving higher positions) — cosmetic ordering ties;
+  matters only if C5's preview sorts by position.
+- `materialised_from` is PROTECT, `materialised_for` is `"self"`/CASCADE
+  (the plan's `"core.Assignment"` label was wrong — app label is `n26`).
+  Migration: `n26.0018_a_grant_names_the_member_it_came_from`.
 
 **C2 — Reconciliation engine.** Refactor materialisation into
 idempotent desired-state reconcile (D3/D4/D9 matching). Covers weapons +
