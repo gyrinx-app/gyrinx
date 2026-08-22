@@ -207,8 +207,8 @@ then
   fi
   log "Google credential environment written to ${GCP_ENV_FILE}"
 else
-  # Consistent with the rest of this step: production access is an optional
-  # extra and must not cost the environment everything built above it.
+  # Production access is an optional extra and must not cost the environment
+  # everything built above it.
   echo "Could not write ${GCP_ENV_FILE}; production database access will be unavailable." >&2
 fi
 
