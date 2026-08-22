@@ -195,8 +195,10 @@ def _describe_option(option):
 
 
 def _brought_by(option):
-    """What one option's set holds, in the order it was written."""
-    return option.default_set.members.all()
+    """What one option's set holds, in the order it was written.
+    Archived members are off the set: taking the option no longer
+    brings them."""
+    return option.default_set.members.filter(archived=False)
 
 
 #: The rulebook's phrase for each way a set is picked — the words the
@@ -728,10 +730,13 @@ def _describe_profile(profile):
     notes = [profile.gang_type.name, profile.profile_type.name]
     if profile.price:
         notes.append(f"{profile.price}cr")
+    # Archived members are skipped in Python so the listing's prefetch
+    # of members stays warm; an archived list is one the profile no
+    # longer hires with.
     accessible = [
         member.assignable.name
-        for member in profile.built_in_members
-        if isinstance(member.assignable, Collection)
+        for member in (profile.built_ins.members.all() if profile.built_ins_id else ())
+        if not member.archived and isinstance(member.assignable, Collection)
     ]
     if accessible:
         notes.append(f"uses {', '.join(accessible)}")
@@ -1878,11 +1883,14 @@ def built_in_remove(request, pk):
     from n26.library import authoring
     from n26.library.models import DefaultAssignment
 
+    # An archived member is already off the set, so its address has
+    # nothing left to ask about.
     member = get_object_or_404(
         DefaultAssignment.objects.select_related(
             "default_set", *DefaultAssignment.ASSIGNABLE_FIELDS
         ),
         pk=pk,
+        archived=False,
     )
     holders = _holders_of(member.default_set)
     back = _back_to(holders)
