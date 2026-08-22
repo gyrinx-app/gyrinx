@@ -136,7 +136,15 @@ provenance-first with legacy `reason=DEFAULT` fallback (fallback removed
 in C8). No behaviour change for players. Regression test: rechoose still
 unwinds correctly for provenance-tagged and legacy rows.
 *Status: PR [#2276](https://github.com/gyrinx-app/gyrinx/pull/2276) open
-2026-08-22 (branch `issue-2165-c1-provenance`); full suite green.*
+2026-08-22 (branch `issue-2165-c1-provenance`); full suite green.
+Browser-tested through the authoring UI 2026-08-22: remove/re-add,
+ammo cascade, collection tab, rechoose, provenance spot-check all pass,
+zero server errors. The remove page states the archival semantics in
+its own words. Caveats: the dev DB held no pre-C1 assignments, so
+"legacy rows have null provenance" is unverified until C7's prod
+preview; the authoring ammo picker omits the qualifier for same-named
+weapon profiles (pre-existing gap, not C1 — authors cannot tell twins
+apart).*
 Findings later chunks must honour:
 
 - **D4/satisfaction checks must NOT filter on member archived state**
