@@ -191,10 +191,14 @@ class Command(BaseCommand):
             # perfectly good reason to take the other path.
             return config if config.get("type") == "external_account" else None
 
-        config = cls._load_config(AGENT_CREDENTIAL_PATH, required=False)
-        if config is not None and config.get("type") == "external_account":
-            return config
-        return None
+        # Nobody named this one, so its absence is an absence. Its being present
+        # and unreadable is not: that is the ownership mismatch this whole path
+        # exists to avoid, and swallowing it would fall back to the workstation
+        # path and report a missing gcloud instead.
+        if not Path(AGENT_CREDENTIAL_PATH).exists():
+            return None
+        config = cls._load_config(AGENT_CREDENTIAL_PATH, required=True)
+        return config if config.get("type") == "external_account" else None
 
     def _use_iam_auth(self, mode):
         if mode == "iam":
@@ -464,6 +468,17 @@ class Command(BaseCommand):
 """
         self.stdout.write(self.style.ERROR(banner))
 
+    @staticmethod
+    def _settings_path():
+        """Where the generated settings module goes.
+
+        Inside the installed package, because the shell subprocess has to be
+        able to import it by name.
+        """
+        import gyrinx
+
+        return Path(gyrinx.__file__).parent / "_prodshell_settings.py"
+
     def _launch_shell(self, db_config, port):
         """Launch shell_plus as a subprocess with production database settings.
 
@@ -491,21 +506,26 @@ DATABASE_ROUTERS = [
 ]
 """
 
-        # Write settings to a temp file inside the project package so it's importable
-        import gyrinx
-
-        settings_path = Path(gyrinx.__file__).parent / "_prodshell_settings.py"
+        settings_path = self._settings_path()
 
         try:
             # The mode passed to open applies only when the file is created, so
             # one left behind by a run that was killed would keep whatever
             # permissions it had while a production password is written into it.
             settings_path.unlink(missing_ok=True)
-            fd = os.open(
-                str(settings_path),
-                os.O_WRONLY | os.O_CREAT | os.O_EXCL,
-                0o600,
-            )
+            try:
+                fd = os.open(
+                    str(settings_path),
+                    os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                    0o600,
+                )
+            except FileExistsError as e:
+                # Two sessions at once. Better to say so than to overwrite the
+                # settings the other one is about to read.
+                raise CommandError(
+                    f"{settings_path} was created by another prodshell session. "
+                    "Only one can run at a time; wait for the other to finish."
+                ) from e
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 f.write(settings_content)
 

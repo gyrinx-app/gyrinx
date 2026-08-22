@@ -1,5 +1,6 @@
 import io
 import json
+import os
 import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -276,12 +277,6 @@ def write_config(tmp_path, payload, name="creds.json"):
     return str(path)
 
 
-def settings_file_path():
-    import gyrinx
-
-    return Path(gyrinx.__file__).parent / "_prodshell_settings.py"
-
-
 class StubCredentials:
     """Stands in for credentials that refresh without reaching Google."""
 
@@ -370,17 +365,23 @@ class TestWhichAuthPath:
         )
         assert Command._credential_config() == EXTERNAL_ACCOUNT
 
-    def test_a_junk_file_at_the_agent_location_is_not_fatal(
+    def test_an_unreadable_file_at_the_agent_location_is_refused(
         self, monkeypatch, tmp_path
     ):
-        """Nobody named it, so it is an absence rather than a broken setup."""
+        """Absence is an absence; present-but-unreadable is a broken setup.
+
+        A config that is there and cannot be read is the ownership mismatch this
+        path exists to avoid. Swallowing it would take the workstation path and
+        complain about a missing gcloud instead.
+        """
         monkeypatch.delenv("GOOGLE_APPLICATION_CREDENTIALS", raising=False)
         path = tmp_path / "cursor-wif.json"
         path.write_text("rubbish", encoding="utf-8")
         monkeypatch.setattr(
             "n23.core.management.commands.prodshell.AGENT_CREDENTIAL_PATH", path
         )
-        assert Command._credential_config() is None
+        with pytest.raises(CommandError, match="could not be read"):
+            Command._credential_config()
 
     def test_auto_picks_federated_when_configured(self, monkeypatch, tmp_path):
         monkeypatch.setenv(
@@ -498,6 +499,45 @@ class TestFederatedDatabaseRole:
         with pytest.raises(CommandError, match="No federated credentials"):
             Command()._iam_db_config(None)
 
+    def test_the_environment_is_completed_for_the_proxy(self, monkeypatch, tmp_path):
+        """The proxy is a separate process and reads these from the environment.
+
+        This is the branch that makes the case work where nothing was inherited
+        — a command run through `bash -c` — so it has to set what it found.
+        """
+        path = tmp_path / "cursor-wif.json"
+        path.write_text(json.dumps(EXTERNAL_ACCOUNT), encoding="utf-8")
+        monkeypatch.setattr(
+            "n23.core.management.commands.prodshell.AGENT_CREDENTIAL_PATH", path
+        )
+        # Recorded before deleting so that both are restored afterwards rather
+        # than leaking into every later test on this worker.
+        monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS", "recorded")
+        monkeypatch.setenv("GOOGLE_EXTERNAL_ACCOUNT_ALLOW_EXECUTABLES", "recorded")
+        monkeypatch.delenv("GOOGLE_APPLICATION_CREDENTIALS")
+        monkeypatch.delenv("GOOGLE_EXTERNAL_ACCOUNT_ALLOW_EXECUTABLES")
+        monkeypatch.setattr(
+            "google.auth.default", lambda **kwargs: (StubCredentials(), None)
+        )
+
+        Command()._iam_db_config(None)
+
+        assert os.environ["GOOGLE_APPLICATION_CREDENTIALS"] == str(path)
+        assert os.environ["GOOGLE_EXTERNAL_ACCOUNT_ALLOW_EXECUTABLES"] == "1"
+
+    def test_an_inherited_environment_is_left_alone(self, monkeypatch, tmp_path):
+        monkeypatch.setenv(
+            "GOOGLE_APPLICATION_CREDENTIALS", write_config(tmp_path, EXTERNAL_ACCOUNT)
+        )
+        monkeypatch.setenv("GOOGLE_EXTERNAL_ACCOUNT_ALLOW_EXECUTABLES", "0")
+        monkeypatch.setattr(
+            "google.auth.default", lambda **kwargs: (StubCredentials(), None)
+        )
+
+        Command()._iam_db_config(None)
+
+        assert os.environ["GOOGLE_EXTERNAL_ACCOUNT_ALLOW_EXECUTABLES"] == "0"
+
     def test_a_refused_token_is_reported_where_it_happens(self, monkeypatch, tmp_path):
         """The exchange itself failing, rather than the lookup that precedes it.
 
@@ -539,28 +579,45 @@ class TestProxyArguments:
 
     def test_the_proxy_is_not_given_a_pipe_to_fill(self, cmd):
         """It outlives startup and keeps logging with nobody reading, so a pipe
-        would eventually fill and stall every query."""
+        would eventually fill and stall every query.
+
+        A real file is required rather than merely "not a pipe": inheriting the
+        terminal would scatter proxy logs through the shell session.
+        """
         with (
             patch("subprocess.Popen") as popen,
             patch.object(Command, "_port_is_open", return_value=True),
         ):
             popen.return_value = MagicMock(poll=MagicMock(return_value=None))
             cmd._start_proxy("test-project", 5433, use_iam=False)
-        assert popen.call_args.kwargs["stderr"] is not subprocess.PIPE
+
+        stderr = popen.call_args.kwargs["stderr"]
+        assert stderr is not subprocess.PIPE
+        assert stderr.fileno() >= 0
 
 
 class TestGeneratedSettings:
-    """What the shell subprocess is handed, and what is left behind afterwards."""
+    """What the shell subprocess is handed, and what is left behind afterwards.
 
-    def test_the_read_only_router_is_installed(self, cmd):
+    Each test is given its own path. Sharing the real one makes these race
+    against each other under parallel test execution, which is how the suite is
+    normally run.
+    """
+
+    @pytest.fixture
+    def settings_path(self, monkeypatch, tmp_path):
+        path = tmp_path / "_prodshell_settings.py"
+        monkeypatch.setattr(Command, "_settings_path", staticmethod(lambda: path))
+        return path
+
+    def test_the_read_only_router_is_installed(self, cmd, settings_path):
         """The layer that does not depend on database privileges, so it has to
         be present even on the path that already lacks them."""
         seen = {}
 
         def capture(argv, env=None, **kwargs):
-            path = settings_file_path()
-            seen["content"] = path.read_text(encoding="utf-8")
-            seen["mode"] = path.stat().st_mode & 0o777
+            seen["content"] = settings_path.read_text(encoding="utf-8")
+            seen["mode"] = settings_path.stat().st_mode & 0o777
             return MagicMock(returncode=0)
 
         with patch("subprocess.run", side_effect=capture):
@@ -572,36 +629,43 @@ class TestGeneratedSettings:
         assert "DATABASE_ROUTERS" in seen["content"]
         assert seen["mode"] == 0o600
 
-    def test_the_settings_file_does_not_outlive_the_shell(self, cmd):
+    def test_the_settings_file_does_not_outlive_the_shell(self, cmd, settings_path):
         with patch("subprocess.run", return_value=MagicMock(returncode=0)):
             cmd._launch_shell({"name": "app", "user": "u", "password": "p"}, 5433)
-        assert not settings_file_path().exists()
+        assert not settings_path.exists()
 
-    def test_the_settings_file_is_removed_even_when_the_shell_fails(self, cmd):
+    def test_the_settings_file_is_removed_even_when_the_shell_fails(
+        self, cmd, settings_path
+    ):
         with patch("subprocess.run", side_effect=RuntimeError("boom")):
             with pytest.raises(RuntimeError):
                 cmd._launch_shell({"name": "app", "user": "u", "password": "p"}, 5433)
-        assert not settings_file_path().exists()
+        assert not settings_path.exists()
 
-    def test_a_file_left_behind_cannot_keep_a_looser_mode(self, cmd):
+    def test_a_file_left_behind_cannot_keep_a_looser_mode(self, cmd, settings_path):
         """Truncating an existing file leaves its permissions alone, and a
         production password is about to be written into it."""
-        path = settings_file_path()
-        path.write_text("left over", encoding="utf-8")
-        path.chmod(0o644)
+        settings_path.write_text("left over", encoding="utf-8")
+        settings_path.chmod(0o644)
         seen = {}
 
         def capture(argv, env=None, **kwargs):
-            seen["mode"] = path.stat().st_mode & 0o777
+            seen["mode"] = settings_path.stat().st_mode & 0o777
             return MagicMock(returncode=0)
 
-        try:
-            with patch("subprocess.run", side_effect=capture):
-                cmd._launch_shell({"name": "app", "user": "u", "password": "p"}, 5433)
-        finally:
-            path.unlink(missing_ok=True)
+        with patch("subprocess.run", side_effect=capture):
+            cmd._launch_shell({"name": "app", "user": "u", "password": "p"}, 5433)
 
         assert seen["mode"] == 0o600
+
+    def test_a_second_session_is_told_rather_than_overwritten(self, cmd, settings_path):
+        """Overwriting would pull the settings out from under a shell that is
+        about to import them."""
+        settings_path.write_text("another session", encoding="utf-8")
+
+        with patch.object(Path, "unlink"):  # the other session still holds it
+            with pytest.raises(CommandError, match="another prodshell session"):
+                cmd._launch_shell({"name": "app", "user": "u", "password": "p"}, 5433)
 
 
 class TestBanner:
