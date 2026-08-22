@@ -439,31 +439,18 @@
         align-items: center;
     }
 
-    /* The crop dialog a picture input opens (n26/imagecrop.js): the
-     * preview holds the target shape whatever the picture, and the
-     * sliders sit under it. The canvas is what confirming sends — the
-     * dialog shows exactly the upload it stages. */
-    .n26-crop {
-        display: flex;
-        flex-direction: column;
-        gap: calc(var(--spacing) * 2);
+    /* The crop dialog a picture input opens (n26/imagecrop.js). The
+     * stage bounds the picture so a tall photograph does not push the
+     * dialog's buttons off screen; Cropper.js draws its rectangle
+     * inside whatever box the image lands in. */
+    .n26-crop-stage {
+        max-height: 60vh;
     }
 
-    .n26-crop canvas {
-        width: 100%;
-        border-radius: var(--radius-control);
-    }
-
-    .n26-crop label {
-        display: flex;
-        align-items: center;
-        gap: calc(var(--spacing) * 2);
-        font-size: var(--text-sm);
-        color: var(--color-ink-500);
-    }
-
-    .n26-crop input[type="range"] {
-        flex: 1;
+    .n26-crop-stage img {
+        display: block;
+        max-width: 100%;
+        max-height: 60vh;
     }
 
     /* A slider with one thumb or two.

@@ -1855,16 +1855,18 @@ GROUPS: list[Group] = [
                 tag="c-n26.picture-input",
                 template="n26/picture_input.html",
                 summary="A picture upload whose crop is chosen in a dialog.",
-                needs=("n26/imagecrop.js",),
+                needs=("n26/imagecrop.js", "Cropper.js"),
                 notes=(
                     "A plain file input and the dialog its crop is chosen in. "
-                    "Picking a file opens the dialog: the picture shows in a "
-                    "window of the declared shape — 4:5 for a model, 16:9 for "
-                    "a gang — panned and zoomed by the sliders, and confirming "
-                    "stages the chosen window on the input, so the form's own "
-                    "save sends exactly what the dialog showed. Leaving the "
-                    "dialog any other way clears the pick. Without the script "
-                    "the input is an ordinary file box, and either way the "
+                    "Picking a file opens the dialog: a rectangle of the "
+                    "declared shape — 4:5 for a model, 16:9 for a gang — over "
+                    "the picture, opening at the largest window the picture "
+                    "holds, dragged and resized by its handles (Cropper.js, "
+                    "vendored beside Alpine). Confirming stages the chosen "
+                    "window on the input, so the form's own save sends "
+                    "exactly what the dialog showed; leaving the dialog any "
+                    "other way clears the pick. Without the scripts the "
+                    "input is an ordinary file box, and either way the "
                     "server centre-crops every upload to the same shape "
                     "(n26/core/images.py): the dialog chooses, it is not "
                     "trusted."

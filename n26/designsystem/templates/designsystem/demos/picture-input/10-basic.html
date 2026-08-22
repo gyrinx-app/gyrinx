@@ -1,3 +1,3 @@
 {# title: A picture upload with a crop of its own #}
-{# note: Picking a file opens the crop dialog — the picture in a window of the declared shape, panned and zoomed by the sliders, staged on the input only when the crop is confirmed. This page does not load n26/imagecrop.js, so here the input stays a plain file box, which is also exactly what a reader without the script gets: the server centre-crops every upload to the same shape regardless. #}
+{# note: Picking a file opens the crop dialog — a rectangle of the declared shape over the picture, opening at its largest, dragged and resized by its handles, staged on the input only when the crop is confirmed. This page does not load the crop scripts, so here the input stays a plain file box, which is also exactly what a reader without the script gets: the server centre-crops every upload to the same shape regardless. #}
 <c-n26.picture-input id="demo-picture" name="image" crop="4:5" />

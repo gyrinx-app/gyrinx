@@ -15,6 +15,9 @@ reads the config after that listener has run.
 {% endcomment %}
 {% block extra_head %}
     <script src="{% static 'n26/richtext.js' %}"></script>
+    <link rel="stylesheet"
+          href="{% static 'designsystem/vendor/cropper.min.css' %}">
+    <script defer src="{% static 'designsystem/vendor/cropper.min.js' %}"></script>
     <script defer src="{% static 'n26/imagecrop.js' %}"></script>
     {{ form.media }}
 {% endblock extra_head %}
