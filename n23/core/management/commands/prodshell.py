@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import shutil
 import socket
 import subprocess
@@ -15,6 +16,14 @@ CLOUD_SQL_INSTANCE = "gyrinx-app-bootstrap-db"
 CLOUD_RUN_SERVICE = "gyrinx"
 PROXY_PORT = 5433
 PROXY_STARTUP_TIMEOUT = 15  # seconds
+
+# The database the federated role is granted SELECT on.
+IAM_DB_NAME = "app"
+
+# Scopes must be requested explicitly. Without them the impersonation call sends
+# an empty scope list and Google rejects the whole request as malformed, which
+# reads like a broken configuration rather than a missing argument.
+IAM_SCOPES = ["https://www.googleapis.com/auth/cloud-platform"]
 
 
 class Command(BaseCommand):
@@ -35,25 +44,48 @@ class Command(BaseCommand):
             default=PROXY_PORT,
             help=f"Local port for Cloud SQL Auth Proxy (default: {PROXY_PORT})",
         )
+        parser.add_argument(
+            "--auth",
+            choices=["auto", "iam", "gcloud"],
+            default="auto",
+            help=(
+                "How to authenticate. 'gcloud' signs in as you and reads the "
+                "application's own database credentials. 'iam' uses federated "
+                "credentials to connect as a role that can only read, which is "
+                "how a cloud agent reaches production. 'auto' picks iam when "
+                "federated credentials are configured (default: auto)"
+            ),
+        )
+        parser.add_argument(
+            "--db-name",
+            default=None,
+            help=f"Database to connect to (iam default: {IAM_DB_NAME})",
+        )
 
     def handle(self, *args, **options):
         project = options["project"]
         port = options["port"]
         proxy_process = None
+        use_iam = self._use_iam_auth(options["auth"])
 
         try:
-            self._check_gcloud()
-            self._check_gcloud_auth()
             self._check_cloud_sql_proxy()
-            self._check_adc()
 
-            self.stdout.write("Fetching production database credentials...")
-            db_config = self._fetch_db_credentials(project)
+            if use_iam:
+                db_config = self._iam_db_config(options["db_name"])
+            else:
+                self._check_gcloud()
+                self._check_gcloud_auth()
+                self._check_adc()
+                self.stdout.write("Fetching production database credentials...")
+                db_config = self._fetch_db_credentials(project)
+                if options["db_name"]:
+                    db_config["name"] = options["db_name"]
 
             self.stdout.write(f"Starting Cloud SQL Auth Proxy on port {port}...")
-            proxy_process = self._start_proxy(project, port)
+            proxy_process = self._start_proxy(project, port, use_iam)
 
-            self._print_banner(port)
+            self._print_banner(port, use_iam, db_config)
             self._launch_shell(db_config, port)
         except KeyboardInterrupt:
             self.stdout.write("\nInterrupted.")
@@ -111,6 +143,93 @@ class Command(BaseCommand):
                 "  gcloud auth application-default login"
             )
         self.stdout.write("Checking Application Default Credentials... OK")
+
+    # -- Federated credentials --
+
+    @staticmethod
+    def _credential_config():
+        """The external_account config ADC is pointed at, if that is what it is.
+
+        A cloud agent authenticates by exchanging a short-lived token for
+        permission to act as a service account, and the file describing that
+        exchange is what distinguishes it from a developer signed in with
+        gcloud.
+        """
+        path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
+        if not path:
+            return None
+        try:
+            config = json.loads(Path(path).read_text(encoding="utf-8"))
+        except OSError, json.JSONDecodeError:
+            return None
+        if not isinstance(config, dict) or config.get("type") != "external_account":
+            return None
+        return config
+
+    def _use_iam_auth(self, mode):
+        if mode == "iam":
+            return True
+        if mode == "gcloud":
+            return False
+        return self._credential_config() is not None
+
+    @staticmethod
+    def _impersonated_service_account(config):
+        """The account the federated credentials act as, from the config."""
+        url = config.get("service_account_impersonation_url", "")
+        match = re.search(r"/serviceAccounts/([^:/]+):", url)
+        return match.group(1) if match else None
+
+    def _iam_db_config(self, db_name):
+        """Work out who to connect as, and prove we can become them first.
+
+        Checking here rather than letting the connection fail means a rejected
+        token is reported as a rejected token, instead of surfacing much later
+        as an unexplained inability to reach the database.
+        """
+        config = self._credential_config()
+        if config is None:
+            raise CommandError(
+                "No federated credentials found. GOOGLE_APPLICATION_CREDENTIALS "
+                "must point at an external_account configuration file. This mode "
+                "is meant for a cloud agent; on a workstation use --auth=gcloud."
+            )
+
+        service_account = self._impersonated_service_account(config)
+        if not service_account:
+            raise CommandError(
+                "The credential configuration does not impersonate a service "
+                "account, so there is no database role to connect as."
+            )
+
+        try:
+            import google.auth
+            import google.auth.transport.requests
+        except ImportError as e:  # pragma: no cover - google-auth is installed
+            raise CommandError(f"google-auth is not available: {e}") from e
+
+        try:
+            credentials, _ = google.auth.default(scopes=IAM_SCOPES)
+            credentials.refresh(google.auth.transport.requests.Request())
+        except Exception as e:
+            raise CommandError(
+                f"Could not obtain credentials for {service_account}:\n{e}\n\n"
+                "The token is minted locally but exchanging it needs to reach "
+                "Google, and the identity must satisfy the provider's attribute "
+                "condition."
+            ) from e
+
+        self.stdout.write(f"Authenticated as {service_account}.")
+
+        # Cloud SQL drops the trailing domain from a service account's name.
+        db_user = re.sub(r"\.gserviceaccount\.com$", "", service_account)
+        return {
+            "name": db_name or IAM_DB_NAME,
+            "user": db_user,
+            # The proxy authenticates the connection, so there is no password to
+            # hold, fetch, or leak.
+            "password": "",
+        }
 
     # -- Credential fetching --
 
@@ -212,15 +331,16 @@ class Command(BaseCommand):
 
     # -- Cloud SQL Auth Proxy --
 
-    def _start_proxy(self, project, port):
+    def _start_proxy(self, project, port, use_iam=False):
         """Start Cloud SQL Auth Proxy and wait for it to be ready."""
         instance_connection = f"{project}:{GCP_REGION}:{CLOUD_SQL_INSTANCE}"
+        command = ["cloud-sql-proxy", instance_connection, f"--port={port}"]
+        if use_iam:
+            # Hands the connection an access token for the impersonated account
+            # instead of a password.
+            command.append("--auto-iam-authn")
         proxy_process = subprocess.Popen(
-            [
-                "cloud-sql-proxy",
-                instance_connection,
-                f"--port={port}",
-            ],
+            command,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.PIPE,
         )
@@ -255,13 +375,24 @@ class Command(BaseCommand):
 
     # -- Shell --
 
-    def _print_banner(self, port):
+    def _print_banner(self, port, use_iam=False, db_config=None):
+        if use_iam:
+            # Worth distinguishing: under gcloud the read-only rule is this
+            # command's own doing and holds only inside it, whereas the database
+            # itself refuses to let this role write.
+            enforcement = "READ-ONLY (granted SELECT only; also enforced here)"
+        else:
+            enforcement = "READ-ONLY (enforced by this command)"
+        connected_as = (db_config or {}).get("user", "unknown")
+        database = (db_config or {}).get("name", "unknown")
         banner = f"""
 {"=" * 54}
   WARNING: CONNECTED TO PRODUCTION DATABASE
   Instance: {CLOUD_SQL_INSTANCE}
+  Database: {database}
+  Connected as: {connected_as}
   Proxy port: {port}
-  Mode: READ-ONLY
+  Mode: {enforcement}
   All write operations will raise RuntimeError
 {"=" * 54}
 """

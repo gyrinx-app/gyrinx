@@ -1,249 +1,163 @@
+"""How prodshell decides who it is connecting to production as.
+
+The command has two ways in: a developer signed in with gcloud, reading the
+application's own database credentials, and a cloud agent holding federated
+credentials that can only read. Choosing the wrong one fails a long way from the
+cause, so the choice is worth pinning down.
+"""
+
 import json
-from unittest.mock import MagicMock, patch
 
 import pytest
 from django.core.management.base import CommandError
 
-from n23.core.management.commands.prodshell import Command, ReadOnlyRouter
+from n23.core.management.commands.prodshell import Command
+
+SERVICE_ACCOUNT = "reader@example-project.iam.gserviceaccount.com"
+
+EXTERNAL_ACCOUNT = {
+    "type": "external_account",
+    "audience": "//iam.googleapis.com/projects/1/locations/global/workloadIdentityPools/p/providers/q",
+    "subject_token_type": "urn:ietf:params:oauth:token-type:id_token",
+    "token_url": "https://sts.googleapis.com/v1/token",
+    "credential_source": {"executable": {"command": "/somewhere/mint.sh"}},
+    "service_account_impersonation_url": (
+        "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/"
+        f"{SERVICE_ACCOUNT}:generateAccessToken"
+    ),
+}
 
 
-@pytest.fixture
-def cmd():
-    return Command()
+def write_config(tmp_path, payload, name="creds.json"):
+    path = tmp_path / name
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    return str(path)
 
 
-class TestReadOnlyRouter:
-    def test_db_for_read_returns_default(self):
-        router = ReadOnlyRouter()
-        assert router.db_for_read(None) == "default"
-
-    def test_db_for_write_raises(self):
-        router = ReadOnlyRouter()
-        with pytest.raises(RuntimeError, match="Write operations are disabled"):
-            router.db_for_write(None)
-
-    def test_allow_relation_returns_true(self):
-        router = ReadOnlyRouter()
-        assert router.allow_relation(None, None) is True
-
-    def test_allow_migrate_returns_false(self):
-        router = ReadOnlyRouter()
-        assert router.allow_migrate("default", "core") is False
+def test_no_credentials_variable_is_not_federated(monkeypatch):
+    monkeypatch.delenv("GOOGLE_APPLICATION_CREDENTIALS", raising=False)
+    assert Command._credential_config() is None
 
 
-class TestPreflightChecks:
-    @patch("shutil.which", return_value=None)
-    def test_check_gcloud_missing(self, mock_which, cmd):
-        with pytest.raises(CommandError, match="gcloud CLI not found"):
-            cmd._check_gcloud()
+def test_a_missing_file_is_not_federated(monkeypatch, tmp_path):
+    monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS", str(tmp_path / "absent.json"))
+    assert Command._credential_config() is None
 
-    @patch("shutil.which", return_value="/usr/bin/gcloud")
-    def test_check_gcloud_found(self, mock_which, cmd):
-        cmd._check_gcloud()
 
-    @patch(
-        "subprocess.run",
-        return_value=MagicMock(returncode=1, stderr="not authenticated"),
+def test_unreadable_json_is_not_federated(monkeypatch, tmp_path):
+    path = tmp_path / "broken.json"
+    path.write_text("not json at all", encoding="utf-8")
+    monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS", str(path))
+    assert Command._credential_config() is None
+
+
+def test_a_service_account_key_is_not_federated(monkeypatch, tmp_path):
+    """The distinguishing mark is the type, not merely that a file is present."""
+    path = write_config(tmp_path, {"type": "service_account", "project_id": "x"})
+    monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS", path)
+    assert Command._credential_config() is None
+
+
+def test_an_external_account_config_is_federated(monkeypatch, tmp_path):
+    monkeypatch.setenv(
+        "GOOGLE_APPLICATION_CREDENTIALS", write_config(tmp_path, EXTERNAL_ACCOUNT)
     )
-    def test_check_gcloud_auth_not_authenticated(self, mock_run, cmd):
-        with pytest.raises(CommandError, match="Not authenticated"):
-            cmd._check_gcloud_auth()
+    assert Command._credential_config() == EXTERNAL_ACCOUNT
 
-    @patch(
-        "subprocess.run",
-        return_value=MagicMock(returncode=0, stdout="token"),
+
+def test_auto_picks_federated_when_configured(monkeypatch, tmp_path):
+    monkeypatch.setenv(
+        "GOOGLE_APPLICATION_CREDENTIALS", write_config(tmp_path, EXTERNAL_ACCOUNT)
     )
-    def test_check_gcloud_auth_ok(self, mock_run, cmd):
-        cmd._check_gcloud_auth()
+    assert Command()._use_iam_auth("auto") is True
 
-    @patch("shutil.which", return_value=None)
-    def test_check_cloud_sql_proxy_missing(self, mock_which, cmd):
-        with pytest.raises(CommandError, match="cloud-sql-proxy not found"):
-            cmd._check_cloud_sql_proxy()
 
-    @patch("shutil.which", return_value="/usr/bin/cloud-sql-proxy")
-    def test_check_cloud_sql_proxy_found(self, mock_which, cmd):
-        cmd._check_cloud_sql_proxy()
+def test_auto_falls_back_to_gcloud_on_a_workstation(monkeypatch):
+    monkeypatch.delenv("GOOGLE_APPLICATION_CREDENTIALS", raising=False)
+    assert Command()._use_iam_auth("auto") is False
 
-    @patch(
-        "subprocess.run",
-        return_value=MagicMock(returncode=1, stderr="not set"),
+
+def test_explicit_choices_override_what_is_configured(monkeypatch, tmp_path):
+    monkeypatch.setenv(
+        "GOOGLE_APPLICATION_CREDENTIALS", write_config(tmp_path, EXTERNAL_ACCOUNT)
     )
-    def test_check_adc_not_authenticated(self, mock_run, cmd):
-        with pytest.raises(CommandError, match="Application Default Credentials"):
-            cmd._check_adc()
+    assert Command()._use_iam_auth("gcloud") is False
+    monkeypatch.delenv("GOOGLE_APPLICATION_CREDENTIALS", raising=False)
+    assert Command()._use_iam_auth("iam") is True
 
-    @patch(
-        "subprocess.run",
-        return_value=MagicMock(returncode=0, stdout="token"),
+
+def test_the_impersonated_account_is_read_from_the_config():
+    assert Command._impersonated_service_account(EXTERNAL_ACCOUNT) == SERVICE_ACCOUNT
+
+
+def test_a_config_that_impersonates_nobody_yields_nobody():
+    assert Command._impersonated_service_account({"type": "external_account"}) is None
+
+
+def test_the_database_role_drops_the_trailing_domain(monkeypatch, tmp_path):
+    """Cloud SQL names a service account without its domain suffix."""
+    monkeypatch.setenv(
+        "GOOGLE_APPLICATION_CREDENTIALS", write_config(tmp_path, EXTERNAL_ACCOUNT)
     )
-    def test_check_adc_ok(self, mock_run, cmd):
-        cmd._check_adc()
-
-
-class TestFetchDbCredentials:
-    def _make_cloud_run_response(self, env_vars):
-        """Build a mock Cloud Run service describe JSON response."""
-        service = {
-            "spec": {
-                "template": {
-                    "spec": {
-                        "containers": [
-                            {
-                                "env": [
-                                    {"name": k, "value": v} for k, v in env_vars.items()
-                                ]
-                            }
-                        ]
-                    }
-                }
-            }
-        }
-        return json.dumps(service)
-
-    @patch("subprocess.run")
-    def test_fetch_credentials_success(self, mock_run, cmd):
-        env_vars = {
-            "DB_CONFIG": json.dumps({"user": "prod_user", "password": "prod_pass"}),
-            "DB_NAME": "prod_db",
-        }
-        mock_run.return_value = MagicMock(
-            returncode=0,
-            stdout=self._make_cloud_run_response(env_vars),
-        )
-        result = cmd._fetch_db_credentials("test-project")
-        assert result["name"] == "prod_db"
-        assert result["user"] == "prod_user"
-        assert result["password"] == "prod_pass"
-
-    @patch("subprocess.run")
-    def test_fetch_credentials_defaults_db_name(self, mock_run, cmd):
-        env_vars = {
-            "DB_CONFIG": json.dumps({"user": "u", "password": "p"}),
-        }
-        mock_run.return_value = MagicMock(
-            returncode=0,
-            stdout=self._make_cloud_run_response(env_vars),
-        )
-        result = cmd._fetch_db_credentials("test-project")
-        assert result["name"] == "gyrinx"
-
-    @patch("subprocess.run")
-    def test_fetch_credentials_gcloud_failure(self, mock_run, cmd):
-        mock_run.return_value = MagicMock(
-            returncode=1,
-            stderr="permission denied",
-        )
-        with pytest.raises(CommandError, match="Failed to fetch"):
-            cmd._fetch_db_credentials("test-project")
-
-    @patch("subprocess.run")
-    def test_fetch_credentials_missing_user(self, mock_run, cmd):
-        env_vars = {
-            "DB_CONFIG": json.dumps({"password": "p"}),
-        }
-        mock_run.return_value = MagicMock(
-            returncode=0,
-            stdout=self._make_cloud_run_response(env_vars),
-        )
-        with pytest.raises(CommandError, match="Could not extract"):
-            cmd._fetch_db_credentials("test-project")
-
-    @patch("subprocess.run")
-    def test_fetch_credentials_missing_password(self, mock_run, cmd):
-        env_vars = {
-            "DB_CONFIG": json.dumps({"user": "u"}),
-        }
-        mock_run.return_value = MagicMock(
-            returncode=0,
-            stdout=self._make_cloud_run_response(env_vars),
-        )
-        with pytest.raises(CommandError, match="Could not extract"):
-            cmd._fetch_db_credentials("test-project")
-
-    @patch("subprocess.run")
-    def test_fetch_credentials_malformed_db_config(self, mock_run, cmd):
-        env_vars = {
-            "DB_CONFIG": "not-json",
-        }
-        mock_run.return_value = MagicMock(
-            returncode=0,
-            stdout=self._make_cloud_run_response(env_vars),
-        )
-        with pytest.raises(CommandError, match="Failed to parse DB_CONFIG"):
-            cmd._fetch_db_credentials("test-project")
-
-    @patch("subprocess.run")
-    def test_fetch_credentials_malformed_json(self, mock_run, cmd):
-        mock_run.return_value = MagicMock(
-            returncode=0,
-            stdout="not-json",
-        )
-        with pytest.raises(
-            CommandError, match="Failed to parse Cloud Run service config"
-        ):
-            cmd._fetch_db_credentials("test-project")
-
-    @patch("subprocess.run")
-    def test_fetch_credentials_no_containers(self, mock_run, cmd):
-        mock_run.return_value = MagicMock(
-            returncode=0,
-            stdout=json.dumps({"spec": {"template": {"spec": {"containers": []}}}}),
-        )
-        with pytest.raises(CommandError, match="No containers found"):
-            cmd._fetch_db_credentials("test-project")
-
-
-class TestPortCheck:
-    @patch("socket.socket")
-    def test_port_not_open(self, mock_socket):
-        mock_sock_instance = mock_socket.return_value.__enter__.return_value
-        mock_sock_instance.connect_ex.return_value = 1
-        assert Command._port_is_open(19999) is False
-
-
-class TestProxyStartup:
-    @patch("subprocess.Popen")
-    def test_proxy_exits_unexpectedly(self, mock_popen, cmd):
-        mock_proc = MagicMock()
-        mock_proc.poll.return_value = 1  # process exited
-        mock_proc.stderr.read.return_value = b"bind error"
-        mock_popen.return_value = mock_proc
-
-        with pytest.raises(CommandError, match="exited unexpectedly"):
-            cmd._start_proxy("test-project", 5433)
-
-    @patch(
-        "n23.core.management.commands.prodshell.Command._port_is_open",
-        return_value=True,
+    monkeypatch.setattr(
+        "google.auth.default", lambda **kwargs: (_StubCredentials(), None)
     )
-    @patch("subprocess.Popen")
-    def test_proxy_starts_successfully(self, mock_popen, mock_port_is_open, cmd):
-        mock_proc = MagicMock()
-        mock_proc.poll.return_value = None  # still running
-        mock_popen.return_value = mock_proc
 
-        result = cmd._start_proxy("test-project", 5433)
-        assert result is mock_proc
+    config = Command()._iam_db_config(None)
 
-    @patch("n23.core.management.commands.prodshell.time.monotonic")
-    @patch(
-        "n23.core.management.commands.prodshell.Command._port_is_open",
-        return_value=False,
+    assert config["user"] == "reader@example-project.iam"
+    assert config["name"] == "app"
+    assert config["password"] == ""
+
+
+def test_the_database_can_be_overridden(monkeypatch, tmp_path):
+    monkeypatch.setenv(
+        "GOOGLE_APPLICATION_CREDENTIALS", write_config(tmp_path, EXTERNAL_ACCOUNT)
     )
-    @patch("n23.core.management.commands.prodshell.time.sleep")
-    @patch("subprocess.Popen")
-    def test_proxy_startup_timeout(
-        self, mock_popen, mock_sleep, mock_port_is_open, mock_monotonic, cmd
-    ):
-        mock_proc = MagicMock()
-        mock_proc.poll.return_value = None  # still running
-        mock_popen.return_value = mock_proc
+    monkeypatch.setattr(
+        "google.auth.default", lambda **kwargs: (_StubCredentials(), None)
+    )
+    assert Command()._iam_db_config("somewhere_else")["name"] == "somewhere_else"
 
-        # Simulate time exceeding PROXY_STARTUP_TIMEOUT
-        mock_monotonic.side_effect = [0.0, 0.0, 20.0]
 
-        with pytest.raises(CommandError, match="did not start within"):
-            cmd._start_proxy("test-project", 5433)
+def test_scopes_are_requested(monkeypatch, tmp_path):
+    """Unscoped, the impersonation call is rejected as a malformed request."""
+    monkeypatch.setenv(
+        "GOOGLE_APPLICATION_CREDENTIALS", write_config(tmp_path, EXTERNAL_ACCOUNT)
+    )
+    seen = {}
 
-        mock_proc.terminate.assert_called_once()
+    def capture(**kwargs):
+        seen.update(kwargs)
+        return _StubCredentials(), None
+
+    monkeypatch.setattr("google.auth.default", capture)
+    Command()._iam_db_config(None)
+
+    assert seen["scopes"] == ["https://www.googleapis.com/auth/cloud-platform"]
+
+
+def test_federated_mode_without_credentials_says_so(monkeypatch):
+    monkeypatch.delenv("GOOGLE_APPLICATION_CREDENTIALS", raising=False)
+    with pytest.raises(CommandError, match="No federated credentials"):
+        Command()._iam_db_config(None)
+
+
+def test_a_rejected_token_is_reported_where_it_happens(monkeypatch, tmp_path):
+    """Rather than surfacing later as an unexplained connection failure."""
+    monkeypatch.setenv(
+        "GOOGLE_APPLICATION_CREDENTIALS", write_config(tmp_path, EXTERNAL_ACCOUNT)
+    )
+
+    def refuse(**kwargs):
+        raise RuntimeError("rejected by the attribute condition")
+
+    monkeypatch.setattr("google.auth.default", refuse)
+
+    with pytest.raises(CommandError, match="rejected by the attribute condition"):
+        Command()._iam_db_config(None)
+
+
+class _StubCredentials:
+    def refresh(self, request):
+        return None

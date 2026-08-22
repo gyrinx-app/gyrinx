@@ -355,8 +355,20 @@ echo 'print(List.objects.filter(archived=False).count())' | manage prodshell
   single expression per query (e.g. `print([...comprehension...])`) and read results off
   the `In [N]:` lines.
 
-**Important:** Read-only mode is enforced — all write operations raise `RuntimeError`. Requires `gcloud` CLI,
-`cloud-sql-proxy`, and valid GCP authentication (both `gcloud auth login` and `gcloud auth application-default login`).
+**Important:** Read-only mode is enforced — all write operations raise `RuntimeError`.
+
+There are two ways in, and `prodshell` picks between them automatically:
+
+- **On a workstation** (`--auth=gcloud`): signs in as you and reads the application's own database
+  credentials. Requires the `gcloud` CLI, `cloud-sql-proxy`, and both `gcloud auth login` and
+  `gcloud auth application-default login`.
+- **On a cloud agent** (`--auth=iam`): uses the agent's federated credentials to connect as
+  `cursor-prodshell-ro`, a role the database grants `SELECT` and nothing else. No `gcloud`, no
+  password, and no key on disk — the agent mints a five-minute token and exchanges it. Chosen
+  automatically when `GOOGLE_APPLICATION_CREDENTIALS` names an `external_account` config.
+
+Under `iam` the read-only guarantee is the database's, not just this command's, so it holds for
+anything else that connects as that role too.
 
 - **One-off production data repairs run as a Backfill, not a management command.** The app runs on
   Cloud Run, so `manage` can't be pointed at production and `prodshell` is read-only — a repair
