@@ -270,7 +270,9 @@ class DefaultAssignment(NamesAnAssignable, Content):
         """
         if self.weapon_id is None:
             return DefaultAssignment.objects.none()
-        return self.default_set.members.filter(weapon_profile__weapon_id=self.weapon_id)
+        return self.default_set.members.filter(
+            archived=False, weapon_profile__weapon_id=self.weapon_id
+        )
 
 
 #: Which kinds may offer options. Narrow on purpose: a profile offers
