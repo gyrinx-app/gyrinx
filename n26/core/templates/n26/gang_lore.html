@@ -58,7 +58,11 @@ prose; a section with no picture is just its words.
                      class="float-start mb-3 me-6 w-full max-w-md rounded-box">
             {% endif %}
             {% if gang.lore %}
-                <c-n26.prose>
+                {% comment %}
+                measure off: the floated picture already narrows the text
+                beside it, and a measure cap on top leaves a sliver.
+                {% endcomment %}
+                <c-n26.prose :measure="False">
                     {{ gang.lore|safe_rich_text }}
                 </c-n26.prose>
             {% elif yours %}
@@ -88,7 +92,7 @@ prose; a section with no picture is just its words.
                     {% endif %}
                 </h2>
                 {% if entry.lore %}
-                    <c-n26.prose class="mt-2">
+                    <c-n26.prose :measure="False" class="mt-2">
                         {{ entry.lore|safe_rich_text }}
                     </c-n26.prose>
                 {% endif %}
