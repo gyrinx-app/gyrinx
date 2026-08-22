@@ -12,7 +12,12 @@ from n26.core import history
 from n26.core.models import Assignment
 from n26.core.reconcile import assert_reconciled
 from n26.library.conversion import apply, plan_specialisation
-from n26.library.conversion.archived import apply_archived, plan_archived
+from n26.library.conversion.archived import _unexpected as _unexpected
+from n26.library.conversion.archived import (
+    apply_archived,
+    plan_archived,
+)
+from n26.library.conversion.base import ConversionRefused
 from n26.library.models import Pickable, Slot, Specialisation
 from n26.tests.sandbox.actions import (
     choose,
@@ -234,6 +239,136 @@ class TestTheOtherColumns:
         ).exists()
         moved = Assignment.objects.filter(archived=True, pickable__isnull=False)
         assert all(row.chosen_for_slot_id is not None for row in moved)
+
+
+class TestTheOneRewording:
+    """A dropped gang legacy sat in the archetype column, so its history
+    calls the house an archetype. Said as the pick it is, the history
+    says "gang legacy" — the word the gang's kept legacies use. The
+    sweep counts that on the page before it is agreed to, and refuses
+    every other word that moves."""
+
+    @pytest.fixture
+    def legacies(self, default_pack, person_type, owner):
+        from n26.library.conversion import plan_gang_legacy
+        from n26.tests.sandbox.test_conversion_gang_legacy import (
+            build_prod_shape,
+            build_world,
+        )
+
+        shape = build_prod_shape(person_type)
+        gangs, _ = build_world(shape, owner)
+        apply(plan_gang_legacy())
+        return gangs
+
+    @pytest.fixture
+    def sworn_at_hiring(self, default_pack, person_type, owner):
+        """A legacy answered in the same breath as the hire that asked
+        for it, then taken back.
+
+        The word only reaches the page this way: an answer given in its
+        own right is told as its own line, which names no sort of thing,
+        while one folded under the hire is listed beneath it — and a
+        listed thing says what sort it is.
+        """
+        from n26.core.operations import operation
+        from n26.library.conversion import plan_gang_legacy
+        from n26.tests.sandbox.actions import found_gang, remove
+        from n26.tests.sandbox.test_conversion_gang_legacy import build_prod_shape
+
+        gang_type, houses, profiles, _ = build_prod_shape(person_type)
+        hunt_leader = profiles[0]
+        gang = found_gang("The Long Watch", gang_type, owner=owner, budget=2000)
+        with operation(gang, actor=owner) as op:
+            fighter = op.hire(hunt_leader, "Vex", paid=50)
+            anchor = Assignment.objects.get(profile=hunt_leader, miniature_root=fighter)
+            op.choose(anchor, houses["Cawdor"])
+        remove(
+            Assignment.objects.get(
+                archetype=houses["Cawdor"], miniature_root=fighter, archived=False
+            )
+        )
+        apply(plan_gang_legacy())
+        return gang
+
+    def test_the_plan_says_the_word_will_move_and_how_often(self, legacies):
+        plan = plan_archived()
+
+        assert plan.rewords == (("archetype", "gang legacy", 1),)
+        assert any(
+            "will have their history say “gang legacy” where it says "
+            "“archetype” today" in line
+            for line in plan.preview()
+        )
+
+    def test_the_gang_whose_word_moves_is_the_only_one_allowed_to(self, legacies):
+        plan = plan_archived()
+
+        assert plan.reworded_gang_ids == (legacies["answered"].pk,)
+
+    def test_the_story_says_the_new_word_afterwards(self, sworn_at_hiring):
+        gang = sworn_at_hiring
+        before = _story(history.build(gang))
+        assert any("|archetype|" in line for line in before)
+
+        apply_archived(plan_archived())
+
+        after = _story(history.build(gang))
+        assert not any("|archetype|" in line for line in after)
+        assert any("|gang legacy|" in line for line in after)
+        # Only the sort-of-thing word moved: what arrived is untouched.
+        assert [line.split("|")[0] for line in before] == [
+            line.split("|")[0] for line in after
+        ]
+
+    def test_a_rewording_nobody_declared_is_refused(self, legacies, monkeypatch):
+        monkeypatch.setattr("n26.library.conversion.archived.ALLOWED_REWORDS", ())
+
+        plan = plan_archived()
+
+        assert not plan.ok
+        assert any(
+            "which is not a rewording this may make" in problem
+            for problem in plan.problems
+        )
+        with pytest.raises(ConversionRefused):
+            apply_archived(plan)
+
+
+class TestReadingTwoStories:
+    """What counts as a story having moved, given the one allowance."""
+
+    def test_an_identical_story_has_not_moved(self):
+        assert _unexpected(["a", "b"], ["a", "b"], ()) == []
+
+    def test_a_declared_word_put_in_place_of_another_is_expected(self):
+        assert (
+            _unexpected(
+                ["Cawdor|archetype|"],
+                ["Cawdor|gang legacy|"],
+                (("archetype", "gang legacy", 1),),
+            )
+            == []
+        )
+
+    def test_the_same_word_moving_where_it_was_not_declared_is_not(self):
+        found = _unexpected(["Cawdor|archetype|"], ["Cawdor|gang legacy|"], ())
+
+        assert found == ["“Cawdor|archetype|” -> “Cawdor|gang legacy|”"]
+
+    def test_a_name_changing_is_never_expected(self):
+        found = _unexpected(
+            ["Cawdor|archetype|"],
+            ["Escher|gang legacy|"],
+            (("archetype", "gang legacy", 1),),
+        )
+
+        assert found == ["“Cawdor|archetype|” -> “Escher|gang legacy|”"]
+
+    def test_a_story_that_gains_a_line_is_not_expected(self):
+        found = _unexpected(["a"], ["a", "b"], (("archetype", "gang legacy", 1),))
+
+        assert found == ["the story is 1 lines long and becomes 2"]
 
 
 class TestWhatItLeaves:

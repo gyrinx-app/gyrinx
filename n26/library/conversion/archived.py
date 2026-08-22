@@ -15,8 +15,13 @@ draws nothing on any card, so no page can move whatever this does —
 but the gang's history describes an old event by what its assignment
 names *now*, and these assignments are what history is made of.
 Rewriting one wrongly rewrites what a player is told they did. So
-every affected gang's story is read before and after, and any word
-that moves ends the run.
+every affected gang's story is read before and after, and a word that
+moves ends the run unless the plan said in advance that it would.
+
+Exactly one wording does move, and the plan names it and counts it on
+the page before anybody agrees to the run (``ALLOWED_REWORDS``). A
+gang the plan did not name for it must read identically, so the
+allowance cannot spread to a story it was not meant for.
 
 Reading their pages as well would be the conversions' proof, and it is
 the wrong one here twice over: it cannot fail, and it costs five times
@@ -33,6 +38,7 @@ an answer belongs to is the slot its own anchor grants. Anything that
 does not resolve that way is refused by name rather than guessed at.
 """
 
+from collections import Counter
 from dataclasses import dataclass
 
 from n26.library.conversion.base import ConversionRefused, Plan
@@ -101,6 +107,37 @@ class RewriteArchivedAnswer:
 #: report reads best.
 OLD_COLUMNS = ("specialisation", "archetype", "skill_tree")
 
+#: The one change of wording this sweep may make, and nothing else.
+#:
+#: The archetype column holds two systems with nothing to do with each
+#: other — the Outcast archetypes and the Venator gang legacies — so a
+#: dropped legacy's history calls the house an "archetype". Said as the
+#: pick it is, it says "gang legacy": the truthful word, and the one a
+#: gang's kept legacies already use. Every other moved word is a
+#: refusal, and so is any change to *what* arrived.
+ALLOWED_REWORDS = (("archetype", "gang legacy"),)
+
+
+@dataclass(frozen=True)
+class ArchivedPlan(Plan):
+    """The sweep's plan, carrying the rewording it has to own up to."""
+
+    #: ``(old word, new word, how many answers)``, as the preview says it.
+    rewords: tuple = ()
+    #: The gangs whose stories may move. Every other gang's must not.
+    reworded_gang_ids: tuple = ()
+
+    def preview(self):
+        lines = list(super().preview())
+        for old, new, count in self.rewords:
+            lines.insert(
+                -1,
+                f"[archived] {count} of those answer"
+                f"{'' if count == 1 else 's'} will have their history say "
+                f"“{new}” where it says “{old}” today",
+            )
+        return lines
+
 
 def _slots_granted(assignable, seen):
     """The slots this thing's modifiers hand over, cached per plan."""
@@ -130,10 +167,11 @@ def plan_archived():
             .order_by("created")
         )
     if not rows:
-        return Plan(system="archived", nothing_here=True)
+        return ArchivedPlan(system="archived", nothing_here=True)
 
     seen = {}
     steps = []
+    reworded = []
     for row in rows:
         named = getattr(row, _column_of(row))
         cause = row.caused_by
@@ -167,6 +205,25 @@ def plan_archived():
             )
             continue
         pickable = candidates[0]
+        # What the history says about this answer today, and what it
+        # would say once rewritten. Read with the history page's own
+        # words rather than a copy of them, so the two cannot drift.
+        was, becomes = _words(row), (str(pickable), slot.slot_type.name.lower())
+        if was != becomes:
+            if was[0] != becomes[0]:
+                problems.append(
+                    f"rewriting the archived answer {row.pk} would change "
+                    f"what arrived from “{was[0]}” to “{becomes[0]}”"
+                )
+                continue
+            if (was[1], becomes[1]) not in ALLOWED_REWORDS:
+                problems.append(
+                    f"rewriting the archived answer {row.pk} would have its "
+                    f"history say “{becomes[1]}” where it says “{was[1]}”, "
+                    "which is not a rewording this may make"
+                )
+                continue
+            reworded.append(((was[1], becomes[1]), row.gang_root_id))
         steps.append(
             RewriteArchivedAnswer(
                 assignment_id=row.pk,
@@ -180,15 +237,32 @@ def plan_archived():
         )
 
     if problems:
-        return Plan(system="archived", problems=tuple(problems))
+        return ArchivedPlan(system="archived", problems=tuple(problems))
 
+    counted = Counter(pair for pair, _ in reworded)
     touched = sorted({row.gang_root_id for row in rows}, key=str)
-    return Plan(
+    return ArchivedPlan(
         system="archived",
         steps=tuple(steps),
         gang_ids=tuple(touched),
         reaches=len(touched),
+        rewords=tuple(
+            (old, new, count) for (old, new), count in sorted(counted.items())
+        ),
+        reworded_gang_ids=tuple(sorted({gang for _, gang in reworded}, key=str)),
     )
+
+
+def _words(row):
+    """What the history page calls this row: its name, and its sort.
+
+    The page's own functions, because the proof is about what a reader
+    is told — a second implementation of the wording could agree with
+    itself while disagreeing with the screen.
+    """
+    from n26.core.history import _kindword, _name
+
+    return _name(row), _kindword(row)
 
 
 def _column_of(row):
@@ -221,6 +295,10 @@ def apply_archived(plan):
     with _one_snapshot(), transaction.atomic():
         gangs = list(Gang.objects.filter(pk__in=plan.gang_ids))
         before_story = {str(gang.pk): _story(history.build(gang)) for gang in gangs}
+        # Only the gangs the plan named may reword, and only in the way
+        # it named. Everywhere else the story has to read identically,
+        # so a coincidence somewhere unrelated cannot pass as expected.
+        reworded = set(plan.reworded_gang_ids)
 
         for step in plan.steps:
             try:
@@ -234,8 +312,16 @@ def apply_archived(plan):
         moved = []
         for gang in gangs:
             key = str(gang.pk)
-            if _story(history.build(gang)) != before_story[key]:
-                moved.append(f"{gang}: the words its history tells have moved")
+            unexpected = _unexpected(
+                before_story[key],
+                _story(history.build(gang)),
+                plan.rewords if gang.pk in reworded else (),
+            )
+            if unexpected:
+                moved.append(
+                    f"{gang}: the words its history tells have moved — "
+                    + "; ".join(unexpected[:3])
+                )
         if moved:
             raise ConversionRefused(
                 "[archived] refused — what a reader is told would change:\n  "
@@ -248,8 +334,34 @@ def apply_archived(plan):
                 raise ConversionRefused(
                     f"[archived] refused — {gang} no longer reconciles: {failed}"
                 ) from failed
-    report.append("[archived] rewritten; every story reads the same")
+    report.append(
+        "[archived] rewritten; every story reads the same but for the "
+        "rewording said above"
+        if plan.rewords
+        else "[archived] rewritten; every story reads the same"
+    )
     return report
+
+
+def _unexpected(before, after, rewords):
+    """Every way two readings of a story disagree beyond what was said.
+
+    A line may differ only by having one declared word put in place of
+    another, and only on a gang the plan named. Anything else — a line
+    gained or lost, a name changed, a word nobody declared — comes back
+    as words, so a refusal says what it saw rather than that something
+    happened.
+    """
+    if len(before) != len(after):
+        return [f"the story is {len(before)} lines long and becomes {len(after)}"]
+    found = []
+    for was, now in zip(before, after, strict=True):
+        if was == now:
+            continue
+        if any(was.replace(old, new) == now for old, new, _ in rewords):
+            continue
+        found.append(f"“{was}” -> “{now}”")
+    return found
 
 
 def _story(acts):
