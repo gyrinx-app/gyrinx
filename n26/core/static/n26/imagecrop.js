@@ -1,74 +1,50 @@
-/* The crop chooser on a picture input.
+/* The crop dialog on a picture input.
  *
- * Any <input type="file" data-crop="4:5"> grows a preview of that shape
- * with pan and zoom sliders when a file is picked. Every adjustment
- * redraws the chosen window onto a canvas and puts the result back on
- * the input, so what uploads is what the preview shows — the form needs
- * no script of its own and a plain submit sends the choice.
+ * Wires every <input type="file" data-crop="4:5"> to the <dialog> its
+ * component renders beside it (<c-n26.picture-input>). Picking a file
+ * opens the dialog: the picture shows in a window of the declared
+ * shape, panned and zoomed by the sliders, and confirming draws the
+ * chosen window to a canvas and puts the result back on the input — so
+ * the form's own save sends exactly what the dialog showed. Leaving the
+ * dialog any other way clears the pick.
  *
  * Without this script the input is an ordinary file box and the server
  * centre-crops to the same ratio (n26/core/images.py). The server does
- * that to every upload regardless: this chooser picks the window, it is
+ * that to every upload regardless: the dialog picks the window, it is
  * not trusted with the rules.
  */
 (function () {
     var MAX_PX = 1600;
 
     function wire(input) {
+        var box = input.closest(".n26-picture-input");
+        var dialog = box && box.querySelector("dialog[data-crop-dialog]");
+        if (!dialog) return;
+
         var parts = (input.dataset.crop || "1:1").split(":");
         var ratio = parseFloat(parts[0]) / parseFloat(parts[1]);
         // A malformed shape declaration falls back to square rather than
         // poisoning every window computation with NaN.
         if (!isFinite(ratio) || ratio <= 0) ratio = 1;
-        var ui = null;
 
-        input.addEventListener("change", function () {
-            var file = input.files && input.files[0];
-            if (ui) {
-                ui.root.remove();
-                ui = null;
-            }
-            if (!file || !file.type.match(/^image\//)) return;
-            var image = new Image();
-            image.onload = function () {
-                URL.revokeObjectURL(image.src);
-                ui = build(input, image, ratio, file.name);
-            };
-            // A file the browser cannot decode gets no chooser — the
-            // original upload goes as picked and the server answers.
-            image.onerror = function () {
-                URL.revokeObjectURL(image.src);
-            };
-            image.src = URL.createObjectURL(file);
-        });
-    }
-
-    function build(input, image, ratio, name) {
-        var root = document.createElement("div");
-        root.className = "n26-crop";
-        root.innerHTML =
-            '<div class="n26-crop-frame"><canvas></canvas></div>' +
-            '<label>Zoom <input type="range" name="" min="1" max="3" step="0.01" value="1"></label>' +
-            '<label>Pan <input type="range" name="" min="0" max="1" step="0.01" value="0.5"></label>' +
-            '<label>Pan down <input type="range" name="" min="0" max="1" step="0.01" value="0.5"></label>';
-        input.insertAdjacentElement("afterend", root);
-
-        var canvas = root.querySelector("canvas");
-        var sliders = root.querySelectorAll('input[type="range"]');
+        var canvas = dialog.querySelector("canvas");
+        var sliders = dialog.querySelectorAll('input[type="range"]');
         var zoom = sliders[0];
         var panX = sliders[1];
         var panY = sliders[2];
-        // toBlob is asynchronous and a dragged slider redraws many times;
-        // the encodings can finish out of order, so each redraw takes a
-        // number and only the newest is allowed to set the file.
-        var latest = 0;
+        var confirm = dialog.querySelector("[data-crop-confirm]");
+        var cancel = dialog.querySelector("[data-crop-cancel]");
 
-        // The window's base size: the largest ratio-shaped box the picture
-        // holds. Zoom shrinks the window (showing less, larger); pan slides
-        // whatever slack the window leaves on each axis.
-        var base = Math.min(image.width, image.height * ratio);
+        var image = null;
+        var name = "";
+        var confirmed = false;
 
+        // The window's base size: the largest ratio-shaped box the
+        // picture holds. Zoom shrinks the window (showing less,
+        // larger); pan slides whatever slack the window leaves on each
+        // axis.
         function window_() {
+            var base = Math.min(image.width, image.height * ratio);
             var w = base / parseFloat(zoom.value);
             var h = w / ratio;
             return {
@@ -80,44 +56,88 @@
         }
 
         function redraw() {
-            var box = window_();
-            var scale = Math.min(1, MAX_PX / Math.max(box.w, box.h));
-            canvas.width = Math.max(1, Math.round(box.w * scale));
-            canvas.height = Math.max(1, Math.round(box.h * scale));
+            if (!image) return;
+            var boxw = window_();
+            var scale = Math.min(1, MAX_PX / Math.max(boxw.w, boxw.h));
+            canvas.width = Math.max(1, Math.round(boxw.w * scale));
+            canvas.height = Math.max(1, Math.round(boxw.h * scale));
             canvas
                 .getContext("2d")
                 .drawImage(
                     image,
-                    box.x,
-                    box.y,
-                    box.w,
-                    box.h,
+                    boxw.x,
+                    boxw.y,
+                    boxw.w,
+                    boxw.h,
                     0,
                     0,
                     canvas.width,
                     canvas.height,
                 );
-            var drawn = ++latest;
-            canvas.toBlob(
-                function (blob) {
-                    if (!blob || drawn !== latest) return;
-                    var transfer = new DataTransfer();
-                    var stem = name.replace(/\.[^.]+$/, "");
-                    transfer.items.add(
-                        new File([blob], stem + ".jpg", { type: "image/jpeg" }),
-                    );
-                    input.files = transfer.files;
-                },
-                "image/jpeg",
-                0.9,
-            );
         }
+
+        input.addEventListener("change", function () {
+            var file = input.files && input.files[0];
+            if (!file || !file.type.match(/^image\//)) return;
+            var loading = new Image();
+            loading.onload = function () {
+                URL.revokeObjectURL(loading.src);
+                image = loading;
+                name = file.name;
+                confirmed = false;
+                zoom.value = 1;
+                panX.value = 0.5;
+                panY.value = 0.5;
+                redraw();
+                dialog.showModal();
+            };
+            // A file the browser cannot decode gets no dialog — the
+            // original upload goes as picked and the server answers.
+            loading.onerror = function () {
+                URL.revokeObjectURL(loading.src);
+            };
+            loading.src = URL.createObjectURL(file);
+        });
 
         sliders.forEach(function (slider) {
             slider.addEventListener("input", redraw);
         });
-        redraw();
-        return { root: root };
+
+        confirm.addEventListener("click", function () {
+            // One encoding, on confirm — the sliders only ever redraw
+            // the preview, so there is no stale result to race it.
+            confirm.disabled = true;
+            canvas.toBlob(
+                function (blob) {
+                    confirm.disabled = false;
+                    if (blob) {
+                        var transfer = new DataTransfer();
+                        var stem = name.replace(/\.[^.]+$/, "");
+                        transfer.items.add(
+                            new File([blob], stem + ".jpg", {
+                                type: "image/jpeg",
+                            }),
+                        );
+                        input.files = transfer.files;
+                        confirmed = true;
+                    }
+                    dialog.close();
+                },
+                "image/jpeg",
+                0.9,
+            );
+        });
+
+        cancel.addEventListener("click", function () {
+            dialog.close();
+        });
+
+        // However the dialog was left — Cancel, Esc, anything but the
+        // confirm — an unconfirmed pick is cleared rather than sent
+        // uncropped behind the reader's back.
+        dialog.addEventListener("close", function () {
+            if (!confirmed) input.value = "";
+        });
     }
 
     function start() {

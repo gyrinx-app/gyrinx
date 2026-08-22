@@ -190,17 +190,23 @@ class HireFighterForm(forms.Form):
 
 
 class FighterNotesForm(forms.Form):
-    """The edit page's notes box, and the model's picture with it.
+    """The edit page's notes box.
 
-    Every field is optional, because an emptied box is a real answer —
-    it clears the notes. What the editor produces is stored as written;
-    sanitising happens at render time, which is why nothing here strips
-    tags. The picture rides this form because the two are saved with one
-    button: ``image`` replaces what is stored, ``remove_image`` alone
-    clears it, and a submit touching neither leaves the picture be.
+    Optional, because an emptied box is a real answer — it clears the
+    notes. What the editor produces is stored as written; sanitising
+    happens at render time, which is why nothing here strips tags.
     """
 
     notes = forms.CharField(required=False, widget=RichText())
+
+
+class FighterPictureForm(forms.Form):
+    """The edit page's picture box, an act of its own.
+
+    ``image`` replaces what is stored, ``remove_image`` alone clears
+    it, and a submit carrying neither changes nothing.
+    """
+
     image = forms.ImageField(required=False)
     remove_image = forms.BooleanField(required=False)
 

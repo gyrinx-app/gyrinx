@@ -121,12 +121,7 @@ reads the config after that listener has run.
                 </label>
             {% endif %}
             <c-ui.field label="Picture" error="x" :form="form" name="image" for="gang-image">
-                <input type="file"
-                       id="gang-image"
-                       name="image"
-                       accept="image/*"
-                       data-crop="16:9"
-                       class="block w-full text-sm text-ink-700 file:mr-3 file:rounded-control file:border file:border-ink-300 file:bg-ink-50 file:px-3 file:py-1.5 file:text-sm dark:text-ink-300 dark:file:border-ink-700 dark:file:bg-ink-800">
+                <c-n26.picture-input id="gang-image" name="image" crop="16:9" />
             </c-ui.field>
         </c-n26.form-section>
     </c-n26.form-page>

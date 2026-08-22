@@ -81,7 +81,7 @@ is named by the page's own heading directly below.
         controls on the card beside it all start one.
         {% endcomment %}
         <c-slot name="notes">
-            <form method="post" action="{{ edit_url }}" enctype="multipart/form-data">
+            <form method="post" action="{{ edit_url }}">
                 {% csrf_token %}
                 <input type="hidden" name="act" value="notes">
                 <p class="mb-2 text-sm text-muted">
@@ -89,33 +89,43 @@ is named by the page's own heading directly below.
                     reading the gang can see them.
                 </p>
                 <c-n26.rich-text :field="form.notes" />
-                {% comment %}
-                The model's picture lives with the notes because the two are
-                saved with one button. A new file replaces what is stored;
-                the box alone removes it; touching neither leaves it be.
-                {% endcomment %}
-                <div class="mt-3 flex flex-col gap-2">
-                    {% if miniature.image %}
-                        <img src="{{ miniature.image.url }}"
-                             alt="A picture of {{ miniature.name }}"
-                             class="w-32 rounded-control">
-                        <label class="flex items-center gap-2 text-sm text-ink-700 dark:text-ink-300">
-                            <input type="checkbox" name="remove_image" class="rounded">
-                            Remove the picture
-                        </label>
-                    {% endif %}
-                    <c-ui.field label="Picture" for="model-image">
-                        <input type="file"
-                               id="model-image"
-                               name="image"
-                               accept="image/*"
-                               data-crop="4:5"
-                               class="block w-full text-sm text-ink-700 file:mr-3 file:rounded-control file:border file:border-ink-300 file:bg-ink-50 file:px-3 file:py-1.5 file:text-sm dark:text-ink-300 dark:file:border-ink-700 dark:file:bg-ink-800">
-                    </c-ui.field>
-                </div>
                 <div class="mt-3 flex justify-end">
                     <c-ui.button type="submit" variant="success" size="sm">
                         Save notes
+                    </c-ui.button>
+                </div>
+            </form>
+        </c-slot>
+        {% comment %}
+        Two forms, because the two acts are different shapes: uploading
+        stages a file and ends in a save, removing is one committed
+        click with nothing to fill in.
+        {% endcomment %}
+        <c-slot name="picture">
+            {% if miniature.image %}
+                <img src="{{ miniature.image.url }}"
+                     alt="A picture of {{ miniature.name }}"
+                     class="mb-3 w-40 rounded-control">
+                <form method="post" action="{{ edit_url }}" class="mb-3">
+                    {% csrf_token %}
+                    <input type="hidden" name="act" value="picture">
+                    <input type="hidden" name="remove_image" value="on">
+                    <c-ui.button type="submit" variant="default" size="sm">
+                        Remove picture
+                    </c-ui.button>
+                </form>
+            {% endif %}
+            <form method="post" action="{{ edit_url }}" enctype="multipart/form-data">
+                {% csrf_token %}
+                <input type="hidden" name="act" value="picture">
+                <p class="mb-2 text-sm text-muted">
+                    Shown from the card's picture control and printed in the
+                    card's corner. Picking a file opens the crop.
+                </p>
+                <c-n26.picture-input id="model-image" name="image" crop="4:5" />
+                <div class="mt-3 flex justify-end">
+                    <c-ui.button type="submit" variant="success" size="sm">
+                        Save picture
                     </c-ui.button>
                 </div>
             </form>

@@ -185,14 +185,14 @@ class TestSavingLore:
 
 
 class TestThePicture:
-    """The picture rides the notes form: a file replaces, the box alone
-    removes, and a save touching neither leaves it be."""
+    """The picture is an act of its own: a file replaces, the remove
+    button clears, and the notes never ride along."""
 
     def test_an_upload_is_stored_and_recorded(
         self, client, tester, gang, vex, own_storage
     ):
         client.force_login(tester)
-        client.post(edit_url(vex), {"act": "notes", "notes": "", "image": png_upload()})
+        client.post(edit_url(vex), {"act": "picture", "image": png_upload()})
         vex.refresh_from_db()
         assert vex.image.name.startswith("model-images/")
         assert LedgerEvent.objects.filter(
@@ -201,10 +201,10 @@ class TestThePicture:
         # The card's picture control appears with it.
         assert vex.image.url in client.get(edit_url(vex)).content.decode()
 
-    def test_the_box_alone_removes_it(self, client, tester, gang, vex, own_storage):
+    def test_the_remove_button_clears_it(self, client, tester, gang, vex, own_storage):
         client.force_login(tester)
-        client.post(edit_url(vex), {"act": "notes", "notes": "", "image": png_upload()})
-        client.post(edit_url(vex), {"act": "notes", "notes": "", "remove_image": "on"})
+        client.post(edit_url(vex), {"act": "picture", "image": png_upload()})
+        client.post(edit_url(vex), {"act": "picture", "remove_image": "on"})
         vex.refresh_from_db()
         assert not vex.image
         assert LedgerEvent.objects.filter(
@@ -215,7 +215,7 @@ class TestThePicture:
         self, client, tester, gang, vex, own_storage
     ):
         client.force_login(tester)
-        client.post(edit_url(vex), {"act": "notes", "notes": "", "image": png_upload()})
+        client.post(edit_url(vex), {"act": "picture", "image": png_upload()})
         vex.refresh_from_db()
         held = vex.image.name
         client.post(edit_url(vex), {"act": "notes", "notes": "<p>New base needed.</p>"})
@@ -231,8 +231,7 @@ class TestThePicture:
         response = client.post(
             edit_url(vex),
             {
-                "act": "notes",
-                "notes": "<p>Typed beside the bad file.</p>",
+                "act": "picture",
                 "image": SimpleUploadedFile(
                     "story.txt", b"not a picture", content_type="text/plain"
                 ),
@@ -241,10 +240,8 @@ class TestThePicture:
         )
         vex.refresh_from_db()
         assert not vex.image
-        # Refused with a reason on the page, never a server error — and
-        # the notes typed in the same submit are not the price of it.
+        # Refused with a reason on the page, never a server error.
         assert response.status_code == 200
-        assert vex.notes == "<p>Typed beside the bad file.</p>"
 
 
 class TestRenamingFromHere:

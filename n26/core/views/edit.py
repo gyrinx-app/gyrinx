@@ -249,6 +249,7 @@ def edit_fighter(request, pk):
     from n26.core.forms import (
         FighterLoreForm,
         FighterNotesForm,
+        FighterPictureForm,
         statline_override_form_for,
     )
     from n26.core.operations import Refusal, operation
@@ -391,12 +392,16 @@ def edit_fighter(request, pk):
             messages.success(request, "Lore saved.")
         return redirect("n26-edit-fighter", pk=miniature.pk)
     elif request.method == "POST" and request.POST.get("act") == "notes":
-        form = FighterNotesForm(request.POST, request.FILES)
+        form = FighterNotesForm(request.POST)
         if form.is_valid():
-            # What actually moved, judged before the writes: the flash
-            # and the analytics say what the journal says, so a
-            # picture-only save is not announced as a notes edit.
-            wrote_notes = form.cleaned_data["notes"] != miniature.notes
+            with operation(gang, actor=request.user) as op:
+                op.edit_notes(miniature, form.cleaned_data["notes"])
+            record(request, N26Noun.MODEL, EventVerb.UPDATE, miniature, notes=True)
+            messages.success(request, "Notes saved.")
+        return redirect("n26-edit-fighter", pk=miniature.pk)
+    elif request.method == "POST" and request.POST.get("act") == "picture":
+        form = FighterPictureForm(request.POST, request.FILES)
+        if form.is_valid():
             new_picture = bool(form.cleaned_data["image"])
             dropped_picture = (
                 form.cleaned_data["remove_image"]
@@ -404,7 +409,6 @@ def edit_fighter(request, pk):
                 and not new_picture
             )
             with operation(gang, actor=request.user) as op:
-                op.edit_notes(miniature, form.cleaned_data["notes"])
                 op.set_image(
                     miniature,
                     form.cleaned_data["image"],
@@ -415,31 +419,18 @@ def edit_fighter(request, pk):
                 N26Noun.MODEL,
                 EventVerb.UPDATE,
                 miniature,
-                notes=wrote_notes,
                 image=new_picture or dropped_picture,
             )
-            said = []
-            if wrote_notes:
-                said.append("Notes saved.")
             if new_picture:
-                said.append("Picture saved.")
+                messages.success(request, "Picture saved.")
             elif dropped_picture:
-                said.append("Picture removed.")
-            messages.success(request, " ".join(said) or "Nothing changed.")
+                messages.success(request, "Picture removed.")
+            else:
+                messages.success(request, "Nothing changed.")
         else:
-            # The picture is the one field that can refuse — a file that
-            # is not an image. The notes beside it validated and still
-            # save: a refused picture should not cost the words typed
-            # with it. The reason travels as a message to the page this
+            # The one field that can refuse — a file that is not an
+            # image. The reason travels as a message to the page this
             # redirects back to.
-            if (
-                "notes" in form.cleaned_data
-                and form.cleaned_data["notes"] != miniature.notes
-            ):
-                with operation(gang, actor=request.user) as op:
-                    op.edit_notes(miniature, form.cleaned_data["notes"])
-                record(request, N26Noun.MODEL, EventVerb.UPDATE, miniature, notes=True)
-                messages.success(request, "Notes saved.")
             for wrong in form.errors.get("image", []):
                 messages.error(request, wrong)
         return redirect("n26-edit-fighter", pk=miniature.pk)

@@ -1,0 +1,53 @@
+{% comment %}
+<c-n26.picture-input> — a picture upload whose crop is chosen in a dialog.
+
+    <c-n26.picture-input id="model-image" name="image" crop="4:5" />
+
+A plain file input, and beside it the dialog the crop is chosen in.
+Picking a file opens the dialog (n26/imagecrop.js): the picture shows in
+a window of the declared shape, panned and zoomed by the sliders, and
+"Use this crop" puts the chosen window back on the input — so the form's
+own save sends exactly what the dialog showed. Cancelling, or closing
+the dialog any other way, clears the pick.
+
+Without the script the input is an ordinary file box and the dialog
+never opens; the server centre-crops every upload to the same shape
+regardless (n26/core/images.py), so the dialog chooses, it is not
+trusted.
+
+  id, name — the input's own.
+  crop — the shape, "4:5" or "16:9", width to height.
+{% endcomment %}
+<c-vars id="" name="image" crop="" class="" />
+
+<div class="n26-picture-input {{ class }}">
+    <input type="file"
+           id="{{ id }}"
+           name="{{ name }}"
+           accept="image/*"
+           data-crop="{{ crop }}"
+           class="block w-full text-sm text-ink-700 file:mr-3 file:rounded-control file:border file:border-ink-300 file:bg-ink-50 file:px-3 file:py-1.5 file:text-sm dark:text-ink-300 dark:file:border-ink-700 dark:file:bg-ink-800">
+    <dialog data-crop-dialog
+            aria-label="Crop the picture"
+            class="m-auto w-full max-w-lg rounded-box border border-box-border bg-surface p-0 text-ink-900 shadow-xl backdrop:bg-black/50 dark:bg-ink-900 dark:text-ink-100">
+        <div class="space-y-4 p-6">
+            <h2 class="text-lg font-semibold tracking-tight">Crop the picture</h2>
+            <div class="n26-crop">
+                <div class="n26-crop-frame">
+                    <canvas></canvas>
+                </div>
+                <label>Zoom <input type="range" min="1" max="3" step="0.01" value="1"></label>
+                <label>Pan <input type="range" min="0" max="1" step="0.01" value="0.5"></label>
+                <label>Pan down <input type="range" min="0" max="1" step="0.01" value="0.5"></label>
+            </div>
+            <div class="flex justify-end gap-2">
+                <c-ui.button type="button" variant="default" size="sm" data-crop-cancel>
+                    Cancel
+                </c-ui.button>
+                <c-ui.button type="button" variant="success" size="sm" data-crop-confirm>
+                    Use this crop
+                </c-ui.button>
+            </div>
+        </div>
+    </dialog>
+</div>

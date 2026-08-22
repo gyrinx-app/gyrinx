@@ -439,16 +439,14 @@
         align-items: center;
     }
 
-    /* The crop chooser a picture input grows (n26/imagecrop.js): the
+    /* The crop dialog a picture input opens (n26/imagecrop.js): the
      * preview holds the target shape whatever the picture, and the
-     * sliders sit under it. The canvas *is* the upload — what this box
-     * shows is exactly what the form sends. */
+     * sliders sit under it. The canvas is what confirming sends — the
+     * dialog shows exactly the upload it stages. */
     .n26-crop {
         display: flex;
-        max-width: 20rem;
         flex-direction: column;
         gap: calc(var(--spacing) * 2);
-        margin-top: calc(var(--spacing) * 2);
     }
 
     .n26-crop canvas {
