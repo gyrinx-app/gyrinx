@@ -53,6 +53,7 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "Operation",
+    "clear_spare_answers",
     "convert_archetype",
     "sweep_archived",
     "convert_gang_legacy",
@@ -113,6 +114,10 @@ class Operation(models.TextChoices):
         "n26_delete_nameless_gang_type",
         "n26: the gang type with no name is retired",
     )
+    CLEAR_SPARE_ANSWERS = (
+        "n26_clear_spare_answers",
+        "n26: the answers a doubled click left behind are cleared",
+    )
     MERGE_WARGEAR_INTO_WEAPON = (
         "n26_merge_wargear_into_weapon",
         "n26: duplicated wargear becomes its weapon",
@@ -128,6 +133,7 @@ LOCK_KEYS = {
     Operation.CONVERT_ARCHETYPE: 826_020_605,
     Operation.DELETE_NAMELESS_GANG_TYPE: 826_020_606,
     Operation.SWEEP_ARCHIVED: 826_020_607,
+    Operation.CLEAR_SPARE_ANSWERS: 826_020_608,
 }
 
 
@@ -371,6 +377,25 @@ def retire_gang_legacy_pilot(backfill_id, **said_by_whoever_enqueued_it):
     )
 
 
+@task
+def clear_spare_answers(backfill_id, **said_by_whoever_enqueued_it):
+    """Clear the answers a doubled click left behind, and record it.
+
+    The runner discipline of a conversion around work that deletes a
+    player's rows and means to change their pages — so what it proves is
+    that the pages changed in exactly the way it said and no other.
+    """
+    from n26.library.spare_answers import Refused, apply, find
+
+    _run_recorded(
+        backfill_id,
+        Operation.CLEAR_SPARE_ANSWERS,
+        "Spare answers clearing",
+        lambda: apply(find()),
+        Refused,
+    )
+
+
 def _who_asked(backfill_id):
     """The operator a run acts as, for the history it writes.
 
@@ -539,6 +564,26 @@ PILOT_WORDS = {
     "refuses_heading": "The retirement refuses",
     "button": "Retire the pilot",
     "confirm": "Delete the pilot? This cannot be undone.",
+}
+
+SPARE_WORDS = {
+    "noun": "clearing",
+    "intro": (
+        "This deletes player rows, and it means to change what those "
+        "players see: each spare draws a line on a model's gear list named "
+        "after a sort of question rather than a thing anybody owns. Every "
+        "line it would take away is named below, and it refuses unless the "
+        "pages afterwards read exactly as they do now but for those. A row "
+        "that was paid for, that counts towards what a gang is worth, that "
+        "has anything hanging off it, or whose question nothing else "
+        "answers, is not a spare and is left alone."
+    ),
+    "nothing_heading": "Nothing to clear",
+    "nothing_flash": "There was nothing to clear.",
+    "nothing_words": "No question is answered twice over.",
+    "refuses_heading": "The clearing refuses",
+    "button": "Clear the spares",
+    "confirm": "Delete these spare answers? This cannot be undone.",
 }
 
 NAMELESS_WORDS = {
@@ -724,6 +769,19 @@ def retire_gang_legacy_pilot_view(request):
     )
 
 
+def clear_spare_answers_view(request):
+    """Preview the clearing (GET), or record a run and enqueue it."""
+    from n26.library.spare_answers import find
+
+    return _deletion_view(
+        request,
+        Operation.CLEAR_SPARE_ANSWERS,
+        find,
+        clear_spare_answers,
+        SPARE_WORDS,
+    )
+
+
 def delete_nameless_gang_type_view(request):
     """Preview the deletion (GET), or record a run and enqueue it."""
     from n26.library.nameless_gang_type import find
@@ -851,6 +909,22 @@ register_operation(
     )
 )
 
+register_operation(
+    MaintenanceOperation(
+        operation=Operation.CLEAR_SPARE_ANSWERS.value,
+        name=Operation.CLEAR_SPARE_ANSWERS.label,
+        description=(
+            "Delete the second answer a doubled click left standing beside "
+            "the one that settled the question. Each draws a line on a "
+            "model's gear list named after the question rather than a thing, "
+            "and clearing it takes that line away and changes nothing else — "
+            "which is what it proves before committing. Must run before the "
+            "kinds those answers name can be retired."
+        ),
+        view=clear_spare_answers_view,
+    )
+)
+
 #: Declared for the task registry, which reads this from ``n26/core/tasks.py``.
 #: The deadline is the longest Pub/Sub allows, because a conversion holds one
 #: transaction for as long as proving its spread of gangs takes. It is also
@@ -867,6 +941,7 @@ task_routes = [
     TaskRoute(convert_archetype, ack_deadline=600, min_retry_delay=60),
     TaskRoute(delete_nameless_gang_type, ack_deadline=600, min_retry_delay=60),
     TaskRoute(sweep_archived, ack_deadline=600, min_retry_delay=60),
+    TaskRoute(clear_spare_answers, ack_deadline=600, min_retry_delay=60),
 ]
 
 
