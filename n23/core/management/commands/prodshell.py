@@ -228,7 +228,7 @@ class Command(BaseCommand):
             "user": db_user,
             # The proxy authenticates the connection, so there is no password to
             # hold, fetch, or leak.
-            "password": "",
+            "password": "",  # nosec B105 - the absence of a credential, not one
         }
 
     # -- Credential fetching --
