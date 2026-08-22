@@ -310,6 +310,20 @@
  * Card — one unit that arrives on paper whole.
  * =========================================================================== */
 
+/* A model's photograph, in the card's bottom-right corner. The card is
+ * auto-height, so the picture takes a row of its own at the end rather
+ * than overlaying content it cannot know the shape of. */
+.n26-print-photo {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 2mm;
+}
+
+.n26-print-photo img {
+    width: 22mm;
+    border-radius: 1mm;
+}
+
 .n26-print-card {
     /* Cell width when inside a grid, full width when standing alone. The
      * fallback is what lets the same card be tiled or used on its own. */

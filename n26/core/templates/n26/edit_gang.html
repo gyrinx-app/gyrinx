@@ -1,12 +1,29 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
+{% load static %}
 {% comment %}
-Editing a standing gang — the create form's shape over a gang that exists.
-Same frame (c-n26.form-page), same field order, one difference of substance:
-the type is a fact rather than a question, because it fixed who could be
-hired and what the founding brought, and those rows exist.
+Editing a standing gang, in two tabs the URL picks (?tab=notes): General —
+the create form's shape over a gang that exists — and Notes and Lore, the
+written fields with the picture beneath them. Each tab is one render and
+one form; a tab is a link, so the choice survives a reload and works with
+no script. The one difference of substance from the create form: the type
+is a fact rather than a question, because it fixed who could be hired and
+what the founding brought, and those rows exist.
 {% endcomment %}
 {% block head_title %}Edit {{ gang.name }}{% endblock head_title %}
+{% comment %}
+richtext.js before form.media: it registers the listener that swaps the
+editor's skin with the colour mode, and django-tinymce's own initialiser
+reads the config after that listener has run.
+{% endcomment %}
+{% block extra_head %}
+    <script src="{% static 'n26/richtext.js' %}"></script>
+    <link rel="stylesheet"
+          href="{% static 'designsystem/vendor/cropper.min.css' %}">
+    <script defer src="{% static 'designsystem/vendor/cropper.min.js' %}"></script>
+    <script defer src="{% static 'n26/imagecrop.js' %}"></script>
+    {{ form.media }}
+{% endblock extra_head %}
 {% block nav_switcher %}
     {% gang_switcher gang as gang_switcher_ %}
     <c-n26.quick-switcher.of :switcher="gang_switcher_" hotkey="f" />
@@ -18,8 +35,8 @@ hired and what the founding brought, and those rows exist.
     <c-n26.form-page action="{% url 'n26-edit-gang' gang.pk %}"
                      :form="form"
                      title="Edit {{ gang.name }}"
-                     lead="Required fields are marked with an asterisk (*)."
-                     submit_label="Save changes"
+                     lead="{% if tab == 'notes' %}What the gang says about itself.{% else %}Required fields are marked with an asterisk (*).{% endif %}"
+                     submit_label="{% if tab == 'notes' %}Save notes and lore{% else %}Save changes{% endif %}"
                      cancel_url="{% url 'n26-gang' gang.pk %}">
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
@@ -33,53 +50,115 @@ hired and what the founding brought, and those rows exist.
             </c-ui.breadcrumbs>
         </c-slot>
         {% csrf_token %}
-        <c-n26.form-section title="General">
-            <c-ui.field label="Gang name *"
-                        error="x"
-                        :form="form"
-                        name="name"
-                        for="gang-name">
-                <c-ui.input id="gang-name"
+        <c-n26.tab-links label="What to edit" :tabs="edit_tabs" />
+        {% if tab == "notes" %}
+            <input type="hidden" name="act" value="story">
+            <c-n26.form-section title="Notes and Lore">
+                {% comment %}
+                The editor wraps itself in the field — label, description and
+                errors ride the component, and a second wrapper would draw the
+                frame twice.
+                {% endcomment %}
+                <c-n26.rich-text :field="form.notes"
+                                 label="Notes"
+                                 description="{{ form.notes.help_text }}" />
+                <c-n26.rich-text :field="form.lore"
+                                 label="Lore"
+                                 description="{{ form.lore.help_text }}" />
+            </c-n26.form-section>
+        {% else %}
+            <c-n26.form-section title="General">
+                <c-ui.field label="Gang name *"
+                            error="x"
+                            :form="form"
                             name="name"
-                            autocomplete="off"
-                            value="{{ form.name.value|default:'' }}" />
-            </c-ui.field>
-            {% comment %}
-            The one answer the create form asks that this one cannot: the
-            type fixed who could be hired and what the founding brought,
-            so it is stated rather than offered.
-            {% endcomment %}
-            <div class="flex flex-col gap-1">
-                <span class="text-sm font-medium text-ink-900 dark:text-ink-100">Gang type</span>
-                <p class="text-ink-900 dark:text-ink-100">{{ gang.gang_type }}</p>
-                <p class="text-sm text-muted">Fixed at founding.</p>
-            </div>
-        </c-n26.form-section>
-        <c-n26.form-section title="Setup">
-            {% comment %}
-            The floor is stated in the field's own help rather than left
-            to the error: the reader deciding a budget needs the number
-            they are deciding against, not a refusal after they guess.
-            {% endcomment %}
-            <c-ui.field label="Credits budget"
-                        description="Leave blank to spend as much as you like. A budget must cover what the gang is already worth — {{ wealth }}¢ — and what is left over becomes credits in hand."
-                        error="x"
-                        :form="form"
-                        name="starting_credits"
-                        for="starting-credits">
-                <c-ui.input id="starting-credits"
+                            for="gang-name">
+                    <c-ui.input id="gang-name"
+                                name="name"
+                                autocomplete="off"
+                                value="{{ form.name.value|default:'' }}" />
+                </c-ui.field>
+                {% comment %}
+                The one answer the create form asks that this one cannot: the
+                type fixed who could be hired and what the founding brought,
+                so it is stated rather than offered.
+                {% endcomment %}
+                <div class="flex flex-col gap-1">
+                    <span class="text-sm font-medium text-ink-900 dark:text-ink-100">Gang type</span>
+                    <p class="text-ink-900 dark:text-ink-100">{{ gang.gang_type }}</p>
+                    <p class="text-sm text-muted">Fixed at founding.</p>
+                </div>
+            </c-n26.form-section>
+            <c-n26.form-section title="Setup">
+                {% comment %}
+                The floor is stated in the field's own help rather than left
+                to the error: the reader deciding a budget needs the number
+                they are deciding against, not a refusal after they guess.
+                {% endcomment %}
+                <c-ui.field label="Credits budget"
+                            description="Leave blank to spend as much as you like. A budget must cover what the gang is already worth — {{ wealth }}¢ — and what is left over becomes credits in hand."
+                            error="x"
+                            :form="form"
                             name="starting_credits"
-                            type="number"
-                            min="{{ wealth }}"
-                            inputmode="numeric"
-                            placeholder="No limit"
-                            right_addon="¢"
-                            value="{{ form.starting_credits.value|default:'' }}" />
-            </c-ui.field>
-            <c-n26.colour-picker name="colour"
-                                 value="{{ form.colour.value|default:'' }}"
-                                 label="Colour"
-                                 description="Shown against the gang wherever it is listed." />
-        </c-n26.form-section>
+                            for="starting-credits">
+                    <c-ui.input id="starting-credits"
+                                name="starting_credits"
+                                type="number"
+                                min="{{ wealth }}"
+                                inputmode="numeric"
+                                placeholder="No limit"
+                                right_addon="¢"
+                                value="{{ form.starting_credits.value|default:'' }}" />
+                </c-ui.field>
+                <c-n26.colour-picker name="colour"
+                                     value="{{ form.colour.value|default:'' }}"
+                                     label="Colour"
+                                     description="Shown against the gang wherever it is listed." />
+            </c-n26.form-section>
+        {% endif %}
     </c-n26.form-page>
+    {% if tab == "notes" %}
+        {% comment %}
+        The picture is its own act, outside the form above — a form inside a
+        form is not markup — in the fighter page's shape: a one-click
+        Remove, an upload whose crop confirms straight to a save, and the
+        box redrawn in place. The column matches the form's cap so the
+        section reads as part of the same page.
+        {% endcomment %}
+        <div class="mt-8 max-w-3xl">
+            <c-n26.form-section title="Picture">
+                <div data-picture-box>
+                    {% if gang.image %}
+                        <img src="{{ gang.image.url }}"
+                             alt="A picture of {{ gang.name }}"
+                             class="mb-3 w-full max-w-md rounded-control">
+                        <form method="post" action="{% url 'n26-edit-gang' gang.pk %}" class="mb-3">
+                            {% csrf_token %}
+                            <input type="hidden" name="act" value="picture">
+                            <input type="hidden" name="remove_image" value="on">
+                            <c-ui.button type="submit" variant="default" size="sm">
+                                Remove picture
+                            </c-ui.button>
+                        </form>
+                    {% endif %}
+                    <form method="post"
+                          action="{% url 'n26-edit-gang' gang.pk %}"
+                          enctype="multipart/form-data">
+                        {% csrf_token %}
+                        <input type="hidden" name="act" value="picture">
+                        <p class="mb-2 text-sm text-muted">
+                            Shown on the lore page and against the gang. Picking a
+                            file opens the crop, and using it saves.
+                        </p>
+                        <c-n26.picture-input id="gang-image" name="image" crop="16:9" :submit_on_crop="True" />
+                        <div class="mt-3 flex justify-end" data-crop-fallback>
+                            <c-ui.button type="submit" variant="success" size="sm">
+                                Save picture
+                            </c-ui.button>
+                        </div>
+                    </form>
+                </div>
+            </c-n26.form-section>
+        </div>
+    {% endif %}
 {% endblock content %}

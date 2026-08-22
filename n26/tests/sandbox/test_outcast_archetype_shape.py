@@ -373,7 +373,7 @@ class TestTwoChoicesOfOneSlotTypeOnTwoHolders:
         choose(reader, gang, EXCEPTED, archetypes["Mutant"])
 
         assert card_of(gang, EXCEPTED).remarks == []
-        assert render_gang(gang).notes == []
+        assert render_gang(gang).remarks == []
 
 
 class TestTheGangPageStaysFlat:

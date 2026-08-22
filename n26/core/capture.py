@@ -101,7 +101,7 @@ def gang_state(gang):
         ),
         "stash": _rated(sheet.stash),
         "stash_rating": sheet.stash_rating,
-        "notes": _remarks(sheet.notes),
+        "notes": _remarks(sheet.remarks),
         "models": {card.id: _model_state(card) for card in sheet.models},
     }
 

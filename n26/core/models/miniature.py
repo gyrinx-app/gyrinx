@@ -30,6 +30,12 @@ class Miniature(Base, Owned, Rated):
     #: sanitised on the way out (n26.core.templatetags.richtext), so a
     #: tightened allowlist reaches what was already saved.
     notes = models.TextField(blank=True, default="")
+    #: The model's story, in the owner's words. Editor HTML handled as
+    #: ``notes`` is: stored as written, sanitised on the way out.
+    lore = models.TextField(blank=True, default="")
+    #: A picture of the painted model, in the site's media storage.
+    #: Surfaces read its URL and never the bytes.
+    image = models.ImageField(upload_to="model-images/", blank=True, default="")
     membership = models.OneToOneField(
         "n26.Assignment",
         on_delete=models.SET_NULL,

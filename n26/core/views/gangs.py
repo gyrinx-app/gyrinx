@@ -525,6 +525,52 @@ def create_gang(request):
     )
 
 
+def gang_lore(request, pk):
+    """The gang's story, then every model's — the written half of a roster.
+
+    Anyone may read it, as anyone may read the sheet: lore is what a
+    player shows people. Owning the gang adds the Edit links and nothing
+    else. Models with nothing written and no picture are left off rather
+    than listed as empty headings.
+    """
+    from n26.core.render import roster, summarise_roster
+
+    gang = _any_gang_or_404(pk)
+    yours = gang.owner_id == getattr(request.user, "id", None)
+    members = roster(gang)
+    entries = [
+        {
+            "name": model.name,
+            # The library entry beside the owner's name, as the card
+            # header says it — and skipped the same way when nobody has
+            # renamed the model, so it is not named twice.
+            "profile": (
+                str(model.membership.profile)
+                if model.membership
+                and model.membership.profile
+                and str(model.membership.profile) != model.name
+                else ""
+            ),
+            "lore": model.lore,
+            "image_url": model.image.url if model.image else "",
+            "edit_url": reverse("n26-edit-fighter", args=[model.pk]) if yours else "",
+        }
+        for model in members
+        if model.lore or model.image
+    ]
+    return render(
+        request,
+        "n26/gang_lore.html",
+        {
+            "gang": gang,
+            "gang_image_url": gang.image.url if gang.image else "",
+            "entries": entries,
+            "yours": yours,
+            "summary": summarise_roster(members),
+        },
+    )
+
+
 @login_required
 def edit_gang(request, pk):
     """Edit a standing gang: name, colour, and the credits budget.
@@ -540,17 +586,62 @@ def edit_gang(request, pk):
     the spending history cannot fit, unwinding the whole change.
     """
     from n26.analytics import EventVerb, N26Noun, record
-    from n26.core.forms import EditGangForm
+    from n26.core.forms import EditGangForm, GangPictureForm, GangStoryForm
     from n26.core.operations import NotEnoughCredits, operation
 
     gang = _own_gang_or_404(request, pk)
-    if request.method == "POST":
+    at = reverse("n26-edit-gang", args=[gang.pk])
+    tab = "notes" if request.GET.get("tab") == "notes" else "general"
+    if request.method == "POST" and request.POST.get("act") == "picture":
+        form = GangPictureForm(request.POST, request.FILES)
+        if form.is_valid():
+            new_picture = bool(form.cleaned_data["image"])
+            dropped_picture = (
+                form.cleaned_data["remove_image"]
+                and bool(gang.image)
+                and not new_picture
+            )
+            with operation(gang, actor=request.user) as op:
+                op.set_gang_image(
+                    form.cleaned_data["image"],
+                    clear=form.cleaned_data["remove_image"],
+                )
+            record(
+                request,
+                N26Noun.GANG,
+                EventVerb.UPDATE,
+                gang,
+                image=new_picture or dropped_picture,
+            )
+            if new_picture:
+                messages.success(request, "Picture saved.")
+            elif dropped_picture:
+                messages.success(request, "Picture removed.")
+            else:
+                messages.success(request, "Nothing changed.")
+        else:
+            # The one field that can refuse — a file that is not an
+            # image. The reason travels as a message to the page this
+            # redirects back to.
+            for wrong in form.errors.get("image", []):
+                messages.error(request, wrong)
+        return redirect(f"{at}?tab=notes")
+    elif request.method == "POST" and request.POST.get("act") == "story":
+        form = GangStoryForm(request.POST)
+        if form.is_valid():
+            with operation(gang, actor=request.user) as op:
+                op.edit_gang_notes(form.cleaned_data["notes"])
+                op.edit_gang_lore(form.cleaned_data["lore"])
+            record(request, N26Noun.GANG, EventVerb.UPDATE, gang, story=True)
+            messages.success(request, f"Saved {gang.name}.")
+            return redirect("n26-gang", pk=gang.pk)
+    elif request.method == "POST" and not request.POST.get("act"):
         form = EditGangForm(gang, request.POST)
         if form.is_valid():
             try:
                 with operation(gang, actor=request.user) as op:
-                    # The name and the budget are the gang's story and go
-                    # through their own verbs, which record them. The
+                    # The name and the budget are the gang's story and
+                    # go through their own verbs, which record them. The
                     # colour is how a reader draws it and is nobody's
                     # history, so it is a plain save.
                     op.rename_gang(form.cleaned_data["name"])
@@ -579,6 +670,8 @@ def edit_gang(request, pk):
                 )
                 messages.success(request, f"Saved {gang.name}.")
                 return redirect("n26-gang", pk=gang.pk)
+    elif tab == "notes":
+        form = GangStoryForm(initial={"notes": gang.notes, "lore": gang.lore})
     else:
         form = EditGangForm(
             gang,
@@ -589,10 +682,28 @@ def edit_gang(request, pk):
             },
         )
 
+    # A failed save re-renders on the tab its form lives on, whatever
+    # the address said.
+    if request.method == "POST":
+        tab = "notes" if request.POST.get("act") == "story" else "general"
+
     return render(
         request,
         "n26/edit_gang.html",
-        {"gang": gang, "form": form, "wealth": gang.wealth},
+        {
+            "gang": gang,
+            "form": form,
+            "wealth": gang.wealth,
+            "tab": tab,
+            "edit_tabs": [
+                {"label": "General", "href": at, "current": tab == "general"},
+                {
+                    "label": "Notes and Lore",
+                    "href": f"{at}?tab=notes",
+                    "current": tab == "notes",
+                },
+            ],
+        },
     )
 
 

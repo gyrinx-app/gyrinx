@@ -21,6 +21,9 @@ sits and what its heading says.
     built from pk.
   :card — the model's n26.render.ModelCard.
   lead — the model's rank, under the name.
+  lore — the lore form, a box of its own beside the notes. Without it no box
+    is drawn.
+  picture — the picture forms, a box of their own. Without it no box is drawn.
   edits — the subtypes and rules forms. Without it no box is drawn. Sits before
     the skills box: what a model is reads before what it has selected.
   skills — the skills form. Without it no box is drawn at all, so a model whose
@@ -37,6 +40,8 @@ sits and what its heading says.
     actions=""
     name_action=""
     notes=""
+    lore=""
+    picture=""
     edits=""
     skills=""
     statline=""
@@ -74,6 +79,24 @@ sits and what its heading says.
             </c-slot>
             {{ notes }}
         </c-ui.card>
+
+        {% if lore.strip %}
+            <c-ui.card>
+                <c-slot name="header">
+                    <span class="font-semibold">Lore</span>
+                </c-slot>
+                {{ lore }}
+            </c-ui.card>
+        {% endif %}
+
+        {% if picture.strip %}
+            <c-ui.card>
+                <c-slot name="header">
+                    <span class="font-semibold">Picture</span>
+                </c-slot>
+                {{ picture }}
+            </c-ui.card>
+        {% endif %}
 
         {% if edits.strip %}
             <c-ui.card>

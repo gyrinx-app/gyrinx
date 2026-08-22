@@ -42,6 +42,9 @@ PERSONAL = {
     Kind.TOOK_AWAY,
     Kind.RENAMED,
     Kind.NOTED,
+    Kind.LORE_EDITED,
+    Kind.IMAGE_SET,
+    Kind.IMAGE_CLEARED,
     Kind.STAT_SET,
     Kind.STAT_CLEARED,
 }
@@ -428,7 +431,22 @@ def _tell(e, row, alive):
                 return (Span(f"set the budget to {now}"),), "money"
             return (Span("changed the budget"),), "money"
         case Kind.NOTED:
+            # About no model, so about the gang — as a rename is.
+            if model is None:
+                return (Span("edited the gang's notes"),), "gang"
             return (Span("edited "), at, Span("'s notes")), "model"
+        case Kind.LORE_EDITED:
+            if model is None:
+                return (Span("edited the gang's lore"),), "gang"
+            return (Span("edited "), at, Span("'s lore")), "model"
+        case Kind.IMAGE_SET:
+            if model is None:
+                return (Span("gave the gang a picture"),), "gang"
+            return (Span("gave "), at, Span(" a picture")), "model"
+        case Kind.IMAGE_CLEARED:
+            if model is None:
+                return (Span("removed the gang's picture"),), "gang"
+            return (Span("removed "), at, Span("'s picture")), "model"
         case Kind.STAT_SET:
             said, _, now = e.note.rpartition(" → ")
             stat, _, was = said.rpartition(" ")

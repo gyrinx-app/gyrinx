@@ -246,7 +246,12 @@ def edit_fighter(request, pk):
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.card import build_card, build_modifier_index
     from n26.core.effects import compute
-    from n26.core.forms import FighterNotesForm, statline_override_form_for
+    from n26.core.forms import (
+        FighterLoreForm,
+        FighterNotesForm,
+        FighterPictureForm,
+        statline_override_form_for,
+    )
     from n26.core.operations import Refusal, operation
     from n26.core.render import render_gang, roster, summarise_roster
     from n26.core.views.choose import link_slots
@@ -378,15 +383,61 @@ def edit_fighter(request, pk):
                 else "Nothing to reset.",
             )
         return redirect("n26-edit-fighter", pk=miniature.pk)
-    elif request.method == "POST":
+    elif request.method == "POST" and request.POST.get("act") == "lore":
+        form = FighterLoreForm(request.POST)
+        if form.is_valid():
+            with operation(gang, actor=request.user) as op:
+                op.edit_lore(miniature, form.cleaned_data["lore"])
+            record(request, N26Noun.MODEL, EventVerb.UPDATE, miniature, lore=True)
+            messages.success(request, "Lore saved.")
+        return redirect("n26-edit-fighter", pk=miniature.pk)
+    elif request.method == "POST" and request.POST.get("act") == "notes":
         form = FighterNotesForm(request.POST)
-        # The one field is optional, so the form cannot fail — kept as a
-        # form anyway, because that is where a second field will land.
         if form.is_valid():
             with operation(gang, actor=request.user) as op:
                 op.edit_notes(miniature, form.cleaned_data["notes"])
             record(request, N26Noun.MODEL, EventVerb.UPDATE, miniature, notes=True)
             messages.success(request, "Notes saved.")
+        return redirect("n26-edit-fighter", pk=miniature.pk)
+    elif request.method == "POST" and request.POST.get("act") == "picture":
+        form = FighterPictureForm(request.POST, request.FILES)
+        if form.is_valid():
+            new_picture = bool(form.cleaned_data["image"])
+            dropped_picture = (
+                form.cleaned_data["remove_image"]
+                and bool(miniature.image)
+                and not new_picture
+            )
+            with operation(gang, actor=request.user) as op:
+                op.set_image(
+                    miniature,
+                    form.cleaned_data["image"],
+                    clear=form.cleaned_data["remove_image"],
+                )
+            record(
+                request,
+                N26Noun.MODEL,
+                EventVerb.UPDATE,
+                miniature,
+                image=new_picture or dropped_picture,
+            )
+            if new_picture:
+                messages.success(request, "Picture saved.")
+            elif dropped_picture:
+                messages.success(request, "Picture removed.")
+            else:
+                messages.success(request, "Nothing changed.")
+        else:
+            # The one field that can refuse — a file that is not an
+            # image. The reason travels as a message to the page this
+            # redirects back to.
+            for wrong in form.errors.get("image", []):
+                messages.error(request, wrong)
+        return redirect("n26-edit-fighter", pk=miniature.pk)
+    elif request.method == "POST":
+        # An act this page does not know writes nothing — the notes form
+        # is not a place for a stray submit to land, because its empty
+        # box is a real answer and would clear what is written.
         return redirect("n26-edit-fighter", pk=miniature.pk)
 
     if statline_edit is None and statline_class is not None:
@@ -433,6 +484,7 @@ def edit_fighter(request, pk):
             # rather than anything about this model.
             "role": profile.category.name if profile and profile.category else "",
             "form": FighterNotesForm(initial={"notes": miniature.notes}),
+            "lore_form": FighterLoreForm(initial={"lore": miniature.lore}),
             # The boxes, not the form: pairing a statline type with a
             # bound form is display logic, and the component that draws
             # them has no business knowing what a form looks like.

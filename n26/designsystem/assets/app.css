@@ -439,6 +439,20 @@
         align-items: center;
     }
 
+    /* The crop dialog a picture input opens (n26/imagecrop.js). The
+     * stage bounds the picture so a tall photograph does not push the
+     * dialog's buttons off screen; Cropper.js draws its rectangle
+     * inside whatever box the image lands in. */
+    .n26-crop-stage {
+        max-height: 60vh;
+    }
+
+    .n26-crop-stage img {
+        display: block;
+        max-width: 100%;
+        max-height: 60vh;
+    }
+
     /* A slider with one thumb or two.
      *
      * Real <input type="range"> elements — two of them for a range — because
@@ -1062,6 +1076,27 @@
     .demo-canvas.is-plain {
         background-image: none;
     }
+}
+
+/* The model card's tab strip — deliberately outside any @layer, for the
+ * joined-buttons reason below: the margins being removed are utility
+ * classes on the kit's own elements (space-y on the root, mt-2 on the
+ * panels), and a components-layer rule loses to them outright.
+ *
+ * The strip runs the card's full width as a band between two borders —
+ * the header's below and its own — so its pill rounding is squared off.
+ * The panels sit flush under it: the statline and the weapon table draw
+ * their own edges. The selectors lean on the kit's strip-then-panels
+ * order and nothing deeper. */
+.n26-card-tabs > div > div:first-child {
+    margin: 0;
+    border-bottom: 1px solid var(--color-box-border);
+    border-radius: 0;
+}
+
+.n26-card-tabs > div > div:last-child,
+.n26-card-tabs [role="tabpanel"] {
+    margin-top: 0;
 }
 
 /* Buttons joined into one control — deliberately outside any @layer.

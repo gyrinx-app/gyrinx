@@ -197,7 +197,7 @@ class TestTheViewsGoThroughTheDoor:
         client.force_login(tester)
         client.post(
             reverse("n26-edit-fighter", args=[vex.pk]),
-            {"notes": "keeps to the shadows"},
+            {"act": "notes", "notes": "keeps to the shadows"},
         )
         (event,) = journal(gang)
         assert event.kind == LedgerEvent.Kind.NOTED

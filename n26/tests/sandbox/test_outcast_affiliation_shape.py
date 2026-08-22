@@ -280,7 +280,7 @@ class TestTheGangIsTheOneAsked:
         is the note existing rather than the note being seen.
         """
         assert "Affiliation — 0 of 1 chosen" in [
-            note.text for note in render_gang(gang).notes
+            note.text for note in render_gang(gang).remarks
         ]
 
     def test_a_stranger_cannot_reach_the_picker(self, client, gang):

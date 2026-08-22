@@ -411,6 +411,71 @@ class Operation:
         self.event(miniature, LedgerEvent.Kind.NOTED)
         return miniature
 
+    def edit_lore(self, miniature, lore):
+        """Store the model's story as written, and say it changed.
+
+        As ``edit_notes``: the journal records the act and never the
+        prose.
+        """
+        if miniature.lore == lore:
+            return miniature
+        miniature.lore = lore
+        miniature.save(update_fields=["lore", "modified"])
+        self.event(miniature, LedgerEvent.Kind.LORE_EDITED)
+        return miniature
+
+    def set_image(self, miniature, upload, clear=False):
+        """Give one model a picture, or take it away.
+
+        ``upload`` replaces whatever was there; ``clear`` alone removes
+        it. Neither given, nothing happens — the common case of saving
+        the form around the picture. The old file is left in storage:
+        an address someone shared keeps working, and files are cheap
+        where a broken image on a page is not.
+        """
+        if upload:
+            miniature.image = upload
+            miniature.save(update_fields=["image", "modified"])
+            self.event(miniature, LedgerEvent.Kind.IMAGE_SET)
+        elif clear and miniature.image:
+            miniature.image = ""
+            miniature.save(update_fields=["image", "modified"])
+            self.event(miniature, LedgerEvent.Kind.IMAGE_CLEARED)
+        return miniature
+
+    def edit_gang_notes(self, notes):
+        """The gang's own notes, as ``edit_notes`` keeps a model's."""
+        gang = self.gang
+        if gang.notes == notes:
+            return gang
+        gang.notes = notes
+        gang.save(update_fields=["notes", "modified"])
+        self.event(None, LedgerEvent.Kind.NOTED)
+        return gang
+
+    def edit_gang_lore(self, lore):
+        """The gang's story, as ``edit_lore`` keeps a model's."""
+        gang = self.gang
+        if gang.lore == lore:
+            return gang
+        gang.lore = lore
+        gang.save(update_fields=["lore", "modified"])
+        self.event(None, LedgerEvent.Kind.LORE_EDITED)
+        return gang
+
+    def set_gang_image(self, upload, clear=False):
+        """The gang's picture, handled as ``set_image`` handles a model's."""
+        gang = self.gang
+        if upload:
+            gang.image = upload
+            gang.save(update_fields=["image", "modified"])
+            self.event(None, LedgerEvent.Kind.IMAGE_SET)
+        elif clear and gang.image:
+            gang.image = ""
+            gang.save(update_fields=["image", "modified"])
+            self.event(None, LedgerEvent.Kind.IMAGE_CLEARED)
+        return gang
+
     def set_stats(self, miniature, changes):
         """Set or clear the characteristics an owner has taken over.
 

@@ -497,6 +497,14 @@ class ModelCard:
     owned_by: str | None = None
     xp: int = 0
     xp_target: int | None = None
+    #: What the player wrote about this model — the only lines on a card
+    #: written rather than earned. Editor HTML, sanitised where drawn: a
+    #: card can be read by people who are not its owner.
+    notes: str = ""
+    lore: str = ""
+    #: Where the model's picture is, or empty for none. A URL — a
+    #: renderer does not reach into storage.
+    image_url: str = ""
 
     @property
     def questions(self):
@@ -612,8 +620,16 @@ class GangSheet:
     #: zero, which is also what a gang that has spent everything has.
     credits_unlimited: bool = False
     #: Remarks worth drawing — the same tree chosen for two slots. Loud
-    #: or quiet per the note's level; never a gate.
-    notes: list = field(default_factory=list)
+    #: or quiet per the note's level; never a gate. Named as a card names
+    #: its own, and apart from ``notes``, which the player writes.
+    remarks: list = field(default_factory=list)
+    #: What the owner wrote about the gang. Editor HTML, sanitised where
+    #: drawn: a sheet can be read by people who are not its owner.
+    notes: str = ""
+    lore: str = ""
+    #: Where the gang's picture is, or empty for none. A URL — a
+    #: renderer does not reach into storage.
+    image_url: str = ""
     models: list[ModelCard] = field(default_factory=list)
     #: The roster reduced to its arithmetic — how many of each profile at
     #: each rank, and what each model is worth. Derived from the same
@@ -1046,6 +1062,9 @@ def build_model_card(miniature, card=None, computed=None, assignment_set=None):
         owned_by=(miniature.owned_by.name if miniature.owned_by else None),
         xp=miniature.xp,
         xp_target=miniature.xp_target,
+        notes=miniature.notes,
+        lore=miniature.lore,
+        image_url=(miniature.image.url if miniature.image else ""),
         # Off the card, never off the model: what an owner set is loaded
         # by the build (``n26.core.card.set_by_hand``), because drawing
         # a card may not query.
@@ -1063,6 +1082,9 @@ def card_to_model_card(
     xp=0,
     xp_target=None,
     stat_overrides=None,
+    notes="",
+    lore="",
+    image_url="",
 ):
     """Turn a card into the structure a renderer draws.
 
@@ -1271,6 +1293,9 @@ def card_to_model_card(
     return ModelCard(
         name=name,
         id=id,
+        notes=notes,
+        lore=lore,
+        image_url=image_url,
         rating=card.full_rating,
         # ``str`` rather than ``.name``: every other line on a card
         # reads a thing this way, so an annotation shows here as it
@@ -1668,7 +1693,10 @@ def render_gang(gang, with_effects=True, *, card=None):
         ),
         stash=stash_lines(gang_card),
         stash_rating=gang_card.stash_rating,
-        notes=gang_computed.notes if gang_computed else [],
+        remarks=gang_computed.notes if gang_computed else [],
+        notes=gang.notes,
+        lore=gang.lore,
+        image_url=(gang.image.url if gang.image else ""),
         models=[
             build_model_card(
                 model, card=cards.get(model.pk), computed=computed.get(model.pk)

@@ -41,6 +41,10 @@ class PrintConfig(Base):
     include_stash = models.BooleanField(
         default=True, help_text="Print the stash listing."
     )
+    include_notes = models.BooleanField(
+        default=True,
+        help_text="Print the gang's notes and a notes card per model that has any.",
+    )
     miniatures = models.ManyToManyField(
         "n26.Miniature",
         blank=True,

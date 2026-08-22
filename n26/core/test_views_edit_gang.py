@@ -10,7 +10,7 @@ import pytest
 from django.contrib.auth.models import User
 from django.urls import reverse
 
-from n26.core.models import Gang
+from n26.core.models import Gang, LedgerEvent
 from n26.core.operations import operation
 from n26.core.reconcile import assert_reconciled
 
@@ -206,3 +206,106 @@ class TestTheBudget:
         gang.refresh_from_db()
         assert gang.starting_credits == 100
         assert_reconciled(gang)
+
+
+def png_upload(name="banner.png"):
+    from io import BytesIO
+
+    from django.core.files.uploadedfile import SimpleUploadedFile
+    from PIL import Image
+
+    buffer = BytesIO()
+    Image.new("RGB", (16, 9), "teal").save(buffer, format="PNG")
+    return SimpleUploadedFile(name, buffer.getvalue(), content_type="image/png")
+
+
+class TestNotesLoreAndPicture:
+    """The gang's own written fields and picture, saved with the rest of
+    the form and recorded as acts on the gang itself."""
+
+    def test_notes_and_lore_save_and_are_recorded(self, client, tester, gang):
+        client.force_login(tester)
+        response = client.post(
+            edit_url(gang),
+            {
+                "act": "story",
+                "notes": "<p>Meet at the sump gate.</p>",
+                "lore": "<p>Founded on a debt.</p>",
+            },
+        )
+        assert response.status_code == 302
+        gang.refresh_from_db()
+        assert gang.notes == "<p>Meet at the sump gate.</p>"
+        assert gang.lore == "<p>Founded on a debt.</p>"
+        recorded = LedgerEvent.objects.filter(gang=gang, miniature=None)
+        assert recorded.filter(kind=LedgerEvent.Kind.NOTED).count() == 1
+        assert recorded.filter(kind=LedgerEvent.Kind.LORE_EDITED).count() == 1
+
+    def test_an_unchanged_field_writes_no_event(self, client, tester, gang):
+        client.force_login(tester)
+        words = {"act": "story", "notes": "<p>same</p>", "lore": ""}
+        client.post(edit_url(gang), words)
+        client.post(edit_url(gang), words)
+        assert (
+            LedgerEvent.objects.filter(gang=gang, kind=LedgerEvent.Kind.NOTED).count()
+            == 1
+        )
+
+    def test_the_history_says_what_happened_in_gang_words(self, client, tester, gang):
+        client.force_login(tester)
+        client.post(
+            edit_url(gang),
+            {
+                "act": "story",
+                "notes": "<p>Meet at the sump gate.</p>",
+                "lore": "<p>Founded on a debt.</p>",
+            },
+        )
+        body = client.get(reverse("n26-gang-history", args=[gang.pk])).content.decode()
+        assert (
+            "edited the gang&#x27;s notes" in body or "edited the gang's notes" in body
+        )
+        assert "edited the gang&#x27;s lore" in body or "edited the gang's lore" in body
+
+    def test_a_form_without_the_boxes_clears_nothing(self, client, tester, gang):
+        gang.notes = "<p>Meet at the sump gate.</p>"
+        gang.lore = "<p>Founded on a debt.</p>"
+        gang.save(update_fields=["notes", "lore"])
+        client.force_login(tester)
+        client.post(edit_url(gang), {"name": gang.name})
+        gang.refresh_from_db()
+        assert gang.notes == "<p>Meet at the sump gate.</p>"
+        assert gang.lore == "<p>Founded on a debt.</p>"
+
+    def test_the_notes_tab_reads_them_back(self, client, tester, gang):
+        gang.notes = "<p>Meet at the sump gate.</p>"
+        gang.save(update_fields=["notes"])
+        client.force_login(tester)
+        general = client.get(edit_url(gang)).content.decode()
+        notes_tab = client.get(edit_url(gang) + "?tab=notes").content.decode()
+        assert "Meet at the sump gate" not in general
+        assert "Meet at the sump gate" in notes_tab
+        # The tab strip on both, saying which is current.
+        assert "?tab=notes" in general
+        assert 'aria-current="page"' in notes_tab
+
+    def test_the_picture_is_stored_removed_and_otherwise_left_be(
+        self, client, tester, gang, own_storage
+    ):
+        client.force_login(tester)
+        client.post(edit_url(gang), {"act": "picture", "image": png_upload()})
+        gang.refresh_from_db()
+        assert gang.image.name.startswith("gang-images/")
+        held = gang.image.name
+
+        # A save of the gang's own form never touches the picture.
+        client.post(edit_url(gang), {"name": gang.name})
+        gang.refresh_from_db()
+        assert gang.image.name == held
+
+        client.post(edit_url(gang), {"act": "picture", "remove_image": "on"})
+        gang.refresh_from_db()
+        assert not gang.image
+        recorded = LedgerEvent.objects.filter(gang=gang, miniature=None)
+        assert recorded.filter(kind=LedgerEvent.Kind.IMAGE_SET).count() == 1
+        assert recorded.filter(kind=LedgerEvent.Kind.IMAGE_CLEARED).count() == 1

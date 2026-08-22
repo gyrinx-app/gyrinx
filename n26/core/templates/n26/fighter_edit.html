@@ -15,6 +15,10 @@ the page, however many editors it grows.
 {% endcomment %}
 {% block extra_head %}
     <script src="{% static 'n26/richtext.js' %}"></script>
+    <link rel="stylesheet"
+          href="{% static 'designsystem/vendor/cropper.min.css' %}">
+    <script defer src="{% static 'designsystem/vendor/cropper.min.js' %}"></script>
+    <script defer src="{% static 'n26/imagecrop.js' %}"></script>
     {{ form.media }}
 {% endblock extra_head %}
 {% comment %}
@@ -83,10 +87,72 @@ is named by the page's own heading directly below.
             <form method="post" action="{{ edit_url }}">
                 {% csrf_token %}
                 <input type="hidden" name="act" value="notes">
+                <p class="mb-2 text-sm text-muted">
+                    Shown on the card's Notes tab and printed with it. Anyone
+                    reading the gang can see them.
+                </p>
                 <c-n26.rich-text :field="form.notes" />
                 <div class="mt-3 flex justify-end">
                     <c-ui.button type="submit" variant="success" size="sm">
                         Save notes
+                    </c-ui.button>
+                </div>
+            </form>
+        </c-slot>
+        {% comment %}
+        Two forms, because the two acts are different shapes: uploading
+        stages a file and ends in a save, removing is one committed
+        click with nothing to fill in.
+        {% endcomment %}
+        <c-slot name="picture">
+            {% comment %}
+            The wrapper is the unit the crop script redraws in place: after a
+            background save it swaps this box for the same box from the fresh
+            page, so the picture appears without the page moving.
+            {% endcomment %}
+            <div data-picture-box>
+                {% if miniature.image %}
+                    <img src="{{ miniature.image.url }}"
+                         alt="A picture of {{ miniature.name }}"
+                         class="mb-3 w-40 rounded-control">
+                    <form method="post" action="{{ edit_url }}" class="mb-3">
+                        {% csrf_token %}
+                        <input type="hidden" name="act" value="picture">
+                        <input type="hidden" name="remove_image" value="on">
+                        <c-ui.button type="submit" variant="default" size="sm">
+                            Remove picture
+                        </c-ui.button>
+                    </form>
+                {% endif %}
+                <form method="post" action="{{ edit_url }}" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <input type="hidden" name="act" value="picture">
+                    <p class="mb-2 text-sm text-muted">
+                        Shown from the card's picture control and printed in the
+                        card's corner. Picking a file opens the crop, and using
+                        it saves.
+                    </p>
+                    <c-n26.picture-input id="model-image" name="image" crop="4:5" :submit_on_crop="True" />
+                    <div class="mt-3 flex justify-end" data-crop-fallback>
+                        <c-ui.button type="submit" variant="success" size="sm">
+                            Save picture
+                        </c-ui.button>
+                    </div>
+                </form>
+            </div>
+        </c-slot>
+        <c-slot name="lore">
+            <form method="post" action="{{ edit_url }}">
+                {% csrf_token %}
+                <input type="hidden" name="act" value="lore">
+                <p class="mb-2 text-sm text-muted">
+                    The model's story — on the card's Lore tab and the gang's
+                    lore page, readable by anyone. Never printed.
+                </p>
+                <c-n26.rich-text :field="lore_form.lore" />
+                <div class="mt-3 flex justify-end">
+                    <c-ui.button type="submit" variant="success" size="sm">
+                        Save lore
                     </c-ui.button>
                 </div>
             </form>

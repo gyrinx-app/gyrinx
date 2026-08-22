@@ -314,6 +314,88 @@ class TestThePrintPage:
         assert setup_url(gang) in body
 
 
+class TestNotesOnPaper:
+    """The written fields on paper: notes print as cards of their own,
+    lore never does, and the toggle takes the lot off."""
+
+    @pytest.fixture
+    def written(self, gang, roster, tester):
+        vex, sull = roster
+        with operation(gang, actor=tester) as op:
+            op.edit_notes(vex, "<p>Remember the toxin reroll.</p>")
+            op.edit_lore(vex, "<p>Nobody knows where Vex came from.</p>")
+            op.edit_gang_notes("<p>Meet at the sump gate.</p>")
+            op.edit_gang_lore("<p>Founded on a debt.</p>")
+        return vex, sull
+
+    def test_notes_print_and_lore_never_does(self, client, tester, gang, written):
+        client.force_login(tester)
+        body = client.get(print_url(gang)).content.decode()
+        assert "Remember the toxin reroll" in body
+        assert "Meet at the sump gate" in body
+        assert "Nobody knows where Vex came from" not in body
+        assert "Founded on a debt" not in body
+
+    def test_the_toggle_takes_every_note_off(self, client, tester, gang, written):
+        client.force_login(tester)
+        body = client.get(
+            print_url(gang),
+            {"pick": "1", "fighters": [str(m.pk) for m in written]},
+        ).content.decode()
+        assert "Remember the toxin reroll" not in body
+        assert "Meet at the sump gate" not in body
+
+    def test_a_config_remembers_the_choice(self, client, tester, gang, written):
+        client.force_login(tester)
+        client.post(
+            setup_url(gang),
+            {
+                "name": "no-notes",
+                "include_header": "on",
+                "fighters": [str(m.pk) for m in written],
+            },
+        )
+        config = PrintConfig.objects.get(gang=gang, name="no-notes")
+        assert config.include_notes is False
+        body = client.get(print_url(gang), {"config": str(config.pk)}).content.decode()
+        assert "Remember the toxin reroll" not in body
+
+    def test_hostile_notes_never_reach_the_paper_alive(
+        self, client, tester, gang, roster
+    ):
+        vex, _ = roster
+        with operation(gang, actor=tester) as op:
+            op.edit_notes(vex, "<script>alert(1)</script><p>fine</p>")
+        client.force_login(tester)
+        body = client.get(print_url(gang)).content.decode()
+        assert "<script>alert(1)</script>" not in body
+        assert "fine" in body
+
+    def test_a_pictured_model_prints_its_picture(
+        self, client, tester, gang, roster, own_storage
+    ):
+        from io import BytesIO
+
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from PIL import Image
+
+        vex, _ = roster
+        buffer = BytesIO()
+        Image.new("RGB", (40, 50), "purple").save(buffer, format="PNG")
+        with operation(gang, actor=tester) as op:
+            op.set_image(
+                vex,
+                SimpleUploadedFile(
+                    "vex.png", buffer.getvalue(), content_type="image/png"
+                ),
+            )
+        client.force_login(tester)
+        vex.refresh_from_db()
+        body = client.get(print_url(gang)).content.decode()
+        assert "n26-print-photo" in body
+        assert vex.image.url in body
+
+
 class TestPrintingSomebodyElsesGang:
     """Printing a gang and saving a setup on it are two permissions.
 

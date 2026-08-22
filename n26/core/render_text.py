@@ -138,7 +138,7 @@ def render_gang_sheet(sheet):
         for line in sheet.stash:
             rating = f" — {line.rating}cr" if line.rating else ""
             lines.append(f"  {line.name}{rating}")
-    for note in sheet.notes:
+    for note in sheet.remarks:
         lines.append(f"({note.text})")
     lines.append("")
     for card in sheet.models:
