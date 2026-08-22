@@ -24,18 +24,18 @@ Issue: https://github.com/gyrinx-app/gyrinx/issues/2165
 
 ## Decisions (settled — do not relitigate)
 
-| # | Decision |
-|---|---|
-| D1 | **Stored propagation**, not computed-only. Built-ins keep assignment identity (counters, picks, descendants, ledger). |
-| D2 | **Adds propagate automatically** after commit. **Removals never propagate automatically** — fixing a wrong equipment list is an explicit remove-propagation the author triggers, plus the add propagating. No automatic replace semantics anywhere in propagation (ingest's `REPLACED_BUILT_INS` still governs *library* content only). |
-| D3 | **Matching is by provenance only.** A built-in member is satisfied iff a stored assignment materialised *from that member for that carrier* exists (provenance fields; legacy rows matched by `reason=DEFAULT` + `caused_by` during backfill tagging). Independent player-added matches and modifier-computed grants do **not** block materialisation; visible duplicates are accepted. ⚠ *Supersedes* the earlier rule that an independent matching rule/subtype/counter satisfies the built-in. |
-| D4 | An **archived** materialised assignment (owner sold/removed it) still counts as satisfied — never re-grant what an owner parted with. |
-| D5 | **All default-member deletion paths become archival** — authoring `remove_default_member` *and* ingest's superseded-Collection delete. Provenance FKs must never dangle. |
-| D6 | `_granted_rows` / `rechoose` move onto provenance **before** any backfill runs (the newest-first heuristic breaks once built-ins are appended late). |
-| D7 | Backfills are **chunked, resumable, per-gang-committed**. The n26 maintenance "one transaction, all-or-nothing" shape is deliberately retired for this and future backfills. |
-| D8 | The `buy()` materialisation asymmetry (kinds exposing built-ins that buying never materialises, `operations.py:1154-1185`) is **out of scope** — file as its own issue. |
-| D9 | Owner `removes=True` assignments never satisfy a member and are preserved: the built-in materialises, the removal keeps suppressing it. |
-| D10 | Preview is informative, not an authorisation token; the POST recomputes against current data. One shared planner powers authoring preview, ingest preview, and removal preview. |
+| #   | Decision                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D1  | **Stored propagation**, not computed-only. Built-ins keep assignment identity (counters, picks, descendants, ledger).                                                                                                                                                                                                                                                                                                                                                                             |
+| D2  | **Adds propagate automatically** after commit. **Removals never propagate automatically** — fixing a wrong equipment list is an explicit remove-propagation the author triggers, plus the add propagating. No automatic replace semantics anywhere in propagation (ingest's `REPLACED_BUILT_INS` still governs *library* content only).                                                                                                                                                           |
+| D3  | **Matching is by provenance only.** A built-in member is satisfied iff a stored assignment materialised *from that member for that carrier* exists (provenance fields; legacy rows matched by `reason=DEFAULT` + `caused_by` during backfill tagging). Independent player-added matches and modifier-computed grants do **not** block materialisation; visible duplicates are accepted. ⚠ *Supersedes* the earlier rule that an independent matching rule/subtype/counter satisfies the built-in. |
+| D4  | An **archived** materialised assignment (owner sold/removed it) still counts as satisfied — never re-grant what an owner parted with.                                                                                                                                                                                                                                                                                                                                                             |
+| D5  | **All default-member deletion paths become archival** — authoring `remove_default_member` *and* ingest's superseded-Collection delete. Provenance FKs must never dangle.                                                                                                                                                                                                                                                                                                                          |
+| D6  | `_granted_rows` / `rechoose` move onto provenance **before** any backfill runs (the newest-first heuristic breaks once built-ins are appended late).                                                                                                                                                                                                                                                                                                                                              |
+| D7  | Backfills are **chunked, resumable, per-gang-committed**. The n26 maintenance "one transaction, all-or-nothing" shape is deliberately retired for this and future backfills.                                                                                                                                                                                                                                                                                                                      |
+| D8  | The `buy()` materialisation asymmetry (kinds exposing built-ins that buying never materialises, `operations.py:1154-1185`) is **out of scope** — file as its own issue.                                                                                                                                                                                                                                                                                                                           |
+| D9  | Owner `removes=True` assignments never satisfy a member and are preserved: the built-in materialises, the removal keeps suppressing it.                                                                                                                                                                                                                                                                                                                                                           |
+| D10 | Preview is informative, not an authorisation token; the POST recomputes against current data. One shared planner powers authoring preview, ingest preview, and removal preview.                                                                                                                                                                                                                                                                                                                   |
 
 ## Open questions (resolve inside the relevant chunk, with the maintainer)
 
@@ -185,6 +185,29 @@ means anything added mid-rollout is repaired by C7.
   comments state constraints only (no tickets/people/history),
   British spelling, tests as narrative classes under `n26/tests/sandbox/`
   for gang-shaped scenarios, fixtures from `n26/tests/fixtures.py` only.
+- **Comments earn their place.** Review every comment before committing.
+  A comment states a constraint, an invariant, or a consequence the code
+  cannot show — in plain words, for a reader who does not know the game
+  and has never seen any earlier version of the code. That one test
+  rejects the rest: nothing that restates the line below it, no
+  changelog narration ("used to", "now we", "as before"), no people,
+  tickets, or review references, no disguised TODOs ("for now"), and no
+  matching a file's comment *volume* — match its usefulness. One or two
+  sentences; reasoning that needs a paragraph belongs in the module
+  docstring. When in doubt, delete it.
+- **Reports read cold.** A PR description, chunk status update, or
+  hand-back must work for a reader with none of the writing session's
+  context. Lead with the outcome — the first sentence says what happened
+  or what was found. Re-anchor in one clause ("chunk C2 of the built-in
+  propagation programme: the reconciliation engine") before any detail.
+  Plain words; any name the work itself introduced gets a few-word
+  definition at first use; never lean on shorthand coined mid-session
+  (test-group codes, agent labels, "the fix from earlier"). If a
+  sentence needs the conversation to be understood, restate the fact in
+  place rather than referencing where it was established. Brevity comes
+  from selecting what matters, not from compressing prose — drop details
+  that change nothing for the reader, and write what remains in full
+  sentences.
 - Never write `Assignment`/`LedgerEntry`/`LedgerEvent` outside
   `operation(...)`; never bulk-write assignments (roots derive in
   `save()`); readers skip `removes=True`.
