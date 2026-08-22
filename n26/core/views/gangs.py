@@ -586,34 +586,66 @@ def edit_gang(request, pk):
     the spending history cannot fit, unwinding the whole change.
     """
     from n26.analytics import EventVerb, N26Noun, record
-    from n26.core.forms import EditGangForm
+    from n26.core.forms import EditGangForm, GangPictureForm, GangStoryForm
     from n26.core.operations import NotEnoughCredits, operation
 
     gang = _own_gang_or_404(request, pk)
-    if request.method == "POST":
-        form = EditGangForm(gang, request.POST, request.FILES)
+    at = reverse("n26-edit-gang", args=[gang.pk])
+    tab = "notes" if request.GET.get("tab") == "notes" else "general"
+    if request.method == "POST" and request.POST.get("act") == "picture":
+        form = GangPictureForm(request.POST, request.FILES)
+        if form.is_valid():
+            new_picture = bool(form.cleaned_data["image"])
+            dropped_picture = (
+                form.cleaned_data["remove_image"]
+                and bool(gang.image)
+                and not new_picture
+            )
+            with operation(gang, actor=request.user) as op:
+                op.set_gang_image(
+                    form.cleaned_data["image"],
+                    clear=form.cleaned_data["remove_image"],
+                )
+            record(
+                request,
+                N26Noun.GANG,
+                EventVerb.UPDATE,
+                gang,
+                image=new_picture or dropped_picture,
+            )
+            if new_picture:
+                messages.success(request, "Picture saved.")
+            elif dropped_picture:
+                messages.success(request, "Picture removed.")
+            else:
+                messages.success(request, "Nothing changed.")
+        else:
+            # The one field that can refuse — a file that is not an
+            # image. The reason travels as a message to the page this
+            # redirects back to.
+            for wrong in form.errors.get("image", []):
+                messages.error(request, wrong)
+        return redirect(f"{at}?tab=notes")
+    if request.method == "POST" and request.POST.get("act") == "story":
+        form = GangStoryForm(request.POST)
+        if form.is_valid():
+            with operation(gang, actor=request.user) as op:
+                op.edit_gang_notes(form.cleaned_data["notes"])
+                op.edit_gang_lore(form.cleaned_data["lore"])
+            record(request, N26Noun.GANG, EventVerb.UPDATE, gang, story=True)
+            messages.success(request, f"Saved {gang.name}.")
+            return redirect("n26-gang", pk=gang.pk)
+    if request.method == "POST" and not request.POST.get("act"):
+        form = EditGangForm(gang, request.POST)
         if form.is_valid():
             try:
                 with operation(gang, actor=request.user) as op:
-                    # The name, the budget, the written fields and the
-                    # picture are the gang's story and go through their
-                    # own verbs, which record them. The colour is how a
-                    # reader draws it and is nobody's history, so it is
-                    # a plain save.
+                    # The name and the budget are the gang's story and
+                    # go through their own verbs, which record them. The
+                    # colour is how a reader draws it and is nobody's
+                    # history, so it is a plain save.
                     op.rename_gang(form.cleaned_data["name"])
                     op.set_budget(form.cleaned_data["starting_credits"])
-                    # Only when the box was on the form that posted: an
-                    # absent field cleans to the empty string, and a
-                    # form that never carried the box has not asked for
-                    # an emptying.
-                    if "notes" in form.data:
-                        op.edit_gang_notes(form.cleaned_data["notes"])
-                    if "lore" in form.data:
-                        op.edit_gang_lore(form.cleaned_data["lore"])
-                    op.set_gang_image(
-                        form.cleaned_data["image"],
-                        clear=form.cleaned_data["remove_image"],
-                    )
                     gang.colour = form.cleaned_data["colour"]
                     gang.save(update_fields=["colour", "modified"])
                     op.settle()
@@ -628,15 +660,6 @@ def edit_gang(request, pk):
                 # drawn from it would state a change that did not happen.
                 gang.refresh_from_db()
                 form.add_error("starting_credits", str(refusal))
-                # A file input cannot be refilled on a re-rendered form,
-                # so an unwound upload has to be said out loud or the
-                # reader believes their picture was taken.
-                if form.cleaned_data.get("image"):
-                    messages.error(
-                        request,
-                        "The picture was not kept — choose the file "
-                        "again when resubmitting.",
-                    )
             else:
                 record(
                     request,
@@ -647,6 +670,8 @@ def edit_gang(request, pk):
                 )
                 messages.success(request, f"Saved {gang.name}.")
                 return redirect("n26-gang", pk=gang.pk)
+    elif tab == "notes":
+        form = GangStoryForm(initial={"notes": gang.notes, "lore": gang.lore})
     else:
         form = EditGangForm(
             gang,
@@ -654,15 +679,31 @@ def edit_gang(request, pk):
                 "name": gang.name,
                 "starting_credits": gang.starting_credits,
                 "colour": gang.colour,
-                "notes": gang.notes,
-                "lore": gang.lore,
             },
         )
+
+    # A failed save re-renders on the tab its form lives on, whatever
+    # the address said.
+    if request.method == "POST":
+        tab = "notes" if request.POST.get("act") == "story" else "general"
 
     return render(
         request,
         "n26/edit_gang.html",
-        {"gang": gang, "form": form, "wealth": gang.wealth},
+        {
+            "gang": gang,
+            "form": form,
+            "wealth": gang.wealth,
+            "tab": tab,
+            "edit_tabs": [
+                {"label": "General", "href": at, "current": tab == "general"},
+                {
+                    "label": "Notes and Lore",
+                    "href": f"{at}?tab=notes",
+                    "current": tab == "notes",
+                },
+            ],
+        },
     )
 
 

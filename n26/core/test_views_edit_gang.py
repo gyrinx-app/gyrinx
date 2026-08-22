@@ -228,7 +228,7 @@ class TestNotesLoreAndPicture:
         response = client.post(
             edit_url(gang),
             {
-                "name": gang.name,
+                "act": "story",
                 "notes": "<p>Meet at the sump gate.</p>",
                 "lore": "<p>Founded on a debt.</p>",
             },
@@ -243,7 +243,7 @@ class TestNotesLoreAndPicture:
 
     def test_an_unchanged_field_writes_no_event(self, client, tester, gang):
         client.force_login(tester)
-        words = {"name": gang.name, "notes": "<p>same</p>", "lore": ""}
+        words = {"act": "story", "notes": "<p>same</p>", "lore": ""}
         client.post(edit_url(gang), words)
         client.post(edit_url(gang), words)
         assert (
@@ -256,7 +256,7 @@ class TestNotesLoreAndPicture:
         client.post(
             edit_url(gang),
             {
-                "name": gang.name,
+                "act": "story",
                 "notes": "<p>Meet at the sump gate.</p>",
                 "lore": "<p>Founded on a debt.</p>",
             },
@@ -277,27 +277,33 @@ class TestNotesLoreAndPicture:
         assert gang.notes == "<p>Meet at the sump gate.</p>"
         assert gang.lore == "<p>Founded on a debt.</p>"
 
-    def test_the_form_reads_them_back(self, client, tester, gang):
+    def test_the_notes_tab_reads_them_back(self, client, tester, gang):
         gang.notes = "<p>Meet at the sump gate.</p>"
         gang.save(update_fields=["notes"])
         client.force_login(tester)
-        assert "Meet at the sump gate" in client.get(edit_url(gang)).content.decode()
+        general = client.get(edit_url(gang)).content.decode()
+        notes_tab = client.get(edit_url(gang) + "?tab=notes").content.decode()
+        assert "Meet at the sump gate" not in general
+        assert "Meet at the sump gate" in notes_tab
+        # The tab strip on both, saying which is current.
+        assert "?tab=notes" in general
+        assert 'aria-current="page"' in notes_tab
 
     def test_the_picture_is_stored_removed_and_otherwise_left_be(
         self, client, tester, gang, own_storage
     ):
         client.force_login(tester)
-        client.post(edit_url(gang), {"name": gang.name, "image": png_upload()})
+        client.post(edit_url(gang), {"act": "picture", "image": png_upload()})
         gang.refresh_from_db()
         assert gang.image.name.startswith("gang-images/")
         held = gang.image.name
 
-        # A save touching neither control leaves it exactly where it was.
+        # A save of the gang's own form never touches the picture.
         client.post(edit_url(gang), {"name": gang.name})
         gang.refresh_from_db()
         assert gang.image.name == held
 
-        client.post(edit_url(gang), {"name": gang.name, "remove_image": "on"})
+        client.post(edit_url(gang), {"act": "picture", "remove_image": "on"})
         gang.refresh_from_db()
         assert not gang.image
         recorded = LedgerEvent.objects.filter(gang=gang, miniature=None)

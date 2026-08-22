@@ -135,26 +135,6 @@ class EditGangForm(forms.Form):
         label="Colour",
         help_text="Shown against the gang wherever it is listed.",
     )
-    notes = forms.CharField(
-        required=False,
-        widget=RichText(),
-        label="Notes",
-        help_text="Printed with the gang sheet. Anyone reading the gang can see them.",
-    )
-    lore = forms.CharField(
-        required=False,
-        widget=RichText(),
-        label="Lore",
-        help_text="The gang's story. Shown on the lore page, never printed.",
-    )
-    image = forms.ImageField(required=False, label="Picture")
-    remove_image = forms.BooleanField(required=False, label="Remove the picture")
-
-    def clean_image(self):
-        from n26.core.images import LANDSCAPE, to_shape
-
-        upload = self.cleaned_data["image"]
-        return to_shape(upload, LANDSCAPE) if upload else upload
 
     def clean_starting_credits(self):
         budget = self.cleaned_data["starting_credits"]
@@ -215,6 +195,40 @@ class FighterPictureForm(forms.Form):
 
         upload = self.cleaned_data["image"]
         return to_shape(upload, PORTRAIT) if upload else upload
+
+
+class GangStoryForm(forms.Form):
+    """The gang edit page's written tab: notes and lore together.
+
+    Both optional, because an emptied box is a real answer — it clears
+    the field. Stored as written, sanitised at render.
+    """
+
+    notes = forms.CharField(
+        required=False,
+        widget=RichText(),
+        label="Notes",
+        help_text="Printed with the gang sheet. Anyone reading the gang can see them.",
+    )
+    lore = forms.CharField(
+        required=False,
+        widget=RichText(),
+        label="Lore",
+        help_text="The gang's story. Shown on the lore page, never printed.",
+    )
+
+
+class GangPictureForm(forms.Form):
+    """The gang's picture box, the fighter's shape at the gang's ratio."""
+
+    image = forms.ImageField(required=False)
+    remove_image = forms.BooleanField(required=False)
+
+    def clean_image(self):
+        from n26.core.images import LANDSCAPE, to_shape
+
+        upload = self.cleaned_data["image"]
+        return to_shape(upload, LANDSCAPE) if upload else upload
 
 
 class FighterLoreForm(forms.Form):

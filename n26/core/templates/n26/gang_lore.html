@@ -1,7 +1,6 @@
 {% extends "n26/layouts/base.html" %}
 {% load navigation %}
 {% load richtext %}
-{% load badge_tags %}
 {% comment %}
 The gang's lore — its story and picture, then every model's. The written
 half of a roster, readable by anyone holding the address: lore is what a
@@ -21,7 +20,6 @@ prose; a section with no picture is just its words.
     {% include 'n26/_nav.html' with here='gangs' %}
 {% endblock %}
 {% block content %}
-    {% badge_for gang.owner as owner_badge %}
     <div class="flex flex-col gap-6">
         <c-n26.page-header title="{{ gang.name }}">
             {% if gang.colour %}
@@ -32,14 +30,7 @@ prose; a section with no picture is just its words.
             <c-slot name="breadcrumb">
                 <c-ui.breadcrumbs>
                     <c-ui.breadcrumbs.item>
-                        <c-n26.flair-link text="{{ gang.owner.username }}"
-                                          href="{% url 'n26-dashboard' %}"
-                                          tone="current"
-                                          label="{{ owner_badge.description }}">
-                            {% if owner_badge %}
-                                {% badge_svg owner_badge %}
-                            {% endif %}
-                        </c-n26.flair-link>
+                        <c-n26.user-link :user="gang.owner" tone="current" href="{% url 'n26-dashboard' %}" />
                     </c-ui.breadcrumbs.item>
                     <c-ui.breadcrumbs.item href="{% url 'n26-gang' gang.pk %}">{{ gang.name }}</c-ui.breadcrumbs.item>
                     <c-ui.breadcrumbs.item :current="True">
