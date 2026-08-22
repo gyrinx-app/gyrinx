@@ -19,6 +19,10 @@
     var MAX_PX = 1600;
 
     function wire(input) {
+        // Wiring runs again over a region redrawn in place; an element
+        // already carrying its listeners must not gain a second set.
+        if (input.dataset.cropWired) return;
+        input.dataset.cropWired = "1";
         var box = input.closest(".n26-picture-input");
         var dialog = box && box.querySelector("dialog[data-crop-dialog]");
         var picture = dialog && dialog.querySelector("[data-crop-image]");
@@ -112,11 +116,7 @@
                             "cropSubmit" in input.dataset &&
                             input.form
                         ) {
-                            if (input.form.requestSubmit) {
-                                input.form.requestSubmit();
-                            } else {
-                                input.form.submit();
-                            }
+                            save(input.form);
                         }
                     },
                     "image/jpeg",
@@ -135,6 +135,55 @@
             if (!confirmed) input.value = "";
             settle();
         });
+    }
+
+    /* Post the picture form in the background and redraw its box in
+     * place, so the save does not move the reader's place on the page.
+     * The response is the page the plain submit would have landed on;
+     * only its picture box is taken. Anything unexpected — no marker on
+     * either side, a bad status, the network — falls back to the plain
+     * submit, which is the same act with a page load. */
+    function save(form) {
+        var here = form.closest("[data-picture-box]");
+        if (!here || typeof DOMParser === "undefined") {
+            plain(form);
+            return;
+        }
+        fetch(form.action, {
+            method: "POST",
+            body: new FormData(form),
+            credentials: "same-origin",
+        })
+            .then(function (response) {
+                // A refusal or a broken response: the plain submit
+                // repeats the act and lands wherever the server says.
+                if (!response.ok) throw new Error(response.status);
+                return response.text();
+            })
+            .then(function (html) {
+                var fresh = new DOMParser()
+                    .parseFromString(html, "text/html")
+                    .querySelector("[data-picture-box]");
+                // Saved, but the page holds no box to swap: a reload
+                // shows what landed rather than posting it again.
+                if (!fresh) {
+                    window.location.reload();
+                    return;
+                }
+                here.replaceWith(fresh);
+                start();
+            })
+            .catch(function () {
+                plain(form);
+            });
+    }
+
+    function plain(form) {
+        if (form.requestSubmit) {
+            form.requestSubmit();
+        } else {
+            form.submit();
+        }
     }
 
     function start() {
