@@ -626,7 +626,7 @@ def edit_gang(request, pk):
             for wrong in form.errors.get("image", []):
                 messages.error(request, wrong)
         return redirect(f"{at}?tab=notes")
-    if request.method == "POST" and request.POST.get("act") == "story":
+    elif request.method == "POST" and request.POST.get("act") == "story":
         form = GangStoryForm(request.POST)
         if form.is_valid():
             with operation(gang, actor=request.user) as op:
@@ -635,7 +635,7 @@ def edit_gang(request, pk):
             record(request, N26Noun.GANG, EventVerb.UPDATE, gang, story=True)
             messages.success(request, f"Saved {gang.name}.")
             return redirect("n26-gang", pk=gang.pk)
-    if request.method == "POST" and not request.POST.get("act"):
+    elif request.method == "POST" and not request.POST.get("act"):
         form = EditGangForm(gang, request.POST)
         if form.is_valid():
             try:
