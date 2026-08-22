@@ -110,9 +110,10 @@ manage collectstatic --noinput
 #    token is federated into a service account that can only SELECT, so there is
 #    no service account key anywhere on the machine.
 #
-#    Only the TOOLS are installed here. The credential config itself is written
-#    on every boot by .cursor/start.sh, because it arrives in an environment
-#    variable and a build snapshot must not capture it.
+#    The tools and the two environment settings live here, since they are the
+#    same for every agent. The credential config itself is written on every boot
+#    by .cursor/start.sh, because it arrives in an environment variable naming
+#    the project and a shared build snapshot must not capture it.
 # ---------------------------------------------------------------------------
 if ! command -v jq >/dev/null 2>&1; then
   log "Installing jq"
@@ -161,6 +162,54 @@ else
     rm -f "$CSP_TMP"
   fi
   log "$("$CSP_BIN" --version 2>/dev/null | head -1)"
+fi
+
+# Google's libraries read two settings from the environment: where the
+# credential config is, and permission to run an executable to obtain a token.
+# Both are the same on every machine -- a fixed path and a constant -- and
+# neither identifies the project, so they are written here rather than
+# configured by hand.
+#
+# They have to be written at all because a Cursor environment variable reaches
+# the install and boot scripts but NOT the agent's own shell, which is where the
+# proxy and psql are run. Only GCP_WIF_CONFIG, which does name the project,
+# remains an environment variable, and only the boot script reads it.
+#
+# Both files are needed. A login shell reads profile.d and never .bashrc; an
+# interactive shell that is not a login shell reads .bashrc and never profile.d.
+# The second sources the first so the values are stated once.
+GCP_ENV_FILE="/etc/profile.d/gyrinx-gcp.sh"
+GCP_ENV_MARKER="# gyrinx: google credentials for the read-only production role"
+
+# Conditional on the config being there, which the boot script writes only when
+# the agent has been given production access. Pointing the variable at a file
+# that does not exist would be worse than leaving it unset: Google's libraries
+# would report a missing file rather than simply finding no credentials, and any
+# other use of them in the environment would fail in that confusing way.
+if sudo tee "$GCP_ENV_FILE" >/dev/null <<'PROFILE'
+if [ -r /etc/gyrinx/cursor-wif.json ]; then
+  export GOOGLE_APPLICATION_CREDENTIALS=/etc/gyrinx/cursor-wif.json
+  export GOOGLE_EXTERNAL_ACCOUNT_ALLOW_EXECUTABLES=1
+fi
+PROFILE
+then
+  sudo chmod 0644 "$GCP_ENV_FILE"
+
+  # Guarded by a marker so that re-running against an existing snapshot appends
+  # nothing, and by a readability test so that a shell still starts cleanly if
+  # the profile fragment is ever absent.
+  if ! grep -qF "$GCP_ENV_MARKER" "${HOME}/.bashrc" 2>/dev/null; then
+    {
+      echo ""
+      echo "$GCP_ENV_MARKER"
+      echo "if [ -r \"${GCP_ENV_FILE}\" ]; then . \"${GCP_ENV_FILE}\"; fi"
+    } >> "${HOME}/.bashrc"
+  fi
+  log "Google credential environment written to ${GCP_ENV_FILE}"
+else
+  # Consistent with the rest of this step: production access is an optional
+  # extra and must not cost the environment everything built above it.
+  echo "Could not write ${GCP_ENV_FILE}; production database access will be unavailable." >&2
 fi
 
 log "Install complete"
