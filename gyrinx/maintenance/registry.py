@@ -21,6 +21,7 @@ maintenance route. Import from this module and ``gyrinx.maintenance.views``
 instead — neither touches the admin site.
 """
 
+import datetime
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -54,6 +55,12 @@ class MaintenanceOperation:
     slug: str | None = None
     #: Template rendering this operation's ``summary`` on the detail page.
     detail_template: str | None = None
+    #: The day this repair was offered, which the index sorts newest first.
+    #: One-off repairs accumulate and are nearly always run soon after being
+    #: written, so the newest is the one somebody has come to the page for.
+    #: Stated rather than derived: a repair has a date before it has ever run,
+    #: and that is exactly when it needs to be easy to find.
+    added: datetime.date | None = None
 
     @property
     def url_slug(self) -> str:

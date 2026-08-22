@@ -344,3 +344,90 @@ def _fighter_statline_type():
             },
         )
     return statline_type
+
+
+# ------------------------------------------------- the index's own ordering
+
+
+def _next_suffix():
+    global _SCENARIO_SEQ
+    _SCENARIO_SEQ += 1
+    return _SCENARIO_SEQ
+
+
+def _index_body(make_user):
+    su = make_user(f"su-index-{_next_suffix()}", "pw")
+    su.is_staff = True
+    su.is_superuser = True
+    su.save()
+    c = Client()
+    c.force_login(su)
+    return c.get(reverse("admin:maintenance_index")).content.decode()
+
+
+@pytest.mark.django_db
+def test_the_repairs_are_listed_newest_first():
+    """These accumulate and are nearly always run soon after being written,
+    so the one somebody came for is the one written most recently."""
+    from gyrinx.maintenance.views import _operations_listing
+
+    dated = [op["added"] for op in _operations_listing() if op["added"]]
+
+    assert dated == sorted(dated, reverse=True)
+    assert len(dated) > 1
+
+
+@pytest.mark.django_db
+def test_a_repair_with_no_date_given_sorts_last(monkeypatch):
+    """Undated means nobody said, which is not a claim to be recent."""
+    import datetime
+
+    from gyrinx.maintenance import views as maintenance_views
+    from gyrinx.maintenance.registry import MaintenanceOperation
+
+    def _fake():
+        return (
+            MaintenanceOperation(
+                operation="undated", name="Undated", view=lambda r: None
+            ),
+            MaintenanceOperation(
+                operation="dated",
+                name="Dated",
+                view=lambda r: None,
+                added=datetime.date(2020, 1, 1),
+            ),
+        )
+
+    monkeypatch.setattr(maintenance_views, "operations", _fake)
+    monkeypatch.setattr(maintenance_views, "reverse", lambda name: "/nowhere/")
+
+    listing = maintenance_views._operations_listing()
+
+    assert [op["key"] for op in listing] == ["dated", "undated"]
+
+
+@pytest.mark.django_db
+def test_each_repair_says_how_often_it_has_run():
+    from gyrinx.maintenance.views import _operations_listing
+
+    Backfill.objects.create(operation=Operation.RECONCILE_LISTS.value)
+    Backfill.objects.create(operation=Operation.RECONCILE_LISTS.value)
+    Backfill.objects.create(operation=Operation.BACKFILL_PINS.value)
+
+    runs = {op["key"]: op["runs"] for op in _operations_listing()}
+
+    assert runs[Operation.RECONCILE_LISTS.value] == 2
+    assert runs[Operation.BACKFILL_PINS.value] == 1
+    assert runs[Operation.MIGRATE_PERSISTENT_STASH.value] == 0
+
+
+@pytest.mark.django_db
+def test_the_page_shows_the_date_and_the_count(make_user):
+    Backfill.objects.create(operation=Operation.RECONCILE_LISTS.value)
+
+    body = _index_body(make_user)
+
+    assert "<th>Added</th>" in body
+    assert "<th>Runs</th>" in body
+    assert "2026-07-04" in body
+    assert "never run" in body
