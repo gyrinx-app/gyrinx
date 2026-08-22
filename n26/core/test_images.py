@@ -42,6 +42,24 @@ class TestTheCap:
         assert max(width, height) == 100
 
 
+class TestBrokenAndTransparentFiles:
+    def test_a_truncated_file_is_refused_not_crashed(self):
+        import pytest
+        from django.core.exceptions import ValidationError
+
+        whole = upload_of(400, 500).read()
+        cut = SimpleUploadedFile("cut.png", whole[: len(whole) // 2])
+        with pytest.raises(ValidationError):
+            to_shape(cut, PORTRAIT)
+
+    def test_transparency_lands_on_white(self):
+        buffer = BytesIO()
+        Image.new("RGBA", (400, 500), (255, 0, 0, 0)).save(buffer, format="PNG")
+        clear = SimpleUploadedFile("clear.png", buffer.getvalue())
+        with Image.open(to_shape(clear, PORTRAIT)) as shaped:
+            assert shaped.getpixel((10, 10)) == (255, 255, 255)
+
+
 class TestTheFile:
     def test_the_result_is_jpeg_under_the_old_name(self):
         shaped = to_shape(upload_of(500, 500, name="vesna.png"), PORTRAIT)

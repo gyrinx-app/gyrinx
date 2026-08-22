@@ -590,8 +590,14 @@ def edit_gang(request, pk):
                     # a plain save.
                     op.rename_gang(form.cleaned_data["name"])
                     op.set_budget(form.cleaned_data["starting_credits"])
-                    op.edit_gang_notes(form.cleaned_data["notes"])
-                    op.edit_gang_lore(form.cleaned_data["lore"])
+                    # Only when the box was on the form that posted: an
+                    # absent field cleans to the empty string, and a
+                    # form that never carried the box has not asked for
+                    # an emptying.
+                    if "notes" in form.data:
+                        op.edit_gang_notes(form.cleaned_data["notes"])
+                    if "lore" in form.data:
+                        op.edit_gang_lore(form.cleaned_data["lore"])
                     op.set_gang_image(
                         form.cleaned_data["image"],
                         clear=form.cleaned_data["remove_image"],
@@ -610,6 +616,15 @@ def edit_gang(request, pk):
                 # drawn from it would state a change that did not happen.
                 gang.refresh_from_db()
                 form.add_error("starting_credits", str(refusal))
+                # A file input cannot be refilled on a re-rendered form,
+                # so an unwound upload has to be said out loud or the
+                # reader believes their picture was taken.
+                if form.cleaned_data.get("image"):
+                    messages.error(
+                        request,
+                        "The picture was not kept — choose the file "
+                        "again when resubmitting.",
+                    )
             else:
                 record(
                     request,

@@ -1628,6 +1628,10 @@ def _hire_card(name, subtype, rating, weapons):
     base = model_card()
     return replace(
         base,
+        # A preview depicts nobody stored, which is what an empty id
+        # says — and what keeps the tab strip off it, here as on the
+        # real hire list.
+        id="",
         name=name,
         rating=rating,
         subtypes=_printed(subtype),

@@ -10,12 +10,14 @@ The browser offers a nicer version of the same act — panning and
 zooming the crop before upload — but what it sends is still just a
 file, and nothing obliges it to have run. This is the rule; the
 browser's chooser is a courtesy. A file that is not an image at all is
-the form's refusal, not ours: ``ImageField`` has already said no by the
-time this runs.
+the form's refusal; one that only *opens* as an image and breaks on the
+full decode — a truncated transfer — is refused here, because this is
+where the full decode happens.
 """
 
 from io import BytesIO
 
+from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from PIL import Image, ImageOps
 
@@ -38,17 +40,43 @@ def to_shape(upload, ratio):
     often stored sideways with a tag saying so, and a crop that ignored
     the tag would take its window from the wrong axis.
     """
-    with Image.open(upload) as source:
-        image = ImageOps.exif_transpose(source)
-        image = ImageOps.fit(
-            image.convert("RGB"),
-            _fitted(image.size, ratio),
-            method=Image.Resampling.LANCZOS,
-        )
-    buffer = BytesIO()
-    image.save(buffer, format="JPEG", quality=88)
+    try:
+        with Image.open(upload) as source:
+            image = ImageOps.exif_transpose(source)
+            image = ImageOps.fit(
+                _flattened(image),
+                _fitted(image.size, ratio),
+                method=Image.Resampling.LANCZOS,
+            )
+        buffer = BytesIO()
+        image.save(buffer, format="JPEG", quality=88)
+    except OSError as broken:
+        # Opens as an image, breaks on the full decode: a truncated
+        # transfer. The validation layer's own check stops at the
+        # header, so the refusal is made here, as a refusal.
+        raise ValidationError(
+            "That picture could not be read — the file may be cut short "
+            "or damaged. Try uploading it again."
+        ) from broken
     name = upload.name.rsplit(".", 1)[0] + ".jpg"
     return SimpleUploadedFile(name, buffer.getvalue(), content_type="image/jpeg")
+
+
+def _flattened(image):
+    """The picture on an opaque white ground, ready to become a JPEG.
+
+    Dropping the alpha channel instead would keep whatever colour sat
+    under the transparent pixels — black for palette images, leftovers
+    for editor exports — and print it.
+    """
+    if image.mode in ("RGBA", "LA", "PA") or (
+        image.mode == "P" and "transparency" in image.info
+    ):
+        image = image.convert("RGBA")
+        ground = Image.new("RGB", image.size, (255, 255, 255))
+        ground.paste(image, mask=image.getchannel("A"))
+        return ground
+    return image.convert("RGB")
 
 
 def _fitted(size, ratio):

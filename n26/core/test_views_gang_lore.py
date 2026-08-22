@@ -87,3 +87,7 @@ class TestTheWayIn:
         client.force_login(User.objects.create_user("someone-else"))
         body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
         assert lore_url(gang) in body
+
+    def test_a_signed_out_reader_gets_it_too(self, client, gang, roster):
+        body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
+        assert lore_url(gang) in body

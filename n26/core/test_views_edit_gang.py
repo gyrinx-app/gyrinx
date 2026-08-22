@@ -267,6 +267,16 @@ class TestNotesLoreAndPicture:
         )
         assert "edited the gang&#x27;s lore" in body or "edited the gang's lore" in body
 
+    def test_a_form_without_the_boxes_clears_nothing(self, client, tester, gang):
+        gang.notes = "<p>Meet at the sump gate.</p>"
+        gang.lore = "<p>Founded on a debt.</p>"
+        gang.save(update_fields=["notes", "lore"])
+        client.force_login(tester)
+        client.post(edit_url(gang), {"name": gang.name})
+        gang.refresh_from_db()
+        assert gang.notes == "<p>Meet at the sump gate.</p>"
+        assert gang.lore == "<p>Founded on a debt.</p>"
+
     def test_the_form_reads_them_back(self, client, tester, gang):
         gang.notes = "<p>Meet at the sump gate.</p>"
         gang.save(update_fields=["notes"])
