@@ -1,0 +1,190 @@
+# Built-in propagation programme — issue #2165
+
+Built-ins added to a profile (or any carrier) never reach fighters already
+hired from it. This plan makes propagation real: adds reach existing uses
+within seconds, removals are an explicit author action, and a backfill
+repairs history. Long-running programme; executed chunk-by-chunk via
+sub-agents. **This file is the shared state** — each chunk updates its
+status line when it lands.
+
+Issue: https://github.com/gyrinx-app/gyrinx/issues/2165
+
+## Outcomes
+
+1. A built-in added to a carrier appears on existing uses within a few
+   seconds of save (authoring or ingest).
+2. Removal-propagation exists as an **explicit, previewed** author action —
+   never automatic, and no automatic replacement (not even Collections).
+3. Retroactive backfill: existing fighters gain the built-ins they should
+   have been hired with.
+4. Authors can preview the impact of a built-in change (async UI element,
+   full-page fallback) before committing.
+5. n26 maintenance gains incremental, resumable backfill machinery — the
+   one-transaction backfill shape is retired.
+
+## Decisions (settled — do not relitigate)
+
+| # | Decision |
+|---|---|
+| D1 | **Stored propagation**, not computed-only. Built-ins keep assignment identity (counters, picks, descendants, ledger). |
+| D2 | **Adds propagate automatically** after commit. **Removals never propagate automatically** — fixing a wrong equipment list is an explicit remove-propagation the author triggers, plus the add propagating. No automatic replace semantics anywhere in propagation (ingest's `REPLACED_BUILT_INS` still governs *library* content only). |
+| D3 | **Matching is by provenance only.** A built-in member is satisfied iff a stored assignment materialised *from that member for that carrier* exists (provenance fields; legacy rows matched by `reason=DEFAULT` + `caused_by` during backfill tagging). Independent player-added matches and modifier-computed grants do **not** block materialisation; visible duplicates are accepted. ⚠ *Supersedes* the earlier rule that an independent matching rule/subtype/counter satisfies the built-in. |
+| D4 | An **archived** materialised assignment (owner sold/removed it) still counts as satisfied — never re-grant what an owner parted with. |
+| D5 | **All default-member deletion paths become archival** — authoring `remove_default_member` *and* ingest's superseded-Collection delete. Provenance FKs must never dangle. |
+| D6 | `_granted_rows` / `rechoose` move onto provenance **before** any backfill runs (the newest-first heuristic breaks once built-ins are appended late). |
+| D7 | Backfills are **chunked, resumable, per-gang-committed**. The n26 maintenance "one transaction, all-or-nothing" shape is deliberately retired for this and future backfills. |
+| D8 | The `buy()` materialisation asymmetry (kinds exposing built-ins that buying never materialises, `operations.py:1154-1185`) is **out of scope** — file as its own issue. |
+| D9 | Owner `removes=True` assignments never satisfy a member and are preserved: the built-in materialises, the removal keeps suppressing it. |
+| D10 | Preview is informative, not an authorisation token; the POST recomputes against current data. One shared planner powers authoring preview, ingest preview, and removal preview. |
+
+## Open questions (resolve inside the relevant chunk, with the maintainer)
+
+- **History wording** for actor-less propagation events. Every write goes
+  through `operation(...)` and lands in the gang's story; decide what a
+  propagated addition *says* before the backfill writes thousands of lines.
+- **Paid descendants on explicit removal** — a bought ammo type riding a
+  built-in gun. Preview must surface them; first version likely skips those
+  carriers with a report rather than stranding or deleting paid things.
+- Whether interim Collection duplicates (add landed, removal not yet
+  triggered) get a `Note` on the equip screen ("inform, never police").
+
+## Code map (verified 2026-08-22 — re-verify line numbers before editing)
+
+**Materialisation (the copy loop):**
+- `n26/core/operations.py:832` — `_materialise_defaults(carrier, taken, kinds, gang, built_ins)`; used by `hire` (:599, call at :641), `found`, `rechoose` (:711 → :765, `built_ins=False`), `add_legacy_profile` (:1100, `kinds=` narrowing).
+- Special cases inside: `Weapon` → `_grant_free_profiles`; `WeaponProfile` members deferred as ammo, attached to the gun's assignment; `default_pickable_id` → `_choose_for_slot`; `counter_id` → `CounterValue.objects.create(assignment=…, value=member.amount)` (:906-913). **A naive assign() leaves counters without opening values.**
+- Preview twin (no writes): `n26/core/card.py:770` — hire preview iterates `(profile.built_ins, *taken)`. Keep in step with the reconciler.
+- `_granted_rows` `operations.py:794` — reverse-maps set→rows by `reason=DEFAULT` + `caused_by` + **newest-first**; docstring asserts built-ins materialise first. This is what D6 replaces.
+- `operation(gang, actor=None)` `operations.py:1454` — atomic + `_hold(gang)` (select_for_update, :1435) + `settle()` (:1344, repins + `NotEnoughCredits` unwind). Never take a second lock around it.
+
+**Library side:**
+- `n26/library/models/defaults.py:75,106` — `DefaultAssignmentSet`, `DefaultAssignment` (kinds: `DEFAULT_ASSIGNABLE_FIELDS` :61 — weapon, weapon_profile, wargear, subtype, skill, rule, hidden, collection, counter, slot). `DefaultAssignment` inherits `Content` → already has `archived`.
+- `n26/library/models/assignable.py:167` — `Assignable.built_ins` FK (PROTECT, nullable); `takes_built_ins` flag :212.
+- Authoring verbs: `n26/library/authoring.py:967` `add_built_in`, `:1023` `add_default_member`, `:1056` `remove_default_member` (currently a **hard delete**, cascades `dependent_members`).
+- Ingest: `n26/library/ingest.py:2584` `REPLACED_BUILT_INS = ("Collection",)`; `:2592` `_superseded_built_ins`; `:2614` `_built_ins_difference` (the existing preview diff — reuse for the shared planner); `:3011` `_update_defaultassignmentset` (**hard-deletes** superseded members; adds via `add_default_member`); profile `built_ins` set on create only (:3202).
+
+**Core side:**
+- `n26/core/models/assignment.py:41,64,68` — `ASSIGNABLE_FIELDS` (21 kinds), `HOST_FIELDS`, `Assignment`. Roots derived in `save()` — never bulk-write assignments. Membership `miniature_root` is set by hand in `hire`.
+- `Reason.DEFAULT`: `n26/core/models/ledger.py:28`. `ChosenProfileOption` / `CounterValue`: `n26/core/models/settings.py:53,82`.
+- Equip tabs: `n26/core/access.py:47,91` — a tab exists only because a live `Assignment` with `collection_id` is on the card (`access.py:119`); `n26/core/views/equip.py:410-442,209`.
+
+**Maintenance + tasks:**
+- `n26/maintenance.py` — Operation slugs (:82, permanent), `LOCK_KEYS` (:114), `_run_recorded` (:216), `MAX_ATTEMPTS = 2` (:74), deletion-view shape (:519, preview-on-GET / enqueue-on-POST), registration (:598-694), `task_routes` (:697). Module docstring (:26-34) states the one-transaction rule D7 retires.
+- `gyrinx/tasks/backend.py:32-36` — Pub/Sub publish is fire-and-forget; **loss possible** → durable pending row + scheduled sweep required. Delivery is at-least-once (see `gyrinx/tasks/CLAUDE.md`); business idempotency is the task's job. Chunked re-enqueue precedent: `n23/core/tasks.py`; chaos testing via the `task_queue` fixture (manual mode).
+
+## Architecture
+
+- **Provenance on `Assignment`**: `materialised_from` → `"library.DefaultAssignment"` (PROTECT — safe once D5 makes members archival-only) and `materialised_for` → the carrier assignment (`"core.Assignment"`). Both nullable forever for non-default rows. Partial unique constraint on `(materialised_from, materialised_for)` where `archived=False`; satisfaction checks (D3/D4) consider archived rows too.
+- **Pending reconciliation row** lives in `n26/core` (core may name library models by label; library writes it via function-level import — boundary rules in `n26/CLAUDE.md`). Keyed by `DefaultAssignmentSet`; written in the authoring/ingest transaction; task enqueued `transaction.on_commit()`; coalesced per set; recovery sweep on a `TaskRoute` schedule.
+- **Reconciliation engine**: `_materialise_defaults` refactored into "create what provenance says is missing", shared verbatim by acquisition, propagation, and backfill. Resolves carriers via `Assignable.built_ins` holders *and* acquisitions whose `ChosenProfileOption` names the set. Per gang: one `operation(gang, actor=None)`, bounded batches, keyset pagination.
+- **Shared planner** `plan_built_in_change()` — read-only, powers: authoring async preview fragment (staff-only endpoint, `aria-live`, full-page POST fallback per the URL-state rule), the ingest preview's "N existing uses will not see this" line (extending `_built_ins_difference`), and the removal preview.
+- **Explicit removal-propagation**: from the authoring UI, previewed, per member; archives the materialised assignments found by provenance (cause-chain cascade takes free grants); paid descendants surfaced per the open question.
+- **Chunked maintenance runner**: per-gang batches committing independently, progress written onto the `Backfill` record, resumable after interruption, cooperative cancel, advisory-lock single-flight kept.
+
+## Chunks
+
+Each chunk: own branch + PR, run by a sub-agent with **only this file plus
+the chunk brief** as context. Feature-planner first for anything
+non-trivial. Update the status line here on merge.
+
+**C0 — Measure production fan-out.** `manage prodshell` (read-only):
+gangs, memberships per profile, members per built-ins set, worst-case
+holders of one set. Record numbers here; they size C4 batches and decide
+how much C3 machinery is genuinely needed now vs. built minimal.
+*Status: not started.*
+
+**C1 — Archival + provenance foundation.** Convert *every*
+default-member deletion to archival (authoring `remove_default_member`
+incl. `dependent_members`; ingest `_update_defaultassignmentset`). Filter
+archived members out of every member read (`_materialise_defaults`,
+`card.py:770` preview, `add_default_member` position count, ingest
+`find_existing`, authoring pages). Add nullable provenance fields +
+partial unique constraint. Move `_granted_rows`/`rechoose` to
+provenance-first with legacy `reason=DEFAULT` fallback (fallback removed
+in C8). No behaviour change for players. Regression test: rechoose still
+unwinds correctly for provenance-tagged and legacy rows.
+*Status: not started.*
+
+**C2 — Reconciliation engine.** Refactor materialisation into
+idempotent desired-state reconcile (D3/D4/D9 matching). Covers weapons +
+free profiles, ammo→correct gun, slots + starting picks (existing
+answered slots untouched; new slot-with-default materialises settled),
+counters + opening `CounterValue`, stored effects (exactly once under
+redelivery), gang-hosted founding sets, stash-hosted, legacy-profile
+`kinds=` narrowing. Sandbox tests: run-twice-creates-nothing; independent
+matching rule does NOT block (duplicate accepted — D3); archived copy
+blocks (D4); `removes=True` preserved (D9); every case ends
+`assert_reconciled(gang)` **after `refresh_from_db`** (stale-pin gotcha).
+*Status: not started.*
+
+**C3 — Chunked maintenance runner.** Generic per-gang resumable batch
+support in `n26/maintenance.py` (D7): batches commit independently,
+progress + failures on the `Backfill` record, resume after interruption,
+cancel between batches. Sized by C0's numbers — build what the volume
+demands, not a framework. Independent of C1/C2; must land before C7.
+*Status: not started.*
+
+**C4 — Live add-propagation.** Pending row + `on_commit` enqueue from
+`add_built_in`/`add_default_member`/ingest perform, coalesced per set.
+Task resolves holders + `ChosenProfileOption` selectors, reconciles per
+gang via C2. Scheduled recovery sweep. Chaos tests via `task_queue`:
+rollback enqueues nothing; duplicate/concurrent delivery materialises
+once; drop leaves pending work the sweep drains; shared sets reach every
+holder; option-set changes reach only selectors. End-to-end: authoring
+save → existing card shows the built-in through the dev worker within
+seconds. Decide history wording here (open question) before enabling.
+*Status: not started.*
+
+**C5 — Preview.** `plan_built_in_change()` shared planner; authoring
+async fragment + non-JS fallback; ingest preview line ("N existing uses
+were hired from this and will not see this change" becomes "…will gain
+this within seconds" once C4 is live). Counts in SQL, bounded samples,
+no writes, no tasks.
+*Status: not started.*
+
+**C6 — Explicit removal-propagation.** Author-triggered, previewed,
+per member (D2): archive provenance-matched assignments through
+`operation(...)`, cause-chain takes free grants, paid descendants
+surfaced/skipped per the resolved open question. This is the fix path
+for a wrongly-added equipment list. Verify: equip tabs drop the removed
+Collection; sold/archived copies untouched; rerun is a no-op.
+*Status: not started.*
+
+**C7 — Retroactive backfill.** Maintenance operation on C3's runner:
+tag unambiguous legacy `reason=DEFAULT` rows with provenance, reconcile
+missing members via C2, per-gang outcomes recorded, rerun reports zero.
+Before prod: fork content mirror at measured volume, time it, and verify
+from outside — compare affected cards/assignment counts/ratings/credits
+independently before and after.
+*Status: not started.*
+
+**C8 — Tighten + acceptance.** Remove the legacy `_granted_rows`
+fallback; consider stricter provenance constraints; acceptance pass:
+add-a-rule reaches an existing model in seconds; redelivery adds
+nothing; backfill twice → second run empty; full `pytest n26`, fmt,
+migration checks, query-budget tests unchanged.
+*Status: not started.*
+
+**Separate issue (D8):** the `buy()` built-ins asymmetry.
+
+## Sequencing
+
+C0 → C1 → C2 → C4 → C5 → C6 → C7 → C8, with C3 in parallel any time
+before C7. Preview (C5) ships only once C4's behaviour exists (never
+promise propagation that doesn't happen). Incremental throughout:
+built-in authoring never pauses; C4's backfill-from-current-state design
+means anything added mid-rollout is repaired by C7.
+
+## Sub-agent working notes
+
+- One implementation agent at a time on this programme (worktree
+  isolation is unreliable when the session is already in a worktree;
+  concurrent agents collide on the test DB — give any parallel agent its
+  own `DB_NAME`).
+- n26 conventions bind: no "cost", no calling an assignment a "row",
+  comments state constraints only (no tickets/people/history),
+  British spelling, tests as narrative classes under `n26/tests/sandbox/`
+  for gang-shaped scenarios, fixtures from `n26/tests/fixtures.py` only.
+- Never write `Assignment`/`LedgerEntry`/`LedgerEvent` outside
+  `operation(...)`; never bulk-write assignments (roots derive in
+  `save()`); readers skip `removes=True`.
