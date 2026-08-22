@@ -69,7 +69,8 @@ class TestTheEditAffordance:
         vex, _ = roster
         client.force_login(tester)
         body = client.get(lore_url(gang)).content.decode()
-        assert reverse("n26-edit-gang", args=[gang.pk]) in body
+        # To the tab the lore is written on, not the edit page's front.
+        assert reverse("n26-edit-gang", args=[gang.pk]) + "?tab=notes" in body
         assert reverse("n26-edit-fighter", args=[vex.pk]) in body
 
     def test_a_reader_gets_none(self, client, gang, roster):
