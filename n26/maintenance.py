@@ -697,7 +697,13 @@ def sweep_archived_view(request):
         ),
         confirm_words=(
             f"Rewrite {len(plan.steps)} archived answer(s)? It writes nothing "
-            "unless every gang's history reads the same afterwards."
+            "unless every gang's history reads the same afterwards"
+            + (
+                ", but for the rewording listed above, which it counts before "
+                "you agree to it."
+                if plan.rewords
+                else "."
+            )
         ),
         button_words="Apply sweep",
         leaves_behind=_spares_left(),
