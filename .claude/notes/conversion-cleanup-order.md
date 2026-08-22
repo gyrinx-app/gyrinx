@@ -1,107 +1,159 @@
-# Finishing the conversions — what is left, and in what order
+# Finishing the conversions — the plan, and where it has got to
 
-Measured against production, 2026-08-20, read-only. The four conversions
-have all run; this is everything they left behind and the order it can
-be cleared in.
+n26's hand-built choice systems have all been moved onto slots and
+picks. This is the tidying that follows: what is left, the order it can
+be done in, and the decisions already taken. Written to be picked up
+cold.
 
-## What is actually left
+**Nothing here names a player, a gang or an assignment id.** The counts
+are shapes; every operation finds its own rows by query. The repository
+is public.
 
-| | count |
+## Where it stands
+
+| | |
 |---|---|
-| Emptied kind rows (Archetype 12, SkillTree 6, Specialisation 8) | 26 |
-| — of those, still carrying anything | 1 (Ironhead Squat) |
-| Archived assignments naming an old kind | 399 |
-| Live assignments naming an old kind | 4 (doubled-click spares) |
-| Menu collections left standing | 3 |
-| Detached fossil offers | 1 |
-| Unreachable offer (general hidden, never held by anything) | 1 |
+| The five conversions (Paths, Specialisation, Skill Trees, Gang Legacies, Archetypes) | run in production |
+| The gang legacy slot pilot | retired in production |
+| A superuser may delete player data in the admin | merged |
+| A doubled click no longer answers a question twice | merged |
+| The authoring menu no longer offers the retired kinds | merged |
+| The archived-answers sweep | open, reviewed, CI green |
 
-**The columns are closed.** No live route creates a new row of any old
-kind: the archetype fossil is carried by nothing, the general
-Specialisation hidden has never been held by any assignment and its
-granter is detached, and every other offer became a slot grant. The
-four live rows are spares from a click that landed twice, anchored on
-a subtype whose question is now a slot.
+## What the conversions left
+
+Measured against production, 2026-08-22:
+
+- **26 emptied kind rows** — 12 Archetype, 6 SkillTree, 8 Specialisation.
+  One archetype still carries a modifier (the house legacy the menu
+  never offered).
+- **399 archived assignments** naming an old kind, across 169 gangs.
+  The sweep is for these.
+- **4 live assignments** naming Specialisation. These are spares from a
+  doubled click, on three owners' gangs — one fighter has two. Each
+  draws a phantom line in its fighter's gear list, named after the
+  specialisation, beside a correctly settled choice row. They carry no
+  money and no rating, nothing hangs off them, and the skill they grant
+  is drawn once regardless. **Decision taken: clear them.** Removing
+  them removes four wrong lines and changes nothing else.
+- **3 menu collections**, **1 detached fossil offer**, and the general
+  Specialisation Offer hidden — which has never been held by any
+  assignment, so no route creates a new row of any retired kind.
 
 ## The order
 
-Four things can start at once. Everything else is one chain behind
-them.
+### Wave 1 — done bar one
 
-### Wave 1 — start together, no ordering between them
+1. ~~The double-submit fix.~~ Merged. It was a genuine race: the picker
+   replaced what stood, but decided that from the page it had drawn, so
+   two answers in flight together each found nothing to replace.
+2. **The archived-answers sweep.** Open. This is the gate: the kinds
+   cannot be retired while rows name them.
+3. ~~The authoring menu retirement.~~ Merged.
+4. **The timeout revert** — not started. The Cloud Run request timeout
+   and the task ack deadline move together or not at all. Raised for a
+   conversion that took eighteen minutes; conversions now take seconds.
+5. **Squat legacies** (content, in the admin, the maintainer's): re-offer
+   Ironhead Squat as a Gang Legacy pickable, and grant the slot to the
+   three Squat Hunt profiles, which carry no legacy question. Also
+   empties the last archetype row still carrying anything.
 
-1. **The double-submit fix.** The only item still *making* mess: a
-   click landing twice writes a second identical answer. Nothing else
-   waits on it, and every day it stays costs another spare.
-2. **The archived-pick sweep.** A console operation rewriting the 399
-   archived assignments onto their pickables, as the Paths conversion
-   did for its own. **This is the gate**: the kinds cannot be retired
-   while anything names them, so start it early even though it lands
-   last. Needs the conversion machinery, so it must precede wave 4.
-3. **The timeout revert.** The Cloud Run request timeout and the task
-   ack deadline move together or not at all — a run outliving its
-   deadline is redelivered while the first copy works. Conversions now
-   finish in single-digit seconds.
-4. **Squat legacies** (content, in the admin). Re-offer Ironhead Squat
-   as a Gang Legacy pickable and grant the slot to the three Squat Hunt
-   profiles, which carry no legacy question. This also empties the last
-   archetype row still carrying anything, which wave 2 wants.
+### Wave 2 — the library cleanup
 
-### Wave 2 — after the sweep has run in production
+6. One operation, the pilot retirement's shape, doing two things:
+   - **clear the four live spares** (found by query: live, not
+     `removes`, naming an old kind, with a settled sibling answering the
+     same anchor). This changes four pages, which is the point;
+   - **delete the emptied rows**: 26 kind rows, 3 menu collections, the
+     detached fossil offer, the general hidden and its detached granter.
 
-5. **The library cleanup.** One more one-shot operation, the pilot
-   retirement's shape: delete the 26 emptied kind rows, the three menu
-   collections, the detached fossil offer, the general hidden and its
-   detached granter. Refuses if anything still names them, which is
-   why the sweep comes first.
-
-   The four spares belong to this decision. They are a duplicate line
-   on four gangs' pages; archiving them removes it. That is a page
-   change on four gangs, and it is a fix rather than a regression —
-   but it is a change, and it should be named rather than slipped in.
+   It must run after the sweep, because deleting a kind row refuses
+   while anything names it.
 
 ### Wave 3
 
-6. **Re-sync the content mirror from production.** After 4 and 5, so
-   the mirror inherits the tidy library rather than the old one.
+7. **Re-sync the content mirror from production.** After 5 and 6, so the
+   mirror inherits the tidy library. The mirror is currently
+   unconverted — it still holds the old offers and only the
+   pre-existing slot types — which is why 8 waits on this.
 
 ### Wave 4
 
-7. **Retire the conversion modules and their console operations.**
-   Slug registered with `view=None`, code deleted, the way the wargear
-   merge went. Waits on the mirror: until then every local database
-   forks unconverted and needs the conversions as its route across.
+8. **Retire the conversion modules and their console operations.** Slug
+   registered with `view=None`, code deleted, the way the wargear merge
+   went. Waits on the mirror: until it is re-synced, every local
+   database forks unconverted and needs the conversions as its route
+   across.
 
-### Wave 5 — the big one, planned separately
+### Wave 5 — planned separately
 
-8. **Drop the three kinds and their columns.** This is not a tidy-up;
-   it is a change across 21 files and every parallel registry the
-   library keeps: `ASSIGNABLE_FIELDS` and the Assignment columns,
-   `OFFERABLE_KINDS`, the ingest sheets and their four tables, the
-   specs and authoring pages, collection entries, the selector
-   algebra, card building, history, sample data — plus a migration
-   dropping three columns and three tables. Startup checks enforce the
-   registries agreeing, so a half-done version does not boot.
+9. **Drop the three kinds and their columns.** Across 21 files and every
+   parallel registry the library keeps: `ASSIGNABLE_FIELDS` and the
+   Assignment columns, `OFFERABLE_KINDS`, the ingest sheets and their
+   four tables, the specs and authoring pages, collection entries, the
+   selector algebra, card building, history, sample data — plus a
+   migration dropping three columns and three tables. Startup checks
+   enforce the registries agreeing, so a half-done version will not
+   boot. Needs 6 (no rows), 7 and 8 (no code), and the sweep (no data).
 
-   Worth doing, but worth its own plan and its own smoke test on a
-   fork, and it must be last: it needs the sweep (no data), the
-   library cleanup (no rows) and the retirement (no code) all done.
+### After the programme
 
-## The critical path
+10. **Gangless models.** Deleting a gang leaves its models behind,
+    belonging to nobody and reachable by nothing. The design log records
+    that a miniature library — models independent of a gang — was
+    considered and dropped, so these are residue of a rejected concept
+    rather than intent, even though a test pins the behaviour. Agreed to
+    fix after wave 1: delete a gang's models with it, and rewrite that
+    test.
 
-    archived sweep → library cleanup → mirror re-sync → retire the
-    conversions → drop the kinds
+## Decisions taken, and why
 
-The double-submit fix, the timeout revert and the Squat content hang
-off nothing and can land in any order alongside it.
+- **Conversions delete nothing.** Every hard problem in the early
+  attempts came from retiring old rows, which is tidiness rather than
+  the switch. Tidiness is waves 2 and 5, deliberately separate.
+- **A conversion is not a migration.** A migration running live code
+  inherits a dependency on every column that code will ever read, and
+  the pin needed to say so contradicts the recorded history of a
+  database that already ran it. They run from the console after deploy.
+- **Repeats are refused per system, not globally.** Skill Trees refuse
+  them (the game ranks four different trees); Archetypes allow them (a
+  Champion may hold what the gang holds, and ten do). The test is what
+  the page said before.
+- **The pickables of one system may need a qualifier.** Two names were
+  already taken by another slot type's pickables. A qualifier is
+  author-facing only and never reaches a player.
+- **Deletion in the admin is a superuser's, one at a time.** Writing
+  stays refused of everyone; batch delete is gone from the changelists,
+  since a column of ticks over ledger events is the same power without
+  the page that spells out its cost.
 
-## One judgement worth making early
+## The discipline these ran on
 
-Retiring the kinds means rewriting 399 archived assignments — history
-rows the later conversions deliberately left alone. The precedent
-exists (Paths rewrote its archived picks so the retirement could
-land), and the alternative is keeping three dead kinds in the
-authoring menus, the ingest sheets and the card code for ever. The
-recommendation is to do it, but to decide it deliberately before wave
-1 starts, because the sweep is only worth building if the kinds are
-going.
+The full version is in `backfill-lessons.md`. The four that earned
+themselves here:
+
+- **Prove the thing that can actually change.** The conversions compare
+  pages; the sweep compares histories, because an archived answer draws
+  no page. Comparing both would have cost ten minutes of transaction
+  for a check that cannot fail.
+- **Measure before choosing.** Folding a gang's story costs 287ms;
+  building its pages costs 1458ms. That measurement decided the sweep's
+  design.
+- **Reproduce the failure your fix fixes.** The double-submit fix was
+  nearly shipped against three tests that passed on the unfixed code —
+  sequential posts are serialised, so they proved nothing. Only real
+  concurrency showed the bug.
+- **Say what you leave.** An operation that bounds its own coverage puts
+  the remainder on its page, so the next step is not taken in ignorance.
+
+## Traps worth remembering
+
+- `manage prodshell` pipes into IPython, which silently swallows
+  multi-line loops and function definitions. Use single-line statements,
+  or `exec(open(...).read())` in one line.
+- A startup check catches an unregistered background task; the test
+  suite cannot, because the development backend skips the registry.
+- The shared console page takes its wording from the operation. Two
+  operations proving different things must not share one promise.
+- `Pickable` names are unique per pack **and qualifier**, not per slot
+  type, so a lookup by name alone can match two things.
