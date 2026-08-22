@@ -63,9 +63,32 @@ class RewriteArchivedAnswer:
         )
 
     def perform(self):
+        """Write it, having proved again that it is what the plan read.
+
+        The plan was read before this transaction opened. What it
+        believed can have moved since — the answer claimed by something
+        else, or brought back out of the archive — and a story read
+        twice would not catch either, an archived answer's rewrite
+        changing no word of one. So the row itself is checked here,
+        where the snapshot holds.
+        """
         from n26.core.models import Assignment
+        from n26.library.conversion.base import ConversionRefused
 
         answer = Assignment.objects.get(pk=self.assignment_id)
+        if not answer.archived:
+            raise ConversionRefused(
+                f"{self.assignment_id} is no longer an answer taken back"
+            )
+        if answer.pickable_id is not None or answer.chosen_for_slot_id is not None:
+            raise ConversionRefused(
+                f"{self.assignment_id} already names a pick, so something "
+                "has rewritten it since the plan was read"
+            )
+        if getattr(answer, f"{self.old_column}_id") is None:
+            raise ConversionRefused(
+                f"{self.assignment_id} no longer names a {self.old_column}"
+            )
         answer.pickable_id = self.pickable_id
         answer.chosen_for_id = answer.caused_by_id
         answer.chosen_for_slot_id = self.slot_id
@@ -131,15 +154,19 @@ def plan_archived():
             )
             continue
         slot = slots[0]
-        pickable = Pickable.objects.filter(
-            slot_type=slot.slot_type, name=named.name
-        ).first()
-        if pickable is None:
+        # A name is unique per pack and qualifier, not per slot type, so
+        # one slot type can hold two of a name. Either count but one is a
+        # question this cannot answer.
+        candidates = list(
+            Pickable.objects.filter(slot_type=slot.slot_type, name=named.name)
+        )
+        if len(candidates) != 1:
             problems.append(
-                f"nothing on “{slot.slot_type}” is called “{named.name}”, which "
-                f"the archived answer {row.pk} names"
+                f"{len(candidates)} things on “{slot.slot_type}” are called "
+                f"“{named.name}”, which the archived answer {row.pk} names"
             )
             continue
+        pickable = candidates[0]
         steps.append(
             RewriteArchivedAnswer(
                 assignment_id=row.pk,

@@ -403,6 +403,28 @@ def delete_nameless_gang_type(backfill_id, **said_by_whoever_enqueued_it):
     )
 
 
+#: What a conversion's page says about its own proof. Each operation
+#: proves something different, and a page that named the wrong one would
+#: promise a safety nobody is being given.
+def _proof_words(plan):
+    return {
+        "reach_words": (
+            f"It reaches {plan.reaches} gang"
+            f"{'' if plan.reaches == 1 else 's'}, and proves "
+            f"{len(plan.gang_ids)} of them read the same before committing — "
+            "a spread wide enough to hold every shape the system comes in. "
+            "Proving all of them would mean holding the whole library for "
+            "minutes while players are using it."
+        ),
+        "confirm_words": (
+            f"Convert {plan.reaches} gang(s)? It writes nothing unless every "
+            "page it proves reads the same."
+        ),
+        "button_words": "Apply conversion",
+        "leaves_behind": "",
+    }
+
+
 def _conversion_view(request, operation, system, task_fn):
     """Preview a conversion (GET), or record a run and enqueue it (POST)."""
     address = reverse(f"admin:maintenance_{operation.value}")
@@ -455,6 +477,7 @@ def _conversion_view(request, operation, system, task_fn):
         proven=len(plan.gang_ids),
         apply_url=address,
         recent=Backfill.objects.filter(operation=operation)[:10],
+        **_proof_words(plan),
     )
     return render(request, "admin/maintenance/n26/convert.html", context)
 
@@ -595,6 +618,32 @@ def _deletion_view(request, operation, find_fn, task_fn, words):
     return render(request, "admin/maintenance/n26/delete.html", context)
 
 
+def _spares_left():
+    """What this sweep does not reach, said plainly on its own page.
+
+    A doubled click leaves a live answer beside the one that settled the
+    question, and the conversions left those exactly as they were. They
+    are live, so this sweep — which is for what was taken back — does not
+    touch them, and while they stand the kinds they name still cannot be
+    retired.
+    """
+    from n26.core.models import Assignment
+    from n26.library.conversion.archived import OLD_COLUMNS
+
+    live = Assignment.objects.filter(archived=False).exclude(removes=True)
+    standing = sum(
+        live.filter(**{f"{column}__isnull": False}).count() for column in OLD_COLUMNS
+    )
+    if not standing:
+        return ""
+    return (
+        f"{standing} live answer{'' if standing == 1 else 's'} still name a "
+        "retired kind and are left as they are: spares from a click that "
+        "landed twice, which are somebody's page rather than history. "
+        "Retiring those kinds has to deal with them separately."
+    )
+
+
 def sweep_archived_view(request):
     """Preview the sweep (GET), or record a run and enqueue it (POST)."""
     from n26.library.conversion.archived import plan_archived
@@ -637,6 +686,21 @@ def sweep_archived_view(request):
         proven=plan.reaches,
         apply_url=address,
         recent=Backfill.objects.filter(operation=operation)[:10],
+        reach_words=(
+            f"It reaches {plan.reaches} gang"
+            f"{'' if plan.reaches == 1 else 's'} and proves every one of them, "
+            "not a spread: what it rewrites are answers already taken back, "
+            "which draw nothing on any card, so what is read twice is each "
+            "gang's history rather than its pages. Folding a story costs a "
+            "fraction of what building the pages costs, which is what makes "
+            "proving all of them affordable."
+        ),
+        confirm_words=(
+            f"Rewrite {len(plan.steps)} archived answer(s)? It writes nothing "
+            "unless every gang's history reads the same afterwards."
+        ),
+        button_words="Apply sweep",
+        leaves_behind=_spares_left(),
     )
     return render(request, "admin/maintenance/n26/convert.html", context)
 

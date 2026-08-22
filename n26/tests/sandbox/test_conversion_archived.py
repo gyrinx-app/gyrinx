@@ -159,7 +159,7 @@ class TestTheRefusals:
         plan = plan_archived()
 
         assert not plan.ok
-        assert any("is called “Sniper”" in problem for problem in plan.problems)
+        assert any("are called “Sniper”" in problem for problem in plan.problems)
 
     def test_a_name_shared_across_slot_types_goes_to_its_own(self, world):
         """Two slot types may wear one name — the sweep places an answer
@@ -176,6 +176,93 @@ class TestTheRefusals:
         moved = Assignment.objects.get(archived=True, pickable__isnull=False)
         assert moved.pickable_id != stray.pk
         assert moved.pickable.slot_type.name == "Specialisation"
+
+
+class TestTheOtherColumns:
+    """The sweep reads the slot off the anchor, so a system's shape is
+    the anchor's shape. These are the other two it will meet: a skill
+    tree, answered on a gang-held carrier, and an archetype, answered
+    from a profile onto the gang."""
+
+    def test_a_skill_trees_answer_taken_back_moves(
+        self, default_pack, person_type, owner
+    ):
+        from n26.library.conversion import plan_skill_tree
+        from n26.tests.sandbox.test_conversion_skill_tree import (
+            build_prod_shape,
+            build_world,
+        )
+
+        shape = build_prod_shape()
+        build_world(shape, person_type, owner)
+        apply(plan_skill_tree())
+        assert Assignment.objects.filter(
+            archived=True, skill_tree__isnull=False
+        ).exists()
+
+        apply_archived(plan_archived())
+
+        # What was taken back has moved. A live spare from a doubled
+        # click stays, being nobody's history and this sweep's business.
+        assert not Assignment.objects.filter(
+            archived=True, skill_tree__isnull=False
+        ).exists()
+        moved = Assignment.objects.filter(archived=True, pickable__isnull=False)
+        assert moved.exists()
+        assert all(row.chosen_for_slot_id is not None for row in moved)
+
+    def test_an_archetypes_answer_taken_back_moves(
+        self, default_pack, person_type, owner
+    ):
+        from n26.library.conversion import plan_archetype
+        from n26.tests.sandbox.test_conversion_archetype import (
+            build_prod_shape,
+            build_world,
+        )
+
+        shape = build_prod_shape(person_type)
+        build_world(shape, owner)
+        apply(plan_archetype())
+        assert Assignment.objects.filter(
+            archived=True, archetype__isnull=False
+        ).exists()
+
+        apply_archived(plan_archived())
+
+        assert not Assignment.objects.filter(
+            archived=True, archetype__isnull=False
+        ).exists()
+        moved = Assignment.objects.filter(archived=True, pickable__isnull=False)
+        assert all(row.chosen_for_slot_id is not None for row in moved)
+
+
+class TestWhatItLeaves:
+    """A spare from a doubled click is live, not taken back, so it is
+    not this sweep's to move — and while one stands its kind cannot be
+    retired. The page that runs this says so; the plan counts them."""
+
+    def test_a_live_spare_is_not_swept(self, world):
+        gang, fighter, specialist, specs = world
+        anchor = Assignment.objects.get(subtype=specialist, miniature=fighter)
+        standing = Assignment.objects.get(
+            miniature=fighter, pickable__isnull=False, archived=False
+        )
+        # A second answer beside the one that settled it, as a doubled
+        # click leaves — made directly, the picker refusing to make one.
+        Assignment.objects.create(
+            specialisation=specs["Sniper"],
+            miniature=fighter,
+            caused_by=anchor,
+            gang_root=gang,
+        )
+
+        apply_archived(plan_archived())
+
+        spare = Assignment.objects.get(specialisation__isnull=False)
+        assert spare.archived is False
+        assert spare.pickable_id is None
+        standing.refresh_from_db()
+        assert standing.pickable_id is not None
 
 
 def _story(acts):
