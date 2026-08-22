@@ -20,8 +20,13 @@ dialog chooses, it is not trusted.
 
   id, name — the input's own.
   crop — the shape, "4:5" or "16:9", width to height.
+  submit_on_crop — confirming the crop submits the input's form, so the
+    picture lands without a second click. Only for a form that is the
+    picture's own: on a form carrying other fields it would save them
+    all. The form's own submit control, marked data-crop-fallback, is
+    hidden once the script is driving — it is the scriptless path.
 {% endcomment %}
-<c-vars id="" name="image" crop="" class="" />
+<c-vars id="" name="image" crop="" :submit_on_crop="False" class="" />
 
 <div class="n26-picture-input {{ class }}">
     <input type="file"
@@ -29,6 +34,7 @@ dialog chooses, it is not trusted.
            name="{{ name }}"
            accept="image/*"
            data-crop="{{ crop }}"
+           {% if submit_on_crop %}data-crop-submit{% endif %}
            class="block w-full text-sm text-ink-700 file:mr-3 file:rounded-control file:border file:border-ink-300 file:bg-ink-50 file:px-3 file:py-1.5 file:text-sm dark:text-ink-300 dark:file:border-ink-700 dark:file:bg-ink-800">
     <dialog data-crop-dialog
             aria-label="Crop the picture"

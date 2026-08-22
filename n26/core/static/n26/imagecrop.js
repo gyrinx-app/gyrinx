@@ -37,6 +37,14 @@
         var name = "";
         var confirmed = false;
 
+        // With the script driving, confirming the crop is the save —
+        // the form's own submit control is the scriptless path, and
+        // showing both would offer the same act twice.
+        if ("cropSubmit" in input.dataset && input.form) {
+            var fallback = input.form.querySelector("[data-crop-fallback]");
+            if (fallback) fallback.hidden = true;
+        }
+
         function settle() {
             if (cropper) {
                 cropper.destroy();
@@ -99,6 +107,17 @@
                             confirmed = true;
                         }
                         dialog.close();
+                        if (
+                            confirmed &&
+                            "cropSubmit" in input.dataset &&
+                            input.form
+                        ) {
+                            if (input.form.requestSubmit) {
+                                input.form.requestSubmit();
+                            } else {
+                                input.form.submit();
+                            }
+                        }
                     },
                     "image/jpeg",
                     0.9,

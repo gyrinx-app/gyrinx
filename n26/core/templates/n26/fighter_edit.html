@@ -123,10 +123,11 @@ is named by the page's own heading directly below.
                 <input type="hidden" name="act" value="picture">
                 <p class="mb-2 text-sm text-muted">
                     Shown from the card's picture control and printed in the
-                    card's corner. Picking a file opens the crop.
+                    card's corner. Picking a file opens the crop, and using
+                    it saves.
                 </p>
-                <c-n26.picture-input id="model-image" name="image" crop="4:5" />
-                <div class="mt-3 flex justify-end">
+                <c-n26.picture-input id="model-image" name="image" crop="4:5" :submit_on_crop="True" />
+                <div class="mt-3 flex justify-end" data-crop-fallback>
                     <c-ui.button type="submit" variant="success" size="sm">
                         Save picture
                     </c-ui.button>
