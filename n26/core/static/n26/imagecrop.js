@@ -66,7 +66,12 @@
             settle();
             name = file.name;
             confirmed = false;
-            picture.src = URL.createObjectURL(file);
+            // createObjectURL only ever mints blob: addresses; the
+            // guard states that where a checker can see it, so nothing
+            // file-derived reaches the src as anything else.
+            var address = URL.createObjectURL(file);
+            if (!address.startsWith("blob:")) return;
+            picture.src = address;
             dialog.showModal();
             cropper = new Cropper(picture, {
                 aspectRatio: ratio,
