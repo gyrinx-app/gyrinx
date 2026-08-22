@@ -65,7 +65,7 @@ Issue: https://github.com/gyrinx-app/gyrinx/issues/2165
 
 **Core side:**
 - `n26/core/models/assignment.py:41,64,68` — `ASSIGNABLE_FIELDS` (21 kinds), `HOST_FIELDS`, `Assignment`. Roots derived in `save()` — never bulk-write assignments. Membership `miniature_root` is set by hand in `hire`.
-- `Reason.DEFAULT`: `n26/core/models/ledger.py:28`. `ChosenProfileOption` / `CounterValue`: `n26/core/models/settings.py:53,82`.
+- `Reason.DEFAULT`: `n26/core/models/ledger.py:28` — the field is on **`LedgerEntry`**, so assignment lookups go via `ledger_entry__reason`. `ChosenProfileOption` / `CounterValue`: `n26/core/models/settings.py:53,82`.
 - Equip tabs: `n26/core/access.py:47,91` — a tab exists only because a live `Assignment` with `collection_id` is on the card (`access.py:119`); `n26/core/views/equip.py:410-442,209`.
 
 **Maintenance + tasks:**
@@ -91,7 +91,39 @@ non-trivial. Update the status line here on merge.
 gangs, memberships per profile, members per built-ins set, worst-case
 holders of one set. Record numbers here; they size C4 batches and decide
 how much C3 machinery is genuinely needed now vs. built minimal.
-*Status: not started.*
+*Status: DONE 2026-08-22.* Numbers (counts and shapes only):
+
+- **Estate:** 1,830 gangs (1,389 live), 9,581 miniatures, 73,537 live
+  assignments (max 157 / mean 40 per gang). 48,096 live
+  `reason=DEFAULT` assignments. ⚠ `reason` lives on **`LedgerEntry`**,
+  not `Assignment` — query via `ledger_entry__reason`. `Miniature` has
+  no `archived` field.
+- **Library:** 261 Profiles, all with `built_ins`; 487 sets, 1,737
+  members (max 13/set, mean 3.6). By kind: subtype 505, weapon 300,
+  rule 253, counter 236, skill 208, collection 98, wargear 66,
+  hidden 61, slot 6, weapon_profile 4. **Zero archived members** — C1
+  starts clean; any archived member found later is unambiguously
+  post-C1.
+- **Fan-out:** worst fighter entry = 386 live hires across 134 gangs
+  (~3 hires/gang, so per-gang batching genuinely coalesces). **The true
+  worst case is a gang type's founding set: 203 distinct gangs** (then
+  173, 163, 159, 127). 1,596 gangs hold ≥1 hired profile.
+- **Shared sets: none.** 284 holders → 284 distinct sets (Profile 261,
+  GangType 17, Weapon 2, one each Wargear/Subtype/LastingEffect/
+  Affiliation). Keep holder resolution general; build no fan-in
+  machinery.
+- **Options:** 786 `ChosenProfileOption` rows over 87 sets, max 96 per
+  set — never the worst case.
+- **C7 volume:** upper bound ~36,600 (use × member) pairs vs 48,096
+  existing DEFAULT assignments — the backfill's dominant work is
+  **tagging existing assignments with provenance**, not creating.
+  Re-measure the genuinely-missing fraction after C1 lands, before C7
+  runs.
+- **Sizing verdict:** C3 = sequential per-gang loop, committing each
+  gang, with resumability + progress + cancel; no parallelism, sharding
+  or worker pools. Estate-wide pass ≈ 37 chunks at 50 gangs/task. A
+  single set change is low hundreds of transactions. Re-runnable
+  queries in the appendix below.
 
 **C1 — Archival + provenance foundation.** Convert *every*
 default-member deletion to archival (authoring `remove_default_member`
@@ -211,3 +243,51 @@ means anything added mid-rollout is repaired by C7.
 - Never write `Assignment`/`LedgerEntry`/`LedgerEvent` outside
   `operation(...)`; never bulk-write assignments (roots derive in
   `save()`); readers skip `removes=True`.
+
+## Appendix — C0 measurement queries
+
+Single expressions for `echo '…' | manage prodshell` (IPython; one
+expression per query, read results off the `In [N]:` lines). Re-run
+before C7 to size the genuinely-missing fraction once provenance exists.
+
+```python
+from n26.core.models import Gang, Miniature, Assignment
+from n26.core.models.ledger import Reason
+from n26.core.models.settings import ChosenProfileOption
+from n26.library.models import Profile, GangType
+from n26.library.models.defaults import DefaultAssignmentSet, DefaultAssignment, DEFAULT_ASSIGNABLE_FIELDS
+from django.db.models import Count, Avg, Max
+
+# Totals
+Gang.objects.count(); Gang.objects.filter(archived=True).count()
+Assignment.objects.filter(archived=False).count()
+Assignment.objects.filter(archived=False, ledger_entry__reason=Reason.DEFAULT).count()
+Assignment.objects.filter(archived=False, profile__isnull=False).count()
+
+# Library shape
+DefaultAssignmentSet.objects.annotate(n=Count("members")).aggregate(Max("n"), Avg("n"))
+{f: DefaultAssignment.objects.filter(**{f + "__isnull": False}).count() for f in DEFAULT_ASSIGNABLE_FIELDS}
+DefaultAssignment.objects.filter(archived=True).count()
+
+# Fan-out
+per = Assignment.objects.filter(archived=False, profile__isnull=False).values("profile").annotate(n=Count("id"))
+per.count(); per.aggregate(Max("n"), Avg("n"))
+[(r["n"], Assignment.objects.filter(archived=False, profile_id=r["profile"]).values("gang_root").distinct().count()) for r in per.order_by("-n")[:5]]
+Assignment.objects.filter(archived=False).values("gang_root").annotate(n=Count("id")).aggregate(Max("n"), Avg("n"))
+Assignment.objects.filter(archived=False, gang_type__isnull=False).values("gang_type").annotate(n=Count("gang_root", distinct=True)).order_by("-n")[:5]
+
+# Shared sets (holders by assignable model)
+from django.apps import apps; from n26.library.models.assignable import Assignable; from collections import Counter
+ms = [m for m in apps.get_app_config("library").get_models() if issubclass(m, Assignable)]
+ids = [i for m in ms for i in m.objects.filter(built_ins__isnull=False).values_list("built_ins_id", flat=True)]
+c = Counter(ids); (len(ids), len(c), max(c.values()))
+
+# Options
+ChosenProfileOption.objects.count(); ChosenProfileOption.objects.values("default_set").annotate(n=Count("id")).order_by("-n").first()
+
+# Backfill upper bound (profile side; gang-type side analogous via GangType)
+prof = list(Profile.objects.filter(built_ins__isnull=False).values_list("id", "built_ins_id"))
+memb = dict(Assignment.objects.filter(archived=False, profile__isnull=False).values_list("profile").annotate(n=Count("id")).values_list("profile", "n"))
+setn = dict(DefaultAssignmentSet.objects.annotate(n=Count("members")).values_list("id", "n"))
+sum(memb.get(p, 0) * setn.get(s, 0) for p, s in prof)
+```
