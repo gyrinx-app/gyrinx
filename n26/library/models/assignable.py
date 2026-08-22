@@ -231,12 +231,14 @@ class Assignable(models.Model):
     def built_in_members(self):
         """What this always comes with, as the members of its built-ins
         set — empty when it has none yet, so a page can list without
-        checking first."""
+        checking first. An archived member is one an author took off:
+        it no longer materialises, so no surface lists it, though what
+        it already granted keeps standing."""
         from n26.library.models.defaults import DefaultAssignment
 
         if self.built_ins_id is None:
             return DefaultAssignment.objects.none()
-        return self.built_ins.members.all()
+        return self.built_ins.members.filter(archived=False)
 
     def reference_price(self, base=None):
         """The credit price a catalogue prints, before any override.

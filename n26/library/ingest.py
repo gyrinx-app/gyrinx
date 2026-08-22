@@ -1725,6 +1725,7 @@ def _wearers(plan, gang_name, subtype_key):
     for existing in Profile.objects.filter(
         pack=plan.pack,
         gang_type__name__iexact=_clean(gang_name),
+        built_ins__members__archived=False,
         built_ins__members__subtype__name__iexact=subtype_name,
     ):
         key = _profile_ref(plan, existing.name, gang_name)
@@ -2623,8 +2624,14 @@ def _built_ins_difference(plan, planned, row, resolve):
     The fighter's equipment list is the exception, because it is not
     kit: there is one of it, and naming a new one is naming a
     replacement (:data:`REPLACED_BUILT_INS`).
+
+    An archived member is off the set for this reading: the sheet
+    naming its thing again measures as an addition, exactly what the
+    performer will do.
     """
-    stored = {member.assignable.pk: member for member in row.members.all()}
+    stored = {
+        member.assignable.pk: member for member in row.members.filter(archived=False)
+    }
     added, changed, named = [], [], set()
     for member in planned.fields["members"]:
         said = _planned_said(plan, member["item"])
@@ -3016,13 +3023,18 @@ class _Performer:
         defines are added by hand, precisely because an import cannot
         bring them, and replacing the set would delete exactly that on
         every re-upload. A fighter buys from one list, though, so a
-        sheet naming a list is naming the only one there is.
+        sheet naming a list is naming the only one there is — and the
+        superseded one is archived rather than deleted, because every
+        copy it materialised names it as its provenance. An archived
+        member is off the set for this reading too: a sheet naming its
+        thing again is adding it afresh.
         """
         from n26.library import authoring
 
         row = self._the_row_the_preview_described(planned)
-        held = {member.assignable.pk: member for member in row.members.all()}
-        position = row.members.count()
+        live = row.members.filter(archived=False)
+        held = {member.assignable.pk: member for member in live}
+        position = live.count()
         named = set()
         for member in planned.fields["members"]:
             thing = self.resolve(member["item"])
@@ -3039,7 +3051,7 @@ class _Performer:
         for member in _superseded_built_ins(
             planned.fields["members"], held.values(), named
         ):
-            member.delete()
+            member.archive()
         return row
 
     # -- one creator per kind, each a thin call into library.authoring ------

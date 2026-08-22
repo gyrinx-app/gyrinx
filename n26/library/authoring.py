@@ -1036,7 +1036,7 @@ def add_default_member(
 
     _refuse_a_bare_pickable(thing)
     if position is None:
-        position = default_set.members.count()
+        position = default_set.members.filter(archived=False).count()
     member = DefaultAssignment(
         default_set=default_set,
         assignable=thing,
@@ -1056,10 +1056,12 @@ def add_default_member(
 def remove_default_member(member):
     """Take one thing back out of a set of defaults.
 
-    Only the membership goes. The thing named — the weapon, the skill,
-    the equipment list — stays in the library untouched, and so does
-    the set, even when this was its last member: a carrier that comes
-    with nothing still has somewhere to put the next thing.
+    Only the membership goes, and it is archived rather than deleted:
+    every copy it materialised names it as its provenance, so the row
+    must survive for those copies' sake. The thing named — the weapon,
+    the skill, the equipment list — stays in the library untouched, and
+    so does the set, even when this was its last member: a carrier that
+    comes with nothing still has somewhere to put the next thing.
 
     Ammo lines go with their gun (``dependent_members``), because a
     weapon profile left behind names a weapon nothing brings.
@@ -1069,8 +1071,8 @@ def remove_default_member(member):
     changes what future acquisitions come with.
     """
     for dependent in member.dependent_members:
-        dependent.delete()
-    member.delete()
+        dependent.archive()
+    member.archive()
 
 
 def offer_option(
