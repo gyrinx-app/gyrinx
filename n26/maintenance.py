@@ -60,6 +60,7 @@ __all__ = [
     "convert_skill_tree",
     "convert_specialisation",
     "delete_nameless_gang_type",
+    "delete_retired_kinds",
     "retire_gang_legacy_pilot",
     "task_routes",
 ]
@@ -118,6 +119,10 @@ class Operation(models.TextChoices):
         "n26_clear_spare_answers",
         "n26: the answers a doubled click left behind are cleared",
     )
+    DELETE_RETIRED_KINDS = (
+        "n26_delete_retired_kinds",
+        "n26: what the conversions left standing is deleted",
+    )
     MERGE_WARGEAR_INTO_WEAPON = (
         "n26_merge_wargear_into_weapon",
         "n26: duplicated wargear becomes its weapon",
@@ -134,6 +139,7 @@ LOCK_KEYS = {
     Operation.DELETE_NAMELESS_GANG_TYPE: 826_020_606,
     Operation.SWEEP_ARCHIVED: 826_020_607,
     Operation.CLEAR_SPARE_ANSWERS: 826_020_608,
+    Operation.DELETE_RETIRED_KINDS: 826_020_609,
 }
 
 
@@ -396,6 +402,25 @@ def clear_spare_answers(backfill_id, **said_by_whoever_enqueued_it):
     )
 
 
+@task
+def delete_retired_kinds(backfill_id, **said_by_whoever_enqueued_it):
+    """Delete what the conversions left standing, and record it.
+
+    The runner discipline of a conversion around work that deletes
+    library rows only. Nothing a player holds is touched, which is why
+    what it proves is that no page moves at all.
+    """
+    from n26.library.retired_kinds import Refused, apply, find
+
+    _run_recorded(
+        backfill_id,
+        Operation.DELETE_RETIRED_KINDS,
+        "Retired kinds deletion",
+        lambda: apply(find()),
+        Refused,
+    )
+
+
 def _who_asked(backfill_id):
     """The operator a run acts as, for the history it writes.
 
@@ -584,6 +609,25 @@ SPARE_WORDS = {
     "refuses_heading": "The clearing refuses",
     "button": "Clear the spares",
     "confirm": "Delete these spare answers? This cannot be undone.",
+}
+
+RETIRED_KIND_WORDS = {
+    "noun": "deletion",
+    "intro": (
+        "This deletes library rows and nothing a player holds: the kind rows "
+        "the conversions emptied, the menus those kinds were chosen from, and "
+        "the offers nothing carries. Every row it would delete is listed "
+        "below, along with anything it leaves alone and why. Because none of "
+        "it is in use, no page should move at all — and that is what it "
+        "proves before committing. It refuses while any answer still names a "
+        "retired kind, which the sweep and the clearing deal with first."
+    ),
+    "nothing_heading": "Nothing to delete",
+    "nothing_flash": "There was nothing to delete.",
+    "nothing_words": "The retired kinds have gone already.",
+    "refuses_heading": "The deletion refuses",
+    "button": "Delete what is left",
+    "confirm": "Delete these library rows? This cannot be undone.",
 }
 
 NAMELESS_WORDS = {
@@ -782,6 +826,19 @@ def clear_spare_answers_view(request):
     )
 
 
+def delete_retired_kinds_view(request):
+    """Preview the deletion (GET), or record a run and enqueue it."""
+    from n26.library.retired_kinds import find
+
+    return _deletion_view(
+        request,
+        Operation.DELETE_RETIRED_KINDS,
+        find,
+        delete_retired_kinds,
+        RETIRED_KIND_WORDS,
+    )
+
+
 def delete_nameless_gang_type_view(request):
     """Preview the deletion (GET), or record a run and enqueue it."""
     from n26.library.nameless_gang_type import find
@@ -925,6 +982,21 @@ register_operation(
     )
 )
 
+register_operation(
+    MaintenanceOperation(
+        operation=Operation.DELETE_RETIRED_KINDS.value,
+        name=Operation.DELETE_RETIRED_KINDS.label,
+        description=(
+            "Delete what the conversions left behind: the emptied kind rows, "
+            "the menus nothing offers from, and the detached offers. All "
+            "library, none of it in use, so it proves that no page moves at "
+            "all. Runs after the sweep and the clearing, which take the last "
+            "answers off those kinds."
+        ),
+        view=delete_retired_kinds_view,
+    )
+)
+
 #: Declared for the task registry, which reads this from ``n26/core/tasks.py``.
 #: The deadline is the longest Pub/Sub allows, because a conversion holds one
 #: transaction for as long as proving its spread of gangs takes. It is also
@@ -942,6 +1014,7 @@ task_routes = [
     TaskRoute(delete_nameless_gang_type, ack_deadline=600, min_retry_delay=60),
     TaskRoute(sweep_archived, ack_deadline=600, min_retry_delay=60),
     TaskRoute(clear_spare_answers, ack_deadline=600, min_retry_delay=60),
+    TaskRoute(delete_retired_kinds, ack_deadline=600, min_retry_delay=60),
 ]
 
 
