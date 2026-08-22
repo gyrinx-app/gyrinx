@@ -91,7 +91,9 @@ class TestSavingNotes:
 
     def test_the_owner_saves_and_lands_back_here(self, client, tester, gang, vex):
         client.force_login(tester)
-        response = client.post(edit_url(vex), {"notes": "<p>Owes Kaine a favour.</p>"})
+        response = client.post(
+            edit_url(vex), {"act": "notes", "notes": "<p>Owes Kaine a favour.</p>"}
+        )
         assert response.status_code == 302
         assert response.url == edit_url(vex)
         vex.refresh_from_db()
@@ -102,14 +104,14 @@ class TestSavingNotes:
     def test_notes_move_no_money(self, client, tester, gang, vex):
         client.force_login(tester)
         before = LedgerEntry.objects.count()
-        client.post(edit_url(vex), {"notes": "<p>New base needed.</p>"})
+        client.post(edit_url(vex), {"act": "notes", "notes": "<p>New base needed.</p>"})
         assert LedgerEntry.objects.count() == before
 
     def test_an_emptied_box_clears_them(self, client, tester, gang, vex):
         vex.notes = "<p>Old words.</p>"
         vex.save(update_fields=["notes"])
         client.force_login(tester)
-        client.post(edit_url(vex), {"notes": ""})
+        client.post(edit_url(vex), {"act": "notes", "notes": ""})
         vex.refresh_from_db()
         assert vex.notes == ""
 
@@ -117,14 +119,19 @@ class TestSavingNotes:
         """Stored as written, sanitised on the way out: the page carries
         the words, never the tag."""
         client.force_login(tester)
-        client.post(edit_url(vex), {"notes": "<script>alert(1)</script><p>fine</p>"})
+        client.post(
+            edit_url(vex),
+            {"act": "notes", "notes": "<script>alert(1)</script><p>fine</p>"},
+        )
         body = client.get(edit_url(vex)).content.decode()
         assert "<script>alert(1)</script>" not in body
         assert "fine" in body
 
     def test_a_stranger_saves_nothing(self, client, gang, vex):
         client.force_login(User.objects.create_user("someone-else"))
-        response = client.post(edit_url(vex), {"notes": "<p>mine now</p>"})
+        response = client.post(
+            edit_url(vex), {"act": "notes", "notes": "<p>mine now</p>"}
+        )
         assert response.status_code == 404
         vex.refresh_from_db()
         assert vex.notes == ""
@@ -185,7 +192,7 @@ class TestThePicture:
         self, client, tester, gang, vex, own_storage
     ):
         client.force_login(tester)
-        client.post(edit_url(vex), {"notes": "", "image": png_upload()})
+        client.post(edit_url(vex), {"act": "notes", "notes": "", "image": png_upload()})
         vex.refresh_from_db()
         assert vex.image.name.startswith("model-images/")
         assert LedgerEvent.objects.filter(
@@ -196,8 +203,8 @@ class TestThePicture:
 
     def test_the_box_alone_removes_it(self, client, tester, gang, vex, own_storage):
         client.force_login(tester)
-        client.post(edit_url(vex), {"notes": "", "image": png_upload()})
-        client.post(edit_url(vex), {"notes": "", "remove_image": "on"})
+        client.post(edit_url(vex), {"act": "notes", "notes": "", "image": png_upload()})
+        client.post(edit_url(vex), {"act": "notes", "notes": "", "remove_image": "on"})
         vex.refresh_from_db()
         assert not vex.image
         assert LedgerEvent.objects.filter(
@@ -208,10 +215,10 @@ class TestThePicture:
         self, client, tester, gang, vex, own_storage
     ):
         client.force_login(tester)
-        client.post(edit_url(vex), {"notes": "", "image": png_upload()})
+        client.post(edit_url(vex), {"act": "notes", "notes": "", "image": png_upload()})
         vex.refresh_from_db()
         held = vex.image.name
-        client.post(edit_url(vex), {"notes": "<p>New base needed.</p>"})
+        client.post(edit_url(vex), {"act": "notes", "notes": "<p>New base needed.</p>"})
         vex.refresh_from_db()
         assert vex.image.name == held
 
@@ -224,6 +231,7 @@ class TestThePicture:
         response = client.post(
             edit_url(vex),
             {
+                "act": "notes",
                 "notes": "<p>Typed beside the bad file.</p>",
                 "image": SimpleUploadedFile(
                     "story.txt", b"not a picture", content_type="text/plain"

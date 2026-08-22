@@ -390,7 +390,7 @@ def edit_fighter(request, pk):
             record(request, N26Noun.MODEL, EventVerb.UPDATE, miniature, lore=True)
             messages.success(request, "Lore saved.")
         return redirect("n26-edit-fighter", pk=miniature.pk)
-    elif request.method == "POST" and request.POST.get("act", "notes") == "notes":
+    elif request.method == "POST" and request.POST.get("act") == "notes":
         form = FighterNotesForm(request.POST, request.FILES)
         if form.is_valid():
             with operation(gang, actor=request.user) as op:
