@@ -20,6 +20,7 @@ from gyrinx.maintenance.models import Backfill
 from gyrinx.maintenance.registry import operations, resolve_operation
 from n26.core.models import Assignment
 from n26.core.reconcile import assert_reconciled
+from n26.library.models import Specialisation
 from n26.maintenance import (
     MAX_ATTEMPTS,
     Operation,
@@ -132,6 +133,9 @@ class TestThePage:
         assert response.status_code == 200
         assert "create slot type “Specialisation”" in page
         assert "prove 2 of 2 reached gangs read the same" in page
+        # The conversions keep their own guarantee on the shared page.
+        assert "a spread wide enough to hold every shape" in page
+        assert "Apply conversion" in page
         assert not Backfill.objects.exists()
         assert Assignment.objects.filter(specialisation__isnull=False).exists()
 
@@ -365,6 +369,47 @@ class TestTheArchivedSweep:
         assert Assignment.objects.filter(
             specialisation__isnull=False, archived=True
         ).exists()
+
+    def test_its_page_says_what_this_run_actually_proves(
+        self, client, superuser, swept_world
+    ):
+        """The page is shared with the conversions, whose guarantee is a
+        different one: a spread of gangs, read on their pages. Somebody
+        about to rewrite hundreds of rows is told what protects them."""
+        client.force_login(superuser)
+
+        page = client.get(
+            reverse("admin:maintenance_n26_sweep_archived")
+        ).content.decode()
+
+        assert "proves every one of them, not a spread" in page
+        assert "history rather than its pages" in page
+        assert "Apply sweep" in page
+        assert "a spread wide enough to hold every shape" not in page
+
+    def test_its_page_counts_what_it_leaves_behind(
+        self, client, superuser, swept_world, person_type
+    ):
+        """A live spare is not this sweep's to move, and the page says
+        so — the kinds cannot be retired while one stands."""
+        _, fighters = swept_world
+        settled = Assignment.objects.filter(
+            pickable__isnull=False, archived=False
+        ).first()
+        Assignment.objects.create(
+            specialisation=Specialisation.objects.first(),
+            miniature=settled.miniature,
+            caused_by=settled.caused_by,
+            gang_root=settled.gang_root,
+        )
+        client.force_login(superuser)
+
+        page = client.get(
+            reverse("admin:maintenance_n26_sweep_archived")
+        ).content.decode()
+
+        assert "1 live answer still name" in page
+        assert "left as they are" in page
 
     def test_applying_leaves_nothing_naming_the_old_kind(
         self, client, superuser, swept_world
