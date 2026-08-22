@@ -298,6 +298,29 @@ class Assignment(NamesAnAssignable, Base, Archived):
         related_name="+",
     )
 
+    # Which built-in membership this materialised, and for which carrier
+    # — the profile's membership, the gang's founding, the bought mount's
+    # own assignment. Null on everything that was not materialised from a
+    # set: purchases, rewards, picks, and every assignment written before
+    # provenance was recorded. The pair is what says a member is already
+    # satisfied on a carrier, so nothing infers it from reasons or
+    # newest-first ordering. PROTECT holds because a member is only ever
+    # archived, never deleted, once anything has materialised from it.
+    materialised_from = models.ForeignKey(
+        "library.DefaultAssignment",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    materialised_for = models.ForeignKey(
+        "self",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+
     # Denormalised roots, maintained in save().
     gang_root = models.ForeignKey(
         "n26.Gang",
@@ -348,6 +371,14 @@ class Assignment(NamesAnAssignable, Base, Archived):
                     & (models.Q(subtype__isnull=False) | models.Q(rule__isnull=False))
                 ),
                 name="assignment_removes_names_subtype_or_rule",
+            ),
+            # One live copy per member per carrier. Archived copies stay
+            # out of it, so an owner who parts with a grant may see it
+            # rematerialised deliberately without the old record blocking.
+            models.UniqueConstraint(
+                fields=["materialised_from", "materialised_for"],
+                condition=models.Q(archived=False),
+                name="assignment_one_live_materialisation",
             ),
         ]
         indexes = [
