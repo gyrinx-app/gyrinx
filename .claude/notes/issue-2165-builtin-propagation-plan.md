@@ -187,7 +187,8 @@ redelivery), gang-hosted founding sets, stash-hosted, legacy-profile
 matching rule does NOT block (duplicate accepted — D3); archived copy
 blocks (D4); `removes=True` preserved (D9); every case ends
 `assert_reconciled(gang)` **after `refresh_from_db`** (stale-pin gotcha).
-*Status: IN PROGRESS 2026-08-23, branch `issue-2165-c2-reconcile`.*
+*Status: BUILT 2026-08-23, branch `issue-2165-c2-reconcile`, PR open —
+awaiting review + a ruling on two oracle-driven deviations (below).*
 Architecture settled (chosen over a minimal in-place refactor): a
 **plan/apply split**. Pure `plan_defaults(carrier)` + `ReconcileOutcome`
 in new `n26/core/builtins.py` (satisfaction predicate `copies_of` lives
@@ -205,6 +206,24 @@ resolution; migration `n26.0022` adds CheckConstraint
 cost feeds C3's batch sizing. Also noted: `buy()` DOES materialise
 built-ins for option-capable kinds — D8's asymmetry is only the kinds
 without `resolve_selection`.
+Two implementation deviations, forced by the existing suites (the
+stated oracle), flagged to the maintainer:
+(1) `plan_defaults`/`reconcile_defaults` take `fresh=` — sets being
+taken right now, judged by LIVE copies only. Without it, rechoosing
+back to a formerly-held set finds its refund-archived copies
+"satisfied" (D4) and the player pays the delta for nothing; D4 stands
+unchanged everywhere else.
+(2) The ammo fallback keeps its old shape (any live same-host
+assignment of the weapon, newest first, NO provenance filter): with
+`built_ins=False` the plan cannot see the built-in gun, so the
+provenance-null fallback specified in review breaks
+`test_an_arriving_sets_ammo_lands_under_the_standing_gun` and the
+cross-carrier buy-ammo-for-a-hired-gun case.
+For C4/C5/C6: bare propagation reconciles must pass `strict=False`
+(orphan ammo lands in `outcome.skipped`, never raises) and never pass
+`fresh`; C5's preview calls `plan_defaults(carrier)` directly; the
+per-member satisfaction check is one EXISTS query (mean 3.6
+members/set), so a per-gang batch is tens of cheap queries.
 
 **C3 — Chunked maintenance runner.** Generic per-gang resumable batch
 support in `n26/maintenance.py` (D7): batches commit independently,
