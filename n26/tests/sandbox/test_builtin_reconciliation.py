@@ -243,10 +243,11 @@ class TestWeaponsArriveWhole:
 
 
 class TestAmmoFindsItsGun:
-    """A weapon-profile member stacks on a gun's assignment, and each
-    weapon member keeps a gun of its own."""
+    """A weapon-profile member stacks on a gun's assignment. An anchored
+    member names its gun member and lands on that member's own copy; an
+    unanchored one rides whatever matching gun the host holds."""
 
-    def test_twin_members_of_one_weapon_feed_their_own_guns(
+    def test_anchored_twins_each_feed_their_own_gun(
         self, gang, person_type, gang_type, default_pack
     ):
         launcher = create_weapon("Launcher", profiles=[("Frag", 0)])
@@ -257,27 +258,109 @@ class TestAmmoFindsItsGun:
             name="Choke", weapon=launcher, price=10, position=2
         )
         profile = create_profile("Twin gunner", person_type, gang_type, price=50)
-        add_built_in(profile, launcher)
-        add_built_in(profile, launcher)
-        add_built_in(profile, smoke)
-        add_built_in(profile, choke)
+        gun_one = add_built_in(profile, launcher)
+        gun_two = add_built_in(profile, launcher)
+        add_built_in(profile, smoke, gun_member=gun_one)
+        add_built_in(profile, choke, gun_member=gun_two)
 
         fighter = hire(gang, profile, "Ana", paid=50)
 
-        guns = Assignment.objects.filter(
-            miniature_root=fighter, weapon=launcher, archived=False
+        membership = fighter.membership
+        first_gun = Assignment.objects.get(
+            materialised_from=gun_one, materialised_for=membership
         )
-        assert guns.count() == 2
+        second_gun = Assignment.objects.get(
+            materialised_from=gun_two, materialised_for=membership
+        )
         smoke_copy = Assignment.objects.get(
             weapon_profile=smoke, miniature_root=fighter, archived=False
         )
         choke_copy = Assignment.objects.get(
             weapon_profile=choke, miniature_root=fighter, archived=False
         )
-        assert smoke_copy.parent_id != choke_copy.parent_id
+        # Neither gun starves: each line sits on the gun its member names.
+        assert smoke_copy.parent_id == first_gun.pk
+        assert choke_copy.parent_id == second_gun.pk
 
         outcome = reconcile(gang, fighter.membership)
         assert outcome.created == []
+        gang.refresh_from_db()
+        assert_reconciled(gang)
+
+    def test_a_twin_add_without_an_anchor_is_refused_in_words(
+        self, gang, person_type, gang_type, default_pack
+    ):
+        """Two matching gun members and no anchor is unanswerable, so
+        the verb refuses rather than deciding which gun for good."""
+        from django.core.exceptions import ValidationError
+
+        launcher = create_weapon("Launcher", profiles=[("Frag", 0)])
+        smoke = WeaponProfile.objects.create(
+            name="Smoke", weapon=launcher, price=10, position=1
+        )
+        profile = create_profile("Twin gunner", person_type, gang_type, price=50)
+        add_built_in(profile, launcher)
+        add_built_in(profile, launcher)
+
+        with pytest.raises(ValidationError) as refusal:
+            add_built_in(profile, smoke)
+        assert "which gun" in str(refusal.value)
+
+    def test_a_single_gun_add_anchors_itself(
+        self, gang, person_type, gang_type, default_pack
+    ):
+        """With one matching gun member there is nothing to ask — the
+        add settles on it, the way an import resolves."""
+        launcher = create_weapon("Launcher", profiles=[("Frag", 0)])
+        smoke = WeaponProfile.objects.create(
+            name="Smoke", weapon=launcher, price=10, position=1
+        )
+        profile = create_profile("Gunner", person_type, gang_type, price=50)
+        gun_member = add_built_in(profile, launcher)
+
+        member = add_built_in(profile, smoke)
+
+        assert member.gun_member_id == gun_member.pk
+
+    def test_a_set_founded_whole_anchors_its_lines(self, default_pack):
+        """Founding a set with a gun and its line in one statement —
+        what an import does — settles the anchor the same way an add
+        does: every member goes through the one verb."""
+        launcher = create_weapon("Launcher", profiles=[("Frag", 0)])
+        smoke = WeaponProfile.objects.create(
+            name="Smoke", weapon=launcher, price=10, position=1
+        )
+
+        default_set = create_default_set("Gun kit", members=[launcher, smoke])
+
+        line = default_set.members.get(weapon_profile=smoke)
+        assert line.gun_member == default_set.members.get(weapon=launcher)
+
+    def test_an_anchored_line_never_rides_a_hand_given_gun(
+        self, gang, person_type, gang_type, default_pack
+    ):
+        """The anchor is a receipt, not a preference: with the built-in
+        gun's copy removed, the line is skipped rather than rehomed onto
+        another gun of the same type the owner holds."""
+        launcher = create_weapon("Launcher", profiles=[("Frag", 0)])
+        smoke = WeaponProfile.objects.create(
+            name="Smoke", weapon=launcher, price=10, position=1
+        )
+        profile = create_profile("Gunner", person_type, gang_type, price=50)
+        gun_member = add_built_in(profile, launcher)
+        fighter = hire(gang, profile, "Ana", paid=50)
+        give_weapon(fighter, launcher)
+        remove(
+            Assignment.objects.get(
+                materialised_from=gun_member, materialised_for=fighter.membership
+            )
+        )
+        ammo_member = add_built_in(profile, smoke, gun_member=gun_member)
+
+        outcome = reconcile(gang, fighter.membership, strict=False)
+
+        assert [entry.member for entry, _ in outcome.skipped] == [ammo_member]
+        assert not Assignment.objects.filter(weapon_profile=smoke).exists()
         gang.refresh_from_db()
         assert_reconciled(gang)
 

@@ -764,7 +764,12 @@ def build_card_from_profile(profile, option=None, base=None):
         reason=Reason.BOUGHT,
     )
     roots = [root]
-    weapon_nodes = {}
+    #: The gun each weapon member brings, by the member — an anchored
+    #: ammo line names its member, so twins stay distinct.
+    member_guns = {}
+    #: The last-arrived gun of each weapon, for an ammo line that names
+    #: no member and rides whatever matching gun the hire brings.
+    latest_guns = {}
     ammo = []
 
     for default_set in (profile.built_ins, *taken):
@@ -780,7 +785,7 @@ def build_card_from_profile(profile, option=None, base=None):
             if assignable is None:
                 continue
             if isinstance(assignable, WeaponProfile):
-                ammo.append(assignable)
+                ammo.append(member)
                 continue
             node = Node(
                 assignable=assignable,
@@ -803,7 +808,8 @@ def build_card_from_profile(profile, option=None, base=None):
                     for weapon_profile in assignable.profiles.all()
                     if weapon_profile.price == 0
                 )
-                weapon_nodes[assignable.pk] = node
+                member_guns[member.pk] = node
+                latest_guns[assignable.pk] = node
             roots.append(node)
             if member.default_pickable_id is not None:
                 # A slot arriving already settled: the preview draws the
@@ -820,9 +826,15 @@ def build_card_from_profile(profile, option=None, base=None):
                 )
 
     # Bundled ammo stacks under its weapon, wherever in the selection the
-    # weapon arrived — the same order of business as the hire itself.
-    for weapon_profile in ammo:
-        host = weapon_nodes.get(weapon_profile.weapon_id)
+    # weapon arrived — the same order of business as the hire itself: a
+    # member naming its gun lands on that member's own node, one naming
+    # none on the last-arrived gun of its weapon.
+    for member in ammo:
+        weapon_profile = member.assignable
+        if member.gun_member_id is not None:
+            host = member_guns.get(member.gun_member_id)
+        else:
+            host = latest_guns.get(weapon_profile.weapon_id)
         if host is None:
             raise ValueError(
                 f"{profile.name} grants {weapon_profile}, but nothing in "
