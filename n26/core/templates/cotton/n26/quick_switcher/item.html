@@ -20,10 +20,11 @@ the first row still showing with a rule above nothing.
 
   label — what the row says, and what the filter matches against.
   href — where it goes.
+  title — the full name behind a shortened label, as the row's tooltip.
   icon — a c-n26.icon name before the label.
   :current — this is the thing the switcher is currently on.
 {% endcomment %}
-<c-vars label="" href="" icon="" :current="False" class="" />
+<c-vars label="" href="" title="" icon="" :current="False" class="" />
 
 {% comment %}
 register, matches, highlight, active and close all live above this row in the
@@ -36,6 +37,7 @@ hover uses; two plain background utilities are settled by the order Tailwind
 emitted them, so this one is marked important.
 {% endcomment %}
 <a href="{{ href }}"
+   {% if title %}title="{{ title }}"{% endif %}
    role="menuitem"
    x-data="{ id: '', facets: { search: {{ label|lower|json_dumps }} } }"
    x-init="id = register($el, facets)"

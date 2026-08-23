@@ -681,7 +681,12 @@ GROUPS: list[Group] = [
                 notes=(
                     "You write only the panels — the buttons are generated from the "
                     "panels that register themselves, using each one's name as its "
-                    "label. The first panel wins unless you set :default_tab."
+                    "label. The first panel wins unless you set :default_tab. The "
+                    "default variant's strip never wraps: below the sm breakpoint "
+                    "the open tab stands alone with the rest behind a "
+                    "quick-switcher. The segmented variant keeps the kit's own "
+                    "single strip — .n26-card-tabs in app.css addresses its DOM "
+                    "shape by position, so nothing may wrap it."
                 ),
                 parts=(
                     Part(
@@ -912,13 +917,33 @@ GROUPS: list[Group] = [
                 tag="c-n26.tab-links",
                 template="n26/tab_links.html",
                 summary="A tab strip whose tabs are links, for a choice the server makes.",
+                needs=(ALPINE, KIT_JS),
                 notes=(
                     "These navigate — c-ui.tabs is the one that switches panels "
                     "already on the page — so the choice is a URL, linkable and in "
                     "the history. Only the current tab has been rendered, so a tab "
                     "carries no count. Drawn as a nav with aria-current rather than "
                     "role=tablist, which would promise arrow keys and a panel swapping "
-                    "underneath. The strip wraps rather than scrolling sideways."
+                    "underneath. Built on c-n26.tab-strip, so it never wraps: below "
+                    "the sm breakpoint the current tab stands alone with the rest "
+                    "behind a quick-switcher, whose panel needs script — a noscript "
+                    "strip repeats the same links flat."
+                ),
+            ),
+            Component(
+                slug="tab-strip",
+                tag="c-n26.tab-strip",
+                template="n26/tab_strip.html",
+                summary="The never-wrap skeleton behind a tab strip.",
+                notes=(
+                    "Two containers switched at the sm breakpoint — the window's "
+                    "width, not the box it sits in: every tab in the full slot from "
+                    "sm up, the current tab plus a c-n26.quick-switcher in the "
+                    "narrow slot below it. Owns no tab markup and no state; the "
+                    "caller fills both slots and wires the switcher. The rule under "
+                    "each strip comes from the tabs' own 2px bottom borders plus a "
+                    "trailing spacer — give every slotted tab a border-b-2 or the "
+                    "line breaks under it."
                 ),
             ),
             Component(

@@ -1,0 +1,52 @@
+{% comment %}
+<c-n26.tab-strip> — the never-wrap skeleton behind a tab strip: every tab
+from the sm breakpoint up, the current one alone with the rest behind a
+switcher below it.
+
+    <c-n26.tab-strip>
+        <c-slot name="full">…every tab, drawn in full…</c-slot>
+        <c-slot name="narrow">…the current tab, then a c-n26.quick-switcher
+            holding the rest…</c-slot>
+    </c-n26.tab-strip>
+
+A pure breakpoint, never a measurement: nothing here watches width, so
+nothing here can mis-measure it. The split is the window, not the box this
+sits in — a strip in a narrow column still draws every tab while the window
+is wide.
+
+Owns only the two containers and the rule under each — never a tab, what
+makes one current, or how a switcher's rows are wired. A tab is an <a> in
+one caller and an Alpine-registered <button> in another, and neither shape
+belongs here. Put the caller's own landmark (a nav, a role) around this
+component; a slot is content, not a wrapper, so there is no single root for
+a class to land on — adjust each strip with full_class / narrow_class.
+
+The rule under each strip is the tabs' own bottom borders made one line,
+plus a trailing span carrying it across the width the tabs do not fill — a
+rule on the container with the current tab's border pulled over it lands a
+pixel proud and reads as a double line. order-last on both spacers: a slot
+built from an x-for appends its clones at the end of the container, so a
+span written after the template would otherwise land in front of them.
+
+  full — every tab, shown from the sm breakpoint up.
+  narrow — the current tab alone, and a c-n26.quick-switcher for the rest.
+    Shown below sm.
+  full_class — classes for the wide container.
+  narrow_class — classes for the narrow container.
+{% endcomment %}
+<c-vars full_class="" narrow_class="" />
+
+{% comment %}
+The containers keep the default stretch alignment: every tab and both
+spacers fill the row's height, so their bottom borders meet as one line.
+Centring the items instead floats a short item's border up into the text.
+A tab centres its own words with items-center of its own.
+{% endcomment %}
+<div class="hidden flex-wrap gap-x-1 sm:flex {{ full_class }}">
+    {{ full }}
+    <span aria-hidden="true" class="order-last min-w-0 flex-1 border-b-2 border-box-border"></span>
+</div>
+<div class="relative flex flex-wrap gap-x-1 sm:hidden {{ narrow_class }}">
+    {{ narrow }}
+    <span aria-hidden="true" class="order-last min-w-0 flex-1 border-b-2 border-box-border"></span>
+</div>

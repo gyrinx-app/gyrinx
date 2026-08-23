@@ -147,15 +147,22 @@ everything else is shrink-0, so the actions stay put and stay hittable.
     URL-open details are rendered directly so they remain available without
     JavaScript.
     {% endcomment %}
+    {% comment %}
+    The details block imposes no indent of its own: what opens here ranges
+    from a bordered card that draws its own edge — where an indent reads as
+    a layout mistake — to a plain list of lines that needs one to say it
+    belongs to the row above. Content that needs the step brings its own
+    n26-cp-inset.
+    {% endcomment %}
     {% if details %}
         {% if open %}
             <div x-show="expanded" x-collapse>
-                <div class="n26-cp-inset pb-2 pt-1">{{ details }}</div>
+                <div class="pb-2 pt-1">{{ details }}</div>
             </div>
         {% else %}
             <div x-show="expanded" x-collapse x-cloak>
                 <template x-if="expanded">
-                    <div class="n26-cp-inset pb-2 pt-1">{{ details }}</div>
+                    <div class="pb-2 pt-1">{{ details }}</div>
                 </template>
             </div>
         {% endif %}
