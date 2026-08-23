@@ -11,18 +11,29 @@ is public.
 
 ## Where it stands
 
+**The three retired kinds are gone from production.** Verified there on
+2026-08-23: no Archetype, SkillTree or Specialisation row remains, and
+nothing anywhere names one — no assignment, no menu entry, no offer.
+
 | | |
 |---|---|
-| The five conversions (Paths, Specialisation, Skill Trees, Gang Legacies, Archetypes) | run in production |
-| The gang legacy slot pilot | retired in production |
+| The five conversions (Paths, Specialisation, Skill Trees, Gang Legacies, Archetypes) | run |
+| The gang legacy slot pilot | retired |
+| The archived-answers sweep | run — 399 answers, 169 gangs |
+| The spares a doubled click left | cleared — 4 answers, 3 gangs |
+| What the conversions left standing | deleted — 26 kind rows, 22 menu entries, 4 menus, 6 modifiers, 1 marker |
 | A superuser may delete player data in the admin | merged |
 | A doubled click no longer answers a question twice | merged |
 | The authoring menu no longer offers the retired kinds | merged |
-| The archived-answers sweep | open, reviewed, CI green |
+
+Three things were kept on purpose and are named on the deletion's own
+page: the two markers profiles are built with, and the marker a live
+profile still asks through.
 
 ## What the conversions left
 
-Measured against production, 2026-08-22:
+Measured against production on 2026-08-22, before any of it was cleared.
+Kept as the record of what the three operations above actually faced:
 
 - **26 emptied kind rows** — 12 Archetype, 6 SkillTree, 8 Specialisation.
   One archetype still carries a modifier (the house legacy the menu
@@ -45,7 +56,7 @@ Measured against production, 2026-08-22:
 
 ## The order
 
-### Wave 1 — done bar one
+### Wave 1 — done bar the timeout revert
 
 1. ~~The double-submit fix.~~ Merged. It was a genuine race: the picker
    replaced what stood, but decided that from the page it had drawn, so
@@ -66,22 +77,32 @@ Measured against production, 2026-08-22:
 4. **The timeout revert** — not started. The Cloud Run request timeout
    and the task ack deadline move together or not at all. Raised for a
    conversion that took eighteen minutes; conversions now take seconds.
-5. **Squat legacies** (content, in the admin, the maintainer's): re-offer
-   Ironhead Squat as a Gang Legacy pickable, and grant the slot to the
-   three Squat Hunt profiles, which carry no legacy question. Also
-   empties the last archetype row still carrying anything.
+5. ~~Squat legacies.~~ Done, and it was already done before this plan
+   named it: the Ironhead Squat and Ogryn pickables and the six built-ins
+   that answer them were authored on 2026-08-19. Neither is in the House
+   Legacies picklist, which is right — a Squat or Ogryn crew's legacy is
+   not chosen, it arrives with the profile.
 
-### Wave 2 — the library cleanup
+   What remained was one leftover: the old Archetype row still carried
+   the equipment-list modifier, which the *pickable* also carried. Nothing
+   named the row and nothing was at risk, but the deletion refuses a kind
+   row that carries anything. Detaching the modifier from the archetype
+   (the authoring page still resolves; only the menu retired it) left the
+   modifier on the pickable and the row deletable.
+
+### Wave 2 — the library cleanup, run
 
 Two operations rather than one, because they carry different risks and
-the second cannot run until the first has.
+the second could not run until the first had. Both have now run.
 
-6. **Clear the spares.** Four live answers a doubled click left beside
-   the one that settled the question, on three gangs. Each draws a line
-   on a model's gear list named after the question rather than after
-   anything owned. Found by query: live, not `removes`, naming an old
-   kind, with a settled sibling on the same anchor, carrying no money
-   and no worth, nothing hanging off it.
+6. ~~Clear the spares.~~ Run: 4 answers on 3 gangs, in 11 seconds.
+
+   Each was a live answer a doubled click left beside the one that
+   settled the question, drawing a line on a model's gear list named
+   after the question rather than after anything owned. Found by query:
+   live, not `removes`, naming an old kind, with a settled sibling on
+   the same anchor, carrying no money and no worth, nothing hanging off
+   it.
 
    Alone among these operations it *means* to change a page, so it names
    each line beforehand and proves the pages afterwards equal the pages
@@ -90,27 +111,27 @@ the second cannot run until the first has.
    draws two identical lines, and a page drawing more of a name than
    there are spares to account for means something owned shares it.
 
-7. **Delete what is left.** Library only, so the proof is that no page
-   moves at all. Measured on a fork of the mirror: 25 kind rows, 22 menu
-   entries, 4 menus, 6 modifiers, 1 marker.
+7. ~~Delete what is left.~~ Run: 26 kind rows, 22 menu entries, 4 menus,
+   6 modifiers and 1 marker, in 182 seconds, proving 107 gangs unmoved.
+   Library only, so the proof was that no page moves at all.
 
-   What it leaves, and why — each said on its own page:
-   - the one archetype still carrying a modifier (see 5);
+   What it left, and why — each said on its own page:
    - the two markers profiles are **built with**. Nobody holding a
      marker is not the same as nothing naming it; only what hands a
      marker over or takes it away goes with it;
    - an offer whose carrier somebody holds, being a question drawn on
      their card, and any menu it still asks from.
 
-   Both must run after the sweep, because deleting a kind row refuses
-   while anything names it.
+   Both had to run after the sweep: deleting a kind row refuses while
+   anything names it, and each operation says so by name rather than
+   running out of turn.
 
 ### Wave 3
 
-8. **Re-sync the content mirror from production.** After 5, 6 and 7, so the
-   mirror inherits the tidy library. The mirror is currently
-   unconverted — it still holds the old offers and only the
-   pre-existing slot types — which is why 8 waits on this.
+8. **Re-sync the content mirror from production.** Now unblocked: 5, 6
+   and 7 are all run, so the mirror would inherit the tidy library. It is
+   still unconverted — it holds the old offers and only the pre-existing
+   slot types — which is why 9 waits on this.
 
 ### Wave 4
 
@@ -129,7 +150,7 @@ the second cannot run until the first has.
    selector algebra, card building, history, sample data — plus a
    migration dropping three columns and three tables. Startup checks
    enforce the registries agreeing, so a half-done version will not
-   boot. Needs 6 and 7 (no rows), 8 and 9 (no code), and the sweep (no data).
+   boot. 6, 7 and the sweep are done, so no rows and no data stand in the way. It still needs 8 and 9, for the code.
 
 ### After the programme
 
