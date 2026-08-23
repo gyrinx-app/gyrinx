@@ -107,6 +107,27 @@ class TestTheAllowlist:
         assert enabled(CAMPAIGNS, invited) is False
 
 
+class TestAWordNothingCanRead:
+    """A value outside Availability must never be a way in."""
+
+    def test_the_database_refuses_to_store_one(self, group):
+        from django.db import IntegrityError
+
+        with pytest.raises(IntegrityError):
+            FeatureFlag.objects.create(
+                slug=CAMPAIGNS, name="Campaigns", availability="on"
+            )
+
+    def test_one_in_hand_is_shut_rather_than_open(self, group, invited):
+        """Belt to the constraint's braces. A flag carrying a word nothing
+        recognises must refuse a group member rather than fall through to
+        the group check and let them in on the strength of it."""
+        flag = FeatureFlag(
+            slug=CAMPAIGNS, name="Campaigns", availability="on", group=group
+        )
+        assert flag.open_to(invited) is False
+
+
 class TestEveryone:
     def test_any_signed_in_reader_gets_in(self, make_flag, reader):
         make_flag(Availability.EVERYONE)
@@ -145,6 +166,35 @@ class TestTheRowItself:
         assert enabled(CAMPAIGNS, invited) is False
 
 
+class TestUndoingTheGroupMigration:
+    """Reversing must undo the creation and nothing else. The forward
+    operation accepts a group that was already there, so it cannot tell one
+    it made from one it found — and deleting somebody's group would take
+    every membership with it."""
+
+    def _reverse(self):
+        # Imported by name because a module starting with a digit is not a
+        # valid identifier, so the import statement cannot reach it.
+        import importlib
+
+        from django.apps import apps
+
+        mod = importlib.import_module(
+            "n26.core.migrations.0023_an_account_may_be_let_into_campaigns_early"
+        )
+        mod.remove_campaigns_group(apps, None)
+
+    def test_an_empty_group_is_taken_away(self, group):
+        self._reverse()
+        assert not Group.objects.filter(name=GROUP_NAME).exists()
+
+    def test_a_group_with_members_is_left_alone(self, invited):
+        """Somebody is in it, so it is somebody's."""
+        self._reverse()
+        assert Group.objects.filter(name=GROUP_NAME).exists()
+        assert invited.groups.filter(name=GROUP_NAME).exists()
+
+
 class TestTheAdminPage:
     """The page is the point of the model: opening a feature to another
     player is something somebody does here, not in a deploy."""
@@ -171,6 +221,20 @@ class TestTheAdminPage:
         off and leave a second that nothing reads."""
         flag = make_flag(Availability.OFF)
         assert "slug" in self._admin().get_readonly_fields(None, obj=flag)
+
+    def test_it_keeps_whatever_else_is_already_fixed(self, make_flag, monkeypatch):
+        """Pinning the slug adds to the fixed fields rather than replacing
+        them, so a field fixed on the class or a mixin later is not
+        silently freed."""
+        admin = self._admin()
+        monkeypatch.setattr(type(admin), "readonly_fields", ["name"], raising=False)
+        assert set(admin.get_readonly_fields(None, obj=None)) == {"name"}
+        assert set(
+            admin.get_readonly_fields(None, obj=make_flag(Availability.OFF))
+        ) == {
+            "name",
+            "slug",
+        }
 
     def test_the_changelist_offers_no_batch_delete(self):
         """Every n26 changelist withholds it; this one is no exception."""

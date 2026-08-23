@@ -297,9 +297,10 @@ class PrintConfigAdmin(admin.ModelAdmin):
 class FeatureFlagAdmin(OneAtATime, admin.ModelAdmin):
     """Where a half-built feature is opened and shut.
 
-    Editable on purpose, and the one page in this file that is: which
-    accounts may see an unfinished screen is a decision somebody makes
-    while the work is going on, not something to hold until a deploy.
+    Editable, and for a reason none of the others here share: this is not
+    player data at all. Which accounts may see an unfinished screen is a
+    decision somebody makes while the work is going on, not one to hold
+    until a deploy.
 
     The slug is what code asks for, so it is settable when the row is
     created and fixed afterwards: editing it later would not rename a
@@ -312,7 +313,10 @@ class FeatureFlagAdmin(OneAtATime, admin.ModelAdmin):
     list_select_related = ["group"]
 
     def get_readonly_fields(self, request, obj=None):
-        return ["slug"] if obj else []
+        # Added to whatever is already fixed rather than replacing it, so a
+        # field pinned on this class or a mixin later is not silently freed.
+        fixed = list(super().get_readonly_fields(request, obj))
+        return [*fixed, "slug"] if obj else fixed
 
 
 # Registering this edition's maintenance operations happens on import, and

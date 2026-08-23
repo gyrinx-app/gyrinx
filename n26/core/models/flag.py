@@ -72,6 +72,16 @@ class FeatureFlag(Base):
         verbose_name = "feature flag"
         verbose_name_plural = "feature flags"
         ordering = ["name"]
+        constraints = [
+            # Choices are model-level validation and nothing more: a raw
+            # write, a data migration or a shell can store any string. What
+            # this row says is who reaches a feature, so the database refuses
+            # a word nothing can read rather than leaving it to be guessed.
+            models.CheckConstraint(
+                condition=models.Q(availability__in=Availability.values),
+                name="n26_feature_flag_availability_known",
+            )
+        ]
 
     def __str__(self):
         return f"{self.name} ({self.get_availability_display()})"
@@ -93,6 +103,12 @@ class FeatureFlag(Base):
             return False
         if self.availability == Availability.EVERYONE:
             return True
+        if self.availability != Availability.ALLOWLIST:
+            # A word nothing here recognises. Falling through to the group
+            # check would let a member of any attached group in on the
+            # strength of a value no code wrote — so an unreadable state is
+            # shut, the same as off.
+            return False
         if self.group_id is None:
             return False
         return user.groups.filter(pk=self.group_id).exists()
