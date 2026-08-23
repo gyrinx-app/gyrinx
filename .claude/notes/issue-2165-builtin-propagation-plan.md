@@ -245,7 +245,17 @@ engine simplification: ammo resolution becomes a receipt lookup on the
 named member, the FIFO queue and occupied-gun set are deleted,
 `dependent_members` reads the real relation instead of type-matching.
 Null-FK members keep today's type fallback (the cross-set semantics).
-*Status: not started.*
+UX agreed with the maintainer 2026-08-23: the "Comes with" listing
+nests profile members under their gun (the card's own grammar); each
+weapon member row gets an **"Add profile"** link (never "Add ammo" — a
+weapon's extra lines are not always ammunition) to a page scoped to
+that gun listing its priced profiles only, free ones arriving
+automatically; the generic built-ins form stops offering the
+weapon-profile kind (never offer the act that would be refused); option
+sets keep a two-step weapon→profile door creating an unanchored member
+with its meaning stated on the page.
+*Status: IN PROGRESS 2026-08-23, branch
+`issue-2165-c2b-profile-names-gun`.*
 
 **C3 — Chunked maintenance runner.** Generic per-gang resumable batch
 support in `n26/maintenance.py` (D7): batches commit independently,
