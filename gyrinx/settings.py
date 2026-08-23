@@ -589,3 +589,9 @@ TASKS_ENVIRONMENT = os.getenv("TASKS_ENVIRONMENT", "dev")
 # n26: the pack new content lands in when none is specified.
 DEFAULT_CONTENT_PACK_SLUG = os.environ.get("DEFAULT_CONTENT_PACK_SLUG", "n26")
 DEFAULT_CONTENT_PACK_NAME = os.environ.get("DEFAULT_CONTENT_PACK_NAME", "N26")
+
+# n26 feature flags. Each is "off", "allowlist" or "everyone"; see
+# n26/core/flags.py for what the three words mean and which group each
+# allowlist reads. Defaulting to "off" means a half-built feature stays
+# shut in any environment nobody has deliberately opened it in.
+N26_FLAG_CAMPAIGNS = os.environ.get("N26_FLAG_CAMPAIGNS", "off")
