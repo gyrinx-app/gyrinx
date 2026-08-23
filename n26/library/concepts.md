@@ -295,6 +295,12 @@ claws). Materialised when the holder arrives — hired, founded, or bought
 — free, and "caused by" the holder, so removing the holder takes them
 along.
 
+A member that is a firing line names which of the set's weapons it
+rides, and is added from that gun's own row rather than from the
+general picker. A set that brings no such weapon can still hold the
+line — it then lands on whatever matching gun the acquirer already
+holds, which is how an option arms a weapon the built-ins bring.
+
 ### Offers a choice (an effect)
 
 *Puts an open question on the card; the player chooses one thing of a particular assignable type.*

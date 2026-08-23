@@ -914,19 +914,32 @@ def create_default_set(name, members=(), price=0, **kwargs):
     """A set of things a profile can come with. ``members`` are assignables, or
     ``(assignable, {extras})`` — ``(xp, {"amount": 61})`` for a counter's
     opening value."""
-    from n26.library.models import DefaultAssignment, DefaultAssignmentSet
+    from django.db import transaction
 
-    default_set = DefaultAssignmentSet.objects.create(name=name, price=price, **kwargs)
-    for position, member in enumerate(members):
-        assignable, extras = member if isinstance(member, tuple) else (member, {})
-        _refuse_a_bare_pickable(assignable)
-        DefaultAssignment.objects.create(
-            default_set=default_set,
-            assignable=assignable,
-            position=position,
-            **extras,
-            **kwargs,
+    from n26.library.models import DefaultAssignmentSet, WeaponProfile
+
+    staged = [
+        (position, *(member if isinstance(member, tuple) else (member, {})))
+        for position, member in enumerate(members)
+    ]
+    # One transaction, guns before their lines whatever order the caller
+    # stated (each member keeps its stated position): a weapon profile's
+    # anchor is settled against the completed set, not against however
+    # much of it happens to exist yet — and a refusal unwinds the whole
+    # founding rather than leaving half a set behind. Every member still
+    # goes through the one adding verb, so what holds for a member added
+    # later holds for one written here.
+    with transaction.atomic():
+        default_set = DefaultAssignmentSet.objects.create(
+            name=name, price=price, **kwargs
         )
+        for adding_lines in (False, True):
+            for position, assignable, extras in staged:
+                if isinstance(assignable, WeaponProfile) != adding_lines:
+                    continue
+                add_default_member(
+                    default_set, assignable, position=position, **extras, **kwargs
+                )
     return default_set
 
 
@@ -966,7 +979,13 @@ def _free_set_name(carrier, phrase="built-ins", **shared):
 
 
 def add_built_in(
-    carrier, thing, amount=0, default_pickable=None, position=None, **kwargs
+    carrier,
+    thing,
+    amount=0,
+    default_pickable=None,
+    position=None,
+    gun_member=None,
+    **kwargs,
 ):
     """Something ``carrier`` always comes with, materialised when it is
     acquired — a profile's equipment list, its starting kit, its
@@ -976,6 +995,9 @@ def add_built_in(
     A **slot** built in is a choice the thing arrives asking;
     ``default_pickable`` is the answer it arrives with, changed
     afterwards by the ordinary rechoose.
+
+    A **weapon profile** built in is an extra line for a gun in the same
+    set, and ``gun_member`` names which — see ``add_default_member``.
 
     Refused for a kind that only ever arrives by being *chosen*: nothing
     acquires one, so nothing would ever hand the items over.
@@ -1002,6 +1024,7 @@ def add_built_in(
         amount=amount,
         default_pickable=default_pickable,
         position=position,
+        gun_member=gun_member,
         **kwargs,
     )
 
@@ -1022,7 +1045,13 @@ def _refuse_a_bare_pickable(thing):
 
 
 def add_default_member(
-    default_set, thing, amount=0, default_pickable=None, position=None, **kwargs
+    default_set,
+    thing,
+    amount=0,
+    default_pickable=None,
+    position=None,
+    gun_member=None,
+    **kwargs,
 ):
     """One more thing in a set of defaults, at the end unless placed.
 
@@ -1032,10 +1061,19 @@ def add_default_member(
 
     ``default_pickable`` is a slot member's starting pick, and belongs to
     nothing else.
+
+    ``gun_member`` is a weapon-profile member's anchor: the weapon
+    member of the same set the extra line lands under. Unnamed, it is
+    settled here — the set's one matching weapon member where there is
+    one, refused in words where there are several, and null where there
+    are none, which keeps a real meaning: the profile rides whatever
+    matching weapon the acquirer already holds.
     """
-    from n26.library.models import DefaultAssignment
+    from n26.library.models import DefaultAssignment, WeaponProfile
 
     _refuse_a_bare_pickable(thing)
+    if isinstance(thing, WeaponProfile) and gun_member is None:
+        gun_member = _the_one_gun_member(default_set, thing)
     if position is None:
         # After the last position ever placed, archived members
         # included — a live count would reuse a surviving member's
@@ -1049,14 +1087,46 @@ def add_default_member(
         amount=amount,
         default_pickable=default_pickable,
         position=position,
+        gun_member=gun_member,
         **kwargs,
     )
-    if default_pickable is not None:
-        # A starting pick has to belong to the slot beside it, and only
-        # this row knows both — the database cannot say it.
+    if default_pickable is not None or gun_member is not None:
+        # A starting pick has to belong to the slot beside it, and an
+        # extra profile's gun has to be its own weapon's member of the
+        # same set. Only this row knows both ends — the database
+        # cannot say either.
         member.clean()
     member.save()
     return member
+
+
+def gun_members_bringing(default_set, weapon):
+    """The set's live members that bring this weapon — the guns an
+    extra profile of it could ride. One statement of the match, read
+    wherever an anchor is settled or explained.
+    """
+    return default_set.members.filter(archived=False, weapon=weapon)
+
+
+def _the_one_gun_member(default_set, weapon_profile):
+    """The set's single live member bringing this profile's weapon — the
+    anchor an unnamed add settles on.
+
+    None where the set brings the weapon not at all: the profile then
+    rides whatever matching weapon the acquirer holds, which is how an
+    option set arms a gun the built-ins bring. Several is refused in
+    words, because a guess here would decide for good which gun a line
+    lands under.
+    """
+    matches = list(gun_members_bringing(default_set, weapon_profile.weapon))
+    if len(matches) > 1:
+        raise ValidationError(
+            f"{default_set.name} brings {weapon_profile.weapon} "
+            f"{len(matches)} times, so there is no saying which gun "
+            f"{weapon_profile} lands under. Add the profile from that "
+            f"gun's own row instead."
+        )
+    return matches[0] if matches else None
 
 
 def remove_default_member(member):

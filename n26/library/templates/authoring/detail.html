@@ -147,19 +147,51 @@ thing twice, a line apart.
                                         {% comment %}
                                 Removing is a question asked at its own address, not an
                                 act done from here: what it means depends on what else
-                                holds the set, which this row cannot say.
+                                holds the set, which this row cannot say. Adding one of
+                                a gun's own lines is likewise a page of its own, scoped
+                                to this row — which gun the line rides is settled by
+                                where the author clicked.
                                         {% endcomment %}
-                                        {% if part.remove_url %}
+                                        {% if part.remove_url or part.add_profile_url %}
                                             <td class="w-full text-muted">{{ part.notes|join:" · " }}</td>
-                                            <td class="text-right">
-                                                <c-ui.button href="{{ part.remove_url }}" size="sm" variant="ghost">
-                                                    Remove
-                                                </c-ui.button>
+                                            <td class="whitespace-nowrap text-right">
+                                                {% if part.add_profile_url %}
+                                                    <c-ui.button href="{{ part.add_profile_url }}" size="sm" variant="ghost">
+                                                        Add profile
+                                                    </c-ui.button>
+                                                {% endif %}
+                                                {% if part.remove_url %}
+                                                    <c-ui.button href="{{ part.remove_url }}" size="sm" variant="ghost">
+                                                        Remove
+                                                    </c-ui.button>
+                                                {% endif %}
                                             </td>
                                         {% else %}
                                             <td class="text-right text-muted">{{ part.notes|join:" · " }}</td>
                                         {% endif %}
                                     </tr>
+                                    {% comment %}
+                                A gun's own lines sit under it, indented — the
+                                grammar a card uses for firing lines under
+                                weapons — so which gun each line rides is read
+                                off the page rather than remembered.
+                                    {% endcomment %}
+                                    {% for line in part.children %}
+                                        <tr>
+                                            {# pl-6! — the table component's [&_td]:px-3 outweighs a plain pl-6. #}
+                                            <td class="whitespace-nowrap pl-6!">{{ line.label }}</td>
+                                            {% if line.remove_url %}
+                                                <td class="w-full text-muted">{{ line.notes|join:" · " }}</td>
+                                                <td class="text-right">
+                                                    <c-ui.button href="{{ line.remove_url }}" size="sm" variant="ghost">
+                                                        Remove
+                                                    </c-ui.button>
+                                                </td>
+                                            {% else %}
+                                                <td class="text-right text-muted">{{ line.notes|join:" · " }}</td>
+                                            {% endif %}
+                                        </tr>
+                                    {% endfor %}
                                 {% endfor %}
                             </tbody>
                         </c-ui.table>
@@ -218,6 +250,18 @@ thing twice, a line apart.
                             {% endif %}
                             <c-n26.form-actions submit_label="Add {{ section.part_verbose_name }}" />
                         </form>
+                        {% comment %}
+                A way in for a part this form cannot offer — a weapon
+                profile, which only means something beside a gun, is
+                added from a page that knows which gun.
+                        {% endcomment %}
+                        {% if section.door_url %}
+                            <div class="mt-4">
+                                <c-n26.link href="{{ section.door_url }}" class="text-sm">
+                                    {{ section.door_label }}
+                                </c-n26.link>
+                            </div>
+                        {% endif %}
                     </c-n26.form-section>
                 {% endif %}
             {% endfor %}

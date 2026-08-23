@@ -36,5 +36,15 @@ asks for.
             </c-ui.description>
         {% endif %}
         {% include "authoring/_form.html" with form=form %}
+        {% comment %}
+        A weapon profile is not in the picker above — a line means
+        nothing apart from its gun — so the way to add one is a page
+        that asks for the weapon first.
+        {% endcomment %}
+        <div>
+            <c-n26.link href="{{ profiles_url }}" class="text-sm">
+                Add a weapon profile…
+            </c-n26.link>
+        </div>
     </c-n26.form-page>
 {% endblock content %}

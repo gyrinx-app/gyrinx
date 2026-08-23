@@ -975,12 +975,14 @@ class Operation:
         A weapon-profile member is an extra ammo type: it stacks on its
         weapon's assignment — the same shape ``buy_weapon_profile``
         writes — and that weapon may arrive from any of these sets, so
-        ammo is placed after every weapon has been. Each weapon member
-        keeps a gun of its own, so two members bringing the same weapon
-        feed their ammo to different guns. Ammo whose weapon is nowhere
-        on the host is a content bug at acquisition (``strict``) and a
-        recorded skip on a later reconcile — a carrier must not be
-        unrepairable because one member is.
+        ammo is placed after every weapon has been. An anchored member
+        names its gun member (``gun_member``), and the line lands on
+        that member's own live copy for this carrier; an unanchored one
+        rides whatever live matching weapon the host holds, newest
+        first — how an option set arms a gun the built-ins bring. Ammo
+        with no gun to land on is a content bug at acquisition
+        (``strict``) and a recorded skip on a later reconcile — a
+        carrier must not be unrepairable because one member is.
 
         A slot member brings the choice open. Where the member also
         names a starting pick, the pick is written in the same breath,
@@ -1020,31 +1022,12 @@ class Operation:
             for entry in plan.entries
             if isinstance(entry.member.assignable, WeaponProfile)
         ]
-        # A satisfied ammo line already sits on one particular gun. That
-        # gun is spoken for — claims resolve by provenance before queue
-        # position — so it never joins the queue and a missing ammo
-        # member cannot double onto it while another gun goes without.
-        occupied = set()
-        for entry in ammo:
-            if not entry.satisfied:
-                continue
-            copy = copies_of(entry.member, carrier, include_archived=False).first()
-            if copy is not None:
-                occupied.add(copy.parent_id)
-        #: weapon pk -> guns of this plan still open to take ammo, in
-        #: member order. One entry per weapon member, so twins stay
-        #: distinct.
-        guns = {}
         for entry in plan.entries:
             member = entry.member
             assignable = member.assignable
             if isinstance(assignable, WeaponProfile):
                 continue
             if entry.satisfied:
-                if isinstance(assignable, Weapon):
-                    copy = copies_of(member, carrier, include_archived=False).first()
-                    if copy is not None and copy.pk not in occupied:
-                        guns.setdefault(assignable.pk, []).append(copy)
                 continue
             assignment = self.assign(
                 assignable,
@@ -1058,9 +1041,6 @@ class Operation:
             created.append(assignment)
             if isinstance(assignable, Weapon):
                 self._grant_free_profiles(assignable, assignment)
-                # A gun created this pass cannot be occupied: a
-                # satisfied ammo copy predates it.
-                guns.setdefault(assignable.pk, []).append(assignment)
             elif member.default_pickable_id is not None:
                 # A slot arriving already settled. The pick goes
                 # where the slot says, which need not be where the
@@ -1075,12 +1055,19 @@ class Operation:
                 continue
             member = entry.member
             weapon_profile = member.assignable
-            queue = guns.get(weapon_profile.weapon_id)
-            gun = queue.pop(0) if queue else None
-            if gun is None:
-                # The weapon may already be there — a set chosen after the
-                # hire grants ammo for a gun the built-ins brought — so an
-                # existing live assignment on the same host takes it.
+            if member.gun_member_id is not None:
+                # The member names its gun, so the line lands on that
+                # member's own live copy for this carrier — the receipt,
+                # not a guess by type.
+                gun = (
+                    copies_of(member.gun_member, carrier, include_archived=False)
+                    .order_by("-pk")
+                    .first()
+                )
+            else:
+                # An unnamed gun means whatever matching weapon the host
+                # holds — a set chosen after the hire arms a gun the
+                # built-ins brought, or one the owner gave by hand.
                 gun = (
                     Assignment.objects.filter(
                         weapon=weapon_profile.weapon,
@@ -1100,14 +1087,15 @@ class Operation:
                         f"nothing it brings is its weapon "
                         f"({weapon_profile.weapon})."
                     )
-                skipped.append(
-                    (
-                        entry,
-                        f"{weapon_profile} is ammo for "
-                        f"{weapon_profile.weapon}, and nothing this "
-                        f"carrier's host holds is that weapon.",
-                    )
+                why = (
+                    f"{weapon_profile} rides a {weapon_profile.weapon} "
+                    f"whose copy for this carrier is no longer standing."
+                    if member.gun_member_id is not None
+                    else f"{weapon_profile} is ammo for "
+                    f"{weapon_profile.weapon}, and nothing this "
+                    f"carrier's host holds is that weapon."
                 )
+                skipped.append((entry, why))
                 continue
             # Caused by the weapon, like its free profiles: the card says
             # "from the grenade launcher array", not "from the profile".

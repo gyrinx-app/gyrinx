@@ -263,10 +263,19 @@ class TestTheUnionPicker:
         form = generate_form(specs()["add_built_in"])()
         assert form.fields["thing_kind"].label == "Kind"
         assert form.fields["thing_subtype"].label == "Subtype"
-        assert form.fields["thing_weapon_profile"].label == "Weapon profile"
+        assert form.fields["thing_wargear"].label == "Wargear"
         assert form.fields["thing_new_subtype"].label == "New subtype"
         # The kind dropdown speaks the same way, keeping raw values.
-        assert ("weapon_profile", "weapon profile") in form.fields["thing_kind"].choices
+        assert ("wargear", "wargear") in form.fields["thing_kind"].choices
+
+    def test_the_picker_never_offers_a_weapon_profile(self, default_pack):
+        """An extra profile means nothing apart from its gun, so it is
+        built in from a weapon member's own row and the generic picker
+        never offers one cold."""
+        form = generate_form(specs()["add_built_in"])()
+        assert "thing_weapon_profile" not in form.fields
+        kinds = [kind for kind, _ in form.fields["thing_kind"].choices]
+        assert "weapon_profile" not in kinds
 
     def test_every_control_says_which_kind_it_belongs_to(self, default_pack):
         """The markers base.html's script reads to show only the chosen
@@ -275,7 +284,7 @@ class TestTheUnionPicker:
         form = generate_form(specs()["add_built_in"])()
         assert "data-union-kind" in str(form["thing_kind"])
         assert 'data-union-member="collection"' in str(form["thing_collection"])
-        assert 'data-union-member="weapon_profile"' in str(form["thing_weapon_profile"])
+        assert 'data-union-member="wargear"' in str(form["thing_wargear"])
         assert 'data-union-member="rule"' in str(form["thing_new_rule"])
 
 

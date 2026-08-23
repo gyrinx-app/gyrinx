@@ -159,6 +159,30 @@ class TestRemovingABuiltIn:
         assert ammo_member.archived is True
         assert_reconciled(gang)
 
+    def test_only_the_named_guns_lines_go_with_it(self, gang, ganger):
+        """What goes with a gun is what names it — its twin of the same
+        weapon keeps its own lines."""
+        launcher = create_weapon("Launcher", profiles=[("Frag", 0)])
+        smoke = WeaponProfile.objects.create(
+            name="Smoke", weapon=launcher, price=10, position=1
+        )
+        choke = WeaponProfile.objects.create(
+            name="Choke", weapon=launcher, price=10, position=2
+        )
+        gun_one = add_built_in(ganger, launcher)
+        gun_two = add_built_in(ganger, launcher)
+        smoke_member = add_built_in(ganger, smoke, gun_member=gun_one)
+        choke_member = add_built_in(ganger, choke, gun_member=gun_two)
+        hire(gang, ganger, "Ana", paid=50)
+
+        remove_default_member(gun_one)
+
+        smoke_member.refresh_from_db()
+        choke_member.refresh_from_db()
+        assert smoke_member.archived is True
+        assert choke_member.archived is False
+        assert_reconciled(gang)
+
 
 class TestProvenance:
     """Every materialised copy names its member and its carrier."""
