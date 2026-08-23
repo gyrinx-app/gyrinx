@@ -38,6 +38,7 @@ Issue: https://github.com/gyrinx-app/gyrinx/issues/2165
 | D10 | Preview is informative, not an authorisation token; the POST recomputes against current data. One shared planner powers authoring preview, ingest preview, and removal preview.                                                                                                                                                                                                                                                                                                                   |
 | D11 | *(settled 2026-08-23)* **Withdrawing an option whose set has materialised copies refuses loudly**, naming why — never the current swallow-the-`ProtectedError`-and-orphan-the-set behaviour. Author-side policing is fine: a refusal stops the bad state existing, where engineering around it never ends. Built in C6. |
 | D12 | *(settled 2026-08-23)* **A removal that would leave a priced option set empty warns or refuses** — a player must never pay for a set that grants nothing. Built in C6 (or C5's preview if it lands first). |
+| D13 | *(settled 2026-08-23)* **An ammo built-in names its gun member.** `DefaultAssignment` gains a nullable self-reference: a weapon-profile member whose set holds a matching weapon member MUST name which one it rides — authoring validates, the form asks "for which gun?", ingest auto-links and errors on ambiguity instead of guessing. Null keeps a real meaning: "ammo for whatever live gun of this type the carrier holds" (the cross-set case, e.g. an option set arming a built-in gun). Reconcile resolution becomes a receipt lookup; the FIFO queue, occupied-gun set, and type-derived `dependent_members` are deleted. The flat-sibling shape is a launch-era mistake killed at authorship (the D11/D12 principle). Built as chunk **C2b**, after #2286 merges, before C4. |
 
 ## Open questions (resolve inside the relevant chunk, with the maintainer)
 
@@ -187,8 +188,11 @@ redelivery), gang-hosted founding sets, stash-hosted, legacy-profile
 matching rule does NOT block (duplicate accepted — D3); archived copy
 blocks (D4); `removes=True` preserved (D9); every case ends
 `assert_reconciled(gang)` **after `refresh_from_db`** (stale-pin gotcha).
-*Status: BUILT 2026-08-23, branch `issue-2165-c2-reconcile`, PR open —
-awaiting review + a ruling on two oracle-driven deviations (below).*
+*Status: BUILT 2026-08-23, branch `issue-2165-c2-reconcile`, PR
+[#2286](https://github.com/gyrinx-app/gyrinx/pull/2286) open, awaiting
+review. Both oracle-driven deviations (below) APPROVED 2026-08-23:
+D4 guards *unattended* re-grants, an explicit re-take is an
+acquisition; ammo fallback stays exactly as it was, no extra tiers.*
 Architecture settled (chosen over a minimal in-place refactor): a
 **plan/apply split**. Pure `plan_defaults(carrier)` + `ReconcileOutcome`
 in new `n26/core/builtins.py` (satisfaction predicate `copies_of` lives
@@ -207,7 +211,7 @@ cost feeds C3's batch sizing. Also noted: `buy()` DOES materialise
 built-ins for option-capable kinds — D8's asymmetry is only the kinds
 without `resolve_selection`.
 Two implementation deviations, forced by the existing suites (the
-stated oracle), flagged to the maintainer:
+stated oracle), approved by the maintainer:
 (1) `plan_defaults`/`reconcile_defaults` take `fresh=` — sets being
 taken right now, judged by LIVE copies only. Without it, rechoosing
 back to a formerly-held set finds its refund-archived copies
@@ -224,6 +228,17 @@ For C4/C5/C6: bare propagation reconciles must pass `strict=False`
 `fresh`; C5's preview calls `plan_defaults(carrier)` directly; the
 per-member satisfaction check is one EXISTS query (mean 3.6
 members/set), so a per-gang batch is tens of cheap queries.
+
+**C2b — An ammo built-in names its gun (D13).** Nullable self-FK on
+`DefaultAssignment`; authoring validation + a "for which gun?" picker
+(fixing the qualifier-less ammo picker from C1's findings alongside);
+ingest auto-links by type, erroring on ambiguity; data migration
+back-links existing members (4 in prod per C0 — verify by hand);
+engine simplification: ammo resolution becomes a receipt lookup on the
+named member, the FIFO queue and occupied-gun set are deleted,
+`dependent_members` reads the real relation instead of type-matching.
+Null-FK members keep today's type fallback (the cross-set semantics).
+*Status: not started.*
 
 **C3 — Chunked maintenance runner.** Generic per-gang resumable batch
 support in `n26/maintenance.py` (D7): batches commit independently,
@@ -284,7 +299,7 @@ migration checks, query-budget tests unchanged.
 
 ## Sequencing
 
-C0 → C1 → C2 → C4 → C5 → C6 → C7 → C8, with C3 in parallel any time
+C0 → C1 → C2 → C2b → C4 → C5 → C6 → C7 → C8, with C3 in parallel any time
 before C7. Preview (C5) ships only once C4's behaviour exists (never
 promise propagation that doesn't happen). Incremental throughout:
 built-in authoring never pauses; C4's backfill-from-current-state design
