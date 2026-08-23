@@ -74,7 +74,7 @@ _Last updated: YYYY-MM-DD_
 
 ### Best Practices
 
-1. **Commit Messages**: Use conventional commit prefixes (`feat:`, `fix:`, `docs:`, etc.) for better categorization
+1. **Commit Messages**: Use conventional commit prefixes (`feat:`, `fix:`, `docs:`, etc.) for better categorization. The subject after the prefix must name what changed — see [COMMIT_STYLE.md](../../.github/COMMIT_STYLE.md); a title nobody can decode makes a useless changelog entry
 2. **PR References**: Include PR numbers in commit messages (e.g., `#256`)
 3. **Regular Updates**: Run the script regularly to keep the changelog current
 4. **Review Generated Content**: Always review the generated changelog entries for accuracy
