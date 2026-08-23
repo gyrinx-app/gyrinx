@@ -5,7 +5,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
     dependencies = [
         ("library", "0064_sheets_are_held_between_upload_and_import"),
-        ("n26", "0017_the_budget_is_part_of_the_story"),
+        ("n26", "0020_a_print_says_whether_notes_go_on_paper"),
     ]
 
     operations = [
