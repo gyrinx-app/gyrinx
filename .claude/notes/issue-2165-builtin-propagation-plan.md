@@ -189,8 +189,15 @@ matching rule does NOT block (duplicate accepted — D3); archived copy
 blocks (D4); `removes=True` preserved (D9); every case ends
 `assert_reconciled(gang)` **after `refresh_from_db`** (stale-pin gotcha).
 *Status: BUILT 2026-08-23, branch `issue-2165-c2-reconcile`, PR
-[#2286](https://github.com/gyrinx-app/gyrinx/pull/2286) open, awaiting
-review. Both oracle-driven deviations (below) APPROVED 2026-08-23:
+[#2286](https://github.com/gyrinx-app/gyrinx/pull/2286) — three-lens
+review complete (no correctness findings; four quality fixes applied as
+`9da9b946`), CI fully green, and browser smoke-tested through the real
+UI: hire / rechoose-round-trip / buy-with-options / founding all pass,
+zero server errors, provenance shapes identical to a C1-era hire. The
+smoke test also surfaced pre-existing bug
+[#2299](https://github.com/gyrinx-app/gyrinx/issues/2299) (Enter in the
+equip search box buys the first item — not C2's). Awaiting merge.
+Both oracle-driven deviations (below) APPROVED 2026-08-23:
 D4 guards *unattended* re-grants, an explicit re-take is an
 acquisition; ammo fallback stays exactly as it was, no extra tiers.*
 Architecture settled (chosen over a minimal in-place refactor): a
