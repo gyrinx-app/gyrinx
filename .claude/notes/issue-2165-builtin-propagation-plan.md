@@ -254,8 +254,19 @@ automatically; the generic built-ins form stops offering the
 weapon-profile kind (never offer the act that would be refused); option
 sets keep a two-step weapon→profile door creating an unanchored member
 with its meaning stated on the page.
-*Status: IN PROGRESS 2026-08-23, branch
-`issue-2165-c2b-profile-names-gun`.*
+*Status: MERGED 2026-08-23 via PR
+[#2301](https://github.com/gyrinx-app/gyrinx/pull/2301) (squash;
+migrations `library.0065`/`0066` — the back-link migration anchors
+NOTHING in production: all 4 legacy profile members are cross-set, so
+the machinery is purely for new authorship; ambiguity leaves null, an
+author anchors in the UI). Review-hardened (two-lens + CodeRabbit:
+create_default_set staged atomically weapons-first; position allocated
+by the verb; archived anchors refused in clean; the "twin sheet cell
+crashes ingest" finding was REFUTED by experiment — sheets cannot plan
+a weapon-profile member, pinned by test) and browser-verified including
+the pixel-level indent fix (`pl-6!` — the table component's td padding
+must lose). CodeQL's redirect warning on `set_profiles` is a false
+positive: path-relative, pk re-read from a validated object.*
 
 **C3 — Chunked maintenance runner.** Generic per-gang resumable batch
 support in `n26/maintenance.py` (D7): batches commit independently,
