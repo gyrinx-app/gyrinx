@@ -138,9 +138,12 @@ class="w-full space-y-4"
                         from the switcher's own panel, which shadows this
                         strip's register — the shadowing is what the row
                         wants. tabs, activeTab and isActive reach up past the
-                        panel unshadowed. The open tab is left out: it stands
-                        beside the chevron already, and a menu offering the
-                        tab you are on offers nothing.
+                        panel unshadowed. The open tab stays in the menu,
+                        ticked: every row registers with the panel, whose
+                        count and arrow keys walk all of them — a row shown
+                        to the panel but hidden from the eye would leave a
+                        search for the open tab a blank menu with no
+                        no-matches line, and Enter on an invisible row.
                         {% endcomment %}
                         <template x-for="tab in tabs" :key="tab.name">
                             <button type="button"
@@ -148,18 +151,25 @@ class="w-full space-y-4"
                                     x-data="{ id: '', facets: { search: tab.name.toLowerCase() } }"
                                     x-init="id = register($el, facets)"
                                     :id="id"
-                                    x-show="matches(facets) && !isActive(tab.name)"
+                                    x-show="matches(facets)"
                                     x-cloak
                                     @click="$dispatch('quick-switcher-choose', { value: tab.name }); close()"
                                     @mouseenter="highlight(id)"
-                                    :class="{ 'bg-ink-200! dark:bg-ink-700!': active === id }"
+                                    :aria-current="isActive(tab.name) ? 'true' : 'false'"
+                                    :class="{
+                                        'bg-ink-200! dark:bg-ink-700!': active === id,
+                                        'bg-ink-100 font-medium text-ink-900 dark:bg-ink-800 dark:text-ink-100': isActive(tab.name),
+                                        'text-ink-700 dark:text-ink-300': !isActive(tab.name),
+                                    }"
                                     class="flex w-full items-center gap-2.5 border-b border-box-border px-3 py-2 text-left text-sm
-                                           text-ink-700 dark:text-ink-300
                                            transition-colors focus-visible:outline-none
                                            hover:bg-ink-100 focus-visible:bg-ink-100
                                            dark:hover:bg-ink-800 dark:focus-visible:bg-ink-800">
                                 <span x-show="tab.icon" x-html="tab.icon" class="[&>svg]:size-4 flex shrink-0 items-center"></span>
                                 <span class="min-w-0 flex-1 truncate" x-text="tab.name"></span>
+                                <span x-show="isActive(tab.name)" x-cloak class="shrink-0">
+                                    <c-n26.icon name="check" class="size-4 text-accent-text" />
+                                </span>
                             </button>
                         </template>
                     </c-n26.quick-switcher>

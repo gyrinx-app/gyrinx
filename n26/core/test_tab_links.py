@@ -100,6 +100,19 @@ class TestTheNarrowStrip:
         # switcher's row drawn twice — its panel and its noscript strip.
         assert html.count('title="Ash Waste Nomads Equipment List"') == 3
 
+    def test_an_ampersand_in_a_name_survives_the_switcher_once_escaped(self):
+        tabs = [
+            {"label": "Kit & gear", "href": "?list=1&page=2", "current": False},
+            {"label": "Trading Post", "href": "?list=2", "current": True},
+        ]
+        html = render('<c-n26.tab-links label="Which list" :tabs="tabs" />', tabs=tabs)
+        # Escaped exactly once: a value written into a component attribute is
+        # escaped twice over, the name displays wrong, and the href loses the
+        # ampersand between its query parameters.
+        assert "Kit &amp; gear" in html
+        assert 'href="?list=1&amp;page=2"' in html
+        assert "amp;amp;" not in html
+
     def test_a_single_tab_gets_no_switcher(self):
         html = render(
             '<c-n26.tab-links label="Which list" :tabs="tabs" />', tabs=TABS[:1]

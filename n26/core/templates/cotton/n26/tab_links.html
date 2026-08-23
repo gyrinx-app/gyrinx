@@ -116,16 +116,21 @@ wider than the page.
                         {% comment %}
                         The current tab is left out: it stands beside the
                         chevron already, and a menu offering the page you are
-                        on offers nothing.
+                        on offers nothing. Every value is bound rather than
+                        written: an attribute handed to a component is escaped
+                        twice over, so a written list called "Kit &amp; gear"
+                        displays wrong, its filter matches nothing, and a
+                        written href loses the ampersands between its query
+                        parameters.
                         {% endcomment %}
                         {% for tab in tabs %}
                             {% if not tab.current %}
                                 {% if tab.title and tab.title != tab.label %}
-                                    <c-n26.quick-switcher.item label="{{ tab.label }}"
-                                                               href="{{ tab.href }}"
-                                                               title="{{ tab.title }}" />
+                                    <c-n26.quick-switcher.item :label="tab.label"
+                                                               :href="tab.href"
+                                                               :title="tab.title" />
                                 {% else %}
-                                    <c-n26.quick-switcher.item label="{{ tab.label }}" href="{{ tab.href }}" />
+                                    <c-n26.quick-switcher.item :label="tab.label" :href="tab.href" />
                                 {% endif %}
                             {% endif %}
                         {% endfor %}
