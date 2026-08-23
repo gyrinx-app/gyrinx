@@ -55,6 +55,16 @@ class TestAFeatureNobodyHasOpened:
         with pytest.raises(ValueError, match="No such feature flag"):
             enabled("teleportation", reader)
 
+    def test_a_guard_on_an_unknown_slug_refuses_to_be_applied(self):
+        """As the guard is applied, not as a request arrives. A mistyped
+        slug is a mistake in the code, so the app refuses to start rather
+        than serving errors to whoever finds the page first."""
+        with pytest.raises(ValueError, match="No such feature flag"):
+
+            @requires_flag("teleportation")
+            def view(request):
+                pass
+
 
 class TestOff:
     """Off beats the group, which is the whole point of having it."""

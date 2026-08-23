@@ -46,7 +46,14 @@ def requires_flag(slug):
     Sits outside ``login_required`` where a view has both, so a visitor to a
     gated address is told the page is not there rather than being sent to
     sign in and learning that it is.
+
+    The slug is checked as the guard is applied, not as a request arrives:
+    a mistyped one is a mistake in the code, and the app refusing to start
+    says so at once. Left to the request, the same typo is a page that
+    serves errors to whoever finds it first.
     """
+    if slug not in KNOWN_FLAGS:
+        raise ValueError(f"No such feature flag: {slug!r}")
 
     def decorate(view):
         @wraps(view)

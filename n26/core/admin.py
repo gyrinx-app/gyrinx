@@ -340,9 +340,13 @@ class FeatureFlagAdmin(OneAtATime, admin.ModelAdmin):
 
     def get_readonly_fields(self, request, obj=None):
         # Added to whatever is already fixed rather than replacing it, so a
-        # field pinned on this class or a mixin later is not silently freed.
+        # field pinned on this class or a mixin later is not silently freed —
+        # and only where it is not already there, since a field named twice
+        # is drawn twice.
         fixed = list(super().get_readonly_fields(request, obj))
-        return [*fixed, "slug"] if obj else fixed
+        if obj and "slug" not in fixed:
+            fixed.append("slug")
+        return fixed
 
 
 # Registering this edition's maintenance operations happens on import, and
