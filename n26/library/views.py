@@ -764,9 +764,12 @@ def _describe_slot_type(slot_type):
     """How much has been built in this slot type, and whether one
     holder may pick the same pickable twice."""
     notes = [
-        f"{len(slot_type.pickables.all())} pickables",
-        f"{len(slot_type.picklists.all())} picklists",
-        f"{len(slot_type.slots.all())} slots",
+        f"{count} {word}{'' if count == 1 else 's'}"
+        for count, word in (
+            (len(slot_type.pickables.all()), "pickable"),
+            (len(slot_type.picklists.all()), "picklist"),
+            (len(slot_type.slots.all()), "slot"),
+        )
     ]
     if not slot_type.allows_repeats:
         notes.append("no repeats")
@@ -937,6 +940,37 @@ def _model_for(spec):
     return spec.creates
 
 
+#: Kinds the menu lists out in full underneath their own row.
+#:
+#: A slot type is a place other content is filed under rather than a
+#: thing in its own right, so what an author is after is nearly always
+#: one particular slot type — the Skill Tree one, the Gang Legacy one —
+#: and going by way of the listing to find it is a step for nothing.
+#: There are few enough to read at a glance, which is what makes this
+#: affordable; a kind with hundreds of rows would bury the menu it is
+#: part of.
+INDEX_LISTS = ("slot-type",)
+
+
+def _listed_beneath(kind, model):
+    """The rows the menu prints under a kind, in the kind's own order."""
+    if kind not in INDEX_LISTS:
+        return []
+    rows = model.objects.all()
+    hint = LEAF_LISTING_HINTS.get(kind)
+    if hint is not None:
+        rows = hint(rows)
+    describe = LEAF_DESCRIBE.get(kind)
+    return [
+        {
+            "label": str(row),
+            "url": reverse("authoring-detail", args=[kind, row.pk]),
+            "notes": describe(row) if describe else [],
+        }
+        for row in rows
+    ]
+
+
 @staff_member_required
 def index(request):
     """The menu, grouped by family — the plumbing, the model's own
@@ -952,6 +986,7 @@ def index(request):
                 "verbose_name": model._meta.verbose_name,
                 "summary": kind_summary(model),
                 "count": model.objects.count(),
+                "rows": _listed_beneath(kind, model),
             }
         )
     families = [
