@@ -57,6 +57,7 @@ def test_every_n26_model_is_registered():
     assert {model.__name__ for model in N26_MODELS} == {
         "Assignment",
         "AssignmentSet",
+        "FeatureFlag",
         "Gang",
         "LedgerEntry",
         "LedgerEvent",

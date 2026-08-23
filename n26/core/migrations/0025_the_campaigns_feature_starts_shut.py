@@ -1,0 +1,52 @@
+from django.db import migrations
+
+# Written out rather than imported: a migration must stay frozen, and the
+# slug is read by code that will go on changing. The group is found by the
+# name the earlier migration created it with; nothing else looks one up
+# that way.
+SLUG = "campaigns"
+GROUP_NAME = "N26 Campaigns"
+
+
+def seed_campaigns_flag(apps, schema_editor):
+    """The row exists from the start, shut, with its group already attached.
+
+    Seeding it off rather than leaving it absent is the difference between a
+    switch somebody can find and a page they have to know to create. Both
+    keep the feature closed; only one of them is discoverable.
+    """
+    FeatureFlag = apps.get_model("n26", "FeatureFlag")
+    Group = apps.get_model("auth", "Group")
+
+    FeatureFlag.objects.get_or_create(
+        slug=SLUG,
+        defaults={
+            "name": "Campaigns",
+            "availability": "off",
+            "group": Group.objects.filter(name=GROUP_NAME).first(),
+            "note": (
+                "Running a campaign: the campaign itself, who is in it, and "
+                "what it owns. Off shuts it for everyone; on the allowlist, "
+                "whoever is in the group gets it."
+            ),
+        },
+    )
+
+
+def drop_campaigns_flag(apps, schema_editor):
+    FeatureFlag = apps.get_model("n26", "FeatureFlag")
+    FeatureFlag.objects.filter(slug=SLUG).delete()
+
+
+class Migration(migrations.Migration):
+    dependencies = [
+        ("n26", "0024_a_feature_may_be_opened_from_the_admin"),
+        # Named although the chain already reaches it: this reads the Group
+        # model, and a dependency inherited through a parent stops holding
+        # the moment that parent is re-parented.
+        ("auth", "0012_alter_user_first_name_max_length"),
+    ]
+
+    operations = [
+        migrations.RunPython(seed_campaigns_flag, drop_campaigns_flag),
+    ]
