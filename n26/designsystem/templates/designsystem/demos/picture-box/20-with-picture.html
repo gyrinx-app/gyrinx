@@ -1,0 +1,13 @@
+{# title: A picture stored #}
+{# note: The picture at the width its caller declares, Remove beneath it, and the upload that replaces it. img_class is the caller's because the shape decides it — w-40 for a portrait model, w-full max-w-md for a landscape gang. #}
+{# layout: col #}
+<c-n26.picture-box action="#"
+                   id="demo-picture-stored"
+                   crop="4:5"
+                   max="1600"
+                   image_url="{{ sample_picture }}"
+                   alt="A picture of the model"
+                   img_class="w-40">
+    Shown from the card's picture control and printed in the card's
+    corner. Picking a file opens the crop, and using it saves.
+</c-n26.picture-box>

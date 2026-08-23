@@ -1851,6 +1851,25 @@ GROUPS: list[Group] = [
                 ),
             ),
             Component(
+                slug="picture-box",
+                tag="c-n26.picture-box",
+                template="n26/picture_box.html",
+                summary="An edit page's picture section: the picture, its removal, and its upload.",
+                needs=("n26/imagecrop.js", "Cropper.js"),
+                notes=(
+                    "Two forms posting act=picture to the same address: a "
+                    "one-click Remove drawn only while a picture is stored, "
+                    "and an upload through <c-n26.picture-input> whose "
+                    "confirmed crop saves at once. The wrapper is what "
+                    "n26/imagecrop.js redraws in place after a background "
+                    "save, so the page the action renders must carry the "
+                    "same box. The crop and max props are str() of the "
+                    "server's own constants (n26/core/images.py) — a call "
+                    "site hands them through from its view rather than "
+                    "spelling the shape itself."
+                ),
+            ),
+            Component(
                 slug="picture-input",
                 tag="c-n26.picture-input",
                 template="n26/picture_input.html",

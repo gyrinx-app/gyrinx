@@ -119,45 +119,22 @@ reads the config after that listener has run.
     </c-n26.form-page>
     {% if tab == "notes" %}
         {% comment %}
-        The picture is its own act, outside the form above — a form inside a
-        form is not markup — in the fighter page's shape: a one-click
-        Remove, an upload whose crop confirms straight to a save, and the
-        box redrawn in place. The column matches the form's cap so the
+        The picture is its own act, outside the form above — a form inside
+        a form is not markup. The column matches the form's cap so the
         section reads as part of the same page.
         {% endcomment %}
         <div class="mt-8 max-w-3xl">
             <c-n26.form-section title="Picture">
-                <div data-picture-box>
-                    {% if gang.image %}
-                        <img src="{{ gang.image.url }}"
-                             alt="A picture of {{ gang.name }}"
-                             class="mb-3 w-full max-w-md rounded-control">
-                        <form method="post" action="{% url 'n26-edit-gang' gang.pk %}" class="mb-3">
-                            {% csrf_token %}
-                            <input type="hidden" name="act" value="picture">
-                            <input type="hidden" name="remove_image" value="on">
-                            <c-ui.button type="submit" variant="default" size="sm">
-                                Remove picture
-                            </c-ui.button>
-                        </form>
-                    {% endif %}
-                    <form method="post"
-                          action="{% url 'n26-edit-gang' gang.pk %}"
-                          enctype="multipart/form-data">
-                        {% csrf_token %}
-                        <input type="hidden" name="act" value="picture">
-                        <p class="mb-2 text-sm text-muted">
-                            Shown on the lore page and against the gang. Picking a
-                            file opens the crop, and using it saves.
-                        </p>
-                        <c-n26.picture-input id="gang-image" name="image" crop="16:9" :submit_on_crop="True" />
-                        <div class="mt-3 flex justify-end" data-crop-fallback>
-                            <c-ui.button type="submit" variant="success" size="sm">
-                                Save picture
-                            </c-ui.button>
-                        </div>
-                    </form>
-                </div>
+                <c-n26.picture-box action="{% url 'n26-edit-gang' gang.pk %}"
+                                   id="gang-image"
+                                   crop="{{ picture_shape }}"
+                                   max="{{ picture_max }}"
+                                   image_url="{{ picture_url }}"
+                                   alt="A picture of {{ gang.name }}"
+                                   img_class="w-full max-w-md">
+                    Shown on the lore page and against the gang. Picking a
+                    file opens the crop, and using it saves.
+                </c-n26.picture-box>
             </c-n26.form-section>
         </div>
     {% endif %}

@@ -806,6 +806,9 @@ def context():
         # string, because that is what the library stores and what the component
         # sanitises. One name for it, so the demos cannot show two drawings.
         "sample_gang_icon": SAMPLE_GANG_ICON,
+        # A stored picture's address for the components that draw one —
+        # a data URI, because the gallery renders with no uploads store.
+        "sample_picture": CARD_IMAGE,
         "sorts": SORTS,
         "choice_offer": choice_offer(),
         "empty_choice_offer": ChoiceOffer(label="Primary skill"),

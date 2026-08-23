@@ -243,6 +243,19 @@ class TestThePicture:
         # Refused with a reason on the page, never a server error.
         assert response.status_code == 200
 
+    def test_the_crop_dialog_is_told_the_servers_own_shape(
+        self, client, tester, gang, vex
+    ):
+        """The shape and cap on the file input are str() of the constants
+        the server crops with, so the dialog and the store cannot come
+        apart."""
+        from n26.core.images import MAX_PX, PORTRAIT
+
+        client.force_login(tester)
+        body = client.get(edit_url(vex)).content.decode()
+        assert f'data-crop="{PORTRAIT}"' in body
+        assert f'data-crop-max="{MAX_PX}"' in body
+
 
 class TestRenamingFromHere:
     """The pencil on this page's card opens the dialog here, and the act

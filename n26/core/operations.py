@@ -404,12 +404,7 @@ class Operation:
         say: the words are the owner's, and the journal is a list of
         acts, not a copy of the prose.
         """
-        if miniature.notes == notes:
-            return miniature
-        miniature.notes = notes
-        miniature.save(update_fields=["notes", "modified"])
-        self.event(miniature, LedgerEvent.Kind.NOTED)
-        return miniature
+        return self._write_prose(miniature, "notes", notes, LedgerEvent.Kind.NOTED)
 
     def edit_lore(self, miniature, lore):
         """Store the model's story as written, and say it changed.
@@ -417,64 +412,60 @@ class Operation:
         As ``edit_notes``: the journal records the act and never the
         prose.
         """
-        if miniature.lore == lore:
-            return miniature
-        miniature.lore = lore
-        miniature.save(update_fields=["lore", "modified"])
-        self.event(miniature, LedgerEvent.Kind.LORE_EDITED)
-        return miniature
+        return self._write_prose(miniature, "lore", lore, LedgerEvent.Kind.LORE_EDITED)
 
     def set_image(self, miniature, upload, clear=False):
         """Give one model a picture, or take it away.
 
         ``upload`` replaces whatever was there; ``clear`` alone removes
         it. Neither given, nothing happens — the common case of saving
-        the form around the picture. The old file is left in storage:
-        an address someone shared keeps working, and files are cheap
-        where a broken image on a page is not.
+        the form around the picture.
         """
-        if upload:
-            miniature.image = upload
-            miniature.save(update_fields=["image", "modified"])
-            self.event(miniature, LedgerEvent.Kind.IMAGE_SET)
-        elif clear and miniature.image:
-            miniature.image = ""
-            miniature.save(update_fields=["image", "modified"])
-            self.event(miniature, LedgerEvent.Kind.IMAGE_CLEARED)
-        return miniature
+        return self._write_picture(miniature, upload, clear)
 
     def edit_gang_notes(self, notes):
         """The gang's own notes, as ``edit_notes`` keeps a model's."""
-        gang = self.gang
-        if gang.notes == notes:
-            return gang
-        gang.notes = notes
-        gang.save(update_fields=["notes", "modified"])
-        self.event(None, LedgerEvent.Kind.NOTED)
-        return gang
+        return self._write_prose(self.gang, "notes", notes, LedgerEvent.Kind.NOTED)
 
     def edit_gang_lore(self, lore):
         """The gang's story, as ``edit_lore`` keeps a model's."""
-        gang = self.gang
-        if gang.lore == lore:
-            return gang
-        gang.lore = lore
-        gang.save(update_fields=["lore", "modified"])
-        self.event(None, LedgerEvent.Kind.LORE_EDITED)
-        return gang
+        return self._write_prose(self.gang, "lore", lore, LedgerEvent.Kind.LORE_EDITED)
 
     def set_gang_image(self, upload, clear=False):
         """The gang's picture, handled as ``set_image`` handles a model's."""
-        gang = self.gang
+        return self._write_picture(self.gang, upload, clear)
+
+    def _write_prose(self, subject, field, value, kind):
+        """One written field on the gang or a model, changed and said.
+
+        An unchanged field writes nothing at all — no save, no event —
+        so saving a form around an untouched box leaves no trace.
+        """
+        if getattr(subject, field) == value:
+            return subject
+        setattr(subject, field, value)
+        subject.save(update_fields=[field, "modified"])
+        about = subject if isinstance(subject, Miniature) else None
+        self.event(about, kind)
+        return subject
+
+    def _write_picture(self, subject, upload, clear):
+        """The picture on the gang or a model, replaced or removed.
+
+        The old file is left in storage: an address someone shared
+        keeps working, and files are cheap where a broken image on a
+        page is not.
+        """
+        about = subject if isinstance(subject, Miniature) else None
         if upload:
-            gang.image = upload
-            gang.save(update_fields=["image", "modified"])
-            self.event(None, LedgerEvent.Kind.IMAGE_SET)
-        elif clear and gang.image:
-            gang.image = ""
-            gang.save(update_fields=["image", "modified"])
-            self.event(None, LedgerEvent.Kind.IMAGE_CLEARED)
-        return gang
+            subject.image = upload
+            subject.save(update_fields=["image", "modified"])
+            self.event(about, LedgerEvent.Kind.IMAGE_SET)
+        elif clear and subject.image:
+            subject.image = ""
+            subject.save(update_fields=["image", "modified"])
+            self.event(about, LedgerEvent.Kind.IMAGE_CLEARED)
+        return subject
 
     def set_stats(self, miniature, changes):
         """Set or clear the characteristics an owner has taken over.

@@ -586,14 +586,15 @@ def edit_gang(request, pk):
     the spending history cannot fit, unwinding the whole change.
     """
     from n26.analytics import EventVerb, N26Noun, record
-    from n26.core.forms import EditGangForm, GangPictureForm, GangStoryForm
+    from n26.core.forms import EditGangForm, GangStoryForm, PictureForm
+    from n26.core.images import LANDSCAPE, MAX_PX
     from n26.core.operations import NotEnoughCredits, operation
 
     gang = _own_gang_or_404(request, pk)
     at = reverse("n26-edit-gang", args=[gang.pk])
     tab = "notes" if request.GET.get("tab") == "notes" else "general"
     if request.method == "POST" and request.POST.get("act") == "picture":
-        form = GangPictureForm(request.POST, request.FILES)
+        form = PictureForm(LANDSCAPE, request.POST, request.FILES)
         if form.is_valid():
             new_picture = bool(form.cleaned_data["image"])
             dropped_picture = (
@@ -695,6 +696,12 @@ def edit_gang(request, pk):
             "form": form,
             "wealth": gang.wealth,
             "tab": tab,
+            # The crop spec the picture box stamps onto the browser's
+            # dialog — handed from the same constants the server crops
+            # with, so the two cannot disagree.
+            "picture_shape": LANDSCAPE,
+            "picture_max": MAX_PX,
+            "picture_url": gang.image.url if gang.image else "",
             "edit_tabs": [
                 {"label": "General", "href": at, "current": tab == "general"},
                 {
