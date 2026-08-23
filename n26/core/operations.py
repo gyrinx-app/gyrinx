@@ -873,20 +873,20 @@ class Operation:
         members included, because a copy an author's removal left
         standing still leaves when its set is no longer taken.
 
-        Copies written before provenance was recorded carry no link and
-        are found by the shape they were written in, below.
+        Copies with no recorded provenance are found by the shape they
+        were written in, below.
         """
-        rows = list(
+        tagged = list(
             Assignment.objects.filter(
-                archived=False,
                 materialised_from__default_set=default_set,
                 materialised_for=carrier,
             )
         )
-        rows.extend(self._granted_rows_without_provenance(carrier, default_set, rows))
+        rows = [copy for copy in tagged if not copy.archived]
+        rows.extend(self._granted_rows_without_provenance(carrier, default_set, tagged))
         return rows
 
-    def _granted_rows_without_provenance(self, carrier, default_set, found):
+    def _granted_rows_without_provenance(self, carrier, default_set, tagged):
         """The set's grants among assignments with no provenance recorded.
 
         Most of a set's members landed caused by the carrier itself; an
@@ -894,20 +894,29 @@ class Operation:
         that weapon came from. Where the built-ins grant the same
         assignable as the set, the set's copy is the newer one — the
         built-ins materialise first — so the newest live match is taken,
-        as many as the set granted and provenance has not already found.
+        as many as the set granted and provenance has not already
+        accounted for.
+
+        The accounting is deliberately cautious both ways. Every tagged
+        copy counts, archived included: a grant the owner parted with is
+        settled, not something to seize a look-alike for. And only live
+        members count: an archived member may never have materialised
+        for this carrier, and hunting for its copy would seize whatever
+        untagged assignment happens to match — worse than leaving a
+        stray copy standing.
         """
         from n26.core.models import Reason
         from n26.library.models import WeaponProfile
 
         wanted = {}
-        for member in default_set.members.all():
+        for member in default_set.members.filter(archived=False):
             assignable = member.assignable
             if assignable is None:
                 continue
             wanted[assignable] = wanted.get(assignable, 0) + 1
-        for row in found:
-            if row.assignable in wanted:
-                wanted[row.assignable] -= 1
+        for copy in tagged:
+            if copy.assignable in wanted:
+                wanted[copy.assignable] -= 1
 
         rows = []
         for assignable, count in wanted.items():

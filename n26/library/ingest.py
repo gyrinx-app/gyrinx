@@ -98,7 +98,7 @@ from dataclasses import dataclass, field
 
 from django.core.files.base import ContentFile
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Max, Q
 
 from n26.library.models.profile import TYPE_NAMES
 from n26.library.sheets import SHEET_NAMES
@@ -3034,7 +3034,10 @@ class _Performer:
         row = self._the_row_the_preview_described(planned)
         live = row.members.filter(archived=False)
         held = {member.assignable.pk: member for member in live}
-        position = live.count()
+        # After the last position ever placed, archived members
+        # included, so a fresh add never ties with a surviving member.
+        last = row.members.aggregate(last=Max("position"))["last"]
+        position = 0 if last is None else last + 1
         named = set()
         for member in planned.fields["members"]:
             thing = self.resolve(member["item"])
@@ -3051,7 +3054,7 @@ class _Performer:
         for member in _superseded_built_ins(
             planned.fields["members"], held.values(), named
         ):
-            member.archive()
+            authoring.remove_default_member(member)
         return row
 
     # -- one creator per kind, each a thin call into library.authoring ------

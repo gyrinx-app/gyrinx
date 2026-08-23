@@ -88,6 +88,7 @@ class TestRemovingABuiltIn:
         assert_reconciled(gang)
 
     def test_the_next_hire_comes_without_it(self, gang, ganger):
+        hire(gang, ganger, "Ana", paid=50)
         remove_default_member(member_named(ganger, "Stub gun"))
         fighter = hire(gang, ganger, "Bea", paid=50)
 
@@ -96,6 +97,7 @@ class TestRemovingABuiltIn:
         assert_reconciled(gang)
 
     def test_the_membership_is_archived_and_off_the_listing(self, gang, ganger):
+        hire(gang, ganger, "Ana", paid=50)
         member = member_named(ganger, "Stub gun")
         remove_default_member(member)
 
@@ -104,6 +106,17 @@ class TestRemovingABuiltIn:
         assert "Stub gun" not in [
             str(row.assignable) for row in ganger.built_in_members
         ]
+
+    def test_a_member_nothing_materialised_from_goes_completely(self, ganger):
+        """Archival exists for the copies that name a member; with none,
+        an archived member would only linger invisibly, holding its
+        assignable under PROTECT with no page left to show why."""
+        member = member_named(ganger, "Stub gun")
+        thing = member.assignable
+        remove_default_member(member)
+
+        assert not DefaultAssignment.objects.filter(pk=member.pk).exists()
+        thing.refresh_from_db()
 
     def test_the_hire_preview_drops_it(self, ganger):
         remove_default_member(member_named(ganger, "Stub gun"))
@@ -120,11 +133,13 @@ class TestRemovingABuiltIn:
         )
         gun_member = add_built_in(ganger, launcher)
         ammo_member = add_built_in(ganger, smoke)
+        hire(gang, ganger, "Ana", paid=50)
 
         remove_default_member(gun_member)
 
         ammo_member.refresh_from_db()
         assert ammo_member.archived is True
+        assert_reconciled(gang)
 
 
 class TestProvenance:
@@ -140,12 +155,14 @@ class TestProvenance:
                 materialised_for=membership,
             )
             assert copy.archived is False
+        assert_reconciled(gang)
 
     def test_a_purchase_carries_none(self, gang, ganger):
         fighter = hire(gang, ganger, "Ana", paid=50)
         membership = fighter.membership
         assert membership.materialised_from_id is None
         assert membership.materialised_for_id is None
+        assert_reconciled(gang)
 
     def test_a_founding_writes_it_too(self, gang_type, player, default_pack):
         add_built_in(gang_type, create_rule("Home Turf"))
@@ -156,6 +173,7 @@ class TestProvenance:
         )
         assert copy.materialised_for_id == gang.founding.pk
         assert copy.gang_id == gang.pk
+        assert_reconciled(gang)
 
     def test_granted_ammo_names_its_member_not_its_gun(self, gang, ganger):
         launcher = create_weapon("Launcher", profiles=[("Frag", 0)])
@@ -172,6 +190,7 @@ class TestProvenance:
         )
         assert copy.materialised_for_id == fighter.membership.pk
         assert copy.caused_by_id == gun.pk
+        assert_reconciled(gang)
 
     def test_a_legacy_profile_writes_it_for_the_list_it_brings(
         self, gang, ganger, person_type, gang_type
@@ -185,6 +204,7 @@ class TestProvenance:
 
         copy = Assignment.objects.get(materialised_from=list_member)
         assert copy.materialised_for_id == association.pk
+        assert_reconciled(gang)
 
     def test_one_live_copy_per_member_per_carrier(self, gang, ganger):
         fighter = hire(gang, ganger, "Ana", paid=50)
@@ -224,6 +244,7 @@ class TestProvenance:
             ).count()
             == 2
         )
+        assert_reconciled(gang)
 
 
 @pytest.fixture
@@ -259,7 +280,7 @@ def weapon_names(miniature):
 
 class TestRechooseFindsGrantsByProvenance:
     """A swap unwinds the departing set whether its copies carry
-    provenance (written at hire) or predate it (found by their ledger
+    provenance (written at hire) or carry none (found by their ledger
     shape)."""
 
     def sets_of(self, profile):
@@ -287,8 +308,8 @@ class TestRechooseFindsGrantsByProvenance:
 
     def test_copies_without_provenance_leave_too(self, gang, chooser):
         fighter = hire_with_option(gang, chooser, "Ana")
-        # Copies written before provenance existed carry no link; wiped
-        # here to stand in for them.
+        # Wiped to stand in for copies that carry no provenance link,
+        # which the unwind must still find by their written shape.
         for row in Assignment.objects.filter(
             miniature_root=fighter, materialised_from__isnull=False
         ):
@@ -329,6 +350,7 @@ class TestTheMemberRowOutlivesItsSetsUses:
 
         with pytest.raises(ProtectedError):
             member.delete()
+        assert_reconciled(gang)
 
 
 class TestTheRemovePage:
@@ -341,9 +363,12 @@ class TestTheRemovePage:
         client.force_login(user)
         return user
 
-    def test_the_post_archives_the_membership(self, client, author, ganger):
+    def test_the_post_archives_a_materialised_membership(
+        self, client, author, gang, ganger
+    ):
         from django.urls import reverse
 
+        hire(gang, ganger, "Ana", paid=50)
         member = member_named(ganger, "Stub gun")
         response = client.post(reverse("authoring-built-in-remove", args=[member.pk]))
         assert response.status_code == 302
@@ -355,14 +380,14 @@ class TestTheRemovePage:
         from django.urls import reverse
 
         member = member_named(ganger, "Stub gun")
-        remove_default_member(member)
         address = reverse("authoring-built-in-remove", args=[member.pk])
+        remove_default_member(member)
         assert client.get(address).status_code == 404
         assert client.post(address).status_code == 404
 
 
 class TestArchivedMembersAndNewGrants:
-    def test_rechoosing_into_a_set_skips_its_archived_members(self, gang, chooser):
+    def test_rechoosing_into_an_emptied_set_brings_nothing(self, gang, chooser):
         sets = {
             option.default_set.name: option.default_set
             for option in chooser.options.all()

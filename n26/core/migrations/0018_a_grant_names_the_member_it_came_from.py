@@ -39,4 +39,18 @@ class Migration(migrations.Migration):
                 name="assignment_one_live_materialisation",
             ),
         ),
+        migrations.AddConstraint(
+            model_name="assignment",
+            constraint=models.CheckConstraint(
+                condition=models.Q(
+                    ("materialised_for__isnull", True),
+                    ("materialised_from__isnull", True),
+                )
+                | models.Q(
+                    ("materialised_for__isnull", False),
+                    ("materialised_from__isnull", False),
+                ),
+                name="assignment_provenance_is_a_pair",
+            ),
+        ),
     ]

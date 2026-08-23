@@ -196,9 +196,12 @@ def _describe_option(option):
 
 def _brought_by(option):
     """What one option's set holds, in the order it was written.
-    Archived members are off the set: taking the option no longer
-    brings them."""
-    return option.default_set.members.filter(archived=False)
+    Archived members are off the set — taking the option no longer
+    brings them — and are skipped in Python so the option listing's
+    prefetch of members stays warm."""
+    return [
+        member for member in option.default_set.members.all() if not member.archived
+    ]
 
 
 #: The rulebook's phrase for each way a set is picked — the words the
