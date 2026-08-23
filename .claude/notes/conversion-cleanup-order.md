@@ -22,6 +22,8 @@ nothing anywhere names one — no assignment, no menu entry, no offer.
 | The archived-answers sweep | run — 399 answers, 169 gangs |
 | The spares a doubled click left | cleared — 4 answers, 3 gangs |
 | What the conversions left standing | deleted — 26 kind rows, 22 menu entries, 4 menus, 6 modifiers, 1 marker |
+| The content mirror | re-synced from the tidy library |
+| The conversion code | retired — eight slugs kept, ~7,000 lines gone |
 | A superuser may delete player data in the admin | merged |
 | A doubled click no longer answers a question twice | merged |
 | The authoring menu no longer offers the retired kinds | merged |
@@ -126,20 +128,34 @@ the second could not run until the first had. Both have now run.
    anything names it, and each operation says so by name rather than
    running out of turn.
 
-### Wave 3
+### Wave 3 — run
 
-8. **Re-sync the content mirror from production.** Now unblocked: 5, 6
-   and 7 are all run, so the mirror would inherit the tidy library. It is
-   still unconverted — it holds the old offers and only the pre-existing
-   slot types — which is why 9 waits on this.
+8. ~~Re-sync the content mirror from production.~~ Done 2026-08-23:
+   38,010 objects, and the mirror now holds the tidy library — five slot
+   types, no offers of a retired kind, none of the fossil menus.
 
-### Wave 4
+   Two things worth knowing for the next sync. The mirror was five
+   migrations behind, which is the documented trap and would have failed
+   the import; migrate it first. And `loaddata_overwrite` clears only the
+   models the fixture names, so the 26 emptied kind rows survived the
+   import as orphans — nothing references them, and the wave 5 migration
+   drops their tables, so they are left where they are.
 
-9. **Retire the conversion modules and their console operations.** Slug
-   registered with `view=None`, code deleted, the way the wargear merge
-   went. Waits on the mirror: until it is re-synced, every local
-   database forks unconverted and needs the conversions as its route
-   across.
+### Wave 4 — run
+
+9. ~~Retire the conversion modules and their console operations.~~ Done
+   2026-08-23. Eight slugs now registered with no view, the way the
+   wargear merge went, so a historical record still reads as a name;
+   about 7,000 lines of module and test code deleted, along with the
+   `n26_convert` command and the two conversion templates.
+
+   It was checked against the re-synced mirror first: every conversion,
+   the sweep and the clearing all read `nothing_here` there, so the code
+   really was dead before it went. The one that did not was the pilot
+   retirement, which searches by the name "Gang Legacy" — the name the
+   *real* slot type now wears. It refused, correctly, because the real
+   pickables carry modifiers and the pilot's were hollow. Retiring it
+   removes that edge rather than relying on the guard.
 
 ### Wave 5 — planned separately
 
@@ -150,7 +166,7 @@ the second could not run until the first had. Both have now run.
    selector algebra, card building, history, sample data — plus a
    migration dropping three columns and three tables. Startup checks
    enforce the registries agreeing, so a half-done version will not
-   boot. 6, 7 and the sweep are done, so no rows and no data stand in the way. It still needs 8 and 9, for the code.
+   boot. Nothing stands in the way now: 6, 7 and the sweep left no rows or data, and 8 and 9 have taken the code and the mirror with them.
 
 ### After the programme
 
