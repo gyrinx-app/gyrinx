@@ -381,6 +381,15 @@ class Assignment(NamesAnAssignable, Base, Archived):
                 condition=models.Q(archived=False),
                 name="assignment_one_live_materialisation",
             ),
+            # A removal is machinery, never a grant: it suppresses its
+            # assignable rather than holding it, so it must never satisfy
+            # the provenance lookup that says a built-in member is already
+            # materialised for a carrier.
+            models.CheckConstraint(
+                condition=models.Q(removes=False)
+                | models.Q(materialised_from__isnull=True),
+                name="assignment_removal_carries_no_provenance",
+            ),
             # Provenance is a pair or nothing. A copy naming only half
             # would slip both grant lookups and the unique constraint
             # (NULLs never collide), so the half-written shape is refused
