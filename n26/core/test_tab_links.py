@@ -110,6 +110,25 @@ class TestTheNarrowStrip:
         assert "data-quick-switcher" not in html
 
 
+class TestTheBusySpinner:
+    """A strip whose pages take seconds to build can name the element that
+    gives way to a spinner, so a click is seen to have landed."""
+
+    def test_a_busy_strip_carries_the_wait_wiring_and_the_spinner(self):
+        html = render(
+            '<c-n26.tab-links label="Which list" :tabs="tabs" busy="#listing" />',
+            tabs=TABS,
+        )
+        assert "#listing" in html
+        assert 'x-ref="wait"' in html
+        assert "animate-spin" in html
+
+    def test_a_plain_strip_carries_none_of_it(self):
+        html = render('<c-n26.tab-links label="Which list" :tabs="tabs" />', tabs=TABS)
+        assert 'x-ref="wait"' not in html
+        assert "animate-spin" not in html
+
+
 class TestTheSearchBarsButton:
     """The submit appears exactly where clicking it does something. A bar
     that narrows rows already on the page has nothing to submit, and a

@@ -98,35 +98,37 @@ be read in one.
         <c-n26.tab-links label="Who can be hired"
                          :tabs="scope_tabs"
                          speculate="prefetch"
+                         busy="#hire-listing"
                          class="mb-4" />
-        <c-n26.profile-picker :categories="categories"
-                              :sections="sections"
-                              price_floor="{{ price_floor }}"
-                              price_ceiling="{{ price_ceiling }}">
-            <c-slot name="filters">
-                <c-n26.search-bar :live="True"
-                                  :nested="True"
-                                  model="query"
-                                  placeholder="Search {{ scope_label|lower }}" />
-                {% if category_options or price_ceiling > price_floor %}
-                    <div class="flex flex-wrap items-center gap-2">
-                        {% if category_options %}
-                            <c-n26.filter-menu label="Category" name="category" :options="category_options" />
-                        {% endif %}
-                        {% if price_ceiling > price_floor %}
-                            <c-n26.range-menu label="Price"
-                                              model_min="minPrice"
-                                              model_max="maxPrice"
-                                              min="{{ price_floor }}"
-                                              max="{{ price_ceiling }}"
-                                              step="5"
-                                              suffix="¢"
-                                              at_max_label="Any" />
-                        {% endif %}
-                    </div>
-                {% endif %}
-            </c-slot>
-            {% comment %}
+        <div id="hire-listing">
+            <c-n26.profile-picker :categories="categories"
+                                  :sections="sections"
+                                  price_floor="{{ price_floor }}"
+                                  price_ceiling="{{ price_ceiling }}">
+                <c-slot name="filters">
+                    <c-n26.search-bar :live="True"
+                                      :nested="True"
+                                      model="query"
+                                      placeholder="Search {{ scope_label|lower }}" />
+                    {% if category_options or price_ceiling > price_floor %}
+                        <div class="flex flex-wrap items-center gap-2">
+                            {% if category_options %}
+                                <c-n26.filter-menu label="Category" name="category" :options="category_options" />
+                            {% endif %}
+                            {% if price_ceiling > price_floor %}
+                                <c-n26.range-menu label="Price"
+                                                  model_min="minPrice"
+                                                  model_max="maxPrice"
+                                                  min="{{ price_floor }}"
+                                                  max="{{ price_ceiling }}"
+                                                  step="5"
+                                                  suffix="¢"
+                                                  at_max_label="Any" />
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                </c-slot>
+                {% comment %}
             Profiles the content gave no home category arrive in a category
             with an empty name — a gap the library will fill, shown rather
             than papered over. The rows still need a section around them (an
@@ -146,24 +148,25 @@ be read in one.
             same fighter can be on this screen twice at two prices, so the
             profile alone would not say which row was clicked. Never a price:
             the server reads that off the entry.
-            {% endcomment %}
-            {% for section in hire_list %}
-                <c-n26.collection-picker.section :name="section.name" :open="forloop.first">
-                    {% for category in section.categories %}
-                        {% if category.name %}
-                            <c-n26.collection-picker.category :name="category.name">
+                {% endcomment %}
+                {% for section in hire_list %}
+                    <c-n26.collection-picker.section :name="section.name" :open="forloop.first">
+                        {% for category in section.categories %}
+                            {% if category.name %}
+                                <c-n26.collection-picker.category :name="category.name">
+                                    {% for entry in category.entries %}
+                                        <c-n26.profile-picker.row :entry="entry" value="{{ entry.key }}" />
+                                    {% endfor %}
+                                </c-n26.collection-picker.category>
+                            {% else %}
                                 {% for entry in category.entries %}
                                     <c-n26.profile-picker.row :entry="entry" value="{{ entry.key }}" />
                                 {% endfor %}
-                            </c-n26.collection-picker.category>
-                        {% else %}
-                            {% for entry in category.entries %}
-                                <c-n26.profile-picker.row :entry="entry" value="{{ entry.key }}" />
-                            {% endfor %}
-                        {% endif %}
-                    {% endfor %}
-                </c-n26.collection-picker.section>
-            {% endfor %}
-        </c-n26.profile-picker>
+                            {% endif %}
+                        {% endfor %}
+                    </c-n26.collection-picker.section>
+                {% endfor %}
+            </c-n26.profile-picker>
+        </div>
     </c-n26.view.fighter-hire>
 {% endblock content %}

@@ -36,11 +36,17 @@ span written after the template would otherwise land in front of them.
 {% endcomment %}
 <c-vars full_class="" narrow_class="" />
 
-<div class="hidden flex-wrap items-center gap-x-1 sm:flex {{ full_class }}">
+{% comment %}
+The containers keep the default stretch alignment: every tab and both
+spacers fill the row's height, so their bottom borders meet as one line.
+Centring the items instead floats a short item's border up into the text.
+A tab centres its own words with items-center of its own.
+{% endcomment %}
+<div class="hidden flex-wrap gap-x-1 sm:flex {{ full_class }}">
     {{ full }}
     <span aria-hidden="true" class="order-last min-w-0 flex-1 border-b-2 border-box-border"></span>
 </div>
-<div class="relative flex flex-wrap items-center gap-x-1 sm:hidden {{ narrow_class }}">
+<div class="relative flex flex-wrap gap-x-1 sm:hidden {{ narrow_class }}">
     {{ narrow }}
     <span aria-hidden="true" class="order-last min-w-0 flex-1 border-b-2 border-box-border"></span>
 </div>

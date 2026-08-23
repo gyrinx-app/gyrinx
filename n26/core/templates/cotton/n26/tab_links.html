@@ -35,12 +35,50 @@ wider than the page.
   eagerness — when to start. "moderate" (the default) waits for hover or
     touch-down; "immediate" starts as soon as the page settles, buying the most
     head start on pages that may never be opened.
+  busy — a CSS selector. While the chosen tab's page loads, that element's
+    contents give way to a small centred spinner, so a click on a strip whose
+    pages take seconds to build is seen to have landed. Modified clicks are
+    left alone — they open elsewhere and this page keeps standing — and a
+    page served back from the browser's history cache puts its contents
+    back, since it returns exactly as it was left. Off by default; without
+    script the links still navigate, just without the feedback.
 {% endcomment %}
-<c-vars :tabs="[]" label="" speculate="" eagerness="moderate" class="" />
+<c-vars :tabs="[]" label="" speculate="" eagerness="moderate" busy="" class="" />
 
 <nav {{ attrs }}
      aria-label="{{ label }}"
      {% if speculate %}data-speculate="{{ label|slugify }}"{% endif %}
+     {% if busy %}
+     x-data="{
+         shown: null,
+         restore: null,
+         wait(event) {
+             if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+             const link = event.target.closest('a[href]');
+             if (!link || link.hasAttribute('aria-current')) return;
+             const body = document.querySelector({{ busy|json_dumps }});
+             if (!body || this.shown) return;
+             for (const child of body.children) { child.style.setProperty('display', 'none'); }
+             this.shown = this.$refs.wait.content.firstElementChild.cloneNode(true);
+             body.setAttribute('aria-busy', 'true');
+             body.appendChild(this.shown);
+         },
+         init() {
+             this.restore = () => {
+                 if (!this.shown) return;
+                 const body = this.shown.parentElement;
+                 this.shown.remove();
+                 this.shown = null;
+                 if (!body) return;
+                 body.removeAttribute('aria-busy');
+                 for (const child of body.children) { child.style.removeProperty('display'); }
+             };
+             window.addEventListener('pageshow', this.restore);
+         },
+         destroy() { window.removeEventListener('pageshow', this.restore); }
+     }"
+     @click="wait($event)"
+     {% endif %}
      class="{{ class }}">
     <c-n26.tab-strip>
         <c-slot name="full">
@@ -67,7 +105,7 @@ wider than the page.
                 {% endif %}
             {% endfor %}
             {% if tabs|length > 1 %}
-                <span class="flex shrink-0 items-center self-stretch border-b-2 border-box-border">
+                <span class="flex shrink-0 items-center border-b-2 border-box-border">
                     <c-n26.quick-switcher heading="{{ label }}"
                                           menu_label="Other tabs"
                                           placeholder="Search tabs"
@@ -96,6 +134,18 @@ wider than the page.
             {% endif %}
         </c-slot>
     </c-n26.tab-strip>
+    {% if busy %}
+        {% comment %}
+        A template rather than a hidden element, so the spinner is drawn
+        only when a click clones it into place — one copy per wait, removed
+        whole on restore.
+        {% endcomment %}
+        <template x-ref="wait">
+            <div class="flex justify-center py-10">
+                <c-ui.spinner size="sm" color="ink" />
+            </div>
+        </template>
+    {% endif %}
 </nav>
 {% if speculate %}
     {% comment %}
