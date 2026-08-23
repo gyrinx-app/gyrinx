@@ -141,7 +141,10 @@ def _describe_statline_stat(type_stat):
 def _describe_built_in(member):
     """One row of what a profile comes with. A collection member is
     access rather than kit — the list this entry may use — and the
-    page says so; everything else reads as its kind."""
+    page says so; everything else reads as its kind. An extra weapon
+    line naming no gun of its set rides whatever matching gun its
+    acquirer holds, which is worth a row's words because nothing else
+    on the page says where it lands."""
     from n26.library.models import Collection
 
     thing = member.assignable
@@ -151,6 +154,8 @@ def _describe_built_in(member):
         notes = [str(thing._meta.verbose_name)]
     if member.amount:
         notes.append(f"opening value {member.amount}")
+    if member.weapon_profile_id is not None and member.gun_member_id is None:
+        notes.append("rides whatever matching gun is already held")
     return _label_for(thing), notes
 
 
@@ -179,6 +184,33 @@ def _built_in_parts(parts):
     from n26.library.models import DefaultAssignment
 
     return parts.prefetch_related(*DefaultAssignment.ASSIGNABLE_FIELDS)
+
+
+def _arrange_built_ins(pairs):
+    """The comes-with rows, with each gun's own lines under it.
+
+    ``pairs`` is ``(member, drawn row)`` in listing order. A member
+    naming its gun nests under that gun's row — the grammar a card uses
+    for firing lines under weapons — and every weapon row gains the way
+    to build one of its lines in beside it. A member naming no gun
+    lists flat, its row saying where it lands.
+    """
+    drawn_by_pk = {}
+    for member, drawn in pairs:
+        drawn["children"] = []
+        drawn_by_pk[member.pk] = drawn
+    arranged = []
+    for member, drawn in pairs:
+        if member.weapon_id is not None:
+            drawn["add_profile_url"] = reverse(
+                "authoring-built-in-profiles", args=[member.pk]
+            )
+        parent = drawn_by_pk.get(member.gun_member_id) if member.gun_member_id else None
+        if parent is not None:
+            parent["children"].append(drawn)
+        else:
+            arranged.append(drawn)
+    return arranged
 
 
 def _describe_option(option):
@@ -346,6 +378,19 @@ BUILT_INS_PART = {
     # own address, never from the listing, because what the act means
     # cannot be read off the row.
     "removes": "authoring-built-in-remove",
+    # A gun's own lines nest under it, so the listing reads the way a
+    # card draws firing lines under weapons.
+    "arrange": _arrange_built_ins,
+    # The add form no longer offers weapon profiles — a line means
+    # nothing apart from its gun — so the section carries the way to
+    # the page that adds one: a gun of the set from its own row, or
+    # here for a gun the set does not bring.
+    "door": lambda thing: (
+        reverse("authoring-set-profiles", args=[thing.built_ins_id])
+        if thing.built_ins_id
+        else ""
+    ),
+    "door_label": "Add a weapon profile…",
 }
 
 
@@ -1575,23 +1620,30 @@ def detail(request, kind, pk):
         removes = section.get("removes")
         opens = section.get("opens")
 
-        parts = []
+        pairs = []
         for part in section.get("parts_hint", lambda parts: parts)(
             getattr(thing, section["parts"]).all()
         ):
             label, notes = section["describe"](part)
-            parts.append(
-                {
-                    "label": label,
-                    "notes": notes,
-                    # Blank for a kind whose parts have no page of their
-                    # own; the row's name is then plain words.
-                    "href": _opens_url(opens, part),
-                    # Blank for a kind whose parts cannot be taken off
-                    # here; the row simply draws no control.
-                    "remove_url": reverse(removes, args=[part.pk]) if removes else "",
-                }
+            pairs.append(
+                (
+                    part,
+                    {
+                        "label": label,
+                        "notes": notes,
+                        # Blank for a kind whose parts have no page of their
+                        # own; the row's name is then plain words.
+                        "href": _opens_url(opens, part),
+                        # Blank for a kind whose parts cannot be taken off
+                        # here; the row simply draws no control.
+                        "remove_url": reverse(removes, args=[part.pk])
+                        if removes
+                        else "",
+                    },
+                )
             )
+        arrange = section.get("arrange")
+        parts = arrange(pairs) if arrange else [drawn for _part, drawn in pairs]
         part_name = str(section.get("part_name", part_model._meta.verbose_name))
         drawn.append(
             {
@@ -1614,6 +1666,10 @@ def detail(request, kind, pk):
                 # Blank for a section adding its parts in a form here;
                 # the page then draws that form rather than a way out.
                 "add_url": reverse(elsewhere, args=[thing.pk]) if elsewhere else "",
+                # A further way in for parts the form cannot offer —
+                # blank for every section that has none.
+                "door_url": section.get("door", lambda thing: "")(thing),
+                "door_label": section.get("door_label", ""),
             }
         )
 
@@ -1961,6 +2017,169 @@ def built_in_remove(request, pk):
     )
 
 
+def _priced_profile_rows(weapon, riding_pks=frozenset()):
+    """One weapon's own priced lines, as an adding page lists them.
+
+    Free lines are not offered: they arrive with the gun on their own,
+    which the page says instead. ``riding_pks`` marks the lines the set
+    already brings for this gun, so an author sees what is there without
+    being refused a deliberate second copy.
+    """
+    rows = []
+    for line in _weapon_parts(weapon.profiles.filter(price__gt=0)):
+        label, notes = _describe_weapon_profile(line)
+        if line.pk in riding_pks:
+            notes.append("already comes with this gun")
+        rows.append({"pk": line.pk, "label": label, "notes": notes})
+    return rows
+
+
+@staff_member_required
+def built_in_profiles(request, pk):
+    """One more of a gun's lines built in beside it, at the gun
+    member's own address.
+
+    The address names the weapon *member*, not the weapon: a set may
+    bring the same gun twice, and which of them a line lands under is
+    exactly what this page settles. Choosing a line writes the member
+    anchored to this gun, placed just after it.
+    """
+    from n26.library import authoring
+    from n26.library.models import DefaultAssignment
+
+    member = get_object_or_404(
+        DefaultAssignment.objects.select_related("default_set", "weapon"),
+        pk=pk,
+        archived=False,
+        weapon__isnull=False,
+    )
+    weapon = member.weapon
+    holders = _holders_of(member.default_set)
+    back = _back_to(holders)
+
+    if request.method == "POST":
+        line = get_object_or_404(
+            weapon.profiles.filter(price__gt=0), pk=request.POST.get("weapon_profile")
+        )
+        with transaction.atomic():
+            added = authoring.add_default_member(
+                member.default_set,
+                line,
+                gun_member=member,
+                position=member.position + 1,
+                pack=member.default_set.pack,
+            )
+        messages.success(
+            request,
+            f"{member.default_set.name} now brings {added.assignable} "
+            f"with its {weapon}.",
+        )
+        return redirect(back)
+
+    riding = set(
+        DefaultAssignment.objects.filter(gun_member=member, archived=False).values_list(
+            "weapon_profile_id", flat=True
+        )
+    )
+    return render(
+        request,
+        "authoring/built_in_profiles.html",
+        {
+            "weapon": weapon,
+            "rows": _priced_profile_rows(weapon, riding),
+            "set_name": member.default_set.name,
+            "holders": holders,
+            "back": back,
+            "picker": None,
+            "landing_said": f"Each line lands under this {weapon}.",
+        },
+    )
+
+
+@staff_member_required
+def set_profiles(request, pk):
+    """A weapon's line added to a set that does not bring the weapon —
+    the two-step door an option set uses to arm a gun the built-ins
+    bring.
+
+    The weapon is picked first and carried in the address, so the page
+    works reloaded and without scripting; its priced lines follow. The
+    member written here names no gun of the set's own — unless the set
+    does bring the weapon, in which case the verb settles the anchor
+    exactly as an import would, refusing where the set brings it twice.
+    """
+    from n26.library import authoring
+    from n26.library.models import DefaultAssignmentSet, Weapon
+
+    default_set = get_object_or_404(DefaultAssignmentSet, pk=pk)
+    holders = _holders_of(default_set)
+    back = _back_to(holders)
+
+    weapon = None
+    named = request.POST.get("weapon") or request.GET.get("weapon")
+    if named:
+        weapon = get_object_or_404(Weapon, pk=named)
+
+    if request.method == "POST" and weapon is not None:
+        line = get_object_or_404(
+            weapon.profiles.filter(price__gt=0), pk=request.POST.get("weapon_profile")
+        )
+        try:
+            with transaction.atomic():
+                added = authoring.add_default_member(
+                    default_set, line, pack=default_set.pack
+                )
+        except ValidationError as refused:
+            for said in refused.messages:
+                messages.error(request, said)
+            return redirect(f"{request.path}?weapon={weapon.pk}")
+        messages.success(request, f"{default_set.name} now brings {added.assignable}.")
+        return redirect(back)
+
+    if weapon is None:
+        return render(
+            request,
+            "authoring/built_in_profiles.html",
+            {
+                "weapon": None,
+                "rows": [],
+                "set_name": default_set.name,
+                "holders": holders,
+                "back": back,
+                "picker": Weapon.objects.all(),
+                "landing_said": "",
+            },
+        )
+
+    brings = default_set.members.filter(archived=False, weapon=weapon).count()
+    if brings == 0:
+        landing_said = (
+            f"{default_set.name} does not bring a {weapon}, so each line "
+            f"will ride whatever {weapon} its acquirer already holds."
+        )
+    elif brings == 1:
+        landing_said = f"Each line lands under the {weapon} this set brings."
+    else:
+        landing_said = (
+            f"{default_set.name} brings a {weapon} {brings} times, so a "
+            f"line added here will be refused — add it from one gun's own "
+            f"row instead."
+        )
+    return render(
+        request,
+        "authoring/built_in_profiles.html",
+        {
+            "weapon": weapon,
+            "rows": _priced_profile_rows(weapon),
+            "set_name": default_set.name,
+            "holders": holders,
+            "back": back,
+            "picker": None,
+            "landing_said": landing_said,
+        },
+    )
+
+
 def _deleting(request, thing):
     """Take a row out of the library, or say what is standing in the way.
 
@@ -2089,6 +2308,9 @@ def option_add(request, pk):
             "brings": [_label_for(member.assignable) for member in _brought_by(option)],
             "form": form,
             "back": back,
+            "profiles_url": reverse(
+                "authoring-set-profiles", args=[option.default_set_id]
+            ),
         },
     )
 

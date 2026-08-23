@@ -1,0 +1,104 @@
+{% extends "authoring/base.html" %}
+{% comment %}
+One of a weapon's own lines built into a set, at an address of its own.
+Two ways in, told apart by what the address names. A gun member's
+address means the gun is settled: the page lists that weapon's priced
+lines and choosing one lands it under that gun. A set's address means
+the gun is the first question: the weapon is picked and carried in the
+address, so the page reloads and works with scripting switched off, and
+where the set lands the line — under its own gun, or on whatever
+matching gun the acquirer holds — is said before anything is chosen.
+
+Free lines are never listed: they arrive with the gun on their own, and
+offering them would invite building in a second copy.
+{% endcomment %}
+{% block head_title %}Add a weapon profile{% endblock head_title %}
+{% block content %}
+    <c-n26.page-header title="Add a weapon profile to {{ set_name }}">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'authoring-index' %}">Content library</c-ui.breadcrumbs.item>
+                {% if holders|length == 1 and holders.0.kind %}
+                    <c-ui.breadcrumbs.item href="{{ back }}">
+                        {{ holders.0.label }}
+                    </c-ui.breadcrumbs.item>
+                {% endif %}
+                <c-ui.breadcrumbs.item :current="True">
+                    Add a weapon profile
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+    </c-n26.page-header>
+    <div class="mt-6 max-w-2xl space-y-6">
+        {% if picker %}
+            {% comment %}
+            Step one: which weapon. A GET, so the choice lands in the
+            address and the page showing its lines can be reloaded and
+            shared.
+            {% endcomment %}
+            <c-n26.form-section title="Whose lines?"
+                                description="Pick the weapon; its priced profiles follow.">
+                <form method="get" class="flex max-w-xl items-end gap-3">
+                    <div class="grow">
+                        <c-ui.field data-field label="Weapon" for="door-weapon">
+                            <c-n26.filter-select placeholder="Type to filter weapons">
+                                <c-ui.select.native name="weapon" id="door-weapon" placeholder="Pick a weapon">
+                                    {% for gun in picker %}
+                                        <c-ui.select.option value="{{ gun.pk }}">
+                                            {{ gun.authoring_label }}
+                                        </c-ui.select.option>
+                                    {% endfor %}
+                                </c-ui.select.native>
+                            </c-n26.filter-select>
+                        </c-ui.field>
+                    </div>
+                    <c-ui.button type="submit" variant="primary">
+                        Show its profiles
+                    </c-ui.button>
+                </form>
+            </c-n26.form-section>
+        {% else %}
+            {% if landing_said %}
+                <c-ui.description>
+                    {{ landing_said }}
+                </c-ui.description>
+            {% endif %}
+            <c-ui.description>
+                Free profiles are not listed: they arrive with the {{ weapon }} on
+                their own.
+            </c-ui.description>
+            {% if rows %}
+                <c-ui.table>
+                    <tbody>
+                        {% for row in rows %}
+                            <tr>
+                                <td class="whitespace-nowrap">{{ row.label }}</td>
+                                <td class="w-full text-muted">{{ row.notes|join:" · " }}</td>
+                                <td class="text-right">
+                                    <form method="post">
+                                        {% csrf_token %}
+                                        {% if weapon %}<input type="hidden" name="weapon" value="{{ weapon.pk }}">{% endif %}
+                                        <input type="hidden" name="weapon_profile" value="{{ row.pk }}">
+                                        <c-ui.button type="submit" size="sm" variant="success">
+                                            Add this profile
+                                        </c-ui.button>
+                                    </form>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </c-ui.table>
+            {% else %}
+                <c-ui.description>
+                    {{ weapon }} has no priced profiles — every line it has
+                    arrives with it already.
+                </c-ui.description>
+            {% endif %}
+        {% endif %}
+        <div>
+            <c-n26.link href="{{ back }}" class="text-sm">
+                Back
+            </c-n26.link>
+        </div>
+    </div>
+{% endblock content %}

@@ -149,6 +149,22 @@ urlpatterns = [
         authoring_views.built_in_remove,
         name="authoring-built-in-remove",
     ),
+    # A gun member's own lines are built in from the gun's row — the
+    # address names the member, because a set may bring the same gun
+    # twice and which of them a line rides is the whole question.
+    path(
+        "authoring/built-ins/<str:pk>/profiles/",
+        authoring_views.built_in_profiles,
+        name="authoring-built-in-profiles",
+    ),
+    # The same act for a set that does not bring the gun — an option
+    # set arming a weapon the built-ins bring. The weapon is picked
+    # first and carried in the address.
+    path(
+        "authoring/sets/<str:pk>/profiles/",
+        authoring_views.set_profiles,
+        name="authoring-set-profiles",
+    ),
     # An option and a set of options belong to the thing offering them
     # rather than being authored kinds of their own, so withdrawing
     # either has an address here instead of riding the kind/pk routes.
