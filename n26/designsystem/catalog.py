@@ -1808,7 +1808,10 @@ GROUPS: list[Group] = [
                     "settled, an open one being information rather than an error. "
                     "Every control is drawn from an href on the structure, so a "
                     "print sheet and a hire preview draw none of them without "
-                    "asking. Two modes: gang, the sheet's — dense, with the open "
+                    "asking. A stored model's card is three segmented tabs — Card, "
+                    "then Lore and Notes, the sections a player writes; a card with "
+                    "no id (a preview, a picker option) draws the body plain. "
+                    "Two modes: gang, the sheet's — dense, with the open "
                     "questions shown but their buttons held back — and edit, the "
                     "model's own page, where those buttons come out outlined and "
                     "the Gear and Weapons rows carry the way to the Equip tab. A "
@@ -1833,10 +1836,40 @@ GROUPS: list[Group] = [
                         "stay one line.",
                     ),
                     Part(
+                        "c-n26.model-card.body",
+                        "n26/model_card/body.html",
+                        "The rules' half of the card — statline, rows, weapon "
+                        "table — split out so the tabbed card and the tabless "
+                        "preview draw the same thing.",
+                        required=True,
+                    ),
+                    Part(
                         "c-n26.model-card.prose",
                         "n26/model_card/prose.html",
-                        "A written section at the foot of a card: Notes, Lore.",
+                        "A written section of a card: the Lore and Notes panels.",
                     ),
+                ),
+            ),
+            Component(
+                slug="picture-input",
+                tag="c-n26.picture-input",
+                template="n26/picture_input.html",
+                summary="A picture upload whose crop is chosen in a dialog.",
+                needs=("n26/imagecrop.js", "Cropper.js"),
+                notes=(
+                    "A plain file input and the dialog its crop is chosen in. "
+                    "Picking a file opens the dialog: a rectangle of the "
+                    "declared shape — 4:5 for a model, 16:9 for a gang — over "
+                    "the picture, opening at the largest window the picture "
+                    "holds, dragged and resized by its handles (Cropper.js, "
+                    "vendored beside Alpine). Confirming stages the chosen "
+                    "window on the input, so the form's own save sends "
+                    "exactly what the dialog showed; leaving the dialog any "
+                    "other way clears the pick. Without the scripts the "
+                    "input is an ordinary file box, and either way the "
+                    "server centre-crops every upload to the same shape "
+                    "(n26/core/images.py): the dialog chooses, it is not "
+                    "trusted."
                 ),
             ),
             Component(

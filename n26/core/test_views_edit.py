@@ -10,7 +10,7 @@ import pytest
 from django.contrib.auth.models import User
 from django.urls import reverse
 
-from n26.core.models import Gang, LedgerEntry
+from n26.core.models import Gang, LedgerEntry, LedgerEvent
 
 pytestmark = pytest.mark.django_db
 
@@ -91,7 +91,9 @@ class TestSavingNotes:
 
     def test_the_owner_saves_and_lands_back_here(self, client, tester, gang, vex):
         client.force_login(tester)
-        response = client.post(edit_url(vex), {"notes": "<p>Owes Kaine a favour.</p>"})
+        response = client.post(
+            edit_url(vex), {"act": "notes", "notes": "<p>Owes Kaine a favour.</p>"}
+        )
         assert response.status_code == 302
         assert response.url == edit_url(vex)
         vex.refresh_from_db()
@@ -102,14 +104,14 @@ class TestSavingNotes:
     def test_notes_move_no_money(self, client, tester, gang, vex):
         client.force_login(tester)
         before = LedgerEntry.objects.count()
-        client.post(edit_url(vex), {"notes": "<p>New base needed.</p>"})
+        client.post(edit_url(vex), {"act": "notes", "notes": "<p>New base needed.</p>"})
         assert LedgerEntry.objects.count() == before
 
     def test_an_emptied_box_clears_them(self, client, tester, gang, vex):
         vex.notes = "<p>Old words.</p>"
         vex.save(update_fields=["notes"])
         client.force_login(tester)
-        client.post(edit_url(vex), {"notes": ""})
+        client.post(edit_url(vex), {"act": "notes", "notes": ""})
         vex.refresh_from_db()
         assert vex.notes == ""
 
@@ -117,17 +119,129 @@ class TestSavingNotes:
         """Stored as written, sanitised on the way out: the page carries
         the words, never the tag."""
         client.force_login(tester)
-        client.post(edit_url(vex), {"notes": "<script>alert(1)</script><p>fine</p>"})
+        client.post(
+            edit_url(vex),
+            {"act": "notes", "notes": "<script>alert(1)</script><p>fine</p>"},
+        )
         body = client.get(edit_url(vex)).content.decode()
         assert "<script>alert(1)</script>" not in body
         assert "fine" in body
 
     def test_a_stranger_saves_nothing(self, client, gang, vex):
         client.force_login(User.objects.create_user("someone-else"))
-        response = client.post(edit_url(vex), {"notes": "<p>mine now</p>"})
+        response = client.post(
+            edit_url(vex), {"act": "notes", "notes": "<p>mine now</p>"}
+        )
         assert response.status_code == 404
         vex.refresh_from_db()
         assert vex.notes == ""
+
+
+def png_upload(name="vex.png"):
+    from io import BytesIO
+
+    from django.core.files.uploadedfile import SimpleUploadedFile
+    from PIL import Image
+
+    buffer = BytesIO()
+    Image.new("RGB", (10, 8), "purple").save(buffer, format="PNG")
+    return SimpleUploadedFile(name, buffer.getvalue(), content_type="image/png")
+
+
+class TestSavingLore:
+    """The lore box: its own form, its own act, its own journal verb."""
+
+    def test_the_owner_saves_and_lands_back_here(self, client, tester, gang, vex):
+        client.force_login(tester)
+        response = client.post(
+            edit_url(vex), {"act": "lore", "lore": "<p>Third dome, third life.</p>"}
+        )
+        assert response.status_code == 302
+        assert response.url == edit_url(vex)
+        vex.refresh_from_db()
+        assert vex.lore == "<p>Third dome, third life.</p>"
+        assert LedgerEvent.objects.filter(
+            miniature=vex, kind=LedgerEvent.Kind.LORE_EDITED
+        ).exists()
+
+    def test_hostile_lore_never_reaches_the_page_alive(self, client, tester, gang, vex):
+        client.force_login(tester)
+        client.post(
+            edit_url(vex),
+            {"act": "lore", "lore": "<script>alert(1)</script><p>a story</p>"},
+        )
+        body = client.get(edit_url(vex)).content.decode()
+        assert "<script>alert(1)</script>" not in body
+        assert "a story" in body
+
+    def test_a_stranger_saves_nothing(self, client, gang, vex):
+        client.force_login(User.objects.create_user("someone-else"))
+        assert (
+            client.post(edit_url(vex), {"act": "lore", "lore": "<p>x</p>"}).status_code
+            == 404
+        )
+        vex.refresh_from_db()
+        assert vex.lore == ""
+
+
+class TestThePicture:
+    """The picture is an act of its own: a file replaces, the remove
+    button clears, and the notes never ride along."""
+
+    def test_an_upload_is_stored_and_recorded(
+        self, client, tester, gang, vex, own_storage
+    ):
+        client.force_login(tester)
+        client.post(edit_url(vex), {"act": "picture", "image": png_upload()})
+        vex.refresh_from_db()
+        assert vex.image.name.startswith("model-images/")
+        assert LedgerEvent.objects.filter(
+            miniature=vex, kind=LedgerEvent.Kind.IMAGE_SET
+        ).exists()
+        # The card's picture control appears with it.
+        assert vex.image.url in client.get(edit_url(vex)).content.decode()
+
+    def test_the_remove_button_clears_it(self, client, tester, gang, vex, own_storage):
+        client.force_login(tester)
+        client.post(edit_url(vex), {"act": "picture", "image": png_upload()})
+        client.post(edit_url(vex), {"act": "picture", "remove_image": "on"})
+        vex.refresh_from_db()
+        assert not vex.image
+        assert LedgerEvent.objects.filter(
+            miniature=vex, kind=LedgerEvent.Kind.IMAGE_CLEARED
+        ).exists()
+
+    def test_saving_notes_leaves_the_picture_be(
+        self, client, tester, gang, vex, own_storage
+    ):
+        client.force_login(tester)
+        client.post(edit_url(vex), {"act": "picture", "image": png_upload()})
+        vex.refresh_from_db()
+        held = vex.image.name
+        client.post(edit_url(vex), {"act": "notes", "notes": "<p>New base needed.</p>"})
+        vex.refresh_from_db()
+        assert vex.image.name == held
+
+    def test_a_file_that_is_not_an_image_is_refused(
+        self, client, tester, gang, vex, own_storage
+    ):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        client.force_login(tester)
+        response = client.post(
+            edit_url(vex),
+            {
+                "act": "picture",
+                "image": SimpleUploadedFile(
+                    "story.txt", b"not a picture", content_type="text/plain"
+                ),
+            },
+            follow=True,
+        )
+        vex.refresh_from_db()
+        assert not vex.image
+        # Refused with a reason on the page, never a server error.
+        assert response.status_code == 200
 
 
 class TestRenamingFromHere:

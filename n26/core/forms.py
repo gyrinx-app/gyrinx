@@ -180,6 +180,63 @@ class FighterNotesForm(forms.Form):
     notes = forms.CharField(required=False, widget=RichText())
 
 
+class FighterPictureForm(forms.Form):
+    """The edit page's picture box, an act of its own.
+
+    ``image`` replaces what is stored, ``remove_image`` alone clears
+    it, and a submit carrying neither changes nothing.
+    """
+
+    image = forms.ImageField(required=False)
+    remove_image = forms.BooleanField(required=False)
+
+    def clean_image(self):
+        from n26.core.images import PORTRAIT, to_shape
+
+        upload = self.cleaned_data["image"]
+        return to_shape(upload, PORTRAIT) if upload else upload
+
+
+class GangStoryForm(forms.Form):
+    """The gang edit page's written tab: notes and lore together.
+
+    Both optional, because an emptied box is a real answer — it clears
+    the field. Stored as written, sanitised at render.
+    """
+
+    notes = forms.CharField(
+        required=False,
+        widget=RichText(),
+        label="Notes",
+        help_text="Printed with the gang sheet. Anyone reading the gang can see them.",
+    )
+    lore = forms.CharField(
+        required=False,
+        widget=RichText(),
+        label="Lore",
+        help_text="The gang's story. Shown on the lore page, never printed.",
+    )
+
+
+class GangPictureForm(forms.Form):
+    """The gang's picture box, the fighter's shape at the gang's ratio."""
+
+    image = forms.ImageField(required=False)
+    remove_image = forms.BooleanField(required=False)
+
+    def clean_image(self):
+        from n26.core.images import LANDSCAPE, to_shape
+
+        upload = self.cleaned_data["image"]
+        return to_shape(upload, LANDSCAPE) if upload else upload
+
+
+class FighterLoreForm(forms.Form):
+    """The edit page's lore box. One field, the notes box's shape."""
+
+    lore = forms.CharField(required=False, widget=RichText())
+
+
 def statline_override_form_for(profile):
     """The boxes an owner sets their own model's characteristics in.
 

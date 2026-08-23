@@ -1263,6 +1263,10 @@ def model_card():
     and an unresolved choice.
     """
     return ModelCard(
+        # An id, because the card component reads it as "this depicts a stored
+        # model" and only then draws the tab strip. Never a link target here —
+        # the gallery passes hrefs of its own or none.
+        id="vesna-krail",
         # The miniature's own name, and separately the library entry she was
         # hired from. Different fields because they are different facts: she was
         # bought as an "Escher Gang Queen" and named afterwards, which is what
@@ -1624,6 +1628,10 @@ def _hire_card(name, subtype, rating, weapons):
     base = model_card()
     return replace(
         base,
+        # A preview depicts nobody stored, which is what an empty id
+        # says — and what keeps the tab strip off it, here as on the
+        # real hire list.
+        id="",
         name=name,
         rating=rating,
         subtypes=_printed(subtype),
@@ -1837,9 +1845,8 @@ def gang_sheet():
 
 
 #: What a player writes on a card, as opposed to what the rules put there.
-#: Separate from model_card() because n26.render.ModelCard has no field for
-#: either yet — see design/asks/model-card-notes-lore.md. Rendered markup, since
-#: both will come out of the rich text editor.
+#: Editor markup, as the rich text editor stores it; the card sanitises it on
+#: the way out, so the sample walks the same path a saved note does.
 CARD_NOTES = (
     "<p>Base needs redoing after the sump run — the flock came off. "
     "Owes Kaine a favour from the Ash Wastes job.</p>"
@@ -1849,6 +1856,24 @@ CARD_LORE = (
     "Took the Matriarch's needle pistol off a body nobody has claimed, which is "
     "the only reason anyone remembers her name.</p>"
 )
+
+
+#: A stand-in photograph, drawn rather than shipped: the gallery keeps no
+#: image files, and a data URI exercises the same <img> path a stored
+#: upload's URL does.
+CARD_IMAGE = (
+    "data:image/svg+xml,"
+    "%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 250'%3E"
+    "%3Crect width='200' height='250' fill='%23433a52'/%3E"
+    "%3Ccircle cx='100' cy='95' r='45' fill='%23d8cde8'/%3E"
+    "%3Cpath d='M30 250c0-50 31-80 70-80s70 30 70 80z' fill='%23d8cde8'/%3E"
+    "%3C/svg%3E"
+)
+
+
+def model_card_written():
+    """The sample card with its picture and its Lore and Notes tabs filled."""
+    return replace(model_card(), notes=CARD_NOTES, lore=CARD_LORE, image_url=CARD_IMAGE)
 
 
 def gang_sheet_context():
@@ -1880,8 +1905,6 @@ def gang_sheet_context():
     )
     return {
         "gang": sheet,
-        "card_notes": CARD_NOTES,
-        "card_lore": CARD_LORE,
         # A gang of one card is a poor test of a three-column grid, so the demo
         # repeats the sample fighter under other names. Copies rather than the same
         # object five times, because a renderer that mutated one would otherwise

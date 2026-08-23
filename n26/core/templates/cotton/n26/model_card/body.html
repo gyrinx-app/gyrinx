@@ -1,0 +1,280 @@
+{% comment %}
+<c-n26.model-card.body> — the rules' half of one model's card: the statline,
+the named rows, the weapon table. Everything here is the rules engine's answer
+to a question; what the player writes lives in the card's other tabs. Split
+out so the tabbed card and the tabless one (a hire preview, a picker option)
+draw the same thing.
+
+  card — the n26.render.ModelCard.
+  mode — as <c-n26.model-card> takes it; the mode-only regions read it.
+  equip_href — where the Gear and Weapons rows send an owner, or empty.
+{% endcomment %}
+<c-vars :card="None" mode="gang" equip_href="" />
+
+    {% comment %}
+    The statline carries the type line and the XP pair in the columns its
+    second row leaves spare, so the header above does not repeat either.
+    {% endcomment %}
+    <c-n26.statline :statline="card.statline" layout="book"
+                    type_line="{{ card.type_line }}"
+                    xp="{{ card.xp }}" xp_target="{{ card.xp_target|default_if_none:'–' }}" />
+
+    {% comment %}
+    items-baseline: grid items stretch by default, so a row carrying a button
+    grows taller and its label would sit at the top of the cell rather than on
+    the same line as the value.
+    {% endcomment %}
+    <dl class="grid grid-cols-[auto_1fr] items-baseline gap-x-5 gap-y-2 border-t border-box-border px-4 py-3 text-sm">
+        <dt class="font-semibold text-ink-900 dark:text-ink-100">Skills</dt>
+        <dd class="min-w-0 text-ink-900 dark:text-ink-100">
+            <c-n26.assignable-lines :lines="card.skills" :ratings="False" />
+            {% comment %}
+            An open skill question is drawn beside the skills the model already
+            has, not among the choice rows below. The gang sheet says it as a
+            quiet link and only the model's own page grows a button; the way to
+            the skills screen is edit mode's alone.
+            {% endcomment %}
+            <c-n26.model-card.mode when="gang view">
+                {% if card.skill_choices %}
+                    <span class="ms-1 inline-flex flex-wrap items-center gap-2 align-middle">
+                        {% for choice in card.skill_choices %}
+                            <c-n26.link href="{{ choice.href }}" tone="muted" underline="always" class="text-xs">Choose {{ choice.kind_label|lower }}</c-n26.link>
+                        {% endfor %}
+                    </span>
+                {% endif %}
+            </c-n26.model-card.mode>
+            {% comment %}
+            A question with no href gets words, never a button: handed an empty
+            href the kit's button still draws a clickable <button> that goes
+            nowhere.
+            {% endcomment %}
+            <c-n26.model-card.mode when="edit">
+                {% if card.skill_choices or card.learn_href %}
+                    <span class="ms-1 inline-flex flex-wrap items-center gap-1 align-middle">
+                        {% for choice in card.skill_choices %}
+                            {% if choice.href %}
+                                <c-ui.button size="xs" variant="primary" :outlined="True" class="py-0!" href="{{ choice.href }}">
+                                    Choose {{ choice.kind_label|lower }}
+                                </c-ui.button>
+                            {% else %}
+                                <c-n26.link>Choose {{ choice.kind_label|lower }}</c-n26.link>
+                            {% endif %}
+                        {% endfor %}
+                        {% if card.learn_href %}
+                            <c-ui.tooltip size="sm">
+                                <c-ui.button size="xs"
+                                             variant="default"
+                                             :outlined="True"
+                                             class="py-0!"
+                                             href="{{ card.learn_href }}"
+                                             aria-label="Select a skill">
+                                    <span class="n26-icon-only">
+                                        <c-n26.icon name="pencil" class="size-3" />
+                                    </span>
+                                </c-ui.button>
+                                <c-slot name="content">Select a skill</c-slot>
+                            </c-ui.tooltip>
+                        {% endif %}
+                    </span>
+                {% endif %}
+            </c-n26.model-card.mode>
+        </dd>
+
+        {% comment %}
+        Named special rules, kept apart from skills as the book prints them.
+        Names and annotations only — the rules text itself is never stored.
+        {% endcomment %}
+        {% if card.rules %}
+            <dt class="font-semibold text-ink-900 dark:text-ink-100">Rules</dt>
+            <dd class="min-w-0 text-ink-900 dark:text-ink-100">
+                <c-n26.assignable-lines :lines="card.rules" :ratings="False" />
+            </dd>
+        {% endif %}
+
+        {% comment %}
+        Powers are a kind of their own and keep a row of their own, drawn as
+        the Skills row is: one list, and open questions beside it.
+        {% endcomment %}
+        {% if card.powers or card.power_choices %}
+            <dt class="font-semibold text-ink-900 dark:text-ink-100">Powers</dt>
+            <dd class="min-w-0 text-ink-900 dark:text-ink-100">
+                <c-n26.assignable-lines :lines="card.powers" :ratings="False" />
+                <c-n26.model-card.mode when="gang view">
+                    {% if card.power_choices %}
+                        <span class="ms-1 inline-flex flex-wrap items-center gap-2 align-middle">
+                            {% for choice in card.power_choices %}
+                                <c-n26.link href="{{ choice.href }}" tone="muted" underline="always" class="text-xs">Choose {{ choice.kind_label|lower }}</c-n26.link>
+                            {% endfor %}
+                        </span>
+                    {% endif %}
+                </c-n26.model-card.mode>
+                <c-n26.model-card.mode when="edit">
+                    {% if card.power_choices %}
+                        <span class="ms-1 inline-flex flex-wrap items-center gap-1 align-middle">
+                            {% for choice in card.power_choices %}
+                                {% if choice.href %}
+                                    <c-ui.button size="xs" variant="primary" :outlined="True" class="py-0!" href="{{ choice.href }}">
+                                        Choose {{ choice.kind_label|lower }}
+                                    </c-ui.button>
+                                {% else %}
+                                    <c-n26.link>Choose {{ choice.kind_label|lower }}</c-n26.link>
+                                {% endif %}
+                            {% endfor %}
+                        </span>
+                    {% endif %}
+                </c-n26.model-card.mode>
+            </dd>
+        {% endif %}
+
+        <dt class="font-semibold text-ink-900 dark:text-ink-100">Gear</dt>
+        <dd class="min-w-0 text-ink-900 dark:text-ink-100">
+            <c-n26.assignable-lines :lines="card.equipment" :ratings="False" />
+            <c-n26.model-card.mode when="edit">
+                {% if equip_href %}
+                    <span class="ms-1 inline-flex items-center align-middle">
+                        <c-ui.button size="xs" variant="primary" :outlined="True" class="py-0!" href="{{ equip_href }}">
+                            Equip
+                        </c-ui.button>
+                    </span>
+                {% endif %}
+            </c-n26.model-card.mode>
+        </dd>
+
+        {% comment %}
+        One row per open or settled choice, labelled by what it asks for.
+        Questions belonging to a card row of their own are not in card.choices
+        — they arrive in card.skill_choices and card.power_choices and are
+        drawn in those rows.
+        {% endcomment %}
+        {% for choice in card.choices %}
+            <dt class="font-semibold text-ink-900 dark:text-ink-100">{{ choice.kind_label }}</dt>
+            <dd class="min-w-0 text-ink-900 dark:text-ink-100">
+                {% comment %}
+                underline="always" on the unsettled one: the accent sits at the
+                same lightness as the card's text, so colour alone would not
+                tell "Choose" apart from the label beside it.
+                {% endcomment %}
+                {% if choice.is_resolved %}<c-n26.link href="{{ choice.href }}" tone="current">{{ choice.chosen }}</c-n26.link>
+                {% else %}<c-n26.link href="{{ choice.href }}" underline="always">Choose</c-n26.link>{% endif %}
+            </dd>
+        {% endfor %}
+
+    </dl>
+
+    {% if card.weapons %}
+        <div class="overflow-x-auto border-t border-box-border">
+            <table class="w-full border-collapse text-sm">
+                <thead class="border-b border-box-border">
+                    <tr>
+                        <c-n26.statline.header :cells="card.weapon_columns">
+                            <c-slot name="leading">
+                                <th scope="col" class="px-4 py-1.5 text-left text-sm font-semibold text-ink-900 dark:text-ink-100">
+                                    Weapons<c-n26.model-card.mode when="edit">{% if equip_href %}<span class="ms-1 inline-flex items-center align-middle font-normal"><c-ui.button size="xs" variant="primary" :outlined="True" class="py-0!" href="{{ equip_href }}">Equip</c-ui.button></span>{% endif %}</c-n26.model-card.mode>
+                                </th>
+                            </c-slot>
+                        </c-n26.statline.header>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for weapon in card.weapons %}
+                        {% comment %}
+                        The unnamed profile is the weapon, so its stats sit on
+                        the weapon's own row and every named profile gets a row
+                        beneath. WeaponLine decides that, so the text card, the
+                        print card and this one cannot drift.
+
+                        The test is WeaponLine.own_stats, not whether an unnamed
+                        profile exists: a combi-weapon has one with no
+                        characteristics on it, and would otherwise leave the
+                        stat columns empty beside its name.
+                        {% endcomment %}
+                        {% with own=weapon.own_line stats=weapon.own_stats %}
+                        <tr class="{% if not forloop.first %}border-t border-box-border{% endif %}">
+                            {% if stats %}
+                                <c-n26.statline.cells :cells="stats">
+                                    <c-slot name="leading">
+                                        <td class="px-4 py-1.5 text-ink-900 dark:text-ink-100">
+                                            {{ weapon.name }}
+                                        </td>
+                                    </c-slot>
+                                </c-n26.statline.cells>
+                            {% else %}
+                                <td colspan="99" class="px-4 pt-2 text-ink-900 dark:text-ink-100">
+                                    {{ weapon.name }}
+                                </td>
+                            {% endif %}
+                        </tr>
+
+                        {% if own.traits %}
+                            <tr>
+                                {% if stats %}<td></td>{% endif %}
+                                <td colspan="{% if stats %}{{ stats|length }}{% else %}99{% endif %}"
+                                    class="px-2 pb-2 text-xs text-ink-900 dark:text-ink-100">
+                                    <c-n26.assignable-lines :lines="own.traits" :ratings="False" />
+                                </td>
+                            </tr>
+                        {% endif %}
+                        {% endwith %}
+
+                        {% for profile in weapon.named_profiles %}
+                            <tr>
+                                <c-n26.statline.cells :cells="profile.statline.cells">
+                                    <c-slot name="leading">
+                                        <td class="px-4 py-1.5 text-ink-900 dark:text-ink-100">
+                                            {% comment %}
+                                            The dash is the mark the book and n26.render_text open a
+                                            named profile with: this row hangs off the weapon above. A
+                                            flex item beside the name rather than a character in front
+                                            of it, because a phone-width column wraps an inline mark
+                                            onto a line of its own; aria-hidden, so the name is read
+                                            out alone.
+                                            {% endcomment %}
+                                            <span class="flex gap-1 pl-2"><span aria-hidden="true">-</span><span>{{ profile.name }}</span></span>
+                                        </td>
+                                    </c-slot>
+                                </c-n26.statline.cells>
+                            </tr>
+
+                            {% if profile.traits %}
+                                <tr>
+                                    {% comment %}
+                                    An empty cell under the name column, so the
+                                    traits start under the stats they describe.
+                                    {% endcomment %}
+                                    <td></td>
+                                    <td colspan="{{ profile.statline.cells|length }}"
+                                        class="px-2 pb-2 text-xs text-ink-900 dark:text-ink-100">
+                                        <c-n26.assignable-lines :lines="profile.traits" :ratings="False" />
+                                    </td>
+                                </tr>
+                            {% endif %}
+                        {% endfor %}
+
+                        {% comment %}
+                        Accessories hang off the weapon rather than off any one
+                        profile, so they span the row. Drawn under the profiles,
+                        where n26.render_text draws them above: a weapon whose
+                        own row carries its stats has no separate name row for
+                        them to sit under.
+                        {% endcomment %}
+                        {% if weapon.accessories %}
+                            <tr>
+                                <td colspan="99" class="px-4 pb-2 text-ink-900 dark:text-ink-100">
+                                    {% comment %}
+                                    The "+" is the mark n26.render_text opens an
+                                    accessory with; without it the line sits at
+                                    the profiles' indent and reads as a profile
+                                    missing its stats.
+                                    {% endcomment %}
+                                    <span class="pl-2">
+                                        <span aria-hidden="true">+</span>
+                                        <c-n26.assignable-lines :lines="weapon.accessories" :ratings="False" />
+                                    </span>
+                                </td>
+                            </tr>
+                        {% endif %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% endif %}

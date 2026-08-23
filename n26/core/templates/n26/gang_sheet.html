@@ -154,6 +154,9 @@ that said it twice would be spending the width the name needs.
                         <c-ui.dropdown.item href="{% url 'n26-gang-history' gang.pk %}">
                             History
                         </c-ui.dropdown.item>
+                        <c-ui.dropdown.item href="{% url 'n26-gang-lore' gang.pk %}">
+                            Lore
+                        </c-ui.dropdown.item>
                         {% comment %}
                     A page that asks, not the act: following this link deletes
                     nothing, and the POST it leads to is the only thing that
@@ -172,6 +175,20 @@ that said it twice would be spending the width the name needs.
                              href="{% url 'n26-print-setup' gang.pk %}">
                     Print
                 </c-ui.button>
+                <c-ui.button size="sm" variant="default" href="{% url 'n26-gang-lore' gang.pk %}">
+                    Lore
+                </c-ui.button>
+            </c-slot>
+        {% else %}
+            {% comment %}
+            Signed out there is no Print — but the lore page reads like
+            the sheet does, for whoever holds the address, so the way in
+            cannot hide behind signing in.
+            {% endcomment %}
+            <c-slot name="secondary_actions">
+                <c-ui.button size="sm" variant="default" href="{% url 'n26-gang-lore' gang.pk %}">
+                    Lore
+                </c-ui.button>
             </c-slot>
         {% endif %}
         {% if yours %}
@@ -184,7 +201,10 @@ that said it twice would be spending the width the name needs.
         </c-slot>
         <c-slot name="members">
             {% for member in sheet.models %}
-                <c-n26.model-card :card="member" mode="{{ card_mode }}">
+                <c-n26.model-card :card="member"
+                                  mode="{{ card_mode }}"
+                                  notes_href="{% if yours %}{% url 'n26-edit-fighter' member.id %}{% endif %}"
+                                  lore_href="{% if yours %}{% url 'n26-edit-fighter' member.id %}{% endif %}">
                     {% comment %}
                     The way to a fighter's own name: a quiet pencil on the
                     name's line, leading to the rename dialog the URL opens

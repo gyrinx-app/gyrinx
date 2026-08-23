@@ -124,6 +124,9 @@ class LedgerEvent(Base):
         # to fold. They exist so the history can say what the owner did.
         RENAMED = "renamed", "Renamed"
         NOTED = "noted", "Notes edited"
+        LORE_EDITED = "lore_edited", "Lore edited"
+        IMAGE_SET = "image_set", "Picture set"
+        IMAGE_CLEARED = "image_cleared", "Picture removed"
         STAT_SET = "stat_set", "Characteristic set"
         STAT_CLEARED = "stat_cleared", "Characteristic cleared"
         # What the gang may spend, changed after the founding. It moves no

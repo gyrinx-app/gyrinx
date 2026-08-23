@@ -561,6 +561,18 @@ banner, is_impersonating / impersonator, gtm_container_id, messages, user.
             </c-n26.site.footer>
         {% endblock footer %}
         {% comment %}
+        The strip of a tab set is drawn client-side and its panels start
+        hidden, so without a script a tabbed region would be cut off entirely.
+        Showing every panel in a run keeps what they hold on the page.
+        {% endcomment %}
+        <noscript>
+            <style>
+                [role="tabpanel"] {
+                    display: block !important;
+                }
+            </style>
+        </noscript>
+        {% comment %}
         Order matters: the kit's factories must be defined before Alpine walks
         the document and evaluates an x-data that names one.
         {% endcomment %}

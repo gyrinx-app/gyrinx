@@ -21,8 +21,11 @@ from n26.core.effects import ComputedCard
 from n26.core.render import ModelCard
 from n26.library.models.assignable import Assignable
 
-CARD_TEMPLATE = (
-    Path(n26.core.__file__).parent / "templates/cotton/n26/model_card/index.html"
+#: The card is one component in two files: the frame with its tabs, and the
+#: body holding the rows. A question row is drawn in either.
+CARD_TEMPLATES = (
+    Path(n26.core.__file__).parent / "templates/cotton/n26/model_card/index.html",
+    Path(n26.core.__file__).parent / "templates/cotton/n26/model_card/body.html",
 )
 
 
@@ -55,7 +58,7 @@ class TestTheCardRows:
             )
 
     def test_every_question_row_is_real_and_drawn(self):
-        template = CARD_TEMPLATE.read_text()
+        template = "".join(t.read_text() for t in CARD_TEMPLATES)
         rows = declared_rows()
         on_card = {f.name for f in dataclasses.fields(ModelCard)}
         for row, bucket in ModelCard.QUESTION_BUCKETS.items():

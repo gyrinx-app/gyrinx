@@ -1,3 +1,4 @@
+{% load richtext %}
 {% load static %}
 <!DOCTYPE html>
 <html lang="en-gb">
@@ -45,6 +46,11 @@
                             </c-n26.print.entry>
                         </c-n26.print.column>
                     </c-n26.print.columns>
+                </c-n26.print.card>
+            {% endif %}
+            {% if include_notes and gang.notes %}
+                <c-n26.print.card title="Notes">
+                    {{ gang.notes|safe_rich_text }}
                 </c-n26.print.card>
             {% endif %}
             {% if include_stash and stash %}
@@ -98,7 +104,22 @@
                                 </c-n26.print.column>
                             {% endfor %}
                         </c-n26.print.columns>
+                        {% if row.card.image_url %}
+                            <div class="n26-print-photo">
+                                <img src="{{ row.card.image_url }}" alt="A picture of {{ row.card.name }}">
+                            </div>
+                        {% endif %}
                     </c-n26.print.card>
+                    {% comment %}
+                    The notes are a card of their own, beside the model's, so
+                    the sheet can be cut into cards without splitting one.
+                    Lore never prints — it is read once, not at the table.
+                    {% endcomment %}
+                    {% if include_notes and row.card.notes %}
+                        <c-n26.print.card title="{{ row.card.name }}" subtitle="Notes">
+                            {{ row.card.notes|safe_rich_text }}
+                        </c-n26.print.card>
+                    {% endif %}
                 {% endfor %}
             </c-n26.print.grid>
         </c-n26.print.sheet>

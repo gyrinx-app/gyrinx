@@ -87,6 +87,7 @@ that said it twice would be spending the width the name needs.
                                     {{ config.model_count }} model{{ config.model_count|pluralize }}
                                     {% if not config.include_header %}· no header{% endif %}
                                     {% if not config.include_stash %}· no stash{% endif %}
+                                    {% if not config.include_notes %}· no notes{% endif %}
                                 </p>
                             </div>
                             <div class="flex shrink-0 items-center gap-2">
@@ -141,6 +142,13 @@ that said it twice would be spending the width the name needs.
                            {% if include_stash %}checked{% endif %}
                            class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
                     <span class="text-sm text-ink-900 dark:text-ink-100">Include the stash</span>
+                </label>
+                <label class="flex min-h-9 cursor-pointer items-center gap-2.5">
+                    <input type="checkbox"
+                           name="include_notes"
+                           {% if include_notes %}checked{% endif %}
+                           class="size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
+                    <span class="text-sm text-ink-900 dark:text-ink-100">Include notes</span>
                 </label>
             </div>
         </c-n26.form-section>

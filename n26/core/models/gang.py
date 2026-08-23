@@ -42,6 +42,16 @@ class Gang(Base, Owned, Archived, Rated):
         default="",
         help_text="Shown against the gang wherever it is listed.",
     )
+    #: The owner's own words about the gang — table agreements, standing
+    #: reminders. Editor HTML, stored as written and sanitised on the way
+    #: out (n26.core.templatetags.richtext), so a tightened allowlist
+    #: reaches what was already saved.
+    notes = models.TextField(blank=True, default="")
+    #: The gang's story. Same treatment as notes.
+    lore = models.TextField(blank=True, default="")
+    #: A picture of the gang, in the site's media storage. Surfaces read
+    #: its URL and never the bytes.
+    image = models.ImageField(upload_to="gang-images/", blank=True, default="")
 
     class Meta:
         verbose_name = "gang"
