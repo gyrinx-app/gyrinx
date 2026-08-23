@@ -187,7 +187,24 @@ redelivery), gang-hosted founding sets, stash-hosted, legacy-profile
 matching rule does NOT block (duplicate accepted — D3); archived copy
 blocks (D4); `removes=True` preserved (D9); every case ends
 `assert_reconciled(gang)` **after `refresh_from_db`** (stale-pin gotcha).
-*Status: not started.*
+*Status: IN PROGRESS 2026-08-23, branch `issue-2165-c2-reconcile`.*
+Architecture settled (chosen over a minimal in-place refactor): a
+**plan/apply split**. Pure `plan_defaults(carrier)` + `ReconcileOutcome`
+in new `n26/core/builtins.py` (satisfaction predicate `copies_of` lives
+there — one definition for reconcile, `_granted_rows`, and C6);
+the `taken` parameter is eliminated — acquisitions write their
+`ChosenProfileOption` rows first, then call one carrier-only
+`Operation.reconcile_defaults`; `_materialise_defaults` is deleted and
+its six call sites rewired. C5's preview calls `plan_defaults` directly.
+Sub-decisions from design review: orphan ammo is SKIPPED on reconcile
+(recorded in the outcome's `skipped`), raising only at genuine
+acquisition; the twin-gun collision is fixed by member-keyed FIFO gun
+resolution; migration `n26.0022` adds CheckConstraint
+`removes=False OR materialised_from IS NULL` (D9 made structural);
+`rechoose` stays strict deliberately; the per-member satisfaction query
+cost feeds C3's batch sizing. Also noted: `buy()` DOES materialise
+built-ins for option-capable kinds — D8's asymmetry is only the kinds
+without `resolve_selection`.
 
 **C3 — Chunked maintenance runner.** Generic per-gang resumable batch
 support in `n26/maintenance.py` (D7): batches commit independently,
