@@ -1877,6 +1877,45 @@ Escher,Scout,6",4+,4+,3,3,1,4,1,6+,6,7,7,6,Fighter,Ganger,4,25,,,Farsight,Agilit
         assert plan.ok
         assert any("imported without it" in p.message for p in plan.problems)
 
+    def test_a_weapon_profile_in_the_cell_is_a_note_never_a_member(
+        self, foundation, default_pack
+    ):
+        """A fighter's cell cannot build in a weapon's extra line: the
+        cell resolves weapons, wargear and accessories only, so a
+        profile's name surfaces as the imported-without-it note and the
+        fighter arrives without it — twin weapons or not. This is why
+        the planner needs no twin-gun ambiguity problem: a plan can
+        never hold a weapon-profile member, and the performer's one
+        entry, ``add_default_member``, anchors or refuses for itself.
+        Whoever makes profile members plannable takes on surfacing that
+        refusal at preview, because the preview is the contract — this
+        test failing is the reminder."""
+        from n26.library import authoring
+        from n26.library.models import DefaultAssignment
+
+        autogun = authoring.create_weapon("Autogun", price=20)
+        authoring.add_weapon_profile(autogun, name="Warp round", price=10)
+        plan = plan_ingest(
+            profiles=read_csv(
+                """
+Gang,Name,M,WS,BS,S,T,W,I,A,Sv,Ld,Cl,Wil,Int,Type,Subtype(s),Starting XP,Rating,Special Rules,Default skills,Default assignment,Primary Skill Sets,Secondary Skill Sets
+Escher,Gunner,6",4+,4+,3,3,1,4,1,6+,6,7,7,6,Fighter,,4,25,,,"Autogun, Autogun, Warp round",,
+"""
+            )
+        )
+
+        assert plan.ok  # a note — the fighter still arrives
+        assert any(
+            "'Warp round'" in p.message and "imported without it" in p.message
+            for p in plan.problems
+        )
+        perform(plan)
+        members = DefaultAssignment.objects.filter(
+            default_set=Profile.objects.get(name="Gunner").built_ins
+        )
+        assert members.filter(weapon=autogun).count() == 2
+        assert not members.filter(weapon_profile__isnull=False).exists()
+
 
 class TestTheEquipmentListAFighterBuysFrom:
     """The ``Equipment List`` column on the All Profiles sheet.
