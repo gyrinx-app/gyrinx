@@ -137,8 +137,9 @@ partial unique constraint. Move `_granted_rows`/`rechoose` to
 provenance-first with legacy `reason=DEFAULT` fallback (fallback removed
 in C8). No behaviour change for players. Regression test: rechoose still
 unwinds correctly for provenance-tagged and legacy rows.
-*Status: PR [#2276](https://github.com/gyrinx-app/gyrinx/pull/2276) open
-2026-08-22 (branch `issue-2165-c1-provenance`); full suite green.
+*Status: MERGED 2026-08-23 via PR
+[#2276](https://github.com/gyrinx-app/gyrinx/pull/2276) (squash; the
+migration landed as `n26.0021`).
 Browser-tested through the authoring UI 2026-08-22: remove/re-add,
 ammo cascade, collection tab, rechoose, provenance spot-check all pass,
 zero server errors. The remove page states the archival semantics in
