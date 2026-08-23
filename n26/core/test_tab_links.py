@@ -48,9 +48,11 @@ class TestTheStrip:
     def test_the_current_tab_says_so_without_relying_on_its_colour(self):
         html = render('<c-n26.tab-links label="Which list" :tabs="tabs" />', tabs=TABS)
         assert 'aria-current="page"' in html
-        # One of them, not both: a strip where every tab is current tells a
-        # reader nothing about where they are.
-        assert html.count('aria-current="page"') == 1
+        # Twice for one current tab — once per strip, since both are always
+        # in the HTML and CSS picks which one shows. Never on the other tab:
+        # a strip where every tab is current tells a reader nothing about
+        # where they are.
+        assert html.count('aria-current="page"') == 2
 
     def test_the_strip_names_what_it_is_choosing_between(self):
         html = render('<c-n26.tab-links label="Which list" :tabs="tabs" />', tabs=TABS)
@@ -62,6 +64,38 @@ class TestTheStrip:
         # A name that was not shortened gets no tooltip: repeating the label
         # in a hover is a promise of more that turns out to be the same words.
         assert 'title="Trading Post"' not in html
+
+
+class TestTheNarrowStrip:
+    """Below the sm breakpoint the strip never wraps: the current tab stands
+    alone, and the rest sit behind a switcher whose rows are the same real
+    links."""
+
+    def test_both_strips_are_in_the_html_for_css_to_pick_between(self):
+        html = render('<c-n26.tab-links label="Which list" :tabs="tabs" />', tabs=TABS)
+        assert "sm:flex" in html
+        assert "sm:hidden" in html
+
+    def test_the_switcher_says_how_many_more_there_are(self):
+        html = render('<c-n26.tab-links label="Which list" :tabs="tabs" />', tabs=TABS)
+        assert "+1 more" in html
+
+    def test_the_other_tab_is_still_a_real_link_behind_the_switcher(self):
+        html = render('<c-n26.tab-links label="Which list" :tabs="tabs" />', tabs=TABS)
+        # The wide strip's copy, the switcher panel's, and the switcher's
+        # noscript strip: three real <a>s to the uncurrent tab, so the
+        # destination is reachable whichever strip shows and whether or not
+        # script ran.
+        assert html.count('href="?list=2"') == 3
+
+    def test_a_single_tab_gets_no_switcher(self):
+        html = render(
+            '<c-n26.tab-links label="Which list" :tabs="tabs" />', tabs=TABS[:1]
+        )
+        # A menu of nothing is a control that opens to say it had nothing
+        # to offer.
+        assert "more" not in html
+        assert "data-quick-switcher" not in html
 
 
 class TestTheSearchBarsButton:

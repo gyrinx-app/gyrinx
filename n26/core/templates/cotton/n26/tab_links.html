@@ -14,13 +14,12 @@ A nav rather than role="tablist", because these navigate; a reader told "tab" by
 a screen reader expects arrow keys and a panel swapping underneath.
 aria-current="page" says which one they are on.
 
-The strip wraps rather than scrolling sideways, since tab names come from
-content and can be long, and a name too long for the width truncates rather than
-pushing the strip wider than the page.
-
-The rule under the strip is the tabs' own bottom borders, which the row makes
-one height so they meet as a continuous line; the trailing span carries it
-across the width the tabs do not fill.
+The strip never wraps to a second row: c-n26.tab-strip draws every tab from the
+sm breakpoint up, and below it only the current tab, with the rest behind a
+c-n26.quick-switcher whose rows are the same real links. The switcher's panel
+needs script; without it, the switcher's own <noscript> strip lists the links
+flat. A name too long for the width truncates rather than pushing the strip
+wider than the page.
 
   :tabs — [{label, href, current, title}]. `title` is optional and is the full
     name when `label` has been shortened to fit; it becomes the link's tooltip.
@@ -42,24 +41,62 @@ across the width the tabs do not fill.
 <nav {{ attrs }}
      aria-label="{{ label }}"
      {% if speculate %}data-speculate="{{ label|slugify }}"{% endif %}
-     class="flex flex-wrap gap-x-1 {{ class }}">
-    {% for tab in tabs %}
-        <a href="{{ tab.href }}"
-           {% if tab.title and tab.title != tab.label %}title="{{ tab.title }}"{% endif %}
-           {% if tab.current %}aria-current="page"{% endif %}
-           class="flex min-h-11 max-w-full items-center border-b-2 px-3 text-sm no-underline focus-ring
-                  {% if tab.current %}border-accent font-semibold text-ink-900 dark:text-ink-100
-                  {% else %}border-box-border text-muted hover:text-ink-900 dark:hover:text-ink-100{% endif %}">
-            <span class="truncate">{{ tab.label }}</span>
-        </a>
-    {% endfor %}
-    <span aria-hidden="true" class="min-w-0 flex-1 border-b-2 border-box-border"></span>
+     class="{{ class }}">
+    <c-n26.tab-strip>
+        <c-slot name="full">
+            {% for tab in tabs %}
+                <a href="{{ tab.href }}"
+                   {% if tab.title and tab.title != tab.label %}title="{{ tab.title }}"{% endif %}
+                   {% if tab.current %}aria-current="page"{% endif %}
+                   class="flex min-h-11 max-w-full items-center border-b-2 px-3 text-sm no-underline focus-ring
+                          {% if tab.current %}border-accent font-semibold text-ink-900 dark:text-ink-100
+                          {% else %}border-box-border text-muted hover:text-ink-900 dark:hover:text-ink-100{% endif %}">
+                    <span class="truncate">{{ tab.label }}</span>
+                </a>
+            {% endfor %}
+        </c-slot>
+        <c-slot name="narrow">
+            {% for tab in tabs %}
+                {% if tab.current %}
+                    <a href="{{ tab.href }}"
+                       {% if tab.title and tab.title != tab.label %}title="{{ tab.title }}"{% endif %}
+                       aria-current="page"
+                       class="flex min-h-11 max-w-full items-center border-b-2 border-accent px-3 text-sm font-semibold text-ink-900 no-underline focus-ring dark:text-ink-100">
+                        <span class="truncate">{{ tab.label }}</span>
+                    </a>
+                {% endif %}
+            {% endfor %}
+            {% if tabs|length > 1 %}
+                <span class="flex shrink-0 items-center self-stretch border-b-2 border-box-border">
+                    <c-n26.quick-switcher heading="{{ label }}"
+                                          menu_label="Other tabs"
+                                          placeholder="Search tabs"
+                                          align="end">
+                        <c-slot name="trigger_words">
+                            <span>+{{ tabs|length|add:"-1" }} more</span>
+                        </c-slot>
+                        {% comment %}
+                        The current tab is left out: it stands beside the
+                        chevron already, and a menu offering the page you are
+                        on offers nothing.
+                        {% endcomment %}
+                        {% for tab in tabs %}
+                            {% if not tab.current %}
+                                <c-n26.quick-switcher.item label="{{ tab.label }}" href="{{ tab.href }}" />
+                            {% endif %}
+                        {% endfor %}
+                    </c-n26.quick-switcher>
+                </span>
+            {% endif %}
+        </c-slot>
+    </c-n26.tab-strip>
 </nav>
 {% if speculate %}
     {% comment %}
     The rule is keyed on this strip's own nav, so two strips on one page
     can ask for different treatment. The current tab is excluded: it is
-    this page, and speculating on it would build it twice.
+    this page, and speculating on it would build it twice. The switcher's
+    rows sit inside the nav too, so its links are speculated the same way.
     {% endcomment %}
     <script type="speculationrules">
         {"{{ speculate }}": [{

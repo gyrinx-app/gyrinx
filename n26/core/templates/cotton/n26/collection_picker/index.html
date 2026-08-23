@@ -258,6 +258,11 @@ event and is told to clear itself by `filter-reset`.
         bottom borders plus a trailing span across the width they do not fill —
         a rule on the strip with the active tab pulled over it lands the
         indicator a pixel proud and reads as a double line.
+
+        The two-container skeleton exists on its own as c-n26.tab-strip; this
+        strip keeps its own copy because its containers are the tablist
+        itself — the role and the choose listener sit on them, and the
+        skeleton's containers take no attributes of their own.
         {% endcomment %}
         {% if tabs %}
             <div role="tablist" class="relative hidden flex-wrap gap-x-1 sm:flex">

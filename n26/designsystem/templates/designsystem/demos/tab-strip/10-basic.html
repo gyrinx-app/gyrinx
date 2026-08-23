@@ -1,0 +1,31 @@
+{# title: Two strips, one visible #}
+{# note: The caller fills both slots with its own tabs. Narrow the window below the sm breakpoint and the full strip gives way to the current tab with the rest behind the switcher; the box around a strip changes nothing, since the split reads the window. #}
+{# layout: full #}
+<c-n26.tab-strip>
+    <c-slot name="full">
+        <a href="#"
+           aria-current="page"
+           class="flex min-h-11 items-center border-b-2 border-accent px-3 text-sm font-semibold text-ink-900 no-underline focus-ring dark:text-ink-100">Gangs</a>
+        <a href="#"
+           class="flex min-h-11 items-center border-b-2 border-box-border px-3 text-sm text-muted no-underline focus-ring hover:text-ink-900 dark:hover:text-ink-100">Campaigns</a>
+        <a href="#"
+           class="flex min-h-11 items-center border-b-2 border-box-border px-3 text-sm text-muted no-underline focus-ring hover:text-ink-900 dark:hover:text-ink-100">Content Packs</a>
+    </c-slot>
+    <c-slot name="narrow">
+        <a href="#"
+           aria-current="page"
+           class="flex min-h-11 items-center border-b-2 border-accent px-3 text-sm font-semibold text-ink-900 no-underline focus-ring dark:text-ink-100">Gangs</a>
+        <span class="flex shrink-0 items-center self-stretch border-b-2 border-box-border">
+            <c-n26.quick-switcher heading="Which tab"
+                                  menu_label="Other tabs"
+                                  placeholder="Search tabs"
+                                  align="end">
+                <c-slot name="trigger_words">
+                    <span>+2 more</span>
+                </c-slot>
+                <c-n26.quick-switcher.item label="Campaigns" href="#" />
+                <c-n26.quick-switcher.item label="Content Packs" href="#" />
+            </c-n26.quick-switcher>
+        </span>
+    </c-slot>
+</c-n26.tab-strip>

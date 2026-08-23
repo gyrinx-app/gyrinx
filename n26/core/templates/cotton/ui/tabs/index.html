@@ -1,0 +1,175 @@
+{% comment %}
+<c-ui.tabs> — in-page panels with a generated tab bar.
+
+Overrides the kit's strip. The default variant's strip is two blocks switched
+at the sm breakpoint by c-n26.tab-strip: every tab from sm up, below it the
+open tab alone with the rest behind a c-n26.quick-switcher — so the strip
+never wraps to a second row and never scrolls sideways. The kit's single
+strip pairs overflow-x-auto with buttons that overhang their box by a pixel,
+which is exactly the shape that grows a scrollbar.
+
+The segmented variant keeps the kit's own strip and DOM shape: .n26-card-tabs
+addresses it by position (root div, then first-child div), so an extra
+wrapper there silently unstyles every card strip. Its few short tabs share
+one row by construction and need no switcher.
+
+The switcher's rows are written out rather than composed from
+c-n26.quick-switcher.choice: that component bakes its label into the HTML
+when Django renders, and a tab here exists only in the browser, registered by
+its panel after Alpine boots. The row keeps the choice contract — it
+registers with the panel above it, hides while the filter excludes it, and
+dispatches quick-switcher-choose for the strip to act on.
+
+  default_tab — the tab open on load; the first registered wins otherwise.
+  variant — default or segmented.
+  size — sm, md or lg.
+  accent — the open tab in the accent colour rather than ink.
+  fill — tabs share the row's width equally.
+{% endcomment %}
+<c-vars
+    :default_tab="None"
+    variant="default"
+    size="md"
+    :accent="True"
+    :fill="False"
+/>
+
+<div x-data="{
+    tabs: [],
+    activeTab: '{{ default_tab|default:'' }}',
+    register(name, icon) {
+        this.tabs.push({name: name, icon: icon});
+        if (!this.activeTab && this.tabs.length === 1) {
+            this.activeTab = name;
+        }
+    },
+    isActive(name) {
+        return this.activeTab === name;
+    },
+    get current() {
+        return this.tabs.find(tab => tab.name === this.activeTab) || null;
+    }
+}"
+class="w-full space-y-4"
+{{ attrs }}>
+
+    {% if variant == 'segmented' %}
+        <!-- Tab List -->
+        <div class="
+            flex items-center
+            bg-ink-100 dark:bg-ink-800 p-1 rounded-box
+            overflow-x-auto no-scrollbar
+        ">
+            <template x-for="tab in tabs" :key="tab.name">
+                <button type="button"
+                    @click="activeTab = tab.name"
+                    class="
+                        inline-flex items-center justify-center whitespace-nowrap transition-all focus-ring
+                        {% if fill %}flex-1{% endif %}
+                        disabled:pointer-events-none disabled:opacity-50
+                        {% if size == 'sm' %}text-xs px-2.5 py-1
+                        {% elif size == 'lg' %}text-base px-4 py-2
+                        {% else %}text-sm px-3 py-1.5{% endif %}
+                        rounded-control font-medium
+                    "
+                    :class="{
+                        'bg-white text-ink-950 shadow-sm dark:bg-ink-950 dark:text-ink-50': isActive(tab.name),
+                        'text-ink-500 hover:text-ink-900 dark:text-ink-400 dark:hover:text-ink-100': !isActive(tab.name)
+                    }"
+                >
+                    <span x-show="tab.icon" x-html="tab.icon" class="mr-2 [&>svg]:size-4 flex items-center"></span>
+                    <span x-text="tab.name"></span>
+                </button>
+            </template>
+        </div>
+    {% else %}
+        <c-n26.tab-strip>
+            <c-slot name="full">
+                <template x-for="tab in tabs" :key="tab.name">
+                    <button type="button"
+                        @click="activeTab = tab.name"
+                        class="
+                            inline-flex items-center justify-center whitespace-nowrap transition-all focus-ring
+                            border-b-2 font-medium rounded-t-md
+                            {% if fill %}flex-1{% endif %}
+                            disabled:pointer-events-none disabled:opacity-50
+                            {% if size == 'sm' %}text-xs px-2.5 py-1
+                            {% elif size == 'lg' %}text-base px-4 py-2
+                            {% else %}text-sm px-3 py-1.5{% endif %}
+                        "
+                        :class="{
+                            {% if accent %}
+                                'border-accent text-accent': isActive(tab.name),
+                            {% else %}
+                                'border-ink-900 text-ink-900 dark:border-ink-100 dark:text-ink-100': isActive(tab.name),
+                            {% endif %}
+                            'border-transparent text-ink-500 hover:border-ink-300 hover:text-ink-700 dark:text-ink-400 dark:hover:border-ink-600 dark:hover:text-ink-200': !isActive(tab.name)
+                        }"
+                    >
+                        <span x-show="tab.icon" x-html="tab.icon" class="mr-2 [&>svg]:size-4 flex items-center"></span>
+                        <span x-text="tab.name"></span>
+                    </button>
+                </template>
+            </c-slot>
+            <c-slot name="narrow">
+                <span x-show="current" x-cloak
+                      class="inline-flex max-w-full items-center whitespace-nowrap border-b-2 font-medium
+                             {% if size == 'sm' %}text-xs px-2.5 py-1
+                             {% elif size == 'lg' %}text-base px-4 py-2
+                             {% else %}text-sm px-3 py-1.5{% endif %}
+                             {% if accent %}border-accent text-accent
+                             {% else %}border-ink-900 text-ink-900 dark:border-ink-100 dark:text-ink-100{% endif %}">
+                    <span x-show="current && current.icon" x-html="current && current.icon" class="mr-2 [&>svg]:size-4 flex shrink-0 items-center"></span>
+                    <span class="min-w-0 truncate" x-text="activeTab"></span>
+                </span>
+                <span x-show="tabs.length > 1" x-cloak
+                      @quick-switcher-choose="activeTab = $event.detail.value"
+                      class="flex shrink-0 items-center self-stretch border-b-2 border-box-border"
+                >
+                    <c-n26.quick-switcher heading="Which tab"
+                                          menu_label="Other tabs"
+                                          placeholder="Search tabs"
+                                          align="end">
+                        <c-slot name="trigger_words">
+                            <span x-text="'+' + (tabs.length - 1) + ' more'"></span>
+                        </c-slot>
+                        {% comment %}
+                        register, matches, highlight, active and close come
+                        from the switcher's own panel, which shadows this
+                        strip's register — the shadowing is what the row
+                        wants. tabs, activeTab and isActive reach up past the
+                        panel unshadowed. The open tab is left out: it stands
+                        beside the chevron already, and a menu offering the
+                        tab you are on offers nothing.
+                        {% endcomment %}
+                        <template x-for="tab in tabs" :key="tab.name">
+                            <button type="button"
+                                    role="menuitem"
+                                    x-data="{ id: '', facets: { search: tab.name.toLowerCase() } }"
+                                    x-init="id = register($el, facets)"
+                                    :id="id"
+                                    x-show="matches(facets) && !isActive(tab.name)"
+                                    x-cloak
+                                    @click="$dispatch('quick-switcher-choose', { value: tab.name }); close()"
+                                    @mouseenter="highlight(id)"
+                                    :class="{ 'bg-ink-200! dark:bg-ink-700!': active === id }"
+                                    class="flex w-full items-center gap-2.5 border-b border-box-border px-3 py-2 text-left text-sm
+                                           text-ink-700 dark:text-ink-300
+                                           transition-colors focus-visible:outline-none
+                                           hover:bg-ink-100 focus-visible:bg-ink-100
+                                           dark:hover:bg-ink-800 dark:focus-visible:bg-ink-800">
+                                <span x-show="tab.icon" x-html="tab.icon" class="[&>svg]:size-4 flex shrink-0 items-center"></span>
+                                <span class="min-w-0 flex-1 truncate" x-text="tab.name"></span>
+                            </button>
+                        </template>
+                    </c-n26.quick-switcher>
+                </span>
+            </c-slot>
+        </c-n26.tab-strip>
+    {% endif %}
+
+    <!-- Panels -->
+    <div class="mt-2 focus-ring">
+        {{ slot }}
+    </div>
+</div>
