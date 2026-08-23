@@ -107,6 +107,23 @@ class TestRemovingABuiltIn:
             str(row.assignable) for row in ganger.built_in_members
         ]
 
+    def test_a_copy_with_no_link_still_keeps_the_membership(self, gang, ganger):
+        """A copy carrying no provenance link cannot name its membership,
+        so a free-granted copy of the same thing keeps it archived rather
+        than deleted — the row is what a link repair anchors to."""
+        hire(gang, ganger, "Ana", paid=50)
+        member = member_named(ganger, "Stub gun")
+        for row in Assignment.objects.filter(materialised_from=member):
+            row.materialised_from = None
+            row.materialised_for = None
+            row.save(update_fields=["materialised_from", "materialised_for"])
+
+        remove_default_member(member)
+
+        member.refresh_from_db()
+        assert member.archived is True
+        assert_reconciled(gang)
+
     def test_a_member_nothing_materialised_from_goes_completely(self, ganger):
         """Archival exists for the copies that name a member; with none,
         an archived member would only linger invisibly, holding its

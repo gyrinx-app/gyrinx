@@ -1080,14 +1080,36 @@ def remove_default_member(member):
     when a carrier is acquired, and nothing retracts an assignment. This
     changes what future acquisitions come with.
     """
-    from n26.core.models import Assignment
-
     for dependent in list(member.dependent_members):
         remove_default_member(dependent)
-    if Assignment.objects.filter(materialised_from=member).exists():
+    if _something_materialised(member):
         member.archive()
     else:
         member.delete()
+
+
+def _something_materialised(member):
+    """Whether any copy in any gang came from this membership.
+
+    A copy carrying provenance names it outright. A copy with no
+    recorded link cannot say which membership it satisfies, so any
+    free-granted copy of the same thing counts instead — deliberately
+    loose evidence: archiving too readily leaves one hidden row, while
+    deleting too readily destroys the only row a link repair could
+    anchor those copies to.
+    """
+    from n26.core.models import Assignment, Reason
+
+    if Assignment.objects.filter(materialised_from=member).exists():
+        return True
+    assignable = member.assignable
+    if assignable is None:
+        return False
+    return Assignment.objects.filter(
+        materialised_from__isnull=True,
+        ledger_entry__reason=Reason.DEFAULT,
+        **{Assignment.field_for(assignable): assignable},
+    ).exists()
 
 
 def offer_option(
