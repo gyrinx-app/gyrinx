@@ -125,7 +125,7 @@ class ReconcileOutcome:
     skipped: list
 
 
-def plan_defaults(carrier, kinds=None, built_ins=True):
+def plan_defaults(carrier, kinds=None, built_ins=True, fresh=()):
     """Walk a carrier's sets and say which members lack their copy.
 
     Only live members count — an archived member is a built-in an
@@ -133,11 +133,19 @@ def plan_defaults(carrier, kinds=None, built_ins=True):
     every copy it already materialised stands untouched. ``kinds``
     narrows what is owed; passed as None it is derived from the
     carrier's role (``kinds_for``).
+
+    ``fresh`` names sets the carrier is taking right now, whose members
+    are judged by live copies alone. Re-taking an option set the owner
+    once held must bring its kit again: the old copies were archived by
+    the set leaving, not by the owner parting with the things, so they
+    are history rather than a settled grant.
     """
     if kinds is None:
         kinds = kinds_for(carrier)
+    fresh_pks = {default_set.pk for default_set in fresh}
     entries = []
     for default_set in sets_for(carrier, built_ins=built_ins):
+        include_archived = default_set.pk not in fresh_pks
         for member in default_set.members.filter(archived=False):
             assignable = member.assignable
             if assignable is None:
@@ -145,6 +153,11 @@ def plan_defaults(carrier, kinds=None, built_ins=True):
             if kinds is not None and not isinstance(assignable, kinds):
                 continue
             entries.append(
-                MemberPlan(member=member, satisfied=is_satisfied(member, carrier))
+                MemberPlan(
+                    member=member,
+                    satisfied=copies_of(
+                        member, carrier, include_archived=include_archived
+                    ).exists(),
+                )
             )
     return DefaultsPlan(carrier=carrier, entries=tuple(entries))

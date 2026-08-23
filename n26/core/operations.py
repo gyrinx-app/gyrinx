@@ -250,7 +250,7 @@ class Operation:
 
         ``materialised_from`` and ``materialised_for`` are the provenance
         of a built-in: which set membership this copy came from, and for
-        which carrier. Only ``_materialise_defaults`` sets them.
+        which carrier. Only ``reconcile_defaults`` sets them.
         """
         assignment = Assignment.objects.create(
             assignable=assignable,
@@ -700,7 +700,8 @@ class Operation:
         membership.save(update_fields=["miniature_root", "modified"])
         ProfileRole.objects.create(assignment=membership, role=ProfileRole.Role.PRIMARY)
         self.touched(miniature)
-        self._materialise_defaults(membership, taken)
+        self._record_options(membership, taken)
+        self.reconcile_defaults(membership)
         return miniature
 
     def found(self, gang_type, taken=(), **kwargs):
@@ -719,7 +720,8 @@ class Operation:
         self.gang.founding = founding
         self.gang.save(update_fields=["founding", "modified"])
         Stash.objects.get_or_create(gang=self.gang)
-        self._materialise_defaults(founding, list(taken), gang=self.gang)
+        self._record_options(founding, taken)
+        self.reconcile_defaults(founding, gang=self.gang)
         return founding
 
     def refound(self, gang_type):
@@ -769,7 +771,7 @@ class Operation:
         founding.gang_type = gang_type
         founding.save()
         Stash.objects.get_or_create(gang=self.gang)
-        self._materialise_defaults(founding, [], gang=self.gang)
+        self.reconcile_defaults(founding, gang=self.gang)
         return founding
 
     def rechoose(self, carrier, option=None, note=""):
@@ -826,7 +828,11 @@ class Operation:
             if carrier.miniature_root_id is None and carrier.gang_id is not None
             else None
         )
-        self._materialise_defaults(carrier, arriving, gang=gang, built_ins=False)
+        self._record_options(carrier, arriving)
+        # The arriving sets are fresh: their copies from an earlier
+        # taking were archived by that set leaving, and re-taking the
+        # set must bring its kit again.
+        self.reconcile_defaults(carrier, gang=gang, built_ins=False, fresh=arriving)
 
         delta = sum(chosen.price for chosen in taken) - sum(
             chosen.price for chosen in before
@@ -867,12 +873,9 @@ class Operation:
         Copies with no recorded provenance are found by the shape they
         were written in, below.
         """
-        tagged = list(
-            Assignment.objects.filter(
-                materialised_from__default_set=default_set,
-                materialised_for=carrier,
-            )
-        )
+        from n26.core.builtins import copies_of_set
+
+        tagged = list(copies_of_set(default_set, carrier))
         rows = [copy for copy in tagged if not copy.archived]
         rows.extend(self._granted_rows_without_provenance(carrier, default_set, tagged))
         return rows
@@ -930,39 +933,71 @@ class Operation:
             rows.extend(matches.order_by("-pk")[:count])
         return rows
 
-    def _materialise_defaults(
-        self, carrier, taken, kinds=None, gang=None, built_ins=True
+    def _record_options(self, carrier, taken):
+        """Record the sets taken with an acquisition, on the carrier.
+
+        Written before reconciling, because the plan reads what is
+        recorded — recording a set is what makes its members owed.
+        """
+        from n26.core.models import ChosenProfileOption
+
+        for chosen in taken:
+            ChosenProfileOption.objects.get_or_create(
+                assignment=carrier, default_set=chosen
+            )
+
+    def reconcile_defaults(
+        self, carrier, kinds=None, gang=None, built_ins=True, strict=True, fresh=()
     ):
-        """Grant a carrier's built-ins and the sets taken with it.
+        """Create what the carrier's sets say is missing, and nothing else.
 
         ``carrier`` is the assignment that brought the thing in — a
         model's membership, a bought mount's own assignment, a gang's
-        founding. Everything created is **caused by** it and hosted
+        founding. Its sets are its thing's built-ins and the option sets
+        recorded as taken (``_record_options``); a member is satisfied
+        when a copy naming it and this carrier exists, archived included
+        — the owner parted with the thing, and it is never re-granted
+        behind their back. Run twice, the second pass creates nothing,
+        which is what lets a set change reach carriers acquired long ago.
+
+        Everything created is **caused by** the carrier and hosted
         alongside it, so removing the carrier removes all of it, and a
-        card draws the grants as ordinary lines with the carrier as their
-        source. Pass ``gang`` for a gang-hosted carrier, which has no
-        model to hang things on.
+        card draws the grants as ordinary lines with the carrier as
+        their source. Pass ``gang`` for a gang-hosted carrier, which has
+        no model to hang things on. A satisfied member is skipped before
+        ``assign`` runs at all: stored effects fire inside it, and a
+        false "missing" would breed a second pet.
 
         Nothing is ever replaced: the option not taken is simply never
-        created, which is what keeps this free of v1's inheritance mess.
-        A thing that may be swapped for something else is an *option*,
-        not a built-in.
+        created. A thing that may be swapped for something else is an
+        *option*, not a built-in.
 
         A weapon-profile member is an extra ammo type: it stacks on its
-        weapon's assignment — the same shape ``buy_weapon_profile`` writes
-        — and that weapon may arrive from any of these sets, so the ammo
-        is granted after every weapon has been.
+        weapon's assignment — the same shape ``buy_weapon_profile``
+        writes — and that weapon may arrive from any of these sets, so
+        ammo is placed after every weapon has been. Each weapon member
+        keeps a gun of its own, so two members bringing the same weapon
+        feed their ammo to different guns. Ammo whose weapon is nowhere
+        on the host is a content bug at acquisition (``strict``) and a
+        recorded skip on a later reconcile — a carrier must not be
+        unrepairable because one member is.
 
-        A slot member brings the choice open. Where the member also names
-        a starting pick, the pick is written in the same breath, settling
-        the slot exactly as a click would — changing it later is the
-        ordinary rechoose.
+        A slot member brings the choice open. Where the member also
+        names a starting pick, the pick is written in the same breath,
+        settling the slot exactly as a click would — changing it later
+        is the ordinary rechoose. An already-settled slot is a satisfied
+        member: its pick stands untouched.
 
-        ``kinds`` narrows what materialises — a Legacy profile brings its
-        lists but not a second set of free kit.
+        ``kinds`` narrows what materialises (derived from the carrier's
+        role when not given — a Legacy profile brings its lists but not
+        a second set of free kit); ``fresh`` names sets being taken
+        right now, judged by live copies alone (``plan_defaults``).
         """
-        from n26.core.models import ChosenProfileOption, CounterValue, Reason
+        from n26.core.builtins import ReconcileOutcome, copies_of, plan_defaults
+        from n26.core.models import CounterValue, Reason
         from n26.library.models import Weapon, WeaponProfile
+
+        plan = plan_defaults(carrier, kinds=kinds, built_ins=built_ins, fresh=fresh)
 
         miniature = None if gang is not None else carrier.miniature_root
         if gang is not None:
@@ -975,52 +1010,70 @@ class Operation:
             # and whatever it *spawns* (``OpAddsMiniature``) is a gang
             # member like any other.
             host = {"stash": carrier.stash_root}
-        sets = [getattr(carrier.assignable, "built_ins", None) if built_ins else None]
-        sets += taken
-        weapon_assignments = {}
+
+        created = []
+        skipped = []
+        #: weapon pk -> guns of this plan still open to take ammo, in
+        #: member order. One entry per weapon member, so twins stay
+        #: distinct.
+        guns = {}
         ammo = []
-        for default_set in sets:
-            if default_set is None:
+        for entry in plan.entries:
+            member = entry.member
+            assignable = member.assignable
+            if isinstance(assignable, WeaponProfile):
+                ammo.append(entry)
                 continue
-            # An archived member is a built-in an author has taken off:
-            # future acquisitions come without it, while every copy it
-            # already materialised stands untouched.
-            for member in default_set.members.filter(archived=False):
-                assignable = member.assignable
-                if assignable is None:
-                    continue
-                if kinds is not None and not isinstance(assignable, kinds):
-                    continue
-                if isinstance(assignable, WeaponProfile):
-                    ammo.append(member)
-                    continue
-                assignment = self.assign(
-                    assignable,
-                    caused_by=carrier,
-                    materialised_from=member,
-                    materialised_for=carrier,
-                    paid=0,
-                    reason=Reason.DEFAULT,
-                    **host,
-                )
+            if entry.satisfied:
                 if isinstance(assignable, Weapon):
-                    self._grant_free_profiles(assignable, assignment)
-                    weapon_assignments[assignable.pk] = assignment
-                elif member.default_pickable_id is not None:
-                    # A slot arriving already settled. The pick goes
-                    # where the slot says, which need not be where the
-                    # slot itself landed.
-                    self._choose_for_slot(
-                        assignment, assignable, member.default_pickable
-                    )
-                elif member.counter_id is not None:
-                    # A counter opens at its member's amount — Starting XP.
-                    CounterValue.objects.create(
-                        assignment=assignment, value=member.amount
-                    )
-        for member in ammo:
+                    copy = copies_of(member, carrier, include_archived=False).first()
+                    if copy is not None:
+                        guns.setdefault(assignable.pk, []).append(copy)
+                continue
+            assignment = self.assign(
+                assignable,
+                caused_by=carrier,
+                materialised_from=member,
+                materialised_for=carrier,
+                paid=0,
+                reason=Reason.DEFAULT,
+                **host,
+            )
+            created.append(assignment)
+            if isinstance(assignable, Weapon):
+                self._grant_free_profiles(assignable, assignment)
+                guns.setdefault(assignable.pk, []).append(assignment)
+            elif member.default_pickable_id is not None:
+                # A slot arriving already settled. The pick goes
+                # where the slot says, which need not be where the
+                # slot itself landed.
+                self._choose_for_slot(assignment, assignable, member.default_pickable)
+            elif member.counter_id is not None:
+                # A counter opens at its member's amount — Starting XP.
+                CounterValue.objects.create(assignment=assignment, value=member.amount)
+
+        # A satisfied ammo line already sits on one particular gun. That
+        # gun is spoken for: a missing ammo member must not double onto
+        # it while another of the plan's guns goes without.
+        for entry in ammo:
+            if not entry.satisfied:
+                continue
+            copy = copies_of(entry.member, carrier, include_archived=False).first()
+            if copy is None:
+                continue
+            queue = guns.get(entry.member.assignable.weapon_id, [])
+            for index, gun in enumerate(queue):
+                if gun.pk == copy.parent_id:
+                    del queue[index]
+                    break
+
+        for entry in ammo:
+            if entry.satisfied:
+                continue
+            member = entry.member
             weapon_profile = member.assignable
-            gun = weapon_assignments.get(weapon_profile.weapon_id)
+            queue = guns.get(weapon_profile.weapon_id)
+            gun = queue.pop(0) if queue else None
             if gun is None:
                 # The weapon may already be there — a set chosen after the
                 # hire grants ammo for a gun the built-ins brought — so an
@@ -1036,29 +1089,42 @@ class Operation:
                     .first()
                 )
             if gun is None:
-                # A content bug, not a player mistake: the set names ammo
-                # for a weapon nothing here brings.
-                raise ValueError(
-                    f"{carrier.assignable} grants {weapon_profile}, but "
-                    f"nothing it brings is its weapon "
-                    f"({weapon_profile.weapon})."
+                if strict:
+                    # A content bug, not a player mistake: the set names
+                    # ammo for a weapon nothing here brings.
+                    raise ValueError(
+                        f"{carrier.assignable} grants {weapon_profile}, but "
+                        f"nothing it brings is its weapon "
+                        f"({weapon_profile.weapon})."
+                    )
+                skipped.append(
+                    (
+                        entry,
+                        f"{weapon_profile} is ammo for "
+                        f"{weapon_profile.weapon}, and nothing this "
+                        f"carrier's host holds is that weapon.",
+                    )
                 )
+                continue
             # Caused by the weapon, like its free profiles: the card says
             # "from the grenade launcher array", not "from the profile".
             # Provenance names the member and the carrier all the same —
             # it records which set membership this satisfies, and the gun
             # is only where the copy landed.
-            self.assign(
-                weapon_profile,
-                parent=gun,
-                caused_by=gun,
-                materialised_from=member,
-                materialised_for=carrier,
-                paid=0,
-                reason=Reason.DEFAULT,
+            created.append(
+                self.assign(
+                    weapon_profile,
+                    parent=gun,
+                    caused_by=gun,
+                    materialised_from=member,
+                    materialised_for=carrier,
+                    paid=0,
+                    reason=Reason.DEFAULT,
+                )
             )
-        for chosen in taken:
-            ChosenProfileOption.objects.create(assignment=carrier, default_set=chosen)
+        return ReconcileOutcome(
+            carrier=carrier, plan=plan, created=created, skipped=skipped
+        )
 
     def choose(self, anchor, chosen, slot=None, offer=None, **kwargs):
         """Make a choice — pick a specialisation, pick a gang legacy.
@@ -1217,11 +1283,11 @@ class Operation:
         Legacy's list — and nothing else. No free weapons, no subtypes,
         no second helping of default kit.
         """
-        from n26.library.models import Collection
-
         assignment = self.assign(profile, miniature=miniature, **kwargs)
         ProfileRole.objects.create(assignment=assignment, role=ProfileRole.Role.LEGACY)
-        self._materialise_defaults(assignment, [], kinds=(Collection,))
+        # The Legacy role narrows what reconciling grants to the lists
+        # alone (``n26.core.builtins.kinds_for``), so it is written first.
+        self.reconcile_defaults(assignment)
         return assignment
 
     def give_weapon(self, miniature, weapon, paid=0, free_profiles=True, **kwargs):
@@ -1344,7 +1410,8 @@ class Operation:
                 thing, bought, sold_separately=_sold_separately(line, entry, thing)
             )
         if hasattr(thing, "resolve_selection"):
-            self._materialise_defaults(bought, taken)
+            self._record_options(bought, taken)
+            self.reconcile_defaults(bought)
         return bought
 
     def learn(self, miniature, thing, note=""):
