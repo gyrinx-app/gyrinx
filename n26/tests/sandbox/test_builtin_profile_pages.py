@@ -69,7 +69,7 @@ class TestTheGunMembersOwnPage:
         assert "Frag" not in text
         assert "Free profiles are not listed" in text
 
-    def test_choosing_a_line_writes_it_anchored_after_its_gun(
+    def test_choosing_a_line_writes_it_anchored_to_the_gun(
         self, client, author, gunner, launcher
     ):
         gun = gun_member_of(gunner)
@@ -84,7 +84,35 @@ class TestTheGunMembersOwnPage:
         member = DefaultAssignment.objects.get(weapon_profile=smoke)
         assert member.gun_member_id == gun.pk
         assert member.default_set_id == gunner.built_ins_id
-        assert member.position == gun.position + 1
+
+    def test_two_lines_added_in_turn_nest_in_add_order(
+        self, client, author, gunner, launcher
+    ):
+        """Within one gun, order is the order the lines were added: each
+        takes the next end-of-set position, and the listing nests by the
+        anchor rather than by position adjacency."""
+        gun = gun_member_of(gunner)
+        for name in ("Smoke", "Choke"):
+            client.post(
+                reverse("authoring-built-in-profiles", args=[gun.pk]),
+                {"weapon_profile": str(launcher.profiles.get(name=name).pk)},
+            )
+
+        smoke, choke = (
+            DefaultAssignment.objects.get(weapon_profile__name=name)
+            for name in ("Smoke", "Choke")
+        )
+        assert smoke.position != choke.position
+        assert smoke.position < choke.position
+
+        page = client.get(reverse("authoring-detail", args=["profile", gunner.pk]))
+        comes_with = next(
+            section
+            for section in page.context["part_sections"]
+            if section["act"] == "built_in"
+        )
+        gun_row = next(row for row in comes_with["parts"] if row["label"] == "Launcher")
+        assert [line["label"] for line in gun_row["children"]] == ["Smoke", "Choke"]
 
     def test_the_listing_nests_the_line_under_its_gun(
         self, client, author, gunner, launcher

@@ -2042,7 +2042,8 @@ def built_in_profiles(request, pk):
     The address names the weapon *member*, not the weapon: a set may
     bring the same gun twice, and which of them a line lands under is
     exactly what this page settles. Choosing a line writes the member
-    anchored to this gun, placed just after it.
+    anchored to this gun; the listing draws it under the gun by that
+    anchor, in the order the lines were added.
     """
     from n26.library import authoring
     from n26.library.models import DefaultAssignment
@@ -2061,12 +2062,14 @@ def built_in_profiles(request, pk):
         line = get_object_or_404(
             weapon.profiles.filter(price__gt=0), pk=request.POST.get("weapon_profile")
         )
+        # The verb's end-of-set position stands: the listing nests lines
+        # by their anchor, so within one gun they read in the order they
+        # were added.
         with transaction.atomic():
             added = authoring.add_default_member(
                 member.default_set,
                 line,
                 gun_member=member,
-                position=member.position + 1,
                 pack=member.default_set.pack,
             )
         messages.success(
