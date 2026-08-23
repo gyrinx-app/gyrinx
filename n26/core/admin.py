@@ -24,8 +24,10 @@ may reach a feature still being built. That belongs on a page precisely
 so opening one to another player does not wait for a deploy.
 """
 
+from django import forms
 from django.contrib import admin
 
+from n26.core.flags import KNOWN_FLAGS
 from n26.core.models import (
     Assignment,
     AssignmentSet,
@@ -293,6 +295,29 @@ class PrintConfigAdmin(admin.ModelAdmin):
     exclude = ["miniatures", "assignments"]
 
 
+class FeatureFlagForm(forms.ModelForm):
+    """The slug is offered as a choice rather than typed.
+
+    A row whose slug no code asks for is inert: nothing reads it, so the
+    switch on it controls nothing, and it sits on the page reading as a
+    control over something. Free text is how that gets made — one typo and
+    the feature it was meant to open stays shut with no sign why.
+    """
+
+    class Meta:
+        model = FeatureFlag
+        fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if "slug" in self.fields:
+            self.fields["slug"] = forms.ChoiceField(
+                choices=[(slug, slug) for slug in sorted(KNOWN_FLAGS)],
+                label="Slug",
+                help_text="What the code asks for. Fixed once the row exists.",
+            )
+
+
 @admin.register(FeatureFlag)
 class FeatureFlagAdmin(OneAtATime, admin.ModelAdmin):
     """Where a half-built feature is opened and shut.
@@ -307,6 +332,7 @@ class FeatureFlagAdmin(OneAtATime, admin.ModelAdmin):
     feature, it would turn one off and leave a second nobody reads.
     """
 
+    form = FeatureFlagForm
     list_display = ["name", "slug", "availability", "group"]
     list_filter = ["availability"]
     search_fields = ["name", "slug"]

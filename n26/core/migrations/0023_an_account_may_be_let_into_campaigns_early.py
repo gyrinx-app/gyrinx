@@ -1,8 +1,9 @@
 from django.db import migrations
 
-# Kept in sync with the campaigns Flag in n26/core/flags.py. Written out
-# here because a migration must stay frozen and may not import application
-# code that will go on changing.
+# The group's name lives here and nowhere else: which group an allowlist
+# reads is a foreign key chosen on the admin page, so no application code
+# looks a group up by name. This is the name the group is created with, and
+# renaming it in the admin costs nothing.
 GROUP_NAME = "N26 Campaigns"
 
 

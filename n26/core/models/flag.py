@@ -21,9 +21,9 @@ class Availability(models.TextChoices):
 class FeatureFlag(Base):
     """A feature that is still being built, and who may reach it.
 
-    A feature under construction ships gated: its code lands on the main
-    branch like any other, but only the accounts named here can open it, so
-    half a screen is never a stranger's first impression of it.
+    A feature under construction is gated rather than held back, so only
+    the accounts named here can open it and half a screen is never a
+    stranger's first impression of it.
 
     A row per feature, edited in the admin, so opening a feature to another
     player is a change somebody makes on a page rather than a deploy. The
@@ -32,8 +32,8 @@ class FeatureFlag(Base):
     the allowlist and add people to the group one at a time.
 
     ``slug`` is what code asks for and never changes; ``name`` is what the
-    admin reads. A slug with no row is treated as off, so a feature whose
-    row has not been created yet fails shut rather than open.
+    admin reads. A slug with no row is off, so a feature reaches nobody
+    until somebody opens it.
     """
 
     slug = models.SlugField(

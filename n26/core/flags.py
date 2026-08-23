@@ -16,12 +16,14 @@ from functools import wraps
 
 from django.http import Http404
 
-#: Every feature this edition gates, by the slug code asks for. A slug named
-#: here with no row of its own is off: a feature whose row has not been
-#: created yet fails shut rather than open. A slug *not* named here is a
-#: caller's typo and raises, so a guard can never be silently inert.
+#: The slug the campaigns feature is asked for by.
 CAMPAIGNS = "campaigns"
 
+#: Every feature this edition gates. A slug named here with no row of its
+#: own is off, so a feature reaches nobody until somebody opens it. A slug
+#: *not* named here is refused at both ends: asking for one raises, so a
+#: guard is never silently inert, and the admin will not store one, so a
+#: row cannot sit there reading as a control over something.
 KNOWN_FLAGS = frozenset({CAMPAIGNS})
 
 

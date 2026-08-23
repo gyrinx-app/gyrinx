@@ -216,6 +216,25 @@ class TestTheAdminPage:
     def test_the_slug_is_settable_when_creating(self):
         assert "slug" not in self._admin().get_readonly_fields(None, obj=None)
 
+    def test_only_a_slug_the_code_asks_for_may_be_stored(self, group):
+        """A row whose slug nothing reads is inert — it sits on the page
+        reading as a control over something and controls nothing. The form
+        offers the known slugs rather than taking free text."""
+        from n26.core.admin import FeatureFlagForm
+        from n26.core.flags import KNOWN_FLAGS
+
+        good = FeatureFlagForm(
+            data={"slug": CAMPAIGNS, "name": "Campaigns", "availability": "off"}
+        )
+        assert good.is_valid(), good.errors
+
+        bad = FeatureFlagForm(
+            data={"slug": "campiagns", "name": "Typo", "availability": "off"}
+        )
+        assert not bad.is_valid()
+        assert "slug" in bad.errors
+        assert set(dict(bad.fields["slug"].choices)) == set(KNOWN_FLAGS)
+
     def test_the_slug_is_fixed_once_the_row_exists(self, make_flag):
         """Editing it later would not rename a feature — it would turn one
         off and leave a second that nothing reads."""
