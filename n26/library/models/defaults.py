@@ -304,6 +304,16 @@ class DefaultAssignment(NamesAnAssignable, Content):
             raise ValidationError(
                 {"gun_member": (f"{self.gun_member} is not a weapon member.")}
             )
+        if self.gun_member.archived:
+            raise ValidationError(
+                {
+                    "gun_member": (
+                        f"{self.gun_member} has been taken off "
+                        f"{self.default_set.name}, so no acquisition brings "
+                        f"that gun any more."
+                    )
+                }
+            )
         if self.gun_member.weapon_id != self.weapon_profile.weapon_id:
             raise ValidationError(
                 {
