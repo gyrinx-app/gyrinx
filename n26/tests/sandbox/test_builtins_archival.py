@@ -106,6 +106,7 @@ class TestRemovingABuiltIn:
         assert "Stub gun" not in [
             str(row.assignable) for row in ganger.built_in_members
         ]
+        assert_reconciled(gang)
 
     def test_a_copy_with_no_link_still_keeps_the_membership(self, gang, ganger):
         """A copy carrying no provenance link cannot name its membership,
@@ -392,6 +393,7 @@ class TestTheRemovePage:
         member.refresh_from_db()
         assert member.archived is True
         assert DefaultAssignment.objects.filter(pk=member.pk).exists()
+        assert_reconciled(gang)
 
     def test_an_archived_members_address_is_gone(self, client, author, ganger):
         from django.urls import reverse
