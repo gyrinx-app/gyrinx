@@ -914,17 +914,32 @@ def create_default_set(name, members=(), price=0, **kwargs):
     """A set of things a profile can come with. ``members`` are assignables, or
     ``(assignable, {extras})`` — ``(xp, {"amount": 61})`` for a counter's
     opening value."""
-    from n26.library.models import DefaultAssignmentSet
+    from django.db import transaction
 
-    default_set = DefaultAssignmentSet.objects.create(name=name, price=price, **kwargs)
-    for position, member in enumerate(members):
-        assignable, extras = member if isinstance(member, tuple) else (member, {})
-        # Through the one verb that adds a member, so what holds for a
-        # member added later — an extra profile taking its gun — holds
-        # for one written at founding.
-        add_default_member(
-            default_set, assignable, position=position, **extras, **kwargs
+    from n26.library.models import DefaultAssignmentSet, WeaponProfile
+
+    staged = [
+        (position, *(member if isinstance(member, tuple) else (member, {})))
+        for position, member in enumerate(members)
+    ]
+    # One transaction, guns before their lines whatever order the caller
+    # stated (each member keeps its stated position): a weapon profile's
+    # anchor is settled against the completed set, not against however
+    # much of it happens to exist yet — and a refusal unwinds the whole
+    # founding rather than leaving half a set behind. Every member still
+    # goes through the one adding verb, so what holds for a member added
+    # later holds for one written here.
+    with transaction.atomic():
+        default_set = DefaultAssignmentSet.objects.create(
+            name=name, price=price, **kwargs
         )
+        for adding_lines in (False, True):
+            for position, assignable, extras in staged:
+                if isinstance(assignable, WeaponProfile) != adding_lines:
+                    continue
+                add_default_member(
+                    default_set, assignable, position=position, **extras, **kwargs
+                )
     return default_set
 
 

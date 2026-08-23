@@ -345,6 +345,30 @@ class TestAmmoFindsItsGun:
         line = default_set.members.get(weapon_profile=smoke)
         assert line.gun_member == default_set.members.get(weapon=launcher)
 
+    def test_a_founded_sets_lines_anchor_whatever_order_was_stated(
+        self, launcher, smoke
+    ):
+        """A line before its gun in the founding statement still anchors:
+        anchors resolve against the completed set, and the stated order
+        survives as each member's position."""
+        default_set = create_default_set("Gun kit", members=[smoke, launcher])
+
+        line = default_set.members.get(weapon_profile=smoke)
+        assert line.gun_member == default_set.members.get(weapon=launcher)
+        assert line.position == 0
+        assert line.gun_member.position == 1
+
+    def test_a_twin_founding_refuses_whole(self, launcher, smoke):
+        """Founding a set whose line has two guns to ride is refused,
+        and nothing of the set survives — not the guns that were written
+        before the refusal, and not the set itself."""
+        from n26.library.models import DefaultAssignmentSet
+
+        with pytest.raises(ValidationError):
+            create_default_set("Gun kit", members=[launcher, launcher, smoke])
+
+        assert not DefaultAssignmentSet.objects.filter(name="Gun kit").exists()
+
     def test_an_anchored_line_never_rides_a_hand_given_gun(
         self, gang, person_type, gang_type, launcher, smoke
     ):
