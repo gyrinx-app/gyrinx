@@ -219,6 +219,19 @@ class DefaultAssignment(NamesAnAssignable, Content):
             "A slot's starting pick — what the choice arrives already settled on."
         ),
     )
+    gun_member = models.ForeignKey(
+        "self",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="+",
+        help_text=(
+            "The weapon member of this set that this extra profile rides — "
+            "which gun the line lands under. Blank means the profile rides "
+            "whatever matching weapon the acquirer already holds, the way "
+            "an option set arms a gun the built-ins bring."
+        ),
+    )
     position = models.PositiveIntegerField(default=0)
 
     class Meta:
@@ -237,6 +250,7 @@ class DefaultAssignment(NamesAnAssignable, Content):
 
     def clean(self):
         super().clean()
+        self._clean_gun_member()
         if self.default_pickable_id is None:
             return
         if self.slot_id is None:
@@ -259,20 +273,57 @@ class DefaultAssignment(NamesAnAssignable, Content):
                 }
             )
 
+    def _clean_gun_member(self):
+        """The cross-row sense of a profile member's anchor, in words.
+
+        Only this row knows both ends, so the database cannot say it:
+        the anchor belongs to a weapon-profile member, names a weapon
+        member of the same set, and that weapon is the profile's own.
+        """
+        if self.gun_member_id is None:
+            return
+        if self.weapon_profile_id is None:
+            raise ValidationError(
+                {
+                    "gun_member": (
+                        "Only an extra weapon profile rides a gun. This "
+                        "member is not one, so it names no gun."
+                    )
+                }
+            )
+        if self.gun_member.default_set_id != self.default_set_id:
+            raise ValidationError(
+                {
+                    "gun_member": (
+                        f"{self.gun_member} belongs to another set. A "
+                        "profile rides a gun of its own set."
+                    )
+                }
+            )
+        if self.gun_member.weapon_id is None:
+            raise ValidationError(
+                {"gun_member": (f"{self.gun_member} is not a weapon member.")}
+            )
+        if self.gun_member.weapon_id != self.weapon_profile.weapon_id:
+            raise ValidationError(
+                {
+                    "gun_member": (
+                        f"{self.weapon_profile} is a profile of "
+                        f"{self.weapon_profile.weapon}, and "
+                        f"{self.gun_member} brings a different weapon."
+                    )
+                }
+            )
+
     @property
     def dependent_members(self):
         """The set's other members that stop making sense without this one.
 
-        Ammo lines ride their gun: a weapon profile materialises stacked
-        on the assignment of a weapon arriving in the same acquisition,
-        so with the weapon gone it names a gun nothing brings, and
-        acquiring the carrier refuses.
+        Ammo lines ride their gun: an extra profile names the weapon
+        member it lands under (``gun_member``), so with that member gone
+        it rides a gun the set no longer brings.
         """
-        if self.weapon_id is None:
-            return DefaultAssignment.objects.none()
-        return self.default_set.members.filter(
-            archived=False, weapon_profile__weapon_id=self.weapon_id
-        )
+        return self.default_set.members.filter(archived=False, gun_member=self)
 
 
 #: Which kinds may offer options. Narrow on purpose: a profile offers
