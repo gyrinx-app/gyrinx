@@ -178,7 +178,8 @@ thing twice, a line apart.
                                     {% endcomment %}
                                     {% for line in part.children %}
                                         <tr>
-                                            <td class="whitespace-nowrap pl-6">{{ line.label }}</td>
+                                            {# pl-6! — the table component's [&_td]:px-3 outweighs a plain pl-6. #}
+                                            <td class="whitespace-nowrap pl-6!">{{ line.label }}</td>
                                             {% if line.remove_url %}
                                                 <td class="w-full text-muted">{{ line.notes|join:" · " }}</td>
                                                 <td class="text-right">
