@@ -36,6 +36,8 @@ Issue: https://github.com/gyrinx-app/gyrinx/issues/2165
 | D8  | The `buy()` materialisation asymmetry (kinds exposing built-ins that buying never materialises, `operations.py:1154-1185`) is **out of scope** — file as its own issue.                                                                                                                                                                                                                                                                                                                           |
 | D9  | Owner `removes=True` assignments never satisfy a member and are preserved: the built-in materialises, the removal keeps suppressing it.                                                                                                                                                                                                                                                                                                                                                           |
 | D10 | Preview is informative, not an authorisation token; the POST recomputes against current data. One shared planner powers authoring preview, ingest preview, and removal preview.                                                                                                                                                                                                                                                                                                                   |
+| D11 | *(settled 2026-08-23)* **Withdrawing an option whose set has materialised copies refuses loudly**, naming why — never the current swallow-the-`ProtectedError`-and-orphan-the-set behaviour. Author-side policing is fine: a refusal stops the bad state existing, where engineering around it never ends. Built in C6. |
+| D12 | *(settled 2026-08-23)* **A removal that would leave a priced option set empty warns or refuses** — a player must never pay for a set that grants nothing. Built in C6 (or C5's preview if it lands first). |
 
 ## Open questions (resolve inside the relevant chunk, with the maintainer)
 
@@ -47,14 +49,6 @@ Issue: https://github.com/gyrinx-app/gyrinx/issues/2165
   carriers with a report rather than stranding or deleting paid things.
 - Whether interim Collection duplicates (add landed, removal not yet
   triggered) get a `Note` on the equip screen ("inform, never police").
-- A priced option set whose members are all archived still charges full
-  price — the player pays and gains nothing. Pre-existing shape (an
-  emptied set always charged); address alongside C5's preview or an
-  authoring warning.
-- `stop_offering` on an option whose set has materialised copies deletes
-  the option but leaves the set orphaned (unreachable, name reserved) —
-  the PROTECT refusal is swallowed by its except-branch. Fold into C6's
-  removal design.
 
 ## Code map (verified 2026-08-22 — re-verify line numbers before editing)
 
@@ -223,8 +217,12 @@ no writes, no tasks.
 per member (D2): archive provenance-matched assignments through
 `operation(...)`, cause-chain takes free grants, paid descendants
 surfaced/skipped per the resolved open question. This is the fix path
-for a wrongly-added equipment list. Verify: equip tabs drop the removed
-Collection; sold/archived copies untouched; rerun is a no-op.
+for a wrongly-added equipment list. Also builds the two author-side
+refusals: D11 (`stop_offering` refuses while materialised copies stand,
+instead of orphaning the set) and D12 (emptying a priced set
+warns/refuses). Verify: equip tabs drop the removed Collection;
+sold/archived copies untouched; rerun is a no-op; both refusals speak
+in sentences an author can act on.
 *Status: not started.*
 
 **C7 — Retroactive backfill.** Maintenance operation on C3's runner:
