@@ -234,7 +234,10 @@ independently before and after.
 *Status: not started.*
 
 **C8 — Tighten + acceptance.** Remove the legacy `_granted_rows`
-fallback; consider stricter provenance constraints; acceptance pass:
+fallback; retire `_something_materialised`'s loose-evidence clause and
+sweep archived members no copy references (the interim evidence
+deliberately over-archives — a hidden row is recoverable, a deleted
+anchor is not); consider stricter provenance constraints; acceptance pass:
 add-a-rule reaches an existing model in seconds; redelivery adds
 nothing; backfill twice → second run empty; full `pytest n26`, fmt,
 migration checks, query-budget tests unchanged.
