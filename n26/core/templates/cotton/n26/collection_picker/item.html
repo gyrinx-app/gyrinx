@@ -148,9 +148,11 @@ everything else is shrink-0, so the actions stay put and stay hittable.
     JavaScript.
     {% endcomment %}
     {% comment %}
-    No inset on the details block: unlike a row's options or notes, what
-    opens here is a bordered card that draws its own edge, and an indent
-    under it reads as a layout mistake rather than belonging.
+    The details block imposes no indent of its own: what opens here ranges
+    from a bordered card that draws its own edge — where an indent reads as
+    a layout mistake — to a plain list of lines that needs one to say it
+    belongs to the row above. Content that needs the step brings its own
+    n26-cp-inset.
     {% endcomment %}
     {% if details %}
         {% if open %}

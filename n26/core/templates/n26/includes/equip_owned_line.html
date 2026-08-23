@@ -36,23 +36,25 @@ held, the count stands where Buy would be and opens the row onto what they have.
             </c-ui.button>
         </c-slot>
         <c-slot name="details">
-            <c-n26.owned-lines :copies="row.copies" />
-            <div class="mt-1 border-t border-box-border pt-1">
-                <div class="flex min-h-9 items-center gap-2">
-                    <span class="min-w-0 flex-1 text-sm text-muted">Buy another</span>
-                    <span class="n26-cp-price shrink-0 text-sm text-ink-900 dark:text-ink-100">
-                        {% include "n26/includes/equip_price.html" with field=row.buy.price_field quoted=row.buy.price label=row.buy.name %}
-                    </span>
-                    <span class="flex shrink-0 items-center gap-1">
-                        {% include "n26/includes/row_action.html" with action=row.buy.buy %}
-                    </span>
+            <div class="n26-cp-inset">
+                <c-n26.owned-lines :copies="row.copies" />
+                <div class="mt-1 border-t border-box-border pt-1">
+                    <div class="flex min-h-9 items-center gap-2">
+                        <span class="min-w-0 flex-1 text-sm text-muted">Buy another</span>
+                        <span class="n26-cp-price shrink-0 text-sm text-ink-900 dark:text-ink-100">
+                            {% include "n26/includes/equip_price.html" with field=row.buy.price_field quoted=row.buy.price label=row.buy.name %}
+                        </span>
+                        <span class="flex shrink-0 items-center gap-1">
+                            {% include "n26/includes/row_action.html" with action=row.buy.buy %}
+                        </span>
+                    </div>
+                    {% if row.buy.choices %}
+                        {% include "n26/includes/equip_choices.html" with choices=row.buy.choices %}
+                    {% endif %}
+                    {% if row.buy.options %}
+                        {% include "n26/includes/equip_options.html" with row=row.buy %}
+                    {% endif %}
                 </div>
-                {% if row.buy.choices %}
-                    {% include "n26/includes/equip_choices.html" with choices=row.buy.choices %}
-                {% endif %}
-                {% if row.buy.options %}
-                    {% include "n26/includes/equip_options.html" with row=row.buy %}
-                {% endif %}
             </div>
         </c-slot>
     </c-n26.collection-picker.item>
@@ -79,7 +81,9 @@ held, the count stands where Buy would be and opens the row onto what they have.
             </c-ui.button>
         </c-slot>
         <c-slot name="details">
-            <c-n26.owned-lines :copies="row.copies" />
+            <div class="n26-cp-inset">
+                <c-n26.owned-lines :copies="row.copies" />
+            </div>
         </c-slot>
     </c-n26.collection-picker.item>
 {% endif %}
