@@ -771,6 +771,11 @@ def build_card_from_profile(profile, option=None, base=None):
         if default_set is None:
             continue
         for member in default_set.members.all():
+            # Skipped in Python so the hire list's prefetch of members
+            # stays warm: an archived member is a built-in an author has
+            # taken off, and the hire will not materialise it.
+            if member.archived:
+                continue
             assignable = member.assignable
             if assignable is None:
                 continue

@@ -872,12 +872,17 @@ def _sweeps_catching(thing):
 
 
 def _sets_holding(references):
-    """The sets of defaults naming the thing, by identity."""
+    """The sets of defaults naming the thing, by identity.
+
+    Archived memberships are skipped: an archived member no longer
+    materialises, so a page saying the thing is built into something
+    would contradict what a hire actually brings.
+    """
     from n26.library.models.defaults import DEFAULT_ASSIGNABLE_FIELDS
 
     sets = {}
     for reference in of_kind(references, "library.defaultassignment"):
-        if reference.field in DEFAULT_ASSIGNABLE_FIELDS:
+        if reference.field in DEFAULT_ASSIGNABLE_FIELDS and not reference.row.archived:
             sets[reference.row.default_set_id] = reference.row.default_set
     return list(sets.values())
 

@@ -28,6 +28,7 @@ see CLAUDE.md.
 import re
 
 from django.core.exceptions import ValidationError
+from django.db.models import Max
 
 from n26.library.models import (
     GangType,
@@ -1036,7 +1037,12 @@ def add_default_member(
 
     _refuse_a_bare_pickable(thing)
     if position is None:
-        position = default_set.members.count()
+        # After the last position ever placed, archived members
+        # included — a live count would reuse a surviving member's
+        # position once an earlier one is archived, and ties draw in
+        # no promised order.
+        last = default_set.members.aggregate(last=Max("position"))["last"]
+        position = 0 if last is None else last + 1
     member = DefaultAssignment(
         default_set=default_set,
         assignable=thing,
@@ -1056,10 +1062,16 @@ def add_default_member(
 def remove_default_member(member):
     """Take one thing back out of a set of defaults.
 
-    Only the membership goes. The thing named — the weapon, the skill,
-    the equipment list — stays in the library untouched, and so does
-    the set, even when this was its last member: a carrier that comes
-    with nothing still has somewhere to put the next thing.
+    Only the membership goes. A membership something has materialised
+    from is archived rather than deleted — every copy names it as its
+    provenance, so the row must survive for those copies' sake — while
+    one nothing ever came from goes completely: an archived member is
+    invisible to every surface, so leaving one behind would hold its
+    assignable under PROTECT with no way to see why. The thing named —
+    the weapon, the skill, the equipment list — stays in the library
+    untouched, and so does the set, even when this was its last member:
+    a carrier that comes with nothing still has somewhere to put the
+    next thing.
 
     Ammo lines go with their gun (``dependent_members``), because a
     weapon profile left behind names a weapon nothing brings.
@@ -1068,9 +1080,36 @@ def remove_default_member(member):
     when a carrier is acquired, and nothing retracts an assignment. This
     changes what future acquisitions come with.
     """
-    for dependent in member.dependent_members:
-        dependent.delete()
-    member.delete()
+    for dependent in list(member.dependent_members):
+        remove_default_member(dependent)
+    if _something_materialised(member):
+        member.archive()
+    else:
+        member.delete()
+
+
+def _something_materialised(member):
+    """Whether any copy in any gang came from this membership.
+
+    A copy carrying provenance names it outright. A copy with no
+    recorded link cannot say which membership it satisfies, so any
+    free-granted copy of the same thing counts instead — deliberately
+    loose evidence: archiving too readily leaves one hidden row, while
+    deleting too readily destroys the only row a link repair could
+    anchor those copies to.
+    """
+    from n26.core.models import Assignment, Reason
+
+    if Assignment.objects.filter(materialised_from=member).exists():
+        return True
+    assignable = member.assignable
+    if assignable is None:
+        return False
+    return Assignment.objects.filter(
+        materialised_from__isnull=True,
+        ledger_entry__reason=Reason.DEFAULT,
+        **{Assignment.field_for(assignable): assignable},
+    ).exists()
 
 
 def offer_option(

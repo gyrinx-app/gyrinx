@@ -1902,9 +1902,14 @@ class TestTheEquipmentListAFighterBuysFrom:
         return sheets
 
     def collections_of(self, profile):
+        # Live members only: a superseded list with materialised copies
+        # is archived rather than deleted, so an archived row may share
+        # the set with its replacement.
         return [
             str(member.assignable)
-            for member in profile.built_ins.members.filter(collection__isnull=False)
+            for member in profile.built_ins.members.filter(
+                archived=False, collection__isnull=False
+            )
         ]
 
     def test_the_named_list_joins_the_fighters_built_ins(self, plan):
@@ -2013,9 +2018,38 @@ class TestTheEquipmentListAFighterBuysFrom:
         moved = edited(PROFILES_CSV, self.CELL, ",Catfall,,Cawdor,")
         perform(plan_ingest(**{**imported, "profiles": moved}))
 
-        held = {str(member.assignable) for member in queen.built_ins.members.all()}
+        held = {str(member.assignable) for member in queen.built_in_members}
         assert "Exo-suit" in held
         assert "Escher Equipment List" not in held
+
+    def test_a_superseded_list_goes_and_a_reupload_adds_afresh(self, imported):
+        """A membership only survives its removal when materialised
+        copies name it as provenance; none do here, so the superseded
+        list's membership goes completely — and the original sheet
+        uploaded again plans an ordinary add."""
+        moved = edited(PROFILES_CSV, self.CELL, ",Catfall,,Cawdor,")
+        perform(plan_ingest(**{**imported, "profiles": moved}))
+        queen = Profile.objects.get(name="Gang Queen")
+        assert not queen.built_ins.members.filter(
+            collection__name="Escher Equipment List"
+        ).exists()
+
+        plan = plan_ingest(**{**imported, "profiles": read_csv(PROFILES_CSV)})
+        built_ins = plan.get(plan.get("Profile:gang queen").fields["built_ins"])
+        assert built_ins.action == "update"
+        assert built_ins.changes["members"] == {
+            "added": ["Escher Equipment List"],
+            "removed": ["Cawdor Equipment List"],
+        }
+
+        perform(plan)
+        assert self.collections_of(queen) == ["Escher Equipment List"]
+        assert (
+            queen.built_ins.members.filter(
+                collection__name="Escher Equipment List"
+            ).count()
+            == 1
+        )
 
     def test_a_column_gone_blank_retracts_nothing(self, imported):
         """A blank cell is the sheet declining to say, as it is
