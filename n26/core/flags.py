@@ -1,123 +1,56 @@
-"""Which accounts may reach a feature that is still being built.
+"""Reaching a feature that is still being built.
 
-A feature under construction ships gated: its code lands on the main branch
-like any other, but only the accounts named here can open it, so half a
-screen is never a stranger's first impression of it.
-
-There are two controls because they answer different questions, and both
-have to agree before anyone gets in. The **setting** says whether the
-feature exists at all — turning it off takes it away from everybody,
-including the people on the allowlist, which is what makes it a kill
-switch and the thing to reach for when a half-built screen starts writing
-bad rows. The **allowlist** says who gets it while it does exist, and is an
-ordinary group an administrator can add people to and take them out of
-without a deploy.
-
-Availability is one of three words rather than a boolean, because "off",
-"a few people" and "everyone" are three states and inferring the middle one
-from whether a group happens to exist makes a typo indistinguishable from a
-launch.
+The state lives in a ``FeatureFlag`` row and is changed in the admin, so
+opening a feature to another player is something somebody does on a page
+rather than a deploy. This module is the read side: the slugs code may ask
+for, the question, and the guard a view wears.
 
 A gated view answers a reader who may not see it with **404, never 403**:
 which features are being built is not something to be probed for, and every
 other guard in this edition already answers a stranger the same way. Signing
-in is required even where the ungated page would not ask for it — a feature
-nobody is supposed to know about should not announce itself to a visitor.
-
-There is no bypass for staff or superusers. An account that should see a
-gated feature goes on its allowlist, so what a person can reach is one
-question with one answer rather than two rules that drift.
+in is required even where the ungated page would not ask — being sent to a
+login page would itself say that something is there.
 """
 
-from dataclasses import dataclass
 from functools import wraps
 
-from django.conf import settings
 from django.http import Http404
 
+#: Every feature this edition gates, by the slug code asks for. A slug named
+#: here with no row of its own is off: a feature whose row has not been
+#: created yet fails shut rather than open. A slug *not* named here is a
+#: caller's typo and raises, so a guard can never be silently inert.
+CAMPAIGNS = "campaigns"
 
-class Availability:
-    """How widely a feature is open. Stored as the setting's value."""
-
-    #: Nobody, whatever the allowlist says. The kill switch.
-    OFF = "off"
-    #: Whoever is in the feature's group.
-    ALLOWLIST = "allowlist"
-    #: Every signed-in reader. What shipping looks like.
-    EVERYONE = "everyone"
-
-    ALL = (OFF, ALLOWLIST, EVERYONE)
+KNOWN_FLAGS = frozenset({CAMPAIGNS})
 
 
-@dataclass(frozen=True)
-class Flag:
-    """One gated feature: what it is called, where its switch is, and which
-    group holds the people allowed in while it is being built."""
+def enabled(slug, user):
+    """Whether this account may reach the named feature."""
+    from n26.core.models import FeatureFlag
 
-    name: str
-    setting: str
-    group: str
+    if slug not in KNOWN_FLAGS:
+        raise ValueError(f"No such feature flag: {slug!r}")
 
-
-#: Every gated feature in this edition, by the name callers use.
-FLAGS = {
-    "campaigns": Flag(
-        name="campaigns",
-        setting="N26_FLAG_CAMPAIGNS",
-        group="N26 Campaigns",
-    ),
-}
-
-
-def availability(flag):
-    """What the setting says, refusing anything it does not recognise.
-
-    An unrecognised word is a deployment mistake rather than something a
-    reader can cause, so it raises instead of guessing. Guessing "off"
-    would hide a launched feature and guessing "everyone" would leak an
-    unfinished one; both are worse than a failure that names itself.
-    """
-    state = getattr(settings, flag.setting, Availability.OFF)
-    if state not in Availability.ALL:
-        raise ValueError(
-            f"{flag.setting} is {state!r}; expected one of {Availability.ALL}"
-        )
-    return state
-
-
-def enabled(name, user):
-    """Whether this account may reach the named feature.
-
-    An unknown name is a caller's mistake, not a reader's, so it raises.
-    """
-    try:
-        flag = FLAGS[name]
-    except KeyError:
-        raise ValueError(f"No such feature flag: {name!r}") from None
-
-    state = availability(flag)
-    if state == Availability.OFF:
+    flag = FeatureFlag.objects.filter(slug=slug).first()
+    if flag is None:
         return False
-    if not user or not user.is_authenticated:
-        return False
-    if state == Availability.EVERYONE:
-        return True
-    return user.groups.filter(name=flag.group).exists()
+    return flag.open_to(user)
 
 
-def requires_flag(name):
+def requires_flag(slug):
     """Guard a view with a feature flag, answering 404 where it is closed.
 
-    Sits outside ``login_required`` where a view has both, so that a
-    visitor to a gated address is told the page does not exist rather than
-    being sent to sign in and learning that something is there.
+    Sits outside ``login_required`` where a view has both, so a visitor to a
+    gated address is told the page is not there rather than being sent to
+    sign in and learning that it is.
     """
 
     def decorate(view):
         @wraps(view)
         def guarded(request, *args, **kwargs):
-            if not enabled(name, request.user):
-                raise Http404(f"The {name} feature is not open to this account")
+            if not enabled(slug, request.user):
+                raise Http404(f"The {slug} feature is not open to this account")
             return view(request, *args, **kwargs)
 
         return guarded

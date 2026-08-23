@@ -18,6 +18,10 @@ Display-only state (AssignmentSet, PrintConfig, StatOverride) is
 editable — it moves no money, changes no rating and touches no ledger —
 though their selection M2Ms are managed in the app, where the choices
 are drawn with the context a bare multi-select cannot give.
+
+FeatureFlag is editable too, and is not player data at all: it says who
+may reach a feature still being built. That belongs on a page precisely
+so opening one to another player does not wait for a deploy.
 """
 
 from django.contrib import admin
@@ -25,6 +29,7 @@ from django.contrib import admin
 from n26.core.models import (
     Assignment,
     AssignmentSet,
+    FeatureFlag,
     Gang,
     LedgerEntry,
     LedgerEvent,
@@ -286,6 +291,28 @@ class PrintConfigAdmin(admin.ModelAdmin):
     list_select_related = ["gang"]
     # As on AssignmentSet: the ticking happens on the print setup screen.
     exclude = ["miniatures", "assignments"]
+
+
+@admin.register(FeatureFlag)
+class FeatureFlagAdmin(OneAtATime, admin.ModelAdmin):
+    """Where a half-built feature is opened and shut.
+
+    Editable on purpose, and the one page in this file that is: which
+    accounts may see an unfinished screen is a decision somebody makes
+    while the work is going on, not something to hold until a deploy.
+
+    The slug is what code asks for, so it is settable when the row is
+    created and fixed afterwards: editing it later would not rename a
+    feature, it would turn one off and leave a second nobody reads.
+    """
+
+    list_display = ["name", "slug", "availability", "group"]
+    list_filter = ["availability"]
+    search_fields = ["name", "slug"]
+    list_select_related = ["group"]
+
+    def get_readonly_fields(self, request, obj=None):
+        return ["slug"] if obj else []
 
 
 # Registering this edition's maintenance operations happens on import, and
