@@ -83,7 +83,10 @@ still lacks canonical sections for badges, back links and form-field anatomy
 
 - Django management commands run via `manage`, not `python manage.py`.
 - Conventional-commit prefixes on commits and PR titles (`feat:`, `fix:`,
-  `refactor:`, `docs:`, `test:`, `chore:`, `perf:`, `style:`).
+  `refactor:`, `docs:`, `test:`, `chore:`, `perf:`, `style:`). Titles must also
+  name the thing that changed — see [COMMIT_STYLE.md](COMMIT_STYLE.md). Flag any
+  title that opens with an article or "what" plus a generic noun ("the sweep", "a
+  question"), or that names nothing you could grep for.
 - Mobile-first; design at 375px and enhance upwards. Dense over spacious.
 - Colour signals state, never decoration.
 - Avoid `alert` classes for neutral grouped content — use a bordered box. Bootstrap

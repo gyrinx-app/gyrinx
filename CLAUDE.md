@@ -194,11 +194,20 @@ write for a tech lead reading cold, not a changelog:
   fixed price made the add-on's value vanish from the books"), then the mechanism
   only if it earns its place.
 - Avoid internal shorthand (test-group codes, harness jargon, fixture names) — or
-  explain it inline the first time it appears.
+  explain it inline the first time it appears. This means *explain the term*, not
+  *avoid naming the thing*: always name the page, model, command or setting you
+  are talking about.
 - End with concrete "how to try it" steps (URLs, commands) when there is something
   to see.
 
 Keep the fully technical version for commit messages and code comments.
+
+**Commit and PR titles have their own rules — see
+[.github/COMMIT_STYLE.md](.github/COMMIT_STYLE.md).** Read that file rather than
+copying the phrasing of recent commits; the log has drifted before. Note that the
+noun bans recorded elsewhere (no "shelf", no "shop", no "row" for an assignment)
+govern product copy, UI strings and identifiers — they do not apply to commit
+titles, which should freely name model classes, functions and flags.
 
 ## Critical Workflow
 
