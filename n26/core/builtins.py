@@ -23,18 +23,18 @@ from dataclasses import dataclass
 from n26.core.models import Assignment, ProfileRole
 
 
-def copies_of(member, carrier=None, include_archived=True):
-    """The stored assignments one set membership materialised.
+def copies_of(member, carrier, include_archived=True):
+    """The stored assignments one set membership materialised for one
+    carrier — the pair that says whether the member is satisfied there.
 
-    ``carrier`` narrows to the copies made for one carrier — the pair
-    that says whether the member is satisfied there. This is the one
-    lookup that follows provenance; the member's own archival never
-    enters into it, because an archived member's copies still resolve
-    through the foreign key and unwinds rely on finding them.
+    This is the one lookup that follows provenance; the member's own
+    archival never enters into it, because an archived member's copies
+    still resolve through the foreign key and unwinds rely on finding
+    them.
     """
-    copies = Assignment.objects.filter(materialised_from=member)
-    if carrier is not None:
-        copies = copies.filter(materialised_for=carrier)
+    copies = Assignment.objects.filter(
+        materialised_from=member, materialised_for=carrier
+    )
     if not include_archived:
         copies = copies.filter(archived=False)
     return copies
@@ -51,13 +51,14 @@ def copies_of_set(default_set, carrier, include_archived=True):
     return copies
 
 
-def is_satisfied(member, carrier):
+def is_satisfied(member, carrier, include_archived=True):
     """Whether this member already has its copy for this carrier.
 
-    Archived copies count: a grant the owner removed or sold is
-    settled, not something to hand back.
+    Archived copies count by default: a grant the owner removed or
+    sold is settled, not something to hand back. A set being taken
+    right now is the one place they do not (``plan_defaults``).
     """
-    return copies_of(member, carrier).exists()
+    return copies_of(member, carrier, include_archived=include_archived).exists()
 
 
 def sets_for(carrier, built_ins=True):
@@ -156,9 +157,9 @@ def plan_defaults(carrier, kinds=None, built_ins=True, fresh=()):
             entries.append(
                 MemberPlan(
                     member=member,
-                    satisfied=copies_of(
+                    satisfied=is_satisfied(
                         member, carrier, include_archived=include_archived
-                    ).exists(),
+                    ),
                 )
             )
     return DefaultsPlan(carrier=carrier, entries=tuple(entries))

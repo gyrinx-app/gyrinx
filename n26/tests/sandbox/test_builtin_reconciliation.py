@@ -88,7 +88,7 @@ def reconcile(gang, carrier, **kwargs):
 
 def copies_by_member(carrier):
     """Copy counts keyed by member, archived included — the provenance
-    pairs are what idempotency is asserted over, not a bare row count."""
+    pairs are what idempotency is asserted over, not a bare copy count."""
     counts = {}
     for copy in Assignment.objects.filter(materialised_for=carrier):
         counts[copy.materialised_from_id] = counts.get(copy.materialised_from_id, 0) + 1
@@ -268,13 +268,13 @@ class TestAmmoFindsItsGun:
             miniature_root=fighter, weapon=launcher, archived=False
         )
         assert guns.count() == 2
-        smoke_row = Assignment.objects.get(
+        smoke_copy = Assignment.objects.get(
             weapon_profile=smoke, miniature_root=fighter, archived=False
         )
-        choke_row = Assignment.objects.get(
+        choke_copy = Assignment.objects.get(
             weapon_profile=choke, miniature_root=fighter, archived=False
         )
-        assert smoke_row.parent_id != choke_row.parent_id
+        assert smoke_copy.parent_id != choke_copy.parent_id
 
         outcome = reconcile(gang, fighter.membership)
         assert outcome.created == []
@@ -294,11 +294,11 @@ class TestAmmoFindsItsGun:
 
         reconcile(gang, fighter.membership)
 
-        row = Assignment.objects.get(
+        copy = Assignment.objects.get(
             materialised_from=member, materialised_for=fighter.membership
         )
-        assert row.parent_id == gun.pk
-        assert row.caused_by_id == gun.pk
+        assert copy.parent_id == gun.pk
+        assert copy.caused_by_id == gun.pk
         gang.refresh_from_db()
         assert_reconciled(gang)
 
@@ -358,15 +358,15 @@ class TestSlotsAndPicks:
         profile = create_profile("Hunter", person_type, gang_type, price=100)
         add_built_in(profile, legacy_slot)
         fighter = hire(gang, profile, "Ana", paid=100)
-        slot_row = Assignment.objects.get(
+        slot_copy = Assignment.objects.get(
             miniature_root=fighter, slot__isnull=False, archived=False
         )
-        choose(slot_row, houses["Cawdor"])
+        choose(slot_copy, houses["Cawdor"])
 
         outcome = reconcile(gang, fighter.membership)
 
         assert outcome.created == []
-        picks = Assignment.objects.filter(chosen_for=slot_row, archived=False)
+        picks = Assignment.objects.filter(chosen_for=slot_copy, archived=False)
         assert picks.count() == 1
         assert picks.get().pickable == houses["Cawdor"]
         gang.refresh_from_db()
@@ -381,12 +381,12 @@ class TestSlotsAndPicks:
         reconcile(gang, fighter.membership)
         reconcile(gang, fighter.membership)
 
-        slot_row = Assignment.objects.get(
+        slot_copy = Assignment.objects.get(
             materialised_from=member,
             materialised_for=fighter.membership,
             archived=False,
         )
-        picks = Assignment.objects.filter(chosen_for=slot_row, archived=False)
+        picks = Assignment.objects.filter(chosen_for=slot_copy, archived=False)
         assert picks.count() == 1
         assert picks.get().pickable == houses["Escher"]
         gang.refresh_from_db()
@@ -404,11 +404,11 @@ class TestCountersOpenOnce:
         reconcile(gang, fighter.membership)
         reconcile(gang, fighter.membership)
 
-        rows = Assignment.objects.filter(
+        copies = Assignment.objects.filter(
             counter=xp, miniature_root=fighter, archived=False
         )
-        assert rows.count() == 1
-        assert rows.get().counter_value.value == 61
+        assert copies.count() == 1
+        assert copies.get().counter_value.value == 61
         gang.refresh_from_db()
         assert_reconciled(gang)
 

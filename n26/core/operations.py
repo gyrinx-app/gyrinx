@@ -1015,21 +1015,35 @@ class Operation:
 
         created = []
         skipped = []
+        ammo = [
+            entry
+            for entry in plan.entries
+            if isinstance(entry.member.assignable, WeaponProfile)
+        ]
+        # A satisfied ammo line already sits on one particular gun. That
+        # gun is spoken for — claims resolve by provenance before queue
+        # position — so it never joins the queue and a missing ammo
+        # member cannot double onto it while another gun goes without.
+        occupied = set()
+        for entry in ammo:
+            if not entry.satisfied:
+                continue
+            copy = copies_of(entry.member, carrier, include_archived=False).first()
+            if copy is not None:
+                occupied.add(copy.parent_id)
         #: weapon pk -> guns of this plan still open to take ammo, in
         #: member order. One entry per weapon member, so twins stay
         #: distinct.
         guns = {}
-        ammo = []
         for entry in plan.entries:
             member = entry.member
             assignable = member.assignable
             if isinstance(assignable, WeaponProfile):
-                ammo.append(entry)
                 continue
             if entry.satisfied:
                 if isinstance(assignable, Weapon):
                     copy = copies_of(member, carrier, include_archived=False).first()
-                    if copy is not None:
+                    if copy is not None and copy.pk not in occupied:
                         guns.setdefault(assignable.pk, []).append(copy)
                 continue
             assignment = self.assign(
@@ -1044,6 +1058,8 @@ class Operation:
             created.append(assignment)
             if isinstance(assignable, Weapon):
                 self._grant_free_profiles(assignable, assignment)
+                # A gun created this pass cannot be occupied: a
+                # satisfied ammo copy predates it.
                 guns.setdefault(assignable.pk, []).append(assignment)
             elif member.default_pickable_id is not None:
                 # A slot arriving already settled. The pick goes
@@ -1053,21 +1069,6 @@ class Operation:
             elif member.counter_id is not None:
                 # A counter opens at its member's amount — Starting XP.
                 CounterValue.objects.create(assignment=assignment, value=member.amount)
-
-        # A satisfied ammo line already sits on one particular gun. That
-        # gun is spoken for: a missing ammo member must not double onto
-        # it while another of the plan's guns goes without.
-        for entry in ammo:
-            if not entry.satisfied:
-                continue
-            copy = copies_of(entry.member, carrier, include_archived=False).first()
-            if copy is None:
-                continue
-            queue = guns.get(entry.member.assignable.weapon_id, [])
-            for index, gun in enumerate(queue):
-                if gun.pk == copy.parent_id:
-                    del queue[index]
-                    break
 
         for entry in ammo:
             if entry.satisfied:
