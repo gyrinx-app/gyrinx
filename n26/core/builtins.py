@@ -135,10 +135,11 @@ def plan_defaults(carrier, kinds=None, built_ins=True, fresh=()):
     carrier's role (``kinds_for``).
 
     ``fresh`` names sets the carrier is taking right now, whose members
-    are judged by live copies alone. Re-taking an option set the owner
-    once held must bring its kit again: the old copies were archived by
-    the set leaving, not by the owner parting with the things, so they
-    are history rather than a settled grant.
+    are judged by live copies alone. The archived-copy rule guards
+    against *unattended* re-grants — background reconciling must never
+    re-gift what an owner parted with — while taking a set is an
+    acquisition, and what is bought arrives: the copies a set's earlier
+    tenure left archived are history, not a settled grant.
     """
     if kinds is None:
         kinds = kinds_for(carrier)

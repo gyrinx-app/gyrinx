@@ -990,8 +990,10 @@ class Operation:
 
         ``kinds`` narrows what materialises (derived from the carrier's
         role when not given — a Legacy profile brings its lists but not
-        a second set of free kit); ``fresh`` names sets being taken
-        right now, judged by live copies alone (``plan_defaults``).
+        a second set of free kit). ``fresh`` names sets being taken
+        right now, judged by live copies alone: archived copies guard
+        against unattended re-grants, and taking a set is an acquisition
+        (``plan_defaults``). A bare reconcile passes neither.
         """
         from n26.core.builtins import ReconcileOutcome, copies_of, plan_defaults
         from n26.core.models import CounterValue, Reason

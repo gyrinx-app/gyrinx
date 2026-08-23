@@ -146,6 +146,31 @@ class TestSwappingAChoice:
         assert weapon_names(beast) == ["Chemical cloud breath", "Talons"]
         assert_reconciled(gang)
 
+    def test_leaving_a_set_and_returning_restores_its_kit(self, gang, khimerix):
+        """Re-taking a set is an acquisition, and what is bought arrives.
+        The copies the first tenure left archived are history — they
+        never stand in for the kit the owner is paying for again."""
+        eruption = sets_of(khimerix)["Eruption breath"]
+        beast = hire_with_option(gang, khimerix, "Vhast", option=eruption)
+        gang.refresh_from_db()
+        cash = gang.credits
+
+        rechoose(gang, beast, sets_of(khimerix)["Standard Khimerix"])
+        rechoose(gang, beast, eruption)
+
+        assert weapon_names(beast) == ["Gaseous eruption breath", "Talons"]
+        member = eruption.members.first()
+        copies = Assignment.objects.filter(
+            materialised_from=member, materialised_for=beast.membership
+        )
+        assert copies.count() == 2
+        assert copies.filter(archived=False).count() == 1
+        gang.refresh_from_db()
+        # The 25cr difference came back on leaving and went out again on
+        # returning.
+        assert gang.credits == cash
+        assert_reconciled(gang)
+
     def test_the_record_of_what_is_taken_follows(self, gang, khimerix):
         beast = hire_with_option(gang, khimerix, "Vhast")
         eruption = sets_of(khimerix)["Eruption breath"]
