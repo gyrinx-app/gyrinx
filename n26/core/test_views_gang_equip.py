@@ -589,8 +589,10 @@ class TestTheQueryBudget:
         # assignment queries and one hydration pass per kind they name — the
         # roster behind the header's count, which of its lists hold gear, and
         # the browse of the one chosen with its entries, their use lists and
-        # their offers. The page's own furniture answers for the rest.
-        assert self.measure(client, equip_url(gang, house_list)) == 37
+        # their offers. The drawer asks once whether campaigns are open to
+        # this reader, so it draws that place as a link or as a plain word.
+        # The page's own furniture answers for the rest.
+        assert self.measure(client, equip_url(gang, house_list)) == 38
 
     def test_the_library_costs_a_fixed_number(self, client, tester, gang, house_list):
         create_wargear("Mesh Armour", price=15)
@@ -601,8 +603,9 @@ class TestTheQueryBudget:
         # The same page with the library in place of that browse: one
         # query per gear kind, plus the guns' paid rounds and the wargear's
         # offers — never one per item, and no use lists, because a gang has
-        # nothing to test a restriction against.
-        assert self.measure(client, equip_url(gang, scope="all")) == 30
+        # nothing to test a restriction against. Plus the drawer's one
+        # question about whether campaigns are open.
+        assert self.measure(client, equip_url(gang, scope="all")) == 31
 
     def test_the_library_costs_the_same_however_much_it_holds(
         self, client, tester, gang, house_list

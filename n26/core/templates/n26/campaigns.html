@@ -1,0 +1,55 @@
+{% extends "n26/layouts/base.html" %}
+{% load navigation %}
+{% comment %}
+Every campaign you arbitrate, and the way to set another up.
+
+A plain stack rather than <c-n26.gang-table>'s machinery: a campaign row
+carries a name and a budget and nothing to filter by, so the table's search,
+facets and type column would all be furniture with nothing behind them. When a
+campaign row has more to say, that is the moment to reach for a table.
+
+Setting one up is the page's action, in the header, because a list of
+campaigns is where someone goes when they want one more.
+{% endcomment %}
+{% block head_title %}Campaigns{% endblock head_title %}
+{% block nav_switcher %}
+    {% places_switcher here='campaigns' as places_ %}
+    <c-n26.quick-switcher.of :switcher="places_" hotkey="f" />
+{% endblock nav_switcher %}
+{% block nav_items %}
+    {% include 'n26/_nav.html' with here='campaigns' %}
+{% endblock %}
+{% block content %}
+    <div class="flex flex-col gap-8">
+        <c-n26.page-header title="Campaigns">
+            <c-slot name="actions">
+                <c-ui.button variant="primary" href="{% url 'n26-create-campaign' %}">Set up campaign</c-ui.button>
+            </c-slot>
+        </c-n26.page-header>
+        {% if page.object_list %}
+            <ul class="flex flex-col gap-2">
+                {% for row in page.object_list %}
+                    <li class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 rounded border border-ink-200 p-3 dark:border-ink-800">
+                        <c-n26.link href="{% url 'n26-campaign' row.pk %}">{{ row.name }}</c-n26.link>
+                        {% comment %}
+                        A campaign with no ceiling says so in words. A blank
+                        where a number goes reads as a number nobody has typed
+                        yet, which is a different thing entirely.
+                        {% endcomment %}
+                        <span class="text-sm text-muted">
+                            {% if row.budget is None %}
+                                No budget ceiling
+                            {% else %}
+                                {{ row.budget }}¢ to join
+                            {% endif %}
+                        </span>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p class="text-muted">
+                No campaigns yet — <c-n26.link href="{% url 'n26-create-campaign' %}">set one up</c-n26.link>.
+            </p>
+        {% endif %}
+    </div>
+{% endblock content %}

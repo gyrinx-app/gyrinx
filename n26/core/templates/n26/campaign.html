@@ -1,0 +1,62 @@
+{% extends "n26/layouts/base.html" %}
+{% load richtext %}
+{% comment %}
+One campaign, as its arbitrator sees it.
+
+The standing facts sit in <c-n26.detail-list>, the same way a gang sheet
+carries its own — each a small fact that is also something to change.
+
+The page is deliberately short. What a campaign is *for* — who is in it, what
+it owns, what has happened — is not modelled yet, and a screen that drew empty
+headings for all three would promise three features rather than describe one.
+Each section arrives with the work that fills it.
+{% endcomment %}
+{% block head_title %}{{ campaign.name }}{% endblock head_title %}
+{% block nav_heading %}{{ campaign.name }}{% endblock nav_heading %}
+{% block nav_items %}
+    {% include 'n26/_nav.html' with here='campaigns' %}
+{% endblock %}
+{% block content %}
+    <div class="flex flex-col gap-8">
+        <c-n26.page-header title="{{ campaign.name }}">
+            <c-slot name="breadcrumb">
+                <c-ui.breadcrumbs>
+                    <c-ui.breadcrumbs.item>
+                        <c-n26.user-link :user="campaign.owner"
+                                         tone="current"
+                                         href="{% url 'n26-dashboard' %}" />
+                    </c-ui.breadcrumbs.item>
+                    <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
+                    <c-ui.breadcrumbs.item :current="True">
+                        {{ campaign.name }}
+                    </c-ui.breadcrumbs.item>
+                </c-ui.breadcrumbs>
+            </c-slot>
+            <c-slot name="actions">
+                <c-ui.button variant="primary" href="{% url 'n26-edit-campaign' campaign.pk %}">Edit</c-ui.button>
+            </c-slot>
+        </c-n26.page-header>
+        <c-n26.detail-list>
+            <c-n26.detail-list.row label="Gang budget">
+                {% if campaign.budget is None %}
+                    No ceiling
+                {% else %}
+                    {{ campaign.budget }}¢
+                {% endif %}
+            </c-n26.detail-list.row>
+        </c-n26.detail-list>
+        {% if campaign.summary %}
+            {% comment %}
+            The arbitrator's own words, so the editor's markup is drawn rather
+            than escaped — sanitised on the way out by the richtext tag, which
+            is why a tightened allowlist reaches what was already saved.
+            {% endcomment %}
+            <c-n26.prose>
+                {{ campaign.summary|safe_rich_text }}
+            </c-n26.prose>
+        {% endif %}
+        <c-n26.action-links>
+            <c-n26.action-link href="{% url 'n26-delete-campaign' campaign.pk %}" tone="danger">Delete campaign</c-n26.action-link>
+        </c-n26.action-links>
+    </div>
+{% endblock content %}

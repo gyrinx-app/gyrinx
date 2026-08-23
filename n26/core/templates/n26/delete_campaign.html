@@ -1,0 +1,53 @@
+{% extends "n26/layouts/base.html" %}
+{% comment %}
+The question asked before a campaign is deleted, at an address of its own.
+
+A page rather than a scripted prompt, for the same reason the gang's is: it
+survives a reload, Back is a real answer, and it works with scripting switched
+off. Nothing here changes anything — the form's POST is the act, and following
+the link that leads here is not.
+
+The alert is warning rather than error: an error reports something that
+already went wrong, and nothing has yet.
+{% endcomment %}
+{% block head_title %}Delete {{ campaign.name }}{% endblock head_title %}
+{% block nav_heading %}Delete campaign{% endblock nav_heading %}
+{% block nav_items %}
+    {% include 'n26/_nav.html' with here='campaigns' %}
+{% endblock %}
+{% block content %}
+    <c-n26.form-page action="{% url 'n26-delete-campaign' campaign.pk %}"
+                     title="Delete {{ campaign.name }}?"
+                     submit_label="Delete campaign"
+                     submit_variant="danger"
+                     cancel_url="{% url 'n26-campaign' campaign.pk %}">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item>
+                    <c-n26.user-link :user="campaign.owner"
+                                     tone="current"
+                                     href="{% url 'n26-dashboard' %}" />
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'n26-campaign' campaign.pk %}">{{ campaign.name }}</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Delete
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% csrf_token %}
+        {% comment %}
+        What is true, and only what is true. The campaign stops being anywhere
+        the arbitrator can reach it and they cannot put it back — so the
+        wording says both of those and stops. It says plainly that the gangs
+        are untouched, because a reader deleting a campaign has every reason
+        to fear otherwise, and a campaign has never owned them.
+        {% endcomment %}
+        <c-ui.alert variant="warning" title="You cannot undo this">
+            Deleting takes {{ campaign.name }} out of your campaigns. It stops
+            appearing in your list and its pages stop opening. You will not be able
+            to bring it back. No gang is changed or deleted — a campaign never owned
+            them, and every one stays with the player it belongs to.
+        </c-ui.alert>
+    </c-n26.form-page>
+{% endblock content %}

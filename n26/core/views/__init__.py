@@ -13,6 +13,13 @@ what makes it a move rather than a change.
 """
 
 from n26.core.views.api import preview_view
+from n26.core.views.campaigns import (
+    campaign,
+    campaigns,
+    create_campaign,
+    delete_campaign,
+    edit_campaign,
+)
 from n26.core.views.changelog import changelog, changelog_entry
 from n26.core.views.choose import choose
 from n26.core.views.edit import edit_fighter
@@ -45,13 +52,18 @@ from n26.core.views.printing import print_gang, print_setup
 
 __all__ = [
     "accessorise_assignment",
+    "campaign",
+    "campaigns",
     "changelog",
     "changelog_entry",
     "choose",
+    "create_campaign",
     "create_gang",
     "dashboard",
+    "delete_campaign",
     "delete_fighter",
     "delete_gang",
+    "edit_campaign",
     "edit_fighter",
     "edit_gang",
     "equip",

@@ -42,6 +42,10 @@ class N26Noun(models.TextChoices):
     """The things a player acts on in this edition."""
 
     GANG = "gang", "Gang"
+    # The stored value carries the edition because the other one claimed the
+    # bare word first, and a noun says which edition an event came from. The
+    # label is what anybody reads, and both editions call this a campaign.
+    CAMPAIGN = "n26_campaign", "Campaign"
     MODEL = "model", "Model"
     ASSIGNMENT = "assignment", "Assignment"
     CHOICE = "choice", "Choice"

@@ -1,0 +1,189 @@
+import pytest
+from django.contrib.auth.models import Group, User
+
+from n26.core.flags import CAMPAIGNS
+from n26.core.models import Availability, Campaign, FeatureFlag
+
+pytestmark = pytest.mark.django_db
+
+GROUP_NAME = "N26 Campaigns"
+
+
+@pytest.fixture
+def open_to_everyone():
+    """The flag rows are seeded by a data migration, which does not run
+    under --nomigrations."""
+    return FeatureFlag.objects.create(
+        slug=CAMPAIGNS, name="Campaigns", availability=Availability.EVERYONE
+    )
+
+
+@pytest.fixture
+def shut():
+    return FeatureFlag.objects.create(
+        slug=CAMPAIGNS, name="Campaigns", availability=Availability.OFF
+    )
+
+
+@pytest.fixture
+def arbitrator(client):
+    person = User.objects.create_user("arbitrator")
+    client.force_login(person)
+    return person
+
+
+@pytest.fixture
+def campaign(arbitrator):
+    return Campaign.objects.create(name="Dust Falls", owner=arbitrator, budget=1000)
+
+
+#: Every address this feature adds, so a new one cannot skip the gate below.
+def addresses(campaign):
+    return [
+        "/n26/campaigns/",
+        "/n26/campaigns/new/",
+        f"/n26/campaigns/{campaign.pk}/",
+        f"/n26/campaigns/{campaign.pk}/edit/",
+        f"/n26/campaigns/{campaign.pk}/delete/",
+    ]
+
+
+class TestWhoReachesCampaignsAtAll:
+    def test_a_shut_feature_answers_404_everywhere(self, client, campaign, shut):
+        """Not 403, and not a redirect. Which features are being built is
+        not something to be probed for."""
+        for address in addresses(campaign):
+            assert client.get(address).status_code == 404, address
+
+    def test_no_flag_row_answers_404_everywhere(self, client, campaign):
+        """Absent is not allowed. A feature whose row has not been created
+        is shut."""
+        for address in addresses(campaign):
+            assert client.get(address).status_code == 404, address
+
+    def test_an_open_feature_lets_the_arbitrator_in(
+        self, client, campaign, open_to_everyone
+    ):
+        for address in addresses(campaign):
+            assert client.get(address).status_code == 200, address
+
+    def test_a_visitor_gets_404_rather_than_a_login_redirect(
+        self, client, campaign, open_to_everyone
+    ):
+        """Being sent to sign in would itself say something is there."""
+        client.logout()
+        for address in addresses(campaign):
+            assert client.get(address).status_code == 404, address
+
+    def test_the_allowlist_decides_between_two_accounts(self, client, campaign):
+        FeatureFlag.objects.create(
+            slug=CAMPAIGNS,
+            name="Campaigns",
+            availability=Availability.ALLOWLIST,
+            group=Group.objects.create(name=GROUP_NAME),
+        )
+        assert client.get("/n26/campaigns/").status_code == 404
+        User.objects.get(username="arbitrator").groups.add(
+            Group.objects.get(name=GROUP_NAME)
+        )
+        assert client.get("/n26/campaigns/").status_code == 200
+
+
+class TestSettingOneUp:
+    def test_it_creates_a_campaign_and_lands_on_its_page(
+        self, client, arbitrator, open_to_everyone
+    ):
+        response = client.post(
+            "/n26/campaigns/new/",
+            {"name": "Dust Falls", "budget": "1000", "summary": ""},
+        )
+        made = Campaign.objects.get(name="Dust Falls")
+        assert made.owner == arbitrator
+        assert made.budget == 1000
+        assert response.status_code == 302
+        assert response["Location"] == f"/n26/campaigns/{made.pk}/"
+
+    def test_a_blank_budget_means_no_ceiling_rather_than_zero(
+        self, client, arbitrator, open_to_everyone
+    ):
+        """The one answer worth checking: blank is not a default and is not
+        a zero, and a campaign that read it as zero would refuse everybody."""
+        client.post("/n26/campaigns/new/", {"name": "Open House", "budget": ""})
+        assert Campaign.objects.get(name="Open House").budget is None
+
+    def test_a_nameless_campaign_is_refused(self, client, arbitrator, open_to_everyone):
+        assert client.post("/n26/campaigns/new/", {"name": ""}).status_code == 200
+        assert not Campaign.objects.exists()
+
+
+class TestSomebodyElsesCampaign:
+    """Owner-scoped, and answered with 404 rather than 403 — the same way
+    every other page holding player data answers a stranger."""
+
+    @pytest.fixture
+    def theirs(self):
+        return Campaign.objects.create(
+            name="Not Yours", owner=User.objects.create_user("someone-else")
+        )
+
+    def test_it_is_not_readable(self, client, arbitrator, theirs, open_to_everyone):
+        assert client.get(f"/n26/campaigns/{theirs.pk}/").status_code == 404
+
+    def test_it_is_not_editable(self, client, arbitrator, theirs, open_to_everyone):
+        response = client.post(
+            f"/n26/campaigns/{theirs.pk}/edit/", {"name": "Mine Now", "budget": ""}
+        )
+        assert response.status_code == 404
+        theirs.refresh_from_db()
+        assert theirs.name == "Not Yours"
+
+    def test_it_is_not_deletable(self, client, arbitrator, theirs, open_to_everyone):
+        assert client.post(f"/n26/campaigns/{theirs.pk}/delete/").status_code == 404
+        theirs.refresh_from_db()
+        assert theirs.archived is False
+
+    def test_it_is_not_listed(self, client, arbitrator, theirs, open_to_everyone):
+        assert "Not Yours" not in client.get("/n26/campaigns/").content.decode()
+
+
+class TestEditing:
+    def test_it_saves_the_changed_facts(self, client, campaign, open_to_everyone):
+        client.post(
+            f"/n26/campaigns/{campaign.pk}/edit/",
+            {"name": "Dust Falls Reborn", "budget": "1500", "summary": ""},
+        )
+        campaign.refresh_from_db()
+        assert (campaign.name, campaign.budget) == ("Dust Falls Reborn", 1500)
+
+    def test_clearing_the_budget_removes_the_ceiling(
+        self, client, campaign, open_to_everyone
+    ):
+        client.post(
+            f"/n26/campaigns/{campaign.pk}/edit/",
+            {"name": campaign.name, "budget": ""},
+        )
+        campaign.refresh_from_db()
+        assert campaign.budget is None
+
+
+class TestDeleting:
+    def test_the_question_page_changes_nothing(
+        self, client, campaign, open_to_everyone
+    ):
+        assert client.get(f"/n26/campaigns/{campaign.pk}/delete/").status_code == 200
+        campaign.refresh_from_db()
+        assert campaign.archived is False
+
+    def test_the_post_archives_rather_than_destroys(
+        self, client, campaign, open_to_everyone
+    ):
+        """The row stays: what a campaign recorded is a true statement about
+        what happened, whether or not it is still on show."""
+        client.post(f"/n26/campaigns/{campaign.pk}/delete/")
+        campaign.refresh_from_db()
+        assert campaign.archived is True
+        assert Campaign.objects.filter(pk=campaign.pk).exists()
+
+    def test_a_deleted_campaign_stops_opening(self, client, campaign, open_to_everyone):
+        client.post(f"/n26/campaigns/{campaign.pk}/delete/")
+        assert client.get(f"/n26/campaigns/{campaign.pk}/").status_code == 404

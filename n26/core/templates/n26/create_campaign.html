@@ -1,0 +1,37 @@
+{% extends "n26/layouts/base.html" %}
+{% comment %}
+Setting a campaign up. The frame is <c-n26.form-page>'s, so the measure, the
+heading scale and the footer match every other screen that asks for a
+decision. The fields are the shared include, so this screen and the edit
+screen ask the same questions in the same words.
+
+The submit is `success` — the footer's default — because this form brings a
+thing into existence rather than saving one.
+{% endcomment %}
+{% block head_title %}Set up a campaign{% endblock head_title %}
+{% block nav_heading %}Set up a campaign{% endblock nav_heading %}
+{% block nav_items %}
+    {% include 'n26/_nav.html' with here='campaigns' %}
+{% endblock %}
+{% block content %}
+    <c-n26.form-page action="{% url 'n26-create-campaign' %}"
+                     title="Set up a campaign"
+                     lead="A name, and what a gang may spend to join."
+                     :form="form"
+                     submit_label="Set up campaign"
+                     cancel_url="{% url 'n26-campaigns' %}">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item href="{% url 'n26-dashboard' %}">
+                    <c-n26.user-link :user="user" href="{% url 'n26-dashboard' %}" tone="current" />
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    New
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% csrf_token %}
+        {% include 'n26/includes/campaign_form_fields.html' %}
+    </c-n26.form-page>
+{% endblock content %}

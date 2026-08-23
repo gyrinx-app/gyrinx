@@ -1,3 +1,4 @@
+{% load navigation %}
 {% comment %}
 The places the app has, for the navigation drawer. One include rather than
 each page writing its own list, for the same reason the gallery's shell has
@@ -10,10 +11,12 @@ the area meant an author had to know which half of the app they were standing
 in before they could tell what clicking the burger would give them — and the
 way back to a gang was a link called "App" rather than the gang's own name.
 
-Campaigns and Content Packs are words rather than links: neither has a page
-yet, and the dashboard's tabs for them say the same thing. A link that lands
-nowhere teaches a reader to distrust the rest of the list, where a plain word
-costs nothing and is true.
+Campaigns is a link for the accounts let into the campaigns feature and a
+plain word for everyone else — a gated address answers 404, and offering a
+reader a link that does that teaches them to distrust the rest of the list.
+Content Packs is a word for the same reason: it has no page. Drawing the
+link is not what grants access; every campaign view asks the same question
+again for itself.
 
 Help leads out of the edition, to the guides written for it. Those are
 flatpages, addressed by the URL they are stored under rather than by a route
@@ -48,7 +51,13 @@ a page that belongs nowhere.
                   current="{% if here == 'home' %}1{% endif %}">Home</c-ui.navbar.item>
 <c-ui.navbar.item href="{% url 'n26-gangs' %}"
                   current="{% if here == 'gangs' %}1{% endif %}">Gangs</c-ui.navbar.item>
-<span>Campaigns <span class="text-xs tracking-wide uppercase">Soon</span></span>
+{% feature_open "campaigns" as campaigns_open %}
+{% if campaigns_open %}
+    <c-ui.navbar.item href="{% url 'n26-campaigns' %}"
+                      current="{% if here == 'campaigns' %}1{% endif %}">Campaigns</c-ui.navbar.item>
+{% else %}
+    <span>Campaigns <span class="text-xs tracking-wide uppercase">Soon</span></span>
+{% endif %}
 <span>Content Packs <span class="text-xs tracking-wide uppercase">Soon</span></span>
 <c-ui.navbar.item href="/help/n26/">
     Help

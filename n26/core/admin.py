@@ -31,6 +31,7 @@ from n26.core.flags import KNOWN_FLAGS
 from n26.core.models import (
     Assignment,
     AssignmentSet,
+    Campaign,
     FeatureFlag,
     Gang,
     LedgerEntry,
@@ -293,6 +294,19 @@ class PrintConfigAdmin(admin.ModelAdmin):
     list_select_related = ["gang"]
     # As on AssignmentSet: the ticking happens on the print setup screen.
     exclude = ["miniatures", "assignments"]
+
+
+@admin.register(Campaign)
+class CampaignAdmin(OneAtATime, admin.ModelAdmin):
+    """Editable, unlike the ledger-adjacent models: a campaign holds no
+    assignments, moves no money and pins no cache, so there is nothing here
+    for an edit to skip."""
+
+    list_display = ["name", "owner", "budget", "archived"]
+    list_filter = ["archived"]
+    search_fields = ["name", "owner__username"]
+    autocomplete_fields = ["owner"]
+    list_select_related = ["owner"]
 
 
 class FeatureFlagForm(forms.ModelForm):
