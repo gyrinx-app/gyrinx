@@ -1085,6 +1085,14 @@ def add_default_member(
     return member
 
 
+def gun_members_bringing(default_set, weapon):
+    """The set's live members that bring this weapon — the guns an
+    extra profile of it could ride. One statement of the match, read
+    wherever an anchor is settled or explained.
+    """
+    return default_set.members.filter(archived=False, weapon=weapon)
+
+
 def _the_one_gun_member(default_set, weapon_profile):
     """The set's single live member bringing this profile's weapon — the
     anchor an unnamed add settles on.
@@ -1095,9 +1103,7 @@ def _the_one_gun_member(default_set, weapon_profile):
     words, because a guess here would decide for good which gun a line
     lands under.
     """
-    matches = list(
-        default_set.members.filter(archived=False, weapon_id=weapon_profile.weapon_id)
-    )
+    matches = list(gun_members_bringing(default_set, weapon_profile.weapon))
     if len(matches) > 1:
         raise ValidationError(
             f"{default_set.name} brings {weapon_profile.weapon} "

@@ -381,10 +381,10 @@ BUILT_INS_PART = {
     # A gun's own lines nest under it, so the listing reads the way a
     # card draws firing lines under weapons.
     "arrange": _arrange_built_ins,
-    # The add form no longer offers weapon profiles — a line means
-    # nothing apart from its gun — so the section carries the way to
-    # the page that adds one: a gun of the set from its own row, or
-    # here for a gun the set does not bring.
+    # The add form does not offer weapon profiles: a line means nothing
+    # apart from its gun, so the section carries the way to the page
+    # that adds one — a gun of the set from its own row, or here for a
+    # gun the set does not bring.
     "door": lambda thing: (
         reverse("authoring-set-profiles", args=[thing.built_ins_id])
         if thing.built_ins_id
@@ -2151,7 +2151,9 @@ def set_profiles(request, pk):
             },
         )
 
-    brings = default_set.members.filter(archived=False, weapon=weapon).count()
+    # The verb's own statement of the match, so the page's sentence and
+    # the refusal underneath it cannot come to disagree.
+    brings = authoring.gun_members_bringing(default_set, weapon).count()
     if brings == 0:
         landing_said = (
             f"{default_set.name} does not bring a {weapon}, so each line "
