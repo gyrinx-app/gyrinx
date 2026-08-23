@@ -16,15 +16,33 @@ where the full decode happens.
 """
 
 from io import BytesIO
+from typing import NamedTuple
 
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from PIL import Image, ImageOps
 
+
+class Ratio(NamedTuple):
+    """A picture's shape, width to height, spelt ``4:5`` where drawn.
+
+    One constant serves every layer: the crop here works on the pair,
+    and a template stamps ``str(ratio)`` onto the browser's crop dialog
+    — so the window the dialog offers and the shape the server enforces
+    cannot come apart.
+    """
+
+    across: int
+    down: int
+
+    def __str__(self):
+        return f"{self.across}:{self.down}"
+
+
 #: A model's picture: portrait, four wide to five tall.
-PORTRAIT = (4, 5)
+PORTRAIT = Ratio(4, 5)
 #: A gang's picture: landscape, sixteen wide to nine tall.
-LANDSCAPE = (16, 9)
+LANDSCAPE = Ratio(16, 9)
 
 #: The long side of a stored picture. Phone photographs arrive at many
 #: times this; a card, a print sheet and a lore page never draw one

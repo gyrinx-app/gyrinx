@@ -19,6 +19,15 @@ def size_of(upload):
         return image.size
 
 
+class TestTheSpelling:
+    """A ratio spells itself the way the crop dialog reads its
+    declaration, so a template can stamp the constant straight on."""
+
+    def test_the_pair_reads_width_to_height(self):
+        assert str(PORTRAIT) == "4:5"
+        assert str(LANDSCAPE) == "16:9"
+
+
 class TestTheShape:
     def test_a_wide_shot_comes_out_portrait(self):
         width, height = size_of(to_shape(upload_of(1000, 500), PORTRAIT))

@@ -16,8 +16,6 @@
  * rules.
  */
 (function () {
-    var MAX_PX = 1600;
-
     function wire(input) {
         // Wiring runs again over a region redrawn in place; an element
         // already carrying its listeners must not gain a second set.
@@ -33,6 +31,14 @@
         // A malformed shape declaration falls back to square rather
         // than an unconstrained rectangle nobody asked for.
         if (!isFinite(ratio) || ratio <= 0) ratio = 1;
+
+        // The stored picture's long side, stated on the input by the
+        // server (n26/core/images.py). Encoding bigger than the server
+        // will keep only fattens the upload; without a declared cap the
+        // canvas is the crop at its natural size, and the server still
+        // brings it to shape.
+        var cap = parseInt(input.dataset.cropMax || "", 10);
+        if (!isFinite(cap) || cap <= 0) cap = undefined;
 
         var confirm = dialog.querySelector("[data-crop-confirm]");
         var cancel = dialog.querySelector("[data-crop-cancel]");
@@ -97,8 +103,8 @@
             confirm.disabled = true;
             cropper
                 .getCroppedCanvas({
-                    maxWidth: MAX_PX,
-                    maxHeight: MAX_PX,
+                    maxWidth: cap,
+                    maxHeight: cap,
                     imageSmoothingQuality: "high",
                 })
                 .toBlob(

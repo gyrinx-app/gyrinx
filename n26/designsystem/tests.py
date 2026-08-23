@@ -47,6 +47,26 @@ class TestTheQuickSwitchersPage:
         assert "#the-rust-sermon" in page
 
 
+class TestThePictureBoxPage:
+    """Its props and both of its states reach the gallery drawn."""
+
+    def test_the_page_documents_the_props_declared_in_the_template(self, reader):
+        page = reader.get("/n26/design/c/picture-box/").content.decode()
+        # Read from the component's own <c-vars>, so a prop added there and
+        # nowhere else still has to appear here.
+        assert "image_url" in page
+        assert "img_class" in page
+
+    def test_both_demos_render_rather_than_falling_back(self, reader):
+        page = reader.get("/n26/design/c/picture-box/").content.decode()
+        assert "No picture yet" in page
+        assert "A picture stored" in page
+        # From the markup the demos rendered, not their titles: the stored
+        # state must actually draw its input and its Remove.
+        assert 'id="demo-picture-stored"' in page
+        assert "Remove picture" in page
+
+
 class TestTheRadioCardsPage:
     """Its props, its card subcomponent and its demos all reach the gallery."""
 

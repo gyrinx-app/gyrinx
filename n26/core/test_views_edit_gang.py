@@ -309,3 +309,14 @@ class TestNotesLoreAndPicture:
         recorded = LedgerEvent.objects.filter(gang=gang, miniature=None)
         assert recorded.filter(kind=LedgerEvent.Kind.IMAGE_SET).count() == 1
         assert recorded.filter(kind=LedgerEvent.Kind.IMAGE_CLEARED).count() == 1
+
+    def test_the_crop_dialog_is_told_the_servers_own_shape(self, client, tester, gang):
+        """The shape and cap on the file input are str() of the constants
+        the server crops with, so the dialog and the store cannot come
+        apart."""
+        from n26.core.images import LANDSCAPE, MAX_PX
+
+        client.force_login(tester)
+        body = client.get(edit_url(gang) + "?tab=notes").content.decode()
+        assert f'data-crop="{LANDSCAPE}"' in body
+        assert f'data-crop-max="{MAX_PX}"' in body

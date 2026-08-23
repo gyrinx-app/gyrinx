@@ -1,0 +1,68 @@
+{% comment %}
+<c-n26.picture-box> — an edit page's picture section, both of its acts.
+
+    <c-n26.picture-box action="{{ edit_url }}"
+                       id="model-image"
+                       crop="{{ picture_shape }}"
+                       max="{{ picture_max }}"
+                       image_url="{{ picture_url }}"
+                       alt="A picture of {{ miniature.name }}"
+                       img_class="w-40">
+        Shown from the card's picture control and printed in the card's
+        corner. Picking a file opens the crop, and using it saves.
+    </c-n26.picture-box>
+
+Two forms, because the two acts are different shapes: uploading stages
+a file and ends in a save, removing is one committed click with nothing
+to fill in. Both post act=picture to the given action, so the page
+behind it answers one act for both.
+
+The wrapper is the unit the crop script redraws in place
+(n26/imagecrop.js): after a background save it swaps this box for the
+same box from the fresh page, so the picture appears without the page
+moving. Without the script the fallback Save control submits the form
+plainly.
+
+  action — where both forms post; the page must answer act=picture.
+  id — the file input's own.
+  crop, max — the shape and size cap, str() of the server's own
+    constants (n26/core/images.py), passed on to <c-n26.picture-input>.
+  image_url — the stored picture's address, or empty for none.
+  alt — what the current picture is of.
+  img_class — the current picture's width; the shape decides it, so the
+    caller says it.
+  The body is the sentence above the file box saying where the picture
+  shows.
+{% endcomment %}
+<c-vars action="" id="" crop="" max="" image_url="" alt="" img_class="" class="" />
+
+<div data-picture-box class="{{ class }}">
+    {% if image_url %}
+        <img src="{{ image_url }}"
+             alt="{{ alt }}"
+             class="mb-3 rounded-control {{ img_class }}">
+        <form method="post" action="{{ action }}" class="mb-3">
+            {% csrf_token %}
+            <input type="hidden" name="act" value="picture">
+            <input type="hidden" name="remove_image" value="on">
+            <c-ui.button type="submit" variant="default" size="sm">
+                Remove picture
+            </c-ui.button>
+        </form>
+    {% endif %}
+    <form method="post" action="{{ action }}" enctype="multipart/form-data">
+        {% csrf_token %}
+        <input type="hidden" name="act" value="picture">
+        <p class="mb-2 text-sm text-muted">{{ slot }}</p>
+        <c-n26.picture-input id="{{ id }}"
+                             name="image"
+                             crop="{{ crop }}"
+                             max="{{ max }}"
+                             :submit_on_crop="True" />
+        <div class="mt-3 flex justify-end" data-crop-fallback>
+            <c-ui.button type="submit" variant="success" size="sm">
+                Save picture
+            </c-ui.button>
+        </div>
+    </form>
+</div>

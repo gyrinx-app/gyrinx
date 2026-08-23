@@ -249,9 +249,10 @@ def edit_fighter(request, pk):
     from n26.core.forms import (
         FighterLoreForm,
         FighterNotesForm,
-        FighterPictureForm,
+        PictureForm,
         statline_override_form_for,
     )
+    from n26.core.images import MAX_PX, PORTRAIT
     from n26.core.operations import Refusal, operation
     from n26.core.render import render_gang, roster, summarise_roster
     from n26.core.views.choose import link_slots
@@ -400,7 +401,7 @@ def edit_fighter(request, pk):
             messages.success(request, "Notes saved.")
         return redirect("n26-edit-fighter", pk=miniature.pk)
     elif request.method == "POST" and request.POST.get("act") == "picture":
-        form = FighterPictureForm(request.POST, request.FILES)
+        form = PictureForm(request.POST, request.FILES, ratio=PORTRAIT)
         if form.is_valid():
             new_picture = bool(form.cleaned_data["image"])
             dropped_picture = (
@@ -506,5 +507,11 @@ def edit_fighter(request, pk):
             "rule_edits_dirty": rule_edits_dirty,
             "renaming": _fighter_named(request, gang, "rename"),
             "edit_url": reverse("n26-edit-fighter", args=[miniature.pk]),
+            # The crop spec the picture box stamps onto the browser's
+            # dialog — handed from the same constants the server crops
+            # with, so the two cannot disagree.
+            "picture_shape": PORTRAIT,
+            "picture_max": MAX_PX,
+            "picture_url": miniature.image.url if miniature.image else "",
         },
     )
