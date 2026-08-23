@@ -192,7 +192,7 @@ class PictureForm(forms.Form):
     image = forms.ImageField(required=False)
     remove_image = forms.BooleanField(required=False)
 
-    def __init__(self, ratio, *args, **kwargs):
+    def __init__(self, *args, ratio, **kwargs):
         super().__init__(*args, **kwargs)
         self.ratio = ratio
 

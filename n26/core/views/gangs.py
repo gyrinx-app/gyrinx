@@ -594,7 +594,7 @@ def edit_gang(request, pk):
     at = reverse("n26-edit-gang", args=[gang.pk])
     tab = "notes" if request.GET.get("tab") == "notes" else "general"
     if request.method == "POST" and request.POST.get("act") == "picture":
-        form = PictureForm(LANDSCAPE, request.POST, request.FILES)
+        form = PictureForm(request.POST, request.FILES, ratio=LANDSCAPE)
         if form.is_valid():
             new_picture = bool(form.cleaned_data["image"])
             dropped_picture = (

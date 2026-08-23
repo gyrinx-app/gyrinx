@@ -25,6 +25,7 @@ from n26.core.hire import (
     HireOption,
     HireSection,
 )
+from n26.core.images import MAX_PX, PORTRAIT
 from n26.core.notes import INFO, WARNING, Note
 from n26.core.render import (
     AssignableLine,
@@ -809,6 +810,11 @@ def context():
         # A stored picture's address for the components that draw one —
         # a data URI, because the gallery renders with no uploads store.
         "sample_picture": CARD_IMAGE,
+        # The crop spec the picture components stamp onto the browser's
+        # dialog, handed through from the server's own constants the way
+        # a real page's view hands them — never spelt out in a demo.
+        "sample_picture_shape": PORTRAIT,
+        "sample_picture_max": MAX_PX,
         "sorts": SORTS,
         "choice_offer": choice_offer(),
         "empty_choice_offer": ChoiceOffer(label="Primary skill"),

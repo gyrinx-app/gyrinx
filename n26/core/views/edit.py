@@ -401,7 +401,7 @@ def edit_fighter(request, pk):
             messages.success(request, "Notes saved.")
         return redirect("n26-edit-fighter", pk=miniature.pk)
     elif request.method == "POST" and request.POST.get("act") == "picture":
-        form = PictureForm(PORTRAIT, request.POST, request.FILES)
+        form = PictureForm(request.POST, request.FILES, ratio=PORTRAIT)
         if form.is_valid():
             new_picture = bool(form.cleaned_data["image"])
             dropped_picture = (
