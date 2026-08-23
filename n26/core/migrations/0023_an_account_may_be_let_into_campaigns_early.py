@@ -18,7 +18,7 @@ def remove_campaigns_group(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("n26", "0021_a_grant_names_the_member_it_came_from"),
+        ("n26", "0022_a_removal_carries_no_provenance"),
         ("auth", "0012_alter_user_first_name_max_length"),
     ]
 

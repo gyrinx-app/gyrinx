@@ -38,7 +38,7 @@ def drop_campaigns_flag(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("n26", "0023_a_feature_may_be_opened_from_the_admin"),
+        ("n26", "0024_a_feature_may_be_opened_from_the_admin"),
     ]
 
     operations = [

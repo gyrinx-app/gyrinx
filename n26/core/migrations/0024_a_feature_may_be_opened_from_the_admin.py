@@ -10,7 +10,7 @@ import n26.core.fields
 class Migration(migrations.Migration):
     dependencies = [
         ("auth", "0012_alter_user_first_name_max_length"),
-        ("n26", "0022_an_account_may_be_let_into_campaigns_early"),
+        ("n26", "0023_an_account_may_be_let_into_campaigns_early"),
     ]
 
     operations = [
