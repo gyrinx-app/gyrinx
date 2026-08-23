@@ -67,6 +67,18 @@ class TestTheDefaultStrip:
         html = render(DEFAULT)
         assert html.count("register('Gangs'") + html.count('register("Gangs"') == 1
 
+    def test_an_apostrophe_in_the_default_tab_cannot_break_the_script(self):
+        html = render(
+            """
+            <c-ui.tabs default_tab="Psyker's">
+                <c-ui.tabs.tab name="Psyker's">Powers.</c-ui.tabs.tab>
+            </c-ui.tabs>
+            """
+        )
+        # Written into a quoted JavaScript string, so the quote must arrive
+        # escaped or the whole tab state fails to parse.
+        assert "activeTab: 'Psyker\\u0027s'" in html
+
 
 class TestTheSegmentedStrip:
     """The segmented variant keeps the kit's own single strip: its DOM shape

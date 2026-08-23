@@ -88,6 +88,18 @@ class TestTheNarrowStrip:
         # script ran.
         assert html.count('href="?list=2"') == 3
 
+    def test_a_shortened_tab_keeps_its_tooltip_behind_the_switcher(self):
+        flipped = [
+            dict(TABS[0], current=False),
+            dict(TABS[1], current=True),
+        ]
+        html = render(
+            '<c-n26.tab-links label="Which list" :tabs="tabs" />', tabs=flipped
+        )
+        # The full name rides into the menu: the wide strip's link, then the
+        # switcher's row drawn twice — its panel and its noscript strip.
+        assert html.count('title="Ash Waste Nomads Equipment List"') == 3
+
     def test_a_single_tab_gets_no_switcher(self):
         html = render(
             '<c-n26.tab-links label="Which list" :tabs="tabs" />', tabs=TABS[:1]

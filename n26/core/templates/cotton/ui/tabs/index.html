@@ -36,7 +36,7 @@ dispatches quick-switcher-choose for the strip to act on.
 
 <div x-data="{
     tabs: [],
-    activeTab: '{{ default_tab|default:'' }}',
+    activeTab: '{{ default_tab|default:''|escapejs }}',
     register(name, icon) {
         this.tabs.push({name: name, icon: icon});
         if (!this.activeTab && this.tabs.length === 1) {

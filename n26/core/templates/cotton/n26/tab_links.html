@@ -82,7 +82,13 @@ wider than the page.
                         {% endcomment %}
                         {% for tab in tabs %}
                             {% if not tab.current %}
-                                <c-n26.quick-switcher.item label="{{ tab.label }}" href="{{ tab.href }}" />
+                                {% if tab.title and tab.title != tab.label %}
+                                    <c-n26.quick-switcher.item label="{{ tab.label }}"
+                                                               href="{{ tab.href }}"
+                                                               title="{{ tab.title }}" />
+                                {% else %}
+                                    <c-n26.quick-switcher.item label="{{ tab.label }}" href="{{ tab.href }}" />
+                                {% endif %}
                             {% endif %}
                         {% endfor %}
                     </c-n26.quick-switcher>
