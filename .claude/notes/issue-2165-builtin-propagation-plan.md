@@ -47,6 +47,14 @@ Issue: https://github.com/gyrinx-app/gyrinx/issues/2165
   carriers with a report rather than stranding or deleting paid things.
 - Whether interim Collection duplicates (add landed, removal not yet
   triggered) get a `Note` on the equip screen ("inform, never police").
+- A priced option set whose members are all archived still charges full
+  price — the player pays and gains nothing. Pre-existing shape (an
+  emptied set always charged); address alongside C5's preview or an
+  authoring warning.
+- `stop_offering` on an option whose set has materialised copies deletes
+  the option but leaves the set orphaned (unreachable, name reserved) —
+  the PROTECT refusal is swallowed by its except-branch. Fold into C6's
+  removal design.
 
 ## Code map (verified 2026-08-22 — re-verify line numbers before editing)
 
@@ -144,7 +152,13 @@ its own words. Caveats: the dev DB held no pre-C1 assignments, so
 "legacy rows have null provenance" is unverified until C7's prod
 preview; the authoring ammo picker omits the qualifier for same-named
 weapon profiles (pre-existing gap, not C1 — authors cannot tell twins
-apart).*
+apart).
+Review round (commit `1b983ff3`): the rechoose fallback now counts every
+tagged copy (archived included) and reads live members only, so it never
+seizes a look-alike; a membership nothing materialised from is deleted,
+not archived (archival is only for members provenance names — ingest
+retires through the same verb); provenance is constrained to a pair or
+nothing; positions come from the highest ever placed.*
 Findings later chunks must honour:
 
 - **D4/satisfaction checks must NOT filter on member archived state**
