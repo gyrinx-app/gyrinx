@@ -97,13 +97,19 @@ class="w-full space-y-4"
                             {% elif size == 'lg' %}text-base px-4 py-2
                             {% else %}text-sm px-3 py-1.5{% endif %}
                         "
+                        {% comment %}
+                        An idle tab's border is drawn, not transparent: the
+                        rule under the strip is the tabs' own borders plus the
+                        trailing spacer, so a see-through border is a hole in
+                        the line.
+                        {% endcomment %}
                         :class="{
                             {% if accent %}
                                 'border-accent text-accent': isActive(tab.name),
                             {% else %}
                                 'border-ink-900 text-ink-900 dark:border-ink-100 dark:text-ink-100': isActive(tab.name),
                             {% endif %}
-                            'border-transparent text-ink-500 hover:border-ink-300 hover:text-ink-700 dark:text-ink-400 dark:hover:border-ink-600 dark:hover:text-ink-200': !isActive(tab.name)
+                            'border-box-border text-ink-500 hover:text-ink-700 dark:text-ink-400 dark:hover:text-ink-200': !isActive(tab.name)
                         }"
                     >
                         <span x-show="tab.icon" x-html="tab.icon" class="mr-2 [&>svg]:size-4 flex items-center"></span>
