@@ -48,6 +48,24 @@
                         <td>{{ entry.summary }}</td>
                         <td class="text-right tabular-nums">{{ entry.count }}</td>
                     </tr>
+                    {% comment %}
+                    A few kinds are places other content is filed under, so the
+                    way in is one particular row rather than the listing. Those
+                    rows follow their kind, indented to say they are of it.
+                    The ! is needed twice over: the kit's [&_td] padding and
+                    colour rules both out-specify a plain utility on the cell.
+                    {% endcomment %}
+                    {% for row in entry.rows %}
+                        <tr>
+                            <td class="whitespace-nowrap pl-8!">
+                                <c-n26.link href="{{ row.url }}">
+                                    {{ row.label }}
+                                </c-n26.link>
+                            </td>
+                            <td class="text-ink-500! dark:text-ink-400!">{{ row.notes|join:" · " }}</td>
+                            <td></td>
+                        </tr>
+                    {% endfor %}
                 {% endfor %}
             </tbody>
         {% endfor %}
