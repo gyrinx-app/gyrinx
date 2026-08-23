@@ -382,9 +382,12 @@ def _build_registry():
 
     # What a built-in may be, derived from the DefaultAssignment row
     # itself so the union can never drift from the model's own keys.
+    # A kind declaring itself off the generic picker — a weapon's extra
+    # profile, attached from its gun member's own row — is left out.
     built_in_kinds = {
         name: f"library.{DefaultAssignment._meta.get_field(name).related_model.__name__}"
         for name in DEFAULT_ASSIGNABLE_FIELDS
+        if DefaultAssignment._meta.get_field(name).related_model.offered_as_built_in
     }
     # What a collection entry may list, derived the same way.
     entry_kinds = {

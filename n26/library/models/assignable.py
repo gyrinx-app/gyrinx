@@ -211,6 +211,13 @@ class Assignable(models.Model):
     #: written.
     takes_built_ins = True
 
+    #: Whether the generic built-in picker offers this kind. A kind that
+    #: only means something beside one particular row of another kind —
+    #: a weapon's extra profile beside its gun — says False and is
+    #: attached from that row's own page instead, so the picker never
+    #: offers an act whose meaning it cannot ask for.
+    offered_as_built_in = True
+
     class Meta:
         abstract = True
 
@@ -756,6 +763,12 @@ class WeaponProfile(Content, Assignable):
 
     family = Family.GEAR
     attaches_to_weapons = True
+
+    #: A profile means nothing apart from its gun, so the generic
+    #: built-in picker never offers one cold: it is built in from a
+    #: weapon member's own row, where which gun it rides is already
+    #: settled.
+    offered_as_built_in = False
 
     #: Overrides the mixin's: most profiles have no name of their own.
     #: The book prints the weapon's first line as the weapon — "Autogun"
