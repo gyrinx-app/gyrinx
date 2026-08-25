@@ -163,45 +163,18 @@ class TestWhatTheSeedsCreate:
         assert GangType.objects.count() == 17
         assert GangType.objects.get(name="Escher").starting_credits is None
 
-    def test_the_specialisations_arrive_granting_their_skills(self, default_pack):
-        """The Specialist's eight fields, each wired to the one skill it
-        grants — the pair is the content, so a row without its grant is
-        only half created."""
+    def test_nothing_here_plants_a_specialisation(self, default_pack):
+        """The Specialist's question is a slot now and its answers are
+        pickables, so a button that planted the old rows would put back
+        content that was deliberately removed."""
         from n26.library.models import Specialisation
 
-        STANDARD_CONTENT["skills"].create()
-        STANDARD_CONTENT["specialisations"].create()
+        assert "specialisations" not in STANDARD_CONTENT
 
-        assert set(Specialisation.objects.values_list("name", flat=True)) == {
-            "Heavy",
-            "Gunner",
-            "Gunslinger",
-            "Scout",
-            "Sniper",
-            "Brawler",
-            "Medic",
-            "Tech",
-        }
-        granted = {
-            row.name: [str(modifier.effect.skill) for modifier in row.modifiers.all()]
-            for row in Specialisation.objects.all()
-        }
-        assert granted["Gunner"] == ["Hip-shooting"]
-        assert granted["Medic"] == ["Medicate"]
-        assert granted["Heavy"] == ["Bulging Biceps"]
+        for seed in STANDARD_CONTENT.values():
+            seed.create()
 
-    def test_specialisations_create_the_skills_they_grant(self, default_pack):
-        """Created alone — no skills yet — it still completes, because a
-        specialisation without its skill is half a thing and the seed
-        owns that dependency rather than the order of button clicks."""
-        from n26.library.models import Skill, Specialisation
-
-        seed = STANDARD_CONTENT["specialisations"]
-        seed.create()
-
-        assert seed.status() == "complete"
-        assert Specialisation.objects.count() == 8
-        assert Skill.objects.filter(name="Hip-shooting").exists()
+        assert not Specialisation.objects.exists()
 
 
 class TestThePage:

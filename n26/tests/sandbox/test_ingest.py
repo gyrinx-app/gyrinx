@@ -153,9 +153,19 @@ def entry_key(collection_key, item_key):
 @pytest.fixture
 def foundation(default_pack):
     """Standard content, created exactly as the foundations page's
-    buttons would create it (library/standard_content.py)."""
+    buttons would create it (library/standard_content.py), plus the
+    specialisations a restriction resolves against.
+
+    Nothing plants those any more — the Specialist's question is a slot
+    and its answers are pickables — but the sheets still name them, so
+    a test about what a sheet resolves has to author them itself."""
+    from n26.library.authoring import create_specialisation
+    from n26.library.models import Skill
+
     for item in STANDARD_CONTENT.values():
         item.create()
+    for name, skill_name in SPECIALISATIONS:
+        create_specialisation(name, grants_skill=Skill.objects.get(name=skill_name))
 
 
 @pytest.fixture
@@ -615,8 +625,7 @@ Malstrain,Alpha,Malstrain,5",4+,4+,3,3,2,4,2,5+,7,7,7,7,Fighter,Leader,25,110,,,
     ):
         """ "(Gunner specialist only)" names the field a Specialist chose,
         which is an arm of usable-by like a subtype — so it becomes a real
-        restriction, not a note. Gunner is standard content, so this needs
-        nothing authored by hand."""
+        restriction, not a note."""
         from n26.library.models import Specialisation
 
         gunner = Specialisation.objects.get(name="Gunner")
@@ -636,8 +645,8 @@ Malstrain,Alpha,Malstrain,5",4+,4+,3,3,2,4,2,5+,7,7,7,7,Fighter,Leader,25,110,,,
 
     def test_a_specialisation_the_pack_lacks_is_said_not_invented(self, foundation):
         """Which specialisations exist is content — a restriction string
-        does not get to mint one. The eight the rules name are standard
-        content; a ninth the sheet invents is said, and stays unmade."""
+        does not get to mint one. A ninth the sheet invents is said, and
+        stays unmade."""
         from n26.library.models import Specialisation
 
         before = set(Specialisation.objects.values_list("name", flat=True))
