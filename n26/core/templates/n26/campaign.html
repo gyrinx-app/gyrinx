@@ -39,7 +39,16 @@ Each section arrives with the work that fills it.
             {% endcomment %}
             <c-slot name="actions">
                 <c-n26.button-group>
-                    <c-ui.button variant="primary" href="{% url 'n26-edit-campaign' campaign.pk %}">Edit</c-ui.button>
+                    {% comment %}
+                    Default rather than primary, as on the gang sheet: blue
+                    is the page's one creative act, and editing what is
+                    already here is not it.
+                    {% endcomment %}
+                    <c-ui.button size="sm"
+                                 variant="default"
+                                 href="{% url 'n26-edit-campaign' campaign.pk %}">
+                        Edit
+                    </c-ui.button>
                     <c-ui.dropdown>
                         <c-slot name="trigger">
                             <c-ui.button size="sm" variant="default" aria-label="More actions">
