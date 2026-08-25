@@ -42,21 +42,25 @@ from n26.library.authoring import (
     targets_every_model,
     targets_model,
 )
-from n26.library.models import Affiliation, Archetype, Skill
+from n26.library.models import Affiliation, Skill
 from n26.tests.sandbox.actions import (
     adds,
     choose,
     create_affiliation,
-    create_archetype,
     create_category,
     create_collection,
     create_default_set,
     create_gang_type,
     create_hidden,
+    create_pickable,
+    create_picklist,
     create_profile,
     create_rule,
     create_skill,
+    create_slot,
+    create_slot_type,
     create_subtype,
+    ef_adds,
     found_gang,
     hire_with_option,
     modifier,
@@ -178,7 +182,13 @@ ARCHETYPES = {
 
 
 @pytest.fixture
-def archetypes(sets, skills_collection, subtypes, profiles):
+def archetype_type(default_pack):
+    """One slot type for both choices. Nobody takes an archetype twice."""
+    return create_slot_type("Archetype", allows_repeats=False)
+
+
+@pytest.fixture
+def archetypes(sets, skills_collection, subtypes, profiles, archetype_type):
     """One carrier per printed archetype, all three rank rows aboard.
 
     Targeting reads off the printed sheet: the Leader row hangs off the
@@ -200,7 +210,7 @@ def archetypes(sets, skills_collection, subtypes, profiles):
     }
     made = {}
     for name, table in ARCHETYPES.items():
-        archetype = create_archetype(name)
+        archetype = create_pickable(name, archetype_type)
         for rank, row in table.items():
             for set_key, tier in row.items():
                 modifier(
@@ -398,38 +408,51 @@ def profiles(outcasts, subtypes, person_type):
 
 
 @pytest.fixture
-def archetype_question(archetypes, profiles):
-    """The pick list, and the offers that ask it.
+def archetype_question(archetypes, profiles, archetype_type):
+    """The pick list, and the two slots that ask it.
 
     Leader → Gang → fighters: every Leader variant carries the
     archetype choice, but what is chosen is for the gang — it lands as
     a gang row, radiates to the members, and dies with the Leader.
     Champions may choose a different Archetype to their gang's Leader:
     the same five archetypes, chosen on — and borne by — the fighter.
+
+    One list, asked twice. Where the pick lands is the slot's to say,
+    which is the whole difference between the two.
     """
-    collection = create_collection(
-        "Archetypes", entries=[(a, {}) for a in archetypes.values()]
+    offered = create_picklist(
+        "Outcast Archetypes", archetype_type, members=list(archetypes.values())
     )
-    section = section_of(collection, "Archetypes", 0, is_default=True)
+    asked = {
+        "gang": create_slot(
+            "Gang archetype",
+            archetype_type,
+            offered,
+            label="Archetype",
+            assigned_to="gang",
+        ),
+        "champion": create_slot(
+            "Champion archetype",
+            archetype_type,
+            offered,
+            label="Archetype",
+            assigned_to="bearer",
+        ),
+    }
     for leader in profiles["leaders"]:
         modifier(
             f"{leader.name}: chooses the gang's Archetype",
             targets_model(),
-            offers_choice(
-                Archetype,
-                from_section=section,
-                label="archetype",
-                will_be_assigned_to="gang",
-            ),
+            ef_adds(asked["gang"]),
             carried_by=leader,
         )
     modifier(
         "Outcast Champion: chooses an Archetype",
         targets_model(),
-        offers_choice(Archetype, from_section=section, label="archetype"),
+        ef_adds(asked["champion"]),
         carried_by=profiles["champion"],
     )
-    return section
+    return asked
 
 
 @pytest.fixture
@@ -492,7 +515,7 @@ class TestFoundingOffersTheChoices:
         computed = fighter_computed(crew["leader"])
         slot = next(s for s in computed.choices if s.kind_label == "Archetype")
         offerable = offered_by(slot, computed)
-        assert {line.name for line in offerable.all_lines()} == set(ARCHETYPES)
+        assert {pickable.name for pickable in offerable} == set(ARCHETYPES)
 
         gang_computed = the_gang_computed(gang)
         affiliations = offered_by(gang_computed.choice("Affiliation"), gang_computed)
@@ -504,15 +527,25 @@ class TestFoundingOffersTheChoices:
         }
 
 
+def _slot_named(name):
+    from n26.library.models import Slot
+
+    return Slot.objects.get(name=name)
+
+
 def leader_anchor(crew):
     """The assignment whose assignable (the Leader profile) offers the
     archetype — the Leader's membership row."""
     return crew["leader"].assignments.get(profile__isnull=False)
 
 
-def pick_archetype(crew, archetype):
-    """The Leader → Gang arrow: the Leader chooses; the gang carries it."""
-    return choose(leader_anchor(crew), archetype)
+def pick_archetype(crew, archetype, asked=None):
+    """The Leader → Gang arrow: the Leader chooses; the gang carries it.
+
+    A granted slot has no assignment of its own, so the anchor is the
+    Leader's own row and the slot being answered is named.
+    """
+    return choose(leader_anchor(crew), archetype, slot=_slot_named("Gang archetype"))
 
 
 class TestArchetypes:
@@ -581,7 +614,7 @@ class TestArchetypes:
         )
         leader = hire_with_option(other, profiles["leaders"][3], "Last Chance")
         anchor = leader.assignments.get(profile__isnull=False)
-        choose(anchor, archetypes["Brawler"])
+        choose(anchor, archetypes["Brawler"], slot=_slot_named("Gang archetype"))
 
         assert tiers_for(leader, skills_collection, sets) == {
             "combat": "Primary",
@@ -623,7 +656,9 @@ class TestArchetypes:
         the champion is neither."""
         pick_archetype(crew, archetypes["Brawler"])
         anchor = crew["champion"].assignments.get(profile__isnull=False)
-        chosen = choose(anchor, archetypes["Gunslinger"])
+        chosen = choose(
+            anchor, archetypes["Gunslinger"], slot=_slot_named("Champion archetype")
+        )
         assert chosen.miniature == crew["champion"]
 
         assert tiers_for(crew["champion"], skills_collection, sets) == {
@@ -774,7 +809,7 @@ class TestTheSheet:
         )
         choose(anchor, house_tokens["Goliath"])
         anchor = crew["champion"].assignments.get(profile__isnull=False)
-        choose(anchor, archetypes["Survivor"])
+        choose(anchor, archetypes["Survivor"], slot=_slot_named("Champion archetype"))
 
         text = gang_to_text(gang)
         print("\n" + text)
