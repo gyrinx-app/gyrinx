@@ -292,11 +292,20 @@ delivery's PENDING → RUNNING loses with `InvalidStateTransition` and
 stands down — no hand-rolled advisory lock for the claim; reconcile
 idempotency stays underneath); the sweep is an indexed status query plus
 timestamped transition history; outcomes (gangs reconciled, skips) land
-in transition `metadata`. Graph needs one loop-back edge beyond Battle's
-forward-only shape: RUNNING → PENDING for "a newer change landed
-mid-flight". Coalescing = one live obligation per set (partial unique
-where status is non-terminal): a second edit while PENDING is a no-op,
-while RUNNING it re-opens. The obligation row is NOT a `TaskExecution`:
+in transition `metadata`. *Refined 2026-08-25 (maintainer rejected the
+RUNNING → PENDING loop-back as odd):* obligation rows are single-shot
+and the graph strictly forward, like Battle's: PENDING → RUNNING →
+DONE | FAILED, no backward edge. Coalescing happens only among queued
+work — `get_or_create` under a partial unique on the set FK **where
+status = PENDING**. An edit while a worker is RUNNING therefore files a
+fresh PENDING row (the constraint doesn't see RUNNING); the running row
+finishes to DONE untouched and the new debt gets its own pass. Retry
+after failure = the sweep files a fresh PENDING row; FAILED is terminal,
+a record of the attempt. Sound because a row never encodes *which*
+change — the task reconciles from current library state, so the worst
+mid-flight cost is one redundant no-op run. Rows are thereby an
+append-only audit of every debt and how it ended.
+The obligation row is NOT a `TaskExecution`:
 one tracks a delivery attempt, the other the durable debt that survives
 a lost publish. Model lives in `n26/core`, importing
 `gyrinx.state_machine` as the tasks framework does.
