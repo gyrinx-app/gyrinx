@@ -33,7 +33,7 @@ from n26.library.forms import (
 )
 from n26.library.specs import specs
 from n26.tests.sandbox.actions import (
-    create_archetype,
+    create_affiliation,
     create_category,
     create_collection,
     create_subtype,
@@ -311,7 +311,7 @@ class TestTheComposer:
         collection, tiers = skills_and_powers
         leader = create_subtype("Outcast Leader")
         combat = create_category("Skills", "Combat")
-        brawler = create_archetype("Brawler")
+        brawler = create_affiliation("Brawler")
 
         form = ModifierComposerForm(
             self.brawler_leader_data(leader, combat, tiers["primary"]),
@@ -341,7 +341,7 @@ class TestTheComposer:
         """
         collection, tiers = skills_and_powers
         combat = create_category("Skills", "Combat")
-        brawler = create_archetype("Brawler")
+        brawler = create_affiliation("Brawler")
 
         written = []
         for rank in ("Outcast Leader", "Outcast Champion"):
@@ -365,7 +365,7 @@ class TestTheComposer:
         collection, tiers = skills_and_powers
         leader = create_subtype("Outcast Leader")
         combat = create_category("Skills", "Combat")
-        brawler = create_archetype("Brawler")
+        brawler = create_affiliation("Brawler")
 
         data = self.brawler_leader_data(leader, combat, tiers["primary"])
         data["name"] = "Brawler leader: combat primary"
@@ -406,8 +406,8 @@ class TestTheComposer:
         collection, tiers = skills_and_powers
         leader = create_subtype("Outcast Leader")
         combat = create_category("Skills", "Combat")
-        brawler = create_archetype("Brawler")
-        crusher = create_archetype("Bone Crusher")
+        brawler = create_affiliation("Brawler")
+        crusher = create_affiliation("Bone Crusher")
 
         data = self.brawler_leader_data(leader, combat, tiers["primary"])
         data["make_reusable"] = "on"
@@ -425,7 +425,7 @@ class TestTheComposer:
         collection, tiers = skills_and_powers
         leader = create_subtype("Outcast Leader")
         combat = create_category("Skills", "Combat")
-        brawler = create_archetype("Brawler")
+        brawler = create_affiliation("Brawler")
 
         data = self.brawler_leader_data(leader, combat, tiers["primary"])
         form = ModifierComposerForm(data, attach_to=brawler)

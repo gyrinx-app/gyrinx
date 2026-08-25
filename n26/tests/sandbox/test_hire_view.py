@@ -20,20 +20,20 @@ from n26.core.render_text import render_model_card
 from n26.core.taxonomy import UNCATEGORISED
 from n26.library.models import (
     AddsAssignable,
+    Affiliation,
     OpAddsMiniature,
     Profile,
-    Specialisation,
     Stat,
     TargetsMiniature,
 )
 from n26.tests.sandbox.actions import (
+    create_affiliation,
     create_default_set,
     create_hidden,
     create_option_group,
     create_profile,
     create_rule,
     create_skill,
-    create_specialisation,
     create_subtype,
     create_wargear,
     create_weapon,
@@ -287,12 +287,12 @@ class TestModifiersRunInAPreview:
     def test_an_unresolved_choice_shows_as_an_open_row(self, person_type, gang_type):
         specialist = create_subtype("Specialist")
         modifier(
-            "Specialist chooses a specialisation",
+            "Specialist chooses an affiliation",
             TargetsMiniature.objects.create(),
-            offers_choice(Specialisation),
+            offers_choice(Affiliation),
             carried_by=specialist,
         )
-        create_specialisation("Sharpshooter", grants_skill=create_skill("Fast Shot"))
+        create_affiliation("Clanless")
 
         profile = Profile.objects.create(
             name="Specialist Ganger",
@@ -305,7 +305,7 @@ class TestModifiersRunInAPreview:
 
         card = preview(profile)
         (choice,) = card.choices
-        assert choice.kind_label == "Specialisation"
+        assert choice.kind_label == "Affiliation"
         assert choice.is_resolved is False
 
     def test_a_pet_wargear_says_what_it_will_bring(self, person_type, gang_type):

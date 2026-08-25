@@ -22,12 +22,11 @@ from n26.core.effects import compute, compute_gang
 from n26.core.models import Assignment
 from n26.core.reconcile import assert_reconciled
 from n26.core.render import build_choice_offer, render_gang
-from n26.library.models import Affiliation, Archetype, Skill, SkillTree
+from n26.library.models import Affiliation, Skill
 from n26.tests.sandbox.actions import (
     add_entry,
     choose,
     create_affiliation,
-    create_archetype,
     create_category,
     create_collection,
     create_default_set,
@@ -36,7 +35,6 @@ from n26.tests.sandbox.actions import (
     create_power,
     create_profile,
     create_skill,
-    create_skill_tree,
     create_subtype,
     found_gang,
     has_subtypes,
@@ -101,11 +99,11 @@ def subtypes(db):
 
 @pytest.fixture
 def archetypes(sets, skills_collection, subtypes):
-    """Two archetypes, each opening one skill set as Primary."""
+    """Two a gang may take, each opening one skill set as Primary."""
     _, tiers = skills_collection
     made = {}
     for name, set_key in [("Brawler", "combat"), ("Gunslinger", "shooting")]:
-        archetype = create_archetype(name)
+        archetype = create_affiliation(name)
         modifier(
             f"{name}: {set_key} is Primary",
             targets_every_model(has_subtypes(subtypes["leader"], subtypes["ganger"])),
@@ -124,12 +122,6 @@ def affiliations(db):
 
 
 @pytest.fixture
-def trees(sets):
-    """Pickable tokens for the offer that names a whole kind."""
-    return {key: create_skill_tree(cat.name, cat) for key, cat in sets.items()}
-
-
-@pytest.fixture
 def pick_lists(archetypes, affiliations):
     made = {}
     for key, name, things in [
@@ -142,7 +134,7 @@ def pick_lists(archetypes, affiliations):
 
 
 @pytest.fixture
-def gang_list(subtypes, skills_collection, pick_lists, trees):
+def gang_list(subtypes, skills_collection, pick_lists, affiliations):
     """The gang type: the gang's own affiliation question, a whole-kind
     question beside it, and the skill offer every Leader carries."""
     _, tiers = skills_collection
@@ -164,9 +156,9 @@ def gang_list(subtypes, skills_collection, pick_lists, trees):
         carried_by=questions,
     )
     modifier(
-        "Outcasts: the gang favours one set",
+        "Outcasts: the gang favours one of them outright",
         targets_gang(),
-        offers_choice(SkillTree, label="favoured set"),
+        offers_choice(Affiliation, label="favoured set"),
         carried_by=questions,
     )
     gang_type.built_ins = create_default_set("Outcast built-ins", members=[questions])
@@ -199,7 +191,7 @@ def profiles(gang_list, subtypes, pick_lists, person_type):
         "Outcast Leader: chooses the gang's Archetype",
         targets_model(),
         offers_choice(
-            Archetype,
+            Affiliation,
             from_section=pick_lists["archetypes"],
             label="archetype",
             will_be_assigned_to="gang",
@@ -385,9 +377,15 @@ class TestWhatOneCardMayPick:
         assert names_on(offer) == {"Berserker", "Parry"}
         assert [group.name for group in offer.groups] == ["Combat"]
 
-    def test_an_unnarrowed_offer_lists_the_whole_kind(self, gang, crew, trees):
+    def test_an_unnarrowed_offer_lists_the_whole_kind(self, gang, crew):
         offer = offer_for(sheet_slots(gang)["Favoured set"])
-        assert names_on(offer) == {"Combat", "Shooting"}
+        assert names_on(offer) == {
+            "Clanless",
+            "Mutant",
+            "Aranthian",
+            "Brawler",
+            "Gunslinger",
+        }
         # Nothing narrows it, so there is nothing to head the list with.
         assert [group.name for group in offer.groups] == [""]
 
@@ -543,7 +541,7 @@ class TestMakingOneChoice:
             client, sheet_slots(gang)["Sorrow: Archetype"].href, archetypes["Brawler"]
         )
 
-        chosen = Assignment.objects.get(archetype=archetypes["Brawler"])
+        chosen = Assignment.objects.get(affiliation=archetypes["Brawler"])
         assert chosen.gang == gang and chosen.miniature is None
         assert sheet_slots(gang)["Sorrow: Archetype"].chosen == "Brawler"
         assert_reconciled(gang)
@@ -625,7 +623,7 @@ class TestMakingOneChoice:
 
         remove(crew["leader"].assignments.get(profile__isnull=False))
         assert not Assignment.objects.filter(
-            archetype=archetypes["Brawler"], archived=False
+            affiliation=archetypes["Brawler"], archived=False
         ).exists()
         assert_reconciled(gang)
 
@@ -656,14 +654,14 @@ class TestMakingOneChoice:
         assert settled.is_resolved and settled.href
 
     def test_a_thing_that_is_not_on_offer_writes_nothing(
-        self, client, owner, gang, crew, trees
+        self, client, owner, gang, crew, subtypes
     ):
         """A stale page or a tampered form. The list comes back; nothing
         is written and nothing is explained at length."""
         client.force_login(owner)
         before = Assignment.objects.count()
         response = self.post(
-            client, sheet_slots(gang)["Affiliation"].href, trees["combat"]
+            client, sheet_slots(gang)["Affiliation"].href, subtypes["ganger"]
         )
         assert response.status_code == 302
         assert Assignment.objects.count() == before
