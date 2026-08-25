@@ -1,0 +1,87 @@
+{% extends "n26/layouts/base.html" %}
+{% load navigation %}
+{% comment %}
+Every campaign you arbitrate, and the way to set another up.
+
+The same <c-n26.record-table> the gangs list draws, over a row shaped for a
+campaign: one component and one search, so the two lists cannot come to
+disagree about what a list of things looks like. What differs is the row — a
+gang carries a type and a strip of money, a campaign carries the budget a
+gang joins at.
+
+Setting one up is the page's action, in the header, because a list of
+campaigns is where someone goes when they want one more.
+{% endcomment %}
+{% block head_title %}Campaigns{% endblock head_title %}
+{% block nav_switcher %}
+    {% places_switcher here='campaigns' as places_ %}
+    <c-n26.quick-switcher.of :switcher="places_" hotkey="f" />
+{% endblock nav_switcher %}
+{% block nav_items %}
+    {% include 'n26/_nav.html' with here='campaigns' %}
+{% endblock %}
+{% block content %}
+    <div class="flex flex-col gap-8">
+        <c-n26.page-header title="Campaigns">
+            <c-slot name="actions">
+                <c-ui.button variant="primary" href="{% url 'n26-create-campaign' %}">Set up campaign</c-ui.button>
+            </c-slot>
+        </c-n26.page-header>
+        <c-n26.record-table noun="campaigns"
+                            singular="campaign"
+                            action="{% url 'n26-campaigns' %}"
+                            :query="query"
+                            :total="total"
+                            :shown="listed">
+            <c-slot name="empty">
+                {% if query %}
+                    No campaigns match that. Try a shorter search.
+                {% else %}
+                    No campaigns yet — <c-n26.link href="{% url 'n26-create-campaign' %}">set one up</c-n26.link>.
+                {% endif %}
+            </c-slot>
+            {% for row in campaigns %}
+                <c-n26.record-table.campaign-row name="{{ row.name }}"
+                                                 budget="{{ row.budget|default_if_none:'' }}"
+                                                 href="{% url 'n26-campaign' row.pk %}" />
+            {% endfor %}
+        </c-n26.record-table>
+        {% comment %}
+        The same pager the gangs list draws, over the same addresses: turning
+        the page keeps whatever else was asked for rather than writing
+        ?page=2 alone. A gap in a long run is marked and not linked, because
+        there is no one page it leads to.
+
+        The ends are two cases rather than one with a computed `disabled`: a
+        component attribute takes a variable, not an expression, so a
+        comparison there evaluates to nothing and the control draws as a live
+        link with an empty address.
+        {% endcomment %}
+        {% if pages %}
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <c-ui.pagination>
+                    {% if pages.previous %}
+                        <c-ui.pagination.prev href="{{ pages.previous }}" />
+                    {% else %}
+                        <c-ui.pagination.prev :disabled="True" />
+                    {% endif %}
+                    {% for number in pages.numbers %}
+                        {% if number.elided %}
+                            <c-ui.pagination.ellipsis />
+                        {% else %}
+                            <c-ui.pagination.item href="{{ number.href }}" :current="number.current">
+                                {{ number.label }}
+                            </c-ui.pagination.item>
+                        {% endif %}
+                    {% endfor %}
+                    {% if pages.next %}
+                        <c-ui.pagination.next href="{{ pages.next }}" />
+                    {% else %}
+                        <c-ui.pagination.next :disabled="True" />
+                    {% endif %}
+                </c-ui.pagination>
+                <p class="text-sm text-muted">Page {{ pages.number }} of {{ pages.of }}</p>
+            </div>
+        {% endif %}
+    </div>
+{% endblock content %}

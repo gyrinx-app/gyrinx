@@ -1,0 +1,50 @@
+{% comment %}
+The answers a campaign is made of, shared by the set-up and edit screens so
+the two cannot drift into asking different questions.
+
+The budget is the one worth reading twice. Blank is not zero and is not a
+default — it means the campaign sets no ceiling, and gangs enter at whatever
+they are worth. The placeholder says so, because a reader who leaves it blank
+expecting a default gets a campaign that refuses nobody.
+
+Unlike a gang's budget, this one has no floor: a campaign holds no money and
+owns nothing, so there is no sum it has to cover.
+{% endcomment %}
+<c-n26.form-section title="General">
+    <c-ui.field label="Campaign name *"
+                error="x"
+                :form="form"
+                name="name"
+                for="campaign-name">
+        <c-ui.input id="campaign-name"
+                    name="name"
+                    autocomplete="off"
+                    value="{{ form.name.value|default:'' }}" />
+    </c-ui.field>
+    <c-ui.field label="Gang budget"
+                description="What a gang may spend to join. Leave blank for no ceiling."
+                error="x"
+                :form="form"
+                name="budget"
+                for="campaign-budget">
+        <c-ui.input id="campaign-budget"
+                    name="budget"
+                    type="number"
+                    min="0"
+                    inputmode="numeric"
+                    placeholder="No ceiling"
+                    right_addon="¢"
+                    value="{{ form.budget.value|default:'' }}" />
+    </c-ui.field>
+</c-n26.form-section>
+{% comment %}
+The section is titled for the reader arriving at it, the field for the answer
+it wants — naming both "Summary" said the word twice and the field's purpose
+once. The description says where the writing ends up, which is the one thing
+a reader cannot see from here.
+{% endcomment %}
+<c-n26.form-section title="About this campaign">
+    <c-n26.rich-text :field="form.summary"
+                     label="Summary"
+                     description="Shown at the top of the campaign's page." />
+</c-n26.form-section>

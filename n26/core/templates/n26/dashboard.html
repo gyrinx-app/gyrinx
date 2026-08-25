@@ -6,7 +6,7 @@ changelog, drawn entirely from the design system — the gallery's shell
 home (designsystem/shell/home.html) is this page with sample rows, so
 what was judged there is what ships here.
 
-The type filter is <c-n26.gang-table>'s own, client-side: every row
+The type filter is <c-n26.record-table>'s own, client-side: every row
 registers its facets and the table narrows as you type. The search box
 does that too, and clicking Search hands the query to the gangs page,
 which can find gangs this tab never carried.
@@ -25,7 +25,14 @@ places — the same pattern a gang's screens use for their siblings.
     {% include 'n26/_nav.html' with here='home' %}
 {% endblock %}
 {% block content %}
-    <c-n26.view.dashboard new_gang_href="{% url 'n26-create-gang' %}" new_campaign_href="">
+    {% comment %}
+    The campaigns controls are drawn only for a reader the feature is open to.
+    Everyone else keeps the "working on it" panel the tab has always shown —
+    a button leading somewhere that answers 404 is worse than no button.
+    {% endcomment %}
+    <c-n26.view.dashboard new_gang_href="{% url 'n26-create-gang' %}"
+                          new_campaign_href="{% if campaigns_open %}{% url 'n26-create-campaign' %}{% endif %}"
+                          new_campaign_label="Set up campaign">
         {% comment %}
         The greeting names the reader with the badge their account actually
         holds. Which one that is follows from their supporter standing and
@@ -37,10 +44,10 @@ places — the same pattern a gang's screens use for their siblings.
             <c-n26.user-link :user="user" tone="current" underline="none" />
         </c-slot>
         <c-slot name="gangs">
-            <c-n26.gang-table :type_options="gang_type_options"
-                              noun="gangs"
-                              action="{% url 'n26-gangs' %}"
-                              :query="query">
+            <c-n26.record-table :type_options="gang_type_options"
+                                noun="gangs"
+                                action="{% url 'n26-gangs' %}"
+                                :query="query">
                 <c-slot name="empty">
                     {% if gangs or query %}
                         No gangs match that. Try a shorter search.
@@ -49,15 +56,36 @@ places — the same pattern a gang's screens use for their siblings.
                     {% endif %}
                 </c-slot>
                 {% for gang in gangs %}
-                    <c-n26.gang-table.row name="{{ gang.name }}"
-                                          type="{{ gang.gang_type }}"
-                                          :type_icon="gang.gang_type.artwork"
-                                          colour="{{ gang.colour }}"
-                                          :sheet="gang"
-                                          href="{% url 'n26-gang' gang.pk %}" />
+                    <c-n26.record-table.gang-row name="{{ gang.name }}"
+                                                 type="{{ gang.gang_type }}"
+                                                 :type_icon="gang.gang_type.artwork"
+                                                 colour="{{ gang.colour }}"
+                                                 :sheet="gang"
+                                                 href="{% url 'n26-gang' gang.pk %}" />
                 {% endfor %}
-            </c-n26.gang-table>
+            </c-n26.record-table>
         </c-slot>
+        {% comment %}
+        Filled only where the feature is open: the slot left empty is what
+        makes the tab fall back to its "working on it" panel, so a reader
+        without campaigns sees exactly what they saw before.
+        {% endcomment %}
+        {% if campaigns_open %}
+            <c-slot name="campaigns">
+                <c-n26.record-table noun="campaigns"
+                                    singular="campaign"
+                                    action="{% url 'n26-campaigns' %}">
+                    <c-slot name="empty">
+                        No campaigns yet — <c-n26.link href="{% url 'n26-create-campaign' %}">set one up</c-n26.link>.
+                    </c-slot>
+                    {% for row in campaigns %}
+                        <c-n26.record-table.campaign-row name="{{ row.name }}"
+                                                         budget="{{ row.budget|default_if_none:'' }}"
+                                                         href="{% url 'n26-campaign' row.pk %}" />
+                    {% endfor %}
+                </c-n26.record-table>
+            </c-slot>
+        {% endif %}
         <c-slot name="changelog">
             <c-n26.changelog href="{% url 'n26-changelog' %}" empty="Nothing new yet.">
                 {% for entry in changelog %}

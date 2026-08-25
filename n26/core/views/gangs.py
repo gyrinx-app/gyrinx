@@ -31,12 +31,28 @@ def dashboard(request):
     The changelog is the site's, narrowed to the entries tagged for this
     edition.
     """
+    from n26.core.models import Campaign
+    from n26.flags import CAMPAIGNS, enabled
+
+    # The tab is a place this reader can go only where the feature is open to
+    # them; for everyone else it keeps saying it is being worked on. Asking
+    # here rather than in the template keeps the decision where the rows are
+    # fetched — a tab with rows nobody may reach would be the worse bug.
+    campaigns_open = enabled(CAMPAIGNS, request.user)
+    campaigns = (
+        Campaign.objects.filter(owner=request.user, archived=False).order_by("name")
+        if campaigns_open
+        else []
+    )
+
     return render(
         request,
         "n26/dashboard.html",
         {
-            **_gang_table_context(request),
+            **_record_table_context(request),
             "changelog": changelog_entries()[:5],
+            "campaigns_open": campaigns_open,
+            "campaigns": campaigns,
         },
     )
 
@@ -59,7 +75,7 @@ def gangs(request):
     return render(
         request,
         "n26/gangs.html",
-        _gang_table_context(
+        _record_table_context(
             request,
             everyone=bool(request.GET.get("everyone")),
             per_page=GANGS_PER_PAGE,
@@ -67,8 +83,8 @@ def gangs(request):
     )
 
 
-def _gang_table_context(request, everyone=False, per_page=None):
-    """The rows and facets <c-n26.gang-table> needs: gangs — the
+def _record_table_context(request, everyone=False, per_page=None):
+    """The rows and facets <c-n26.record-table> needs: gangs — the
     viewer's own, or everybody's — narrowed by ``?q=`` when there is
     one, and the types present among what survives.
 

@@ -70,6 +70,28 @@ def _any_gang_or_404(pk):
         raise Http404("No such gang") from None
 
 
+def _own_campaign_or_404(request, pk):
+    """The campaign, if the viewer is its arbitrator.
+
+    Owner-scoped where a gang sheet is not: a roster is a thing players
+    send each other, while a campaign's own pages are where its arbitrator
+    sets it up. What a player in a campaign gets to see is a different
+    question, answered by a different view when there are players to ask
+    about.
+    """
+    from n26.core.models import Campaign
+
+    try:
+        return get_object_or_404(
+            Campaign.objects.select_related("owner"),
+            pk=pk,
+            owner=request.user,
+            archived=False,
+        )
+    except ValidationError:
+        raise Http404("No such campaign") from None
+
+
 def _own_assignment_or_404(request, pk):
     """One of the viewer's own assignments, live and in a live gang.
 

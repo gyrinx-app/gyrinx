@@ -18,20 +18,14 @@ Display-only state (AssignmentSet, PrintConfig, StatOverride) is
 editable — it moves no money, changes no rating and touches no ledger —
 though their selection M2Ms are managed in the app, where the choices
 are drawn with the context a bare multi-select cannot give.
-
-FeatureFlag is editable too, and is not player data at all: it says who
-may reach a feature still being built. That belongs on a page precisely
-so opening one to another player does not wait for a deploy.
 """
 
-from django import forms
 from django.contrib import admin
 
-from n26.core.flags import KNOWN_FLAGS
 from n26.core.models import (
     Assignment,
     AssignmentSet,
-    FeatureFlag,
+    Campaign,
     Gang,
     LedgerEntry,
     LedgerEvent,
@@ -295,58 +289,17 @@ class PrintConfigAdmin(admin.ModelAdmin):
     exclude = ["miniatures", "assignments"]
 
 
-class FeatureFlagForm(forms.ModelForm):
-    """The slug is offered as a choice rather than typed.
+@admin.register(Campaign)
+class CampaignAdmin(OneAtATime, admin.ModelAdmin):
+    """Editable, unlike the ledger-adjacent models: a campaign holds no
+    assignments, moves no money and pins no cache, so there is nothing here
+    for an edit to skip."""
 
-    A row whose slug no code asks for is inert: nothing reads it, so the
-    switch on it controls nothing, and it sits on the page reading as a
-    control over something. Free text is how that gets made — one typo and
-    the feature it was meant to open stays shut with no sign why.
-    """
-
-    class Meta:
-        model = FeatureFlag
-        fields = "__all__"
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        if "slug" in self.fields:
-            self.fields["slug"] = forms.ChoiceField(
-                choices=[(slug, slug) for slug in sorted(KNOWN_FLAGS)],
-                label="Slug",
-                help_text="What the code asks for. Fixed once the row exists.",
-            )
-
-
-@admin.register(FeatureFlag)
-class FeatureFlagAdmin(OneAtATime, admin.ModelAdmin):
-    """Where a half-built feature is opened and shut.
-
-    Editable, and for a reason none of the others here share: this is not
-    player data at all. Which accounts may see an unfinished screen is a
-    decision somebody makes while the work is going on, not one to hold
-    until a deploy.
-
-    The slug is what code asks for, so it is settable when the row is
-    created and fixed afterwards: editing it later would not rename a
-    feature, it would turn one off and leave a second nobody reads.
-    """
-
-    form = FeatureFlagForm
-    list_display = ["name", "slug", "availability", "group"]
-    list_filter = ["availability"]
-    search_fields = ["name", "slug"]
-    list_select_related = ["group"]
-
-    def get_readonly_fields(self, request, obj=None):
-        # Added to whatever is already fixed rather than replacing it, so a
-        # field pinned on this class or a mixin later is not silently freed —
-        # and only where it is not already there, since a field named twice
-        # is drawn twice.
-        fixed = list(super().get_readonly_fields(request, obj))
-        if obj and "slug" not in fixed:
-            fixed.append("slug")
-        return fixed
+    list_display = ["name", "owner", "budget", "archived"]
+    list_filter = ["archived"]
+    search_fields = ["name", "owner__username"]
+    autocomplete_fields = ["owner"]
+    list_select_related = ["owner"]
 
 
 # Registering this edition's maintenance operations happens on import, and

@@ -1,0 +1,93 @@
+{% extends "n26/layouts/base.html" %}
+{% load richtext %}
+{% comment %}
+One campaign, as its arbitrator sees it.
+
+The standing facts sit in <c-n26.detail-list>, the same way a gang sheet
+carries its own — each a small fact that is also something to change.
+
+The page is deliberately short. What a campaign is *for* — who is in it, what
+it owns, what has happened — is not modelled yet, and a screen that drew empty
+headings for all three would promise three features rather than describe one.
+Each section arrives with the work that fills it.
+{% endcomment %}
+{% block head_title %}{{ campaign.name }}{% endblock head_title %}
+{% block nav_heading %}{{ campaign.name }}{% endblock nav_heading %}
+{% block nav_items %}
+    {% include 'n26/_nav.html' with here='campaigns' %}
+{% endblock %}
+{% block content %}
+    <div class="flex flex-col gap-8">
+        <c-n26.page-header title="{{ campaign.name }}">
+            <c-slot name="breadcrumb">
+                <c-ui.breadcrumbs>
+                    <c-ui.breadcrumbs.item>
+                        <c-n26.user-link :user="campaign.owner"
+                                         tone="current"
+                                         href="{% url 'n26-dashboard' %}" />
+                    </c-ui.breadcrumbs.item>
+                    <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
+                    <c-ui.breadcrumbs.item :current="True">
+                        {{ campaign.name }}
+                    </c-ui.breadcrumbs.item>
+                </c-ui.breadcrumbs>
+            </c-slot>
+            {% comment %}
+            Archiving sits behind the second click rather than beside Edit:
+            it is the one control here that takes the campaign away, and a
+            page's own actions should read as the things you came to do.
+            {% endcomment %}
+            <c-slot name="actions">
+                <c-n26.button-group>
+                    {% comment %}
+                    Default rather than primary, as on the gang sheet: blue
+                    is the page's one creative act, and editing what is
+                    already here is not it.
+                    {% endcomment %}
+                    <c-ui.button size="sm"
+                                 variant="default"
+                                 href="{% url 'n26-edit-campaign' campaign.pk %}">
+                        Edit
+                    </c-ui.button>
+                    <c-ui.dropdown>
+                        <c-slot name="trigger">
+                            <c-ui.button size="sm" variant="default" aria-label="More actions">
+                                <span class="n26-icon-only gap-0.5">
+                                    <c-n26.icon name="ellipsis-vertical" class="size-4" />
+                                    <c-n26.icon name="chevron-down" class="size-3" stroke_width="2.5" />
+                                </span>
+                            </c-ui.button>
+                        </c-slot>
+                        {% comment %}
+                        A page that asks, not the act: following this link
+                        archives nothing, and the POST it leads to is the
+                        only thing that does.
+                        {% endcomment %}
+                        <c-ui.dropdown.item href="{% url 'n26-archive-campaign' campaign.pk %}">
+                            Archive campaign
+                        </c-ui.dropdown.item>
+                    </c-ui.dropdown>
+                </c-n26.button-group>
+            </c-slot>
+        </c-n26.page-header>
+        <c-n26.detail-list>
+            <c-n26.detail-list.row label="Gang budget">
+                {% if campaign.budget is None %}
+                    No ceiling
+                {% else %}
+                    {{ campaign.budget }}¢
+                {% endif %}
+            </c-n26.detail-list.row>
+        </c-n26.detail-list>
+        {% if campaign.summary %}
+            {% comment %}
+            The arbitrator's own words, so the editor's markup is drawn rather
+            than escaped — sanitised on the way out by the richtext tag, which
+            is why a tightened allowlist reaches what was already saved.
+            {% endcomment %}
+            <c-n26.prose>
+                {{ campaign.summary|safe_rich_text }}
+            </c-n26.prose>
+        {% endif %}
+    </div>
+{% endblock content %}

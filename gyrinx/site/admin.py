@@ -17,9 +17,11 @@ from django.db import models
 from django.shortcuts import redirect, render
 from django.urls import path
 
+from gyrinx.site.flags import known_flags
 from gyrinx.site.models import (
     ChangelogEntry,
     ChangelogEntryTag,
+    FeatureFlag,
     Notification,
     NotificationType,
     notify_many,
@@ -195,3 +197,59 @@ class ChangelogEntryAdmin(admin.ModelAdmin):
     @admin.display(description="Tags")
     def tag_names(self, obj):
         return ", ".join(tag.name for tag in obj.tags.all())
+
+
+class FeatureFlagForm(forms.ModelForm):
+    """The slug is offered as a choice rather than typed.
+
+    A row whose slug no code asks for is inert: nothing reads it, so the
+    switch on it controls nothing, and it sits on the page reading as a
+    control over something. Free text is how that gets made — one typo and
+    the feature it was meant to open stays shut with no sign why.
+
+    The choices are whatever the editions claimed as they started, so a
+    feature appears here by being registered rather than by being typed.
+    """
+
+    class Meta:
+        model = FeatureFlag
+        fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if "slug" in self.fields:
+            self.fields["slug"] = forms.ChoiceField(
+                choices=[(slug, slug) for slug in sorted(known_flags())],
+                label="Slug",
+                help_text="What the code asks for. Fixed once the row exists.",
+            )
+
+
+@admin.register(FeatureFlag)
+class FeatureFlagAdmin(admin.ModelAdmin):
+    """Where a half-built feature is opened and shut.
+
+    Which accounts may see an unfinished screen is a decision somebody makes
+    while the work is going on, not one to hold until a deploy — so it is a
+    page rather than a setting.
+
+    The slug is what code asks for, so it is settable when the row is
+    created and fixed afterwards: editing it later would not rename a
+    feature, it would turn one off and leave a second nobody reads.
+    """
+
+    form = FeatureFlagForm
+    list_display = ["name", "slug", "availability", "group"]
+    list_filter = ["availability"]
+    search_fields = ["name", "slug"]
+    list_select_related = ["group"]
+
+    def get_readonly_fields(self, request, obj=None):
+        # Added to whatever is already fixed rather than replacing it, so a
+        # field pinned on this class or a mixin later is not silently freed —
+        # and only where it is not already there, since a field named twice
+        # is drawn twice.
+        fixed = list(super().get_readonly_fields(request, obj))
+        if obj and "slug" not in fixed:
+            fixed.append("slug")
+        return fixed

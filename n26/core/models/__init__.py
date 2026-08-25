@@ -1,7 +1,7 @@
 from n26.core.models.abstract import Archived, Base, Owned
 from n26.core.models.assignment import Assignment
 from n26.core.models.assignment_set import AssignmentSet
-from n26.core.models.flag import Availability, FeatureFlag
+from n26.core.models.campaign import Campaign
 from n26.core.models.gang import Gang
 from n26.core.models.ledger import LedgerEntry, LedgerEvent, Reason
 from n26.core.models.miniature import Miniature
@@ -20,11 +20,10 @@ __all__ = [
     "Archived",
     "Assignment",
     "AssignmentSet",
-    "Availability",
     "Base",
+    "Campaign",
     "ChosenProfileOption",
     "CounterValue",
-    "FeatureFlag",
     "Gang",
     "LedgerEntry",
     "LedgerEvent",

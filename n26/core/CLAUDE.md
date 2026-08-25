@@ -141,9 +141,9 @@ underlying spec.
 - Template trees under `n26/core/templates/`:
   - `n26/…` — pages and layouts.
   - `cotton/n26/…` — this edition's components, used as `<c-n26.foo>`.
-    A directory is a namespace: `gang_table/index.html` is
-    `<c-n26.gang-table>`, `row.html` beside it is
-    `<c-n26.gang-table.row>`. Underscores in filenames become dashes in
+    A directory is a namespace: `record_table/index.html` is
+    `<c-n26.record-table>`, `gang_row.html` beside it is
+    `<c-n26.record-table.gang-row>`. Underscores in filenames become dashes in
     tags.
   - `cotton/ui/…` — deliberate overrides of the installed kit's
     components. They win only because `n26.core` sits above

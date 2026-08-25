@@ -1,0 +1,63 @@
+{% comment %}
+<c-n26.record-table.campaign-row> — one campaign in a <c-n26.record-table>.
+
+    <c-n26.record-table.campaign-row name="Dust Falls" budget="1000"
+                                     href="/n26/campaigns/1/" />
+
+The gang row's twin, on the same grid so the two lists read as the same kind
+of page. What differs is what a row has to say: a gang carries a type, a
+colour and a strip of money, where a campaign carries the budget a gang joins
+at and nothing else yet.
+
+It registers the same facets the container's filter reads, so typing in the
+box narrows these rows exactly as it narrows gangs. There is no type here, so
+the facet is empty and the type menu — drawn only where there are two or more
+options — never appears.
+
+  name — the campaign's name, and the row's accessible name.
+  budget — what a gang may spend to join, already formatted, or "" for none.
+  href — the campaign's own page.
+{% endcomment %}
+<c-vars name="" budget="" href="" class="" />
+
+<div x-data="{ facets: {
+        type: '',
+        search: {{ name|lower|json_dumps }},
+     } }"
+     x-init="register(facets)"
+     x-show="matches(facets)"
+     x-cloak
+     {% comment %}
+     The same fixed tracks as the gang row, minus its middle column: stating
+     the widths is what makes separate grids look like one table.
+     {% endcomment %}
+     class="relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 px-1 py-3
+            hover:bg-ink-500/5 {{ class }}">
+
+    <div class="col-start-1 row-start-1 min-w-0">
+        <a href="{{ href }}"
+           class="n26-row-link rounded-control text-base font-semibold text-ink-900 focus-ring dark:text-ink-100">
+            {{ name }}
+        </a>
+        {% comment %}
+        A campaign with no ceiling says so in words. A blank where a number
+        goes reads as a number nobody has typed yet, which is a different
+        thing entirely.
+        {% endcomment %}
+        <p class="text-sm text-muted">
+            {% if budget %}
+                {{ budget }}¢ to join
+            {% else %}
+                No budget ceiling
+            {% endif %}
+        </p>
+    </div>
+
+    {% comment %}
+    relative, so the button paints above the stretched link rather than under
+    it.
+    {% endcomment %}
+    <div class="relative col-start-2 row-start-1 row-span-2 flex shrink-0 items-center justify-self-end">
+        <c-ui.button size="sm" variant="default" href="{{ href }}">Edit</c-ui.button>
+    </div>
+</div>
