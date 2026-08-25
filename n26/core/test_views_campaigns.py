@@ -89,6 +89,45 @@ class TestWhoReachesCampaignsAtAll:
         assert client.get("/n26/campaigns/").status_code == 200
 
 
+class TestALongList:
+    """A paged list without a pager hides everything past the first page,
+    and nothing on the page says so."""
+
+    def _many(self, arbitrator, count):
+        from n26.core.views.campaigns import CAMPAIGNS_PER_PAGE
+
+        return [
+            Campaign.objects.create(name=f"Campaign {n:03}", owner=arbitrator)
+            for n in range(count)
+        ], CAMPAIGNS_PER_PAGE
+
+    def test_a_short_list_draws_no_pager(self, client, arbitrator, open_to_everyone):
+        Campaign.objects.create(name="Only One", owner=arbitrator)
+        assert client.get("/n26/campaigns/").context["pages"] is None
+
+    def test_a_long_list_can_be_turned(self, client, arbitrator, open_to_everyone):
+        _, per_page = self._many(arbitrator, 30)
+
+        first = client.get("/n26/campaigns/")
+        assert len(first.context["page"].object_list) == per_page
+
+        onward = first.context["pages"]["next"]
+        assert onward, "no way off the first page"
+
+        # Followed as a reader would, rather than by guessing the address.
+        second = client.get(f"/n26/campaigns/{onward}")
+        names = {row.name for row in second.context["page"].object_list}
+        assert names, "the second page is empty"
+        assert names.isdisjoint({row.name for row in first.context["page"].object_list})
+
+    def test_the_pager_is_drawn_where_there_is_one(
+        self, client, arbitrator, open_to_everyone
+    ):
+        """The context alone is not proof — the markup has to render it."""
+        self._many(arbitrator, 30)
+        assert "page=2" in client.get("/n26/campaigns/").content.decode()
+
+
 class TestSettingOneUp:
     def test_it_creates_a_campaign_and_lands_on_its_page(
         self, client, arbitrator, open_to_everyone

@@ -3,8 +3,8 @@
 Editing a standing campaign. The same fields as the set-up screen, from the
 same include, so the two cannot drift into asking different questions.
 
-The submit is `primary` rather than `success`: this form saves a thing that
-already exists, where the set-up screen brings one into being.
+The submit takes the footer's default green: green is the commit, whether it
+is a Save or a Create. Blue is for a control that *opens* a form.
 {% endcomment %}
 {% block head_title %}Edit {{ campaign.name }}{% endblock head_title %}
 {% block nav_heading %}Edit campaign{% endblock nav_heading %}
@@ -16,7 +16,6 @@ already exists, where the set-up screen brings one into being.
                      title="Edit {{ campaign.name }}"
                      :form="form"
                      submit_label="Save campaign"
-                     submit_variant="primary"
                      cancel_url="{% url 'n26-campaign' campaign.pk %}">
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>

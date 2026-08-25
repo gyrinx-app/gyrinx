@@ -24,11 +24,23 @@ CAMPAIGNS_PER_PAGE = 25
 @login_required
 def campaigns(request):
     """Every campaign this reader arbitrates."""
+    # The gangs list builds the numbered links the same way, and a second
+    # copy of that would be a second set of addresses to keep in step.
     from n26.core.models import Campaign
+    from n26.core.views.gangs import _pages
 
     rows = Campaign.objects.filter(owner=request.user, archived=False)
     page = Paginator(rows, CAMPAIGNS_PER_PAGE).get_page(request.GET.get("page"))
-    return render(request, "n26/campaigns.html", {"page": page})
+    return render(
+        request,
+        "n26/campaigns.html",
+        {
+            "page": page,
+            # Drawn only where there is more than one, so a short list is a
+            # list rather than a list with a pager saying "1 of 1".
+            "pages": _pages(request, page) if page.paginator.num_pages > 1 else None,
+        },
+    )
 
 
 @requires_flag(CAMPAIGNS)
