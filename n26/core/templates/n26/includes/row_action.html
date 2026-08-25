@@ -29,7 +29,18 @@ for why the affirmative tone is green rather than the kit's `primary`.
             {{ action.label }}
         </c-ui.button>
     {% else %}
-        <c-ui.button size="sm" variant="{{ variant }}" href="{{ action.target }}">
+        {% comment %}
+        Every act that is a link here opens a confirmation the server draws,
+        so the click asks for that panel rather than for the whole screen
+        again. What comes back names the place it stands in for, which is why
+        nothing is targeted from here. Without script it is the plain link it
+        has always been, and the server draws the page with the panel open.
+        {% endcomment %}
+        <c-ui.button size="sm"
+                     variant="{{ variant }}"
+                     href="{{ action.target }}"
+                     hx-get="{{ action.target }}"
+                     hx-swap="none">
             {{ action.label }}
         </c-ui.button>
     {% endif %}

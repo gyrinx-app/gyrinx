@@ -21,7 +21,7 @@ id each.
 The slot carries the csrf token: a component has no request and renders none
 itself.
 {% endcomment %}
-<c-vars :dialog="None" :modal="True" :open="True" id="n26-dialog" class="" />
+<c-vars :dialog="None" :modal="True" :open="True" :swapped="False" id="n26-dialog" class="" />
 
 <c-n26.dialog title="{{ dialog.title }}"
               action="{{ dialog.action }}"
@@ -30,6 +30,7 @@ itself.
               submit_variant="{{ dialog.submit_variant }}"
               :modal="modal"
               :open="open"
+              :swapped="swapped"
               id="{{ id }}"
               class="{{ class }}">
     <c-slot name="lead">

@@ -18,11 +18,16 @@ sell is managed from the In stash tab.
     {% include 'n26/_nav.html' with here='gangs' %}
 {% endblock %}
 {% block content %}
-    {% if dialog %}
-        <c-n26.owned-dialog :dialog="dialog">
-            {% csrf_token %}
-        </c-n26.owned-dialog>
-    {% endif %}
+    {% comment %}
+    Named and always drawn, empty or not — see the fighter's equip page.
+    {% endcomment %}
+    <div id="n26-dialog-host">
+        {% if dialog %}
+            <c-n26.owned-dialog :dialog="dialog">
+                {% csrf_token %}
+            </c-n26.owned-dialog>
+        {% endif %}
+    </div>
     {% for panel in accessorise %}
         <c-n26.owned-dialog :dialog="panel"
                             :open="panel.open"
@@ -30,7 +35,16 @@ sell is managed from the In stash tab.
             {% csrf_token %}
         </c-n26.owned-dialog>
     {% endfor %}
+    {% comment %}
+    A purchase is answered with the row it changed rather than the screen
+    around it, so the filters and the section on screen survive it. Nothing is
+    targeted from here: what a purchase changes is the server's to say, and it
+    says it by naming each part in its answer. Without script this is an
+    ordinary form and the whole page comes back.
+    {% endcomment %}
     <c-n26.form-page action="{{ action }}"
+                     hx-post="{{ action }}"
+                     hx-swap="none"
                      title="Equip"
                      lead="Buy into the stash and manage what the gang already holds. Hand gear to a fighter from here, or buy on a fighter's own page to arm them directly.">
         <c-slot name="breadcrumb">
@@ -45,7 +59,13 @@ sell is managed from the In stash tab.
             </c-ui.breadcrumbs>
         </c-slot>
         <c-slot name="header_actions">
-            <c-n26.gang-figures :gang="gang" :summary="summary" />
+            {% comment %}
+            Named, because a purchase answered without a rebuild sends these
+            back to be swapped in place.
+            {% endcomment %}
+            <div id="n26-gang-figures">
+                <c-n26.gang-figures :gang="gang" :summary="summary" />
+            </div>
         </c-slot>
         {% csrf_token %}
         <div class="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-[11rem_minmax(0,1fr)]">

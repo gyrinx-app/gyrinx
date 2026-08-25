@@ -37,11 +37,19 @@ breadcrumb above it has the gang as well, so nothing is lost.
     itself — HTML has no nested forms — and the catalogue wraps every row on the
     page.
     {% endcomment %}
-    {% if dialog %}
-        <c-n26.owned-dialog :dialog="dialog">
-            {% csrf_token %}
-        </c-n26.owned-dialog>
-    {% endif %}
+    {% comment %}
+    Named and always drawn, empty or not: a click on Sell asks the server for
+    this panel alone and the answer stands in for whatever is here, so there
+    has to be something here to stand in for. The address still says which
+    panel is open, so a reload draws it and a link to it works.
+    {% endcomment %}
+    <div id="n26-dialog-host">
+        {% if dialog %}
+            <c-n26.owned-dialog :dialog="dialog">
+                {% csrf_token %}
+            </c-n26.owned-dialog>
+        {% endif %}
+    </div>
     {% comment %}
     And one accessory panel per gun the fighter is carrying, closed unless the
     address names it. They are here rather than fetched on the click because

@@ -34,6 +34,7 @@ no request and renders none itself.
     id="n26-dialog"
     :open="True"
     :modal="True"
+    :swapped="False"
     class=""
 />
 
@@ -95,7 +96,13 @@ asking for a page without it.
                 }
             }
         }"
-        {% if open %}x-init="promote($el)"{% endif %}
+        {% comment %}
+        A panel that arrived on its own, into a page nobody rebuilt, counts as
+        one this page opened: leaving it puts the address back rather than
+        fetching the screen again. Without this, Escape and Cancel would each
+        cost the page the reader still has.
+        {% endcomment %}
+        {% if open %}x-init="{% if swapped %}clicked = true; {% endif %}promote($el)"{% endif %}
         @n26-dialog-open.window="if ($event.detail.id === $el.id) reveal($el, $event.detail.url)"
         :class="{ 'static m-0': !promoted, 'm-auto': promoted }"
         @click="leaving($event)"

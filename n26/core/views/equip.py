@@ -268,6 +268,26 @@ def _spoken(request, response):
     return response
 
 
+def _panel_asked(request, dialog):
+    """The confirmation alone, where the click asked for that and not the page.
+
+    Answers ``None`` for every other request, so a caller reads it as
+    "this was not that kind of click" and carries on drawing the screen.
+
+    The address is corrected to the one the click named, which is the
+    address that draws this panel on a plain visit — so a reload still
+    opens it, the link is still a link, and leaving puts the address back
+    the same way. Replaced rather than pushed: opening a confirmation is
+    not somewhere to go back to, and the panel's own way out already
+    stands where the back button would.
+    """
+    if request.method != "GET" or not request.headers.get("HX-Request"):
+        return None
+    answer = render(request, "n26/includes/equip_panel.html", {"dialog": dialog})
+    answer["HX-Replace-Url"] = request.get_full_path()
+    return answer
+
+
 @dataclass(frozen=True)
 class Bought:
     """A purchase that went through, and what it was for.
@@ -281,32 +301,21 @@ class Bought:
     key: str
 
 
-def _bought_row(request, miniature, gang, collection, bought, expanded_key, *, at):
-    """The one row a purchase changed, drawn again from a fresh card.
+def _row_again(request, gang, view, owned, bought, expanded_key, held_label=""):
+    """The one row a purchase changed, drawn on its own.
 
-    The card is built again rather than reused, because the one the click
-    arrived with describes the fighter as they were before the purchase.
-    It is the same fixed handful of queries a plain visit costs, so this
-    is not the expensive half of anything.
+    The listing and the possessions are both re-derived by the caller,
+    because the ones the click arrived with describe the holder as they
+    were before the purchase. It is the same fixed handful of queries a
+    plain visit costs, so this is not the expensive half of anything.
 
     Only the row and the gang's own figures go back. Every other row is
     left exactly as it is, which is what keeps the reader's filters, the
     section they were on, and the prices they had typed elsewhere.
     """
-    from n26.core.browse import browse, usability_for, with_use_notes
-    from n26.core.card import build_card, build_modifier_index
-    from n26.core.effects import compute
     from n26.core.listing import listing_row, owned_row
-    from n26.core.owned import EquipHost, possessions
     from n26.core.render import roster as gang_roster
     from n26.core.render import summarise_roster
-
-    card = build_card(miniature, with_options=True)
-    index = build_modifier_index([node.assignable for node in card.all_nodes()])
-    computed = compute(card, index)
-    view = with_use_notes(browse(collection), usability_for(computed))
-    host = EquipHost.fighter(gang, card, miniature, at=at)
-    owned = possessions(host)
 
     line = next(
         (row for row in view.all_lines() if _thing_key(row.thing) == bought.key),
@@ -334,7 +343,48 @@ def _bought_row(request, miniature, gang, collection, bought, expanded_key, *, a
             "row": row,
             "gang": gang,
             "summary": summarise_roster(gang_roster(gang)),
+            "held_label": held_label,
         },
+    )
+
+
+def _bought_row(request, miniature, gang, collection, bought, expanded_key, *, at):
+    """What a purchase onto a fighter sends back — see :func:`_row_again`."""
+    from n26.core.browse import browse, usability_for, with_use_notes
+    from n26.core.card import build_card, build_modifier_index
+    from n26.core.effects import compute
+    from n26.core.owned import EquipHost, possessions
+
+    card = build_card(miniature, with_options=True)
+    index = build_modifier_index([node.assignable for node in card.all_nodes()])
+    computed = compute(card, index)
+    view = with_use_notes(browse(collection), usability_for(computed))
+    host = EquipHost.fighter(gang, card, miniature, at=at)
+    return _row_again(
+        request, gang, view, possessions(host), bought, expanded_key, host.held_label
+    )
+
+
+def _bought_into_stash(request, gang, view_of, bought, expanded_key, *, at):
+    """What a purchase into the stash sends back — see :func:`_row_again`.
+
+    ``view_of`` builds the listing again, because which one the reader is
+    on is the gang page's own business: one of the gang's lists, or
+    everything the library sells.
+    """
+    from n26.core.card import build_gang_card
+    from n26.core.owned import EquipHost, possessions
+
+    card = build_gang_card(gang, with_statlines=False)
+    host = EquipHost.stash(gang, card, at=at)
+    return _row_again(
+        request,
+        gang,
+        view_of(),
+        possessions(host),
+        bought,
+        expanded_key,
+        host.held_label,
     )
 
 
@@ -620,6 +670,10 @@ def equip(request, pk):
     host = EquipHost.fighter(gang, card, miniature, at=at)
     owned = possessions(host)
 
+    dialog = owned_dialog(request, host)
+    if (answer := _panel_asked(request, dialog)) is not None:
+        return answer
+
     # The whole screen, as one structure: the browsed list joined to what
     # the fighter holds. A row is a row for something on sale or a row for
     # something they are carrying, and which it is is the structure's
@@ -671,7 +725,7 @@ def equip(request, pk):
             # remove one assignment on this fighter's card. A server state,
             # so it is a link, it survives a reload, and it is drawn rather than
             # revealed by a script.
-            "dialog": owned_dialog(request, host),
+            "dialog": dialog,
             # The accessory question for every gun the fighter is
             # carrying, drawn closed beside the rows. The one the address
             # names is drawn open, so the link works with no script; with
@@ -851,7 +905,11 @@ def equip_gang(request, pk):
         view = browse(chosen)
 
     if request.method == "POST" and view is not None:
-        return _buy_clicked(
+        # As on a fighter's page: a click may ask for the row it changed
+        # rather than the screen around it, and without script the same
+        # button posts the same form and gets the whole page back.
+        piecemeal = bool(request.headers.get("HX-Request"))
+        outcome = _buy_clicked(
             request,
             gang,
             gang.stash,
@@ -859,11 +917,31 @@ def equip_gang(request, pk):
             here,
             into="the stash",
             collection=ALL_LABEL if everything else chosen.name,
+            fragment=piecemeal,
+        )
+        if not piecemeal:
+            return outcome
+        if outcome is None:
+            return _spoken(request, HttpResponse(status=204))
+        return _spoken(
+            request,
+            _bought_into_stash(
+                request,
+                gang,
+                lambda: all_gear(ALL_LABEL) if everything else browse(chosen),
+                outcome,
+                expanded_key,
+                at=here,
+            ),
         )
 
     host = EquipHost.stash(gang, card, at=here)
     owned = possessions(host)
     refunds = not gang.credits_unlimited
+
+    dialog = owned_dialog(request, host)
+    if (answer := _panel_asked(request, dialog)) is not None:
+        return answer
 
     if stash_tab:
         catalogue = build_stash_catalogue(
@@ -901,7 +979,7 @@ def equip_gang(request, pk):
             "catalogue": catalogue,
             "stash_tab": stash_tab,
             "held_label": host.held_label,
-            "dialog": owned_dialog(request, host),
+            "dialog": dialog,
             "accessorise": accessorise_dialogs(request, host),
             "summary": summarise_roster(gang_roster(gang)),
             **picker_context(catalogue, view),

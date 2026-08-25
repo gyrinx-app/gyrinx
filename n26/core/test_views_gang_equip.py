@@ -690,3 +690,43 @@ class TestStashManagement:
 
         assert response.status_code == 302
         assert response["Location"] == equip_url(gang, scope="stash")
+
+
+class TestBuyingIntoTheStashWithoutRebuildingThePage:
+    """The gang's page answers a Buy the way a fighter's does: with the
+    row that changed, and nothing else."""
+
+    def test_the_answer_is_the_stash_row_and_not_a_redirect(
+        self, client, tester, gang, house_list
+    ):
+        from django.utils.text import slugify
+
+        from n26.library.models import Wargear
+
+        knife = Wargear.objects.get(name="Knife")
+        client.force_login(tester)
+        response = client.post(
+            equip_url(gang, house_list),
+            {"thing": key_of(knife)},
+            headers={"HX-Request": "true"},
+        )
+
+        assert response.status_code == 200
+        body = response.content.decode()
+        assert f'id="n26-row-{slugify(key_of(knife))}"' in body
+        assert "<html" not in body
+        # What the gang holds sits in the stash, and the row says so
+        # rather than calling it equipped.
+        assert "in stash" in body
+
+    def test_a_plain_buy_still_answers_with_the_whole_page(
+        self, client, tester, gang, house_list
+    ):
+        from n26.library.models import Wargear
+
+        client.force_login(tester)
+        response = client.post(
+            equip_url(gang, house_list),
+            {"thing": key_of(Wargear.objects.get(name="Knife"))},
+        )
+        assert response.status_code == 302

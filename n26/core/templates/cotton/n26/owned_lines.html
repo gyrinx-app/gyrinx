@@ -93,8 +93,15 @@ lines.
                             </span>
                         </c-ui.button>
                     </c-slot>
+                    {% comment %}
+                    Each of these opens a confirmation the server draws, so
+                    the click asks for that panel instead of the whole screen.
+                    Still a link underneath — see n26/includes/row_action.html.
+                    {% endcomment %}
                     {% for action in copy.more %}
-                        <c-ui.dropdown.item href="{{ action.target }}">{{ action.label }}</c-ui.dropdown.item>
+                        <c-ui.dropdown.item href="{{ action.target }}"
+                                            hx-get="{{ action.target }}"
+                                            hx-swap="none">{{ action.label }}</c-ui.dropdown.item>
                     {% endfor %}
                 </c-ui.dropdown>
             </span>
@@ -125,7 +132,9 @@ lines.
                             </c-ui.button>
                         </c-slot>
                         {% for action in part.more %}
-                            <c-ui.dropdown.item href="{{ action.target }}">{{ action.label }}</c-ui.dropdown.item>
+                            <c-ui.dropdown.item href="{{ action.target }}"
+                                                hx-get="{{ action.target }}"
+                                                hx-swap="none">{{ action.label }}</c-ui.dropdown.item>
                         {% endfor %}
                     </c-ui.dropdown>
                 </span>

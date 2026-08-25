@@ -2017,3 +2017,108 @@ class TestBuyingWithoutRebuildingThePage:
         assert said[0]["variant"] == "error"
         # A refusal stands until it is dismissed.
         assert said[0]["duration"] == 0
+
+
+class TestOpeningAConfirmationWithoutRebuildingThePage:
+    """Sell, Refund, Reassign, Delete and Change options each open a panel
+    the server draws. Asking for that panel alone leaves the catalogue
+    underneath exactly as the reader had it."""
+
+    def asked(self, client, fighter, gun_list, assignment, kind="sell"):
+        return client.get(
+            equip_url(fighter, gun_list) + f"&{kind}={assignment.pk}",
+            headers={"HX-Request": "true"},
+        )
+
+    def test_the_answer_is_the_panel_and_not_the_page(
+        self, client, tester, fighter, gun_list, owned_gun
+    ):
+        client.force_login(tester)
+        response = self.asked(client, fighter, gun_list, owned_gun)
+
+        assert response.status_code == 200
+        body = response.content.decode()
+        assert "<html" not in body
+        assert "Sell Autogun?" in body
+
+    def test_the_panel_stands_in_for_the_pages_dialog_host(
+        self, client, tester, fighter, gun_list, owned_gun
+    ):
+        """Closing and opening are the same act said with different
+        content, which is why both are this one place on the page."""
+        client.force_login(tester)
+        body = self.asked(client, fighter, gun_list, owned_gun).content.decode()
+
+        assert 'id="n26-dialog-host"' in body
+        assert 'hx-swap-oob="true"' in body
+
+    def test_the_address_is_corrected_to_the_one_that_draws_it(
+        self, client, tester, fighter, gun_list, owned_gun
+    ):
+        """So a reload still opens the panel and the link is still a link."""
+        client.force_login(tester)
+        response = self.asked(client, fighter, gun_list, owned_gun)
+
+        assert f"sell={owned_gun.pk}" in response["HX-Replace-Url"]
+
+    def test_the_panel_knows_it_arrived_on_its_own(
+        self, client, tester, fighter, gun_list, owned_gun
+    ):
+        """Leaving it must put the address back rather than fetch the
+        screen the reader is still looking at."""
+        client.force_login(tester)
+        body = self.asked(client, fighter, gun_list, owned_gun).content.decode()
+
+        assert "clicked = true" in body
+
+    def test_asking_with_nothing_named_closes_whatever_was_open(
+        self, client, tester, fighter, gun_list, owned_gun
+    ):
+        client.force_login(tester)
+        response = client.get(
+            equip_url(fighter, gun_list), headers={"HX-Request": "true"}
+        )
+        body = response.content.decode()
+
+        assert 'id="n26-dialog-host"' in body
+        assert "Sell Autogun?" not in body
+
+    def test_without_the_header_the_whole_page_still_draws_the_panel(
+        self, client, tester, fighter, gun_list, owned_gun
+    ):
+        """Nothing here is the only way to reach a confirmation."""
+        client.force_login(tester)
+        response = client.get(equip_url(fighter, gun_list) + f"&sell={owned_gun.pk}")
+        body = response.content.decode()
+
+        assert "<html" in body
+        assert "Sell Autogun?" in body
+
+
+class TestOpeningTheCopiesOfAnOwnedRow:
+    """The copies a row opens onto are already on the page, so opening it
+    asks the server for nothing at all."""
+
+    def test_the_row_opens_where_it_stands_and_says_so_in_the_address(
+        self, client, tester, fighter, gun_list, owned_gun
+    ):
+        client.force_login(tester)
+        body = client.get(equip_url(fighter, gun_list)).content.decode()
+
+        # Opened in the hand, and the address follows rather than leads.
+        assert "expanded = !expanded" in body
+        assert "history.replaceState" in body
+        # Both addresses, since the click may be going either way. The key
+        # carries a colon, which an address escapes.
+        plain = body.replace("&amp;", "&").replace("%3A", ":")
+        assert f"owned={key_of(owned_gun.assignable)}" in plain
+
+    def test_it_is_still_a_link(self, client, tester, fighter, gun_list, owned_gun):
+        """Without script the server draws the row open, as it always did."""
+        client.force_login(tester)
+        opened = client.get(
+            equip_url(fighter, gun_list) + f"&owned={key_of(owned_gun.assignable)}"
+        )
+
+        assert opened.status_code == 200
+        assert 'aria-expanded="true"' in opened.content.decode()

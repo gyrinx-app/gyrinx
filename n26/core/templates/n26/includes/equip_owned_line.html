@@ -5,6 +5,14 @@ and `held_label` from the page when the host is the stash.
 Owning something is a *state of its row*, not a list of its own: where a copy is
 held, the count stands where Buy would be and opens the row onto what they have.
 {% endcomment %}
+{% comment %}
+Both addresses, not just the one the other state is at: opening and closing the
+copies costs nothing but a class, so the click does it here and puts the
+matching address in the bar. The link is still the link — a reader without
+script gets the row drawn open by the server, exactly as before.
+{% endcomment %}
+{% querystring owned=row.key as owned_open_href %}
+{% querystring owned=None as owned_shut_href %}
 {% if row.expanded %}
     {% querystring owned=None as owned_toggle_href %}
 {% else %}
@@ -27,11 +35,14 @@ held, the count stands where Buy would be and opens the row onto what they have.
             <c-ui.button href="{{ owned_toggle_href }}"
                          size="sm"
                          class="inline-flex items-center gap-1.5"
-                         aria-expanded="{{ row.expanded|yesno:'true,false' }}">
+                         x-on:click.prevent="expanded = !expanded; history.replaceState(history.state, '', expanded ? '{{ owned_open_href }}' : '{{ owned_shut_href }}')"
+                         aria-expanded="{{ row.expanded|yesno:'true,false' }}"
+                         ::aria-expanded="expanded">
                 <span><span class="tabular-nums">{{ row.count }}</span> {{ held_label|default:"equipped" }}</span>
                 <span class="n26-icon-only">
                     <c-n26.icon name="chevron-down"
                                 class="size-3 transition-transform{% if row.expanded %} rotate-180{% endif %}"
+                                ::class="{ 'rotate-180': expanded }"
                                 stroke_width="2.5" />
                 </span>
             </c-ui.button>
@@ -73,11 +84,14 @@ held, the count stands where Buy would be and opens the row onto what they have.
             <c-ui.button href="{{ owned_toggle_href }}"
                          size="sm"
                          class="inline-flex items-center gap-1.5"
-                         aria-expanded="{{ row.expanded|yesno:'true,false' }}">
+                         x-on:click.prevent="expanded = !expanded; history.replaceState(history.state, '', expanded ? '{{ owned_open_href }}' : '{{ owned_shut_href }}')"
+                         aria-expanded="{{ row.expanded|yesno:'true,false' }}"
+                         ::aria-expanded="expanded">
                 <span><span class="tabular-nums">{{ row.count }}</span> {{ held_label|default:"equipped" }}</span>
                 <span class="n26-icon-only">
                     <c-n26.icon name="chevron-down"
                                 class="size-3 transition-transform{% if row.expanded %} rotate-180{% endif %}"
+                                ::class="{ 'rotate-180': expanded }"
                                 stroke_width="2.5" />
                 </span>
             </c-ui.button>
