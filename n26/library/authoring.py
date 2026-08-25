@@ -1098,13 +1098,13 @@ def add_default_member(
         member.clean()
     member.save()
     # Everything already holding this set is now owed the new member.
-    # The debt rides this transaction — filed with the edit, rolled
-    # back with it — and a background pass pays it after commit. Every
-    # path that adds a member comes through here, so this is the one
-    # place the debt is filed.
-    from n26.core.propagation import file_obligation
+    # The filing rides this transaction — made with the edit, rolled
+    # back with it — and a background pass applies it after commit.
+    # Every path that adds a member comes through here, so this is the
+    # one place the pass is filed.
+    from n26.core.propagation import file_propagation_task
 
-    file_obligation(default_set)
+    file_propagation_task(default_set)
     return member
 
 

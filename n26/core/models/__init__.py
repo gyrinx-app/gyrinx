@@ -1,11 +1,11 @@
 from n26.core.models.abstract import Archived, Base, Owned
 from n26.core.models.assignment import Assignment
 from n26.core.models.assignment_set import AssignmentSet
+from n26.core.models.built_in_propagation import BuiltInPropagationTask
 from n26.core.models.campaign import Campaign
 from n26.core.models.gang import Gang
 from n26.core.models.ledger import LedgerEntry, LedgerEvent, Reason
 from n26.core.models.miniature import Miniature
-from n26.core.models.obligation import ReconcileObligation
 from n26.core.models.print_config import PrintConfig
 from n26.core.models.settings import (
     SETTING_GROUPS,
@@ -22,6 +22,7 @@ __all__ = [
     "Assignment",
     "AssignmentSet",
     "Base",
+    "BuiltInPropagationTask",
     "Campaign",
     "ChosenProfileOption",
     "CounterValue",
@@ -33,7 +34,6 @@ __all__ = [
     "PrintConfig",
     "ProfileRole",
     "Reason",
-    "ReconcileObligation",
     "Stash",
     "StatOverride",
 ]

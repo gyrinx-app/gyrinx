@@ -46,8 +46,9 @@ Concretely:
   `gyrinx.tasks`; `n26/flags.py` claims this edition's gated features
   through `gyrinx.site.flags`; models that need a durable status column
   with row-locked transitions use `gyrinx.state_machine`, the pattern
-  the task framework's own records use (`n26/core/models/obligation.py`
-  and the code driving it); and `n26/tests/` may import platform
+  the task framework's own records use
+  (`n26/core/models/built_in_propagation.py` and the code driving it);
+  and `n26/tests/` may import platform
   pieces to test the seam. Do not add others.
 - **`n26/flags.py` is the other single-file seam, and it works the way
   `n26/analytics.py` does.** Gating half-built work is a property of

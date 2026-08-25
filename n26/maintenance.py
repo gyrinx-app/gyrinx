@@ -44,7 +44,7 @@ from gyrinx.maintenance.models import Backfill
 from gyrinx.maintenance.registry import MaintenanceOperation, register_operation
 from gyrinx.maintenance.views import page_context, running_guard
 from gyrinx.tasks import TaskRoute
-from n26.core.propagation import propagate_built_ins, sweep_built_in_obligations
+from n26.core.propagation import propagate_built_ins, sweep_built_in_propagations
 
 logger = logging.getLogger(__name__)
 
@@ -418,7 +418,7 @@ register_operation(
 task_routes = [
     TaskRoute(delete_nameless_gang_type, ack_deadline=600, min_retry_delay=60),
     TaskRoute(propagate_built_ins, ack_deadline=600),
-    TaskRoute(sweep_built_in_obligations, schedule="*/5 * * * *"),
+    TaskRoute(sweep_built_in_propagations, schedule="*/5 * * * *"),
 ]
 
 
