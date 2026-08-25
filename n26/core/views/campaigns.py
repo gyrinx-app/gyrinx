@@ -12,8 +12,8 @@ from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.shortcuts import redirect, render
 
-from n26.core.flags import CAMPAIGNS, requires_flag
 from n26.core.views.permissions import _own_campaign_or_404
+from n26.flags import CAMPAIGNS, requires_flag
 
 #: How many campaigns a page of the list holds. A row is a name, a budget
 #: and its controls — shorter than a gang's, so a page holds more of them.

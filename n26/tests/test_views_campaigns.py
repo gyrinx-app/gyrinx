@@ -1,8 +1,15 @@
+"""The campaign screens, and the flag that decides who reaches them.
+
+Here rather than beside the views because opening the flag means writing the
+site's own row, and only these tests may reach across to the platform.
+"""
+
 import pytest
 from django.contrib.auth.models import Group, User
 
-from n26.core.flags import CAMPAIGNS
-from n26.core.models import Availability, Campaign, FeatureFlag
+from gyrinx.site.models import Availability, FeatureFlag
+from n26.core.models import Campaign
+from n26.flags import CAMPAIGNS
 
 pytestmark = pytest.mark.django_db
 

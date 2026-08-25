@@ -58,7 +58,6 @@ def test_every_n26_model_is_registered():
         "Assignment",
         "AssignmentSet",
         "Campaign",
-        "FeatureFlag",
         "Gang",
         "LedgerEntry",
         "LedgerEvent",

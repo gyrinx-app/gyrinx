@@ -34,7 +34,7 @@ The dependency direction is: `library` holds content, `core` reads it.
 Concretely:
 
 - **No app code in `n26/` imports `n23.*` or `gyrinx.*`.** n26 is a
-  parallel edition, not a layer on the old one. Seven deliberate
+  parallel edition, not a layer on the old one. Eight deliberate
   exceptions: `n26/core/views/changelog.py` reads
   `gyrinx.site.models.ChangelogEntry`, deferred inside its shared
   queryset helper; the gangs view searches with
@@ -43,8 +43,18 @@ Concretely:
   reads uploads through `gyrinx.artwork`; `n26/analytics.py` records
   events through `gyrinx.analytics`; `n26/maintenance.py` offers this
   edition's repairs through `gyrinx.maintenance` and runs them on
-  `gyrinx.tasks`; and `n26/tests/` may import platform pieces to test the
-  seam. Do not add others.
+  `gyrinx.tasks`; `n26/flags.py` claims this edition's gated features
+  through `gyrinx.site.flags`; and `n26/tests/` may import platform
+  pieces to test the seam. Do not add others.
+- **`n26/flags.py` is the other single-file seam, and it works the way
+  `n26/analytics.py` does.** Gating half-built work is a property of
+  shipping software, not of either game: one table means one admin page,
+  one answer to "what is gated right now", and no second implementation
+  to drift from the first. What an edition owns is *which* features it
+  has, so this file declares its slugs and claims them at startup
+  (`n26/core/apps.py`), and the platform never names them. The whole
+  dependency is one file; nothing else in `n26/` imports
+  `gyrinx.site.flags`.
 - **`n26/analytics.py` is the third platform module n26 may call, and
   the only file allowed to.** Activity tracking is the site's: one
   events table, one log stream, one dashboard, and every question asked

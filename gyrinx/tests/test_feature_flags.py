@@ -3,14 +3,18 @@ from django.contrib.auth.models import AnonymousUser, Group, User
 from django.http import Http404
 from django.test import RequestFactory
 
-from n26.core.flags import CAMPAIGNS, enabled, requires_flag
-from n26.core.models import Availability, FeatureFlag
+from gyrinx.site.flags import enabled, register_flags, requires_flag
+from gyrinx.site.models import Availability, FeatureFlag
 
 pytestmark = pytest.mark.django_db
 
-# The row and its group are seeded by data migrations, which do not run
-# under --nomigrations. Every test makes what it needs.
-GROUP_NAME = "N26 Campaigns"
+#: A slug of this suite's own. The platform never names an edition's
+#: features, so these tests claim one the way an edition claims its real
+#: ones, and nothing here depends on which editions are installed.
+FLAG = "test-only-feature"
+register_flags(FLAG)
+
+GROUP_NAME = "Test Feature Alpha"
 
 
 @pytest.fixture
@@ -22,8 +26,8 @@ def group():
 def make_flag(group):
     def make(availability, with_group=True):
         return FeatureFlag.objects.create(
-            slug=CAMPAIGNS,
-            name="Campaigns",
+            slug=FLAG,
+            name="Test Feature",
             availability=availability,
             group=group if with_group else None,
         )
@@ -47,7 +51,7 @@ class TestAFeatureNobodyHasOpened:
     def test_a_slug_with_no_row_is_shut(self, reader):
         """A feature whose row has not been created fails shut. Absent is
         not the same as allowed."""
-        assert enabled(CAMPAIGNS, reader) is False
+        assert enabled(FLAG, reader) is False
 
     def test_a_slug_the_code_does_not_know_raises(self, reader):
         """A typo in a guard must be loud. The alternative is a guard that
@@ -71,40 +75,40 @@ class TestOff:
 
     def test_it_shuts_out_someone_in_the_group(self, make_flag, invited):
         make_flag(Availability.OFF)
-        assert enabled(CAMPAIGNS, invited) is False
+        assert enabled(FLAG, invited) is False
 
     def test_it_shuts_out_an_ordinary_reader(self, make_flag, reader):
         make_flag(Availability.OFF)
-        assert enabled(CAMPAIGNS, reader) is False
+        assert enabled(FLAG, reader) is False
 
     def test_it_shuts_out_staff_and_superusers_too(self, make_flag):
         make_flag(Availability.OFF)
         boss = User.objects.create_user("boss", is_staff=True, is_superuser=True)
-        assert enabled(CAMPAIGNS, boss) is False
+        assert enabled(FLAG, boss) is False
 
 
 class TestTheAllowlist:
     def test_someone_in_the_group_gets_in(self, make_flag, invited):
         make_flag(Availability.ALLOWLIST)
-        assert enabled(CAMPAIGNS, invited) is True
+        assert enabled(FLAG, invited) is True
 
     def test_a_reader_outside_it_does_not(self, make_flag, reader):
         make_flag(Availability.ALLOWLIST)
-        assert enabled(CAMPAIGNS, reader) is False
+        assert enabled(FLAG, reader) is False
 
     def test_a_visitor_does_not(self, make_flag):
         make_flag(Availability.ALLOWLIST)
-        assert enabled(CAMPAIGNS, AnonymousUser()) is False
+        assert enabled(FLAG, AnonymousUser()) is False
 
     def test_being_in_some_other_group_is_not_enough(self, make_flag, reader):
         make_flag(Availability.ALLOWLIST)
         reader.groups.add(Group.objects.create(name="Some Other Alpha"))
-        assert enabled(CAMPAIGNS, reader) is False
+        assert enabled(FLAG, reader) is False
 
     def test_no_group_at_all_lets_nobody_in(self, make_flag, reader):
         """An empty allowlist, not an open door."""
         make_flag(Availability.ALLOWLIST, with_group=False)
-        assert enabled(CAMPAIGNS, reader) is False
+        assert enabled(FLAG, reader) is False
 
     def test_taking_someone_out_of_the_group_shuts_them_out(
         self, make_flag, invited, group
@@ -112,9 +116,9 @@ class TestTheAllowlist:
         """The admin's other lever: the flag stays as it is and the person
         stops qualifying."""
         make_flag(Availability.ALLOWLIST)
-        assert enabled(CAMPAIGNS, invited) is True
+        assert enabled(FLAG, invited) is True
         invited.groups.remove(group)
-        assert enabled(CAMPAIGNS, invited) is False
+        assert enabled(FLAG, invited) is False
 
 
 class TestAWordNothingCanRead:
@@ -125,7 +129,7 @@ class TestAWordNothingCanRead:
 
         with pytest.raises(IntegrityError):
             FeatureFlag.objects.create(
-                slug=CAMPAIGNS, name="Campaigns", availability="on"
+                slug=FLAG, name="Test Feature", availability="on"
             )
 
     def test_one_in_hand_is_shut_rather_than_open(self, group, invited):
@@ -133,7 +137,7 @@ class TestAWordNothingCanRead:
         recognises must refuse a group member rather than fall through to
         the group check and let them in on the strength of it."""
         flag = FeatureFlag(
-            slug=CAMPAIGNS, name="Campaigns", availability="on", group=group
+            slug=FLAG, name="Test Feature", availability="on", group=group
         )
         assert flag.open_to(invited) is False
 
@@ -141,28 +145,30 @@ class TestAWordNothingCanRead:
 class TestEveryone:
     def test_any_signed_in_reader_gets_in(self, make_flag, reader):
         make_flag(Availability.EVERYONE)
-        assert enabled(CAMPAIGNS, reader) is True
+        assert enabled(FLAG, reader) is True
 
     def test_a_visitor_still_does_not(self, make_flag):
         make_flag(Availability.EVERYONE)
-        assert enabled(CAMPAIGNS, AnonymousUser()) is False
+        assert enabled(FLAG, AnonymousUser()) is False
 
 
 class TestTheRowItself:
     def test_it_starts_shut(self, group):
-        assert FeatureFlag.objects.create(slug=CAMPAIGNS, name="C").availability == (
-            Availability.OFF
-        )
+        assert FeatureFlag.objects.create(
+            slug=FLAG, name="Test Feature"
+        ).availability == (Availability.OFF)
 
     def test_a_slug_is_claimed_once(self, make_flag):
         from django.db import IntegrityError
 
         make_flag(Availability.OFF)
         with pytest.raises(IntegrityError):
-            FeatureFlag.objects.create(slug=CAMPAIGNS, name="Campaigns again")
+            FeatureFlag.objects.create(slug=FLAG, name="Test Feature again")
 
     def test_it_says_what_it_is_and_how_open(self, make_flag):
-        assert str(make_flag(Availability.ALLOWLIST)).startswith("Campaigns (Allowlist")
+        assert str(make_flag(Availability.ALLOWLIST)).startswith(
+            "Test Feature (Allowlist"
+        )
 
     def test_deleting_the_group_leaves_the_flag_standing_and_shut(
         self, make_flag, invited, group
@@ -173,36 +179,7 @@ class TestTheRowItself:
         group.delete()
         flag.refresh_from_db()
         assert flag.group is None
-        assert enabled(CAMPAIGNS, invited) is False
-
-
-class TestUndoingTheGroupMigration:
-    """Reversing must undo the creation and nothing else. The forward
-    operation accepts a group that was already there, so it cannot tell one
-    it made from one it found — and deleting somebody's group would take
-    every membership with it."""
-
-    def _reverse(self):
-        # Imported by name because a module starting with a digit is not a
-        # valid identifier, so the import statement cannot reach it.
-        import importlib
-
-        from django.apps import apps
-
-        mod = importlib.import_module(
-            "n26.core.migrations.0023_an_account_may_be_let_into_campaigns_early"
-        )
-        mod.remove_campaigns_group(apps, None)
-
-    def test_an_empty_group_is_taken_away(self, group):
-        self._reverse()
-        assert not Group.objects.filter(name=GROUP_NAME).exists()
-
-    def test_a_group_with_members_is_left_alone(self, invited):
-        """Somebody is in it, so it is somebody's."""
-        self._reverse()
-        assert Group.objects.filter(name=GROUP_NAME).exists()
-        assert invited.groups.filter(name=GROUP_NAME).exists()
+        assert enabled(FLAG, invited) is False
 
 
 class TestTheAdminPage:
@@ -212,7 +189,7 @@ class TestTheAdminPage:
     def _admin(self):
         from django.contrib import admin
 
-        from n26.core.models import FeatureFlag as Model
+        from gyrinx.site.models import FeatureFlag as Model
 
         return admin.site._registry[Model]
 
@@ -230,11 +207,11 @@ class TestTheAdminPage:
         """A row whose slug nothing reads is inert — it sits on the page
         reading as a control over something and controls nothing. The form
         offers the known slugs rather than taking free text."""
-        from n26.core.admin import FeatureFlagForm
-        from n26.core.flags import KNOWN_FLAGS
+        from gyrinx.site.admin import FeatureFlagForm
+        from gyrinx.site.flags import known_flags
 
         good = FeatureFlagForm(
-            data={"slug": CAMPAIGNS, "name": "Campaigns", "availability": "off"}
+            data={"slug": FLAG, "name": "Test Feature", "availability": "off"}
         )
         assert good.is_valid(), good.errors
 
@@ -243,7 +220,7 @@ class TestTheAdminPage:
         )
         assert not bad.is_valid()
         assert "slug" in bad.errors
-        assert set(dict(bad.fields["slug"].choices)) == set(KNOWN_FLAGS)
+        assert set(dict(bad.fields["slug"].choices)) == set(known_flags())
 
     def test_the_slug_is_fixed_once_the_row_exists(self, make_flag):
         """Editing it later would not rename a feature — it would turn one
@@ -265,18 +242,10 @@ class TestTheAdminPage:
             "slug",
         }
 
-    def test_the_changelist_offers_no_batch_delete(self):
-        """Every n26 changelist withholds it; this one is no exception."""
-        request = RequestFactory().get("/admin/n26/featureflag/")
-        request.user = User.objects.create_user(
-            "boss", is_staff=True, is_superuser=True
-        )
-        assert "delete_selected" not in self._admin().get_actions(request)
-
 
 class TestTheViewGuard:
     def _view(self):
-        @requires_flag(CAMPAIGNS)
+        @requires_flag(FLAG)
         def view(request):
             return "drawn"
 
