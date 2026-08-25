@@ -1,0 +1,17 @@
+{% comment %}
+One accessory question per gun on the screen, closed unless the address names
+one. Expects `accessorise` — see n26.core.views.owned.accessorise_dialogs.
+
+They are here rather than fetched on the click because the click is on a screen
+of several hundred rows, and asking the server for a panel would mean building
+the whole of it again to show one. The plus beside a gun's name is a link to
+the address that draws it, so a reader with no script gets the panel from the
+server exactly as before.
+{% endcomment %}
+{% for panel in accessorise %}
+    <c-n26.owned-dialog :dialog="panel"
+                        :open="panel.open"
+                        id="n26-accessorise-{{ panel.id }}">
+        {% csrf_token %}
+    </c-n26.owned-dialog>
+{% endfor %}

@@ -1977,10 +1977,14 @@ class TestBuyingWithoutRebuildingThePage:
 
         # The row, addressed by the row it stands in for.
         assert f'id="n26-row-{slugify(key_of(knife))}"' in body
-        # And the gang's figures beside it.
-        assert 'id="n26-gang-figures"' in body
-        # Both of them, and nothing left targeted.
-        assert body.count('hx-swap-oob="true"') == 2
+        # The gang's money beside it — and not the model count, which a
+        # purchase never changes.
+        assert 'id="n26-gang-wealth"' in body
+        # And the accessory questions, since a gun that has just arrived
+        # offers a control that names its own panel.
+        assert 'id="n26-accessorise-host"' in body
+        # All three, and nothing left targeted.
+        assert body.count('hx-swap-oob="true"') == 3
 
     def test_the_confirmation_travels_in_the_header(
         self, client, tester, fighter, house_list

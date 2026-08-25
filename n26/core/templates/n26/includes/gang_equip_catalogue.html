@@ -7,8 +7,7 @@ The gang stash equip catalogue — expects `catalogue`, picker context, `action`
                          price_floor="{{ price_floor }}"
                          price_ceiling="{{ price_ceiling }}"
                          tp_ceiling="{{ tp_ceiling }}"
-                         noun="items"
-                         class="md:col-start-2">
+                         noun="items">
     <c-slot name="filters">
         {% if not stash_tab %}
             <c-n26.search-bar :live="True"

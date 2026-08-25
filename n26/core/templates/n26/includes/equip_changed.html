@@ -23,9 +23,22 @@ with the last copy.
 {% else %}
     <div id="n26-row-{{ row_key|slugify }}" hx-swap-oob="delete"></div>
 {% endif %}
-<div id="n26-gang-figures" hx-swap-oob="true">
-    <c-n26.gang-figures :gang="gang" :summary="summary" />
-</div>
+{% comment %}
+The money, and not the count beside it. Buying kit never changes how many
+models a gang fields, and the count opens onto a tally whose own workings do
+not survive being drawn again underneath a reader — so what did not change is
+left alone.
+{% endcomment %}
+<c-n26.wealth :sheet="gang"
+              id="n26-gang-wealth"
+              hx-swap-oob="true"
+              class="border-l border-box-border pl-3" />
+{% comment %}
+The accessory questions as they now stand. A gun that has just arrived offers a
+control that names its own panel, and a gun just parted with leaves one behind,
+so the set goes back whole rather than a piece at a time.
+{% endcomment %}
+<div id="n26-accessorise-host" hx-swap-oob="true">{% include "n26/includes/equip_accessorise.html" %}</div>
 {% if closed %}
     {% comment %}
     The panel the act was asked in goes with the answer: an empty host stands

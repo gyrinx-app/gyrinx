@@ -385,7 +385,7 @@ def screen_row(
             if copies
             else None
         )
-        return row, host.held_label
+        return row, host.held_label, host
 
     line = next(
         (row for row in view.all_lines() if _thing_key(row.thing) == key),
@@ -395,15 +395,15 @@ def screen_row(
         # The listing does not sell it, so this screen never had a row for
         # it — what is held that a list does not sell has nowhere to be
         # drawn, which is a gap this is not the place to close.
-        return None, host.held_label
+        return None, host.held_label, host
 
     row = listing_row(line)
     if copies:
         row = owned_row(row, copies, refunds=refunds, expanded=expanded)
-    return row, host.held_label
+    return row, host.held_label, host
 
 
-def changed(request, gang, key, row, held_label="", *, closed=False):
+def changed(request, gang, key, row, held_label="", host=None, *, closed=False):
     """What an act on an equip screen sends back.
 
     The row it changed and the gang's own figures, each naming the place
@@ -411,11 +411,19 @@ def changed(request, gang, key, row, held_label="", *, closed=False):
     what keeps the reader's filters, the section they were on, and the
     prices they had typed elsewhere.
 
+    The accessory questions go too. They are drawn for every gun on the
+    screen rather than per row, and the click that opens one names the
+    panel it wants — so a gun that has just arrived would offer a control
+    with nothing behind it, and one just parted with would leave a panel
+    behind. Sending the set as it now stands answers both, and costs the
+    single read it always did.
+
     ``closed`` says the act was one asked in a panel, so the panel goes
     with the answer.
     """
     from n26.core.render import roster as gang_roster
     from n26.core.render import summarise_roster
+    from n26.core.views.owned import accessorise_dialogs
 
     return render(
         request,
@@ -427,6 +435,7 @@ def changed(request, gang, key, row, held_label="", *, closed=False):
             "summary": summarise_roster(gang_roster(gang)),
             "held_label": held_label,
             "closed": closed,
+            "accessorise": accessorise_dialogs(request, host) if host else [],
         },
     )
 
@@ -692,7 +701,7 @@ def equip(request, pk):
             # A refusal changes nothing, so nothing is swapped; the
             # reason travels as a message and is said as a toast.
             return _spoken(request, HttpResponse(status=204))
-        row, held_label = screen_row(
+        row, held_label, host = screen_row(
             request,
             gang,
             outcome.key,
@@ -701,7 +710,9 @@ def equip(request, pk):
             expanded_key=expanded_key,
             at=here(chosen),
         )
-        return _spoken(request, changed(request, gang, outcome.key, row, held_label))
+        return _spoken(
+            request, changed(request, gang, outcome.key, row, held_label, host)
+        )
 
     # What this fighter is already carrying, keyed the way the rows are, so
     # a row asks one dictionary rather than the database. The dialogs open
@@ -964,7 +975,7 @@ def equip_gang(request, pk):
             return outcome
         if outcome is None:
             return _spoken(request, HttpResponse(status=204))
-        row, held_label = screen_row(
+        row, held_label, host = screen_row(
             request,
             gang,
             outcome.key,
@@ -972,7 +983,9 @@ def equip_gang(request, pk):
             expanded_key=expanded_key,
             at=here,
         )
-        return _spoken(request, changed(request, gang, outcome.key, row, held_label))
+        return _spoken(
+            request, changed(request, gang, outcome.key, row, held_label, host)
+        )
 
     host = EquipHost.stash(gang, card, at=here)
     owned = possessions(host)

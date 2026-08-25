@@ -51,22 +51,12 @@ breadcrumb above it has the gang as well, so nothing is lost.
         {% endif %}
     </div>
     {% comment %}
-    And one accessory panel per gun the fighter is carrying, closed unless the
-    address names it. They are here rather than fetched on the click because
-    the click is on a screen of several hundred rows, and asking the server for
-    a panel would mean building the whole of it again to show one. The list in
-    each is the same shortened one the address would have drawn — see
-    n26.core.views.owned.accessorise_dialogs — and the plus beside a gun's name
-    is a link to that address, so a reader with no script gets the panel from
-    the server exactly as before.
+    One accessory panel per gun the fighter is carrying, drawn as one named set
+    — see n26/includes/equip_accessorise.html. Named because a gun that arrives
+    after a purchase brings no panel of its own, and a gun parted with would
+    leave one behind, so an act hands the whole set back as it now stands.
     {% endcomment %}
-    {% for panel in accessorise %}
-        <c-n26.owned-dialog :dialog="panel"
-                            :open="panel.open"
-                            id="n26-accessorise-{{ panel.id }}">
-            {% csrf_token %}
-        </c-n26.owned-dialog>
-    {% endfor %}
+    <div id="n26-accessorise-host">{% include "n26/includes/equip_accessorise.html" %}</div>
     {% comment %}
     The model's own header — this screen is the Equip tab of the model's
     page, and the Edit face wears the same one. See <c-n26.model-header>.
@@ -104,13 +94,12 @@ breadcrumb above it has the gang as well, so nothing is lost.
         {% endcomment %}
         <c-slot name="actions">
             {% comment %}
-            Named, because a purchase answered without a rebuild sends these
-            back to be swapped in place — the numbers a purchase is decided
-            against are the one thing outside the row that it changes.
+            The money is named, because a purchase answered without a rebuild
+            sends it back to be swapped in place — it is the one thing outside
+            the row that a purchase changes. The count beside it is not: buying
+            kit never changes how many models there are.
             {% endcomment %}
-            <div id="n26-gang-figures">
-                <c-n26.gang-figures :gang="gang" :summary="summary" />
-            </div>
+            <c-n26.gang-figures :gang="gang" :summary="summary" wealth_id="n26-gang-wealth" />
         </c-slot>
     </c-n26.model-header>
     {% comment %}

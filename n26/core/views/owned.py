@@ -537,7 +537,7 @@ def _acted(request, touched, gang, back):
     if not request.headers.get("HX-Request"):
         return _return_to(request, back)
 
-    row, held_label = screen_row(
+    row, held_label, host = screen_row(
         request,
         gang,
         touched.key,
@@ -546,7 +546,7 @@ def _acted(request, touched, gang, back):
         expanded_key=_expanded_behind(request),
         at=back,
     )
-    answer = changed(request, gang, touched.key, row, held_label, closed=True)
+    answer = changed(request, gang, touched.key, row, held_label, host, closed=True)
     answer["HX-Replace-Url"] = back
     return _spoken(request, answer)
 

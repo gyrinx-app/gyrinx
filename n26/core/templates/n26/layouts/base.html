@@ -585,10 +585,6 @@ banner, is_impersonating / impersonator, gtm_container_id, messages, user.
         their clicks are caught here instead, which cannot be raced by whatever
         built them. A control that was introduced answers its own click first,
         and says so, so nothing is asked for twice.
-
-        The section on screen is the reader's, held by the picker and written
-        into the address as they click, so it is taken from there rather than
-        from an address baked when the page was drawn.
         {% endcomment %}
         <script>
             document.body.addEventListener("click", function (event) {
@@ -597,10 +593,26 @@ banner, is_impersonating / impersonator, gtm_container_id, messages, user.
                 var link = event.target.closest("a[hx-get]");
                 if (!link || !window.htmx) return;
                 event.preventDefault();
-                var asked = new URL(link.getAttribute("hx-get"), location.href);
+                window.htmx.ajax("GET", link.getAttribute("hx-get"), { swap: "none" });
+            });
+        </script>
+        {% comment %}
+        Which section is on screen is the reader's, held by the picker and
+        written into the address as they click. Every control was addressed
+        when it was drawn and knows nothing of a tab clicked since, so it is
+        taken from the address here — once, for every ask — rather than baked
+        into each control and going stale. A control that already carries one
+        knows better: the catalogue's own box is bound to what is on screen.
+        {% endcomment %}
+        <script>
+            document.body.addEventListener("htmx:configRequest", function (event) {
+                if (event.detail.parameters.section) return;
+                // An address that already names one is left alone: adding a
+                // second would leave both in the bar, and the bar is what the
+                // next control is built from, so they would breed.
+                if ((event.detail.path || "").indexOf("section=") !== -1) return;
                 var section = new URLSearchParams(location.search).get("section");
-                if (section) asked.searchParams.set("section", section);
-                window.htmx.ajax("GET", asked.pathname + asked.search, { swap: "none" });
+                if (section) event.detail.parameters.section = section;
             });
         </script>
         <script>

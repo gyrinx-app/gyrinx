@@ -29,7 +29,7 @@ draws a muted em dash rather than 0¢, which would read as bankrupt.
 
 {# Scrolls rather than wraps: a strip whose last figure drops onto a second #}
 {# line stops reading as a strip. #}
-<div class="overflow-x-auto {{ class }}">
+<div {{ attrs }} class="overflow-x-auto {{ class }}">
     <dl class="flex w-max items-stretch">
         <c-n26.wealth.figure short="R" full="Rating" :value="sheet.rating" />
         <c-n26.wealth.figure short="Cr"

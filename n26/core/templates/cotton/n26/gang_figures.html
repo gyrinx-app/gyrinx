@@ -18,10 +18,16 @@ and the strip's own padding put the same air either side of it.
     does a rendered GangSheet.
   :summary — a n26.render.RosterSummary. The count comes off it, so nothing has
     to be told twice how many models there are.
+  wealth_id — a name for the money alone. A screen that sends the figures back
+    without rebuilding itself replaces only this: buying kit moves the money
+    and never the number of models, and the count carries a tally of its own
+    that does not survive being drawn again mid-life.
 {% endcomment %}
-<c-vars :gang="None" :summary="None" class="" />
+<c-vars :gang="None" :summary="None" wealth_id="" class="" />
 
 <div {{ attrs }} class="flex items-center gap-3 {{ class }}">
     <c-n26.roster-summary :summary="summary" />
-    <c-n26.wealth :sheet="gang" class="border-l border-box-border pl-3" />
+    <c-n26.wealth :sheet="gang"
+                  id="{{ wealth_id }}"
+                  class="border-l border-box-border pl-3" />
 </div>
