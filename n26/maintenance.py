@@ -417,7 +417,7 @@ register_operation(
 #: schedules, so dev and tests invoke the sweep function directly.
 task_routes = [
     TaskRoute(delete_nameless_gang_type, ack_deadline=600, min_retry_delay=60),
-    TaskRoute(propagate_built_ins),
+    TaskRoute(propagate_built_ins, ack_deadline=600),
     TaskRoute(sweep_built_in_obligations, schedule="*/5 * * * *"),
 ]
 

@@ -143,12 +143,15 @@ def _carrier_ids(default_set):
     carrier that chose the set as an option. A removal is machinery,
     not a use; an archived carrier is settled history."""
     ids = set()
+    by_field = {}
     for holder in _holders(default_set):
+        by_field.setdefault(Assignment.field_for(holder), []).append(holder)
+    for field, holders in by_field.items():
         ids.update(
             Assignment.objects.filter(
                 archived=False,
                 removes=False,
-                **{Assignment.field_for(holder): holder},
+                **{f"{field}__in": holders},
             ).values_list("pk", flat=True)
         )
     ids.update(

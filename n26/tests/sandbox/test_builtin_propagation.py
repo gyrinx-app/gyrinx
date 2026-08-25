@@ -339,6 +339,8 @@ class TestTheHistoryTellsIt:
         ]
         assert act.actor == ""
         assert act.subs == []
+        gang.refresh_from_db()
+        assert_reconciled(gang)
 
     def test_several_models_fold_into_one_line_about_the_source(
         self, gang, ganger, default_pack, task_queue
@@ -356,6 +358,8 @@ class TestTheHistoryTellsIt:
         assert act.actor == ""
         assert sorted(sub.name for sub in act.subs) == ["Ana", "Bea"]
         assert {sub.note for sub in act.subs} == {"gained Nerves of Steel"}
+        gang.refresh_from_db()
+        assert_reconciled(gang)
 
     def test_an_acquisitions_grants_keep_their_own_words(
         self, gang, ganger, default_pack, task_queue
@@ -368,6 +372,8 @@ class TestTheHistoryTellsIt:
         assert LedgerEvent.objects.filter(
             gang=gang, kind=LedgerEvent.Kind.GRANTED
         ).exists()
+        gang.refresh_from_db()
+        assert_reconciled(gang)
 
 
 class TestAnEditLandingMidPass:
