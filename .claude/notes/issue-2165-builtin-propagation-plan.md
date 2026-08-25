@@ -39,12 +39,14 @@ Issue: https://github.com/gyrinx-app/gyrinx/issues/2165
 | D11 | *(settled 2026-08-23)* **Withdrawing an option whose set has materialised copies refuses loudly**, naming why — never the current swallow-the-`ProtectedError`-and-orphan-the-set behaviour. Author-side policing is fine: a refusal stops the bad state existing, where engineering around it never ends. Built in C6. |
 | D12 | *(settled 2026-08-23)* **A removal that would leave a priced option set empty warns or refuses** — a player must never pay for a set that grants nothing. Built in C6 (or C5's preview if it lands first). |
 | D13 | *(settled 2026-08-23)* **An ammo built-in names its gun member.** `DefaultAssignment` gains a nullable self-reference: a weapon-profile member whose set holds a matching weapon member MUST name which one it rides — authoring validates, the form asks "for which gun?", ingest auto-links and errors on ambiguity instead of guessing. Null keeps a real meaning: "ammo for whatever live gun of this type the carrier holds" (the cross-set case, e.g. an option set arming a built-in gun). Reconcile resolution becomes a receipt lookup; the FIFO queue, occupied-gun set, and type-derived `dependent_members` are deleted. The flat-sibling shape is a launch-era mistake killed at authorship (the D11/D12 principle). Built as chunk **C2b**, after #2286 merges, before C4. |
+| D14 | *(settled 2026-08-25)* **Propagation history: dedicated event kind, empty actor, sentence anchored on "comes with", one folded line per gang per pass.** A propagated grant is a new `LedgerEvent.Kind` (identifier settled in the C4 plan — candidates `CAUGHT_UP` / `KIT_UPDATED`) whose sentence names the source in the equip screen's own words: *"Bruta gained Frag Grenades — now part of what a Stimmer comes with"*. No synthetic actor — the `Act.actor` stays empty (the documented "nobody in particular" case); never invent a named speaker like "Gyrinx". All of one pass's events for a gang share a batch mark so several models fold into one line with sub-items (*"what a Stimmer comes with changed — Bruta and Skarr each gained Frag Grenades"*). C6's explicit removal takes the mirror wording ("no longer part of what a Stimmer comes with"); C7's backfill reuses the kind and may add a catch-up clause, decided inside C7. Rejected: bare `GRANTED` reuse (indistinguishable from modifier gains, answers "why did this appear?" with silence). |
 
 ## Open questions (resolve inside the relevant chunk, with the maintainer)
 
-- **History wording** for actor-less propagation events. Every write goes
-  through `operation(...)` and lands in the gang's story; decide what a
-  propagated addition *says* before the backfill writes thousands of lines.
+- ~~**History wording** for actor-less propagation events~~ — settled as
+  **D14** (2026-08-25): dedicated kind, empty actor, "comes with" sentence,
+  folded per gang per pass. Only the kind's identifier remains, settled in
+  the C4 plan.
 - **Paid descendants on explicit removal** — a bought ammo type riding a
   built-in gun. Preview must surface them; first version likely skips those
   carriers with a report rather than stranding or deleting paid things.
