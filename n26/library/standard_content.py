@@ -168,13 +168,12 @@ INHERENT_SKILLS = ["Hit & Run", "Inspiring", "Juggernaut"]
 
 #: The eight fields a Specialist chooses between, and the skill each
 #: grants — the core rules' Specialist table, as ``(specialisation,
-#: skill)``. Every skill named here is one of the sets' own, so the
-#: grant resolves against rows the skills seed already created.
+#: skill)``.
 #:
-#: Which specialisations exist is *content*, which is why they are
-#: created here rather than invented by whatever first mentions one: an
-#: equipment list saying "(Gunner specialist only)" resolves against
-#: this, and says so plainly when it cannot.
+#: Nothing plants these: the Specialist's question is a slot now, and its
+#: answers are pickables. The table remains because the sheets still read
+#: it — an import naming one of these by hand is told the row is not
+#: there to resolve against, rather than quietly inventing it.
 SPECIALISATIONS = [
     ("Heavy", "Bulging Biceps"),
     ("Gunner", "Hip-shooting"),
@@ -471,49 +470,6 @@ def _check_skills():
     return present, 1 + len(SKILL_SETS) + 1 + len(names)
 
 
-def _create_specialisations():
-    """The Specialist's eight fields, each wired to the skill it grants.
-
-    A specialisation is only half itself without the skill it grants, so
-    this seed owns that dependency and creates the skills first rather than
-    relying on which button someone clicked. ``_create_skills`` is
-    get-or-create throughout, so saying so costs nothing when they are
-    already there.
-
-    Idempotent: a specialisation already present is left alone, because
-    ``create_specialisation`` builds the granting modifier and calling it
-    again would hang a second copy.
-    """
-    from n26.library.authoring import create_specialisation
-    from n26.library.models import Skill, Specialisation
-
-    _create_skills()
-    for name, skill_name in SPECIALISATIONS:
-        if Specialisation.objects.filter(name=name).exists():
-            continue
-        skill = Skill.objects.filter(name=skill_name).first()
-        if skill is None:
-            # The skills exist, so this can only be a typo in the
-            # table above — say which, rather than create it unwired.
-            raise LookupError(f"{name} grants {skill_name!r}, which no Skill Set names")
-        create_specialisation(name, grants_skill=skill)
-
-
-def _check_specialisations():
-    """Counts the rows *and* their grants: a specialisation that grants
-    nothing is created but not wired, which is half the point missing."""
-    from n26.library.models import Specialisation
-
-    names = [name for name, _ in SPECIALISATIONS]
-    present = _count(Specialisation, name__in=names)
-    present += (
-        Specialisation.objects.filter(name__in=names, modifiers__isnull=False)
-        .distinct()
-        .count()
-    )
-    return present, 2 * len(names)
-
-
 def trading_post_sweeps():
     """Every kind the post offers: whatever a fighter can buy with Trade
     Points. An accessory is bought there as readily as the gun it bolts
@@ -674,19 +630,6 @@ STANDARD_CONTENT = {
             ),
             check=_check_skills_collection,
             create=_create_skills_collection,
-        ),
-        StandardContent(
-            key="specialisations",
-            name="Specialisations",
-            help=(
-                "The eight fields a Specialist chooses between — Heavy, "
-                "Gunner, Gunslinger, Scout, Sniper, Brawler, Medic, Tech "
-                "— each wired to the skill it grants. An equipment list "
-                'narrowed to "(Gunner specialist only)" resolves against '
-                "these, so create them before importing one."
-            ),
-            check=_check_specialisations,
-            create=_create_specialisations,
         ),
         StandardContent(
             key="trading-post",
