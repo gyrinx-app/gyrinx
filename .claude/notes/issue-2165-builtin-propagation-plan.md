@@ -305,6 +305,14 @@ a record of the attempt. Sound because a row never encodes *which*
 change — the task reconciles from current library state, so the worst
 mid-flight cost is one redundant no-op run. Rows are thereby an
 append-only audit of every debt and how it ended.
+The sweep is a `TaskRoute(schedule="...")` declaration —
+the framework provisions a Cloud Scheduler job per scheduled task
+(verified 2026-08-25: `gyrinx/tasks/route.py` + `provisioning.py`) —
+but NOTE: no production task uses `schedule=` yet, so the sweep is the
+feature's first live user: verify the Scheduler job exists and fires
+after deploy (provisioning in `AppConfig.ready()` has bitten before),
+and know the local backend never fires schedules — dev and chaos tests
+invoke the sweep task directly, the cron leg is proven only deployed.
 The obligation row is NOT a `TaskExecution`:
 one tracks a delivery attempt, the other the durable debt that survives
 a lost publish. Model lives in `n26/core`, importing
