@@ -80,7 +80,18 @@ everything else is shrink-0, so the actions stay put and stay hittable.
             .filter(Boolean).join(' ').toLowerCase();
         register({{ row_key|json_dumps }}, facets)"
      x-show="matches(facets)"
-     {% if row_key %}data-row="{{ row_key }}"{% endif %}
+     {% comment %}
+     A name the server can address this row by when it sends back a redrawn
+     one. Slugified because the key holds a colon and a dot, which an id is
+     allowed to carry but a selector then has to escape.
+     {% endcomment %}
+     {% if row_key %}id="n26-row-{{ row_key|slugify }}" data-row="{{ row_key }}"{% endif %}
+     {% comment %}
+     A row drawn on its own, to stand in for the one of this name already on
+     the page. The page it is going back to is not being rebuilt, so the row
+     has to say that it replaces rather than joins.
+     {% endcomment %}
+     {% if redrawn %}hx-swap-oob="true"{% endif %}
      class="min-h-11 px-1 py-1 hover:bg-ink-500/5 {{ class }}">
     <div class="flex min-h-9 items-center gap-2">
 

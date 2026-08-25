@@ -8,12 +8,13 @@ to look different. It replaces the row it was bought from, which is why buying
 the first copy of something can hand back a row of another shape entirely: what
 a fighter holds is a state of its row.
 
-The figures carry the swap themselves rather than being targeted, because one
-answer changes two places on the screen and only one of them can be the target.
-The confirmation is neither: it rides the response header and is said as a
-toast, since a page that is not rebuilt has no alert block to draw it in.
+Nothing here is targeted by the click. Each part says which place on the page
+it stands in for, so what a purchase changes is the server's to decide and can
+grow without a single call site being edited. The confirmation is not among
+them: it rides the response header and is said as a toast, since a page that is
+not rebuilt has no alert block to draw it in.
 {% endcomment %}
-{% include "n26/includes/equip_row.html" %}
+{% include "n26/includes/equip_row.html" with redrawn=True %}
 <div id="n26-gang-figures" hx-swap-oob="true">
     <c-n26.gang-figures :gang="gang" :summary="summary" />
 </div>

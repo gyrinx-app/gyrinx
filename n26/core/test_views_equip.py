@@ -9,6 +9,7 @@ cleanly.
 import pytest
 from django.contrib.auth.models import User
 from django.urls import reverse
+from django.utils.text import slugify
 
 from n26.core.models import Assignment, Gang
 from n26.core.operations import operation
@@ -1961,19 +1962,25 @@ class TestBuyingWithoutRebuildingThePage:
         # An owned row offers another of the same underneath the copies.
         assert "Buy another" in body
 
-    def test_the_gang_figures_come_back_marked_to_swap_themselves(
+    def test_every_part_of_the_answer_says_what_it_stands_in_for(
         self, client, tester, fighter, house_list
     ):
-        """One answer changes two places on the screen, and only one of
-        them can be the one the click targeted."""
+        """The click targets nothing. What a purchase changes is the
+        server's to decide, so each part of the answer names the place on
+        the page it replaces — which is what lets a third place be added
+        later without a call site being edited."""
         from n26.library.models import Wargear
 
+        knife = Wargear.objects.get(name="Knife")
         client.force_login(tester)
-        body = self.asked(
-            client, fighter, house_list, Wargear.objects.get(name="Knife")
-        ).content.decode()
+        body = self.asked(client, fighter, house_list, knife).content.decode()
+
+        # The row, addressed by the row it stands in for.
+        assert f'id="n26-row-{slugify(key_of(knife))}"' in body
+        # And the gang's figures beside it.
         assert 'id="n26-gang-figures"' in body
-        assert 'hx-swap-oob="true"' in body
+        # Both of them, and nothing left targeted.
+        assert body.count('hx-swap-oob="true"') == 2
 
     def test_the_confirmation_travels_in_the_header(
         self, client, tester, fighter, house_list

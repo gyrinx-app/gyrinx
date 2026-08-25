@@ -667,10 +667,6 @@ def equip(request, pk):
             "collection_tabs": tabs,
             "chosen": chosen,
             "catalogue": catalogue,
-            # Where a Buy goes when it asks for its own row back rather
-            # than the whole screen. The same address the form posts to,
-            # so the two ways of buying cannot come to disagree.
-            "buy_at": at,
             # The confirmation the URL says is open, if any: sell, move or
             # remove one assignment on this fighter's card. A server state,
             # so it is a link, it survives a reload, and it is drawn rather than

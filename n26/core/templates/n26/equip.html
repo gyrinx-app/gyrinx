@@ -145,8 +145,19 @@ breadcrumb above it has the gang as well, so nothing is lost.
                     {% endfor %}
                 </c-ui.navlist>
             {% endif %}
+            {% comment %}
+            The whole catalogue posts here, and a purchase is answered with the
+            row it changed rather than the screen around it — so the filters,
+            the section on screen and any price typed elsewhere survive it.
+            Nothing is targeted from here: what a purchase changes is the
+            server's to say, and it says it by naming each part in its answer.
+            Without script this is an ordinary form and the whole page comes
+            back, exactly as before.
+            {% endcomment %}
             <form method="post"
-                  action="{% url 'n26-equip' miniature.pk %}?list={{ chosen.pk }}">
+                  action="{% url 'n26-equip' miniature.pk %}?list={{ chosen.pk }}"
+                  hx-post="{% url 'n26-equip' miniature.pk %}?list={{ chosen.pk }}"
+                  hx-swap="none">
                 {% csrf_token %}
                 {% comment %}
                 Sections keep their own strip, at the bottom of the same pinned
