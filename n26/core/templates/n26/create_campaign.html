@@ -1,4 +1,5 @@
 {% extends "n26/layouts/base.html" %}
+{% load static %}
 {% comment %}
 Setting a campaign up. The frame is <c-n26.form-page>'s, so the measure, the
 heading scale and the footer match every other screen that asks for a
@@ -9,6 +10,16 @@ The submit is `success` — the footer's default — because this form brings a
 thing into existence rather than saving one.
 {% endcomment %}
 {% block head_title %}Set up a campaign{% endblock head_title %}
+{% comment %}
+richtext.js before form.media: it registers the listener that swaps the
+editor's skin with the colour mode, and django-tinymce's own initialiser
+reads the config after that listener has run. Without both, the summary
+field draws as a plain textarea and no editor ever appears.
+{% endcomment %}
+{% block extra_head %}
+    <script src="{% static 'n26/richtext.js' %}"></script>
+    {{ form.media }}
+{% endblock extra_head %}
 {% block nav_heading %}Set up a campaign{% endblock nav_heading %}
 {% block nav_items %}
     {% include 'n26/_nav.html' with here='campaigns' %}

@@ -32,8 +32,33 @@ Each section arrives with the work that fills it.
                     </c-ui.breadcrumbs.item>
                 </c-ui.breadcrumbs>
             </c-slot>
+            {% comment %}
+            Archiving sits behind the second click rather than beside Edit:
+            it is the one control here that takes the campaign away, and a
+            page's own actions should read as the things you came to do.
+            {% endcomment %}
             <c-slot name="actions">
-                <c-ui.button variant="primary" href="{% url 'n26-edit-campaign' campaign.pk %}">Edit</c-ui.button>
+                <c-n26.button-group>
+                    <c-ui.button variant="primary" href="{% url 'n26-edit-campaign' campaign.pk %}">Edit</c-ui.button>
+                    <c-ui.dropdown>
+                        <c-slot name="trigger">
+                            <c-ui.button size="sm" variant="default" aria-label="More actions">
+                                <span class="n26-icon-only gap-0.5">
+                                    <c-n26.icon name="ellipsis-vertical" class="size-4" />
+                                    <c-n26.icon name="chevron-down" class="size-3" stroke_width="2.5" />
+                                </span>
+                            </c-ui.button>
+                        </c-slot>
+                        {% comment %}
+                        A page that asks, not the act: following this link
+                        archives nothing, and the POST it leads to is the
+                        only thing that does.
+                        {% endcomment %}
+                        <c-ui.dropdown.item href="{% url 'n26-archive-campaign' campaign.pk %}">
+                            Archive campaign
+                        </c-ui.dropdown.item>
+                    </c-ui.dropdown>
+                </c-n26.button-group>
             </c-slot>
         </c-n26.page-header>
         <c-n26.detail-list>
@@ -55,8 +80,5 @@ Each section arrives with the work that fills it.
                 {{ campaign.summary|safe_rich_text }}
             </c-n26.prose>
         {% endif %}
-        <c-n26.action-links>
-            <c-n26.action-link href="{% url 'n26-delete-campaign' campaign.pk %}" tone="danger">Delete campaign</c-n26.action-link>
-        </c-n26.action-links>
     </div>
 {% endblock content %}

@@ -37,8 +37,14 @@ owns nothing, so there is no sum it has to cover.
                     value="{{ form.budget.value|default:'' }}" />
     </c-ui.field>
 </c-n26.form-section>
-<c-n26.form-section title="Summary">
+{% comment %}
+The section is titled for the reader arriving at it, the field for the answer
+it wants — naming both "Summary" said the word twice and the field's purpose
+once. The description says where the writing ends up, which is the one thing
+a reader cannot see from here.
+{% endcomment %}
+<c-n26.form-section title="About this campaign">
     <c-n26.rich-text :field="form.summary"
                      label="Summary"
-                     description="What this campaign is, and whatever the table has agreed." />
+                     description="Shown at the top of the campaign's page." />
 </c-n26.form-section>

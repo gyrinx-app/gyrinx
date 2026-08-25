@@ -30,9 +30,9 @@ urlpatterns = [
         name="n26-edit-campaign",
     ),
     path(
-        "campaigns/<str:pk>/delete/",
-        views.delete_campaign,
-        name="n26-delete-campaign",
+        "campaigns/<str:pk>/archive/",
+        views.archive_campaign,
+        name="n26-archive-campaign",
     ),
     path("gangs/", views.gangs, name="n26-gangs"),
     path("gangs/new/", views.create_gang, name="n26-create-gang"),

@@ -14,10 +14,10 @@ what makes it a move rather than a change.
 
 from n26.core.views.api import preview_view
 from n26.core.views.campaigns import (
+    archive_campaign,
     campaign,
     campaigns,
     create_campaign,
-    delete_campaign,
     edit_campaign,
 )
 from n26.core.views.changelog import changelog, changelog_entry
@@ -60,7 +60,7 @@ __all__ = [
     "create_campaign",
     "create_gang",
     "dashboard",
-    "delete_campaign",
+    "archive_campaign",
     "delete_fighter",
     "delete_gang",
     "edit_campaign",

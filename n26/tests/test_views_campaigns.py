@@ -51,7 +51,7 @@ def addresses(campaign):
         "/n26/campaigns/new/",
         f"/n26/campaigns/{campaign.pk}/",
         f"/n26/campaigns/{campaign.pk}/edit/",
-        f"/n26/campaigns/{campaign.pk}/delete/",
+        f"/n26/campaigns/{campaign.pk}/archive/",
     ]
 
 
@@ -183,8 +183,8 @@ class TestSomebodyElsesCampaign:
         theirs.refresh_from_db()
         assert theirs.name == "Not Yours"
 
-    def test_it_is_not_deletable(self, client, arbitrator, theirs, open_to_everyone):
-        assert client.post(f"/n26/campaigns/{theirs.pk}/delete/").status_code == 404
+    def test_it_is_not_archivable(self, client, arbitrator, theirs, open_to_everyone):
+        assert client.post(f"/n26/campaigns/{theirs.pk}/archive/").status_code == 404
         theirs.refresh_from_db()
         assert theirs.archived is False
 
@@ -212,11 +212,11 @@ class TestEditing:
         assert campaign.budget is None
 
 
-class TestDeleting:
+class TestArchiving:
     def test_the_question_page_changes_nothing(
         self, client, campaign, open_to_everyone
     ):
-        assert client.get(f"/n26/campaigns/{campaign.pk}/delete/").status_code == 200
+        assert client.get(f"/n26/campaigns/{campaign.pk}/archive/").status_code == 200
         campaign.refresh_from_db()
         assert campaign.archived is False
 
@@ -225,11 +225,11 @@ class TestDeleting:
     ):
         """The row stays: what a campaign recorded is a true statement about
         what happened, whether or not it is still on show."""
-        client.post(f"/n26/campaigns/{campaign.pk}/delete/")
+        client.post(f"/n26/campaigns/{campaign.pk}/archive/")
         campaign.refresh_from_db()
         assert campaign.archived is True
         assert Campaign.objects.filter(pk=campaign.pk).exists()
 
     def test_a_deleted_campaign_stops_opening(self, client, campaign, open_to_everyone):
-        client.post(f"/n26/campaigns/{campaign.pk}/delete/")
+        client.post(f"/n26/campaigns/{campaign.pk}/archive/")
         assert client.get(f"/n26/campaigns/{campaign.pk}/").status_code == 404

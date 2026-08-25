@@ -123,13 +123,15 @@ def edit_campaign(request, pk):
 
 @requires_flag(CAMPAIGNS)
 @login_required
-def delete_campaign(request, pk):
+def archive_campaign(request, pk):
     """The question at its own address, then the act.
 
-    GET asks and changes nothing; the POST from that page archives.
-    Archiving is the whole of it: the campaign stops being listed and its
-    pages stop opening, because every reader here asks for live campaigns
-    only.
+    GET asks and changes nothing; the POST from that page archives. Archiving
+    is the whole of it, and the word the screen uses: the campaign stops
+    being listed and its pages stop opening, because every reader here asks
+    for live campaigns only. Nothing is destroyed, so nothing here says
+    "delete" — what a campaign recorded stays true whether or not it is
+    still on show.
     """
     from n26.analytics import EventVerb, N26Noun, record
 
@@ -138,8 +140,8 @@ def delete_campaign(request, pk):
     if request.method == "POST":
         name = found.name
         found.archive()
-        record(request, N26Noun.CAMPAIGN, EventVerb.DELETE, found)
-        messages.success(request, f"Deleted {name}.")
+        record(request, N26Noun.CAMPAIGN, EventVerb.ARCHIVE, found)
+        messages.success(request, f"Archived {name}.")
         return redirect("n26-campaigns")
 
-    return render(request, "n26/delete_campaign.html", {"campaign": found})
+    return render(request, "n26/archive_campaign.html", {"campaign": found})
