@@ -35,6 +35,9 @@ everything else is shrink-0, so the actions stay put and stay hittable.
   price_control — markup for the price column instead of the figure. :price is
     still required and is still what the filter reads, so filtering cannot
     disagree with itself while a reader is typing in the control.
+  row_key — what this row is a row for, in the caller's own words. Counted
+    under it, and findable by it, so a row redrawn in place replaces itself
+    rather than arriving as a second row. A listing draws one row per key.
   state — extra Alpine state merged into this row's scope, as object-literal
     properties. The row's slots render inside it, so this is how price_control
     and the rows slot share anything; an x-data inside a slot would put them in
@@ -52,6 +55,7 @@ everything else is shrink-0, so the actions stay put and stay hittable.
     :notes="[]"
     price_control=""
     state=""
+    row_key=""
     class=""
 />
 
@@ -74,8 +78,9 @@ everything else is shrink-0, so the actions stay put and stay hittable.
         {% endcomment %}
         facets.search = [facets.search, categoryName, sectionName]
             .filter(Boolean).join(' ').toLowerCase();
-        register(facets)"
+        register({{ row_key|json_dumps }}, facets)"
      x-show="matches(facets)"
+     {% if row_key %}data-row="{{ row_key }}"{% endif %}
      class="min-h-11 px-1 py-1 hover:bg-ink-500/5 {{ class }}">
     <div class="flex min-h-9 items-center gap-2">
 

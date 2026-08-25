@@ -1895,3 +1895,118 @@ class TestTheSellDialogWhenSomethingIsBoltedOn:
         assert "23¢" in body
         assert 'value="stash"' in body
         assert 'value="sell"' in body
+
+
+class TestBuyingWithoutRebuildingThePage:
+    """A Buy that asks for the row it changed instead of the whole screen.
+
+    The catalogue's filters, the section on screen and the prices typed
+    into other rows are all client state: rebuilding the page throws
+    every bit of it away, so a purchase answers with the row and the
+    gang's figures and leaves the rest of the screen alone.
+    """
+
+    def asked(self, client, fighter, collection, thing, **extra):
+        """Buy the way a browser with script does — asking for the row."""
+        return client.post(
+            equip_url(fighter, collection),
+            {"thing": key_of(thing), **extra},
+            headers={"HX-Request": "true"},
+        )
+
+    def test_a_plain_buy_still_answers_with_the_whole_page(
+        self, client, tester, fighter, house_list
+    ):
+        """Nothing here is the only way to buy: without the header the
+        purchase redirects exactly as it always did."""
+        from n26.library.models import Wargear
+
+        client.force_login(tester)
+        response = client.post(
+            equip_url(fighter, house_list),
+            {"thing": key_of(Wargear.objects.get(name="Knife"))},
+        )
+        assert response.status_code == 302
+
+    def test_the_answer_is_the_row_and_not_a_redirect(
+        self, client, tester, fighter, house_list
+    ):
+        from n26.library.models import Wargear
+
+        client.force_login(tester)
+        response = self.asked(
+            client, fighter, house_list, Wargear.objects.get(name="Knife")
+        )
+        assert response.status_code == 200
+        body = response.content.decode()
+        assert 'data-row="library.wargear:' in body
+        # The row, and not the screen around it.
+        assert "<html" not in body
+
+    def test_the_row_that_comes_back_says_the_fighter_holds_one(
+        self, client, tester, fighter, house_list
+    ):
+        """Owning something is a state of its row, so the row a purchase
+        hands back is a different row from the one that was clicked."""
+        from n26.library.models import Wargear
+
+        client.force_login(tester)
+        body = self.asked(
+            client, fighter, house_list, Wargear.objects.get(name="Knife")
+        ).content.decode()
+        # The count and the word are separated by the markup that makes the
+        # figure line up, so they are looked for one at a time.
+        assert ">1</span>" in body
+        assert "equipped" in body
+        # An owned row offers another of the same underneath the copies.
+        assert "Buy another" in body
+
+    def test_the_gang_figures_come_back_marked_to_swap_themselves(
+        self, client, tester, fighter, house_list
+    ):
+        """One answer changes two places on the screen, and only one of
+        them can be the one the click targeted."""
+        from n26.library.models import Wargear
+
+        client.force_login(tester)
+        body = self.asked(
+            client, fighter, house_list, Wargear.objects.get(name="Knife")
+        ).content.decode()
+        assert 'id="n26-gang-figures"' in body
+        assert 'hx-swap-oob="true"' in body
+
+    def test_the_confirmation_travels_in_the_header(
+        self, client, tester, fighter, house_list
+    ):
+        """A page that is not rebuilt has no alert block to draw in, so
+        what the server has to say rides back to be raised as a toast."""
+        import json
+
+        from n26.library.models import Wargear
+
+        client.force_login(tester)
+        response = self.asked(
+            client, fighter, house_list, Wargear.objects.get(name="Knife")
+        )
+        said = json.loads(response["HX-Trigger"])["n26-said"]
+        assert [item["variant"] for item in said] == ["success"]
+        assert "Bought Knife" in said[0]["message"]
+
+    def test_a_refusal_swaps_nothing_and_still_says_why(
+        self, client, tester, gang, fighter, house_list
+    ):
+        """Nothing on the page changed, so nothing is sent back to draw —
+        but the reason must not be swallowed along with it."""
+        import json
+
+        from n26.library.authoring import create_wargear
+
+        client.force_login(tester)
+        response = self.asked(
+            client, fighter, house_list, create_wargear("Elsewhere", price=5)
+        )
+        assert response.status_code == 204
+        said = json.loads(response["HX-Trigger"])["n26-said"]
+        assert said[0]["variant"] == "error"
+        # A refusal stands until it is dismissed.
+        assert said[0]["duration"] == 0

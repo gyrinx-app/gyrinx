@@ -21,13 +21,37 @@ for why the affirmative tone is green rather than the kit's `primary`.
         kit button renders {{ attrs }} before its own type="button", and HTML
         keeps the first of a duplicate pair.
         {% endcomment %}
-        <c-ui.button size="sm"
-                     variant="{{ variant }}"
-                     type="submit"
-                     name="{{ name|default:'thing' }}"
-                     value="{{ action.target }}">
-            {{ action.label }}
-        </c-ui.button>
+        {% comment %}
+        Given somewhere to post, the click asks for the row it changes
+        instead of the page around it, and the row it replaces is the one
+        it sits in. It stays an ordinary submit in an ordinary form, so a
+        reader without script buys exactly as before.
+
+        Drawn as two whole buttons rather than one with the attributes
+        switched on: a template tag inside a component's attributes is not
+        read as one and lands in the page as text.
+        {% endcomment %}
+        {% if buy_at %}
+            <c-ui.button size="sm"
+                         variant="{{ variant }}"
+                         type="submit"
+                         name="{{ name|default:'thing' }}"
+                         value="{{ action.target }}"
+                         hx-post="{{ buy_at }}"
+                         hx-target="closest [data-row]"
+                         hx-swap="outerHTML"
+                         hx-disabled-elt="this">
+                {{ action.label }}
+            </c-ui.button>
+        {% else %}
+            <c-ui.button size="sm"
+                         variant="{{ variant }}"
+                         type="submit"
+                         name="{{ name|default:'thing' }}"
+                         value="{{ action.target }}">
+                {{ action.label }}
+            </c-ui.button>
+        {% endif %}
     {% else %}
         <c-ui.button size="sm" variant="{{ variant }}" href="{{ action.target }}">
             {{ action.label }}

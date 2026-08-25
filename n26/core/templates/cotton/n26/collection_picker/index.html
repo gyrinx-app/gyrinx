@@ -50,7 +50,12 @@ event and is told to clear itself by `filter-reset`.
 
 <div {{ attrs }} class="{{ class }}"
      x-data="{
-        items: [],
+        {% comment %}
+        Rows by their own key rather than in a list, so a row redrawn in
+        place replaces its registration instead of adding a second one.
+        A key is one piece of content, and a listing draws each once.
+        {% endcomment %}
+        items: {},
         query: '',
         categories: {{ categories|json_dumps }},
         allCategories: {{ categories|json_dumps }},
@@ -86,7 +91,14 @@ event and is told to clear itself by `filter-reset`.
         maxTradePoints: {{ tp_ceiling }},
         includeExclusive: true,
 
-        register(facets) { this.items.push(facets) },
+        {% comment %}
+        A row without a key of its own is counted under a made-up one, so
+        rows that never get redrawn — a gallery demo, a listing whose call
+        site names nothing — still each count once rather than collapsing
+        into a single entry.
+        {% endcomment %}
+        autoKey: 0,
+        register(key, facets) { this.items[key || 'row:' + (++this.autoKey)] = facets },
 
         {% comment %}
         Every count on the page reads this table, and one effect rebuilds it
@@ -105,8 +117,9 @@ event and is told to clear itself by `filter-reset`.
         counts: { section: {}, category: {}, sectionTotal: {}, shown: 0, total: 0 },
         recount() {
             const bySection = {}, byCategory = {}, sectionTotal = {};
+            const rows = Object.values(this.items);
             let shown = 0;
-            for (const facets of this.items) {
+            for (const facets of rows) {
                 sectionTotal[facets.section] = (sectionTotal[facets.section] || 0) + 1;
                 if (!this.matches(facets)) continue;
                 const inSection = byCategory[facets.section] || (byCategory[facets.section] = {});
@@ -121,7 +134,7 @@ event and is told to clear itself by `filter-reset`.
                 category: byCategory,
                 sectionTotal: sectionTotal,
                 shown: shown,
-                total: this.items.length,
+                total: rows.length,
             };
         },
 

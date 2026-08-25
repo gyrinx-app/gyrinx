@@ -95,7 +95,14 @@ breadcrumb above it has the gang as well, so nothing is lost.
         one click away rather than a line of the page.
         {% endcomment %}
         <c-slot name="actions">
-            <c-n26.gang-figures :gang="gang" :summary="summary" />
+            {% comment %}
+            Named, because a purchase answered without a rebuild sends these
+            back to be swapped in place — the numbers a purchase is decided
+            against are the one thing outside the row that it changes.
+            {% endcomment %}
+            <div id="n26-gang-figures">
+                <c-n26.gang-figures :gang="gang" :summary="summary" />
+            </div>
         </c-slot>
     </c-n26.model-header>
     {% comment %}

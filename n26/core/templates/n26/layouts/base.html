@@ -561,6 +561,26 @@ banner, is_impersonating / impersonator, gtm_container_id, messages, user.
             </c-n26.site.footer>
         {% endblock footer %}
         {% comment %}
+        Where a confirmation goes when the page it belongs to is not rebuilt.
+        Dropped once, here, because the store behind it registers on first
+        sight and a second container would draw every toast twice. The alert
+        block above is still what a reader without script is told, so nothing
+        that matters is said only here.
+        {% endcomment %}
+        <c-ui.toast.container position="bottom-right" />
+        {% comment %}
+        A response that swapped part of the page carries what the server has
+        to say as one event holding every message. The container raises one
+        toast at a time, so they are dealt out here.
+        {% endcomment %}
+        <script>
+            document.body.addEventListener("n26-said", function (event) {
+                (event.detail || []).forEach(function (said) {
+                    window.dispatchEvent(new CustomEvent("toast", { detail: said }));
+                });
+            });
+        </script>
+        {% comment %}
         The strip of a tab set is drawn client-side and its panels start
         hidden, so without a script a tabbed region would be cut off entirely.
         Showing every panel in a run keeps what they hold on the page.
@@ -572,6 +592,14 @@ banner, is_impersonating / impersonator, gtm_container_id, messages, user.
                 }
             </style>
         </noscript>
+        {% comment %}
+        A click that changes what the gang holds is answered by swapping the
+        part of the page that changed, so the catalogue's filters and the
+        section on screen survive it. Every such control is an ordinary link
+        or submit underneath, so a reader without script gets the whole page
+        back instead.
+        {% endcomment %}
+        <script defer src="{% static 'designsystem/vendor/htmx.min.js' %}"></script>
         {% comment %}
         Order matters: the kit's factories must be defined before Alpine walks
         the document and evaluates an x-data that names one.

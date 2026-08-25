@@ -1,0 +1,19 @@
+{% comment %}
+What a purchase answers with when the page is not rebuilt: the row that
+changed, and the gang's own figures.
+
+The row is the ordinary one — the same include the catalogue draws, so a row
+that arrives this way and a row that was on the page from the start cannot come
+to look different. It replaces the row it was bought from, which is why buying
+the first copy of something can hand back a row of another shape entirely: what
+a fighter holds is a state of its row.
+
+The figures carry the swap themselves rather than being targeted, because one
+answer changes two places on the screen and only one of them can be the target.
+The confirmation is neither: it rides the response header and is said as a
+toast, since a page that is not rebuilt has no alert block to draw it in.
+{% endcomment %}
+{% include "n26/includes/equip_row.html" %}
+<div id="n26-gang-figures" hx-swap-oob="true">
+    <c-n26.gang-figures :gang="gang" :summary="summary" />
+</div>
