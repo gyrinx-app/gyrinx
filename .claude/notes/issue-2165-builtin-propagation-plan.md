@@ -295,18 +295,31 @@ stands down — no hand-rolled advisory lock for the claim; reconcile
 idempotency stays underneath); the sweep is an indexed status query plus
 timestamped transition history; outcomes (gangs reconciled, skips) land
 in transition `metadata`. *Refined 2026-08-25 (maintainer rejected the
-RUNNING → PENDING loop-back as odd):* obligation rows are single-shot
+RUNNING → PENDING loop-back as odd):* rows are single-shot
 and the graph strictly forward, like Battle's: PENDING → RUNNING →
-DONE | FAILED, no backward edge. Coalescing happens only among queued
-work — `get_or_create` under a partial unique on the set FK **where
-status = PENDING**. An edit while a worker is RUNNING therefore files a
-fresh PENDING row (the constraint doesn't see RUNNING); the running row
-finishes to DONE untouched and the new debt gets its own pass. Retry
+DONE | FAILED, no backward edge. Retry
 after failure = the sweep files a fresh PENDING row; FAILED is terminal,
 a record of the attempt. Sound because a row never encodes *which*
-change — the task reconciles from current library state, so the worst
-mid-flight cost is one redundant no-op run. Rows are thereby an
-append-only audit of every debt and how it ended.
+change — the task reconciles from current library state.
+*Re-refined 2026-08-25 during the tour — the maintainer caught a real
+TOCTOU in PENDING-row reuse and it is now BANNED:* the original design
+coalesced via `get_or_create` under a partial unique (one PENDING per
+set), but an authoring transaction could find and attach to the PENDING
+row while uncommitted, the worker could then claim that row and read
+the library before the author committed, and the edit would silently
+never propagate (its post-commit publish stands down at the claim; the
+row ends DONE). **Filing is append-only: every edit INSERTS its own
+row, no reuse, no partial unique constraint.** A row's message
+publishes only after its own edit commits, so the pass that claims it
+always reads a library including the change that filed it. Redundant
+passes are no-ops by idempotency (fine at C0's measured scale).
+**Naming (maintainer, during the tour): the model is
+`BuiltInPropagationTask`** — it must say built-ins and say it tracks
+propagation of changes to them. The words "obligation" and "debt" are
+BANNED from the branch and from future chunks' code and prose — say
+"filed task", "run", "not yet applied". Verbs: `file_propagation_task`,
+task `sweep_built_in_propagations` (renamed pre-ship because the task
+name becomes the Cloud Scheduler job name).
 The sweep is a `TaskRoute(schedule="...")` declaration —
 the framework provisions a Cloud Scheduler job per scheduled task
 (verified 2026-08-25: `gyrinx/tasks/route.py` + `provisioning.py`) —
