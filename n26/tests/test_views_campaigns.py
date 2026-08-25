@@ -96,6 +96,59 @@ class TestWhoReachesCampaignsAtAll:
         assert client.get("/n26/campaigns/").status_code == 200
 
 
+class TestTheDashboardTab:
+    """The home page's Campaigns tab is a place only some readers have. It
+    must not offer a way to an address that would answer them 404."""
+
+    def test_a_reader_without_the_feature_sees_the_old_panel(
+        self, client, arbitrator, shut
+    ):
+        Campaign.objects.create(name="Dust Falls", owner=arbitrator)
+        body = client.get("/n26/").content.decode()
+
+        assert "/n26/campaigns/new/" not in body
+        assert "Dust Falls" not in body, "a campaign leaked into a shut tab"
+        assert "working hard on it" in body
+
+    def test_a_reader_with_it_gets_their_campaigns(
+        self, client, arbitrator, open_to_everyone
+    ):
+        Campaign.objects.create(name="Dust Falls", owner=arbitrator)
+        body = client.get("/n26/").content.decode()
+
+        assert "Dust Falls" in body
+        assert "/n26/campaigns/new/" in body
+
+    def test_it_shows_only_the_readers_own(self, client, arbitrator, open_to_everyone):
+        Campaign.objects.create(
+            name="Not Yours", owner=User.objects.create_user("someone-else")
+        )
+        assert "Not Yours" not in client.get("/n26/").content.decode()
+
+
+class TestSearchingTheList:
+    """The same box the gangs list has, answered the same way."""
+
+    def test_it_narrows_to_what_was_asked_for(
+        self, client, arbitrator, open_to_everyone
+    ):
+        Campaign.objects.create(name="Dust Falls", owner=arbitrator)
+        Campaign.objects.create(name="Sump City Nights", owner=arbitrator)
+
+        body = client.get("/n26/campaigns/?q=dust").content.decode()
+
+        assert "Dust Falls" in body
+        assert "Sump City Nights" not in body
+
+    def test_a_query_that_matches_nothing_says_so(
+        self, client, arbitrator, open_to_everyone
+    ):
+        Campaign.objects.create(name="Dust Falls", owner=arbitrator)
+        assert "No campaigns match that" in (
+            client.get("/n26/campaigns/?q=zzzz").content.decode()
+        )
+
+
 class TestALongList:
     """A paged list without a pager hides everything past the first page,
     and nothing on the page says so."""

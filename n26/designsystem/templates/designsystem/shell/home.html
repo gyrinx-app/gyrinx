@@ -9,7 +9,7 @@ both here means the banner, the nav, the message, the dashboard and the footer a
 all in one screen, which is the only place their spacing can actually be judged.
 
 Everything on it is a library component: <c-n26.view.dashboard> for the page,
-<c-n26.gang-table> and <c-n26.changelog> inside it, <c-n26.prose> for the note at
+<c-n26.record-table> and <c-n26.changelog> inside it, <c-n26.prose> for the note at
 the bottom.
 {% endcomment %}
 {% block head_title %}Home{% endblock head_title %}
@@ -30,7 +30,7 @@ the bottom.
             <c-n26.user-link :user="user" tone="current" underline="none" />
         </c-slot>
         <c-slot name="gangs">
-            <c-n26.gang-table :type_options="dashboard_types" noun="gangs">
+            <c-n26.record-table :type_options="dashboard_types" noun="gangs">
                 <c-slot name="empty">
                     No gangs match that. Try a shorter search.
                 </c-slot>
@@ -41,15 +41,15 @@ the bottom.
                     link proves is that a row opens a page in this shell, which is
                     the thing worth seeing.
                     {% endcomment %}
-                    <c-n26.gang-table.row name="{{ gang.name }}"
-                                          type="{{ gang.type }}"
-                                          :type_icon="gang.type_icon"
-                                          colour="{{ gang.colour }}"
-                                          :sheet="gang.sheet"
-                                          href="{% url 'designsystem:shell_gang' %}"
-                                          print_href="{% url 'designsystem:print_lab' %}" />
+                    <c-n26.record-table.gang-row name="{{ gang.name }}"
+                                                 type="{{ gang.type }}"
+                                                 :type_icon="gang.type_icon"
+                                                 colour="{{ gang.colour }}"
+                                                 :sheet="gang.sheet"
+                                                 href="{% url 'designsystem:shell_gang' %}"
+                                                 print_href="{% url 'designsystem:print_lab' %}" />
                 {% endfor %}
-            </c-n26.gang-table>
+            </c-n26.record-table>
         </c-slot>
         <c-slot name="changelog">
             <c-n26.changelog href="#">

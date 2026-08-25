@@ -1623,16 +1623,21 @@ GROUPS: list[Group] = [
                 ),
             ),
             Component(
-                slug="gang-table",
-                tag="c-n26.gang-table",
-                template="n26/gang_table/index.html",
-                summary="The gangs you own, searchable, each row clickable.",
+                slug="record-table",
+                tag="c-n26.record-table",
+                template="n26/record_table/index.html",
+                summary="A searchable list of one kind of thing, each row clickable.",
                 needs=(ALPINE, KIT_JS),
                 parts=(
                     Part(
-                        "c-n26.gang-table.row",
-                        "n26/gang_table/row.html",
+                        "c-n26.record-table.gang-row",
+                        "n26/record_table/gang_row.html",
                         "One gang: name, type, what it is worth, and its actions.",
+                    ),
+                    Part(
+                        "c-n26.record-table.campaign-row",
+                        "n26/record_table/campaign_row.html",
+                        "One campaign: name, the budget a gang joins at, and Edit.",
                     ),
                 ),
                 notes=(

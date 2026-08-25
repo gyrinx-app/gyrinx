@@ -3,10 +3,11 @@
 {% comment %}
 Every campaign you arbitrate, and the way to set another up.
 
-A plain stack rather than <c-n26.gang-table>'s machinery: a campaign row
-carries a name and a budget and nothing to filter by, so the table's search,
-facets and type column would all be furniture with nothing behind them. When a
-campaign row has more to say, that is the moment to reach for a table.
+The same <c-n26.record-table> the gangs list draws, over a row shaped for a
+campaign: one component and one search, so the two lists cannot come to
+disagree about what a list of things looks like. What differs is the row — a
+gang carries a type and a strip of money, a campaign carries the budget a
+gang joins at.
 
 Setting one up is the page's action, in the header, because a list of
 campaigns is where someone goes when they want one more.
@@ -26,31 +27,25 @@ campaigns is where someone goes when they want one more.
                 <c-ui.button variant="primary" href="{% url 'n26-create-campaign' %}">Set up campaign</c-ui.button>
             </c-slot>
         </c-n26.page-header>
-        {% if page.object_list %}
-            <ul class="flex flex-col gap-2">
-                {% for row in page.object_list %}
-                    <li class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 rounded border border-ink-200 p-3 dark:border-ink-800">
-                        <c-n26.link href="{% url 'n26-campaign' row.pk %}">{{ row.name }}</c-n26.link>
-                        {% comment %}
-                        A campaign with no ceiling says so in words. A blank
-                        where a number goes reads as a number nobody has typed
-                        yet, which is a different thing entirely.
-                        {% endcomment %}
-                        <span class="text-sm text-muted">
-                            {% if row.budget is None %}
-                                No budget ceiling
-                            {% else %}
-                                {{ row.budget }}¢ to join
-                            {% endif %}
-                        </span>
-                    </li>
-                {% endfor %}
-            </ul>
-        {% else %}
-            <p class="text-muted">
-                No campaigns yet — <c-n26.link href="{% url 'n26-create-campaign' %}">set one up</c-n26.link>.
-            </p>
-        {% endif %}
+        <c-n26.record-table noun="campaigns"
+                            singular="campaign"
+                            action="{% url 'n26-campaigns' %}"
+                            :query="query"
+                            :total="total"
+                            :shown="listed">
+            <c-slot name="empty">
+                {% if query %}
+                    No campaigns match that. Try a shorter search.
+                {% else %}
+                    No campaigns yet — <c-n26.link href="{% url 'n26-create-campaign' %}">set one up</c-n26.link>.
+                {% endif %}
+            </c-slot>
+            {% for row in campaigns %}
+                <c-n26.record-table.campaign-row name="{{ row.name }}"
+                                                 budget="{{ row.budget|default_if_none:'' }}"
+                                                 href="{% url 'n26-campaign' row.pk %}" />
+            {% endfor %}
+        </c-n26.record-table>
         {% comment %}
         The same pager the gangs list draws, over the same addresses: turning
         the page keeps whatever else was asked for rather than writing
