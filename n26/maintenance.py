@@ -44,6 +44,7 @@ from gyrinx.maintenance.models import Backfill
 from gyrinx.maintenance.registry import MaintenanceOperation, register_operation
 from gyrinx.maintenance.views import page_context, running_guard
 from gyrinx.tasks import TaskRoute
+from n26.core.propagation import propagate_built_ins, sweep_built_in_obligations
 
 logger = logging.getLogger(__name__)
 
@@ -407,8 +408,17 @@ register_operation(
 #: copy is still working, and the second — standing down at the lock — answers
 #: successfully and acknowledges the message out from under it. Change one and
 #: change the other (``--timeout`` in ``cloudbuild.yaml``).
+#:
+#: The propagation tasks live with the rest of that machinery in
+#: ``n26.core.propagation``; their routes are declared here because this
+#: module is the edition's one door onto the task framework. The sweep
+#: is scheduled work: the framework provisions a Cloud Scheduler job
+#: from the declaration, and only there — the local backend fires no
+#: schedules, so dev and tests invoke the sweep function directly.
 task_routes = [
     TaskRoute(delete_nameless_gang_type, ack_deadline=600, min_retry_delay=60),
+    TaskRoute(propagate_built_ins),
+    TaskRoute(sweep_built_in_obligations, schedule="*/5 * * * *"),
 ]
 
 
