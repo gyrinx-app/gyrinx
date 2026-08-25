@@ -129,13 +129,34 @@ def build(gang, viewer=None):
             membership__gang=gang, membership__archived=False
         ).values_list("pk", flat=True)
     )
+    sources = _comes_with_sources(events, rows)
     acts = []
     #: Where each thing's opening act landed, so an old record's grant
     #: can fold under it rather than stand beside it.
     act_of = {}
     for cluster in _clusters(events):
-        _tell_cluster(cluster, rows, acts, act_of, viewer, alive)
+        _tell_cluster(cluster, rows, acts, act_of, viewer, alive, sources)
     return acts
+
+
+def _comes_with_sources(events, rows):
+    """For each propagated grant, the name of what it is now part of:
+    the carrier its copy materialised for — the hired profile, the
+    founding gang type — read fresh, as every name here is. One query,
+    and only on histories that hold such a grant at all."""
+    carrier_ids = {
+        rows[e.assignment_id].materialised_for_id
+        for e in events
+        if e.kind == Kind.CAUGHT_UP
+        and e.assignment_id in rows
+        and rows[e.assignment_id].materialised_for_id is not None
+    }
+    if not carrier_ids:
+        return {}
+    carriers = Assignment.with_assignables(
+        Assignment.objects.filter(pk__in=carrier_ids)
+    )
+    return {carrier.pk: str(carrier.assignable) for carrier in carriers}
 
 
 def _rows_for(events):
@@ -169,7 +190,7 @@ def _clusters(events):
     return grouped
 
 
-def _tell_cluster(cluster, rows, acts, act_of, viewer, alive):
+def _tell_cluster(cluster, rows, acts, act_of, viewer, alive, sources):
     """Turn one operation's events into acts, folding what folds.
 
     A rider folds under the act of the thing it rode: a grant under
@@ -208,6 +229,15 @@ def _tell_cluster(cluster, rows, acts, act_of, viewer, alive):
     #: This cluster's act per record, so a rider folds under what its
     #: thing did *here* — never under the act that first acquired it.
     local = {}
+    caught_up = [(e, row) for e, row in standing if e.kind == Kind.CAUGHT_UP]
+    if caught_up:
+        standing = [(e, row) for e, row in standing if e.kind != Kind.CAUGHT_UP]
+        for act, group in _caught_up_acts(caught_up, sources, alive):
+            acts.append(act)
+            for _, row in group:
+                if row is not None:
+                    local[row.pk] = act
+                    act_of.setdefault(row.pk, act)
     if _one_edit_of_what_a_model_is(standing):
         act = _edits_as_one(standing, viewer, alive)
         acts.append(act)
@@ -239,6 +269,70 @@ def _tell_cluster(cluster, rows, acts, act_of, viewer, alive):
         local.setdefault(row.pk, home)
         if e.kind == Kind.GRANTED:
             act_of.setdefault(row.pk, home)
+
+
+def _caught_up_acts(caught_up, sources, alive):
+    """Propagated grants, folded per source, with nobody as the actor.
+
+    What changed is the thing's kit, not any one model's fortunes, so
+    several models' gains in one pass read as one line about the thing
+    with a sub-line each — and a lone gain reads as that model's, with
+    the source clause saying why it appeared. The actor stays empty:
+    nobody in particular did it, and inventing a speaker would put a
+    name on an act no person performed.
+    """
+    by_source = {}
+    for e, row in caught_up:
+        source = sources.get(row.materialised_for_id) if row is not None else None
+        by_source.setdefault(source, []).append((e, row))
+    for source, group in by_source.items():
+        if len(group) == 1:
+            e, row = group[0]
+            model = _model_of(e, row)
+            at = _model_span(model, alive)
+            opening = (
+                (at, Span(" gained "))
+                if model is not None
+                else (Span("the gang gained "),)
+            )
+            tail = (
+                (Span(f" — now part of what a {source} comes with"),) if source else ()
+            )
+            yield (
+                Act(
+                    when=e.created,
+                    actor="",
+                    spans=(*opening, Span(_name(row)), *tail),
+                    category="kit",
+                    miniature_pk=str(model.pk) if model else "",
+                    miniature_name=str(model) if model else "",
+                ),
+                group,
+            )
+        else:
+            first, _ = group[0]
+            headline = (
+                (Span(f"what a {source} comes with changed"),)
+                if source
+                else (Span("what the gang's models come with changed"),)
+            )
+            subs = [
+                Sub(
+                    name=str(model) if (model := _model_of(e, row)) else "the gang",
+                    note=f"gained {_name(row)}",
+                )
+                for e, row in group
+            ]
+            yield (
+                Act(
+                    when=first.created,
+                    actor="",
+                    spans=headline,
+                    subs=subs,
+                    category="kit",
+                ),
+                group,
+            )
 
 
 def _rides(e, row):
