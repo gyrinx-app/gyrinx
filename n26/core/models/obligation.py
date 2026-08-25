@@ -32,9 +32,12 @@ class ReconcileObligation(Base):
     # with their set: an obligation is meaningless without the set it
     # names, and holding a never-used set undeletable over a debt filed
     # the moment its first member landed would be worse than losing the
-    # record. No reverse relation — this is bookkeeping about the set,
-    # not a route by which anybody holds it, and the reference sweeps
-    # that ask "what uses this set" must not find it.
+    # record. ``related_name="+"`` only drops the reverse accessor: the
+    # library's reference scan walks hidden relations too, so it sees
+    # this edge like any other. What keeps the debts out of an author's
+    # view is that nothing downstream matches this field — no reach
+    # sentence names it, and the delete page lists only edges that
+    # protect, which a cascade never does.
     default_set = models.ForeignKey(
         "library.DefaultAssignmentSet",
         on_delete=models.CASCADE,
