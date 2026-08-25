@@ -2095,6 +2095,84 @@ class TestOpeningAConfirmationWithoutRebuildingThePage:
         assert "Sell Autogun?" in body
 
 
+class TestSellingWithoutRebuildingThePage:
+    """Confirming the act, not just opening the panel. Selling is what the
+    reader came to do, and it must cost them their place no more than
+    opening the question did."""
+
+    def sold(self, client, fighter, gun_list, assignment, **extra):
+        return client.post(
+            reverse("n26-sell", args=[assignment.pk]),
+            {"return": equip_url(fighter, gun_list), "list": str(gun_list.pk), **extra},
+            headers={"HX-Request": "true"},
+        )
+
+    def test_the_answer_is_the_row_the_sale_changed(
+        self, client, tester, fighter, gun_list, owned_gun
+    ):
+        from django.utils.text import slugify
+
+        client.force_login(tester)
+        response = self.sold(client, fighter, gun_list, owned_gun)
+
+        assert response.status_code == 200
+        body = response.content.decode()
+        assert "<html" not in body
+        assert f'id="n26-row-{slugify(key_of(owned_gun.assignable))}"' in body
+
+    def test_the_row_goes_back_to_offering_the_thing(
+        self, client, tester, fighter, gun_list, owned_gun
+    ):
+        """The last copy sold, so the row is an offer again rather than a
+        count — what is held is a state of its row."""
+        client.force_login(tester)
+        body = self.sold(client, fighter, gun_list, owned_gun).content.decode()
+
+        assert "equipped" not in body
+        assert "Buy" in body
+
+    def test_the_panel_goes_with_the_answer(
+        self, client, tester, fighter, gun_list, owned_gun
+    ):
+        """The question has been answered, so it stops standing over the
+        page — an empty host stands in for whatever was open."""
+        client.force_login(tester)
+        body = self.sold(client, fighter, gun_list, owned_gun).content.decode()
+
+        assert 'id="n26-dialog-host"' in body
+        assert "Sell Autogun?" not in body
+
+    def test_the_address_goes_back_behind_the_panel(
+        self, client, tester, fighter, gun_list, owned_gun
+    ):
+        client.force_login(tester)
+        response = self.sold(client, fighter, gun_list, owned_gun)
+
+        assert "sell=" not in response["HX-Replace-Url"]
+
+    def test_what_the_sale_paid_is_said_as_a_toast(
+        self, client, tester, fighter, gun_list, owned_gun
+    ):
+        import json
+
+        client.force_login(tester)
+        response = self.sold(client, fighter, gun_list, owned_gun)
+        said = json.loads(response["HX-Trigger"])["n26-said"]
+
+        assert said[0]["variant"] == "success"
+        assert "Sold Autogun" in said[0]["message"]
+
+    def test_a_plain_sale_still_answers_with_the_whole_page(
+        self, client, tester, fighter, gun_list, owned_gun
+    ):
+        client.force_login(tester)
+        response = client.post(
+            reverse("n26-sell", args=[owned_gun.pk]),
+            {"return": equip_url(fighter, gun_list), "list": str(gun_list.pk)},
+        )
+        assert response.status_code == 302
+
+
 class TestOpeningTheCopiesOfAnOwnedRow:
     """The copies a row opens onto are already on the page, so opening it
     asks the server for nothing at all."""

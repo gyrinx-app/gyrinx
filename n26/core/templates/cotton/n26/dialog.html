@@ -35,6 +35,7 @@ no request and renders none itself.
     :open="True"
     :modal="True"
     :swapped="False"
+    :acts_in_place="False"
     class=""
 />
 
@@ -110,7 +111,16 @@ asking for a page without it.
         aria-labelledby="{{ id }}-title"
         {{ attrs }}
         class="static m-0 w-full max-w-lg rounded-box border border-box-border bg-surface p-0 text-ink-900 shadow-xl backdrop:bg-black/50 dark:bg-ink-900 dark:text-ink-100 {{ class }}">
-    <form method="post" action="{{ action }}" class="space-y-5 p-6">
+    {% comment %}
+    Told to act in place, the click asks for the part of the screen behind
+    this panel that its act changes — the row, the gang's figures, and this
+    panel itself — instead of the whole page. It stays an ordinary form to an
+    ordinary address, so a reader without script gets the screen back.
+    {% endcomment %}
+    <form method="post"
+          action="{{ action }}"
+          {% if acts_in_place %}hx-post="{{ action }}" hx-swap="none"{% endif %}
+          class="space-y-5 p-6">
         <div class="space-y-1.5">
             <h2 id="{{ id }}-title"
                 class="text-lg font-semibold tracking-tight text-ink-900 dark:text-ink-100">

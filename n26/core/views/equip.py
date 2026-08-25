@@ -301,90 +301,126 @@ class Bought:
     key: str
 
 
-def _row_again(request, gang, view, owned, bought, expanded_key, held_label=""):
-    """The one row a purchase changed, drawn on its own.
+def screen_row(request, gang, key, *, miniature=None, list_param="", expanded_key=""):
+    """The row one piece of content has on an equip screen, as it now stands.
 
-    The listing and the possessions are both re-derived by the caller,
-    because the ones the click arrived with describe the holder as they
-    were before the purchase. It is the same fixed handful of queries a
-    plain visit costs, so this is not the expensive half of anything.
+    ``miniature`` names whose screen this is; without one it is the
+    gang's. ``list_param`` is which listing the reader is on, in the
+    words the address uses.
 
-    Only the row and the gang's own figures go back. Every other row is
-    left exactly as it is, which is what keeps the reader's filters, the
-    section they were on, and the prices they had typed elsewhere.
+    The card is built again rather than reused, because the one a click
+    arrives with describes the holder as they were before it. That is the
+    same fixed handful of queries a plain visit costs, so this is not the
+    expensive half of anything.
+
+    Answers the row and what the screen calls holding something. A row of
+    ``None`` means this screen has no row for it any more — a listing
+    always keeps one, but a screen showing only what is held loses the
+    row along with the last copy.
     """
-    from n26.core.listing import listing_row, owned_row
-    from n26.core.render import roster as gang_roster
-    from n26.core.render import summarise_roster
+    from n26.core.access import collections_for, gang_collections
+    from n26.core.browse import all_gear, browse, usability_for, with_use_notes
+    from n26.core.card import build_card, build_gang_card, build_modifier_index
+    from n26.core.effects import compute, compute_gang
+    from n26.core.listing import listing_row, owned_row, owned_row_manage_only
+    from n26.core.owned import EquipHost, possessions
+
+    def chosen_from(collections):
+        """The list the address names, or the one a plain visit opens on."""
+        named = next((c for c in collections if str(c.pk) == list_param), None)
+        return named or (collections[0] if collections else None)
+
+    if miniature is not None:
+        card = build_card(miniature, with_options=True)
+        index = build_modifier_index([node.assignable for node in card.all_nodes()])
+        computed = compute(card, index)
+        chosen = chosen_from(
+            buyable_lists(
+                access.collection
+                for access in collections_for(miniature, card=card, computed=computed)
+            )
+        )
+        view = (
+            with_use_notes(browse(chosen), usability_for(computed))
+            if chosen is not None
+            else None
+        )
+        host = EquipHost.fighter(gang, card, miniature, at="")
+    else:
+        card = build_gang_card(gang, with_statlines=False)
+        index = build_modifier_index([node.assignable for node in card.all_nodes()])
+        computed = compute_gang(card, index)
+        host = EquipHost.stash(gang, card, at="")
+        if list_param == STASH_SCOPE:
+            view = None
+        elif list_param == ALL_SCOPE:
+            view = all_gear(ALL_LABEL)
+        else:
+            chosen = chosen_from(
+                buyable_lists(
+                    access.collection
+                    for access in gang_collections(gang, card=card, computed=computed)
+                )
+            )
+            view = browse(chosen) if chosen is not None else None
+
+    owned = possessions(host)
+    copies = owned.get(key)
+    refunds = not gang.credits_unlimited
+    expanded = key == expanded_key
+
+    # A screen showing only what is held draws a row for each thing held
+    # and for nothing else, so parting with the last copy takes the row
+    # away rather than turning it back into an offer.
+    if view is None:
+        row = (
+            owned_row_manage_only(key, copies, refunds=refunds, expanded=expanded)
+            if copies
+            else None
+        )
+        return row, host.held_label
 
     line = next(
-        (row for row in view.all_lines() if _thing_key(row.thing) == bought.key),
+        (row for row in view.all_lines() if _thing_key(row.thing) == key),
         None,
     )
     if line is None:
-        # Bought from a list that does not sell it — there is no row here
-        # to draw again. Nothing is swapped; the confirmation still rides
-        # the header.
-        return HttpResponse(status=204)
+        # The listing does not sell it, so this screen never had a row for
+        # it — what is held that a list does not sell has nowhere to be
+        # drawn, which is a gap this is not the place to close.
+        return None, host.held_label
 
     row = listing_row(line)
-    copies = owned.get(row.key)
     if copies:
-        row = owned_row(
-            row,
-            copies,
-            refunds=not gang.credits_unlimited,
-            expanded=row.key == expanded_key,
-        )
+        row = owned_row(row, copies, refunds=refunds, expanded=expanded)
+    return row, host.held_label
+
+
+def changed(request, gang, key, row, held_label="", *, closed=False):
+    """What an act on an equip screen sends back.
+
+    The row it changed and the gang's own figures, each naming the place
+    it stands in for. Every other row is left exactly as it is, which is
+    what keeps the reader's filters, the section they were on, and the
+    prices they had typed elsewhere.
+
+    ``closed`` says the act was one asked in a panel, so the panel goes
+    with the answer.
+    """
+    from n26.core.render import roster as gang_roster
+    from n26.core.render import summarise_roster
+
     return render(
         request,
-        "n26/includes/equip_bought.html",
+        "n26/includes/equip_changed.html",
         {
             "row": row,
+            "row_key": key,
             "gang": gang,
             "summary": summarise_roster(gang_roster(gang)),
             "held_label": held_label,
+            "closed": closed,
         },
-    )
-
-
-def _bought_row(request, miniature, gang, collection, bought, expanded_key, *, at):
-    """What a purchase onto a fighter sends back — see :func:`_row_again`."""
-    from n26.core.browse import browse, usability_for, with_use_notes
-    from n26.core.card import build_card, build_modifier_index
-    from n26.core.effects import compute
-    from n26.core.owned import EquipHost, possessions
-
-    card = build_card(miniature, with_options=True)
-    index = build_modifier_index([node.assignable for node in card.all_nodes()])
-    computed = compute(card, index)
-    view = with_use_notes(browse(collection), usability_for(computed))
-    host = EquipHost.fighter(gang, card, miniature, at=at)
-    return _row_again(
-        request, gang, view, possessions(host), bought, expanded_key, host.held_label
-    )
-
-
-def _bought_into_stash(request, gang, view_of, bought, expanded_key, *, at):
-    """What a purchase into the stash sends back — see :func:`_row_again`.
-
-    ``view_of`` builds the listing again, because which one the reader is
-    on is the gang page's own business: one of the gang's lists, or
-    everything the library sells.
-    """
-    from n26.core.card import build_gang_card
-    from n26.core.owned import EquipHost, possessions
-
-    card = build_gang_card(gang, with_statlines=False)
-    host = EquipHost.stash(gang, card, at=at)
-    return _row_again(
-        request,
-        gang,
-        view_of(),
-        possessions(host),
-        bought,
-        expanded_key,
-        host.held_label,
     )
 
 
@@ -649,18 +685,15 @@ def equip(request, pk):
             # A refusal changes nothing, so nothing is swapped; the
             # reason travels as a message and is said as a toast.
             return _spoken(request, HttpResponse(status=204))
-        return _spoken(
+        row, held_label = screen_row(
             request,
-            _bought_row(
-                request,
-                miniature,
-                gang,
-                chosen,
-                outcome,
-                expanded_key,
-                at=here(chosen),
-            ),
+            gang,
+            outcome.key,
+            miniature=miniature,
+            list_param=str(chosen.pk) if chosen is not None else "",
+            expanded_key=expanded_key,
         )
+        return _spoken(request, changed(request, gang, outcome.key, row, held_label))
 
     # What this fighter is already carrying, keyed the way the rows are, so
     # a row asks one dictionary rather than the database. The dialogs open
@@ -923,17 +956,14 @@ def equip_gang(request, pk):
             return outcome
         if outcome is None:
             return _spoken(request, HttpResponse(status=204))
-        return _spoken(
+        row, held_label = screen_row(
             request,
-            _bought_into_stash(
-                request,
-                gang,
-                lambda: all_gear(ALL_LABEL) if everything else browse(chosen),
-                outcome,
-                expanded_key,
-                at=here,
-            ),
+            gang,
+            outcome.key,
+            list_param=wanted,
+            expanded_key=expanded_key,
         )
+        return _spoken(request, changed(request, gang, outcome.key, row, held_label))
 
     host = EquipHost.stash(gang, card, at=here)
     owned = possessions(host)

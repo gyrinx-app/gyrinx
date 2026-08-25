@@ -44,10 +44,13 @@ The acts are deliberately distinct, and the ledger says which happened:
     with. The difference settles either way, on the thing's own line.
 """
 
+from dataclasses import dataclass
+from urllib.parse import parse_qs, urlparse
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
-from django.http import Http404
+from django.http import Http404, HttpResponse
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
@@ -478,6 +481,75 @@ def _return_to(request, fallback):
     return _safe_redirect(request, request.POST.get("return"), fallback_url=fallback)
 
 
+@dataclass(frozen=True)
+class _Touched:
+    """The row an act changes, and whose equip screen draws it."""
+
+    key: str
+    miniature: object | None
+
+
+def _row_behind(assignment):
+    """The row an act on this assignment changes.
+
+    A part is drawn under the thing it hangs from — a gun's ammo, a sight
+    bolted to it — so what changes is that thing's row and never one of
+    its own.
+
+    Read before the act rather than after: selling archives the
+    assignment and a move points it somewhere else, so afterwards it no
+    longer says which screen the click came from.
+    """
+    node = assignment
+    while node.parent_id is not None:
+        node = node.parent
+    return _Touched(key=thing_key(node.assignable), miniature=node.miniature_root)
+
+
+def _expanded_behind(request):
+    """Which row the screen had open, as the address it came from says."""
+    came_from = urlparse(request.POST.get("return", ""))
+    return parse_qs(came_from.query).get("owned", [""])[0][:200]
+
+
+def _refused(request, back):
+    """An act that changed nothing: the reason travels, nothing is swapped."""
+    from n26.core.views.equip import _spoken
+
+    if not request.headers.get("HX-Request"):
+        return _return_to(request, back)
+    return _spoken(request, HttpResponse(status=204))
+
+
+def _acted(request, touched, gang, back):
+    """An act that changed a row, answered without rebuilding the screen.
+
+    The row as it now stands, the gang's figures, and the panel the act
+    was asked in — each naming the place it stands in for. The address
+    goes back to the screen behind the panel, which is the address that
+    draws it.
+
+    Without script the same form posts the same way and lands on the
+    whole page, exactly as it always did.
+    """
+    from n26.core.views.equip import _spoken, changed, screen_row
+
+    if not request.headers.get("HX-Request"):
+        return _return_to(request, back)
+
+    row, held_label = screen_row(
+        request,
+        gang,
+        touched.key,
+        miniature=touched.miniature,
+        list_param=request.POST.get("list", "")[:100],
+        expanded_key=_expanded_behind(request),
+    )
+    answer = changed(request, gang, touched.key, row, held_label, closed=True)
+    answer["HX-Replace-Url"] = back
+    return _spoken(request, answer)
+
+
 @login_required
 @require_POST
 def sell_assignment(request, pk):
@@ -503,6 +575,7 @@ def sell_assignment(request, pk):
     miniature = assignment.miniature_root
     name = str(assignment.assignable)
     back = _back_to(request, assignment, gang)
+    touched = _row_behind(assignment)
 
     stash = getattr(gang, "stash", None)
     keeping = (
@@ -521,7 +594,7 @@ def sell_assignment(request, pk):
             proceeds = op.sell(assignment)
     except Refusal as refusal:
         messages.error(request, str(refusal))
-        return _return_to(request, back)
+        return _refused(request, back)
 
     record(
         request,
@@ -542,7 +615,7 @@ def sell_assignment(request, pk):
         )
     else:
         messages.success(request, f"Sold {name} for {proceeds}¢.")
-    return _return_to(request, back)
+    return _acted(request, touched, gang, back)
 
 
 @login_required
@@ -572,6 +645,7 @@ def reassign_assignment(request, pk):
     # the reader wants the screen they clicked on.
     came_from = assignment.miniature_root
     back = _back_to(request, assignment, gang)
+    touched = _row_behind(assignment)
     name = str(assignment.assignable)
 
     wanted = request.POST.get("to")
@@ -601,14 +675,14 @@ def reassign_assignment(request, pk):
             destination = None
     if destination is None:
         messages.error(request, f"There is nowhere to move {name} to.")
-        return _return_to(request, back)
+        return _refused(request, back)
 
     try:
         with operation(gang, actor=request.user) as op:
             op.move(assignment, destination)
     except Refusal as refusal:
         messages.error(request, str(refusal))
-        return _return_to(request, back)
+        return _refused(request, back)
 
     record(
         request,
@@ -627,7 +701,7 @@ def reassign_assignment(request, pk):
         messages.success(request, f"Fitted {name} to {destination.assignable}.")
     else:
         messages.success(request, f"Moved {name} to {destination.name}.")
-    return _return_to(request, back)
+    return _acted(request, touched, gang, back)
 
 
 @login_required
@@ -663,6 +737,7 @@ def rechoose_assignment(request, pk):
     gang = assignment.gang_root
     miniature = assignment.miniature_root
     back = _back_to(request, assignment, gang)
+    touched = _row_behind(assignment)
 
     picked = _choices_picked(request.POST, thing_key(thing), offered_choices(thing))
     taken = {row.default_set_id for row in assignment.chosen_options.all()}
@@ -673,7 +748,7 @@ def rechoose_assignment(request, pk):
             op.rechoose(assignment, option=[option.default_set for option in picked])
     except Refusal as refusal:
         messages.error(request, str(refusal))
-        return _return_to(request, back)
+        return _refused(request, back)
     if entry is not None:
         entry.refresh_from_db()
     after = entry.paid if entry is not None else 0
@@ -696,7 +771,7 @@ def rechoose_assignment(request, pk):
     now = {row.default_set_id for row in assignment.chosen_options.all()}
     if now == taken:
         messages.success(request, f"{thing}'s options are unchanged.")
-        return _return_to(request, back)
+        return _refused(request, back)
     holds = ", ".join(option.name for option in thing.options_taken(now))
     settled = (
         f" — {after - before}¢ more."
@@ -706,7 +781,7 @@ def rechoose_assignment(request, pk):
         else "."
     )
     messages.success(request, f"{thing} now has {holds}{settled}")
-    return _return_to(request, back)
+    return _acted(request, touched, gang, back)
 
 
 @login_required
@@ -741,6 +816,7 @@ def accessorise_assignment(request, pk):
     gang = assignment.gang_root
     miniature = assignment.miniature_root
     back = _back_to(request, assignment, gang)
+    touched = _row_behind(assignment)
 
     try:
         accessory = WeaponAccessory.objects.selectable().get(
@@ -750,14 +826,14 @@ def accessorise_assignment(request, pk):
         # A stale dialog or a hand-made click. The screen it came from is
         # the answer, with the list on it as it now stands.
         messages.error(request, "That accessory is not one to fit.")
-        return _return_to(request, back)
+        return _refused(request, back)
 
     try:
         with operation(gang, actor=request.user) as op:
             bought = op.buy(assignment, thing=accessory)
     except Refusal as refusal:
         messages.error(request, str(refusal))
-        return _return_to(request, back)
+        return _refused(request, back)
 
     record(
         request,
@@ -776,7 +852,7 @@ def accessorise_assignment(request, pk):
         f"Fitted {accessory.name} to {assignment.assignable} — "
         f"{bought.ledger_entry.paid}¢.",
     )
-    return _return_to(request, back)
+    return _acted(request, touched, gang, back)
 
 
 @login_required
@@ -795,13 +871,14 @@ def remove_assignment(request, pk):
     miniature = assignment.miniature_root
     name = str(assignment.assignable)
     back = _back_to(request, assignment, gang)
+    touched = _row_behind(assignment)
 
     try:
         with operation(gang, actor=request.user) as op:
             op.remove(assignment)
     except Refusal as refusal:
         messages.error(request, str(refusal))
-        return _return_to(request, back)
+        return _refused(request, back)
 
     record(
         request,
@@ -814,7 +891,7 @@ def remove_assignment(request, pk):
         action="remove",
     )
     messages.success(request, f"Removed {name}.")
-    return _return_to(request, back)
+    return _acted(request, touched, gang, back)
 
 
 @login_required
@@ -840,13 +917,14 @@ def refund_assignment(request, pk):
     name = str(assignment.assignable)
     _, paid = refund_of(assignment)
     back = _back_to(request, assignment, gang)
+    touched = _row_behind(assignment)
 
     try:
         with operation(gang, actor=request.user) as op:
             op.refund(assignment)
     except Refusal as refusal:
         messages.error(request, str(refusal))
-        return _return_to(request, back)
+        return _refused(request, back)
 
     record(
         request,
@@ -860,4 +938,4 @@ def refund_assignment(request, pk):
         refunded=paid,
     )
     messages.success(request, f"Refunded {name} — {paid}¢ back.")
-    return _return_to(request, back)
+    return _acted(request, touched, gang, back)
