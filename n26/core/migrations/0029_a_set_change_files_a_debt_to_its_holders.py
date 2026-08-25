@@ -13,7 +13,7 @@ import n26.core.fields
 class Migration(migrations.Migration):
     dependencies = [
         ("library", "0066_standing_profile_members_take_their_gun"),
-        ("n26", "0026_a_flag_may_only_hold_a_word_that_can_be_read"),
+        ("n26", "0028_the_flag_table_belongs_to_the_site_now"),
     ]
 
     operations = [
