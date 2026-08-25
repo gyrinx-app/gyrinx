@@ -573,10 +573,42 @@ banner, is_impersonating / impersonator, gtm_container_id, messages, user.
         to say as one event holding every message. The container raises one
         toast at a time, so they are dealt out here.
         {% endcomment %}
+        {% comment %}
+        The messages arrive under a name of their own rather than as the whole
+        of the event: a list is wrapped before it is handed over, and reading
+        the wrapper as the list finds nothing and says nothing.
+        {% endcomment %}
+        {% comment %}
+        A control that asks the server for part of a page is wired when the
+        page is drawn or when a swap brings it in. Some are built later, in the
+        hand — the copies inside an opened row — and were never introduced;
+        their clicks are caught here instead, which cannot be raced by whatever
+        built them. A control that was introduced answers its own click first,
+        and says so, so nothing is asked for twice.
+
+        The section on screen is the reader's, held by the picker and written
+        into the address as they click, so it is taken from there rather than
+        from an address baked when the page was drawn.
+        {% endcomment %}
+        <script>
+            document.body.addEventListener("click", function (event) {
+                if (event.defaultPrevented || event.button !== 0) return;
+                if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                var link = event.target.closest("a[hx-get]");
+                if (!link || !window.htmx) return;
+                event.preventDefault();
+                var asked = new URL(link.getAttribute("hx-get"), location.href);
+                var section = new URLSearchParams(location.search).get("section");
+                if (section) asked.searchParams.set("section", section);
+                window.htmx.ajax("GET", asked.pathname + asked.search, { swap: "none" });
+            });
+        </script>
         <script>
             document.body.addEventListener("n26-said", function (event) {
-                (event.detail || []).forEach(function (said) {
-                    window.dispatchEvent(new CustomEvent("toast", { detail: said }));
+                var detail = event.detail || {};
+                var said = Array.isArray(detail) ? detail : detail.value || [];
+                said.forEach(function (one) {
+                    window.dispatchEvent(new CustomEvent("toast", { detail: one }));
                 });
             });
         </script>

@@ -544,6 +544,7 @@ def _acted(request, touched, gang, back):
         miniature=touched.miniature,
         list_param=request.POST.get("list", "")[:100],
         expanded_key=_expanded_behind(request),
+        at=back,
     )
     answer = changed(request, gang, touched.key, row, held_label, closed=True)
     answer["HX-Replace-Url"] = back

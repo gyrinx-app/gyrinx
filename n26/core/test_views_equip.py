@@ -2095,6 +2095,37 @@ class TestOpeningAConfirmationWithoutRebuildingThePage:
         assert "Sell Autogun?" in body
 
 
+class TestTheWiringEveryActLeansOn:
+    """Two pieces of the page that nothing else on it would miss, and
+    whose absence looks like the acts themselves being broken."""
+
+    def test_a_click_on_a_control_built_in_the_hand_is_still_caught(
+        self, client, tester, fighter, gun_list, owned_gun
+    ):
+        """The copies inside an opened row are built by the page, so
+        whatever answers their clicks has never seen them. Without this
+        every act inside an opened row goes back to fetching the whole
+        screen — which is the bug, wearing a different hat."""
+        client.force_login(tester)
+        body = client.get(equip_url(fighter, gun_list)).content.decode()
+
+        assert 'event.target.closest("a[hx-get]")' in body
+        # A control that was introduced answers its own click first and
+        # says so, so nothing is asked for twice.
+        assert "event.defaultPrevented" in body
+
+    def test_what_the_server_says_is_dealt_out_as_toasts(
+        self, client, tester, fighter, gun_list
+    ):
+        """The messages arrive wrapped under a name of their own; read as
+        the list itself they are silently nothing."""
+        client.force_login(tester)
+        body = client.get(equip_url(fighter, gun_list)).content.decode()
+
+        assert 'addEventListener("n26-said"' in body
+        assert "detail.value" in body
+
+
 class TestSellingWithoutRebuildingThePage:
     """Confirming the act, not just opening the panel. Selling is what the
     reader came to do, and it must cost them their place no more than

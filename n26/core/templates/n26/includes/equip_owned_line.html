@@ -5,14 +5,6 @@ and `held_label` from the page when the host is the stash.
 Owning something is a *state of its row*, not a list of its own: where a copy is
 held, the count stands where Buy would be and opens the row onto what they have.
 {% endcomment %}
-{% comment %}
-Both addresses, not just the one the other state is at: opening and closing the
-copies costs nothing but a class, so the click does it here and puts the
-matching address in the bar. The link is still the link — a reader without
-script gets the row drawn open by the server, exactly as before.
-{% endcomment %}
-{% querystring owned=row.key as owned_open_href %}
-{% querystring owned=None as owned_shut_href %}
 {% if row.expanded %}
     {% querystring owned=None as owned_toggle_href %}
 {% else %}
@@ -32,10 +24,21 @@ script gets the row drawn open by the server, exactly as before.
             <span aria-hidden="true"></span>
         </c-slot>
         <c-slot name="actions">
+            {% comment %}
+            The address is amended rather than replaced: the section on screen
+            is written there by the picker and is nowhere else, so an address
+            built when the page was drawn would quietly drop it.
+            {% endcomment %}
             <c-ui.button href="{{ owned_toggle_href }}"
                          size="sm"
                          class="inline-flex items-center gap-1.5"
-                         x-on:click.prevent="expanded = !expanded; history.replaceState(history.state, '', expanded ? '{{ owned_open_href }}' : '{{ owned_shut_href }}')"
+                         x-on:click.prevent="expanded = !expanded;
+                                             (() => {
+                                                 const here = new URL(location);
+                                                 if (expanded) here.searchParams.set('owned', '{{ row.key|escapejs }}');
+                                                 else here.searchParams.delete('owned');
+                                                 history.replaceState(history.state, '', here);
+                                             })()"
                          aria-expanded="{{ row.expanded|yesno:'true,false' }}"
                          ::aria-expanded="expanded">
                 <span><span class="tabular-nums">{{ row.count }}</span> {{ held_label|default:"equipped" }}</span>
@@ -81,10 +84,21 @@ script gets the row drawn open by the server, exactly as before.
             <span aria-hidden="true"></span>
         </c-slot>
         <c-slot name="actions">
+            {% comment %}
+            The address is amended rather than replaced: the section on screen
+            is written there by the picker and is nowhere else, so an address
+            built when the page was drawn would quietly drop it.
+            {% endcomment %}
             <c-ui.button href="{{ owned_toggle_href }}"
                          size="sm"
                          class="inline-flex items-center gap-1.5"
-                         x-on:click.prevent="expanded = !expanded; history.replaceState(history.state, '', expanded ? '{{ owned_open_href }}' : '{{ owned_shut_href }}')"
+                         x-on:click.prevent="expanded = !expanded;
+                                             (() => {
+                                                 const here = new URL(location);
+                                                 if (expanded) here.searchParams.set('owned', '{{ row.key|escapejs }}');
+                                                 else here.searchParams.delete('owned');
+                                                 history.replaceState(history.state, '', here);
+                                             })()"
                          aria-expanded="{{ row.expanded|yesno:'true,false' }}"
                          ::aria-expanded="expanded">
                 <span><span class="tabular-nums">{{ row.count }}</span> {{ held_label|default:"equipped" }}</span>

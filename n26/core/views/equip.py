@@ -301,12 +301,19 @@ class Bought:
     key: str
 
 
-def screen_row(request, gang, key, *, miniature=None, list_param="", expanded_key=""):
+def screen_row(
+    request, gang, key, *, miniature=None, list_param="", expanded_key="", at=""
+):
     """The row one piece of content has on an equip screen, as it now stands.
 
     ``miniature`` names whose screen this is; without one it is the
     gang's. ``list_param`` is which listing the reader is on, in the
     words the address uses.
+
+    ``at`` is the screen the row is going back to, query string and all.
+    Every act a copy offers is built from it, so a row drawn without one
+    hands back controls that have forgotten which list the reader is on
+    and which section they were reading.
 
     The card is built again rather than reused, because the one a click
     arrives with describes the holder as they were before it. That is the
@@ -345,12 +352,12 @@ def screen_row(request, gang, key, *, miniature=None, list_param="", expanded_ke
             if chosen is not None
             else None
         )
-        host = EquipHost.fighter(gang, card, miniature, at="")
+        host = EquipHost.fighter(gang, card, miniature, at=at)
     else:
         card = build_gang_card(gang, with_statlines=False)
         index = build_modifier_index([node.assignable for node in card.all_nodes()])
         computed = compute_gang(card, index)
-        host = EquipHost.stash(gang, card, at="")
+        host = EquipHost.stash(gang, card, at=at)
         if list_param == STASH_SCOPE:
             view = None
         elif list_param == ALL_SCOPE:
@@ -692,6 +699,7 @@ def equip(request, pk):
             miniature=miniature,
             list_param=str(chosen.pk) if chosen is not None else "",
             expanded_key=expanded_key,
+            at=here(chosen),
         )
         return _spoken(request, changed(request, gang, outcome.key, row, held_label))
 
@@ -962,6 +970,7 @@ def equip_gang(request, pk):
             outcome.key,
             list_param=wanted,
             expanded_key=expanded_key,
+            at=here,
         )
         return _spoken(request, changed(request, gang, outcome.key, row, held_label))
 
