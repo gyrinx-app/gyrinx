@@ -284,6 +284,22 @@ once; drop leaves pending work the sweep drains; shared sets reach every
 holder; option-set changes reach only selectors. End-to-end: authoring
 save → existing card shows the built-in through the dev worker within
 seconds. Decide history wording here (open question) before enabling.
+*Design ruling (maintainer, 2026-08-25): the pending row is a
+`gyrinx.state_machine.StateMachine` model, not bespoke status columns —
+the pattern `TaskExecution` and `Battle` already use.* What that buys:
+the claim race is `transition_to`'s row-locked validation (a duplicate
+delivery's PENDING → RUNNING loses with `InvalidStateTransition` and
+stands down — no hand-rolled advisory lock for the claim; reconcile
+idempotency stays underneath); the sweep is an indexed status query plus
+timestamped transition history; outcomes (gangs reconciled, skips) land
+in transition `metadata`. Graph needs one loop-back edge beyond Battle's
+forward-only shape: RUNNING → PENDING for "a newer change landed
+mid-flight". Coalescing = one live obligation per set (partial unique
+where status is non-terminal): a second edit while PENDING is a no-op,
+while RUNNING it re-opens. The obligation row is NOT a `TaskExecution`:
+one tracks a delivery attempt, the other the durable debt that survives
+a lost publish. Model lives in `n26/core`, importing
+`gyrinx.state_machine` as the tasks framework does.
 *Status: not started.*
 
 **C5 — Preview.** `plan_built_in_change()` shared planner; authoring
