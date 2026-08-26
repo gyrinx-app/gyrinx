@@ -283,3 +283,21 @@ class TestReadingOnlyPartOfTheLog:
             campaign_history(campaign, limit=5)
         (fetch,) = [q["sql"] for q in queries.captured_queries]
         assert "LIMIT 5" in fetch
+
+
+class TestALongRename:
+    def test_both_names_are_kept_in_full(self, campaign, arbitrator):
+        """A campaign name may run to 200 characters, so a rename note holds
+        two of them and the mark between. Nothing here is ever rewritten, so
+        a note cut short would leave a reader with half a name for good."""
+        was = "A" * 200
+        now = "B" * 200
+        campaign.name = was
+        campaign.save()
+
+        with campaign_operation(campaign, actor=arbitrator) as act:
+            act.rename(now)
+
+        (event,) = campaign.events.all()
+        assert event.note == f"{was} → {now}"
+        assert told(campaign) == [f"renamed the campaign {was} to {now}"]

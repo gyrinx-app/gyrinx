@@ -66,6 +66,11 @@ class CampaignEvent(Base):
     than by what it happened to say.
     """
 
+    #: Long enough for a rename, which holds two campaign names and the mark
+    #: between them. Nothing here is ever rewritten, so a note cut short stays
+    #: cut short, and a reader is left with half a name for good.
+    NOTE_LENGTH = 512
+
     class Kind(models.TextChoices):
         CREATED = "created", "Set up"
         RENAMED = "renamed", "Renamed"
@@ -92,7 +97,7 @@ class CampaignEvent(Base):
     #: budget, the two names for a rename. Figures are stored bare and given
     #: their mark when the page is drawn. Never the summary's own words — the
     #: log is a list of acts, not a copy of the arbitrator's prose.
-    note = models.CharField(max_length=255, blank=True)
+    note = models.CharField(max_length=NOTE_LENGTH, blank=True)
     #: One mark per act, shared by every event that act wrote. Events sharing
     #: a mark were written together — three fields changed on one submit — so
     #: what was one act stays recognisable as one.

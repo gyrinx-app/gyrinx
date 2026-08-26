@@ -122,8 +122,8 @@ def campaign(request, pk):
 
     found = _own_campaign_or_404(request, pk)
     # Only the acts that will be drawn are built; how many more there are is
-    # counted rather than read, so a campaign played for a year costs the
-    # same to open as one set up this morning.
+    # counted rather than read, so a campaign played for a year opens as
+    # quickly as one set up this morning.
     recent = campaign_history(found, viewer=request.user, limit=LOG_ON_THE_PAGE)
     return render(
         request,

@@ -56,7 +56,7 @@ class CampaignOperation:
             campaign=self.campaign,
             kind=kind,
             actor=self.actor,
-            note=note[:255],
+            note=note[: CampaignEvent.NOTE_LENGTH],
             batch=self.batch,
         )
 
