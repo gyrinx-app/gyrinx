@@ -275,7 +275,27 @@ support in `n26/maintenance.py` (D7): batches commit independently,
 progress + failures on the `Backfill` record, resume after interruption,
 cancel between batches. Sized by C0's numbers — build what the volume
 demands, not a framework. Independent of C1/C2; must land before C7.
-*Status: not started.*
+*Status: MERGED 2026-08-26 via PR
+[#2322](https://github.com/gyrinx-app/gyrinx/pull/2322). As built:
+`run_batched(backfill_id, operation=, what=, items=, do_one=, again=)`
++ the existing `_claim` now serving both shapes (every recorded batch
+resets the attempt count — no separate batched claim). Cursor over a
+total pk order; batches fetched by keyset (`pk__gt`), never
+materialised; `done` counts successes; failures struck off when a later
+walk settles the row; total pinned on the first attempt (items must be
+a STABLE queryset, never self-filtering); cancel checked before each
+batch and at each progress write; hand-back enqueued only after the
+advisory lock is released (race caught in review: a summoned delivery
+finding the lock held would stand down, ack, and strand the record
+RUNNING — maintenance has NO sweep); the hand-back enqueue is the one
+deliberate raise (redelivery re-summons). BATCH_BUDGET=4min to fit the
+default 300s ack deadline (invariant: budget + one batch < route
+deadline). For C7: pass `operation` registered in LOCK_KEYS; `do_one`
+must be idempotent and own its transaction (operation(gang) is);
+refusals-channel/report plumbing deliberately absent — decide in C7 if
+needed; lock contention across two live deliveries is the one path no
+test can exercise (single-connection suites can't contend) — watch the
+console during C7's first prod run.*
 
 **C4 — Live add-propagation.** Pending row + `on_commit` enqueue from
 `add_built_in`/`add_default_member`/ingest perform, coalesced per set.
