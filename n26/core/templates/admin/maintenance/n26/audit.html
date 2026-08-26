@@ -1,0 +1,57 @@
+{% extends "admin/base_site.html" %}
+{% comment %}
+The books audit's console page: how many gangs would be checked, a run
+button, and the recent runs. The audit reads everything and changes
+nothing, so there is no plan to preview and no confirmation to extract.
+Context from audit_reconcile_view (n26/maintenance.py): title, gangs,
+apply_url, recent.
+{% endcomment %}
+{% block title %}
+    {{ title }} | {{ site_title|default:_("Django site admin") }}
+{% endblock title %}
+{% block extrahead %}
+    {{ block.super }}
+    <style>
+    .mt-form { margin-top: 2rem; }
+    .mt-table { width: 100%; margin-top: 1rem; }
+    </style>
+{% endblock extrahead %}
+{% block content %}
+    <p>
+        <a href="{% url 'admin:maintenance_index' %}">← Back to Maintenance</a>
+    </p>
+    <h1>{{ title }}</h1>
+    <p>
+        Checks every unarchived gang's pinned totals against what its ledger
+        sums to. Reads everything, changes nothing; a gang whose books
+        disagree is listed on the run's record with the discrepancy in words.
+    </p>
+    <p>{{ gangs }} gang{{ gangs|pluralize }} would be checked.</p>
+    <form method="post" class="mt-form">
+        {% csrf_token %}
+        <button type="submit" class="button default">Check every gang's books</button>
+    </form>
+    {% if recent %}
+        <h2>Recent runs</h2>
+        <table class="mt-table">
+            <thead>
+                <tr>
+                    <th>When</th>
+                    <th>Status</th>
+                    <th>Triggered by</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for run in recent %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'admin:maintenance_backfill_detail' run.id %}">{{ run.created }}</a>
+                        </td>
+                        <td>{{ run.get_status_display }}</td>
+                        <td>{{ run.triggered_by|default:"—" }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+{% endblock content %}

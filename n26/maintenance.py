@@ -125,11 +125,16 @@ class Operation(models.TextChoices):
         "n26_merge_wargear_into_weapon",
         "n26: duplicated wargear becomes its weapon",
     )
+    AUDIT_RECONCILE = (
+        "n26_audit_reconcile",
+        "n26: every gang's books are checked against its ledger",
+    )
 
 
 #: See the note on locks above: one per operation, never shared.
 LOCK_KEYS = {
     Operation.DELETE_NAMELESS_GANG_TYPE: 826_020_606,
+    Operation.AUDIT_RECONCILE: 826_020_607,
 }
 
 
@@ -576,6 +581,81 @@ def delete_nameless_gang_type_view(request):
     )
 
 
+@task
+def audit_reconcile(backfill_id, **said_by_whoever_enqueued_it):
+    """Check every unarchived gang's books against its ledger.
+
+    Reads everything, writes nothing to any gang: a gang whose pinned
+    totals or entries disagree with its ledger lands in the record's
+    failures with the discrepancy in words. Batched, because the whole
+    estate is walked and each gang stands alone.
+    """
+    from n26.core.models import Gang
+    from n26.core.reconcile import assert_reconciled
+
+    run_batched(
+        backfill_id,
+        operation=Operation.AUDIT_RECONCILE,
+        what="Gang books audit",
+        items=Gang.objects.filter(archived=False),
+        do_one=lambda pk: assert_reconciled(Gang.objects.get(pk=pk)),
+        again=lambda: audit_reconcile.enqueue(backfill_id=backfill_id),
+    )
+
+
+def audit_reconcile_view(request):
+    """Say what would be checked (GET), or record a run and enqueue it."""
+    from n26.core.models import Gang
+
+    operation = Operation.AUDIT_RECONCILE
+    address = reverse(f"admin:maintenance_{operation.value}")
+    if request.method == "POST":
+        running = running_guard(operation)
+        if running is not None:
+            messages.warning(request, "That audit is already running.")
+            return HttpResponseRedirect(
+                reverse("admin:maintenance_backfill_detail", args=[running.id])
+            )
+        backfill = Backfill.objects.create(
+            operation=operation,
+            triggered_by=request.user,
+            status=Backfill.Status.RUNNING,
+            summary={"attempts": 0},
+        )
+        audit_reconcile.enqueue(backfill_id=str(backfill.id))
+        messages.success(
+            request, "The audit is running. This page shows what it finds."
+        )
+        return HttpResponseRedirect(
+            reverse("admin:maintenance_backfill_detail", args=[backfill.id])
+        )
+    context = page_context(
+        request,
+        operation.label,
+        gangs=Gang.objects.filter(archived=False).count(),
+        apply_url=address,
+        recent=Backfill.objects.filter(operation=operation)[:10],
+    )
+    return render(request, "admin/maintenance/n26/audit.html", context)
+
+
+register_operation(
+    MaintenanceOperation(
+        operation=Operation.AUDIT_RECONCILE.value,
+        name=Operation.AUDIT_RECONCILE.label,
+        added=date(2026, 8, 26),
+        description=(
+            "Walk every unarchived gang and check its pinned totals — "
+            "rating, credits, each model's worth — against what its "
+            "ledger sums to. Reads everything and changes nothing; a "
+            "gang whose books disagree is listed on the run's record "
+            "with the discrepancy in words."
+        ),
+        view=audit_reconcile_view,
+    )
+)
+
+
 register_operation(
     MaintenanceOperation(
         operation=Operation.DELETE_NAMELESS_GANG_TYPE.value,
@@ -614,6 +694,7 @@ task_routes = [
     TaskRoute(delete_nameless_gang_type, ack_deadline=600, min_retry_delay=60),
     TaskRoute(propagate_built_ins, ack_deadline=600),
     TaskRoute(sweep_built_in_propagations, schedule="*/5 * * * *"),
+    TaskRoute(audit_reconcile),
 ]
 
 
