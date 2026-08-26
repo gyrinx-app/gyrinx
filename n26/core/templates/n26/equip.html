@@ -29,34 +29,16 @@ breadcrumb above it has the gang as well, so nothing is lost.
 {% block nav_items %}
     {% include 'n26/_nav.html' with here='gangs' %}
 {% endblock %}
+{% block extra_head %}
+    {% comment %}
+    URL parameters every htmx request from this screen carries along —
+    which section tab is on screen, which row stands open. Read by
+    n26/core/static/n26/htmx_support.js.
+    {% endcomment %}
+    <meta name="n26-carry" content="section owned">
+{% endblock extra_head %}
 {% block content %}
-    {% comment %}
-    Before the catalogue, and outside its form: with scripting off this is a panel
-    in the flow of the page rather than a modal over it, and a panel below three
-    hundred rows is one nobody finds. Outside the form because it is a form
-    itself — HTML has no nested forms — and the catalogue wraps every row on the
-    page.
-    {% endcomment %}
-    {% comment %}
-    Named and always drawn, empty or not: a click on Sell asks the server for
-    this panel alone and the answer stands in for whatever is here, so there
-    has to be something here to stand in for. The address still says which
-    panel is open, so a reload draws it and a link to it works.
-    {% endcomment %}
-    <div id="n26-dialog-host">
-        {% if dialog %}
-            <c-n26.owned-dialog :dialog="dialog" :acts_in_place="True">
-                {% csrf_token %}
-            </c-n26.owned-dialog>
-        {% endif %}
-    </div>
-    {% comment %}
-    One accessory panel per gun the fighter is carrying, drawn as one named set
-    — see n26/includes/equip_accessorise.html. Named because a gun that arrives
-    after a purchase brings no panel of its own, and a gun parted with would
-    leave one behind, so an act hands the whole set back as it now stands.
-    {% endcomment %}
-    <div id="n26-accessorise-host">{% include "n26/includes/equip_accessorise.html" %}</div>
+    {% include "n26/includes/equip_hosts.html" %}
     {% comment %}
     The model's own header — this screen is the Equip tab of the model's
     page, and the Edit face wears the same one. See <c-n26.model-header>.
@@ -93,13 +75,7 @@ breadcrumb above it has the gang as well, so nothing is lost.
         one click away rather than a line of the page.
         {% endcomment %}
         <c-slot name="actions">
-            {% comment %}
-            The money is named, because a purchase answered without a rebuild
-            sends it back to be swapped in place — it is the one thing outside
-            the row that a purchase changes. The count beside it is not: buying
-            kit never changes how many models there are.
-            {% endcomment %}
-            <c-n26.gang-figures :gang="gang" :summary="summary" wealth_id="n26-gang-wealth" />
+            <c-n26.gang-figures :gang="gang" :summary="summary" />
         </c-slot>
     </c-n26.model-header>
     {% comment %}
@@ -143,13 +119,12 @@ breadcrumb above it has the gang as well, so nothing is lost.
                 </c-ui.navlist>
             {% endif %}
             {% comment %}
-            The whole catalogue posts here, and a purchase is answered with the
-            row it changed rather than the screen around it — so the filters,
-            the section on screen and any price typed elsewhere survive it.
-            Nothing is targeted from here: what a purchase changes is the
-            server's to say, and it says it by naming each part in its answer.
-            Without script this is an ordinary form and the whole page comes
-            back, exactly as before.
+            The whole catalogue posts here. A purchase submitted by htmx gets
+            back only the elements it changed — so the filters, the section on
+            screen and any price typed elsewhere survive it. Nothing is
+            targeted from here: which elements an act updates is decided
+            server-side, in n26/includes/equip_update.html. Without JavaScript
+            this is an ordinary form and the whole page is served.
             {% endcomment %}
             <form method="post"
                   action="{% url 'n26-equip' miniature.pk %}?list={{ chosen.pk }}"

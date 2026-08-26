@@ -1,6 +1,7 @@
 {% comment %}
 A row for something already held. Expects `row` — an n26.core.listing.OwnedRow —
-and `held_label` from the page when the host is the stash.
+and `held_label` from the page when the host is the stash; `htmx` from the page
+says the screen receives partial updates, and `redrawn` that this render is one.
 
 Owning something is a *state of its row*, not a list of its own: where a copy is
 held, the count stands where Buy would be and opens the row onto what they have.
@@ -25,35 +26,11 @@ held, the count stands where Buy would be and opens the row onto what they have.
             <span aria-hidden="true"></span>
         </c-slot>
         <c-slot name="actions">
-            {% comment %}
-            The address is amended rather than replaced: the section on screen
-            is written there by the picker and is nowhere else, so an address
-            built when the page was drawn would quietly drop it.
-            {% endcomment %}
-            <c-ui.button href="{{ owned_toggle_href }}"
-                         size="sm"
-                         class="inline-flex items-center gap-1.5"
-                         x-on:click.prevent="expanded = !expanded;
-                                             (() => {
-                                                 const here = new URL(location);
-                                                 if (expanded) here.searchParams.set('owned', '{{ row.key|escapejs }}');
-                                                 else here.searchParams.delete('owned');
-                                                 history.replaceState(history.state, '', here);
-                                             })()"
-                         aria-expanded="{{ row.expanded|yesno:'true,false' }}"
-                         ::aria-expanded="expanded">
-                <span><span class="tabular-nums">{{ row.count }}</span> {{ held_label|default:"equipped" }}</span>
-                <span class="n26-icon-only">
-                    <c-n26.icon name="chevron-down"
-                                class="size-3 transition-transform{% if row.expanded %} rotate-180{% endif %}"
-                                ::class="{ 'rotate-180': expanded }"
-                                stroke_width="2.5" />
-                </span>
-            </c-ui.button>
+            {% include "n26/includes/equip_owned_toggle.html" %}
         </c-slot>
         <c-slot name="details">
             <div class="n26-cp-inset">
-                <c-n26.owned-lines :copies="row.copies" />
+                <c-n26.owned-lines :copies="row.copies" :htmx="htmx" />
                 <div class="mt-1 border-t border-box-border pt-1">
                     <div class="flex min-h-9 items-center gap-2">
                         <span class="min-w-0 flex-1 text-sm text-muted">Buy another</span>
@@ -86,35 +63,11 @@ held, the count stands where Buy would be and opens the row onto what they have.
             <span aria-hidden="true"></span>
         </c-slot>
         <c-slot name="actions">
-            {% comment %}
-            The address is amended rather than replaced: the section on screen
-            is written there by the picker and is nowhere else, so an address
-            built when the page was drawn would quietly drop it.
-            {% endcomment %}
-            <c-ui.button href="{{ owned_toggle_href }}"
-                         size="sm"
-                         class="inline-flex items-center gap-1.5"
-                         x-on:click.prevent="expanded = !expanded;
-                                             (() => {
-                                                 const here = new URL(location);
-                                                 if (expanded) here.searchParams.set('owned', '{{ row.key|escapejs }}');
-                                                 else here.searchParams.delete('owned');
-                                                 history.replaceState(history.state, '', here);
-                                             })()"
-                         aria-expanded="{{ row.expanded|yesno:'true,false' }}"
-                         ::aria-expanded="expanded">
-                <span><span class="tabular-nums">{{ row.count }}</span> {{ held_label|default:"equipped" }}</span>
-                <span class="n26-icon-only">
-                    <c-n26.icon name="chevron-down"
-                                class="size-3 transition-transform{% if row.expanded %} rotate-180{% endif %}"
-                                ::class="{ 'rotate-180': expanded }"
-                                stroke_width="2.5" />
-                </span>
-            </c-ui.button>
+            {% include "n26/includes/equip_owned_toggle.html" %}
         </c-slot>
         <c-slot name="details">
             <div class="n26-cp-inset">
-                <c-n26.owned-lines :copies="row.copies" />
+                <c-n26.owned-lines :copies="row.copies" :htmx="htmx" />
             </div>
         </c-slot>
     </c-n26.collection-picker.item>

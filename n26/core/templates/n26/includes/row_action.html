@@ -30,18 +30,29 @@ for why the affirmative tone is green rather than the kit's `primary`.
         </c-ui.button>
     {% else %}
         {% comment %}
-        Every act that is a link here opens a confirmation the server draws,
-        so the click asks for that panel rather than for the whole screen
-        again. What comes back names the place it stands in for, which is why
-        nothing is targeted from here. Without script it is the plain link it
-        has always been, and the server draws the page with the panel open.
+        Every act that is a link here opens a confirmation the server renders.
+        On a screen that has opted into partial updates (`htmx` in context —
+        see n26/includes/equip_hosts.html), the click fetches that panel
+        alone; the response replaces the dialog host by id, which is why
+        nothing is targeted from here. Elsewhere, and without JavaScript, it
+        is a plain link and the server serves the page with the panel open.
+
+        Two whole buttons rather than one with the attributes switched: a
+        template tag inside a component's attribute list is not parsed and
+        lands in the page as text.
         {% endcomment %}
-        <c-ui.button size="sm"
-                     variant="{{ variant }}"
-                     href="{{ action.target }}"
-                     hx-get="{{ action.target }}"
-                     hx-swap="none">
-            {{ action.label }}
-        </c-ui.button>
+        {% if htmx %}
+            <c-ui.button size="sm"
+                         variant="{{ variant }}"
+                         href="{{ action.target }}"
+                         hx-get="{{ action.target }}"
+                         hx-swap="none">
+                {{ action.label }}
+            </c-ui.button>
+        {% else %}
+            <c-ui.button size="sm" variant="{{ variant }}" href="{{ action.target }}">
+                {{ action.label }}
+            </c-ui.button>
+        {% endif %}
     {% endif %}
 {% endwith %}

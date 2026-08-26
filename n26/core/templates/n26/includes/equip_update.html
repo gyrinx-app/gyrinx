@@ -1,0 +1,48 @@
+{% load listing %}
+{% comment %}
+The partial update for one act on an equip screen — rendered by
+n26.core.views.equip.render_update, never included by a page.
+
+Nothing here is targeted by the click that caused it. Each element carries
+hx-swap-oob and the id of the element on the page it replaces, so which parts
+of the page an act updates is decided in this one template and can grow
+without any call site changing. Messages are not among them: they ride the
+HX-Trigger response header and are shown as toasts, because a page that is
+not re-rendered draws no alert block.
+
+The row is the ordinary one — the same include the catalogue draws — so a
+row delivered by an update and a row drawn with the page cannot come to look
+different. It replaces the row of its own key, which is why buying a first
+copy or selling a last one can deliver a row of a different shape entirely:
+what is held is a state of its row.
+
+Where the screen no longer has a row for the key, the row is removed
+instead. A listing always keeps a row; a screen showing only what is held
+loses the row along with the last copy.
+{% endcomment %}
+{% if row %}
+    {% include "n26/includes/equip_row.html" with redrawn=True %}
+{% else %}
+    <div id="{{ row_key|row_dom_id }}" hx-swap-oob="delete"></div>
+{% endif %}
+{% comment %}
+The money, and not the model count beside it. An act on kit never changes
+how many models the gang fields, and the count opens onto a tally whose own
+Alpine state does not survive being re-rendered mid-life — so what did not
+change is left alone.
+{% endcomment %}
+<c-n26.gang-figures.wealth :sheet="gang" hx-swap-oob="true" />
+{% comment %}
+The whole set of accessory panels, as the screen now stands. Each panel is
+drawn per gun and opened by a control that names it by id, so a gun bought
+since the page was drawn has no panel until this delivers one, and a gun
+parted with would leave its panel behind.
+{% endcomment %}
+<div id="n26-accessorise-host" hx-swap-oob="true">{% include "n26/includes/equip_accessorise.html" %}</div>
+{% if closed %}
+    {% comment %}
+    The act was submitted from a confirmation panel; an empty host replaces
+    whatever was open there, closing it.
+    {% endcomment %}
+    <div id="n26-dialog-host" hx-swap-oob="true"></div>
+{% endif %}

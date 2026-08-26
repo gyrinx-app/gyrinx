@@ -17,21 +17,16 @@ sell is managed from the In stash tab.
 {% block nav_items %}
     {% include 'n26/_nav.html' with here='gangs' %}
 {% endblock %}
+{% block extra_head %}
+    {% comment %}
+    URL parameters every htmx request from this screen carries along —
+    which section tab is on screen, which row stands open. Read by
+    n26/core/static/n26/htmx_support.js.
+    {% endcomment %}
+    <meta name="n26-carry" content="section owned">
+{% endblock extra_head %}
 {% block content %}
-    {% comment %}
-    Named and always drawn, empty or not — see the fighter's equip page.
-    {% endcomment %}
-    <div id="n26-dialog-host">
-        {% if dialog %}
-            <c-n26.owned-dialog :dialog="dialog" :acts_in_place="True">
-                {% csrf_token %}
-            </c-n26.owned-dialog>
-        {% endif %}
-    </div>
-    {% comment %}
-    Named and drawn as one set — see the fighter's equip page.
-    {% endcomment %}
-    <div id="n26-accessorise-host">{% include "n26/includes/equip_accessorise.html" %}</div>
+    {% include "n26/includes/equip_hosts.html" %}
     {% comment %}
     The header spans the page and keeps the gang's figures at its far end, the
     way a model's own equip screen does — a catalogue is a wide thing, and the
@@ -52,18 +47,14 @@ sell is managed from the In stash tab.
             </c-ui.breadcrumbs>
         </c-slot>
         <c-slot name="actions">
-            {% comment %}
-            The money is named and sent back on its own — see the fighter's
-            equip page.
-            {% endcomment %}
-            <c-n26.gang-figures :gang="gang" :summary="summary" wealth_id="n26-gang-wealth" />
+            <c-n26.gang-figures :gang="gang" :summary="summary" />
         </c-slot>
     </c-n26.page-header>
     <div class="mt-6 grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-[11rem_minmax(0,1fr)]">
         {% comment %}
         Which list is a place you can be, so the rail is links the server
-        answers — beside the catalogue rather than pinned over it, exactly as
-        on a model's own screen.
+        answers — beside the catalogue rather than pinned over it, matching a
+        model's own screen.
         {% endcomment %}
         <c-ui.navlist variant="sidebar" aria-label="Which list" class="self-start text-sm">
             {% for tab in collection_tabs %}
@@ -74,12 +65,12 @@ sell is managed from the In stash tab.
         </c-ui.navlist>
         {% if catalogue %}
             {% comment %}
-            A purchase is answered with the row it changed rather than the
-            screen around it, so the filters and the section on screen survive
-            it. Nothing is targeted from here: what a purchase changes is the
-            server's to say, and it says it by naming each part in its answer.
-            The rail sits outside, because HTML has no nested forms and a list
-            is a link rather than a submit.
+            A purchase submitted by htmx gets back only the elements it
+            changed, so the filters and the section on screen survive it.
+            Nothing is targeted from here: which elements an act updates is
+            decided server-side, in n26/includes/equip_update.html. The rail
+            sits outside, because HTML has no nested forms and a list is a
+            link rather than a submit.
             {% endcomment %}
             <form method="post"
                   action="{{ action }}"

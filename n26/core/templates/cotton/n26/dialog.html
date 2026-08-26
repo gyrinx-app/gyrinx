@@ -22,6 +22,14 @@ the heading's id is derived from it.
 
 The slot carries the csrf token and the question's own fields: a component has
 no request and renders none itself.
+
+  :htmx — the form posts through htmx and the server sends back only the
+    elements the act changed. Only a screen holding every element such an
+    update names may set it; anywhere else the act would run and nothing on
+    screen would change. Off by default.
+  :redrawn — this panel was rendered on its own, for a page that was not
+    rebuilt. Dismissing it then puts the address back instead of navigating.
+    Implies the screen set :htmx as well.
 {% endcomment %}
 <c-vars
     title=""
@@ -34,8 +42,8 @@ no request and renders none itself.
     id="n26-dialog"
     :open="True"
     :modal="True"
-    :swapped="False"
-    :acts_in_place="False"
+    :redrawn="False"
+    :htmx="False"
     class=""
 />
 
@@ -98,12 +106,11 @@ asking for a page without it.
             }
         }"
         {% comment %}
-        A panel that arrived on its own, into a page nobody rebuilt, counts as
-        one this page opened: leaving it puts the address back rather than
-        fetching the screen again. Without this, Escape and Cancel would each
-        cost the page the reader still has.
+        A panel rendered on its own, into a page that was not rebuilt, counts
+        as one this page opened: dismissing it puts the address back rather
+        than navigating, keeping the page the reader still has.
         {% endcomment %}
-        {% if open %}x-init="{% if swapped %}clicked = true; {% endif %}promote($el)"{% endif %}
+        {% if open %}x-init="{% if redrawn %}clicked = true; {% endif %}promote($el)"{% endif %}
         @n26-dialog-open.window="if ($event.detail.id === $el.id) reveal($el, $event.detail.url)"
         :class="{ 'static m-0': !promoted, 'm-auto': promoted }"
         @click="leaving($event)"
@@ -112,14 +119,15 @@ asking for a page without it.
         {{ attrs }}
         class="static m-0 w-full max-w-lg rounded-box border border-box-border bg-surface p-0 text-ink-900 shadow-xl backdrop:bg-black/50 dark:bg-ink-900 dark:text-ink-100 {{ class }}">
     {% comment %}
-    Told to act in place, the click asks for the part of the screen behind
-    this panel that its act changes — the row, the gang's figures, and this
-    panel itself — instead of the whole page. It stays an ordinary form to an
-    ordinary address, so a reader without script gets the screen back.
+    With htmx set, submitting posts through htmx and the server sends back
+    only the elements the act changed — the row, the money, this panel. Only
+    a screen holding those elements may set it (see
+    n26/includes/equip_hosts.html). It stays an ordinary form to an ordinary
+    address, so without JavaScript the whole page is served.
     {% endcomment %}
     <form method="post"
           action="{{ action }}"
-          {% if acts_in_place %}hx-post="{{ action }}" hx-swap="none"{% endif %}
+          {% if htmx %}hx-post="{{ action }}" hx-swap="none"{% endif %}
           class="space-y-5 p-6">
         <div class="space-y-1.5">
             <h2 id="{{ id }}-title"

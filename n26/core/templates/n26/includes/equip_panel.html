@@ -12,7 +12,7 @@ and leaving puts the address back instead of asking for the whole screen.
 {% endcomment %}
 <div id="n26-dialog-host" hx-swap-oob="true">
     {% if dialog %}
-        <c-n26.owned-dialog :dialog="dialog" :swapped="True" :acts_in_place="True">
+        <c-n26.owned-dialog :dialog="dialog" :redrawn="True" :htmx="True">
             {% csrf_token %}
         </c-n26.owned-dialog>
     {% endif %}

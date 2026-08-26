@@ -1919,7 +1919,7 @@ class TestBuyingWithoutRebuildingThePage:
         self, client, tester, fighter, house_list
     ):
         """Nothing here is the only way to buy: without the header the
-        purchase redirects exactly as it always did."""
+        purchase responds with a redirect to the page."""
         from n26.library.models import Wargear
 
         client.force_login(tester)
@@ -1999,7 +1999,7 @@ class TestBuyingWithoutRebuildingThePage:
         response = self.asked(
             client, fighter, house_list, Wargear.objects.get(name="Knife")
         )
-        said = json.loads(response["HX-Trigger"])["n26-said"]
+        said = json.loads(response["HX-Trigger"])["n26-toasts"]
         assert [item["variant"] for item in said] == ["success"]
         assert "Bought Knife" in said[0]["message"]
 
@@ -2017,7 +2017,7 @@ class TestBuyingWithoutRebuildingThePage:
             client, fighter, house_list, create_wargear("Elsewhere", price=5)
         )
         assert response.status_code == 204
-        said = json.loads(response["HX-Trigger"])["n26-said"]
+        said = json.loads(response["HX-Trigger"])["n26-toasts"]
         assert said[0]["variant"] == "error"
         # A refusal stands until it is dismissed.
         assert said[0]["duration"] == 0
@@ -2099,35 +2099,67 @@ class TestOpeningAConfirmationWithoutRebuildingThePage:
         assert "Sell Autogun?" in body
 
 
+def _support_js():
+    """The client glue, read off disk — the page only carries a script tag."""
+    from pathlib import Path
+
+    import n26.core
+
+    return (
+        Path(n26.core.__file__).parent / "static" / "n26" / "htmx_support.js"
+    ).read_text()
+
+
 class TestTheWiringEveryActLeansOn:
-    """Two pieces of the page that nothing else on it would miss, and
-    whose absence looks like the acts themselves being broken."""
+    """The glue that nothing else on the page would miss, and whose
+    absence looks like the acts themselves being broken."""
 
-    def test_a_click_on_a_control_built_in_the_hand_is_still_caught(
-        self, client, tester, fighter, gun_list, owned_gun
-    ):
-        """The copies inside an opened row are built by the page, so
-        whatever answers their clicks has never seen them. Without this
-        every act inside an opened row goes back to fetching the whole
-        screen — which is the bug, wearing a different hat."""
-        client.force_login(tester)
-        body = client.get(equip_url(fighter, gun_list)).content.decode()
-
-        assert 'event.target.closest("a[hx-get]")' in body
-        # A control that was introduced answers its own click first and
-        # says so, so nothing is asked for twice.
-        assert "event.defaultPrevented" in body
-
-    def test_what_the_server_says_is_dealt_out_as_toasts(
+    def test_the_page_loads_the_client_glue_and_declares_its_state(
         self, client, tester, fighter, gun_list
     ):
-        """The messages arrive wrapped under a name of their own; read as
-        the list itself they are silently nothing."""
+        """The page carries the script tag and the meta tag naming the
+        URL parameters its requests carry; the glue itself is a static
+        file."""
         client.force_login(tester)
         body = client.get(equip_url(fighter, gun_list)).content.decode()
 
-        assert 'addEventListener("n26-said"' in body
-        assert "detail.value" in body
+        assert "n26/htmx_support.js" in body
+        assert '<meta name="n26-carry" content="section owned">' in body
+
+    def test_a_click_on_a_control_built_after_load_is_still_caught(self):
+        """The copies inside an opened row are built by Alpine after the
+        page loads, so htmx has never wired them; without the delegated
+        handler every act inside an opened row fetches the whole screen,
+        losing the reader's place."""
+        js = _support_js()
+
+        assert 'event.target.closest("a[hx-get]")' in js
+        # A control htmx did wire handles its own click first and calls
+        # preventDefault, so nothing is requested twice.
+        assert "event.defaultPrevented" in js
+
+    def test_toasts_are_read_from_inside_the_wrapper(self):
+        """htmx wraps a trigger payload that is not a plain object as
+        {value: ...}; read event.detail as the list itself and it is
+        silently empty."""
+        js = _support_js()
+
+        assert 'addEventListener("n26-toasts"' in js
+        assert "detail.value" in js
+
+    @pytest.mark.parametrize("host_id", ["n26-dialog-host", "n26-accessorise-host"])
+    def test_the_page_holds_every_element_an_update_replaces(
+        self, client, tester, fighter, gun_list, host_id
+    ):
+        """An update addresses elements by id, and htmx drops an element
+        whose id is missing from the page silently — so a screen that
+        opts in must hold every one of them. The gang sheet pins the
+        other side: not opted in, none of this markup."""
+        client.force_login(tester)
+        body = client.get(equip_url(fighter, gun_list)).content.decode()
+
+        assert f'id="{host_id}"' in body
+        assert 'id="n26-gang-wealth"' in body
 
 
 class TestSellingWithoutRebuildingThePage:
@@ -2192,7 +2224,7 @@ class TestSellingWithoutRebuildingThePage:
 
         client.force_login(tester)
         response = self.sold(client, fighter, gun_list, owned_gun)
-        said = json.loads(response["HX-Trigger"])["n26-said"]
+        said = json.loads(response["HX-Trigger"])["n26-toasts"]
 
         assert said[0]["variant"] == "success"
         assert "Sold Autogun" in said[0]["message"]
@@ -2248,7 +2280,7 @@ class TestOpeningTheCopiesOfAnOwnedRow:
         assert f"owned={key_of(owned_gun.assignable)}" in plain
 
     def test_it_is_still_a_link(self, client, tester, fighter, gun_list, owned_gun):
-        """Without script the server draws the row open, as it always did."""
+        """Without script the server renders the row open."""
         client.force_login(tester)
         opened = client.get(
             equip_url(fighter, gun_list) + f"&owned={key_of(owned_gun.assignable)}"

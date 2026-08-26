@@ -18,6 +18,12 @@ An operation that refuses an act answers on the screen it was clicked
 from — a control the page drew is owed a sentence, not a traceback — and
 nothing is written, because the refusal unwinds the transaction.
 
+Each act responds in one of two shapes. A plain submission redirects back to
+the screen the click came from. One sent by htmx gets a partial update
+instead — the changed row, the money, the panel closed — built by
+:func:`n26.core.views.equip.render_update`; the protocol is documented in
+:mod:`n26.core.views.htmx`.
+
 The acts are deliberately distinct, and the ledger says which happened:
 
 ``sell``
@@ -45,12 +51,11 @@ The acts are deliberately distinct, and the ledger says which happened:
 """
 
 from dataclasses import dataclass
-from urllib.parse import parse_qs, urlparse
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
-from django.http import Http404, HttpResponse
+from django.http import Http404
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
@@ -61,6 +66,7 @@ from n26.core.owned import (
     thing_key,
     with_query,
 )
+from n26.core.views.htmx import is_htmx, no_update
 from n26.core.views.permissions import _own_assignment_or_404, _safe_redirect
 
 
@@ -506,62 +512,48 @@ def _row_behind(assignment):
     return _Touched(key=thing_key(node.assignable), miniature=node.miniature_root)
 
 
-def _expanded_behind(request):
-    """Which row the screen had open when the act was asked for.
+def _unchanged(request, back):
+    """The response for an act that changed nothing on the screen.
 
-    The click carries it, because a row is opened in the hand and the
-    address is what says so. The address the click came from is the
-    fallback: a form drawn before the reader opened anything still names
-    where they were, and without script that address is all there is.
-
-    A row redrawn without it comes back shut, which closes the row the
-    reader was working in — the copies they were looking at vanish under
-    the act they just asked for.
+    A refusal, or a submission that matched what was already stored. The
+    reason is queued as a message; without htmx it lands on the full
+    page, with htmx it rides the response as a toast.
     """
-    named = request.POST.get("owned", "")
-    if named:
-        return named[:200]
-    came_from = urlparse(request.POST.get("return", ""))
-    return parse_qs(came_from.query).get("owned", [""])[0][:200]
-
-
-def _refused(request, back):
-    """An act that changed nothing: the reason travels, nothing is swapped."""
-    from n26.core.views.equip import _spoken
-
-    if not request.headers.get("HX-Request"):
+    if not is_htmx(request):
         return _return_to(request, back)
-    return _spoken(request, HttpResponse(status=204))
+    return no_update(request)
 
 
 def _acted(request, touched, gang, back):
-    """An act that changed a row, answered without rebuilding the screen.
+    """The response for an act that changed a row.
 
-    The row as it now stands, the gang's figures, and the panel the act
-    was asked in — each naming the place it stands in for. The address
-    goes back to the screen behind the panel, which is the address that
-    draws it.
+    With htmx: the partial update for the row, with the confirmation
+    panel closed, and the address set back to the screen behind the
+    panel — the address that renders that screen on a plain visit.
+    Without: a redirect to that screen.
 
-    Without script the same form posts the same way and lands on the
-    whole page, exactly as it always did.
+    Which row stood open travels with the click — the address holds it,
+    and every htmx request carries it along (see
+    n26/core/static/n26/htmx_support.js) — so the update draws the row
+    in the state the reader left it.
     """
-    from n26.core.views.equip import _spoken, changed, screen_row
+    from n26.core.views.equip import render_update
 
-    if not request.headers.get("HX-Request"):
+    if not is_htmx(request):
         return _return_to(request, back)
 
-    row, held_label, host = screen_row(
+    response = render_update(
         request,
         gang,
         touched.key,
         miniature=touched.miniature,
         list_param=request.POST.get("list", "")[:100],
-        expanded_key=_expanded_behind(request),
+        expanded_key=request.POST.get("owned", "")[:200],
         at=back,
+        closed=True,
     )
-    answer = changed(request, gang, touched.key, row, held_label, host, closed=True)
-    answer["HX-Replace-Url"] = back
-    return _spoken(request, answer)
+    response["HX-Replace-Url"] = back
+    return response
 
 
 @login_required
@@ -608,7 +600,7 @@ def sell_assignment(request, pk):
             proceeds = op.sell(assignment)
     except Refusal as refusal:
         messages.error(request, str(refusal))
-        return _refused(request, back)
+        return _unchanged(request, back)
 
     record(
         request,
@@ -689,14 +681,14 @@ def reassign_assignment(request, pk):
             destination = None
     if destination is None:
         messages.error(request, f"There is nowhere to move {name} to.")
-        return _refused(request, back)
+        return _unchanged(request, back)
 
     try:
         with operation(gang, actor=request.user) as op:
             op.move(assignment, destination)
     except Refusal as refusal:
         messages.error(request, str(refusal))
-        return _refused(request, back)
+        return _unchanged(request, back)
 
     record(
         request,
@@ -762,7 +754,7 @@ def rechoose_assignment(request, pk):
             op.rechoose(assignment, option=[option.default_set for option in picked])
     except Refusal as refusal:
         messages.error(request, str(refusal))
-        return _refused(request, back)
+        return _unchanged(request, back)
     if entry is not None:
         entry.refresh_from_db()
     after = entry.paid if entry is not None else 0
@@ -785,7 +777,7 @@ def rechoose_assignment(request, pk):
     now = {row.default_set_id for row in assignment.chosen_options.all()}
     if now == taken:
         messages.success(request, f"{thing}'s options are unchanged.")
-        return _refused(request, back)
+        return _unchanged(request, back)
     holds = ", ".join(option.name for option in thing.options_taken(now))
     settled = (
         f" — {after - before}¢ more."
@@ -840,14 +832,14 @@ def accessorise_assignment(request, pk):
         # A stale dialog or a hand-made click. The screen it came from is
         # the answer, with the list on it as it now stands.
         messages.error(request, "That accessory is not one to fit.")
-        return _refused(request, back)
+        return _unchanged(request, back)
 
     try:
         with operation(gang, actor=request.user) as op:
             bought = op.buy(assignment, thing=accessory)
     except Refusal as refusal:
         messages.error(request, str(refusal))
-        return _refused(request, back)
+        return _unchanged(request, back)
 
     record(
         request,
@@ -892,7 +884,7 @@ def remove_assignment(request, pk):
             op.remove(assignment)
     except Refusal as refusal:
         messages.error(request, str(refusal))
-        return _refused(request, back)
+        return _unchanged(request, back)
 
     record(
         request,
@@ -938,7 +930,7 @@ def refund_assignment(request, pk):
             op.refund(assignment)
     except Refusal as refusal:
         messages.error(request, str(refusal))
-        return _refused(request, back)
+        return _unchanged(request, back)
 
     record(
         request,

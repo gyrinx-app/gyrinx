@@ -1,3 +1,4 @@
+{% load listing %}
 {% comment %}
 <c-n26.collection-picker.item> — one row: what it is, what it asks, what you can do.
 
@@ -89,13 +90,13 @@ everything else is shrink-0, so the actions stay put and stay hittable.
      one. Slugified because the key holds a colon and a dot, which an id is
      allowed to carry but a selector then has to escape.
      {% endcomment %}
-     {% if row_key %}id="n26-row-{{ row_key|slugify }}" data-row="{{ row_key }}"{% endif %}
+     {% if row_key %}id="{{ row_key|row_dom_id }}" data-row="{{ row_key }}"{% endif %}
      {% comment %}
      A row drawn on its own, to stand in for the one of this name already on
      the page. The page it is going back to is not being rebuilt, so the row
      has to say that it replaces rather than joins.
      {% endcomment %}
-     {% if redrawn %}hx-swap-oob="true"{% endif %}
+     {% if redrawn and row_key %}hx-swap-oob="true"{% endif %}
      class="min-h-11 px-1 py-1 hover:bg-ink-500/5 {{ class }}">
     <div class="flex min-h-9 items-center gap-2">
 

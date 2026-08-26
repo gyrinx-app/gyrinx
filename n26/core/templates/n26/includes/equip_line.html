@@ -2,6 +2,9 @@
 One buyable row: the picker's item, with the action the row says it offers.
 Expects `row` — an n26.core.listing.Listing — and `price_cap` from the page.
 
+`htmx` from the page says the screen receives partial updates, and `redrawn`
+that this render is one — both flow through to the row shell and its acts.
+
 An include rather than repeated inline, because the equip page draws it from
 three places: categorised rows, uncategorised rows, and nested under a row for
 something the fighter already owns, where it is how they buy another. A drifted

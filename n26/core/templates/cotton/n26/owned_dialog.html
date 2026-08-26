@@ -21,19 +21,19 @@ id each.
 The slot carries the csrf token: a component has no request and renders none
 itself.
 
-  :acts_in_place — the act asks for the part of the screen it changes rather
-    than the whole page. Only a screen built to receive that answer may say so:
-    what comes back names the places it stands in for, and a screen without
-    them takes the act and shows nothing for it. Off unless asked for.
-  :swapped — this panel arrived on its own, into a page nobody rebuilt, so
-    leaving it puts the address back rather than fetching the screen again.
+  :htmx — the form posts through htmx and the server sends back only the
+    elements the act changed. Only a screen holding those elements may set it
+    — anywhere else the act would run and nothing on screen would change; see
+    n26/includes/equip_hosts.html. Off by default.
+  :redrawn — this panel was rendered on its own, for a page that was not
+    rebuilt. Dismissing it puts the address back instead of navigating.
 {% endcomment %}
 <c-vars
     :dialog="None"
     :modal="True"
     :open="True"
-    :swapped="False"
-    :acts_in_place="False"
+    :redrawn="False"
+    :htmx="False"
     id="n26-dialog"
     class=""
 />
@@ -45,8 +45,8 @@ itself.
               submit_variant="{{ dialog.submit_variant }}"
               :modal="modal"
               :open="open"
-              :swapped="swapped"
-              :acts_in_place="acts_in_place"
+              :redrawn="redrawn"
+              :htmx="htmx"
               id="{{ id }}"
               class="{{ class }}">
     <c-slot name="lead">

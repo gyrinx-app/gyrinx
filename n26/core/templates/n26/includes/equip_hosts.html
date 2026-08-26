@@ -1,0 +1,32 @@
+{% comment %}
+The elements a partial update replaces, and the opt-in that goes with them.
+Expects `dialog` and `accessorise` from the view.
+
+An update delivered over htmx carries elements addressed by id — the dialog
+host, the accessory panels, the money, the row itself — and htmx drops an
+element whose id is missing from the page, silently. So opting in and
+holding the update's targets must travel together: this include draws the
+hosts, and it is the only place :htmx="True" is put on a dialog. A screen
+without this include must not pass htmx=True to its controls; its acts run
+as full-page forms.
+
+The dialog host is drawn even when empty, because a panel fetched on its own
+replaces whatever is here — opening and closing are the same replacement
+with different content. The address still records which panel is open, so a
+reload renders it and a link to it works.
+
+The accessory panels are drawn one per gun, closed, ahead of any click: the
+control that opens one names it by id, and fetching a panel on demand would
+mean rebuilding a screen of several hundred rows to draw one.
+
+Both sit outside the catalogue's form — each panel is a form of its own, and
+HTML does not nest forms.
+{% endcomment %}
+<div id="n26-dialog-host">
+    {% if dialog %}
+        <c-n26.owned-dialog :dialog="dialog" :htmx="True">
+            {% csrf_token %}
+        </c-n26.owned-dialog>
+    {% endif %}
+</div>
+<div id="n26-accessorise-host">{% include "n26/includes/equip_accessorise.html" %}</div>
