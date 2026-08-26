@@ -328,11 +328,33 @@ feature's first live user: verify the Scheduler job exists and fires
 after deploy (provisioning in `AppConfig.ready()` has bitten before),
 and know the local backend never fires schedules — dev and chaos tests
 invoke the sweep task directly, the cron leg is proven only deployed.
-The obligation row is NOT a `TaskExecution`:
-one tracks a delivery attempt, the other the durable debt that survives
-a lost publish. Model lives in `n26/core`, importing
+The row is NOT a `TaskExecution`:
+one tracks a delivery attempt, the other the durable record that
+survives a lost publish. Model lives in `n26/core`, importing
 `gyrinx.state_machine` as the tasks framework does.
-*Status: not started.*
+*Status: MERGED 2026-08-26 via PR
+[#2305](https://github.com/gyrinx-app/gyrinx/pull/2305) (squash;
+migration `n26.0029`). As built: model `BuiltInPropagationTask`
+(`n26/core/models/built_in_propagation.py`), verbs in
+`n26/core/propagation.py` (`file_propagation_task`,
+`propagate_built_ins`, `sweep_built_in_propagations` at `*/5`,
+thresholds 2min/15min/3-failure cap), one filing hook in
+`add_default_member` (now `@transaction.atomic` so member + filing
+commit together) covering form/`add_built_in`/ingest. D14 shipped as
+`LedgerEvent.Kind.CAUGHT_UP` with per-source folding in `history.py`.
+**Ships SHUT behind the `built-in-propagation` FeatureFlag** — worker
+and sweep stand down, filing never does, so shut defers rather than
+loses; `gyrinx.site.flags` gained `switched_on(slug)` for account-less
+callers, re-exported via `n26/flags.py`. Review-hardened (two-lens +
+bots + maintainer review), chaos-suite of 16 tests, browser-verified
+twice (pre- and post-redesign demo gang "C4 Demo Crew" in the
+worktree dev DB, flag opened there).
+**Go-live owed after deploy:** verify the Cloud Scheduler job for
+`sweep_built_in_propagations` exists and fires (first `schedule=` task
+in production), then create + open the `built-in-propagation` flag in
+the admin. Anything authored before the flag opens is repaired by the
+backlog drain (rows filed while shut) — and anything authored before
+C4 deployed at all remains C7's job.*
 
 **C5 — Preview.** `plan_built_in_change()` shared planner; authoring
 async fragment + non-JS fallback; ingest preview line ("N existing uses
