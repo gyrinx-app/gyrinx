@@ -687,6 +687,43 @@ class TestTheSkillsRow:
         assert card.skill_choices == []
         assert "Catfall" in [line.name for line in card.skills]
 
+    def test_selecting_a_primary_skill_on_the_skills_screen_answers_the_question(
+        self, client, player, leader_yolanda, library
+    ):
+        catfall = library["skills"]["Catfall"]
+        client.force_login(player)
+        client.post(
+            skills_url(leader_yolanda),
+            {"thing": f"{catfall._meta.label_lower}:{catfall.pk}"},
+        )
+
+        card = card_for(leader_yolanda)
+        assert card.skill_choices == []
+        assert "Catfall" in [line.name for line in card.skills]
+        row = leader_yolanda.assignments.get(skill=catfall, archived=False)
+        assert row.chosen_for_offer_id is not None
+        assert row.caused_by_id is not None
+
+    def test_selecting_a_secondary_skill_on_the_skills_screen_leaves_the_question_open(
+        self, client, player, leader_yolanda, library
+    ):
+        """Connected is selectable (Savant is Secondary) but is not on
+        the Choose list for a Primary skill, so it is a standing
+        selection and the card keeps asking."""
+        connected = library["skills"]["Connected"]
+        client.force_login(player)
+        client.post(
+            skills_url(leader_yolanda),
+            {"thing": f"{connected._meta.label_lower}:{connected.pk}"},
+        )
+
+        card = card_for(leader_yolanda)
+        assert [line.kind_label for line in card.skill_choices] == ["Primary skill"]
+        assert "Connected" in [line.name for line in card.skills]
+        row = leader_yolanda.assignments.get(skill=connected, archived=False)
+        assert row.chosen_for_offer_id is None
+        assert row.caused_by_id is None
+
     def test_a_card_says_which_collections_its_grid_reaches(
         self, yolanda, catalogue, gang, gridless
     ):
