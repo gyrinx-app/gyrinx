@@ -1,0 +1,19 @@
+{% comment %}
+<c-n26.gang-figures.wealth> — the money half of the figures strip, named.
+
+    <c-n26.gang-figures.wealth :sheet="gang" />
+
+The id is fixed, not a prop: a partial update replaces this element by that
+name (see n26/includes/equip_update.html), and an id chosen per call site
+would let a page and the update that lands on it disagree. The seam styling
+lives here for the same reason — the element an update delivers must match
+the one it replaces.
+
+  :sheet — anything carrying the four worth figures; the Gang model does,
+    and so does a rendered GangSheet.
+{% endcomment %}
+<c-vars :sheet="None" />
+
+<div {{ attrs }} id="n26-gang-wealth" class="border-l border-box-border pl-3">
+    <c-n26.wealth :sheet="sheet" />
+</div>

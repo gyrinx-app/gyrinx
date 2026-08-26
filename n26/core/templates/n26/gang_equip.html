@@ -17,22 +17,24 @@ sell is managed from the In stash tab.
 {% block nav_items %}
     {% include 'n26/_nav.html' with here='gangs' %}
 {% endblock %}
+{% block extra_head %}
+    {% comment %}
+    URL parameters every htmx request from this screen carries along —
+    which section tab is on screen, which row stands open. Read by
+    n26/core/static/n26/htmx_support.js.
+    {% endcomment %}
+    <meta name="n26-carry" content="section owned">
+{% endblock extra_head %}
 {% block content %}
-    {% if dialog %}
-        <c-n26.owned-dialog :dialog="dialog">
-            {% csrf_token %}
-        </c-n26.owned-dialog>
-    {% endif %}
-    {% for panel in accessorise %}
-        <c-n26.owned-dialog :dialog="panel"
-                            :open="panel.open"
-                            id="n26-accessorise-{{ panel.id }}">
-            {% csrf_token %}
-        </c-n26.owned-dialog>
-    {% endfor %}
-    <c-n26.form-page action="{{ action }}"
-                     title="Equip"
-                     lead="Buy into the stash and manage what the gang already holds. Hand gear to a fighter from here, or buy on a fighter's own page to arm them directly.">
+    {% include "n26/includes/equip_hosts.html" %}
+    {% comment %}
+    The header spans the page and keeps the gang's figures at its far end, the
+    way a model's own equip screen does — a catalogue is a wide thing, and the
+    numbers a purchase is decided against belong in the corner rather than
+    above a column of rows.
+    {% endcomment %}
+    <c-n26.page-header title="Equip"
+                       lead="Buy into the stash and manage what the gang already holds. Hand gear to a fighter from here, or buy on a fighter's own page to arm them directly.">
         <c-slot name="breadcrumb">
             <c-ui.breadcrumbs>
                 <c-ui.breadcrumbs.item>
@@ -44,28 +46,46 @@ sell is managed from the In stash tab.
                 </c-ui.breadcrumbs.item>
             </c-ui.breadcrumbs>
         </c-slot>
-        <c-slot name="header_actions">
+        <c-slot name="actions">
             <c-n26.gang-figures :gang="gang" :summary="summary" />
         </c-slot>
-        {% csrf_token %}
-        <div class="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-[11rem_minmax(0,1fr)]">
-            <c-ui.navlist variant="sidebar" aria-label="Which list" class="self-start text-sm">
-                {% for tab in collection_tabs %}
-                    <c-ui.navlist.item href="{{ tab.href }}" :current="tab.current" title="{{ tab.title }}">
-                        {{ tab.label }}
-                    </c-ui.navlist.item>
-                {% endfor %}
-            </c-ui.navlist>
-            {% if catalogue %}
+    </c-n26.page-header>
+    <div class="mt-6 grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-[11rem_minmax(0,1fr)]">
+        {% comment %}
+        Which list is a place you can be, so the rail is links the server
+        answers — beside the catalogue rather than pinned over it, matching a
+        model's own screen.
+        {% endcomment %}
+        <c-ui.navlist variant="sidebar" aria-label="Which list" class="self-start text-sm">
+            {% for tab in collection_tabs %}
+                <c-ui.navlist.item href="{{ tab.href }}" :current="tab.current" title="{{ tab.title }}">
+                    {{ tab.label }}
+                </c-ui.navlist.item>
+            {% endfor %}
+        </c-ui.navlist>
+        {% if catalogue %}
+            {% comment %}
+            A purchase submitted by htmx gets back only the elements it
+            changed, so the filters and the section on screen survive it.
+            Nothing is targeted from here: which elements an act updates is
+            decided server-side, in n26/includes/equip_update.html. The rail
+            sits outside, because HTML has no nested forms and a list is a
+            link rather than a submit.
+            {% endcomment %}
+            <form method="post"
+                  action="{{ action }}"
+                  hx-post="{{ action }}"
+                  hx-swap="none">
+                {% csrf_token %}
                 {% include "n26/includes/gang_equip_catalogue.html" %}
-            {% else %}
-                <p class="text-muted md:col-start-2">
-                    No equipment lists yet — this gang has none of its own to browse.
-                    Lists arrive with the gang's own content; everything the library
-                    holds is on the All equipment tab, and everything held is on
-                    the In stash tab.
-                </p>
-            {% endif %}
-        </div>
-    </c-n26.form-page>
+            </form>
+        {% else %}
+            <p class="text-muted">
+                No equipment lists yet — this gang has none of its own to browse.
+                Lists arrive with the gang's own content; everything the library
+                holds is on the All equipment tab, and everything held is on
+                the In stash tab.
+            </p>
+        {% endif %}
+    </div>
 {% endblock content %}

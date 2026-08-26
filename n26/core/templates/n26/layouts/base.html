@@ -561,6 +561,14 @@ banner, is_impersonating / impersonator, gtm_container_id, messages, user.
             </c-n26.site.footer>
         {% endblock footer %}
         {% comment %}
+        Where a partial update's messages appear as toasts. Dropped once,
+        here, because the store behind it registers on first sight and a
+        second container would draw every toast twice. Full pages still
+        render their messages in the alert block above, so nothing that
+        matters is shown only here.
+        {% endcomment %}
+        <c-ui.toast.container position="bottom-right" />
+        {% comment %}
         The strip of a tab set is drawn client-side and its panels start
         hidden, so without a script a tabbed region would be cut off entirely.
         Showing every panel in a run keeps what they hold on the page.
@@ -572,6 +580,23 @@ banner, is_impersonating / impersonator, gtm_container_id, messages, user.
                 }
             </style>
         </noscript>
+        {% comment %}
+        A click that changes what the gang holds gets back only the parts of
+        the page its act changed, so the catalogue's filters and the section
+        on screen survive it. Every such control is an ordinary link or
+        submit underneath, so without JavaScript the whole page is served
+        instead. The design is documented in n26/core/views/htmx.py; the
+        support file carries the client half.
+        {% endcomment %}
+        {% comment %}
+        No history cache: every address htmx writes is a real one the server
+        renders whole, so the back button reloads rather than restoring a
+        snapshot — and snapshotting a catalogue of hundreds of rows into
+        localStorage overruns the quota and logs an error per swap.
+        {% endcomment %}
+        <meta name="htmx-config" content='{"historyCacheSize": 0}'>
+        <script defer src="{% static 'n26/htmx_support.js' %}"></script>
+        <script defer src="{% static 'designsystem/vendor/htmx.min.js' %}"></script>
         {% comment %}
         Order matters: the kit's factories must be defined before Alpine walks
         the document and evaluates an x-data that names one.

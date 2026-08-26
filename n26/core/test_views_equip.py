@@ -9,6 +9,7 @@ cleanly.
 import pytest
 from django.contrib.auth.models import User
 from django.urls import reverse
+from django.utils.text import slugify
 
 from n26.core.models import Assignment, Gang
 from n26.core.operations import operation
@@ -1895,3 +1896,395 @@ class TestTheSellDialogWhenSomethingIsBoltedOn:
         assert "23¢" in body
         assert 'value="stash"' in body
         assert 'value="sell"' in body
+
+
+class TestBuyingWithoutRebuildingThePage:
+    """A Buy that asks for the row it changed instead of the whole screen.
+
+    The catalogue's filters, the section on screen and the prices typed
+    into other rows are all client state: rebuilding the page throws
+    every bit of it away, so a purchase answers with the row and the
+    gang's figures and leaves the rest of the screen alone.
+    """
+
+    def asked(self, client, fighter, collection, thing, **extra):
+        """Buy the way a browser with script does — asking for the row."""
+        return client.post(
+            equip_url(fighter, collection),
+            {"thing": key_of(thing), **extra},
+            headers={"HX-Request": "true"},
+        )
+
+    def test_a_plain_buy_still_answers_with_the_whole_page(
+        self, client, tester, fighter, house_list
+    ):
+        """Nothing here is the only way to buy: without the header the
+        purchase responds with a redirect to the page."""
+        from n26.library.models import Wargear
+
+        client.force_login(tester)
+        response = client.post(
+            equip_url(fighter, house_list),
+            {"thing": key_of(Wargear.objects.get(name="Knife"))},
+        )
+        assert response.status_code == 302
+
+    def test_the_answer_is_the_row_and_not_a_redirect(
+        self, client, tester, fighter, house_list
+    ):
+        from n26.library.models import Wargear
+
+        client.force_login(tester)
+        response = self.asked(
+            client, fighter, house_list, Wargear.objects.get(name="Knife")
+        )
+        assert response.status_code == 200
+        body = response.content.decode()
+        assert 'data-row="library.wargear:' in body
+        # The row, and not the screen around it.
+        assert "<html" not in body
+
+    def test_the_row_that_comes_back_says_the_fighter_holds_one(
+        self, client, tester, fighter, house_list
+    ):
+        """Owning something is a state of its row, so the row a purchase
+        hands back is a different row from the one that was clicked."""
+        from n26.library.models import Wargear
+
+        client.force_login(tester)
+        body = self.asked(
+            client, fighter, house_list, Wargear.objects.get(name="Knife")
+        ).content.decode()
+        # The count and the word are separated by the markup that makes the
+        # figure line up, so they are looked for one at a time.
+        assert ">1</span>" in body
+        assert "equipped" in body
+        # An owned row offers another of the same underneath the copies.
+        assert "Buy another" in body
+
+    def test_every_part_of_the_answer_says_what_it_stands_in_for(
+        self, client, tester, fighter, house_list
+    ):
+        """The click targets nothing. What a purchase changes is the
+        server's to decide, so each part of the answer names the place on
+        the page it replaces — which is what lets a third place be added
+        later without a call site being edited."""
+        from n26.library.models import Wargear
+
+        knife = Wargear.objects.get(name="Knife")
+        client.force_login(tester)
+        body = self.asked(client, fighter, house_list, knife).content.decode()
+
+        # The row, addressed by the row it stands in for.
+        assert f'id="n26-row-{slugify(key_of(knife))}"' in body
+        # The gang's money beside it — and not the model count, which a
+        # purchase never changes.
+        assert 'id="n26-gang-wealth"' in body
+        # And the accessory questions, since a gun that has just arrived
+        # offers a control that names its own panel.
+        assert 'id="n26-accessorise-host"' in body
+        # All three, and nothing left targeted.
+        assert body.count('hx-swap-oob="true"') == 3
+
+    def test_the_confirmation_travels_in_the_header(
+        self, client, tester, fighter, house_list
+    ):
+        """A page that is not rebuilt has no alert block to draw in, so
+        what the server has to say rides back to be raised as a toast."""
+        import json
+
+        from n26.library.models import Wargear
+
+        client.force_login(tester)
+        response = self.asked(
+            client, fighter, house_list, Wargear.objects.get(name="Knife")
+        )
+        said = json.loads(response["HX-Trigger"])["n26-toasts"]
+        assert [item["variant"] for item in said] == ["success"]
+        assert "Bought Knife" in said[0]["message"]
+
+    def test_a_refusal_swaps_nothing_and_still_says_why(
+        self, client, tester, gang, fighter, house_list
+    ):
+        """Nothing on the page changed, so nothing is sent back to draw —
+        but the reason must not be swallowed along with it."""
+        import json
+
+        from n26.library.authoring import create_wargear
+
+        client.force_login(tester)
+        response = self.asked(
+            client, fighter, house_list, create_wargear("Elsewhere", price=5)
+        )
+        assert response.status_code == 204
+        said = json.loads(response["HX-Trigger"])["n26-toasts"]
+        assert said[0]["variant"] == "error"
+        # A refusal stands until it is dismissed.
+        assert said[0]["duration"] == 0
+
+
+class TestOpeningAConfirmationWithoutRebuildingThePage:
+    """Sell, Refund, Reassign, Delete and Change options each open a panel
+    the server draws. Asking for that panel alone leaves the catalogue
+    underneath exactly as the reader had it."""
+
+    def asked(self, client, fighter, gun_list, assignment, kind="sell"):
+        return client.get(
+            equip_url(fighter, gun_list) + f"&{kind}={assignment.pk}",
+            headers={"HX-Request": "true"},
+        )
+
+    def test_the_answer_is_the_panel_and_not_the_page(
+        self, client, tester, fighter, gun_list, owned_gun
+    ):
+        client.force_login(tester)
+        response = self.asked(client, fighter, gun_list, owned_gun)
+
+        assert response.status_code == 200
+        body = response.content.decode()
+        assert "<html" not in body
+        assert "Sell Autogun?" in body
+
+    def test_the_panel_stands_in_for_the_pages_dialog_host(
+        self, client, tester, fighter, gun_list, owned_gun
+    ):
+        """Closing and opening are the same act said with different
+        content, which is why both are this one place on the page."""
+        client.force_login(tester)
+        body = self.asked(client, fighter, gun_list, owned_gun).content.decode()
+
+        assert 'id="n26-dialog-host"' in body
+        assert 'hx-swap-oob="true"' in body
+
+    def test_the_address_is_corrected_to_the_one_that_draws_it(
+        self, client, tester, fighter, gun_list, owned_gun
+    ):
+        """So a reload still opens the panel and the link is still a link."""
+        client.force_login(tester)
+        response = self.asked(client, fighter, gun_list, owned_gun)
+
+        assert f"sell={owned_gun.pk}" in response["HX-Replace-Url"]
+
+    def test_the_panel_knows_it_arrived_on_its_own(
+        self, client, tester, fighter, gun_list, owned_gun
+    ):
+        """Leaving it must put the address back rather than fetch the
+        screen the reader is still looking at."""
+        client.force_login(tester)
+        body = self.asked(client, fighter, gun_list, owned_gun).content.decode()
+
+        assert "clicked = true" in body
+
+    def test_asking_with_nothing_named_closes_whatever_was_open(
+        self, client, tester, fighter, gun_list, owned_gun
+    ):
+        client.force_login(tester)
+        response = client.get(
+            equip_url(fighter, gun_list), headers={"HX-Request": "true"}
+        )
+        body = response.content.decode()
+
+        assert 'id="n26-dialog-host"' in body
+        assert "Sell Autogun?" not in body
+
+    def test_without_the_header_the_whole_page_still_draws_the_panel(
+        self, client, tester, fighter, gun_list, owned_gun
+    ):
+        """Nothing here is the only way to reach a confirmation."""
+        client.force_login(tester)
+        response = client.get(equip_url(fighter, gun_list) + f"&sell={owned_gun.pk}")
+        body = response.content.decode()
+
+        assert "<html" in body
+        assert "Sell Autogun?" in body
+
+
+def _support_js():
+    """The client glue, read off disk — the page only carries a script tag."""
+    from pathlib import Path
+
+    import n26.core
+
+    return (
+        Path(n26.core.__file__).parent / "static" / "n26" / "htmx_support.js"
+    ).read_text()
+
+
+class TestTheWiringEveryActLeansOn:
+    """The glue that nothing else on the page would miss, and whose
+    absence looks like the acts themselves being broken."""
+
+    def test_the_page_loads_the_client_glue_and_declares_its_state(
+        self, client, tester, fighter, gun_list
+    ):
+        """The page carries the script tag and the meta tag naming the
+        URL parameters its requests carry; the glue itself is a static
+        file."""
+        client.force_login(tester)
+        body = client.get(equip_url(fighter, gun_list)).content.decode()
+
+        assert "n26/htmx_support.js" in body
+        assert '<meta name="n26-carry" content="section owned">' in body
+
+    def test_a_click_on_a_control_built_after_load_is_still_caught(self):
+        """The copies inside an opened row are built by Alpine after the
+        page loads, so htmx has never wired them; without the delegated
+        handler every act inside an opened row fetches the whole screen,
+        losing the reader's place."""
+        js = _support_js()
+
+        assert 'event.target.closest("a[hx-get]")' in js
+        # A control htmx did wire handles its own click first and calls
+        # preventDefault, so nothing is requested twice.
+        assert "event.defaultPrevented" in js
+
+    def test_toasts_are_read_from_inside_the_wrapper(self):
+        """htmx wraps a trigger payload that is not a plain object as
+        {value: ...}; read event.detail as the list itself and it is
+        silently empty."""
+        js = _support_js()
+
+        assert 'addEventListener("n26-toasts"' in js
+        assert "detail.value" in js
+
+    @pytest.mark.parametrize("host_id", ["n26-dialog-host", "n26-accessorise-host"])
+    def test_the_page_holds_every_element_an_update_replaces(
+        self, client, tester, fighter, gun_list, host_id
+    ):
+        """An update addresses elements by id, and htmx drops an element
+        whose id is missing from the page silently — so a screen that
+        opts in must hold every one of them. The gang sheet pins the
+        other side: not opted in, none of this markup."""
+        client.force_login(tester)
+        body = client.get(equip_url(fighter, gun_list)).content.decode()
+
+        assert f'id="{host_id}"' in body
+        assert 'id="n26-gang-wealth"' in body
+
+
+class TestSellingWithoutRebuildingThePage:
+    """Confirming the act, not just opening the panel. Selling is what the
+    reader came to do, and it must cost them their place no more than
+    opening the question did."""
+
+    def sold(self, client, fighter, gun_list, assignment, **extra):
+        return client.post(
+            reverse("n26-sell", args=[assignment.pk]),
+            {"return": equip_url(fighter, gun_list), "list": str(gun_list.pk), **extra},
+            headers={"HX-Request": "true"},
+        )
+
+    def test_the_answer_is_the_row_the_sale_changed(
+        self, client, tester, fighter, gun_list, owned_gun
+    ):
+        from django.utils.text import slugify
+
+        client.force_login(tester)
+        response = self.sold(client, fighter, gun_list, owned_gun)
+
+        assert response.status_code == 200
+        body = response.content.decode()
+        assert "<html" not in body
+        assert f'id="n26-row-{slugify(key_of(owned_gun.assignable))}"' in body
+
+    def test_the_row_goes_back_to_offering_the_thing(
+        self, client, tester, fighter, gun_list, owned_gun
+    ):
+        """The last copy sold, so the row is an offer again rather than a
+        count — what is held is a state of its row."""
+        client.force_login(tester)
+        body = self.sold(client, fighter, gun_list, owned_gun).content.decode()
+
+        assert "equipped" not in body
+        assert "Buy" in body
+
+    def test_the_panel_goes_with_the_answer(
+        self, client, tester, fighter, gun_list, owned_gun
+    ):
+        """The question has been answered, so it stops standing over the
+        page — an empty host stands in for whatever was open."""
+        client.force_login(tester)
+        body = self.sold(client, fighter, gun_list, owned_gun).content.decode()
+
+        assert 'id="n26-dialog-host"' in body
+        assert "Sell Autogun?" not in body
+
+    def test_the_address_goes_back_behind_the_panel(
+        self, client, tester, fighter, gun_list, owned_gun
+    ):
+        client.force_login(tester)
+        response = self.sold(client, fighter, gun_list, owned_gun)
+
+        assert "sell=" not in response["HX-Replace-Url"]
+
+    def test_what_the_sale_paid_is_said_as_a_toast(
+        self, client, tester, fighter, gun_list, owned_gun
+    ):
+        import json
+
+        client.force_login(tester)
+        response = self.sold(client, fighter, gun_list, owned_gun)
+        said = json.loads(response["HX-Trigger"])["n26-toasts"]
+
+        assert said[0]["variant"] == "success"
+        assert "Sold Autogun" in said[0]["message"]
+
+    def test_the_row_comes_back_open_where_it_was_open(
+        self, client, tester, fighter, gun_list, gang, tester_kit=None
+    ):
+        """A row is opened in the hand, so the click is what says it was
+        open. Redrawn without that, it comes back shut — and the copies the
+        reader was working in vanish under the act they just asked for."""
+        from n26.library.models import Weapon
+
+        autogun = Weapon.objects.get(name="Autogun")
+        with operation(gang, actor=tester) as op:
+            first = op.buy(fighter, thing=autogun, paid=20)
+            op.buy(fighter, thing=autogun, paid=20)
+
+        client.force_login(tester)
+        body = self.sold(
+            client, fighter, gun_list, first, owned=key_of(autogun)
+        ).content.decode()
+
+        # One copy left, and the row still standing open on it.
+        assert 'aria-expanded="true"' in body
+
+    def test_a_plain_sale_still_answers_with_the_whole_page(
+        self, client, tester, fighter, gun_list, owned_gun
+    ):
+        client.force_login(tester)
+        response = client.post(
+            reverse("n26-sell", args=[owned_gun.pk]),
+            {"return": equip_url(fighter, gun_list), "list": str(gun_list.pk)},
+        )
+        assert response.status_code == 302
+
+
+class TestOpeningTheCopiesOfAnOwnedRow:
+    """The copies a row opens onto are already on the page, so opening it
+    asks the server for nothing at all."""
+
+    def test_the_row_opens_where_it_stands_and_says_so_in_the_address(
+        self, client, tester, fighter, gun_list, owned_gun
+    ):
+        client.force_login(tester)
+        body = client.get(equip_url(fighter, gun_list)).content.decode()
+
+        # Opened in the hand, and the address follows rather than leads.
+        assert "expanded = !expanded" in body
+        assert "history.replaceState" in body
+        # Both addresses, since the click may be going either way. The key
+        # carries a colon, which an address escapes.
+        plain = body.replace("&amp;", "&").replace("%3A", ":")
+        assert f"owned={key_of(owned_gun.assignable)}" in plain
+
+    def test_it_is_still_a_link(self, client, tester, fighter, gun_list, owned_gun):
+        """Without script the server renders the row open."""
+        client.force_login(tester)
+        opened = client.get(
+            equip_url(fighter, gun_list) + f"&owned={key_of(owned_gun.assignable)}"
+        )
+
+        assert opened.status_code == 200
+        assert 'aria-expanded="true"' in opened.content.decode()

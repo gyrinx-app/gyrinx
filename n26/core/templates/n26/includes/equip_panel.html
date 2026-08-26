@@ -1,0 +1,19 @@
+{% comment %}
+The confirmation a click on Sell, Refund, Reassign, Delete or Change options
+asks for, drawn on its own.
+
+It stands in for the page's dialog host, so an empty one closes whatever was
+open and a full one replaces it — which makes closing and opening the same act
+said with different content, and leaves the catalogue underneath untouched.
+
+Drawn as a panel this page opened rather than one the server put in front of
+the reader, because that is what it is: the address is corrected as it arrives,
+and leaving puts the address back instead of asking for the whole screen.
+{% endcomment %}
+<div id="n26-dialog-host" hx-swap-oob="true">
+    {% if dialog %}
+        <c-n26.owned-dialog :dialog="dialog" :redrawn="True" :htmx="True">
+            {% csrf_token %}
+        </c-n26.owned-dialog>
+    {% endif %}
+</div>

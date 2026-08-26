@@ -1,3 +1,4 @@
+{% load listing %}
 {% comment %}
 <c-n26.collection-picker.item> — one row: what it is, what it asks, what you can do.
 
@@ -35,6 +36,12 @@ everything else is shrink-0, so the actions stay put and stay hittable.
   price_control — markup for the price column instead of the figure. :price is
     still required and is still what the filter reads, so filtering cannot
     disagree with itself while a reader is typing in the control.
+  row_key — what this row is a row for, in the caller's own words. Counted
+    under it, and findable by it, so a row redrawn in place replaces itself
+    rather than arriving as a second row. A listing draws one row per key.
+  :redrawn — this row was drawn on its own, to stand in for the one of its
+    name already on a page nobody is rebuilding. It needs a row_key to stand
+    in for anything.
   state — extra Alpine state merged into this row's scope, as object-literal
     properties. The row's slots render inside it, so this is how price_control
     and the rows slot share anything; an x-data inside a slot would put them in
@@ -52,6 +59,8 @@ everything else is shrink-0, so the actions stay put and stay hittable.
     :notes="[]"
     price_control=""
     state=""
+    row_key=""
+    :redrawn="False"
     class=""
 />
 
@@ -74,8 +83,20 @@ everything else is shrink-0, so the actions stay put and stay hittable.
         {% endcomment %}
         facets.search = [facets.search, categoryName, sectionName]
             .filter(Boolean).join(' ').toLowerCase();
-        register(facets)"
+        register({{ row_key|json_dumps }}, facets)"
      x-show="matches(facets)"
+     {% comment %}
+     A name the server can address this row by when it sends back a redrawn
+     one. Slugified because the key holds a colon and a dot, which an id is
+     allowed to carry but a selector then has to escape.
+     {% endcomment %}
+     {% if row_key %}id="{{ row_key|row_dom_id }}" data-row="{{ row_key }}"{% endif %}
+     {% comment %}
+     A row drawn on its own, to stand in for the one of this name already on
+     the page. The page it is going back to is not being rebuilt, so the row
+     has to say that it replaces rather than joins.
+     {% endcomment %}
+     {% if redrawn and row_key %}hx-swap-oob="true"{% endif %}
      class="min-h-11 px-1 py-1 hover:bg-ink-500/5 {{ class }}">
     <div class="flex min-h-9 items-center gap-2">
 

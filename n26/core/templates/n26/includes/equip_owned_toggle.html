@@ -1,0 +1,31 @@
+{% comment %}
+The count button an owned row opens and closes on. Expects `row`,
+`owned_toggle_href` and optionally `held_label` from the including template,
+and renders inside the row's Alpine scope, where `expanded` lives.
+
+Opening costs nothing but a class, so the click toggles in the hand and the
+address follows. The address is amended rather than replaced: the section on
+screen is written there by the picker and is nowhere else, so an address
+built when the page was drawn would quietly drop it. The link is still a
+link — without JavaScript the server renders the row open.
+{% endcomment %}
+<c-ui.button href="{{ owned_toggle_href }}"
+             size="sm"
+             class="inline-flex items-center gap-1.5"
+             x-on:click.prevent="expanded = !expanded;
+                                 (() => {
+                                     const here = new URL(location);
+                                     if (expanded) here.searchParams.set('owned', '{{ row.key|escapejs }}');
+                                     else here.searchParams.delete('owned');
+                                     history.replaceState(history.state, '', here);
+                                 })()"
+             aria-expanded="{{ row.expanded|yesno:'true,false' }}"
+             ::aria-expanded="expanded">
+    <span><span class="tabular-nums">{{ row.count }}</span> {{ held_label|default:"equipped" }}</span>
+    <span class="n26-icon-only">
+        <c-n26.icon name="chevron-down"
+                    class="size-3 transition-transform{% if row.expanded %} rotate-180{% endif %}"
+                    ::class="{ 'rotate-180': expanded }"
+                    stroke_width="2.5" />
+    </span>
+</c-ui.button>

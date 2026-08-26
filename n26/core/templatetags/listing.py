@@ -19,10 +19,24 @@ shouting from inside a drawer.
 """
 
 from django import template
+from django.utils.text import slugify
 
 from n26.core.listing import DANGER, PRIMARY, SECONDARY
 
 register = template.Library()
+
+
+@register.filter
+def row_dom_id(key):
+    """``{{ row.key|row_dom_id }}`` — the DOM id a catalogue row carries.
+
+    One derivation, used both by the row itself and by the partial
+    update that replaces it, so the two cannot drift apart. Slugified
+    because the key holds a colon and a dot, which an id may carry but
+    a selector then has to escape.
+    """
+    return f"n26-row-{slugify(key)}"
+
 
 TONE_VARIANTS = {
     PRIMARY: "success",

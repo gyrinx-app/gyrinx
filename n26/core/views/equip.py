@@ -6,9 +6,18 @@ waits for whoever needs it. Both re-derive the clicked line from the
 list on screen, charge what the box says, and land back where the click
 came from, so the two anchors cannot come to disagree about what buying
 means — the click is read once, in ``_buy_clicked``.
+
+Both screens also update without a rebuild. A click sent by htmx gets back
+only the elements its act changed — the row, the gang's money, the accessory
+panels — each carrying the id of the element it replaces; the shared protocol
+is documented in :mod:`n26.core.views.htmx`. This module contributes
+:func:`_screen`, the one derivation of what a screen shows, used by the pages
+and by every update so the two cannot disagree, and :func:`render_update`,
+which builds the update itself.
 """
 
 import re
+from dataclasses import dataclass
 from urllib.parse import urlencode
 
 from django.contrib import messages
@@ -20,6 +29,7 @@ from n26.core.listing import choice_field as _choice_field
 from n26.core.listing import parts_field as _parts_field
 from n26.core.listing import price_field as _price_field
 from n26.core.owned import thing_key as _thing_key
+from n26.core.views.htmx import is_htmx, no_update, with_toasts
 from n26.core.views.permissions import _own_gang_or_404, _own_miniature_or_404
 
 #: The most a purchase will take for one line. No price in the game comes
@@ -235,7 +245,203 @@ def collection_tabs(collections, chosen):
     ]
 
 
-def _buy_clicked(request, gang, holder, view, back, *, into, collection, event=None):
+def _panel_response(request, dialog):
+    """The confirmation panel alone, for an htmx GET that named one.
+
+    ``None`` for every other request, so a caller reads it as "not that
+    kind of click" and carries on rendering the screen.
+
+    ``HX-Replace-Url`` sets the address to the one that renders this
+    panel on a plain visit — so a reload draws it again and a link to it
+    works. Replaced rather than pushed: an open confirmation is not
+    somewhere to go back to, and the panel's own way out already stands
+    where the back button would.
+    """
+    if request.method != "GET" or not is_htmx(request):
+        return None
+    response = render(request, "n26/includes/equip_panel.html", {"dialog": dialog})
+    response["HX-Replace-Url"] = request.get_full_path()
+    return response
+
+
+@dataclass(frozen=True)
+class Screen:
+    """What an equip screen is showing, derived in one place.
+
+    Pages and partial updates both read the screen through
+    :func:`_screen`, so an update cannot be derived against a different
+    listing than the page it lands on.
+    """
+
+    gang: object
+    miniature: object | None
+    card: object
+    computed: object
+    collections: list
+    #: The collection being browsed — ``None`` on the gang tabs that are
+    #: not collections (the stash, the whole library).
+    chosen: object | None
+    #: The browsed listing, or ``None`` where the screen shows only what
+    #: is held.
+    view: object | None
+
+    def host(self, at):
+        """The assignment roots behind this screen. ``at`` is the page
+        address, query string and all: every owned copy's controls are
+        built from it."""
+        from n26.core.owned import EquipHost
+
+        if self.miniature is not None:
+            return EquipHost.fighter(self.gang, self.card, self.miniature, at=at)
+        return EquipHost.stash(self.gang, self.card, at=at)
+
+
+def _screen(gang, miniature=None, list_param=""):
+    """What an equip screen shows: card, collections, chosen list, view.
+
+    ``miniature`` names whose screen this is; without one it is the
+    gang's, where ``list_param`` may also be one of the two tabs that are
+    not collections (:data:`STASH_SCOPE`, :data:`ALL_SCOPE`).
+
+    One derivation for the pages and for every partial update — an update
+    re-derives here because the act it follows changed the state it
+    reports on, and a second implementation of "which list is the reader
+    on" would let the two quietly disagree.
+    """
+    from n26.core.access import collections_for, gang_collections
+    from n26.core.browse import all_gear, browse, usability_for, with_use_notes
+    from n26.core.card import build_card, build_gang_card, build_modifier_index
+    from n26.core.effects import compute, compute_gang
+
+    def chosen_from(collections):
+        """The list the address names, or the one a plain visit opens on."""
+        named = next((c for c in collections if str(c.pk) == list_param), None)
+        return named or (collections[0] if collections else None)
+
+    if miniature is not None:
+        # The options ride along because these screens name what each copy
+        # was bought with, which no other surface built from a card does.
+        card = build_card(miniature, with_options=True)
+        index = build_modifier_index([node.assignable for node in card.all_nodes()])
+        computed = compute(card, index)
+        collections = buyable_lists(
+            access.collection
+            for access in collections_for(miniature, card=card, computed=computed)
+        )
+        chosen = chosen_from(collections)
+        view = (
+            with_use_notes(browse(chosen), usability_for(computed))
+            if chosen is not None
+            else None
+        )
+        return Screen(gang, miniature, card, computed, collections, chosen, view)
+
+    card = build_gang_card(gang, with_statlines=False)
+    index = build_modifier_index([node.assignable for node in card.all_nodes()])
+    computed = compute_gang(card, index)
+    collections = buyable_lists(
+        access.collection
+        for access in gang_collections(gang, card=card, computed=computed)
+    )
+    if list_param == STASH_SCOPE:
+        chosen, view = None, None
+    elif list_param == ALL_SCOPE:
+        chosen, view = None, all_gear(ALL_LABEL)
+    else:
+        chosen = chosen_from(collections)
+        # No usability notes: those are about a fighter, and the stash is
+        # not one.
+        view = browse(chosen) if chosen is not None else None
+    return Screen(gang, None, card, computed, collections, chosen, view)
+
+
+def render_update(
+    request,
+    gang,
+    key,
+    *,
+    miniature=None,
+    list_param="",
+    expanded_key="",
+    at="",
+    closed=False,
+):
+    """The partial update for one act on an equip screen.
+
+    The row the act changed, the gang's money, and the set of accessory
+    panels — each carrying the id of the element on the page it replaces.
+    Every other row is left as it stands, which is what keeps the
+    reader's filters, the section on screen, and the prices typed
+    elsewhere.
+
+    ``at`` is the page address, query string and all: every control on
+    the redrawn row is built from it, so a row rendered without one hands
+    back controls that have lost which list and section the reader is on.
+
+    ``closed`` marks an act submitted from a confirmation panel; the
+    update then also empties the dialog host, closing the panel.
+
+    The screen is derived again rather than reused from the request,
+    because the act changed the state this update reports on. That costs
+    the same fixed handful of queries as a plain visit.
+
+    A row of ``None`` means the screen no longer has one for this key — a
+    listing always keeps a row, but a screen showing only what is held
+    loses the row along with the last copy — and the update removes the
+    row instead of redrawing it.
+    """
+    from n26.core.listing import listing_row, owned_row, owned_row_manage_only
+    from n26.core.owned import possessions
+    from n26.core.views.owned import accessorise_dialogs
+
+    screen = _screen(gang, miniature=miniature, list_param=list_param)
+    host = screen.host(at)
+    copies = possessions(host).get(key)
+    refunds = not gang.credits_unlimited
+    expanded = key == expanded_key
+
+    if screen.view is None:
+        # A screen showing only what is held draws a row for each thing
+        # held and for nothing else, so parting with the last copy takes
+        # the row away rather than turning it back into an offer.
+        row = (
+            owned_row_manage_only(key, copies, refunds=refunds, expanded=expanded)
+            if copies
+            else None
+        )
+    else:
+        line = next(
+            (line for line in screen.view.all_lines() if _thing_key(line.thing) == key),
+            None,
+        )
+        if line is None:
+            # The listing does not sell it, so the screen never had a row
+            # for it and there is nothing to redraw.
+            row = None
+        else:
+            row = listing_row(line)
+            if copies:
+                row = owned_row(row, copies, refunds=refunds, expanded=expanded)
+
+    response = render(
+        request,
+        "n26/includes/equip_update.html",
+        {
+            "row": row,
+            "row_key": key,
+            "gang": gang,
+            "held_label": host.held_label,
+            "closed": closed,
+            # The update always replaces the whole set of accessory
+            # panels: a gun bought since the page was drawn has no panel
+            # yet, and one parted with would leave a panel behind.
+            "accessorise": accessorise_dialogs(request, host),
+        },
+    )
+    return with_toasts(request, response)
+
+
+def _buy_clicked(request, gang, holder, view, *, into, collection, event=None):
     """One click on a Buy button, read and charged, whoever holds the thing.
 
     ``holder`` is what the purchase lands on — a fighter, or the gang's
@@ -248,9 +454,11 @@ def _buy_clicked(request, gang, holder, view, back, *, into, collection, event=N
     is the list the click came from, for the event. ``event`` carries
     whatever else that screen knows about the purchase.
 
-    Always answers with a redirect to ``back``: a purchase stays on the
-    page, because kitting out is a run of purchases and the breadcrumb is
-    the way out.
+    Returns the clicked line's key where the purchase went through and
+    ``None`` where it was refused. The refusal's reason is queued as a
+    message either way; how the caller responds — a redirect, or a
+    partial update — is the caller's business, so nothing here knows
+    about transport.
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.operations import Refusal, operation
@@ -261,7 +469,7 @@ def _buy_clicked(request, gang, holder, view, back, *, into, collection, event=N
         # Not on this list — a stale page or a tampered form. The
         # list itself is the answer either way.
         messages.error(request, "That item is not on this list.")
-        return redirect(back)
+        return None
     picked = _parts_picked(request.POST, key, line)
     picks = _choices_picked(request.POST, key, line.choices)
     surcharge = sum(option.surcharge for option in picks)
@@ -276,7 +484,7 @@ def _buy_clicked(request, gang, holder, view, back, *, into, collection, event=N
         ]
     except BadPrice as refusal:
         messages.error(request, str(refusal))
-        return redirect(back)
+        return None
     charge = _charge(line, paid, surcharge)
     try:
         with operation(gang, actor=request.user) as op:
@@ -299,7 +507,7 @@ def _buy_clicked(request, gang, holder, view, back, *, into, collection, event=N
                 op.buy(bought, line=part, **_charge(part, part_paid))
     except Refusal as refusal:
         messages.error(request, str(refusal))
-        return redirect(back)
+        return None
     except ValueError:
         # Two picks in one exclusive set, or a set this thing does
         # not offer — what ``resolve_selection`` refuses and the
@@ -340,7 +548,7 @@ def _buy_clicked(request, gang, holder, view, back, *, into, collection, event=N
         )
     else:
         messages.success(request, f"Bought {line.name} for {into} — {spent}¢.")
-    return redirect(back)
+    return key
 
 
 @login_required
@@ -407,39 +615,16 @@ def equip(request, pk):
     A purchase stays on the page: kitting out a fighter is a run of
     purchases, and the breadcrumb is the way back.
     """
-    from n26.core.access import collections_for
-    from n26.core.browse import browse, usability_for, with_use_notes
-    from n26.core.card import build_card, build_modifier_index
-    from n26.core.effects import compute
     from n26.core.listing import build_catalogue
-    from n26.core.owned import EquipHost, possessions
+    from n26.core.owned import possessions
     from n26.core.views.owned import accessorise_dialogs, owned_dialog
 
     miniature = _own_miniature_or_404(request, pk)
     gang = miniature.gang
 
-    # One card build serves the whole page: which lists this fighter can
-    # browse and how usable each line is are both read off the same
-    # computed card.
-    # The options ride along because this page names what each copy was
-    # bought with, which no other surface built from a card does.
-    card = build_card(miniature, with_options=True)
-    index = build_modifier_index([node.assignable for node in card.all_nodes()])
-    computed = compute(card, index)
-
-    collections = buyable_lists(
-        access.collection
-        for access in collections_for(miniature, card=card, computed=computed)
-    )
-
-    chosen = None
-    wanted = request.GET.get("list")
-    for collection in collections:
-        if str(collection.pk) == wanted:
-            chosen = collection
-            break
-    if chosen is None and collections:
-        chosen = collections[0]
+    wanted = request.GET.get("list", "")
+    screen = _screen(gang, miniature=miniature, list_param=wanted)
+    collections, chosen, view = screen.collections, screen.chosen, screen.view
 
     # Which of the picker's section tabs the reader was on — client state
     # the picker posts along and reads back from the URL. Echoed into
@@ -457,20 +642,34 @@ def equip(request, pk):
         ]
         return f"{request.path}?{urlencode(params)}" if params else request.path
 
-    view = None
-    if chosen is not None:
-        view = with_use_notes(browse(chosen), usability_for(computed))
-
     if request.method == "POST" and view is not None:
-        return _buy_clicked(
+        hx = is_htmx(request)
+        key = _buy_clicked(
             request,
             gang,
             miniature,
             view,
-            here(chosen),
             into=miniature.name,
             collection=chosen.name,
             event={"miniature_id": str(miniature.pk)},
+        )
+        if not hx:
+            # Without JavaScript a purchase lands back on the page it was
+            # made from: kitting out is a run of purchases, and the
+            # breadcrumb is the way out.
+            return redirect(here(chosen))
+        if key is None:
+            # A refusal changes nothing on the page; the reason travels
+            # as a toast.
+            return no_update(request)
+        return render_update(
+            request,
+            gang,
+            key,
+            miniature=miniature,
+            list_param=wanted,
+            expanded_key=expanded_key,
+            at=here(chosen),
         )
 
     # What this fighter is already carrying, keyed the way the rows are, so
@@ -478,8 +677,12 @@ def equip(request, pk):
     # over this page, on the list being read, and Cancel comes back to it,
     # so the page's own address is what the controls are built from.
     at = here(chosen)
-    host = EquipHost.fighter(gang, card, miniature, at=at)
+    host = screen.host(at)
     owned = possessions(host)
+
+    dialog = owned_dialog(request, host)
+    if (panel := _panel_response(request, dialog)) is not None:
+        return panel
 
     # The whole screen, as one structure: the browsed list joined to what
     # the fighter holds. A row is a row for something on sale or a row for
@@ -528,11 +731,16 @@ def equip(request, pk):
             "collection_tabs": tabs,
             "chosen": chosen,
             "catalogue": catalogue,
+            # This page holds every element a partial update replaces, so
+            # its act controls submit through htmx — see
+            # n26/includes/equip_hosts.html for the other half of the
+            # opt-in.
+            "htmx": True,
             # The confirmation the URL says is open, if any: sell, move or
             # remove one assignment on this fighter's card. A server state,
             # so it is a link, it survives a reload, and it is drawn rather than
             # revealed by a script.
-            "dialog": owned_dialog(request, host),
+            "dialog": dialog,
             # The accessory question for every gun the fighter is
             # carrying, drawn closed beside the rows. The one the address
             # names is drawn open, so the link works with no script; with
@@ -653,40 +861,20 @@ def equip_gang(request, pk):
     lists. Usability notes are omitted because they apply to fighters, not
     the stash.
     """
-    from n26.core.access import gang_collections
-    from n26.core.browse import all_gear, browse
-    from n26.core.card import build_gang_card, build_modifier_index
-    from n26.core.effects import compute_gang
     from n26.core.listing import build_catalogue, build_stash_catalogue
-    from n26.core.owned import EquipHost, possessions
+    from n26.core.owned import possessions
     from n26.core.render import roster as gang_roster
     from n26.core.render import summarise_roster
     from n26.core.views.owned import accessorise_dialogs, owned_dialog
 
     gang = _own_gang_or_404(request, pk)
 
-    # One card answers both collection access and possessions.
-    card = build_gang_card(gang, with_statlines=False)
-    index = build_modifier_index([node.assignable for node in card.all_nodes()])
-    computed = compute_gang(card, index)
-
-    collections = buyable_lists(
-        access.collection
-        for access in gang_collections(gang, card=card, computed=computed)
-    )
-
     # The collection picker posts its URL state back with a purchase.
     wanted = request.POST.get("list", request.GET.get("list", ""))
     stash_tab = wanted == STASH_SCOPE
     everything = wanted == ALL_SCOPE
-    chosen = None
-    if not stash_tab and not everything:
-        for collection in collections:
-            if str(collection.pk) == wanted:
-                chosen = collection
-                break
-        if chosen is None and collections:
-            chosen = collections[0]
+    screen = _screen(gang, list_param=wanted)
+    collections, chosen, view = screen.collections, screen.chosen, screen.view
 
     # Preserve the collection picker's section across purchases.
     section = request.POST.get("section", request.GET.get("section", ""))[:100]
@@ -705,26 +893,36 @@ def equip_gang(request, pk):
         params.append(("owned", expanded_key))
     here = f"{request.path}?{urlencode(params)}" if params else request.path
 
-    view = None
-    if everything:
-        view = all_gear(ALL_LABEL)
-    elif chosen is not None:
-        view = browse(chosen)
-
     if request.method == "POST" and view is not None:
-        return _buy_clicked(
+        hx = is_htmx(request)
+        key = _buy_clicked(
             request,
             gang,
             gang.stash,
             view,
-            here,
             into="the stash",
             collection=ALL_LABEL if everything else chosen.name,
         )
+        if not hx:
+            return redirect(here)
+        if key is None:
+            return no_update(request)
+        return render_update(
+            request,
+            gang,
+            key,
+            list_param=wanted,
+            expanded_key=expanded_key,
+            at=here,
+        )
 
-    host = EquipHost.stash(gang, card, at=here)
+    host = screen.host(here)
     owned = possessions(host)
     refunds = not gang.credits_unlimited
+
+    dialog = owned_dialog(request, host)
+    if (panel := _panel_response(request, dialog)) is not None:
+        return panel
 
     if stash_tab:
         catalogue = build_stash_catalogue(
@@ -761,8 +959,10 @@ def equip_gang(request, pk):
             "browsing": browsing,
             "catalogue": catalogue,
             "stash_tab": stash_tab,
+            # Opted in the same way as a model's own screen.
+            "htmx": True,
             "held_label": host.held_label,
-            "dialog": owned_dialog(request, host),
+            "dialog": dialog,
             "accessorise": accessorise_dialogs(request, host),
             "summary": summarise_roster(gang_roster(gang)),
             **picker_context(catalogue, view),

@@ -1704,7 +1704,7 @@ GROUPS: list[Group] = [
             Component(
                 slug="gang-figures",
                 tag="c-n26.gang-figures",
-                template="n26/gang_figures.html",
+                template="n26/gang_figures/index.html",
                 summary=(
                     "The numbers a spending decision is made against: the "
                     "roster count beside the wealth strip."

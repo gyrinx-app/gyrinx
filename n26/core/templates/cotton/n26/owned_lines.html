@@ -19,7 +19,7 @@ accessory panel is drawn on the page ahead of the click as well, so clicking it
 opens what is already there rather than rebuilding a listing of several hundred
 lines.
 {% endcomment %}
-<c-vars :copies="None" class="" />
+<c-vars :copies="None" :htmx="False" class="" />
 
 <div class="flex flex-col gap-1 {{ class }}">
     {% for copy in copies %}
@@ -93,8 +93,21 @@ lines.
                             </span>
                         </c-ui.button>
                     </c-slot>
+                    {% comment %}
+                    Each of these opens a confirmation the server renders; on
+                    a screen opted into partial updates (:htmx) the click
+                    fetches the panel alone. Still a link underneath — see
+                    n26/includes/row_action.html, including for why the
+                    element is drawn twice rather than switching attributes.
+                    {% endcomment %}
                     {% for action in copy.more %}
-                        <c-ui.dropdown.item href="{{ action.target }}">{{ action.label }}</c-ui.dropdown.item>
+                        {% if htmx %}
+                            <c-ui.dropdown.item href="{{ action.target }}"
+                                                hx-get="{{ action.target }}"
+                                                hx-swap="none">{{ action.label }}</c-ui.dropdown.item>
+                        {% else %}
+                            <c-ui.dropdown.item href="{{ action.target }}">{{ action.label }}</c-ui.dropdown.item>
+                        {% endif %}
                     {% endfor %}
                 </c-ui.dropdown>
             </span>
@@ -125,7 +138,13 @@ lines.
                             </c-ui.button>
                         </c-slot>
                         {% for action in part.more %}
-                            <c-ui.dropdown.item href="{{ action.target }}">{{ action.label }}</c-ui.dropdown.item>
+                            {% if htmx %}
+                                <c-ui.dropdown.item href="{{ action.target }}"
+                                                    hx-get="{{ action.target }}"
+                                                    hx-swap="none">{{ action.label }}</c-ui.dropdown.item>
+                            {% else %}
+                                <c-ui.dropdown.item href="{{ action.target }}">{{ action.label }}</c-ui.dropdown.item>
+                            {% endif %}
                         {% endfor %}
                     </c-ui.dropdown>
                 </span>

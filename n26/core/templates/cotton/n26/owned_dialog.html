@@ -20,8 +20,23 @@ id each.
 
 The slot carries the csrf token: a component has no request and renders none
 itself.
+
+  :htmx — the form posts through htmx and the server sends back only the
+    elements the act changed. Only a screen holding those elements may set it
+    — anywhere else the act would run and nothing on screen would change; see
+    n26/includes/equip_hosts.html. Off by default.
+  :redrawn — this panel was rendered on its own, for a page that was not
+    rebuilt. Dismissing it puts the address back instead of navigating.
 {% endcomment %}
-<c-vars :dialog="None" :modal="True" :open="True" id="n26-dialog" class="" />
+<c-vars
+    :dialog="None"
+    :modal="True"
+    :open="True"
+    :redrawn="False"
+    :htmx="False"
+    id="n26-dialog"
+    class=""
+/>
 
 <c-n26.dialog title="{{ dialog.title }}"
               action="{{ dialog.action }}"
@@ -30,6 +45,8 @@ itself.
               submit_variant="{{ dialog.submit_variant }}"
               :modal="modal"
               :open="open"
+              :redrawn="redrawn"
+              :htmx="htmx"
               id="{{ id }}"
               class="{{ class }}">
     <c-slot name="lead">

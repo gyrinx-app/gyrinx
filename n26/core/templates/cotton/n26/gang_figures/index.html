@@ -3,16 +3,18 @@
 
     <c-n26.gang-figures :gang="gang" :summary="summary" />
 
-The roster count, then <c-n26.wealth>. Drawn on the gang sheet, above the hire
+The roster count, then the money. Drawn on the gang sheet, above the hire
 list and in the model screens' header, since hiring and buying are decided
-against how many models the gang fields and what it has left to spend. Server-
-rendered per request, so the redirect after a purchase brings it back already
-updated.
+against how many models the gang fields and what it has left to spend.
 
 The count is <c-n26.roster-summary>, so the figure a reader glances at is also
 the control holding the roster's own arithmetic. It is not wealth, so the money
 is fenced off by the rule <c-n26.wealth> documents for this seam — the gap here
 and the strip's own padding put the same air either side of it.
+
+The money is <c-n26.gang-figures.wealth>, which carries a fixed id: a screen
+that updates without a rebuild replaces the money by that name, and only the
+money — an act on kit never changes how many models there are.
 
   :gang — anything carrying the four worth figures; the Gang model does, and so
     does a rendered GangSheet.
@@ -23,5 +25,5 @@ and the strip's own padding put the same air either side of it.
 
 <div {{ attrs }} class="flex items-center gap-3 {{ class }}">
     <c-n26.roster-summary :summary="summary" />
-    <c-n26.wealth :sheet="gang" class="border-l border-box-border pl-3" />
+    <c-n26.gang-figures.wealth :sheet="gang" />
 </div>

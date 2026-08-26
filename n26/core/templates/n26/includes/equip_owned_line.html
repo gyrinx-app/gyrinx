@@ -1,6 +1,7 @@
 {% comment %}
 A row for something already held. Expects `row` — an n26.core.listing.OwnedRow —
-and `held_label` from the page when the host is the stash.
+and `held_label` from the page when the host is the stash; `htmx` from the page
+says the screen receives partial updates, and `redrawn` that this render is one.
 
 Owning something is a *state of its row*, not a list of its own: where a copy is
 held, the count stands where Buy would be and opens the row onto what they have.
@@ -18,26 +19,18 @@ held, the count stands where Buy would be and opens the row onto what they have.
                                   :notes="row.buy.notes"
                                   :disclosure="False"
                                   :open="row.expanded"
+                                  row_key="{{ row.key }}"
+                                  :redrawn="redrawn"
                                   state="quoted: {{ row.buy.price }}, price: {{ row.buy.price }}">
         <c-slot name="price_control">
             <span aria-hidden="true"></span>
         </c-slot>
         <c-slot name="actions">
-            <c-ui.button href="{{ owned_toggle_href }}"
-                         size="sm"
-                         class="inline-flex items-center gap-1.5"
-                         aria-expanded="{{ row.expanded|yesno:'true,false' }}">
-                <span><span class="tabular-nums">{{ row.count }}</span> {{ held_label|default:"equipped" }}</span>
-                <span class="n26-icon-only">
-                    <c-n26.icon name="chevron-down"
-                                class="size-3 transition-transform{% if row.expanded %} rotate-180{% endif %}"
-                                stroke_width="2.5" />
-                </span>
-            </c-ui.button>
+            {% include "n26/includes/equip_owned_toggle.html" %}
         </c-slot>
         <c-slot name="details">
             <div class="n26-cp-inset">
-                <c-n26.owned-lines :copies="row.copies" />
+                <c-n26.owned-lines :copies="row.copies" :htmx="htmx" />
                 <div class="mt-1 border-t border-box-border pt-1">
                     <div class="flex min-h-9 items-center gap-2">
                         <span class="min-w-0 flex-1 text-sm text-muted">Buy another</span>
@@ -63,26 +56,18 @@ held, the count stands where Buy would be and opens the row onto what they have.
                                   :price="0"
                                   :disclosure="False"
                                   :open="row.expanded"
+                                  row_key="{{ row.key }}"
+                                  :redrawn="redrawn"
                                   state="quoted: 0, price: 0">
         <c-slot name="price_control">
             <span aria-hidden="true"></span>
         </c-slot>
         <c-slot name="actions">
-            <c-ui.button href="{{ owned_toggle_href }}"
-                         size="sm"
-                         class="inline-flex items-center gap-1.5"
-                         aria-expanded="{{ row.expanded|yesno:'true,false' }}">
-                <span><span class="tabular-nums">{{ row.count }}</span> {{ held_label|default:"equipped" }}</span>
-                <span class="n26-icon-only">
-                    <c-n26.icon name="chevron-down"
-                                class="size-3 transition-transform{% if row.expanded %} rotate-180{% endif %}"
-                                stroke_width="2.5" />
-                </span>
-            </c-ui.button>
+            {% include "n26/includes/equip_owned_toggle.html" %}
         </c-slot>
         <c-slot name="details">
             <div class="n26-cp-inset">
-                <c-n26.owned-lines :copies="row.copies" />
+                <c-n26.owned-lines :copies="row.copies" :htmx="htmx" />
             </div>
         </c-slot>
     </c-n26.collection-picker.item>
