@@ -261,6 +261,12 @@ class TestRenamingFromHere:
     """The pencil on this page's card opens the dialog here, and the act
     comes back here — ?back=edit is a named place, never a URL."""
 
+    def test_the_card_offers_the_rename(self, client, tester, gang, vex):
+        client.force_login(tester)
+        body = client.get(edit_url(vex)).content.decode()
+        assert 'aria-label="Rename Vex"' in body
+        assert f"?rename={vex.pk}" in body
+
     def test_the_url_opens_the_dialog_on_this_page(self, client, tester, gang, vex):
         client.force_login(tester)
         body = client.get(f"{edit_url(vex)}?rename={vex.pk}").content.decode()

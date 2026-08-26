@@ -66,8 +66,10 @@ is named by the page's own heading directly below.
                                 trade_points_href="{{ trade_points_href }}" />
         </c-slot>
         {% comment %}
-        The rename pencil, as the sheet draws it — a link, so the dialog
-        is an address; ?back=edit brings the act back to this page.
+        The rename pencil — a link, so the dialog is an address;
+        ?back=edit brings the act back to this page. The gang sheet
+        does not carry one: next to the name it is too easy to take
+        for Edit.
         {% endcomment %}
         <c-slot name="name_action">
             <c-ui.button variant="ghost"

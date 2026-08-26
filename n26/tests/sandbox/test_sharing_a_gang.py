@@ -142,8 +142,8 @@ class TestNothingToClick:
         client.force_login(owner)
         mine = read(client, at)
 
-        assert "?rename=" in mine
-        assert "?rename=" not in theirs
+        assert "/fighters/" in mine
+        assert "/fighters/" not in theirs
         assert "?delete=" in mine
         assert "?delete=" not in theirs
 
