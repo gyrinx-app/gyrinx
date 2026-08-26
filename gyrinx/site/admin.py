@@ -16,8 +16,8 @@ from django.core.exceptions import PermissionDenied
 from django.db import models
 from django.shortcuts import redirect, render
 from django.urls import path
+from django.utils.text import slugify
 
-from gyrinx.site.flags import known_flags
 from gyrinx.site.models import (
     ChangelogEntry,
     ChangelogEntryTag,
@@ -200,29 +200,37 @@ class ChangelogEntryAdmin(admin.ModelAdmin):
 
 
 class FeatureFlagForm(forms.ModelForm):
-    """The slug is offered as a choice rather than typed.
+    """The slug is typed, cleaned, and checked rather than chosen.
 
-    A row whose slug no code asks for is inert: nothing reads it, so the
-    switch on it controls nothing, and it sits on the page reading as a
-    control over something. Free text is how that gets made — one typo and
-    the feature it was meant to open stays shut with no sign why.
+    Any word can be a flag: a row whose slug no code asks for is inert —
+    nothing reads it — so a slug typed ahead of the code is harmless,
+    where a fixed list would demand a deploy before this page could name
+    the feature at all. What typing must not do is make two rows for one
+    feature or a slug code cannot ask for, so the value is slugified on
+    the way in and uniqueness is checked against the cleaned form.
 
-    The choices are whatever the editions claimed as they started, so a
-    feature appears here by being registered rather than by being typed.
+    Declared as a plain text field: the model field's own slug validation
+    would refuse dirty input before the cleaning here could tidy it.
     """
+
+    slug = forms.CharField(
+        max_length=50,
+        label="Slug",
+        help_text=(
+            "What the code asks for. Cleaned to lower-case letters, digits "
+            "and dashes; fixed once the row exists."
+        ),
+    )
 
     class Meta:
         model = FeatureFlag
         fields = "__all__"
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        if "slug" in self.fields:
-            self.fields["slug"] = forms.ChoiceField(
-                choices=[(slug, slug) for slug in sorted(known_flags())],
-                label="Slug",
-                help_text="What the code asks for. Fixed once the row exists.",
-            )
+    def clean_slug(self):
+        slug = slugify(self.cleaned_data["slug"])
+        if not slug:
+            raise forms.ValidationError("A slug needs at least one letter or digit.")
+        return slug
 
 
 @admin.register(FeatureFlag)
