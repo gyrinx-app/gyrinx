@@ -1,0 +1,30 @@
+{% comment %}
+The Visit Trading Post action, said in one line under the stash.
+
+Here because the stash is where a gang's buying is read from and where its
+Trading Post purchases land. Both states, since "an action is open with three
+left" and "there is no action" are equally worth knowing before buying
+anything.
+
+Wants `trade_points_href`, so it draws nothing for a reader who could not act
+on it anyway.
+{% endcomment %}
+{% if trade_points_href %}
+    <div class="flex flex-wrap items-center justify-between gap-2">
+        {% if gang.visiting_trading_post %}
+            <span class="text-xs text-muted">
+                Trading Post visit open —
+                <span class="font-medium text-ink-900 dark:text-ink-100">{{ gang.trade_points_left }} TP</span>
+                left
+            </span>
+            <c-ui.button size="xs" variant="default" href="{{ trade_points_href }}">
+                Manage visit
+            </c-ui.button>
+        {% else %}
+            <span class="text-xs text-muted">Not tracking TP</span>
+            <c-ui.button size="xs" variant="primary" href="{{ trade_points_href }}">
+                Set up TP visit →
+            </c-ui.button>
+        {% endif %}
+    </div>
+{% endif %}

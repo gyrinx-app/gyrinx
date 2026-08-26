@@ -52,6 +52,33 @@ EQUIPMENT_LIST = Terms()
 TRADING_POST = Terms(charges_trade_points=True, shows_exclusive=False)
 
 
+def terms_for(collection):
+    """The terms a buying screen browses this collection on.
+
+    Charging stays the flow's decision — a collection never asks to be
+    paid in one currency or another — and this is the buying screens
+    making it, from the one fact that settles it: a collection whose
+    membership is *having a Trade Point price* is somewhere you spend
+    Trade Points, whatever it was called. A list an author wrote out by
+    hand prices in credits and is browsed as a list.
+
+    Read off the definition rather than the name, so a pack's own
+    TP-swept post charges like the standard one and a list called
+    "Trading Post" does not.
+
+    ``browse`` reaches the same answer for free — it has the selectors in
+    hand already — so this is for a caller that wants the terms
+    themselves rather than a listing.
+    """
+    return _on_its_own_terms(
+        collection.selectors.filter(with_trade_point_price=True).exists()
+    )
+
+
+def _on_its_own_terms(deals_in_trade_points):
+    return TRADING_POST if deals_in_trade_points else EQUIPMENT_LIST
+
+
 @dataclass(frozen=True)
 class OfferedOption:
     """One alternative a line offers the buyer — a mount's plasma guns.
@@ -184,7 +211,7 @@ class CollectionView:
                 yield from category.lines
 
 
-def browse(collection, terms=EQUIPMENT_LIST):
+def browse(collection, terms=None):
     """A collection, browsed: its selector sweeps plus its entries.
 
     Entries win over selectors for the same item — that is where per-item
@@ -193,6 +220,13 @@ def browse(collection, terms=EQUIPMENT_LIST):
     are the caller's — how this browse charges is the buying flow's
     business, not the collection's — and they ride every line so the
     purchase never needs to know where a line came from.
+
+    Given none, the collection is browsed on its own terms
+    (:func:`terms_for`): one swept together *by* Trade Point prices is
+    somewhere they are spent, one written out by hand is not. That is a
+    reading of the definition this already has in hand, so a screen
+    wanting it pays no query for it. A surface that means something else
+    — an author previewing their own list — says which terms it means.
 
     Sweeps respect the terms (a trading trip has no Exclusive items on
     the listing); curated entries always show — they are the author's
@@ -231,6 +265,8 @@ def browse(collection, terms=EQUIPMENT_LIST):
     # TP-swept collection is a trading post whatever it was called, and
     # a list called one is not.
     in_trade_points = any(selector.with_trade_point_price for selector in selectors)
+    if terms is None:
+        terms = _on_its_own_terms(in_trade_points)
 
     for selector in selectors:
         for thing in selector.contents(include_exclusive=terms.shows_exclusive):

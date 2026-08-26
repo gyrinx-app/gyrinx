@@ -35,6 +35,7 @@ that said it twice would be spending the width the name needs.
     {% endif %}
     {% badge_for gang.owner as owner_badge %}
     <c-n26.view.gang-sheet :sheet="sheet"
+                           trade_points_href="{{ trade_points_href }}"
                            owner="{{ gang.owner.username }}"
                            owner_href="{% url 'n26-dashboard' %}"
                            owner_flair_label="{{ owner_badge.description }}"
@@ -194,6 +195,9 @@ that said it twice would be spending the width the name needs.
         {% if yours %}
             <c-slot name="stash_actions">
                 <c-n26.action-link href="{% url 'n26-equip-gang' gang.pk %}">Equip</c-n26.action-link>
+            </c-slot>
+            <c-slot name="stash_notice">
+                {% include "n26/includes/stash_trading_post.html" %}
             </c-slot>
         {% endif %}
         <c-slot name="stash_empty">

@@ -1,0 +1,189 @@
+{% extends "n26/layouts/base.html" %}
+{% load navigation %}
+{% comment %}
+The Visit Trading Post action — the one open, and starting another.
+
+Two posts, no query string. The card is the open visit, read as a receipt: what
+it brought, what has gone, what is left, and who performed the action. Its
+button finishes the visit, which shuts the post and loses the remainder — the
+book's rule, so the button says so rather than asking again.
+
+The form beneath starts one. There is no number to type: a visit brings what
+its fighters bring, so the ticks are the whole of the question. Starting one
+while another is open replaces it, and the form says as much.
+
+Plain checkboxes and no script, so the whole screen works with scripting off.
+{% endcomment %}
+{% block head_title %}Trade Points — {{ gang.name }}{% endblock head_title %}
+{% block nav_switcher %}
+    {% gang_switcher gang as gang_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="gang_switcher_" hotkey="f" />
+{% endblock nav_switcher %}
+{% block nav_items %}
+    {% include 'n26/_nav.html' with here='gangs' %}
+{% endblock %}
+{% block messages %}
+{% endblock messages %}
+{% block content %}
+    <div class="max-w-3xl space-y-8">
+        <c-n26.page-header title="Edit {{ gang.name }}"
+                           lead="What {{ gang.name }} may spend at the Trading Post.">
+            <c-slot name="breadcrumb">
+                <c-ui.breadcrumbs>
+                    <c-ui.breadcrumbs.item>
+                        <c-n26.user-link :user="gang.owner" tone="current" href="{% url 'n26-dashboard' %}" />
+                    </c-ui.breadcrumbs.item>
+                    <c-ui.breadcrumbs.item href="{% url 'n26-gang' gang.pk %}">{{ gang.name }}</c-ui.breadcrumbs.item>
+                    <c-ui.breadcrumbs.item :current="True">
+                        Edit
+                    </c-ui.breadcrumbs.item>
+                </c-ui.breadcrumbs>
+            </c-slot>
+        </c-n26.page-header>
+        <c-n26.tab-links label="What to edit" :tabs="edit_tabs" />
+        {% comment %}
+        Here rather than at the top of the page: finishing takes the card away,
+        and the confirmation lands in the space it left. The layout's messages
+        block is emptied above — reading the storage consumes it, so leaving
+        both would draw every message twice.
+        {% endcomment %}
+        {% include "n26/includes/messages.html" %}
+        {% if receipt %}
+            {% comment %}
+            A card rather than a section: it comes and goes with the action,
+            where a heading would read as a standing fact about the gang.
+            {% endcomment %}
+            <c-ui.card>
+                <c-slot name="header">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-muted">Action</p>
+                    <h2 class="text-lg font-semibold text-ink-900 dark:text-ink-100">Visit Trading Post</h2>
+                </c-slot>
+                <div class="space-y-4">
+                    <c-n26.tally :facts="receipt.facts" />
+                    {% comment %}
+                    Every fighter, not only those who performed the action:
+                    what a visit brought is the gang's, and it is spent on
+                    whoever it was for. Which ranks brought it is the line
+                    under Available.
+                    {% endcomment %}
+                    {% if roster %}
+                        <div class="border-t border-box-border pt-3">
+                            <p class="mb-1 text-xs text-muted">Equip a fighter</p>
+                            <ul class="flex flex-col gap-1">
+                                {% for member in roster %}
+                                    <li class="flex items-center justify-between gap-3">
+                                        <span class="min-w-0 text-sm text-ink-900 dark:text-ink-100">{{ member.name }}</span>
+                                        {% if post %}
+                                            <c-ui.button size="xs"
+                                                         variant="primary"
+                                                         href="{% url 'n26-equip' member.pk %}?list={{ post.pk }}">
+                                                Equip
+                                            </c-ui.button>
+                                        {% endif %}
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    {% endif %}
+                    <form method="post" action="{{ action }}">
+                        {% csrf_token %}
+                        <input type="hidden" name="act" value="finish">
+                        {% comment %}
+                        The label and its tick sit in one flex span, as every
+                        other icon-and-words button here does: loose in the
+                        button they break onto two lines.
+                        {% endcomment %}
+                        <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+                            <c-ui.button type="submit" size="sm" variant="success">
+                                <span class="flex items-center gap-1.5">
+                                    <c-n26.icon name="check" class="size-4" stroke_width="2.5" />
+                                    Action complete
+                                </span>
+                            </c-ui.button>
+                            <p class="text-sm text-muted">Click when you have finished at the Trading Post.</p>
+                        </div>
+                    </form>
+                </div>
+            </c-ui.card>
+        {% endif %}
+        <form method="post" action="{{ action }}">
+            {% csrf_token %}
+            <c-n26.form-section title="Start Visit Trading Post action"
+                                description="{% if visit_open %}Finish the action above first. A gang performs one Visit Trading Post action at a time.{% else %}Any fighter may go. A Leader brings 2 Trade Points and a Champion 1; the rest bring none, and one of them going is still what opens the post.{% endif %}">
+                {% if visitors %}
+                    {% comment %}
+                    Shut while an action is open: starting another would discard
+                    what the one above has left. The reason is said once in the
+                    section description rather than under every fighter.
+                    {% endcomment %}
+                    <c-n26.tick-list :offer="offer" name="visiting" :disabled="visit_open" />
+                    {% comment %}
+                    `brought_default` is the figure the box was drawn with.
+                    Without it the server could not tell a figure somebody
+                    typed from one the page happened to draw, the box being
+                    unable to follow the ticks with no script here.
+                    {% endcomment %}
+                    <input type="hidden" name="brought_default" value="{{ suggestion }}">
+                    {% comment %}
+                    No `class` on the input: c-ui.input does not declare one, so
+                    it would arrive through {{ attrs }} as a second class
+                    attribute and the browser would keep the first — dropping
+                    the component's whole styling, and with it any sign that
+                    this is a box to type in.
+                    {% endcomment %}
+                    <c-ui.field label="Or use a specific TP amount" :form="None" for="brought">
+                        {% if visit_open %}
+                            <c-ui.input id="brought"
+                                        name="brought"
+                                        type="number"
+                                        min="0"
+                                        max="999"
+                                        inputmode="numeric"
+                                        value="{{ suggestion }}"
+                                        disabled />
+                        {% else %}
+                            <c-ui.input id="brought"
+                                        name="brought"
+                                        type="number"
+                                        min="0"
+                                        max="999"
+                                        inputmode="numeric"
+                                        value="{{ suggestion }}" />
+                        {% endif %}
+                    </c-ui.field>
+                    {% comment %}
+                    Two whole tags, never one with a conditional attribute
+                    inside it: a template tag among a component's attributes
+                    reaches the page as text, and the button draws live while
+                    looking shut. The shut one is wrapped because a disabled
+                    button emits no mouse events for a tooltip to use.
+                    {% endcomment %}
+                    <div>
+                        {% if visit_open %}
+                            <c-ui.tooltip size="sm">
+                                <span class="inline-block cursor-not-allowed">
+                                    <c-ui.button type="submit" size="sm" variant="success" disabled>
+                                        Start action
+                                    </c-ui.button>
+                                </span>
+                                <c-slot name="content">
+                                    Finish the action above first — a gang performs one
+                                    Visit Trading Post action at a time.
+                                </c-slot>
+                            </c-ui.tooltip>
+                        {% else %}
+                            <c-ui.button type="submit" size="sm" variant="success">
+                                Start action
+                            </c-ui.button>
+                        {% endif %}
+                    </div>
+                {% else %}
+                    <p class="text-sm text-muted">
+                        {{ gang.name }} has nobody to send — a gang needs a fighter on
+                        its roster to perform the action.
+                    </p>
+                {% endif %}
+            </c-n26.form-section>
+        </form>
+    </div>
+{% endblock content %}

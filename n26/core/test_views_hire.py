@@ -637,13 +637,13 @@ def test_the_figures_strip_counts_the_roster_and_quotes_the_books(
     # The count is a control rather than a figure, and the one number here
     # that carries no unit.
     assert "Roster breakdown: 0 models in the gang" in body
-    assert f">{gang.credits}\u00a2</dd>" in body
+    assert f">{gang.credits}\u00a2<" in body
 
     client.post(hire_url(gang), {"profile": str(ganger.pk), "name": "Vex"})
     gang.refresh_from_db()
     body = client.get(hire_url(gang)).content.decode()
     assert "Roster breakdown: 1 model in the gang" in body
-    assert f">{gang.credits}\u00a2</dd>" in body
+    assert f">{gang.credits}\u00a2<" in body
 
 
 def test_a_profile_not_offered_for_hire_is_not_on_the_screen(

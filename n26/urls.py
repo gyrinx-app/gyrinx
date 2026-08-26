@@ -52,6 +52,15 @@ urlpatterns = [
     path("gangs/<str:pk>/edit/", views.edit_gang, name="n26-edit-gang"),
     path("gangs/<str:pk>/history/", views.gang_history, name="n26-gang-history"),
     path("gangs/<str:pk>/lore/", views.gang_lore, name="n26-gang-lore"),
+    # What the gang takes to a trading post. Its own page rather than a
+    # field on the edit form: the allowance is minted for a trip and
+    # spent within it, which is a different act from settling the gang's
+    # standing facts.
+    path(
+        "gangs/<str:pk>/trade-points/",
+        views.gang_trade_points,
+        name="n26-gang-trade-points",
+    ),
     path("gangs/<str:pk>/delete/", views.delete_gang, name="n26-delete-gang"),
     # The slot's own address. It names the card, the assignment carrying
     # the offer and the offer itself, so one route serves a fighter's

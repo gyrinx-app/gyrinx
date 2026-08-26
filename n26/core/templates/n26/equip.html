@@ -10,10 +10,11 @@ Which list is being browsed is URL state (?list=<pk>), so a particular list is
 linkable and the back button walks the choices. The Buy buttons submit the
 line's identity and nothing else; every price is the server's own derivation.
 
-Trade Points are drawn where a line has them, but nothing charges them yet —
-that needs a TP budget, which is a session concept the edition has not built.
-The TP slider only appears when the list actually has TP-priced lines to
-filter.
+Trade Points are drawn where a line has them, and a list swept together *by*
+having them charges them: buying from that list spends against the gang's
+allowance, and going past it asks first. A list an author wrote out by hand
+prices in credits and charges no points. The TP slider only appears when the
+list actually has TP-priced lines to filter.
 {% endcomment %}
 {% block head_title %}Equip {{ miniature.name }}{% endblock head_title %}
 {% comment %}
@@ -75,7 +76,21 @@ breadcrumb above it has the gang as well, so nothing is lost.
         one click away rather than a line of the page.
         {% endcomment %}
         <c-slot name="actions">
-            <c-n26.gang-figures :gang="gang" :summary="summary" />
+            <div class="flex flex-col items-end gap-1">
+                <c-n26.gang-figures :gang="gang"
+                                    :summary="summary"
+                                    trade_points_href="{{ trade_points_href }}" />
+                {% comment %}
+                Under the figures, and only while no action is open: with one open the
+                TP figure is a number that already leads here, and this would be asking
+                for a second of something a gang performs one of at a time.
+                {% endcomment %}
+                {% if trade_points_href and not gang.visiting_trading_post and not post_is_shut %}
+                    <c-n26.link href="{{ trade_points_href }}" class="text-sm">
+                        Track TP spend by starting an action →
+                    </c-n26.link>
+                {% endif %}
+            </div>
         </c-slot>
     </c-n26.model-header>
     {% comment %}
@@ -102,21 +117,34 @@ breadcrumb above it has the gang as well, so nothing is lost.
     names the list it searches.
     {% endcomment %}
     {% if chosen %}
-        <div class="mt-6 grid grid-cols-1 gap-x-6 gap-y-4 {% if collection_tabs|length > 1 %}md:grid-cols-[11rem_minmax(0,1fr)]{% endif %}">
-            {% if collection_tabs|length > 1 %}
-                <c-ui.navlist variant="sidebar" aria-label="Which list" class="self-start text-sm">
-                    {% for tab in collection_tabs %}
-                        {% comment %}
-                        The full name where the tab shortened it, empty where
-                        nothing was lost — decided in the view, because a
-                        template tag written inside a component's attributes is
-                        not read as one and lands in the page as text.
-                        {% endcomment %}
-                        <c-ui.navlist.item href="{{ tab.href }}" :current="tab.current" title="{{ tab.title }}">
-                            {{ tab.label }}
-                        </c-ui.navlist.item>
-                    {% endfor %}
-                </c-ui.navlist>
+        <div class="mt-6 grid grid-cols-1 gap-x-6 gap-y-4 {% if collection_tabs|length > 1 or post_is_shut %}md:grid-cols-[11rem_minmax(0,1fr)]{% endif %}">
+            {% comment %}
+            The rail and what sits under it are one grid cell, so the block
+            below the lists needs no placement of its own. It draws even where
+            there is no rail: one list is nothing to choose between, but the
+            gang can still be told it is tracking nothing.
+            {% endcomment %}
+            {% if collection_tabs|length > 1 or post_is_shut %}
+                <div class="flex flex-col gap-4 self-start">
+                    {% if collection_tabs|length > 1 %}
+                        <c-ui.navlist variant="sidebar" aria-label="Which list" class="text-sm">
+                            {% for tab in collection_tabs %}
+                                {% comment %}
+                                The full name where the tab shortened it, empty
+                                where nothing was lost — decided in the view,
+                                because a template tag written inside a
+                                component's attributes is not read as one.
+                                {% endcomment %}
+                                <c-ui.navlist.item href="{{ tab.href }}" :current="tab.current" title="{{ tab.title }}">
+                                    {{ tab.label }}
+                                </c-ui.navlist.item>
+                            {% endfor %}
+                        </c-ui.navlist>
+                    {% endif %}
+                    {% if post_is_shut %}
+                        {% include "n26/includes/not_tracking_tp.html" %}
+                    {% endif %}
+                </div>
             {% endif %}
             {% comment %}
             The whole catalogue posts here. A purchase submitted by htmx gets

@@ -592,6 +592,10 @@ class TestTheQueryBudget:
         # their offers. The drawer asks once whether campaigns are open to
         # this reader, so it draws that place as a link or as a plain word.
         # The page's own furniture answers for the rest.
+        #
+        # No Visit Trading Post action is open here, which is a column read
+        # and no query: what a visit has left is only asked of the ledger
+        # where there is a visit to ask about.
         assert self.measure(client, equip_url(gang, house_list)) == 36
 
     def test_the_library_costs_a_fixed_number(self, client, tester, gang, house_list):

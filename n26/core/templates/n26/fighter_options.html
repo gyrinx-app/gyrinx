@@ -32,7 +32,9 @@ the price difference lands on the hire's own line in either direction.
             </c-ui.breadcrumbs>
         </c-slot>
         <c-slot name="actions">
-            <c-n26.gang-figures :gang="gang" :summary="summary" />
+            <c-n26.gang-figures :gang="gang"
+                                :summary="summary"
+                                trade_points_href="{{ trade_points_href }}" />
         </c-slot>
     </c-n26.model-header>
     <div class="mt-4 grid auto-rows-min grid-cols-1 gap-4 md:grid-cols-2">

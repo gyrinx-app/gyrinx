@@ -122,12 +122,24 @@ that said it twice would be spending the width the name needs.
                                             </ul>
                                         {% endif %}
                                     </div>
-                                    {% if act.credits or act.rating %}
+                                    {% if act.credits or act.trade_points or act.rating %}
                                         <div class="shrink-0 pt-px text-right text-sm tabular-nums">
                                             {% if act.credits %}
                                                 <div title="What this did to the gang's credits"
                                                      class="{% if act.credits > 0 %}font-medium{% endif %}">
                                                     {% if act.credits > 0 %}+{% endif %}{{ act.credits }}¢
+                                                </div>
+                                            {% endif %}
+                                            {% if act.trade_points %}
+                                                {% comment %}
+                                                No currency mark: a Trade Point
+                                                is a count, and it belongs to a
+                                                Visit Trading Post action rather
+                                                than to the gang.
+                                                {% endcomment %}
+                                                <div class="text-muted"
+                                                     title="What this spent of a Visit Trading Post action's Trade Points">
+                                                    {% if act.trade_points > 0 %}+{% endif %}{{ act.trade_points }} TP
                                                 </div>
                                             {% endif %}
                                             {% if act.rating %}

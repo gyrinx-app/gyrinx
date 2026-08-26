@@ -298,6 +298,27 @@ def buy(miniature, line=None, *, thing=None, entry=None, actor=None, **kwargs):
         return op.buy(miniature, line, thing=thing, entry=entry, **kwargs)
 
 
+def visit_trading_post(gang, visitors=(), brought=None, actor=None):
+    """Perform the Visit Trading Post action.
+
+    ``brought`` states what the visit is worth outright, for a test that
+    wants a figure rather than a cast; otherwise it is what the visitors
+    bring between them.
+    """
+    from n26.core.operations import operation
+
+    with operation(gang, actor=actor or gang.owner) as op:
+        return op.visit_trading_post(visitors, brought=brought)
+
+
+def leave_trading_post(gang, actor=None):
+    """Finish the action. Whatever it had left is lost."""
+    from n26.core.operations import operation
+
+    with operation(gang, actor=actor or gang.owner) as op:
+        return op.leave_trading_post()
+
+
 def learn(miniature, thing, actor=None, note=""):
     """Take on a skill or a power — free, and nothing causes it."""
     from n26.core.operations import operation

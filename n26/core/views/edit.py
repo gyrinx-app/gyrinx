@@ -8,7 +8,7 @@ from django.http import Http404
 from django.shortcuts import redirect, render
 from django.urls import reverse
 
-from n26.core.views.permissions import _own_miniature_or_404
+from n26.core.views.permissions import _own_miniature_or_404, trade_points_href
 
 #: The kinds an owner edits by hand on this page: the assignable column
 #: each section writes, the input name its form posts, and the heading
@@ -478,6 +478,7 @@ def edit_fighter(request, pk):
             "gang": gang,
             "card": card,
             "summary": summarise_roster(members),
+            "trade_points_href": trade_points_href(gang, request.user),
             # The role beside the name: the rank the profile is filed
             # under, which is what a reader checking "which of my models
             # is this" wants said once at the top. The bare name — the

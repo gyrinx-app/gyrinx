@@ -11,9 +11,11 @@ the one it replaces.
 
   :sheet — anything carrying the four worth figures; the Gang model does,
     and so does a rendered GangSheet.
+  trade_points_href — passed through to <c-n26.wealth>; see there. An update
+    must carry it too, or the figure it delivers loses its link.
 {% endcomment %}
-<c-vars :sheet="None" />
+<c-vars :sheet="None" trade_points_href="" />
 
-<div {{ attrs }} id="n26-gang-wealth" class="border-l border-box-border pl-3">
-    <c-n26.wealth :sheet="sheet" />
+<div {{ attrs }} id="n26-gang-wealth" class="border-l border-box-border">
+    <c-n26.wealth :sheet="sheet" trade_points_href="{{ trade_points_href }}" />
 </div>

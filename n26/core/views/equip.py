@@ -24,13 +24,18 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import Http404
 from django.shortcuts import redirect, render
+from django.template.defaultfilters import pluralize
 
 from n26.core.listing import choice_field as _choice_field
 from n26.core.listing import parts_field as _parts_field
 from n26.core.listing import price_field as _price_field
 from n26.core.owned import thing_key as _thing_key
 from n26.core.views.htmx import is_htmx, no_update, with_toasts
-from n26.core.views.permissions import _own_gang_or_404, _own_miniature_or_404
+from n26.core.views.permissions import (
+    _own_gang_or_404,
+    _own_miniature_or_404,
+    trade_points_href,
+)
 
 #: The most a purchase will take for one line. No price in the game comes
 #: near it; it is here because the number is typed by hand, and a slip on
@@ -164,6 +169,89 @@ def _charge(line, paid, surcharge=0):
 #: tab in the strip is a list to buy from, so the words they all share are
 #: the ones worth dropping.
 LIST_SUFFIX = "equipment list"
+
+
+def _trade_points_asked(line, picked):
+    """What one click spends at the post, the ticked parts included.
+
+    A line says whether it charges Trade Points at all — the terms it
+    was browsed on ride it — so a list that merely prints TP figures
+    adds nothing here. Options add nothing either: a swap changes what
+    the thing is built from and is paid for in credits.
+    """
+    asked = line.trade_points if line.charges_trade_points else 0
+    return asked + sum(
+        part.trade_points for _, part in picked if part.charges_trade_points
+    )
+
+
+def _overspend(request, gang, line, asked, back):
+    """The page that asks whether a Trade Point overspend was meant.
+
+    ``None`` where nothing needs asking: the click spends no points, or
+    the allowance covers it, or the reader has already said yes.
+
+    Trade Points are not credits — nothing here refuses, and an owner
+    who says they meant it gets what they asked for. What the page owes
+    them is the arithmetic, since the allowance is not on the screen
+    they clicked from and "you are short" is not a figure.
+    """
+    from n26.core.confirm import (
+        CONFIRM_FIELD,
+        Aside,
+        Confirmation,
+        Fact,
+        carried,
+    )
+
+    if not asked or request.POST.get(CONFIRM_FIELD):
+        return None
+    open_visit = gang.visiting_trading_post
+    # One reading of the log, not one per figure: the page prints what
+    # has gone as well as what is left, and the two must agree. With no
+    # action open there is nothing to read — the post is shut, and the
+    # purchase has nothing to count against.
+    spent = gang.trade_points_spent if open_visit else 0
+    brought = gang.starting_trade_points if open_visit else 0
+    left = brought - spent
+    if asked <= left:
+        return None
+    return Confirmation(
+        title="Not enough Trade Points",
+        lead=f"{line.name} — {asked} Trade Point{pluralize(asked)}.",
+        heading="You don't have enough TP for this purchase",
+        body=(
+            f"{line.name} costs {asked} Trade Point{pluralize(asked)}, and "
+            f"{gang.name} has {left}."
+        ),
+        aside=Aside(
+            lead="You can buy it anyway.",
+            rest=(
+                "What the action has left goes below zero, and stays there "
+                "until it is finished."
+                if open_visit
+                else "The purchase records the Trade Points against no action."
+            ),
+        ),
+        # The same tally the Visit Trading Post card draws, with the
+        # purchase and what it leaves added under it.
+        facts=(
+            Fact(
+                "Available",
+                str(brought),
+                sub="" if open_visit else "no action open",
+            ),
+            Fact("Spent", str(spent)),
+            Fact("Remaining", str(left), ruled=True, strong=True),
+            Fact("This purchase", str(asked)),
+            Fact("Remaining after", str(left - asked), ruled=True, strong=True),
+        ),
+        confirm_label=f"Buy {line.name} anyway",
+        action=request.get_full_path(),
+        cancel_url=back,
+        carry=carried(request.POST),
+        confirm_value="1",
+    )
 
 
 def _tab_label(collection):
@@ -430,6 +518,10 @@ def render_update(
             "row": row,
             "row_key": key,
             "gang": gang,
+            # The strip this delivers replaces the one on the page, so it
+            # is drawn with what that one had: without this the Trade
+            # Points figure comes back as a number that leads nowhere.
+            "trade_points_href": trade_points_href(gang, request.user),
             "held_label": host.held_label,
             "closed": closed,
             # The update always replaces the whole set of accessory
@@ -486,6 +578,17 @@ def _buy_clicked(request, gang, holder, view, *, into, collection, event=None):
         messages.error(request, str(refusal))
         return None
     charge = _charge(line, paid, surcharge)
+    # Asked before anything is written, and answered by the reader
+    # rather than by a rule: an overspend of Trade Points is allowed,
+    # and only doing it without meaning to is not.
+    asked = _trade_points_asked(line, picked)
+    confirmation = _overspend(request, gang, line, asked, back)
+    if confirmation is not None:
+        return render(
+            request,
+            "n26/confirm.html",
+            {"gang": gang, "confirmation": confirmation},
+        )
     try:
         with operation(gang, actor=request.user) as op:
             # The picked sets go to the operation, which materialises
@@ -530,6 +633,7 @@ def _buy_clicked(request, gang, holder, view, *, into, collection, event=None):
         thing=line.name,
         collection=collection,
         paid=spent,
+        trade_points=asked,
         parts=len(paid_for),
         options=len(picks),
         **(event or {}),
@@ -541,13 +645,17 @@ def _buy_clicked(request, gang, holder, view, *, into, collection, event=None):
         *(option.name for option in picks),
         *(part.thing.name for part, _ in paid_for),
     ]
+    # Trade Points are named beside the credits where any were spent,
+    # because the tally they come off is not on the screen the reader
+    # is being sent back to unless the gang is carrying an allowance.
+    price = f"{spent}¢" + (f" and {asked} TP" if asked else "")
     if extras:
         messages.success(
             request,
-            f"Bought {line.name} with {', '.join(extras)} for {into} — {spent}¢.",
+            f"Bought {line.name} with {', '.join(extras)} for {into} — {price}.",
         )
     else:
-        messages.success(request, f"Bought {line.name} for {into} — {spent}¢.")
+        messages.success(request, f"Bought {line.name} for {into} — {price}.")
     return key
 
 
@@ -566,9 +674,10 @@ def equip(request, pk):
     The Buy buttons submit the *identity* of a line, never its price:
     the server re-browses the chosen collection and hands the found line
     whole to ``Operation.buy``, so a tampered form can name nothing that
-    is not on the list. Browsed on equipment-list terms for now — Trade
-    Points are shown, not charged, because a TP budget is a session
-    concept that does not exist yet.
+    is not on the list. Each list is browsed on its own terms
+    (``browse.terms_for``): one swept together by having Trade Point
+    prices is a trading post and charges them, one an author wrote out
+    by hand is a list and does not.
 
     The one number the form does decide is what the gang pays. Each row
     quotes its price in a box, and the figure in the box is what leaves
@@ -727,6 +836,7 @@ def equip(request, pk):
                 else ""
             ),
             "summary": summarise_roster(roster),
+            "trade_points_href": trade_points_href(gang, request.user),
             "collections": collections,
             "collection_tabs": tabs,
             "chosen": chosen,
@@ -747,17 +857,20 @@ def equip(request, pk):
             # a script the click opens the panel that is already on the
             # page and never rebuilds the catalogue.
             "accessorise": accessorise_dialogs(request, host),
-            **picker_context(catalogue, view),
+            **picker_context(catalogue, view, gang),
         },
     )
 
 
-def picker_context(catalogue, view):
+def picker_context(catalogue, view, gang=None):
     """What the collection picker needs to draw its strips and filters.
 
     The same on every catalogue, whoever is buying, so it is derived
     once: the strip of section tabs, the category filter's registration
     names, and the ends of the sliders.
+
+    ``gang`` is handed over only so the listing can say whether the post
+    is open to it. Nothing here reads its money.
     """
     sections = catalogue.sections if catalogue is not None else []
     # The sliders' ends are read off the browsed lines rather than the
@@ -772,6 +885,16 @@ def picker_context(catalogue, view):
         if line.shows_trade_points and line.trade_points is not None
     ]
     return {
+        # The rules only open the Trading Post to a gang where a fighter
+        # performed the Visit Trading Post action. This says so and stops
+        # there: buying still works, because this edition informs rather
+        # than polices, and a listing that vanished would leave a reader
+        # with no way to find out why.
+        "post_is_shut": bool(
+            gang is not None
+            and not gang.visiting_trading_post
+            and any(line.charges_trade_points for line in lines)
+        ),
         # Registration names — see the hire view: a row in an unnamed
         # category registers under its section's name, and a list that
         # omits one hides those rows client-side.
@@ -965,6 +1088,7 @@ def equip_gang(request, pk):
             "dialog": dialog,
             "accessorise": accessorise_dialogs(request, host),
             "summary": summarise_roster(gang_roster(gang)),
-            **picker_context(catalogue, view),
+            "trade_points_href": trade_points_href(gang, request.user),
+            **picker_context(catalogue, view, gang),
         },
     )

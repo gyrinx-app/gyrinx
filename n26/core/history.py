@@ -80,7 +80,9 @@ class Act:
     """One thing done to the gang, in the player's words.
 
     ``credits`` and ``rating`` carry the player's reading of the money:
-    negative credits left the pot, positive came back. ``actor`` is the
+    negative credits left the pot, positive came back. ``trade_points``
+    reads the same way, and is its own figure rather than more money: it
+    belongs to a Visit Trading Post action and dies with it. ``actor`` is the
     subject the sentence starts with, or empty where nobody in
     particular did it. ``category`` and ``miniature_pk`` exist for the
     page's filters; ``search`` is every word worth matching against.
@@ -90,6 +92,7 @@ class Act:
     actor: str
     spans: tuple[Span, ...]
     credits: int = 0
+    trade_points: int = 0
     rating: int = 0
     note: str = ""
     subs: list[Sub] = field(default_factory=list)
@@ -265,6 +268,7 @@ def _tell_cluster(cluster, rows, acts, act_of, viewer, alive, sources):
             continue
         home.subs.append(Sub(name=_name(row), kind=_kindword(row)))
         home.credits += -e.credits_delta
+        home.trade_points += -e.trade_points_delta
         home.rating += e.rating_delta
         local.setdefault(row.pk, home)
         if e.kind == Kind.GRANTED:
@@ -425,6 +429,7 @@ def _one_act(e, row, viewer, alive):
         actor=_actor(e, viewer),
         spans=spans,
         credits=-e.credits_delta,
+        trade_points=-e.trade_points_delta,
         rating=e.rating_delta,
         note=_shown_note(e),
         category=category,
@@ -524,6 +529,26 @@ def _tell(e, row, alive):
             if now:
                 return (Span(f"set the budget to {now}"),), "money"
             return (Span("changed the budget"),), "money"
+        case Kind.TRADE_POINTS_SET if e.note == "closed":
+            return (Span("finished the Visit Trading Post action"),), "money"
+        case Kind.TRADE_POINTS_SET:
+            brought = e.note
+            if brought == "1":
+                return (Span("visited the trading post with 1 Trade Point"),), "money"
+            if brought:
+                return (
+                    Span(f"visited the trading post with {brought} Trade Points"),
+                ), "money"
+            return (Span("visited the trading post"),), "money"
+        case Kind.VISITED_TRADING_POST:
+            # The rank they went as rides the note, so the line says what
+            # they brought rather than what they happen to be now.
+            went_as = f" as {e.note}" if e.note else ""
+            return (
+                Span("sent "),
+                at,
+                Span(f"{went_as} to the trading post"),
+            ), "money"
         case Kind.NOTED:
             # About no model, so about the gang — as a rename is.
             if model is None:
@@ -565,11 +590,20 @@ def _for(model, at, word="for"):
     return (Span(f" {word} "), at)
 
 
+#: Kinds whose note is a record for the code rather than words for a
+#: reader — the figure a visit brought, the word that says one closed,
+#: the rank a fighter went as. The sentence has already said all three,
+#: and printing the note under it puts bookkeeping on the page.
+_NOTE_IS_MACHINERY = {Kind.TRADE_POINTS_SET, Kind.VISITED_TRADING_POST}
+
+
 def _shown_note(e):
     """The note, where it is the player's words rather than a record the
     sentence already told."""
     if e.kind in {Kind.RENAMED, Kind.STAT_SET, Kind.STAT_CLEARED}:
         return e.note
+    if e.kind in _NOTE_IS_MACHINERY:
+        return ""
     if e.note == "reset":
         return ""
     return e.note
