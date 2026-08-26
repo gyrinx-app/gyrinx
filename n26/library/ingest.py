@@ -612,10 +612,9 @@ def plan_ingest(
     weapon_profiles=(),
     equipment_lists=(),
     profiles=(),
-    archetypes=(),
     pack=None,
 ):
-    """Rows from up to five sheets → one :class:`IngestPlan`.
+    """Rows from up to four sheets → one :class:`IngestPlan`.
 
     The order is forced, and it is circular if done naively: statlines
     hang on catalogue rows, lists resolve against the catalogue, a
@@ -626,8 +625,7 @@ def plan_ingest(
     2. the **weapon profiles** sheet — the statlines, onto those rows;
     3. the **equipment lists** — collections and entries, restrictions deferred;
     4. the **All Profiles** sheet — the fighters;
-    5. those deferred restrictions, which needed the fighters;
-    6. the **archetypes** — whose rows reach fighters by subtype or by name.
+    5. those deferred restrictions, which needed the fighters.
 
     Resolve, never create, at every step.
     """
@@ -644,7 +642,6 @@ def plan_ingest(
     pending_restrictions = _plan_equipment_lists(plan, equipment_lists)
     _plan_profiles(plan, profiles)
     _plan_restrictions(plan, pending_restrictions)
-    _plan_archetypes(plan, archetypes)
     _settle(plan)
     return plan
 
@@ -1550,11 +1547,11 @@ def _plan_existing(plan, kind, found, ident):
 def _plan_restrictions(plan, pending):
     """The deferred restrictions pass: fighter profiles exist by now.
 
-    Three shapes turn up. "<Fighter> only" narrows an item to a profile
-    and "<X> specialist only" to a specialisation — both are arms of
-    ``UsableBy``, so both become real restrictions. A gang-wide cap
-    ("Max one per gang") is not a restriction on *use* at all, so it is
-    said and carried past rather than bent into the wrong mechanism.
+    Two shapes turn up. "<Fighter> only" narrows an item to a profile,
+    which is an arm of ``UsableBy`` and becomes a real restriction. A
+    gang-wide cap ("Max one per gang") is not a restriction on *use* at
+    all, so it is said and carried past rather than bent into the wrong
+    mechanism.
 
     The regex only proposes a name; what decides is whether that name
     resolves to something real. Nothing is ever restricted on a guess.
@@ -1571,7 +1568,7 @@ def _plan_restrictions(plan, pending):
             continue
 
         named = match.group(1)
-        allows = _profile_ref(plan, named, gang) or _specialisation_ref(plan, named)
+        allows = _profile_ref(plan, named, gang)
         if allows:
             plan.add(
                 "Restriction",
@@ -1580,48 +1577,13 @@ def _plan_restrictions(plan, pending):
                 source,
                 key=f"Restriction:{entry_key}",
             )
-        elif re.search(r"\bspecialist$", named, flags=re.IGNORECASE):
-            plan.problem(
-                source,
-                f"restriction {restriction!r} names a specialisation the "
-                f"pack does not hold — author it and upload again; "
-                f"imported without it",
-                severity="note",
-            )
         else:
             plan.problem(
                 source,
-                f"restriction {restriction!r} names a fighter no sheet "
-                f"defines and the pack does not hold — imported without it",
+                f"restriction {restriction!r} names nothing this sheet "
+                f"defines or the pack holds — imported without it",
                 severity="note",
             )
-
-
-def _specialisation_ref(plan, named):
-    """The specialisation a restriction names: "Gunner specialist" is the
-    Gunner specialisation, the field a Specialist chose.
-
-    Resolve, never create — which specialisations exist is authored
-    content, and a restriction string is not allowed to invent one.
-    """
-    from n26.library.models import Specialisation
-
-    bare = re.sub(r"\s*\bspecialist$", "", named, flags=re.IGNORECASE).strip()
-    if not bare or _norm(bare) == _norm(named):
-        return None  # only the "<X> specialist" shape names one
-
-    key = f"Specialisation:{_norm(bare)}"
-    if plan.get(key):
-        return key
-    if existing := _exists(plan, Specialisation, name__iexact=bare):
-        return plan.add(
-            "Specialisation",
-            existing.name,
-            {},
-            Source(RESOLUTION, 0),
-            key=key,
-        ).key
-    return None
 
 
 def _profile_ref(plan, name, gang):
@@ -1647,310 +1609,6 @@ def _profile_ref(plan, name, gang):
                 key=f"Profile:{_norm(name)}{suffix}",
             ).key
     return None
-
-
-# --- The archetypes sheet -----------------------------------------------------
-
-#: The sheet's fixed columns. Every other heading is a skill set, and
-#: its cell places that set in a tier — a new set is a new column,
-#: never new code.
-ARCHETYPE_FIXED_COLUMNS = ("Archetype", "Gang Type", "Profile", "Subtype", "Own pick")
-
-OWN_PICK_COLUMN = "Own pick"
-
-#: What a skill cell may say. Blank and "-" say nothing.
-_TIER_WORDS = {"primary": "Primary", "secondary": "Secondary"}
-
-
-def _own_pick(row):
-    """The ``Own pick`` cell, strictly read: True, False, or None for a
-    value that reads as neither."""
-    cell = (row.get(OWN_PICK_COLUMN) or "").strip().casefold()
-    if cell in ("", "-", "n", "no"):
-        return False
-    if cell in ("y", "yes"):
-        return True
-    return None
-
-
-def _subtype_ref(plan, name):
-    """The subtype an archetype row names — planned, or already in the
-    pack; None otherwise. An archetype row never mints a subtype."""
-    from n26.library.models import Subtype
-
-    key = f"Subtype:{_norm(name)}"
-    if plan.get(key):
-        return key
-    existing = _exists(plan, Subtype, name__iexact=_clean(name))
-    if existing is None:
-        return None
-    plan.add("Subtype", existing.name, {}, Source(RESOLUTION, 0), key=key)
-    return key
-
-
-def _archetype_profile_ref(plan, cell, gang):
-    """The profile an archetype row names. The sheet may print the entry
-    with its gang in front — "Outcast Champion" for the Outcast gang's
-    "Champion" — so the printed name is tried first and the stripped one
-    after."""
-    found = _profile_ref(plan, cell, gang)
-    if found is not None:
-        return found
-    bare = _clean(cell)
-    prefix = f"{_clean(gang)} ".casefold()
-    if bare.casefold().startswith(prefix):
-        return _profile_ref(plan, bare[len(prefix) :].strip(), gang)
-    return None
-
-
-def _wearers(plan, gang_name, subtype_key):
-    """The gang's profiles that come wearing this subtype — planned in
-    this upload, or already in the pack. These are the entries that
-    carry the gang-held archetype question."""
-    from n26.library.models import Profile
-
-    gang_key = f"GangType:{_norm(gang_name)}"
-    found = []
-    for planned in plan.planned:
-        if planned.kind != "Profile":
-            continue
-        if planned.fields.get("gang_type") != gang_key:
-            continue
-        built = plan.get(planned.fields.get("built_ins") or "")
-        if built and any(
-            member["item"] == subtype_key for member in built.fields["members"]
-        ):
-            found.append(planned.key)
-    subtype_name = plan.get(subtype_key).name
-    for existing in Profile.objects.filter(
-        pack=plan.pack,
-        gang_type__name__iexact=_clean(gang_name),
-        built_ins__members__archived=False,
-        built_ins__members__subtype__name__iexact=subtype_name,
-    ):
-        key = _profile_ref(plan, existing.name, gang_name)
-        if key is not None and key not in found:
-            found.append(key)
-    return found
-
-
-def _plan_archetypes(plan, rows):
-    """The Archetypes sheet: one carrier per named archetype, and the
-    skill table its rows radiate.
-
-    Each row reaches one rank of one gang — via a **subtype**, where
-    every entry wearing it reads the gang's pick (the Leader variants),
-    or via a named **profile**, where the rank's subtype is shared
-    vocabulary another gang's entry might wear. ``Own pick`` marks the
-    profile rows whose table wakes only for the model's own choice — so
-    those entries are offered their own question, while subtype rows put
-    the gang-held question on every entry of the gang that wears the
-    subtype. The pick list is a small collection per gang, so each offer
-    narrows to exactly its own archetypes.
-    """
-    grids = {}  # archetype key -> the modifier keys its rows state
-    stated = {}  # (archetype, target, set) -> (tier, line) — one claim each
-    by_gang = {}  # gang name -> what its rows gather
-    unworn = set()  # (gang, subtype) pairs already noted as asked by nobody
-
-    for line, row in enumerate(rows, start=1):
-        source = Source("archetypes", line)
-        plan.remember_row(source, row)
-        name = _clean(row.get("Archetype", ""))
-        if not name:
-            plan.problem(source, "row names no archetype")
-            continue
-        gang_name = _clean(row.get("Gang Type", ""))
-        if not gang_name:
-            plan.problem(source, f"{name!r} names no gang type")
-            continue
-
-        profile_cell = _clean(row.get("Profile", ""))
-        subtype_cell = _clean(row.get("Subtype", ""))
-        if bool(profile_cell) == bool(subtype_cell):
-            said = (
-                "both a Profile and a Subtype"
-                if profile_cell
-                else "neither a Profile nor a Subtype"
-            )
-            plan.problem(source, f"{name!r} names {said} — a row reaches exactly one")
-            continue
-        own_pick = _own_pick(row)
-        if own_pick is None:
-            plan.problem(
-                source,
-                f"{name!r} has {row.get(OWN_PICK_COLUMN)!r} in the "
-                f"{OWN_PICK_COLUMN} column — it reads Y, or is left blank",
-            )
-            continue
-        if own_pick and subtype_cell:
-            plan.problem(
-                source,
-                f"{name!r}: {OWN_PICK_COLUMN} marks a named entry choosing "
-                f"for itself — a Subtype row reads the gang's pick",
-            )
-            continue
-
-        gathered = by_gang.setdefault(
-            gang_name, {"archetypes": [], "askers": {}, "source": source}
-        )
-        archetype_key = f"Archetype:{_norm(name)}"
-        if not plan.get(archetype_key):
-            plan.add(
-                "Archetype",
-                name,
-                {"qualifier": "", "skill_grid": grids.setdefault(archetype_key, [])},
-                source,
-                key=archetype_key,
-            )
-        if archetype_key not in gathered["archetypes"]:
-            gathered["archetypes"].append(archetype_key)
-
-        if subtype_cell:
-            subtype_key = _subtype_ref(plan, subtype_cell)
-            if subtype_key is None:
-                plan.problem(
-                    source,
-                    f"{name!r} reaches {subtype_cell!r} models, and no sheet "
-                    f"defines that subtype and the pack does not hold it — "
-                    f"the row is skipped (archetypes resolve, never create)",
-                    severity="note",
-                )
-                continue
-            targets = {"subtype": subtype_key}
-            target_label = f"{plan.get(subtype_key).name} models"
-            wearers = _wearers(plan, gang_name, subtype_key)
-            for wearer in wearers:
-                gathered["askers"].setdefault(wearer, "gang")
-            if not wearers and (gang_name, subtype_key) not in unworn:
-                unworn.add((gang_name, subtype_key))
-                plan.problem(
-                    source,
-                    f"no {gang_name} fighter comes with the "
-                    f"{plan.get(subtype_key).name!r} subtype — the archetype "
-                    f"question is offered by nobody until one does",
-                    severity="note",
-                )
-        else:
-            profile_key = _archetype_profile_ref(plan, profile_cell, gang_name)
-            if profile_key is None:
-                plan.problem(
-                    source,
-                    f"{name!r} reaches {profile_cell!r}, and no sheet defines "
-                    f"that fighter and the pack does not hold it — the row is "
-                    f"skipped (archetypes resolve, never create)",
-                    severity="note",
-                )
-                continue
-            targets = {"profile": profile_key, "bearer_only": own_pick}
-            target_label = plan.get(profile_key).name + (
-                " (own pick)" if own_pick else ""
-            )
-            if own_pick:
-                gathered["askers"][profile_key] = "bearer"
-
-        target_norm = _norm(target_label)
-        fixed = {_fold_column(column) for column in ARCHETYPE_FIXED_COLUMNS}
-        for column in row:
-            if not column or _fold_column(column) in fixed:
-                continue
-            cell = (row[column] or "").strip()
-            if cell in ("", "-"):
-                continue
-            tier = _TIER_WORDS.get(cell.casefold())
-            if tier is None:
-                plan.problem(
-                    source,
-                    f"{name!r} has {cell!r} under {column!r} — a cell reads "
-                    f"Primary, Secondary or '-'",
-                )
-                continue
-            set_name = _clean(column)
-            claim = (archetype_key, target_norm, _norm(set_name))
-            already = stated.get(claim)
-            if already is not None:
-                tier_before, line_before = already
-                if tier_before == tier:
-                    plan.problem(
-                        source,
-                        f"{name!r} places {set_name} for {target_label} twice "
-                        f"— the second is ignored",
-                        severity="note",
-                    )
-                else:
-                    plan.problem(
-                        source,
-                        f"{name!r} places {set_name} at {tier} for "
-                        f"{target_label}, and line {line_before} already "
-                        f"placed it at {tier_before} — one table cannot say "
-                        f"both",
-                    )
-                continue
-            stated[claim] = (tier, line)
-            category_key = _plan_category(plan, SKILLS_SECTION, set_name, source)
-            modifier_key = (
-                f"Modifier:{archetype_key}:{target_norm}"
-                f":{_norm(set_name)}:{tier.lower()}"
-            )
-            plan.add(
-                "Modifier",
-                f"{name}: {target_label} — {set_name} is {tier}",
-                {
-                    "attach_to": archetype_key,
-                    "targets": targets,
-                    "places": {"category": category_key, "section": tier},
-                },
-                source,
-                key=modifier_key,
-            )
-            grids[archetype_key].append(modifier_key)
-
-    for gang_name, gathered in by_gang.items():
-        source = gathered["source"]
-        collection_name = f"{gang_name} Archetypes"
-        collection_key = f"Collection:{_norm(collection_name)}"
-        entries = []
-        plan.add(
-            "Collection",
-            collection_name,
-            {"entries": entries, "default_section": "Archetypes"},
-            source,
-            key=collection_key,
-        )
-        for position, archetype_key in enumerate(gathered["archetypes"]):
-            item = plan.get(archetype_key)
-            entry_key = f"CollectionEntry:{_norm(collection_name)}:{archetype_key}"
-            plan.add(
-                "CollectionEntry",
-                f"{item.name} in {collection_name}",
-                {
-                    "collection": collection_key,
-                    "item": archetype_key,
-                    "position": position,
-                    "price_override": None,
-                },
-                source,
-                key=entry_key,
-            )
-            entries.append(entry_key)
-        for profile_key, host in gathered["askers"].items():
-            asker = plan.get(profile_key)
-            what = "the gang's Archetype" if host == "gang" else "an Archetype"
-            plan.add(
-                "Modifier",
-                f"{asker.name}: chooses {what}",
-                {
-                    "attach_to": profile_key,
-                    "offers": {
-                        "kind": "Archetype",
-                        "collection": collection_key,
-                        "label": "archetype",
-                        "will_be_assigned_to": host,
-                    },
-                },
-                source,
-                key=f"Modifier:offer:{profile_key}",
-            )
 
 
 # --- Settling: what the pack already holds -----------------------------------
@@ -1997,8 +1655,6 @@ SHEET_FIELDS = {
     "GangType": Fields(),
     "Subtype": Fields(),
     "Skill": Fields(),
-    "Specialisation": Fields(),
-    "Archetype": Fields(identity=("qualifier",), updatable=("skill_grid",)),
     "Collection": Fields(
         updatable=("entries",),
         # The section where unplaced entries land is founded with the
@@ -2079,7 +1735,6 @@ NEVER_UPDATED = {
     "GangType": "the sheets know a gang by name and say nothing else about it",
     "Subtype": "the sheets know a subtype by name and say nothing else about it",
     "Skill": "the sheets know a skill by name and say nothing else about it",
-    "Specialisation": "which specialisations exist is authored, never imported",
     "Restriction": "a restriction is the pairing itself — the item, and who may use it",
     "Modifier": "a modifier is its pairing — the carrier, who it reaches, and what it does",
 }
@@ -2130,7 +1785,6 @@ def find_existing(planned, pack, resolve):
     weapons.
     """
     from n26.library.models import (
-        Archetype,
         Category,
         CollectionEntry,
         DefaultAssignmentSet,
@@ -2139,7 +1793,6 @@ def find_existing(planned, pack, resolve):
         Profile,
         Rule,
         Skill,
-        Specialisation,
         Subtype,
         Trait,
         Wargear,
@@ -2157,7 +1810,6 @@ def find_existing(planned, pack, resolve):
         "Subtype": Subtype,
         "Skill": Skill,
         "Collection": Collection,
-        "Specialisation": Specialisation,
         "DefaultAssignmentSet": DefaultAssignmentSet,
         "Modifier": Modifier,
     }
@@ -2171,7 +1823,6 @@ def find_existing(planned, pack, resolve):
         "Wargear": Wargear,
         "WeaponAccessory": WeaponAccessory,
         "Profile": Profile,
-        "Archetype": Archetype,
     }
     if kind in qualified:
         return (
@@ -2234,15 +1885,14 @@ def find_existing(planned, pack, resolve):
 
 
 def _already_allows(item, allows):
-    """Does this item already name that fighter or specialisation among
-    the few who may use it?"""
-    from n26.library.models import Profile, ProfileType, Specialisation, Subtype
+    """Does this item already name that fighter among the few who may
+    use it?"""
+    from n26.library.models import Profile, ProfileType, Subtype
 
     arms = {
         ProfileType: "usable_by_profile_types",
         Subtype: "usable_by_subtypes",
         Profile: "usable_by_profiles",
-        Specialisation: "usable_by_specialisations",
     }
     for model, arm in arms.items():
         if isinstance(allows, model):
@@ -2370,10 +2020,7 @@ def _note_restrictions_the_sheet_no_longer_names(plan, found):
         # bought through the weapon, which is where the restriction is.
         if not isinstance(item, UsableBy):
             continue
-        stored = [
-            *item.usable_by_profiles.all(),
-            *item.usable_by_specialisations.all(),
-        ]
+        stored = list(item.usable_by_profiles.all())
         unnamed = [row for row in stored if (type(row).__name__, row.pk) not in named]
         if not unnamed:
             continue
@@ -2702,8 +2349,8 @@ def _placements(carrier):
     Only those: a carrier may hold modifiers doing anything at all, and
     an import's statement about the grid is not a statement about the
     rest of them. Only the *skill* sets, too — a placement of a category
-    from another heading (an archetype's powers) is other content that
-    happens to share the tiers, not part of any sheet's grid.
+    from another heading is other content that happens to share the
+    tiers, not part of any sheet's grid.
     """
     return [
         modifier
@@ -2748,13 +2395,11 @@ PERFORM_ORDER = [
     "GangType",
     "Subtype",
     "Skill",
-    "Specialisation",
     "Rule",
     "Weapon",
     "WeaponProfile",
     "Wargear",
     "WeaponAccessory",
-    "Archetype",
     "Collection",
     "DefaultAssignmentSet",
     "Profile",
@@ -2766,12 +2411,7 @@ PERFORM_ORDER = [
 
 #: Kinds a plan may name but must never make. What the sheets say about
 #: these is only ever which one they mean.
-NEVER_CREATED = {
-    "Specialisation": (
-        "which specialisations exist is authored content, and a "
-        "restriction string does not get to mint one"
-    ),
-}
+NEVER_CREATED = {}
 
 
 def _refuse_what_cannot_be_done(plan):
@@ -3220,21 +2860,6 @@ class _Performer:
         self._set_statline(profile, planned.fields["stats"], MODEL_COLUMNS)
         return profile
 
-    def _create_archetype(self, planned):
-        from n26.library import authoring
-
-        return authoring.create_archetype(
-            planned.name,
-            qualifier=planned.fields.get("qualifier", ""),
-            **self.shared,
-        )
-
-    def _update_archetype(self, planned):
-        row = self._the_row_the_preview_described(planned)
-        if "skill_grid" in planned.changes:
-            self._retract_placements(row, planned)
-        return row
-
     def _create_collection(self, planned):
         from n26.library import authoring
 
@@ -3262,8 +2887,8 @@ class _Performer:
     def _create_restriction(self, planned):
         from n26.library import authoring
 
-        # The verb routes by the kind of thing allowed — a profile, a
-        # specialisation — so the plan need only name it.
+        # The verb routes by the kind of thing allowed, so the plan
+        # need only name it.
         return authoring.restrict_use(
             self.resolve(planned.fields["item"]),
             self.resolve(planned.fields["allows"]),
@@ -3271,16 +2896,16 @@ class _Performer:
 
     def _modifier_scope(self, planned):
         """Who a planned modifier reaches. No ``targets`` means the
-        carrier's own model — a fighter's grid placement; an archetype
-        row narrows to a subtype or names an entry outright."""
+        carrier's own model — a fighter's grid placement; a row that
+        names who it reaches narrows to a subtype or an entry."""
         from n26.library import authoring
 
         targets = planned.fields.get("targets")
         if not targets:
             return authoring.targets_model()
-        # A sheet that names who it reaches is an archetype-shaped row: the
-        # carrier is something the gang holds, so the reach is every model
-        # the condition names — unless the row says the bearer alone.
+        # A row that names who it reaches is carried by something the
+        # gang holds, so the reach is every model the condition names —
+        # unless the row says the bearer alone.
         if "subtype" in targets:
             return authoring.targets_every_model(
                 authoring.has_subtypes(self.resolve(targets["subtype"]))
@@ -3389,7 +3014,6 @@ CREATORS = {
     "WeaponAccessory": "_create_weaponaccessory",
     "DefaultAssignmentSet": "_create_defaultassignmentset",
     "Profile": "_create_profile",
-    "Archetype": "_create_archetype",
     "Collection": "_create_collection",
     "CollectionEntry": "_create_collectionentry",
     "Restriction": "_create_restriction",
@@ -3402,7 +3026,6 @@ UPDATERS = {
     "WeaponAccessory": "_update_weaponaccessory",
     "WeaponProfile": "_update_weaponprofile",
     "Profile": "_update_profile",
-    "Archetype": "_update_archetype",
     "DefaultAssignmentSet": "_update_defaultassignmentset",
     "CollectionEntry": "_update_collectionentry",
     "Collection": "_update_collection",
@@ -3428,7 +3051,6 @@ def _imported(pack=None):
     from django.apps import apps
 
     from n26.library.models import (
-        Archetype,
         Category,
         DefaultAssignmentSet,
         GangType,
@@ -3436,7 +3058,6 @@ def _imported(pack=None):
         Profile,
         Rule,
         Skill,
-        Specialisation,
         Subtype,
         Trait,
         Wargear,
@@ -3453,7 +3074,6 @@ def _imported(pack=None):
         SKILL_SETS,
         SKILLS_COLLECTION,
         SKILLS_SECTION,
-        SPECIALISATIONS,
         TRADING_POST_COLLECTION,
         VEHICLE_SUBTYPES,
     )
@@ -3464,24 +3084,11 @@ def _imported(pack=None):
 
     profiles = Profile.objects.filter(**scope)
 
-    # Modifiers go, apart from the ones standard content wired: the
-    # eight specialisation grants, which are as fixed as the skills
-    # they hand out. Everything else either came from an import or
-    # names content that is about to, and a modifier pointing at a
-    # deleted trait is what stops the whole clear.
-    standard_modifiers = list(
-        Modifier.objects.filter(
-            **scope,
-            library_specialisation_set__name__in=[name for name, _ in SPECIALISATIONS],
-        )
-        .distinct()
-        .values_list("pk", flat=True)
-    )
-    doomed = list(
-        Modifier.objects.filter(**scope)
-        .exclude(pk__in=standard_modifiers)
-        .values_list("pk", flat=True)
-    )
+    # Every modifier goes: each either came from an import or names
+    # content that is about to, and a modifier pointing at a deleted
+    # trait is what stops the whole clear. Standard content wires none
+    # of its own.
+    doomed = list(Modifier.objects.filter(**scope).values_list("pk", flat=True))
 
     # A modifier holds its scope and effect, and those rows are what
     # hold the trait — deleting the modifier alone leaves them behind
@@ -3507,7 +3114,6 @@ def _imported(pack=None):
     return parts + [
         ("collection entries", CollectionEntry.objects.filter(**scope)),
         ("fighter profiles", profiles),
-        ("archetypes", Archetype.objects.filter(**scope)),
         # The built-in sets go before the collections they name: a
         # fighter's equipment list is one of its built-ins, and the
         # membership row protects the list.
@@ -3524,12 +3130,6 @@ def _imported(pack=None):
         ("weapon accessories", WeaponAccessory.objects.filter(**scope)),
         ("special rules", Rule.objects.filter(**scope)),
         ("weapon traits", Trait.objects.filter(**scope)),
-        (
-            "specialisations",
-            Specialisation.objects.filter(**scope).exclude(
-                name__in=[name for name, _ in SPECIALISATIONS]
-            ),
-        ),
         ("skills", Skill.objects.filter(**scope).exclude(name__in=standard_skills)),
         (
             "subtypes",

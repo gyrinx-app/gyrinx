@@ -35,12 +35,6 @@ INGEST_SHEETS = [
         "The fighters, each with the heading and category it is hired "
         "under and the title of the equipment list it buys from.",
     ),
-    (
-        "archetypes",
-        "Archetypes",
-        "The chosen carriers: each row reaches one rank of one gang — by "
-        "subtype, or by naming the fighter — and places its skill sets.",
-    ),
 ]
 
 #: The planner's names, in planning order.
