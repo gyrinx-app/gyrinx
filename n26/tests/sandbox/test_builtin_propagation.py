@@ -9,10 +9,11 @@ filing is append-only, so every edit gets a row and a pass of its own
 at-least-once, so a duplicate stands down and grants nothing twice; a
 lost message leaves a PENDING row the scheduled sweep drains; a set
 reaches every holder and an option set only its selectors; what a gang
-already holds — or its owner parted with — is left alone; and the
-history tells a propagated grant in the equip screen's own words, with
-nobody as the actor. Delivery chaos is scripted through the manual
-task queue.
+already holds — or its owner parted with — is left alone; the history
+tells a propagated grant in the equip screen's own words, with nobody
+as the actor; and the running side sits behind a feature flag that
+loses no work while shut. Delivery chaos is scripted through the
+manual task queue.
 """
 
 from datetime import timedelta
@@ -21,10 +22,12 @@ import pytest
 from django.contrib.auth.models import User
 from django.db import transaction
 
+from gyrinx.site.models import Availability, FeatureFlag
 from n26.core import history, propagation
 from n26.core.models import Assignment, BuiltInPropagationTask, LedgerEvent
 from n26.core.propagation import sweep_built_in_propagations
 from n26.core.reconcile import assert_reconciled
+from n26.flags import BUILT_IN_PROPAGATION
 from n26.library.authoring import add_default_member
 from n26.tests.sandbox.actions import (
     add_built_in,
@@ -39,6 +42,17 @@ from n26.tests.sandbox.actions import (
 )
 
 pytestmark = pytest.mark.django_db
+
+
+@pytest.fixture(autouse=True)
+def flag(db):
+    """The running side sits behind a feature flag; open it for the
+    whole suite. The kill-switch tests shut this row themselves."""
+    return FeatureFlag.objects.create(
+        slug=BUILT_IN_PROPAGATION,
+        name="Built-in propagation",
+        availability=Availability.EVERYONE,
+    )
 
 
 @pytest.fixture
@@ -449,6 +463,85 @@ class TestAnEditLandingMidPass:
         assert Assignment.objects.filter(
             materialised_from=landed[0], materialised_for=fighter.membership
         ).exists()
+        assert "PENDING" not in statuses()
+        assert "RUNNING" not in statuses()
+        gang.refresh_from_db()
+        assert_reconciled(gang)
+
+
+class TestTheFeatureFlagIsTheKillSwitch:
+    """Shut, the running side stands down and the filing does not:
+    every edit still files its row, a delivery leaves it PENDING, and
+    the sweep neither republishes nor refiles — so the backlog keeps,
+    and the first sweep after the flag opens drains it all."""
+
+    def test_shut_an_edit_files_a_row_a_delivery_leaves_pending(
+        self, gang, ganger, default_pack, task_queue, flag
+    ):
+        hire(gang, ganger, "Ana", paid=50)
+        flag.availability = Availability.OFF
+        flag.save()
+        events = LedgerEvent.objects.filter(gang=gang).count()
+
+        with task_queue.capture():
+            member = add_built_in(ganger, create_rule("Nerves of Steel"))
+        task_queue.deliver_all()
+
+        assert BuiltInPropagationTask.objects.filter(
+            default_set=member.default_set, status="PENDING"
+        ).exists()
+        assert not Assignment.objects.filter(materialised_from=member).exists()
+        assert not LedgerEvent.objects.filter(
+            gang=gang, kind=LedgerEvent.Kind.CAUGHT_UP
+        ).exists()
+        assert LedgerEvent.objects.filter(gang=gang).count() == events
+
+    def test_shut_the_sweep_republishes_nothing_and_refiles_nothing(
+        self, gang, ganger, default_pack, task_queue, monkeypatch, flag
+    ):
+        hire(gang, ganger, "Ana", paid=50)
+        flag.availability = Availability.OFF
+        flag.save()
+        with task_queue.capture():
+            member = add_built_in(ganger, create_rule("First Wind"))
+            failed = propagation.file_propagation_task(member.default_set)
+        task_queue.deliver_all()
+        # One row stands PENDING; the later one is driven to FAILED so
+        # both retry legs would fire were the flag open.
+        failed.states.transition_to("RUNNING")
+        failed.states.transition_to("FAILED", metadata={})
+        rows = BuiltInPropagationTask.objects.count()
+
+        run_sweep(task_queue, monkeypatch)
+
+        assert task_queue.pending() == 0
+        assert BuiltInPropagationTask.objects.count() == rows
+        assert statuses().count("PENDING") == 1
+
+    def test_a_backlog_filed_while_shut_drains_when_the_flag_opens(
+        self, gang, ganger, default_pack, task_queue, monkeypatch, flag
+    ):
+        fighter = hire(gang, ganger, "Ana", paid=50)
+        flag.availability = Availability.OFF
+        flag.save()
+        with task_queue.capture():
+            first = add_built_in(ganger, create_rule("First Wind"))
+            second = add_built_in(ganger, create_rule("Second Wind"))
+        task_queue.deliver_all()
+        assert statuses().count("PENDING") == 2
+
+        flag.availability = Availability.EVERYONE
+        flag.save()
+        run_sweep(task_queue, monkeypatch)
+        task_queue.deliver_all()
+
+        for member in (first, second):
+            assert (
+                Assignment.objects.filter(
+                    materialised_from=member, materialised_for=fighter.membership
+                ).count()
+                == 1
+            )
         assert "PENDING" not in statuses()
         assert "RUNNING" not in statuses()
         gang.refresh_from_db()

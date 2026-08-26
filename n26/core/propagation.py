@@ -27,6 +27,11 @@ Publishing can lose a message, so a scheduled sweep re-publishes rows
 left PENDING, marks a run whose worker died FAILED, and creates a
 fresh row after a failure — the graph is strictly forward, and an
 ended row is a record.
+
+The running side sits behind a feature flag; the filing does not.
+Shut loses no work: every edit still files its row, deliveries stand
+down leaving it PENDING, and the sweep — which stands down too —
+drains the whole backlog when the flag opens.
 """
 
 import logging
@@ -41,6 +46,7 @@ from django.utils import timezone
 from gyrinx.state_machine import InvalidStateTransition
 from n26.core.models import Assignment, BuiltInPropagationTask, Gang, LedgerEvent
 from n26.core.operations import operation
+from n26.flags import BUILT_IN_PROPAGATION, switched_on
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +97,10 @@ def propagate_built_ins(propagation_id):
     redelivery would stand down at the claim — so every ending is
     written onto the row instead, and the sweep is what retries.
     """
+    # Before the claim, so shut loses no work: the row stays PENDING
+    # and the sweep drains the backlog when the flag opens.
+    if not switched_on(BUILT_IN_PROPAGATION):
+        return
     propagation = (
         BuiltInPropagationTask.objects.select_related("default_set")
         .filter(pk=propagation_id)
@@ -237,6 +247,11 @@ def sweep_built_in_propagations():
     duplicate publish stands down at the claim, and a duplicate filing
     only buys a redundant no-op pass.
     """
+    # Shut, the sweep stands down whole — republishing or refiling
+    # would only feed deliveries that stand down too. The rows keep,
+    # and the first sweep after the flag opens drains them all.
+    if not switched_on(BUILT_IN_PROPAGATION):
+        return
     now = timezone.now()
 
     # A row still PENDING this long after filing lost its message.
