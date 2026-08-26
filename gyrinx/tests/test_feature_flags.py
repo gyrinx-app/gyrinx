@@ -228,24 +228,39 @@ class TestTheAdminPage:
     def test_the_slug_is_settable_when_creating(self):
         assert "slug" not in self._admin().get_readonly_fields(None, obj=None)
 
-    def test_only_a_slug_the_code_asks_for_may_be_stored(self, group):
-        """A row whose slug nothing reads is inert — it sits on the page
-        reading as a control over something and controls nothing. The form
-        offers the known slugs rather than taking free text."""
+    def test_a_typed_slug_is_cleaned_on_the_way_in(self):
+        """Any word can be a flag — a slug no code reads yet is inert —
+        but what is stored must be one code could ask for, so the typed
+        value is slugified rather than refused."""
         from gyrinx.site.admin import FeatureFlagForm
-        from gyrinx.site.flags import known_flags
 
-        good = FeatureFlagForm(
-            data={"slug": FLAG, "name": "Test Feature", "availability": "off"}
+        form = FeatureFlagForm(
+            data={"slug": "  My Fancy Flag! ", "name": "Fancy", "availability": "off"}
         )
-        assert good.is_valid(), good.errors
+        assert form.is_valid(), form.errors
+        assert form.cleaned_data["slug"] == "my-fancy-flag"
 
-        bad = FeatureFlagForm(
-            data={"slug": "campiagns", "name": "Typo", "availability": "off"}
+    def test_a_slug_that_cleans_to_nothing_is_refused(self):
+        from gyrinx.site.admin import FeatureFlagForm
+
+        form = FeatureFlagForm(
+            data={"slug": "!!!", "name": "Noise", "availability": "off"}
         )
-        assert not bad.is_valid()
-        assert "slug" in bad.errors
-        assert set(dict(bad.fields["slug"].choices)) == set(known_flags())
+        assert not form.is_valid()
+        assert "slug" in form.errors
+
+    def test_the_same_flag_cannot_be_configured_twice(self, make_flag):
+        """Two rows for one slug would be two switches for one feature.
+        The check runs against the cleaned value, so a dressed-up variant
+        of an existing slug is caught too."""
+        from gyrinx.site.admin import FeatureFlagForm
+
+        make_flag(Availability.OFF)
+        dupe = FeatureFlagForm(
+            data={"slug": FLAG.upper(), "name": "Again", "availability": "off"}
+        )
+        assert not dupe.is_valid()
+        assert "slug" in dupe.errors
 
     def test_the_slug_is_fixed_once_the_row_exists(self, make_flag):
         """Editing it later would not rename a feature — it would turn one
