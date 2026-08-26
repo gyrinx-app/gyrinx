@@ -1041,8 +1041,8 @@ def _placed_category(effect, node, by_cause):
 
     What was chosen is an assignment caused by the carrier's, exactly as
     a slot resolves; its assignable's ``category`` names the set — a
-    ``SkillTree`` token's home, a pickable's linked category, either
-    way the chosen thing's whole payload. Nothing chosen, no category.
+    pickable's linked category is the chosen thing's whole payload.
+    Nothing chosen, no category.
     """
     if not effect.the_chosen:
         return effect.category

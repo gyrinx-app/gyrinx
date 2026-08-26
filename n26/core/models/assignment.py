@@ -48,12 +48,9 @@ ASSIGNABLE_FIELDS = {
     "skill": "library.Skill",
     "trait": "library.Trait",
     "lasting_effect": "library.LastingEffect",
-    "specialisation": "library.Specialisation",
     "collection": "library.Collection",
     "power": "library.Power",
     "rule": "library.Rule",
-    "skill_tree": "library.SkillTree",
-    "archetype": "library.Archetype",
     "affiliation": "library.Affiliation",
     "hidden": "library.Hidden",
     "gang_type": "library.GangType",
@@ -130,13 +127,6 @@ class Assignment(NamesAnAssignable, Base, Archived):
         blank=True,
         related_name="assignments",
     )
-    specialisation = models.ForeignKey(
-        "library.Specialisation",
-        on_delete=models.PROTECT,
-        null=True,
-        blank=True,
-        related_name="assignments",
-    )
     collection = models.ForeignKey(
         "library.Collection",
         on_delete=models.PROTECT,
@@ -153,20 +143,6 @@ class Assignment(NamesAnAssignable, Base, Archived):
     )
     rule = models.ForeignKey(
         "library.Rule",
-        on_delete=models.PROTECT,
-        null=True,
-        blank=True,
-        related_name="assignments",
-    )
-    skill_tree = models.ForeignKey(
-        "library.SkillTree",
-        on_delete=models.PROTECT,
-        null=True,
-        blank=True,
-        related_name="assignments",
-    )
-    archetype = models.ForeignKey(
-        "library.Archetype",
         on_delete=models.PROTECT,
         null=True,
         blank=True,

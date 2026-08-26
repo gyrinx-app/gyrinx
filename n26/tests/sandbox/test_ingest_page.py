@@ -244,9 +244,17 @@ class TestPreviewing:
 
         assert "equipment.csv" in body
         assert "fighters.csv" in body
-        # ...and the one that is missing, since an absence is what an
-        # author is checking for.
-        assert "Archetypes" in body
+
+    def test_a_preview_names_a_sheet_that_is_not_held(self, author, client, foundation):
+        """An absence is what an author is checking for, so the sheets
+        left out are named rather than silently skipped."""
+        for sheet in SHEETS:
+            if sheet != "profiles":
+                hold(client, sheet)
+
+        body = client.get(PREVIEW_URL).content.decode()
+
+        assert "Not held: All Profiles" in body
 
     def test_a_preview_says_what_the_problems_are(self, author, client, foundation):
         hold_all(client)

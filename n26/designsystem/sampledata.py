@@ -1406,7 +1406,7 @@ def model_card():
         # one skill would be a third skills row on a card that has one.
         choices=[
             ChoiceLine(
-                kind_label="Specialisation",
+                kind_label="Gang Legacy",
                 chosen=None,
                 # A real card's slot carries the address of its own picker.
                 # "#" stands in because the gallery has no gang behind it;

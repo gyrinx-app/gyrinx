@@ -163,19 +163,6 @@ class TestWhatTheSeedsCreate:
         assert GangType.objects.count() == 17
         assert GangType.objects.get(name="Escher").starting_credits is None
 
-    def test_nothing_here_plants_a_specialisation(self, default_pack):
-        """The Specialist's question is a slot now and its answers are
-        pickables, so a button that planted the old rows would put back
-        content that was deliberately removed."""
-        from n26.library.models import Specialisation
-
-        assert "specialisations" not in STANDARD_CONTENT
-
-        for seed in STANDARD_CONTENT.values():
-            seed.create()
-
-        assert not Specialisation.objects.exists()
-
 
 class TestThePage:
     def test_it_shows_status_before_and_after(self, author, client, default_pack):

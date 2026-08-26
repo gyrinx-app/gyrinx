@@ -5,7 +5,7 @@ Making one choice.
 
 One page for every kind of choice. The view has already flattened whatever the
 offer lists into groups of options (n26.render.ChoiceOffer), so nothing
-here knows whether it is drawing skills, archetypes or affiliations — a page that
+here knows whether it is drawing skills, pickables or affiliations — a page that
 did would be three pages wearing one filename.
 
 Radios in a form, no script: one of many is the browser's rule, the click posts,
@@ -70,7 +70,7 @@ says which shape this is.
         {% comment %}
         Nothing to pick from is a thing to say, not a page to hide. It happens
         when the offer narrows to a tier the fighter has nothing placed in yet —
-        an Outcast's Primary skills before the Leader has chosen an archetype —
+        an Outcast's Primary skills before the Leader has chosen a legacy —
         and the fix is elsewhere on the sheet, so the page says so and leaves.
         {% endcomment %}
         {% if offer.takes_several %}

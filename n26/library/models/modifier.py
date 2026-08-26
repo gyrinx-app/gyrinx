@@ -62,18 +62,13 @@ STORED_EFFECT_FIELDS = ("op_adds_miniature", "op_changes_counter")
 #: Kinds an OffersChoice may name. Growing this is one line plus deliberate
 #: thought — clean() refuses anything else, and the boot check screams if a
 #: kind named here has no Assignment column to resolve into.
-#: ``skilltree`` is a token whose home names the set (Venators);
-#: ``archetype`` and ``affiliation`` are chosen carriers whose whole
-#: payload rides them as modifiers (Outcasts, design/outcasts.md);
-#: ``subtype`` because some *types* are chosen — an Enforcer Haunt
-#: selects Psyrender or Bonecrusher, and the pick is a fact other rules
-#: may match on.
+#: ``affiliation`` is a chosen carrier whose whole payload rides it as
+#: modifiers; ``subtype`` because some *types* are chosen — an Enforcer
+#: Haunt selects Psyrender or Bonecrusher, and the pick is a fact other
+#: rules may match on.
 OFFERABLE_KINDS = (
-    "specialisation",
     "power",
     "skill",
-    "skilltree",
-    "archetype",
     "affiliation",
     "subtype",
 )
@@ -166,7 +161,7 @@ class TargetsMiniature(models.Model):
 
     class Reach(models.TextChoices):
         #: Only the model the carrier is directly assigned to — an
-        #: archetype assigned to a Champion applies to that Champion,
+        #: affiliation assigned to a Champion applies to that Champion,
         #: never to every Champion because the gang holds one.
         BEARER = "bearer", "the model carrying it"
         #: Every model in the gang, however the carrier is held — the
@@ -367,9 +362,9 @@ class HasSubtypes(models.Model):
 class IsProfile(models.Model):
     """Condition: the model is one of these profiles, named outright.
 
-    For a row about particular entries where no subtype picks them out —
-    an archetype's Champion row reaches "Outcast Champion" the profile,
-    not everything ranked champion. Being an entry is identity, not a
+    For a row about particular entries where no subtype picks them
+    out — a row reaching "Outcast Champion" the profile, not everything
+    ranked champion. Being an entry is identity, not a
     possession: the fighter matchable's thing is their profile, so this
     folds to ``Exactly`` where ``HasSubtypes`` folds to ``Has``.
     """
@@ -985,7 +980,7 @@ class OffersChoice(models.Model):
         on_delete=models.PROTECT,
         related_name="+",
         help_text=(
-            "What kind of assignable may be chosen — a Specialisation, "
+            "What kind of assignable may be chosen — an Affiliation, "
             "a Wyrd Power, a Skill."
         ),
     )
@@ -1018,14 +1013,15 @@ class OffersChoice(models.Model):
     )
 
     class WillBeAssignedTo(models.TextChoices):
-        #: The model (or gang) whose assignment carries the offered choice
-        #: — the ordinary case: a Specialist's specialisation rides them.
+        #: The model (or gang) whose assignment carries the offered
+        #: choice — the ordinary case: a fighter's chosen skill rides
+        #: them.
         BEARER = "bearer", "the bearer"
         #: The Leader → Gang arrow:
-        #: the Outcast Leader picks the archetype, but the pick belongs
-        #: to the gang — what is chosen lands as a gang-hosted
-        #: assignment, is broadcast to the members, and, being caused by
-        #: the Leader's assignment, dies with the Leader.
+        #: the Leader picks the affiliation, but the pick belongs to the
+        #: gang — what is chosen lands as a gang-hosted assignment, is
+        #: broadcast to the members, and, being caused by the Leader's
+        #: assignment, dies with the Leader.
         GANG = "gang", "the gang"
 
     will_be_assigned_to = models.CharField(
@@ -1034,8 +1030,8 @@ class OffersChoice(models.Model):
         default=WillBeAssignedTo.BEARER,
         help_text=(
             "Where the chosen thing's assignment will land. Almost always "
-            "the bearer; a Leader's archetype pick is carried by the gang, "
-            "not the Leader."
+            "the bearer; a Leader's affiliation pick is carried by the "
+            "gang, not the Leader."
         ),
     )
 
@@ -1051,8 +1047,9 @@ class OffersChoice(models.Model):
     def save(self, *args, **kwargs):
         """Store the label the way a card has to show it.
 
-        An author types "favoured archetype" and the slot beside it reads
-        "Favoured archetype": a label is sentence case, and the surfaces
+        An author types "favoured affiliation" and the slot beside it
+        reads "Favoured affiliation": a label is sentence case, and the
+        surfaces
         drawing it should not each have to say so. Only the first
         character is touched — ``str.capitalize`` would lowercase the
         rest and flatten a name or an acronym the author meant. In
@@ -1097,8 +1094,8 @@ class OffersChoice(models.Model):
         return capfirst(self.of_kind.name)
 
     def accepts(self, target_kind):
-        # A model picks its specialisation; a gang picks its ranked
-        # skill trees. Same slot machinery, two kinds of bearer.
+        # A model picks its skills; a gang picks its affiliation.
+        # Same slot machinery, two kinds of bearer.
         return target_kind in (MODEL, GANG)
 
     def selector(self):

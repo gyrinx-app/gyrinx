@@ -13,7 +13,7 @@ The ``state`` dict is form state, one step from a POST body:
 
 * ``create`` — name-only leaves the payloads need but the library
   doesn't have yet: subtypes, categories, a collection with its
-  sections, the archetype being authored. Created first, each
+  sections, the affiliation being authored. Created first, each
   registered under its name.
 * ``modifiers`` — composer submits (``ModifierComposerForm`` data,
   ``who-``/``what-``/``conditions-`` prefixes and all), plus an
@@ -79,11 +79,7 @@ def _creators():
         "skill": lambda entry: authoring.create_skill(entry["name"]),
         "rule": lambda entry: authoring.create_rule(entry["name"]),
         "counter": lambda entry: authoring.create_counter(entry["name"]),
-        "archetype": lambda entry: authoring.create_archetype(entry["name"]),
         "affiliation": lambda entry: authoring.create_affiliation(entry["name"]),
-        "skilltree": lambda entry: authoring.create_skill_tree(
-            entry["name"], entry["category"]
-        ),
         "category": lambda entry: authoring.create_category(
             entry.get("section", "Skills"), entry["name"]
         ),

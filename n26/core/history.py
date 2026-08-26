@@ -594,11 +594,11 @@ def _kindword(row):
 
     A pick is one of those: "pickable" is plumbing, and no player has
     ever seen the word. What they know it as is the sort of question it
-    answered — a Specialisation, a Path — so the slot's type says it
+    answered — a Gang Legacy, a Path — so the slot's type says it
     instead. The type rather than the slot's own label, because a label
     names one question among several ("Skill Tree 2") where a kind word
     names what sort of thing arrived — and without this a story that
-    read "Sniper, specialisation" before its system moved onto slots
+    read "Sniper, specialisation" before that question moved onto a slot
     would afterwards read only "Sniper".
     """
     thing = row.assignable if row else None

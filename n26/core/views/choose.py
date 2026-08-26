@@ -6,7 +6,7 @@ clicks Choose. Choose leads here: the slot's question, and what this
 gang or this fighter may choose for it.
 
 The whole flow is one page because the difference between a skill, an
-archetype and an affiliation is data. The offer itself says what may be
+pick and an affiliation is data. The offer itself says what may be
 chosen (``n26.core.browse.offered_by``) and the pick screen is built
 from that list (``n26.core.render.build_choice_offer``), so nothing
 here asks what kind of thing is being chosen.
