@@ -35,6 +35,11 @@ asks for.
                 Brings nothing yet.
             </c-ui.description>
         {% endif %}
+        {% if reach_said %}
+            <c-ui.description>
+                {{ reach_said }}
+            </c-ui.description>
+        {% endif %}
         {% include "authoring/_form.html" with form=form %}
         {% comment %}
         A weapon profile is not in the picker above — a line means

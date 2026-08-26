@@ -686,6 +686,48 @@ def _holders_of(default_set):
     )
 
 
+def _reach_said(reach, adding):
+    """How far an addition to a set of defaults travels, in a sentence.
+
+    Says who already holds the set and what the addition does to them.
+    The consequence follows the feature flag, because reach is only
+    promised while the passes that deliver it actually run: shut, the
+    sentence says the change waits instead.
+    """
+    from n26.flags import BUILT_IN_PROPAGATION, switched_on
+
+    if reach.uses == 0:
+        return (
+            f"Held by no gang yet, so {adding} changes only what is "
+            f"acquired from now on."
+        )
+    times = "once" if reach.uses == 1 else f"{reach.uses} times"
+    where = "in one gang" if reach.gangs == 1 else f"across {reach.gangs} gangs"
+    standing = f"Already held {times}, {where}"
+    if switched_on(BUILT_IN_PROPAGATION):
+        reached = "it" if reach.uses == 1 else "every one of them"
+        return f"{standing} — {adding} reaches {reached} within seconds."
+    reached = "it" if reach.uses == 1 else "them"
+    return (
+        f"{standing} — {adding} will reach {reached} when built-in "
+        f"propagation is switched on."
+    )
+
+
+def _built_in_reach_said(thing):
+    """The reach sentence for a thing's own built-ins: the set it has,
+    or — before a first built-in founds one — the set it would get,
+    whose uses are the thing's own."""
+    from n26.core.propagation import reach_of, reach_of_new_built_ins
+
+    reach = (
+        reach_of(thing.built_ins)
+        if thing.built_ins_id
+        else reach_of_new_built_ins(thing)
+    )
+    return _reach_said(reach, "a built-in added here")
+
+
 def _article_for(word):
     """ "a" or "an" in front of a word we chose ourselves.
 
@@ -1637,6 +1679,15 @@ def detail(request, kind, pk):
                 ),
                 "parts_description": section.get("parts_description", ""),
                 "nothing_yet": section.get("nothing_yet", ""),
+                # Said beside the add form, so an author knows how far
+                # the addition travels before committing it. Only the
+                # built-ins section: a new option founds a set nobody
+                # holds yet, so there is nothing to say there.
+                "reach_said": (
+                    _built_in_reach_said(thing)
+                    if section.get("act") == "built_in"
+                    else ""
+                ),
                 "part_help": kind_help(part_model),
                 "wants_statline": section["statline"],
                 "parts": parts,
@@ -2024,6 +2075,7 @@ def built_in_profiles(request, pk):
     anchored to this gun; the listing draws it under the gun by that
     anchor, in the order the lines were added.
     """
+    from n26.core.propagation import reach_of
     from n26.library import authoring
     from n26.library.models import DefaultAssignment
 
@@ -2074,6 +2126,9 @@ def built_in_profiles(request, pk):
             "back": back,
             "picker": None,
             "landing_said": f"Each line lands under this {weapon}.",
+            "reach_said": _reach_said(
+                reach_of(member.default_set), "a line added here"
+            ),
         },
     )
 
@@ -2090,12 +2145,14 @@ def set_profiles(request, pk):
     does bring the weapon, in which case the verb settles the anchor
     exactly as an import would, refusing where the set brings it twice.
     """
+    from n26.core.propagation import reach_of
     from n26.library import authoring
     from n26.library.models import DefaultAssignmentSet, Weapon
 
     default_set = get_object_or_404(DefaultAssignmentSet, pk=pk)
     holders = _holders_of(default_set)
     back = _back_to(holders)
+    reach_said = _reach_said(reach_of(default_set), "a line added here")
 
     weapon = None
     named = request.POST.get("weapon") or request.GET.get("weapon")
@@ -2130,6 +2187,7 @@ def set_profiles(request, pk):
                 "back": back,
                 "picker": Weapon.objects.all(),
                 "landing_said": "",
+                "reach_said": reach_said,
             },
         )
 
@@ -2160,6 +2218,7 @@ def set_profiles(request, pk):
             "back": back,
             "picker": None,
             "landing_said": landing_said,
+            "reach_said": reach_said,
         },
     )
 
@@ -2257,6 +2316,7 @@ def option_add(request, pk):
     row control because the picker is a whole form: a kind, the row of
     that kind, and whatever attaching it asks for.
     """
+    from n26.core.propagation import reach_of
     from n26.library.models import Option
 
     option = get_object_or_404(
@@ -2290,6 +2350,11 @@ def option_add(request, pk):
             "label": option.name,
             "carrier": carrier,
             "brings": [_label_for(member.assignable) for member in _brought_by(option)],
+            # Held only by the carriers that took this option, so the
+            # sentence counts choosers rather than every use of the thing.
+            "reach_said": _reach_said(
+                reach_of(option.default_set), "anything added here"
+            ),
             "form": form,
             "back": back,
             "profiles_url": reverse(
@@ -3595,6 +3660,35 @@ def _value_said(value):
     return "—" if value is None or value == "" else value
 
 
+def _ingest_reach_said(plan):
+    """The preview's one line about existing gangs: which sets these
+    sheets would add members to, and how far those additions travel.
+
+    Only additions count — an amount corrected or a member superseded
+    changes what is acquired next, not what anything already holds —
+    and a set the sheets create is held by nobody, so an upload adding
+    to no standing set says nothing at all.
+    """
+    from n26.core.propagation import reach_of_all
+    from n26.library.models import DefaultAssignmentSet
+
+    grown = {
+        row.existing
+        for row in plan.planned
+        if row.kind == "DefaultAssignmentSet"
+        and row.action == "update"
+        and row.changes.get("members", {}).get("added")
+    }
+    if not grown:
+        return ""
+    reach = reach_of_all(DefaultAssignmentSet.objects.filter(pk__in=grown))
+    said = _reach_said(reach, "each addition")
+    return (
+        f"Some of these additions grow what a thing comes with: "
+        f"{said[0].lower()}{said[1:]}"
+    )
+
+
 def _sheets_standing(user):
     """Every sheet, held or not, in the order they are planned.
 
@@ -3737,6 +3831,7 @@ def ingest_preview(request):
     preview["errors"] = sum(1 for p in plan.problems if p.severity == "error")
     preview["notes"] = len(plan.problems) - preview["errors"]
     preview["diffs"] = _changes_by_shape(preview["changes"])
+    preview["reach_said"] = _ingest_reach_said(plan)
     # Uploading last year's export over this year's content is the
     # realistic accident, and it is invisible row by row and
     # unmistakable in the aggregate.

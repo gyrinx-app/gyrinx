@@ -30,6 +30,11 @@ offering them would invite building in a second copy.
         </c-slot>
     </c-n26.page-header>
     <div class="mt-6 max-w-2xl space-y-6">
+        {% if reach_said %}
+            <c-ui.description>
+                {{ reach_said }}
+            </c-ui.description>
+        {% endif %}
         {% if picker %}
             {% comment %}
             Step one: which weapon. A GET, so the choice lands in the
