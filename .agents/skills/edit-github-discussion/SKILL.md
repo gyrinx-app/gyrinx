@@ -13,6 +13,7 @@ Guide for editing GitHub Discussion content using the GitHub CLI's GraphQL API.
 ## When to Use
 
 This skill applies when:
+
 - User wants to edit the body/content of a GitHub Discussion
 - User mentions "update discussion" or "iterate on discussion"
 - User provides a discussion URL like `github.com/owner/repo/discussions/123`
@@ -118,6 +119,7 @@ gh api graphql -f query='
 ### Variable Parsing Errors
 
 If the GraphQL mutation fails with "Expected VAR_SIGN" errors, ensure:
+
 - Variables are passed via `-f varName="value"` flags
 - The query uses `$varName` syntax in the mutation
 - Special characters in body content are properly escaped (using shell variable)
@@ -133,6 +135,7 @@ gh api repos/OWNER/REPO --jq '.permissions.push'
 ### Large Content
 
 For very large discussions, the shell variable approach works but consider:
+
 - Breaking content into sections if editing is complex
 - Using a local file as the source of truth
 
@@ -142,7 +145,7 @@ For very large discussions, the shell variable approach works but consider:
 # 1. Fetch and save
 gh api graphql -f query='query { repository(owner: "gyrinx-app", name: "gyrinx") { discussion(number: 1299) { id body } } }' --jq '.data.repository.discussion.body' > /tmp/discussion-1299.md
 
-# 2. Edit with Claude's Edit tool
+# 2. Edit with the Agent's Edit tool
 # [Make changes to /tmp/discussion-1299.md]
 
 # 3. Update

@@ -30,12 +30,14 @@ If the main worktree's Django is running, it briefly disconnects but auto-reconn
 ## Common Operations
 
 ### Fork a new database (automatic)
+
 ```bash
 # dev.sh does this automatically when the DB doesn't exist
 ./scripts/dev.sh
 ```
 
 ### Reset a worktree database (re-fork from template)
+
 ```bash
 ./scripts/dev.sh --reset-db
 # Or manually:
@@ -44,6 +46,7 @@ dropdb gyrinx_wt_a1b2c3d4
 ```
 
 ### Rebuild a worktree's .venv from scratch
+
 ```bash
 ./scripts/dev.sh --reset-venv   # no-op in the main worktree
 ```
@@ -68,12 +71,14 @@ Then installs the per-worktree DB env hook via
 continues to use whatever venv it already had — provisioning is skipped there.
 
 To verify a venv is worktree-local:
+
 ```bash
 .venv/bin/python -c "import gyrinx; print(gyrinx.__file__)"
 # Should print a path inside the current worktree.
 ```
 
 ### Run migrations on a worktree database
+
 ```bash
 # dev.sh runs migrate automatically on startup
 # Or manually (session hook sets DB_NAME):
@@ -81,6 +86,7 @@ manage migrate
 ```
 
 ### Check which database you're using
+
 ```bash
 source scripts/lib/worktree.sh
 echo "DB: $(worktree_db_name)"
@@ -89,6 +95,7 @@ manage shell -c "from django.conf import settings; print(settings.DATABASES['def
 ```
 
 ### Clean up orphaned databases (and pytest test DBs)
+
 ```bash
 ./scripts/cleanup-worktree-dbs.sh                   # Dry run: orphans + their test DBs
 ./scripts/cleanup-worktree-dbs.sh --force           # Drop orphans + their test DBs
@@ -98,7 +105,7 @@ manage shell -c "from django.conf import settings; print(settings.DATABASES['def
 
 ## Env Vars for `pytest` / `manage` in an Interactive Terminal
 
-The Claude Code SessionStart hook exports per-worktree DB env vars for every
+The Agent SessionStart hook exports per-worktree DB env vars for every
 Bash tool invocation, but a normal interactive terminal needs the same env or
 `pytest` / `manage` will fall back to settings.py defaults
 (`user=postgres`, `db=gyrinx`) and fail with **"role postgres does not exist"**.
@@ -135,6 +142,7 @@ the service-container Postgres in `.github/workflows/test.yaml`, and
 3. **New worktrees** automatically fork from `gyrinx_main` via `dev.sh`
 
 4. **Refresh a worktree** after main gets new migrations or test data:
+
    ```bash
    ./scripts/dev.sh --reset-db
    ```
@@ -142,6 +150,7 @@ the service-container Postgres in `.github/workflows/test.yaml`, and
 ## pgAdmin
 
 pgAdmin 4 is installed locally (`/Applications/pgAdmin 4.app`). One instance sees all databases:
+
 - **Host**: localhost
 - **Port**: 5432
 - **User**: your macOS username (trust auth, no password)

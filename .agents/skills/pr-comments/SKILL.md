@@ -16,7 +16,7 @@ Uses a single GraphQL query via `scripts/fetch-pr-comments.sh` in this skill's d
 Run the script, passing an optional PR number or URL. If omitted, it detects the
 PR from the current branch.
 
-!`.claude/skills/pr-comments/scripts/fetch-pr-comments.sh $ARGUMENTS 2>&1`
+!`.agents/skills/pr-comments/scripts/fetch-pr-comments.sh $ARGUMENTS 2>&1`
 
 ## Presenting results
 
