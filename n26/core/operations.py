@@ -1132,7 +1132,7 @@ class Operation:
         )
 
     def choose(self, anchor, chosen, slot=None, offer=None, **kwargs):
-        """Make a choice — pick a specialisation, pick a gang legacy.
+        """Make a choice — pick a specialism, pick a gang legacy.
 
         ``anchor`` is the assignment that asked: the one whose assignable
         carries a modifier offering the choice (the Specialist subtype's),
@@ -1187,7 +1187,7 @@ class Operation:
         # of the question by default — a fighter's choice on the fighter, a
         # gang's (a Venator's ranked trees) on the gang — or the gang,
         # when the offer says so (the Outcast Leader picks the
-        # archetype; the gang carries it, and it dies with the Leader
+        # legacy; the gang carries it, and it dies with the Leader
         # through the caused_by cascade). An explicit host wins over all
         # of it — a *gang-carried* offer scoped to fighters ("Leaders
         # and Champions each select a skill") puts a slot on every

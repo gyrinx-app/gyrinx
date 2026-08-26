@@ -269,7 +269,6 @@ def create_wargear(
     usable_by_profile_types=(),
     usable_by_subtypes=(),
     usable_by_profiles=(),
-    usable_by_specialisations=(),
     qualifier="",
     library_author_help="",
     **kwargs,
@@ -298,7 +297,6 @@ def create_wargear(
         usable_by_profile_types=usable_by_profile_types,
         usable_by_subtypes=usable_by_subtypes,
         usable_by_profiles=usable_by_profiles,
-        usable_by_specialisations=usable_by_specialisations,
     )
 
 
@@ -313,7 +311,6 @@ def create_weapon_accessory(
     usable_by_profile_types=(),
     usable_by_subtypes=(),
     usable_by_profiles=(),
-    usable_by_specialisations=(),
     qualifier="",
     library_author_help="",
     **kwargs,
@@ -344,7 +341,6 @@ def create_weapon_accessory(
         usable_by_profile_types=usable_by_profile_types,
         usable_by_subtypes=usable_by_subtypes,
         usable_by_profiles=usable_by_profiles,
-        usable_by_specialisations=usable_by_specialisations,
     )
 
 
@@ -365,7 +361,6 @@ def create_skill(
     usable_by_profile_types=(),
     usable_by_subtypes=(),
     usable_by_profiles=(),
-    usable_by_specialisations=(),
     qualifier="",
     library_author_help="",
     **kwargs,
@@ -390,7 +385,6 @@ def create_skill(
         usable_by_profile_types=usable_by_profile_types,
         usable_by_subtypes=usable_by_subtypes,
         usable_by_profiles=usable_by_profiles,
-        usable_by_specialisations=usable_by_specialisations,
     )
 
 
@@ -414,7 +408,6 @@ def create_power(
     usable_by_profile_types=(),
     usable_by_subtypes=(),
     usable_by_profiles=(),
-    usable_by_specialisations=(),
     qualifier="",
     library_author_help="",
     **kwargs,
@@ -438,7 +431,6 @@ def create_power(
         usable_by_profile_types=usable_by_profile_types,
         usable_by_subtypes=usable_by_subtypes,
         usable_by_profiles=usable_by_profiles,
-        usable_by_specialisations=usable_by_specialisations,
     )
 
 
@@ -493,40 +485,11 @@ def create_hidden(name, effects=(), qualifier="", library_author_help="", **kwar
     return carrier
 
 
-def create_skill_tree(name, category, qualifier="", library_author_help="", **kwargs):
-    """A pickable skill set: a token whose home names the set it stands for."""
-    from n26.library.models import SkillTree
-
-    return SkillTree.objects.create(
-        name=name,
-        category=category,
-        qualifier=qualifier,
-        library_author_help=library_author_help,
-        **kwargs,
-    )
-
-
-def create_archetype(name, effects=(), qualifier="", library_author_help="", **kwargs):
-    """A chosen carrier; ``effects`` are (scope, effect) pairs."""
-    from n26.library.models import Archetype
-
-    carrier = Archetype.objects.create(
-        name=name,
-        qualifier=qualifier,
-        library_author_help=library_author_help,
-        **kwargs,
-    )
-    for scope, effect in effects:
-        modifier(
-            name=f"{name}: {effect}", scope=scope, effect=effect, attach_to=carrier
-        )
-    return carrier
-
-
 def create_affiliation(
     name, effects=(), qualifier="", library_author_help="", **kwargs
 ):
-    """As ``create_archetype``, for where the gang's loyalties lie."""
+    """A chosen carrier for where the gang's loyalties lie;
+    ``effects`` are (scope, effect) pairs."""
     from n26.library.models import Affiliation
 
     carrier = Affiliation.objects.create(
@@ -546,7 +509,7 @@ def create_affiliation(
 
 
 def create_slot_type(name, plural_name="", allows_repeats=True, **kwargs):
-    """What is chosen — Gang Legacy, Affiliation, Archetype.
+    """What is chosen — Gang Legacy, Specialisation, Path.
 
     The first thing built: its pickables, its picklists and the slots
     themselves all name it, and authoring refuses a mismatch.
@@ -714,7 +677,6 @@ def create_weapon(
     usable_by_profile_types=(),
     usable_by_subtypes=(),
     usable_by_profiles=(),
-    usable_by_specialisations=(),
     qualifier="",
     library_author_help="",
     **kwargs,
@@ -768,7 +730,6 @@ def create_weapon(
         usable_by_profile_types=usable_by_profile_types,
         usable_by_subtypes=usable_by_subtypes,
         usable_by_profiles=usable_by_profiles,
-        usable_by_specialisations=usable_by_specialisations,
     )
 
 
@@ -813,29 +774,6 @@ def add_weapon_profile(
     return profile
 
 
-def create_specialisation(
-    name, grants_skill=None, qualifier="", library_author_help="", **kwargs
-):
-    """A specialisation; optionally wire the skill it grants."""
-    from n26.library.models import Specialisation
-
-    specialisation = Specialisation.objects.create(
-        name=name,
-        qualifier=qualifier,
-        library_author_help=library_author_help,
-        **kwargs,
-    )
-    if grants_skill is not None:
-        modifier(
-            name=f"{name} grants {grants_skill.name}",
-            scope=targets_model(),
-            effect=ef_adds(grants_skill),
-            attach_to=specialisation,
-            **kwargs,
-        )
-    return specialisation
-
-
 def create_counter(name, qualifier="", library_author_help="", **kwargs):
     from n26.library.models import Counter
 
@@ -848,18 +786,17 @@ def create_counter(name, qualifier="", library_author_help="", **kwargs):
 
 
 def restrict_use(thing, *allowed):
-    """Who may use this — ProfileType, Subtype, Profile or Specialisation.
+    """Who may use this — a ProfileType, a Subtype or a Profile.
 
     ``restrict_use(wyld_bow, wyld_runner)`` is "Wyld bow (Wyld Runner
     only)": a whole fighter entry, and a fact about the bow wherever it
-    is listed. ``restrict_use(rad_beamer, gunner)`` is "(Gunner
-    specialist only)" — the field a Specialist chose.
+    is listed.
 
     ``thing`` may equally be a collection entry, which narrows that one
     list's offer and leaves every other list that names the item alone.
-    The four lists are the same shape on both, so this writes either.
+    The three lists are the same shape on both, so this writes either.
     """
-    from n26.library.models import Profile, ProfileType, Specialisation, Subtype
+    from n26.library.models import Profile, ProfileType, Subtype
 
     for item in allowed:
         if isinstance(item, ProfileType):
@@ -868,8 +805,6 @@ def restrict_use(thing, *allowed):
             thing.usable_by_subtypes.add(item)
         elif isinstance(item, Profile):
             thing.usable_by_profiles.add(item)
-        elif isinstance(item, Specialisation):
-            thing.usable_by_specialisations.add(item)
         else:
             raise ValueError(f"{type(item).__name__} cannot restrict use")
     return thing
@@ -880,7 +815,6 @@ def set_usable_by(
     usable_by_profile_types=None,
     usable_by_subtypes=None,
     usable_by_profiles=None,
-    usable_by_specialisations=None,
 ):
     """Who may use this, replaced — the write ``revise`` refuses.
 
@@ -893,14 +827,13 @@ def set_usable_by(
 
     ``restrict_use`` is the other half of the pair: it adds one allowed
     thing at a time, which is what building content up line by line
-    wants. Both write the same four lists, on an item or on the
+    wants. Both write the same three lists, on an item or on the
     collection entry offering it.
     """
     lists = {
         "usable_by_profile_types": usable_by_profile_types,
         "usable_by_subtypes": usable_by_subtypes,
         "usable_by_profiles": usable_by_profiles,
-        "usable_by_specialisations": usable_by_specialisations,
     }
     for name, allowed in lists.items():
         if allowed is not None:
@@ -1413,7 +1346,6 @@ def add_entry(
     usable_by_profile_types=(),
     usable_by_subtypes=(),
     usable_by_profiles=(),
-    usable_by_specialisations=(),
     position=None,
     **kwargs,
 ):
@@ -1444,7 +1376,6 @@ def add_entry(
         "usable_by_profile_types": usable_by_profile_types,
         "usable_by_subtypes": usable_by_subtypes,
         "usable_by_profiles": usable_by_profiles,
-        "usable_by_specialisations": usable_by_specialisations,
     }
     for name, allowed in narrowing.items():
         if allowed:
@@ -1611,9 +1542,9 @@ def targets_model(*conditions):
     assigned to, narrowed by nested conditions —
     ``targets_model(has_subtypes(leader), counter_at_least(xp, 5))``.
 
-    Never reached through the gang's broadcast: an archetype assigned to
-    a Champion applies to that Champion alone. For everyone in the gang,
-    use ``targets_every_model``.
+    Never reached through the gang's broadcast: an affiliation
+    assigned to a Champion applies to that Champion alone. For everyone
+    in the gang, use ``targets_every_model``.
     """
     from n26.library.models import TargetsMiniature
 

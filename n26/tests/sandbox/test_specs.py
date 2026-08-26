@@ -179,11 +179,8 @@ class TestHelpIsSourcedNeverWritten:
         assert specs()["ef_offers_choice"].fields["model"].choices == tuple(
             (kind, kind)
             for kind in (
-                "specialisation",
                 "power",
                 "skill",
-                "skilltree",
-                "archetype",
                 "affiliation",
                 "subtype",
             )
@@ -334,22 +331,22 @@ class TestOffers:
             "offers a choice of skill from Primary (Skills & Powers)"
         )
 
-    def test_the_leaders_archetype_pick_lands_on_the_gang(self, default_pack):
+    def test_the_leaders_affiliation_pick_lands_on_the_gang(self, default_pack):
         effect = specs()["ef_offers_choice"].compile(
             {
-                "model": "archetype",
-                "label": "archetype",
+                "model": "affiliation",
+                "label": "affiliation",
                 "will_be_assigned_to": "gang",
             }
         )
         assert effect.will_be_assigned_to == "gang"
-        assert effect.kind_label == "Archetype"
+        assert effect.kind_label == "Affiliation"
 
-    def test_the_venator_rank_slots_label(self, default_pack):
+    def test_a_numbered_slot_keeps_its_number(self, default_pack):
         effect = specs()["ef_offers_choice"].compile(
-            {"model": "skilltree", "label": "skill tree 1"}
+            {"model": "skill", "label": "skill 1"}
         )
-        assert effect.kind_label == "Skill tree 1"
+        assert effect.kind_label == "Skill 1"
 
 
 class TestChoiceLabelsReadAsLabels:
@@ -359,7 +356,7 @@ class TestChoiceLabelsReadAsLabels:
 
     def offer(self, label):
         return specs()["ef_offers_choice"].compile(
-            {"model": "archetype", "label": label}
+            {"model": "affiliation", "label": label}
         )
 
     def stored(self, label):
@@ -370,23 +367,23 @@ class TestChoiceLabelsReadAsLabels:
         return OffersChoice.objects.get(pk=self.offer(label).pk).label
 
     def test_a_lowercase_label_is_stored_capitalised(self, default_pack):
-        assert self.stored("favoured archetype") == "Favoured archetype"
+        assert self.stored("favoured affiliation") == "Favoured affiliation"
 
     def test_capitals_further_along_are_the_authors_and_stay(self, default_pack):
         """Sentence case, not title case: a name or an acronym inside a
         label was typed on purpose."""
-        assert self.stored("archetype for a Clan House") == (
-            "Archetype for a Clan House"
+        assert self.stored("affiliation for a Clan House") == (
+            "Affiliation for a Clan House"
         )
 
     def test_a_label_that_already_reads_as_one_is_untouched(self, default_pack):
-        assert self.stored("Archetype") == "Archetype"
+        assert self.stored("Affiliation") == "Affiliation"
 
     def test_no_label_stays_no_label(self, default_pack):
         """Blank is a real answer, not a mistake — the kind names the slot
         instead, and reads as a label too."""
         assert self.stored("") == ""
-        assert self.offer("").kind_label == "Archetype"
+        assert self.offer("").kind_label == "Affiliation"
 
 
 class TestCompanionsAndStoredEffects:
@@ -409,7 +406,7 @@ class TestTheFullAssembly:
     def test_brawler_leader_combat_primary_all_three_rows(self, skills_and_powers):
         """The modifier row from the plan's table: WHO and WHAT each
         compiled from their spec, glued by the modifier verb, hung on
-        the archetype — the composer's whole save() in miniature."""
+        the affiliation — the composer's whole save() in miniature."""
         from n26.tests.sandbox.actions import create_affiliation, create_category
 
         collection, tiers = skills_and_powers

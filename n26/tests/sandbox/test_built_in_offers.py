@@ -338,7 +338,7 @@ class TestTheKindsOnlyEverChosen:
 
     def test_there_is_something_to_check(self):
         named = {model.__name__ for model in chosen_only_kinds()}
-        assert {"Affiliation", "Archetype", "SkillTree"} <= named
+        assert {"Affiliation", "Pickable"} <= named
         assert len(acquired_kind_pages()) > 5
 
     @pytest.mark.parametrize(

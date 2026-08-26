@@ -52,7 +52,6 @@ LEAF_KINDS = {
     "skill": "create_skill",
     "power": "create_power",
     "lasting-effect": "create_lasting_effect",
-    "specialisation": "create_specialisation",
     "counter": "create_counter",
     "hidden": "create_hidden",
     "slot-type": "create_slot_type",
@@ -66,21 +65,11 @@ LEAF_KINDS = {
     "statline-type": "create_statline_type",
     "section": "create_section",
     "category": "create_category",
-    "archetype": "create_archetype",
     "affiliation": "create_affiliation",
-    "skill-tree": "create_skill_tree",
     "gang-type": "create_gang_type",
     "profile": "create_profile",
     "collection": "create_collection",
 }
-
-
-#: Kinds a menu no longer offers. What they said is said by slots and
-#: picks now, and the rows that remain are history: pointed at by
-#: answers a gang took back, and by nothing a reader can still choose.
-#: They keep their pages, so those rows stay reachable and editable —
-#: it is the invitation to make another one that goes.
-RETIRED_KINDS = frozenset({"archetype", "skill-tree", "specialisation"})
 
 
 #: Kinds whose page is a place you come back to: the thing, and the
@@ -763,13 +752,6 @@ def _describe_skill(skill):
     return notes
 
 
-def _describe_skill_tree(tree):
-    """A tree is only a handle on a set, so say which."""
-    if tree.category is None:
-        return ["stands for nothing yet"]
-    return [f"stands for {tree.category.name}"]
-
-
 #: Kinds whose listing says something a generic reading would miss.
 def _describe_profile(profile):
     """Whose list it hires from, its Type, and what a hire pays."""
@@ -884,7 +866,6 @@ def _describe_slot(slot):
 
 LEAF_DESCRIBE = {
     "skill": _describe_skill,
-    "skill-tree": _describe_skill_tree,
     "profile": _describe_profile,
     "gang-type": _describe_gang_type,
     "slot-type": _describe_slot_type,
@@ -1022,8 +1003,6 @@ def index(request):
     qualities, the kit, the gang-scale picks."""
     grouped = {family: [] for family in Family}
     for kind, verb_name in LEAF_KINDS.items():
-        if kind in RETIRED_KINDS:
-            continue
         model = _model_for(specs()[verb_name])
         grouped[model.family].append(
             {
@@ -3504,8 +3483,7 @@ def foundations(request):
                     "count": _model_for(specs()[verb]).objects.count(),
                 }
                 for kind, verb in LEAF_KINDS.items()
-                if kind not in RETIRED_KINDS
-                and _model_for(specs()[verb]).family == Family.FOUNDATION
+                if _model_for(specs()[verb]).family == Family.FOUNDATION
             ],
         },
     )

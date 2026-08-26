@@ -219,7 +219,7 @@ class Card:
 
     def model_matchable(self):
         """The model as selector food: its entry, its type, its subtypes
-        and the specialisation it chose.
+        and the pickables it chose.
 
         The **base** adapter: printed facts — stored assignments — only.
         During ``compute`` each round layers what earlier rounds settled on
@@ -227,11 +227,10 @@ class Card:
         unconditional grants; ``usability_for`` layers the final state the
         same way. Called bare, it answers from the assignments alone.
 
-        A specialisation counts as a possession for the same reason a
-        subtype does: "(Gunner specialist only)" asks what this fighter
-        *is*, and what they chose says so. A pick counts for the same
-        reason again — unless no slot stands behind it, in which case
-        nobody chose it and it says nothing about anyone.
+        A pick counts as a possession for the same reason a subtype
+        does: "(Gunner specialist only)" asks what this fighter *is*, and
+        what they chose says so — unless no slot stands behind the pick,
+        in which case nobody chose it and it says nothing about anyone.
 
         **A pick the gang holds is this model's too.** Where a choice
         says the gang carries the answer, the pick lands on the gang and
@@ -242,7 +241,7 @@ class Card:
         gang-held gun is not this fighter's gun.
         """
         from n26.core import select
-        from n26.library.models import Counter, Pickable, Specialisation, Subtype
+        from n26.library.models import Counter, Pickable, Subtype
 
         profile = None
         possessions = []
@@ -262,7 +261,7 @@ class Card:
             if node.is_primary_profile:
                 profile = node.assignable
                 possessions.append(profile.profile_type)
-            elif isinstance(node.assignable, (Subtype, Specialisation, Pickable)):
+            elif isinstance(node.assignable, (Subtype, Pickable)):
                 possessions.append(node.assignable)
             elif isinstance(node.assignable, Counter):
                 held = (
@@ -442,10 +441,7 @@ def hydrate_rows(rows, with_statlines=False, with_options=False):
         "counter_value",
         "profile__profile_type",
         # A chosen-mode placement reads the chosen thing's category off
-        # the assignment already in memory — never by a query. Both
-        # spellings of the answer: a tree token's home, and a pickable's
-        # linked category.
-        "skill_tree__category",
+        # the assignment already in memory — never by a query.
         "pickable__category",
         # Whether a slot type allows the same pickable twice is read
         # while a card's notes are worked out, which may not query. The

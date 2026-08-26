@@ -1445,7 +1445,7 @@ GROUPS: list[Group] = [
                     "the lot: the headings are how the list is read, not separate "
                     "questions. Nothing here knows what is being picked — the "
                     "view has already flattened it into groups and options, which "
-                    "is what lets a skill, an archetype and an affiliation share "
+                    "is what lets a skill, a pick and an affiliation share "
                     "a screen. What to say when the list is empty is the "
                     "caller's; why it is empty is something the page knows and "
                     "this does not."
@@ -1754,7 +1754,7 @@ GROUPS: list[Group] = [
                 ),
                 notes=(
                     "Labelled facts where the value is also the way to edit it, "
-                    "and one control however much it holds — three skill trees are "
+                    "and one control however much it holds — three skill sets are "
                     "one choice, and three buttons would say there were three "
                     "questions. The rhythm belongs to the container, so hiding a "
                     "row behind a permission check cannot leave a gap. Flex wrap "

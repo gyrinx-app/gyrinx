@@ -592,7 +592,7 @@ class TestTheQueryBudget:
         # their offers. The drawer asks once whether campaigns are open to
         # this reader, so it draws that place as a link or as a plain word.
         # The page's own furniture answers for the rest.
-        assert self.measure(client, equip_url(gang, house_list)) == 38
+        assert self.measure(client, equip_url(gang, house_list)) == 36
 
     def test_the_library_costs_a_fixed_number(self, client, tester, gang, house_list):
         create_wargear("Mesh Armour", price=15)

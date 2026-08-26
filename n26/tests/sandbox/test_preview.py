@@ -75,7 +75,7 @@ def brawler_state():
                 "name": "Skills & Powers",
                 "sections": ["Primary", "Secondary"],
             },
-            {"kind": "archetype", "name": "Brawler"},
+            {"kind": "affiliation", "name": "Brawler"},
         ],
         "modifiers": [
             placement_payload(

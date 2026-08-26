@@ -1,7 +1,7 @@
 """Selectors — saying "these things" once, for both worlds.
 
 The content library keeps needing to express a selection: a *kind* of thing
-(any Specialisation), a *subset* of a kind (weapons with the Melee trait,
+(any Affiliation), a *subset* of a kind (weapons with the Melee trait,
 later "a Psychoteric Whispers power"), or a *specific* thing. Each place
 that needs one used to grow its own filter code. This module is the one
 vocabulary, usable in two contexts:
@@ -144,7 +144,7 @@ class Has:
 
 @dataclass(frozen=True)
 class OfKind:
-    """The target is one of these at all — any Specialisation."""
+    """The target is one of these at all — any Affiliation."""
 
     model: type
 

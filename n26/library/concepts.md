@@ -4,9 +4,9 @@ This should give you a solid grounding in how Gyrinx N26 fits together.
 
 If you take nothing else away:
 
-1. **To control who gets a thing, control where it lands — don't look for a per-type switch.** Want it gang-wide? Build it into the gang type, or have a choice whose "will be assigned to" field is "the gang". Want it on one model? Build it into the profile, or pick "the bearer". There is no "make this broadcast" setting on an archetype or a rule — reach is entirely a consequence of the **host**, so you aim content by choosing its arrival route.
+1. **To control who gets a thing, control where it lands — don't look for a per-type switch.** Want it gang-wide? Build it into the gang type, or have a choice whose "will be assigned to" field is "the gang". Want it on one model? Build it into the profile, or pick "the bearer". There is no "make this broadcast" setting on an affiliation or a rule — reach is entirely a consequence of the **host**, so you aim content by choosing its arrival route.
 
-2. **Behaviour is always a modifier on a carrier — and modifiers are shared, so edit with care.** A rule, an archetype, an affiliation are just names; everything they do rides them as modifiers (scope + effect, conditions ANDed). Two practical consequences: to make content do something, attach the modifier to the thing that should carry it; and before editing an existing modifier, check its carriers — the change lands everywhere it's attached. Know the two effect families: computed effects (gives, takes away, stat changes, choices, placements, limits) come and go with their carrier and are safe to rework; written effects (brings a model, moves a counter) happen once and won't undo — author those as one-way doors.
+2. **Behaviour is always a modifier on a carrier — and modifiers are shared, so edit with care.** A rule, an affiliation, a pickable are just names; everything they do rides them as modifiers (scope + effect, conditions ANDed). Two practical consequences: to make content do something, attach the modifier to the thing that should carry it; and before editing an existing modifier, check its carriers — the change lands everywhere it's attached. Know the two effect families: computed effects (gives, takes away, stat changes, choices, placements, limits) come and go with their carrier and are safe to rework; written effects (brings a model, moves a counter) happen once and won't undo — author those as one-way doors.
 
 3. **Being in a collection and being offered from a section of it are two separate authoring acts.** Entries and sweeps decide **membership** of the collection; **placement** decides whether a particular category appears. If you narrow a choice "from section: Primary" and the skill's category hasn't been placed into Primary for that fighter, it will not be offered — it's sitting in "Other". So a working "choose a Primary skill" needs both halves authored: the content in the collection, and a placement putting its category in that section for the right models.
 
@@ -37,12 +37,12 @@ We use **carrier** as a library-side word for one specific piece of *content*, t
 
 So: you buy a power maul for Vex. The purchase writes one assignment — **assignable**: the maul, **host**: Vex, **cause**: the purchase. The maul's assignment points at its underlying **assignable**, which is a **carrier** of a **modifier** which now applies to its **bearer** — Vex. When the maul **assignment** is reassigned, the same assignment gets a new host and the modifier follows the maul, not Vex.
 
-Often the host and the bearer coincide. But when the Outcast Leader picks an Archetype, the resulting chosen Archetype is assigned *to the gang*. When the gang is the host, every model sees it (and becomes the bearer), even though the Leader was the one asked:
+Often the host and the bearer coincide. But when the Outcast Leader answers the gang's Gang Legacy slot, the pickable they choose is assigned *to the gang*. When the gang is the host, every model sees it (and becomes the bearer), even though the Leader was the one asked:
 
-1. Leader's Profile (assignable) carries a modifier that offers an Archetype choice ("will be assigned to" = "the gang")
-2. Choice made → one assignment row: assignable = the archetype, host = the gang, cause = the Leader
+1. The Leader's Profile (assignable) carries a modifier adding the Gang Legacy slot, which lands on the gang
+2. Choice made → one assignment row: assignable = the pickable, host = the gang, cause = the Leader
 3. Gang-hosted ⇒ broadcast to every model (but hidden, just used to apply modifiers)
-4. On each model, the archetype is the carrier of its modifiers, and they resolve against it as the bearer
+4. On each model, the pickable is the carrier of its modifiers, and they resolve against it as the bearer
 
 ## Hiring
 
@@ -73,19 +73,11 @@ So the relationships after one hire, spelled out:
 
 ## Assignable types
 
-### Archetype
-
-*A way of leading the gang, chosen once; its whole meaning rides as modifiers.*
-
-Fields of its own: none — only the shared set. The card prints it under its own "Archetype" heading.
-
-Chosen, not bought: refuses built-ins (nothing would ever hand over items built into it), arrives free through an offered choice, leaves when the thing that offered it leaves. Reach: whatever the offer's landing spot gives it — the whole gang for the Outcast shape, one model for a Champion's personal pick.
-
 ### Affiliation
 
 *Who the gang sides with, chosen once when the gang is created.*
 
-Fields of its own: none. Same chosen-not-bought shape and built-ins refusal as archetype.
+Fields of its own: none. Chosen, not bought: it refuses built-ins (nothing would ever hand over items built into it), arrives free through an offered choice, and leaves when the thing that offered it leaves.
 
 Its payload is usually access — equipment lists opened to some ranks — so its gives are typically scoped ("to Leaders and Champions") while the affiliation itself rides gang-wide. It may itself offer the next choice (Clan House: "choose one of the six Houses"), which simply computes into another open slot on the gang.
 
@@ -98,14 +90,6 @@ Fields of its own: none — but its annotation is part of its identity: a rule i
 Normally it arrives built into something (a profile's kit, a gang type) or given by a modifier. Reach: built into a profile, it hits the model's card; when given to the gang, every member's card. The card prints rules apart from skills, under their own heading.
 
 Author note: we actually, mostly, don't want broadcast for gang rules. Instead we'd want to attach modifier which hits the models.
-
-### Specialisation
-
-*The field a Specialist picks, which grants them its skill.*
-
-Fields of its own: none. The granting is an ordinary give riding it — being pickable is the only new thing about it.
-
-Typically chosen; the offers-a-choice modifiers say "bearer", so it reaches the one model that picked it.
 
 ### Gang type
 

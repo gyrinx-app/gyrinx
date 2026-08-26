@@ -160,8 +160,7 @@ anyone. The restriction belongs to that one list's offer.
    price the list charges.
 2. On that entry, name what the book names in the bracket: *offered to
    fighter entries* for "(Forge-born only)", *offered to subtypes* for a
-   line the list offers only to Leaders and Champions, *offered to
-   specialisations* for "(Gunner specialist only)". Leave it blank on
+   line the list offers only to Leaders and Champions. Leave it blank on
    every other list that offers the item.
 
 The saw still shows on the list for everyone, marked for the fighters the
