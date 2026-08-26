@@ -42,7 +42,7 @@ class Migration(migrations.Migration):
                         max_length=20,
                     ),
                 ),
-                ("note", models.CharField(blank=True, max_length=255)),
+                ("note", models.CharField(blank=True, max_length=512)),
                 ("batch", models.UUIDField(blank=True, editable=False, null=True)),
                 (
                     "actor",
