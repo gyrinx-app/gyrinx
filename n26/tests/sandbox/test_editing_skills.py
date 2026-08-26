@@ -746,3 +746,179 @@ class TestTheQueryBudget:
 
         assert few == many, f"{few} queries knowing 2, {many} knowing 8"
         assert_reconciled(gang)
+
+
+def _gang_url(gang):
+    return reverse("n26-gang", args=[gang.pk])
+
+
+def _skills_url(miniature):
+    return reverse("n26-learn", args=[miniature.pk])
+
+
+def _learn_views():
+    """The learn *module* — ``n26.core.views.learn`` is the view function
+    on the package, which shadows the submodule for a normal import."""
+    import importlib
+
+    return importlib.import_module("n26.core.views.learn")
+
+
+class TestAnsweringDoesNotTouchTheReadPath:
+    """The Choose-list match is a write. Drawing the sheet, the edit
+    page or the skills screen must not browse that list to decide what
+    to show."""
+
+    @pytest.fixture
+    def leader(self, tiers):
+        subtype = create_subtype("Leader")
+        modifier(
+            "A Leader starts with a Primary skill",
+            targets_model(),
+            offers_choice(Skill, from_section=tiers["primary"]),
+            carried_by=subtype,
+        )
+        return subtype
+
+    @pytest.fixture
+    def leader_yolanda(self, yolanda, leader):
+        assign(leader, miniature=yolanda)
+        return yolanda
+
+    def test_reading_the_edit_page_does_not_build_the_choose_list(
+        self, client, player, leader_yolanda, monkeypatch
+    ):
+        learn_views = _learn_views()
+
+        calls = []
+        monkeypatch.setattr(
+            learn_views,
+            "_offered_keys",
+            lambda *args, **kwargs: calls.append(1) or frozenset(),
+        )
+        client.force_login(player)
+        assert client.get(edit_url(leader_yolanda)).status_code == 200
+        assert calls == []
+
+    def test_reading_the_gang_sheet_does_not_build_the_choose_list(
+        self, client, player, leader_yolanda, monkeypatch
+    ):
+        learn_views = _learn_views()
+
+        calls = []
+        monkeypatch.setattr(
+            learn_views,
+            "_offered_keys",
+            lambda *args, **kwargs: calls.append(1) or frozenset(),
+        )
+        client.force_login(player)
+        assert client.get(_gang_url(leader_yolanda.gang)).status_code == 200
+        assert calls == []
+
+    def test_reading_the_skills_screen_does_not_build_the_choose_list(
+        self, client, player, leader_yolanda, monkeypatch
+    ):
+        learn_views = _learn_views()
+
+        calls = []
+        monkeypatch.setattr(
+            learn_views,
+            "_offered_keys",
+            lambda *args, **kwargs: calls.append(1) or frozenset(),
+        )
+        client.force_login(player)
+        assert client.get(_skills_url(leader_yolanda)).status_code == 200
+        assert calls == []
+
+    def test_saving_a_tick_builds_the_choose_list_once(
+        self, client, player, leader_yolanda, library, monkeypatch
+    ):
+        learn_views = _learn_views()
+
+        real = learn_views._offered_keys
+        calls = []
+
+        def counted(*args, **kwargs):
+            result = real(*args, **kwargs)
+            calls.append(result)
+            return result
+
+        monkeypatch.setattr(learn_views, "_offered_keys", counted)
+        client.force_login(player)
+        post_skills(client, leader_yolanda, library["skills"]["Catfall"])
+        assert len(calls) == 1
+
+    def test_the_choose_list_lookup_does_not_grow_with_skills_already_held(
+        self, client, player, leader_yolanda, sets, library, monkeypatch
+    ):
+        """One browse of the offer, not one query per skill on the card."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        learn_views = _learn_views()
+
+        real = learn_views._offered_keys
+        counts = []
+
+        def wrapped(*args, **kwargs):
+            with CaptureQueriesContext(connection) as captured:
+                result = real(*args, **kwargs)
+            counts.append(len(captured.captured_queries))
+            return result
+
+        monkeypatch.setattr(learn_views, "_offered_keys", wrapped)
+        extras = [
+            create_skill(f"Trick {index}", category=sets["agility"], position=index)
+            for index in range(10, 18)
+        ]
+        client.force_login(player)
+
+        post_skills(client, leader_yolanda, library["skills"]["Connected"])
+        few = counts[-1]
+        counts.clear()
+
+        post_skills(
+            client,
+            leader_yolanda,
+            library["skills"]["Connected"],
+            *extras,
+        )
+        many = counts[-1]
+
+        assert few == many, f"{few} queries holding 1, {many} holding 9"
+        assert few > 0
+
+    def test_the_gang_sheet_stays_flat_as_leaders_accumulate(
+        self, client, player, gang, gang_sister, leader, monkeypatch
+    ):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        learn_views = _learn_views()
+
+        calls = []
+        monkeypatch.setattr(
+            learn_views,
+            "_offered_keys",
+            lambda *args, **kwargs: calls.append(1) or frozenset(),
+        )
+        client.force_login(player)
+
+        first = hire_with_option(gang, gang_sister, "Leader 0")
+        assign(leader, miniature=first)
+
+        def measure():
+            with CaptureQueriesContext(connection) as captured:
+                response = client.get(_gang_url(gang))
+                assert response.status_code == 200
+            return len(captured.captured_queries)
+
+        measure()
+        few = measure()
+        for index in range(1, 5):
+            fighter = hire_with_option(gang, gang_sister, f"Leader {index}")
+            assign(leader, miniature=fighter)
+        many = measure()
+
+        assert calls == []
+        assert few == many, f"{few} queries for 1 Leader, {many} for 5"
