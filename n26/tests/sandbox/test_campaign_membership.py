@@ -222,3 +222,56 @@ class TestWhatTheCampaignSees:
 
         (act_,) = campaign_history(campaign)
         assert act_.gang_name == ""
+
+
+class TestTheCampaignsLogFoldsWhatTheGangsDoes:
+    """Both pages are told by the same machinery, so a hire is one line with
+    its kit beneath it in each. Reading them differently would mean two
+    accounts of the same act."""
+
+    def test_a_hire_is_one_act_not_one_per_thing_it_brought(
+        self, gang, campaign, arbitrator, make_profile
+    ):
+        with operation(gang, actor=arbitrator) as op:
+            op.join_campaign(campaign)
+        with operation(gang, actor=arbitrator) as op:
+            op.hire(make_profile("Ganger", price=25), "Vex")
+
+        hires = [
+            act
+            for act in campaign_history(campaign)
+            if "hired Vex" in "".join(span.text for span in act.spans)
+        ]
+        assert len(hires) == 1
+
+    def test_the_campaign_tells_it_the_way_the_gang_does(
+        self, gang, campaign, arbitrator, make_profile
+    ):
+        with operation(gang, actor=arbitrator) as op:
+            op.join_campaign(campaign)
+        with operation(gang, actor=arbitrator) as op:
+            op.hire(make_profile("Ganger", price=25), "Vex")
+
+        def hire_of(acts):
+            (found,) = [
+                a for a in acts if "hired Vex" in "".join(s.text for s in a.spans)
+            ]
+            return "".join(s.text for s in found.spans), sorted(
+                sub.name for sub in found.subs
+            )
+
+        assert hire_of(campaign_history(campaign)) == hire_of(build(gang))
+
+    def test_one_gangs_riders_never_fold_under_anothers_act(
+        self, gang, campaign, arbitrator, gang_type, make_profile
+    ):
+        other = found_gang("Rust Kings", gang_type, owner=arbitrator)
+        for each in (gang, other):
+            with operation(each, actor=arbitrator) as op:
+                op.join_campaign(campaign)
+        for each, role in ((gang, "Ganger"), (other, "Juve")):
+            with operation(each, actor=arbitrator) as op:
+                op.hire(make_profile(role, price=25), f"Vex of {each.name}")
+
+        named = {act.gang_name for act in campaign_history(campaign)}
+        assert named == {"The Ashen Choir", "Rust Kings"}

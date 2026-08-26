@@ -703,34 +703,6 @@ def campaign_history_size(campaign):
     return campaign.events.count() + campaign.gang_events.count()
 
 
-def _gang_acts_in_campaign(campaign, viewer, limit=None):
-    """What the gangs in this campaign did while they were in it.
-
-    Their own ledger events, which name the campaign because the operation
-    that wrote them read the gang's membership. One record, two readers: the
-    same act appears here and in the gang's own history, and neither is a copy
-    of the other.
-    """
-    from n26.core.models import LedgerEvent
-
-    events = LedgerEvent.objects.filter(campaign=campaign).select_related(
-        "miniature", "actor", "gang", "campaign"
-    )
-    events = (
-        events.order_by("-created", "-id")[:limit]
-        if limit is not None
-        else events.order_by("created", "id")
-    )
-    events = list(events)
-    rows = _rows_for(events)
-    for e in events:
-        act = _one_act(e, rows.get(e.assignment_id), viewer, alive=set())
-        # Whose act it was, so the campaign's log can be read gang by gang.
-        act.gang_pk = str(e.gang_id)
-        act.gang_name = e.gang.name if e.gang else ""
-        yield (e.created, str(e.pk)), act
-
-
 def _campaign_own_acts(campaign, viewer, limit=None):
     """What the arbitrator changed about the campaign itself, one act each."""
     events = campaign.events.select_related("actor")
@@ -743,6 +715,63 @@ def _campaign_own_acts(campaign, viewer, limit=None):
     )
     for e in events:
         yield (e.created, str(e.pk)), _one_campaign_act(e, viewer)
+
+
+def _gang_acts_in_campaign(campaign, viewer, limit=None):
+    """What the gangs in this campaign did while they were in it.
+
+    Their own ledger events, which name the campaign because the operation
+    that wrote them read the gang's membership. One record, two readers: the
+    same act appears here and in the gang's own history, and neither is a copy
+    of the other — which is why they are told by the same machinery, folding
+    what folds, so a hire is one line with its kit beneath it in both places.
+
+    Acts are gathered a gang at a time. A mark belongs to one operation and an
+    operation is one gang's, so nothing clusters across a boundary anyway, and
+    grouping first keeps one gang's riders from folding under another's act.
+    """
+    from n26.core.models import LedgerEvent, Miniature
+
+    events = LedgerEvent.objects.filter(campaign=campaign).select_related(
+        "miniature", "actor", "gang", "campaign"
+    )
+    events = (
+        events.order_by("-created", "-id")[:limit]
+        if limit is not None
+        else events.order_by("created", "id")
+    )
+    # A limited read takes the newest; telling them needs them oldest first,
+    # because a rider is told after the thing it rode.
+    events = sorted(events, key=lambda e: (e.created, str(e.pk)))
+    if not events:
+        return
+
+    rows = _rows_for(events)
+    sources = _comes_with_sources(events, rows)
+    # Only the living have a page to link to, across every gang here.
+    alive = set(
+        Miniature.objects.filter(
+            membership__gang__campaign_memberships__campaign=campaign,
+            membership__archived=False,
+        ).values_list("pk", flat=True)
+    )
+
+    by_gang = {}
+    for e in events:
+        by_gang.setdefault(e.gang_id, []).append(e)
+
+    for gang_id, theirs in by_gang.items():
+        acts = []
+        act_of = {}
+        for cluster in _clusters(theirs):
+            _tell_cluster(cluster, rows, acts, act_of, viewer, alive, sources)
+        # Whose acts these were, so the campaign's log can say it on every
+        # line — the one thing a gang's own history never has to.
+        named = theirs[0].gang.name if theirs[0].gang_id else ""
+        for act in acts:
+            act.gang_pk = str(gang_id)
+            act.gang_name = named
+            yield (act.when, str(gang_id)), act
 
 
 def _one_campaign_act(e, viewer):
