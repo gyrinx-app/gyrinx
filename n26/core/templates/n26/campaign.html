@@ -6,10 +6,15 @@ One campaign, as its arbitrator sees it.
 The standing facts sit in <c-n26.detail-list>, the same way a gang sheet
 carries its own — each a small fact that is also something to change.
 
-The page is deliberately short. What a campaign is *for* — who is in it, what
-it owns, what has happened — is not modelled yet, and a screen that drew empty
-headings for all three would promise three features rather than describe one.
-Each section arrives with the work that fills it.
+The page is still short. Who is in a campaign and what it owns are not
+modelled yet, and a screen that drew empty headings for them would promise
+two features rather than describe one. Each section arrives with the work
+that fills it.
+
+The log is the exception, and it is here because there is already something
+to say: what the arbitrator has changed about the campaign. It reads newest
+first and stops after the most recent few — this is a campaign, not its
+history.
 {% endcomment %}
 {% block head_title %}{{ campaign.name }}{% endblock head_title %}
 {% block nav_heading %}{{ campaign.name }}{% endblock nav_heading %}
@@ -89,5 +94,34 @@ Each section arrives with the work that fills it.
                 {{ campaign.summary|safe_rich_text }}
             </c-n26.prose>
         {% endif %}
+        {% comment %}
+        Last, after what the campaign is: the summary is the page's answer
+        to "what is this", and the log is what has happened to it since.
+        {% endcomment %}
+        <section class="flex flex-col gap-2">
+            <h2 class="text-sm font-medium text-muted">Log</h2>
+            {% if acts %}
+                <ol class="flex flex-col">
+                    {% for act in acts %}
+                        <li class="flex gap-3 border-b border-box-border/50 py-2 last:border-b-0">
+                            <time datetime="{{ act.when|date:'c' }}"
+                                  title="{{ act.when }}"
+                                  class="w-24 shrink-0 pt-px text-right text-sm tabular-nums whitespace-nowrap text-muted">
+                                {{ act.when|date:"j M H:i" }}
+                            </time>
+                            <p class="min-w-0 flex-1 text-base">
+                                {% if act.actor %}<span class="font-medium">{{ act.actor }}</span>{% endif %}
+                                {% for span in act.spans %}{% if span.href %}<c-n26.link href="{{ span.href }}" tone="current">{{ span.text }}</c-n26.link>{% else %}{{ span.text }}{% endif %}{% endfor %}
+                            </p>
+                        </li>
+                    {% endfor %}
+                </ol>
+                {% if more_acts %}
+                    <p class="text-sm text-muted">and {{ more_acts }} earlier act{{ more_acts|pluralize }}</p>
+                {% endif %}
+            {% else %}
+                <p class="text-sm text-muted">Nothing yet.</p>
+            {% endif %}
+        </section>
     </div>
 {% endblock content %}

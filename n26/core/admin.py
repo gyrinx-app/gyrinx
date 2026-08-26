@@ -26,6 +26,7 @@ from n26.core.models import (
     Assignment,
     AssignmentSet,
     Campaign,
+    CampaignEvent,
     Gang,
     LedgerEntry,
     LedgerEvent,
@@ -300,6 +301,17 @@ class CampaignAdmin(OneAtATime, admin.ModelAdmin):
     search_fields = ["name", "owner__username"]
     autocomplete_fields = ["owner"]
     list_select_related = ["owner"]
+
+
+@admin.register(CampaignEvent)
+class CampaignEventAdmin(ReadOnlyAdmin):
+    """Read-only, as the ledger is: the log is append-only, and an edit here
+    would rewrite what a reader was told happened."""
+
+    list_display = ["kind", "campaign", "actor", "note", "created"]
+    list_filter = ["kind"]
+    search_fields = ["campaign__name", "note"]
+    list_select_related = ["campaign", "actor"]
 
 
 # Registering this edition's maintenance operations happens on import, and

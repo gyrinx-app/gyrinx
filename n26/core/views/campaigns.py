@@ -19,6 +19,10 @@ from n26.flags import CAMPAIGNS, requires_flag
 #: and its controls — shorter than a gang's, so a page holds more of them.
 CAMPAIGNS_PER_PAGE = 25
 
+#: How many acts the campaign's own page shows before saying there are more.
+#: Enough to see what happened since last time without burying the page.
+LOG_ON_THE_PAGE = 10
+
 
 @requires_flag(CAMPAIGNS)
 @login_required
@@ -69,6 +73,7 @@ def campaigns(request):
 def create_campaign(request):
     """Set a campaign up. POST creates it and lands on its own page."""
     from n26.analytics import EventVerb, N26Noun, record
+    from n26.core.campaigns import campaign_operation
     from n26.core.forms import CampaignForm
     from n26.core.models import Campaign
 
@@ -81,6 +86,8 @@ def create_campaign(request):
                 summary=form.cleaned_data["summary"],
                 owner=request.user,
             )
+            with campaign_operation(campaign, actor=request.user) as act:
+                act.created()
             record(
                 request,
                 N26Noun.CAMPAIGN,
@@ -99,11 +106,24 @@ def create_campaign(request):
 @requires_flag(CAMPAIGNS)
 @login_required
 def campaign(request, pk):
-    """One campaign, as its arbitrator sees it."""
+    """One campaign, as its arbitrator sees it.
+
+    The log reads newest first and is cut to the most recent acts: the page
+    is a campaign, not its history, and a log that grew without bound would
+    push everything else off the bottom.
+    """
+    from n26.core.history import campaign_history
+
+    found = _own_campaign_or_404(request, pk)
+    told = campaign_history(found, viewer=request.user)
     return render(
         request,
         "n26/campaign.html",
-        {"campaign": _own_campaign_or_404(request, pk)},
+        {
+            "campaign": found,
+            "acts": list(reversed(told))[:LOG_ON_THE_PAGE],
+            "more_acts": max(len(told) - LOG_ON_THE_PAGE, 0),
+        },
     )
 
 
@@ -112,6 +132,7 @@ def campaign(request, pk):
 def edit_campaign(request, pk):
     """The facts an arbitrator may change after setting up."""
     from n26.analytics import EventVerb, N26Noun, record
+    from n26.core.campaigns import campaign_operation
     from n26.core.forms import CampaignForm
 
     found = _own_campaign_or_404(request, pk)
@@ -119,10 +140,10 @@ def edit_campaign(request, pk):
     if request.method == "POST":
         form = CampaignForm(request.POST)
         if form.is_valid():
-            found.name = form.cleaned_data["name"]
-            found.budget = form.cleaned_data["budget"]
-            found.summary = form.cleaned_data["summary"]
-            found.save()
+            with campaign_operation(found, actor=request.user) as act:
+                act.rename(form.cleaned_data["name"])
+                act.set_budget(form.cleaned_data["budget"])
+                act.edit_summary(form.cleaned_data["summary"])
             record(request, N26Noun.CAMPAIGN, EventVerb.UPDATE, found)
             messages.success(request, f"Saved {found.name}.")
             return redirect("n26-campaign", pk=found.pk)
@@ -155,12 +176,14 @@ def archive_campaign(request, pk):
     still on show.
     """
     from n26.analytics import EventVerb, N26Noun, record
+    from n26.core.campaigns import campaign_operation
 
     found = _own_campaign_or_404(request, pk)
 
     if request.method == "POST":
         name = found.name
-        found.archive()
+        with campaign_operation(found, actor=request.user) as act:
+            act.archive()
         record(request, N26Noun.CAMPAIGN, EventVerb.ARCHIVE, found)
         messages.success(request, f"Archived {name}.")
         return redirect("n26-campaigns")

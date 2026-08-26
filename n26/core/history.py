@@ -658,3 +658,70 @@ def _model_span(model, alive):
     if model.pk not in alive:
         return Span(str(model))
     return Span(str(model), reverse("n26-equip", args=[model.pk]))
+
+
+def campaign_history(campaign, viewer=None):
+    """Every act in this campaign's history, oldest first.
+
+    The same shape a gang's history has, so a page that can draw one can draw
+    the other. Built by reading each source on its own and merging them in
+    time order — the campaign's own acts today, and what its gangs did while
+    they were in it once a campaign can hold gangs. Merging is what keeps the
+    log one story rather than several lists side by side.
+    """
+    dated = list(_campaign_own_acts(campaign, viewer))
+    dated.sort(key=lambda row: row[0])
+    return [act for _, act in dated]
+
+
+def _campaign_own_acts(campaign, viewer):
+    """What the arbitrator changed about the campaign itself.
+
+    One act per event, as a gang's history tells its own: what shares a mark
+    happened on one submit, and a reader is served better by three plain lines
+    than by one sentence trying to hold three unrelated changes.
+    """
+    for e in campaign.events.select_related("actor").order_by("created", "id"):
+        yield (e.created, str(e.pk)), _one_campaign_act(e, viewer)
+
+
+def _one_campaign_act(e, viewer):
+    spans, category = _tell_campaign(e)
+    return Act(
+        when=e.created,
+        actor=_actor(e, viewer),
+        spans=spans,
+        category=category,
+    )
+
+
+def _tell_campaign(e):
+    """One campaign event as a sentence, lowercase because the actor's name
+    comes first. Money is never mentioned: nothing here moves any."""
+    from n26.core.models import CampaignEvent
+
+    kinds = CampaignEvent.Kind
+    match e.kind:
+        case kinds.CREATED:
+            return (Span("set the campaign up"),), "campaign"
+        case kinds.RENAMED:
+            was, _, now = e.note.rpartition(" → ")
+            if was:
+                return (Span(f"renamed the campaign {was} to {now}"),), "campaign"
+            return (Span("renamed the campaign"),), "campaign"
+        case kinds.BUDGET_SET:
+            _, _, now = e.note.rpartition(" → ")
+            if now == "unlimited":
+                return (
+                    Span(
+                        "removed the gang budget — gangs enter at whatever they are worth"
+                    ),
+                ), "campaign"
+            if now:
+                return (Span(f"set the gang budget to {now}¢"),), "campaign"
+            return (Span("changed the gang budget"),), "campaign"
+        case kinds.SUMMARY_EDITED:
+            return (Span("edited the campaign's summary"),), "campaign"
+        case kinds.ARCHIVED:
+            return (Span("archived the campaign"),), "campaign"
+    return (Span("changed the campaign"),), "campaign"
