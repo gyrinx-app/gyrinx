@@ -295,7 +295,12 @@ must be idempotent and own its transaction (operation(gang) is);
 refusals-channel/report plumbing deliberately absent — decide in C7 if
 needed; lock contention across two live deliveries is the one path no
 test can exercise (single-connection suites can't contend) — watch the
-console during C7's first prod run.*
+console during C7's first prod run. The runner's first consumer is
+`audit_reconcile` (PR #2326): a read-only per-gang `assert_reconciled`
+walk from the console — run it in prod BEFORE C7 as the runner's
+rehearsal (duplicate-delivery contention is safely pokeable because the
+work writes nothing) and as the pre-backfill health check; any drifted
+gang it names must be understood before C7 writes anything.*
 
 **C4 — Live add-propagation.** Pending row + `on_commit` enqueue from
 `add_built_in`/`add_default_member`/ingest perform, coalesced per set.
