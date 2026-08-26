@@ -72,6 +72,8 @@ def campaigns(request):
 @login_required
 def create_campaign(request):
     """Set a campaign up. POST creates it and lands on its own page."""
+    from django.db import transaction
+
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.campaigns import campaign_operation
     from n26.core.forms import CampaignForm
@@ -80,14 +82,18 @@ def create_campaign(request):
     if request.method == "POST":
         form = CampaignForm(request.POST)
         if form.is_valid():
-            campaign = Campaign.objects.create(
-                name=form.cleaned_data["name"],
-                budget=form.cleaned_data["budget"],
-                summary=form.cleaned_data["summary"],
-                owner=request.user,
-            )
-            with campaign_operation(campaign, actor=request.user) as act:
-                act.created()
+            # The campaign and the line that opens its log are written
+            # together: a log whose first entry is missing cannot be filled
+            # in afterwards, because nothing here is ever rewritten.
+            with transaction.atomic():
+                campaign = Campaign.objects.create(
+                    name=form.cleaned_data["name"],
+                    budget=form.cleaned_data["budget"],
+                    summary=form.cleaned_data["summary"],
+                    owner=request.user,
+                )
+                with campaign_operation(campaign, actor=request.user) as act:
+                    act.created()
             record(
                 request,
                 N26Noun.CAMPAIGN,
@@ -112,17 +118,20 @@ def campaign(request, pk):
     is a campaign, not its history, and a log that grew without bound would
     push everything else off the bottom.
     """
-    from n26.core.history import campaign_history
+    from n26.core.history import campaign_history, campaign_history_size
 
     found = _own_campaign_or_404(request, pk)
-    told = campaign_history(found, viewer=request.user)
+    # Only the acts that will be drawn are built; how many more there are is
+    # counted rather than read, so a campaign played for a year costs the
+    # same to open as one set up this morning.
+    recent = campaign_history(found, viewer=request.user, limit=LOG_ON_THE_PAGE)
     return render(
         request,
         "n26/campaign.html",
         {
             "campaign": found,
-            "acts": list(reversed(told))[:LOG_ON_THE_PAGE],
-            "more_acts": max(len(told) - LOG_ON_THE_PAGE, 0),
+            "acts": list(reversed(recent)),
+            "more_acts": max(campaign_history_size(found) - len(recent), 0),
         },
     )
 

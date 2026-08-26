@@ -6,9 +6,11 @@ these are covered where the feature flag can be opened.
 
 import pytest
 from django.contrib.auth.models import User
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 
 from n26.core.campaigns import campaign_operation
-from n26.core.history import campaign_history
+from n26.core.history import campaign_history, campaign_history_size
 from n26.core.models import Campaign, CampaignEvent
 
 pytestmark = pytest.mark.django_db
@@ -30,11 +32,11 @@ def kinds_of(campaign):
     )
 
 
-def told(campaign, viewer=None):
+def told(campaign, viewer=None, limit=None):
     """Each act as one plain sentence, the way a page draws it."""
     return [
         "".join(span.text for span in act.spans)
-        for act in campaign_history(campaign, viewer=viewer)
+        for act in campaign_history(campaign, viewer=viewer, limit=limit)
     ]
 
 
@@ -75,7 +77,6 @@ class TestWhatGetsRecorded:
         (event,) = campaign.events.all()
         assert event.kind == CampaignEvent.Kind.SUMMARY_EDITED
         assert event.note == ""
-        assert "underhive" not in event.note
 
     def test_archiving_is_recorded_and_the_log_survives_it(self, campaign, arbitrator):
         with campaign_operation(campaign, actor=arbitrator) as act:
@@ -177,7 +178,7 @@ class TestHowTheLogReads:
         assert mine.actor == "You"
         assert theirs.actor == "arbitrator"
 
-    def test_every_kind_has_a_sentence_of_its_own(self, campaign, arbitrator):
+    def test_every_kind_has_a_sentence_of_its_own(self, campaign):
         """A kind added without prose would fall through to a sentence that
         says nothing. Each must say what actually happened."""
         for kind in CampaignEvent.Kind:
@@ -203,3 +204,82 @@ class TestTheLogIsOneCampaignsOwn:
             act.created()
         assert told(campaign) == []
         assert told(other) == ["set the campaign up"]
+
+
+class TestTwoArbitratorsAtOnce:
+    """What changed is measured against the row as it stands, never against
+    whatever the reader had on screen. Without that, one arbitrator's save
+    silently reverts another's, and the note names a name that had already
+    been replaced — in a log nothing can go back and correct."""
+
+    def test_a_stale_instance_is_read_back_before_anything_is_decided(
+        self, campaign, arbitrator
+    ):
+        stale = Campaign.objects.get(pk=campaign.pk)
+        Campaign.objects.filter(pk=campaign.pk).update(name="Renamed Elsewhere")
+
+        with campaign_operation(stale, actor=arbitrator) as act:
+            act.rename("Dust Falls III")
+
+        (event,) = campaign.events.all()
+        assert event.note == "Renamed Elsewhere → Dust Falls III"
+
+    def test_a_change_somebody_else_already_made_records_nothing(
+        self, campaign, arbitrator
+    ):
+        stale = Campaign.objects.get(pk=campaign.pk)
+        Campaign.objects.filter(pk=campaign.pk).update(budget=1200)
+
+        with campaign_operation(stale, actor=arbitrator) as act:
+            act.set_budget(1200)
+
+        assert kinds_of(campaign) == []
+
+    def test_archiving_a_stale_instance_keeps_the_other_change(
+        self, campaign, arbitrator
+    ):
+        """Archiving saves the whole row, so a stale one would put back every
+        field it was holding."""
+        stale = Campaign.objects.get(pk=campaign.pk)
+        Campaign.objects.filter(pk=campaign.pk).update(name="Renamed Elsewhere")
+
+        with campaign_operation(stale, actor=arbitrator) as act:
+            act.archive()
+
+        campaign.refresh_from_db()
+        assert (campaign.name, campaign.archived) == ("Renamed Elsewhere", True)
+
+
+class TestReadingOnlyPartOfTheLog:
+    def test_a_limit_takes_the_most_recent_acts(self, campaign, arbitrator):
+        for number in range(5):
+            with campaign_operation(campaign, actor=arbitrator) as act:
+                act.set_budget(1001 + number)
+
+        assert told(campaign, limit=2) == [
+            "set the gang budget to 1004¢",
+            "set the gang budget to 1005¢",
+        ]
+
+    def test_a_limit_larger_than_the_log_returns_all_of_it(self, campaign, arbitrator):
+        with campaign_operation(campaign, actor=arbitrator) as act:
+            act.created()
+        assert told(campaign, limit=10) == ["set the campaign up"]
+
+    def test_the_size_is_counted_without_building_the_acts(self, campaign, arbitrator):
+        for number in range(4):
+            with campaign_operation(campaign, actor=arbitrator) as act:
+                act.set_budget(1001 + number)
+        assert campaign_history_size(campaign) == 4
+
+    def test_a_limited_read_asks_for_one_page_of_events(self, campaign, arbitrator):
+        """The point of the limit: a campaign played for a year opens as
+        cheaply as one set up this morning."""
+        for number in range(30):
+            with campaign_operation(campaign, actor=arbitrator) as act:
+                act.set_budget(1001 + number)
+
+        with CaptureQueriesContext(connection) as queries:
+            campaign_history(campaign, limit=5)
+        (fetch,) = [q["sql"] for q in queries.captured_queries]
+        assert "LIMIT 5" in fetch

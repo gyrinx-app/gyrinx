@@ -6,15 +6,10 @@ One campaign, as its arbitrator sees it.
 The standing facts sit in <c-n26.detail-list>, the same way a gang sheet
 carries its own — each a small fact that is also something to change.
 
-The page is still short. Who is in a campaign and what it owns are not
-modelled yet, and a screen that drew empty headings for them would promise
-two features rather than describe one. Each section arrives with the work
-that fills it.
-
-The log is the exception, and it is here because there is already something
-to say: what the arbitrator has changed about the campaign. It reads newest
-first and stops after the most recent few — this is a campaign, not its
-history.
+Two sections, in the order a reader wants them: the summary says what this
+campaign is, and the log says what has been done to it since. The log reads
+newest first and stops after the most recent few, because this is a
+campaign's page rather than its history.
 {% endcomment %}
 {% block head_title %}{{ campaign.name }}{% endblock head_title %}
 {% block nav_heading %}{{ campaign.name }}{% endblock nav_heading %}
@@ -95,8 +90,9 @@ history.
             </c-n26.prose>
         {% endif %}
         {% comment %}
-        Last, after what the campaign is: the summary is the page's answer
-        to "what is this", and the log is what has happened to it since.
+        Cut to the most recent acts, with a count of what is not drawn: a
+        campaign played for a year would otherwise push its own facts off
+        the bottom of the page.
         {% endcomment %}
         <section class="flex flex-col gap-2">
             <h2 class="text-sm font-medium text-muted">Log</h2>

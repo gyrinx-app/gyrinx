@@ -10,10 +10,11 @@ The rule that keeps them apart, and keeps anything from being recorded twice:
 changes only the campaign is written here.** A campaign's log is read from
 both.
 
-Nothing here is priced and no totals are pinned, so there is no settling step
-— but the writes still run together, under the campaign's own line, so two
-people editing at once cannot each save a form built from what they read
-before the other's change landed.
+Nothing here is priced and no totals are pinned, so there is no settling
+step — but the writes still run together, under the campaign's own line, and
+the campaign is read back under that line before anything is decided. What
+changed is measured against the row as it stands, never against whatever the
+reader had on screen.
 
 Use it as a context manager::
 
@@ -27,12 +28,16 @@ from uuid import uuid4
 
 from django.db import transaction
 
-from n26.core.models import CampaignEvent
+from n26.core.models import Campaign, CampaignEvent
+
+#: What the log stores for a budget that is not set. The reader matches on it
+#: to say "no ceiling" in words, so the two must be the same string.
+NO_CEILING = "unlimited"
 
 
 def budget_word(credits):
-    """A gang budget as the log says it: a figure, or no ceiling at all."""
-    return "unlimited" if credits is None else str(credits)
+    """A gang budget as the log stores it: a figure, or no ceiling at all."""
+    return NO_CEILING if credits is None else str(credits)
 
 
 class CampaignOperation:
@@ -41,8 +46,8 @@ class CampaignOperation:
     def __init__(self, campaign, actor=None):
         self.campaign = campaign
         self.actor = actor
-        #: Every event this operation writes carries the same mark, so a
-        #: reader can tell one submit's changes from the next one's.
+        #: Every event this operation writes carries the same mark, so what
+        #: was written together stays recognisable as one submit.
         self.batch = uuid4()
 
     def event(self, kind, note=""):
@@ -127,13 +132,15 @@ class CampaignOperation:
 
 @contextmanager
 def campaign_operation(campaign, actor=None):
-    """One transaction, under the campaign's own line."""
-    from n26.core.models import Campaign
+    """One transaction, under the campaign's own line.
 
+    The line is taken first and the campaign read back under it. Whoever
+    opened the form read the row before this transaction began, and deciding
+    what changed against those values would let one arbitrator overwrite
+    another and record a note naming a name that had already been replaced.
+    """
     with transaction.atomic():
         if campaign.pk is not None:
-            # Taken before anything is read back, so two arbitrators editing
-            # at once queue rather than each saving a form built from what
-            # they saw before the other's change landed.
             Campaign.objects.select_for_update().filter(pk=campaign.pk).first()
+            campaign.refresh_from_db()
         yield CampaignOperation(campaign, actor=actor)

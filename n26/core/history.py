@@ -1,4 +1,4 @@
-"""The gang's history, told plainly.
+"""A gang's history and a campaign's, told plainly.
 
 Reads the ledger's events and turns them into something a player can
 read: one act per line, in their own words — hired, bought, renamed,
@@ -28,8 +28,9 @@ from dataclasses import dataclass, field
 
 from django.urls import reverse
 
+from n26.core.campaigns import NO_CEILING
 from n26.core.effects import kind_of
-from n26.core.models import Assignment, LedgerEvent, Reason
+from n26.core.models import Assignment, CampaignEvent, LedgerEvent, Reason
 
 Kind = LedgerEvent.Kind
 
@@ -524,7 +525,7 @@ def _tell(e, row, alive):
             return (Span("renamed "), at), whose
         case Kind.BUDGET_SET:
             _, _, now = e.note.rpartition(" → ")
-            if now == "unlimited":
+            if now == NO_CEILING:
                 return (Span("lifted the budget — the gang spends freely"),), "money"
             if now:
                 return (Span(f"set the budget to {now}"),), "money"
@@ -660,28 +661,42 @@ def _model_span(model, alive):
     return Span(str(model), reverse("n26-equip", args=[model.pk]))
 
 
-def campaign_history(campaign, viewer=None):
+def campaign_history(campaign, viewer=None, limit=None):
     """Every act in this campaign's history, oldest first.
 
     The same shape a gang's history has, so a page that can draw one can draw
-    the other. Built by reading each source on its own and merging them in
-    time order — the campaign's own acts today, and what its gangs did while
-    they were in it once a campaign can hold gangs. Merging is what keeps the
+    the other. Acts come from more than one place — the campaign's own, and
+    what the gangs in it did while they were in it — so each source is read on
+    its own and the results merged in time order. Merging is what keeps the
     log one story rather than several lists side by side.
+
+    ``limit`` keeps the most recent acts and drops the rest. Each source is
+    asked for its own newest that many, and the merge cuts again, so the
+    answer is the newest across all of them however they are spread.
     """
-    dated = list(_campaign_own_acts(campaign, viewer))
+    dated = list(_campaign_own_acts(campaign, viewer, limit))
     dated.sort(key=lambda row: row[0])
+    if limit is not None:
+        dated = dated[-limit:]
     return [act for _, act in dated]
 
 
-def _campaign_own_acts(campaign, viewer):
-    """What the arbitrator changed about the campaign itself.
+def campaign_history_size(campaign):
+    """How many acts the history holds, without building any of them."""
+    return campaign.events.count()
 
-    One act per event, as a gang's history tells its own: what shares a mark
-    happened on one submit, and a reader is served better by three plain lines
-    than by one sentence trying to hold three unrelated changes.
-    """
-    for e in campaign.events.select_related("actor").order_by("created", "id"):
+
+def _campaign_own_acts(campaign, viewer, limit=None):
+    """What the arbitrator changed about the campaign itself, one act each."""
+    events = campaign.events.select_related("actor")
+    # Newest first while the database is doing the cutting, so a limit takes
+    # the recent end; the caller sorts the merged result back into order.
+    events = (
+        events.order_by("-created", "-id")[:limit]
+        if limit is not None
+        else events.order_by("created", "id")
+    )
+    for e in events:
         yield (e.created, str(e.pk)), _one_campaign_act(e, viewer)
 
 
@@ -698,8 +713,6 @@ def _one_campaign_act(e, viewer):
 def _tell_campaign(e):
     """One campaign event as a sentence, lowercase because the actor's name
     comes first. Money is never mentioned: nothing here moves any."""
-    from n26.core.models import CampaignEvent
-
     kinds = CampaignEvent.Kind
     match e.kind:
         case kinds.CREATED:
@@ -711,7 +724,7 @@ def _tell_campaign(e):
             return (Span("renamed the campaign"),), "campaign"
         case kinds.BUDGET_SET:
             _, _, now = e.note.rpartition(" → ")
-            if now == "unlimited":
+            if now == NO_CEILING:
                 return (
                     Span(
                         "removed the gang budget — gangs enter at whatever they are worth"

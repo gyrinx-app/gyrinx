@@ -88,12 +88,14 @@ class CampaignEvent(Base):
         blank=True,
         related_name="+",
     )
-    #: What changed, where the kind alone cannot say it: "1000cr → 1200cr".
-    #: Never the summary's own words — the log is a list of acts, not a copy
-    #: of the arbitrator's prose.
+    #: What changed, where the kind alone cannot say it: "1000 → 1200" for a
+    #: budget, the two names for a rename. Figures are stored bare and given
+    #: their mark when the page is drawn. Never the summary's own words — the
+    #: log is a list of acts, not a copy of the arbitrator's prose.
     note = models.CharField(max_length=255, blank=True)
-    #: One mark per act, shared by every event that act wrote. Three fields
-    #: changed on one submit are one act, and a reader is shown them as one.
+    #: One mark per act, shared by every event that act wrote. Events sharing
+    #: a mark were written together — three fields changed on one submit — so
+    #: what was one act stays recognisable as one.
     batch = models.UUIDField(null=True, blank=True, editable=False)
 
     class Meta:
