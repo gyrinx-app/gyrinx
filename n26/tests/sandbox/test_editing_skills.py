@@ -19,6 +19,10 @@ The rules this file pins:
 * **What a rule grants is fixed.** It is drawn ticked and disabled,
   saying what grants it — there is no stored row behind it, so the
   square never offers a removal it could not do.
+* **An open starting-skill question is answered only by a tick on that
+  question's Choose list.** A Leader asking for a Primary skill is
+  settled by Catfall, not by Connected. A Secondary tick is a standing
+  selection and leaves the question open.
 * None of it is money. Selecting is free, and a gang still reconciles.
 """
 
@@ -30,13 +34,14 @@ from django.urls import reverse
 
 from n26.core.card import build_card, build_modifier_index
 from n26.core.effects import compute
-from n26.core.models import LedgerEntry
+from n26.core.models import Assignment, LedgerEntry
 from n26.core.reconcile import assert_reconciled
 from n26.core.render import build_model_card
 from n26.library.models import Power, Skill
 from n26.tests.sandbox.actions import (
     adds,
     assign,
+    choose,
     create_category,
     create_collection,
     create_power,
@@ -46,6 +51,7 @@ from n26.tests.sandbox.actions import (
     hire_with_option,
     learn,
     modifier,
+    offers_choice,
     places,
     section_of,
     targets_model,
@@ -531,7 +537,178 @@ class TestSavingTheSquare:
         assert_reconciled(gang)
 
 
-# --- The budget ------------------------------------------------------------
+# --- An open starting-skill question ---------------------------------------
+
+
+def _live_skill(miniature, skill):
+    return miniature.assignments.get(skill=skill, archived=False)
+
+
+class TestAnOpenStartingSkill:
+    """While the card still asks, a tick on that question's Choose list
+    is the starting skill. A Secondary skill is not Primary, so it does
+    not close the question."""
+
+    @pytest.fixture
+    def leader(self, tiers):
+        subtype = create_subtype("Leader")
+        modifier(
+            "A Leader starts with a Primary skill",
+            targets_model(),
+            offers_choice(Skill, from_section=tiers["primary"]),
+            carried_by=subtype,
+        )
+        return subtype
+
+    @pytest.fixture
+    def leader_yolanda(self, yolanda, leader):
+        assign(leader, miniature=yolanda)
+        return yolanda
+
+    def test_ticking_a_primary_skill_answers_the_question(
+        self, client, player, gang, leader_yolanda, library
+    ):
+        catfall = library["skills"]["Catfall"]
+        client.force_login(player)
+        post_skills(client, leader_yolanda, catfall)
+
+        card = card_for(leader_yolanda)
+        assert card.skill_choices == []
+        assert "Catfall" in held_by(leader_yolanda)
+        row = _live_skill(leader_yolanda, catfall)
+        assert row.chosen_for_offer_id is not None
+        assert row.caused_by_id is not None
+        assert_reconciled(gang)
+
+    def test_replacing_the_starting_skill_keeps_the_question_closed(
+        self, client, player, gang, leader_yolanda, library
+    ):
+        """Choose Catfall, then Edit to Dodge: the new tick is the
+        starting skill, not a second one beside a reopened prompt."""
+        catfall = library["skills"]["Catfall"]
+        dodge = library["skills"]["Dodge"]
+        choose(
+            leader_yolanda.assignments.get(subtype__name="Leader"),
+            catfall,
+        )
+        client.force_login(player)
+        post_skills(client, leader_yolanda, dodge)
+
+        card = card_for(leader_yolanda)
+        assert card.skill_choices == []
+        assert held_by(leader_yolanda) == ["Dodge"]
+        row = _live_skill(leader_yolanda, dodge)
+        assert row.chosen_for_offer_id is not None
+        assert row.caused_by_id is not None
+        assert not Assignment.objects.filter(
+            miniature_root=leader_yolanda, skill=catfall, archived=False
+        ).exists()
+        assert_reconciled(gang)
+
+    def test_a_secondary_tick_does_not_answer_the_question(
+        self, client, player, gang, leader_yolanda, library
+    ):
+        """Connected is on the edit square (Savant is Secondary) but not
+        on the Choose page for a Primary skill."""
+        connected = library["skills"]["Connected"]
+        client.force_login(player)
+        post_skills(client, leader_yolanda, connected)
+
+        card = card_for(leader_yolanda)
+        assert [line.kind_label for line in card.skill_choices] == ["Primary skill"]
+        assert held_by(leader_yolanda) == ["Connected"]
+        row = _live_skill(leader_yolanda, connected)
+        assert row.chosen_for_offer_id is None
+        assert row.caused_by_id is None
+        assert_reconciled(gang)
+
+    def test_a_primary_tick_answers_and_a_secondary_tick_is_extra(
+        self, client, player, gang, leader_yolanda, library
+    ):
+        catfall = library["skills"]["Catfall"]
+        connected = library["skills"]["Connected"]
+        client.force_login(player)
+        post_skills(client, leader_yolanda, catfall, connected)
+
+        card = card_for(leader_yolanda)
+        assert card.skill_choices == []
+        assert sorted(held_by(leader_yolanda)) == ["Catfall", "Connected"]
+        starting = _live_skill(leader_yolanda, catfall)
+        extra = _live_skill(leader_yolanda, connected)
+        assert starting.chosen_for_offer_id is not None
+        assert extra.chosen_for_offer_id is None
+        assert extra.caused_by_id is None
+        assert_reconciled(gang)
+
+    def test_clearing_the_starting_skill_reopens_the_question(
+        self, client, player, gang, leader_yolanda, library
+    ):
+        catfall = library["skills"]["Catfall"]
+        choose(
+            leader_yolanda.assignments.get(subtype__name="Leader"),
+            catfall,
+        )
+        client.force_login(player)
+        post_skills(client, leader_yolanda)
+
+        card = card_for(leader_yolanda)
+        assert [line.kind_label for line in card.skill_choices] == ["Primary skill"]
+        assert held_by(leader_yolanda) == []
+        assert_reconciled(gang)
+
+    def test_keeping_the_starting_skill_and_ticking_another_learns_the_extra(
+        self, client, player, gang, leader_yolanda, library
+    ):
+        catfall = library["skills"]["Catfall"]
+        dodge = library["skills"]["Dodge"]
+        choose(
+            leader_yolanda.assignments.get(subtype__name="Leader"),
+            catfall,
+        )
+        client.force_login(player)
+        post_skills(client, leader_yolanda, catfall, dodge)
+
+        card = card_for(leader_yolanda)
+        assert card.skill_choices == []
+        assert sorted(held_by(leader_yolanda)) == ["Catfall", "Dodge"]
+        starting = _live_skill(leader_yolanda, catfall)
+        extra = _live_skill(leader_yolanda, dodge)
+        assert starting.chosen_for_offer_id is not None
+        assert extra.chosen_for_offer_id is None
+        assert extra.caused_by_id is None
+        assert_reconciled(gang)
+
+    def test_one_new_matching_skill_answers_and_further_ticks_are_ordinary(
+        self, client, player, gang, leader_yolanda, library
+    ):
+        catfall = library["skills"]["Catfall"]
+        dodge = library["skills"]["Dodge"]
+        client.force_login(player)
+        post_skills(client, leader_yolanda, catfall, dodge)
+
+        card = card_for(leader_yolanda)
+        assert card.skill_choices == []
+        rows = [
+            _live_skill(leader_yolanda, catfall),
+            _live_skill(leader_yolanda, dodge),
+        ]
+        picks = [row for row in rows if row.chosen_for_offer_id is not None]
+        extras = [row for row in rows if row.chosen_for_offer_id is None]
+        assert len(picks) == 1
+        assert len(extras) == 1
+        assert extras[0].caused_by_id is None
+        assert_reconciled(gang)
+
+    def test_the_edit_page_stops_asking_once_a_primary_skill_is_ticked(
+        self, client, player, leader_yolanda, library
+    ):
+        client.force_login(player)
+        page = post_skills(
+            client, leader_yolanda, library["skills"]["Catfall"], follow=True
+        ).content.decode()
+
+        assert "Choose primary skill" not in page
+        assert "Catfall" in held_by(leader_yolanda)
 
 
 class TestTheQueryBudget:
@@ -569,3 +746,179 @@ class TestTheQueryBudget:
 
         assert few == many, f"{few} queries knowing 2, {many} knowing 8"
         assert_reconciled(gang)
+
+
+def _gang_url(gang):
+    return reverse("n26-gang", args=[gang.pk])
+
+
+def _skills_url(miniature):
+    return reverse("n26-learn", args=[miniature.pk])
+
+
+def _learn_views():
+    """The learn *module* — ``n26.core.views.learn`` is the view function
+    on the package, which shadows the submodule for a normal import."""
+    import importlib
+
+    return importlib.import_module("n26.core.views.learn")
+
+
+class TestAnsweringDoesNotTouchTheReadPath:
+    """The Choose-list match is a write. Drawing the sheet, the edit
+    page or the skills screen must not browse that list to decide what
+    to show."""
+
+    @pytest.fixture
+    def leader(self, tiers):
+        subtype = create_subtype("Leader")
+        modifier(
+            "A Leader starts with a Primary skill",
+            targets_model(),
+            offers_choice(Skill, from_section=tiers["primary"]),
+            carried_by=subtype,
+        )
+        return subtype
+
+    @pytest.fixture
+    def leader_yolanda(self, yolanda, leader):
+        assign(leader, miniature=yolanda)
+        return yolanda
+
+    def test_reading_the_edit_page_does_not_build_the_choose_list(
+        self, client, player, leader_yolanda, monkeypatch
+    ):
+        learn_views = _learn_views()
+
+        calls = []
+        monkeypatch.setattr(
+            learn_views,
+            "_offered_keys",
+            lambda *args, **kwargs: calls.append(1) or frozenset(),
+        )
+        client.force_login(player)
+        assert client.get(edit_url(leader_yolanda)).status_code == 200
+        assert calls == []
+
+    def test_reading_the_gang_sheet_does_not_build_the_choose_list(
+        self, client, player, leader_yolanda, monkeypatch
+    ):
+        learn_views = _learn_views()
+
+        calls = []
+        monkeypatch.setattr(
+            learn_views,
+            "_offered_keys",
+            lambda *args, **kwargs: calls.append(1) or frozenset(),
+        )
+        client.force_login(player)
+        assert client.get(_gang_url(leader_yolanda.gang)).status_code == 200
+        assert calls == []
+
+    def test_reading_the_skills_screen_does_not_build_the_choose_list(
+        self, client, player, leader_yolanda, monkeypatch
+    ):
+        learn_views = _learn_views()
+
+        calls = []
+        monkeypatch.setattr(
+            learn_views,
+            "_offered_keys",
+            lambda *args, **kwargs: calls.append(1) or frozenset(),
+        )
+        client.force_login(player)
+        assert client.get(_skills_url(leader_yolanda)).status_code == 200
+        assert calls == []
+
+    def test_saving_a_tick_builds_the_choose_list_once(
+        self, client, player, leader_yolanda, library, monkeypatch
+    ):
+        learn_views = _learn_views()
+
+        real = learn_views._offered_keys
+        calls = []
+
+        def counted(*args, **kwargs):
+            result = real(*args, **kwargs)
+            calls.append(result)
+            return result
+
+        monkeypatch.setattr(learn_views, "_offered_keys", counted)
+        client.force_login(player)
+        post_skills(client, leader_yolanda, library["skills"]["Catfall"])
+        assert len(calls) == 1
+
+    def test_the_choose_list_lookup_does_not_grow_with_skills_already_held(
+        self, client, player, leader_yolanda, sets, library, monkeypatch
+    ):
+        """One browse of the offer, not one query per skill on the card."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        learn_views = _learn_views()
+
+        real = learn_views._offered_keys
+        counts = []
+
+        def wrapped(*args, **kwargs):
+            with CaptureQueriesContext(connection) as captured:
+                result = real(*args, **kwargs)
+            counts.append(len(captured.captured_queries))
+            return result
+
+        monkeypatch.setattr(learn_views, "_offered_keys", wrapped)
+        extras = [
+            create_skill(f"Trick {index}", category=sets["agility"], position=index)
+            for index in range(10, 18)
+        ]
+        client.force_login(player)
+
+        post_skills(client, leader_yolanda, library["skills"]["Connected"])
+        few = counts[-1]
+        counts.clear()
+
+        post_skills(
+            client,
+            leader_yolanda,
+            library["skills"]["Connected"],
+            *extras,
+        )
+        many = counts[-1]
+
+        assert few == many, f"{few} queries holding 1, {many} holding 9"
+        assert few > 0
+
+    def test_the_gang_sheet_stays_flat_as_leaders_accumulate(
+        self, client, player, gang, gang_sister, leader, monkeypatch
+    ):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        learn_views = _learn_views()
+
+        calls = []
+        monkeypatch.setattr(
+            learn_views,
+            "_offered_keys",
+            lambda *args, **kwargs: calls.append(1) or frozenset(),
+        )
+        client.force_login(player)
+
+        first = hire_with_option(gang, gang_sister, "Leader 0")
+        assign(leader, miniature=first)
+
+        def measure():
+            with CaptureQueriesContext(connection) as captured:
+                response = client.get(_gang_url(gang))
+                assert response.status_code == 200
+            return len(captured.captured_queries)
+
+        measure()
+        few = measure()
+        for index in range(1, 5):
+            fighter = hire_with_option(gang, gang_sister, f"Leader {index}")
+            assign(leader, miniature=fighter)
+        many = measure()
+
+        assert calls == []
+        assert few == many, f"{few} queries for 1 Leader, {many} for 5"

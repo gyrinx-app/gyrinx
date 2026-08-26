@@ -23,9 +23,16 @@ than the gap: it is theirs whether or not anybody has graded them, so
 the switcher on the next fighter's screen can offer it without knowing
 which of them have a grid.
 
-What clicking writes is ``Operation.learn``: free, recorded, and caused
-by nothing, so what a fighter earned survives the assignment that opened
-the set up to them.
+What clicking writes is usually ``Operation.learn``: free, recorded, and
+caused by nothing, so what a fighter earned survives the assignment that
+opened the set up to them.
+
+If the card is still asking for a starting skill, and the thing selected
+is on that question's Choose list, the click is that answer — written the
+way Choose writes it. A Secondary skill is not a Primary skill, so it
+stays a standing selection and the question stays open. Otherwise the
+card would keep asking beside a skill the owner just picked from the
+list, and a later Choose would hand out a second starting skill.
 
 The same listing is offered a second way, as a box to tick on the
 fighter's own edit page (``ticked_offer`` and ``apply_ticks``). One
@@ -153,6 +160,85 @@ def ticked_offer(card, computed):
     return ChoiceOffer(label="", groups=groups)
 
 
+def _offered_keys(slot, computed):
+    """What the Choose page lists for this question, keyed as the tick
+    list keys its options.
+
+    That list is the match: a Secondary skill is not a Primary skill,
+    even though both are skills and both appear on the edit page.
+    """
+    from n26.core.browse import offered_by
+
+    listed = offered_by(slot, computed)
+    if listed is None:
+        return frozenset()
+    if hasattr(listed, "all_lines"):
+        things = (line.thing for line in listed.all_lines())
+    else:
+        things = (getattr(item, "thing", item) for item in listed)
+    return frozenset(_key(thing) for thing in things if thing is not None)
+
+
+def _open_questions(computed):
+    """Founding questions this card still asks, with what Choose lists
+    for each.
+
+    A slot of pickables is not one of these: this surface never writes
+    those. Only a modifier's offer is — the Leader's starting skill, a
+    Haunt's first power.
+    """
+    return [
+        slot
+        for slot in computed.choices
+        if not slot.is_resolved and slot.offer is not None
+    ]
+
+
+def _answered_by(computed):
+    """Which held thing currently answers which founding question."""
+    found = {}
+    for slot in computed.choices:
+        if slot.offer is None:
+            continue
+        for pick in slot.picks:
+            if pick.assignment is None:
+                continue
+            found[_key(pick.assignable)] = slot
+    return found
+
+
+def _question_for(thing, questions, lists):
+    """The first open question whose Choose list names this thing."""
+    key = _key(thing)
+    for slot in questions:
+        if key in lists[id(slot)]:
+            return slot
+    return None
+
+
+def _answer_with(op, miniature, thing, questions, lists):
+    """Write ``thing`` as the answer to an open founding question if it
+    is on that question's Choose list, otherwise as a standing selection.
+
+    A tick on the edit page and a click on the skills screen are the
+    same write. Selecting a second skill, or a skill the Choose page
+    would not have listed, stays a standing selection — caused by
+    nothing, surviving a profile swap — because it is not the starting
+    pick.
+    """
+    slot = _question_for(thing, questions, lists)
+    if slot is None:
+        return op.learn(miniature, thing)
+    anchor = getattr(slot.anchor, "assignment", None)
+    if anchor is None:
+        return op.learn(miniature, thing)
+    questions.remove(slot)
+    host = {}
+    if getattr(slot.anchor, "broadcast", False):
+        host["miniature"] = miniature
+    return op.choose(anchor, thing, offer=slot.offer, **host)
+
+
 def apply_ticks(op, miniature, card, computed, ticked):
     """Make what a model holds match what was ticked, and say what moved.
 
@@ -163,16 +249,25 @@ def apply_ticks(op, miniature, card, computed, ticked):
     not being offered and so cannot have been cleared.
 
     A newly ticked thing is selected — free, and caused by nothing, the
-    same write the skills screen makes — and a cleared one is removed the
-    way anything is taken off a card: archived, with the ledger still
-    saying it was there. Granted things are on neither side of the
-    difference, because a fixed box submits nothing and reading its
-    silence as a clearing would take away the assignment of anything a
-    modifier also grants.
+    same write the skills screen makes — unless the card is still asking
+    for a starting skill and this thing is on that question's Choose
+    list. Then the tick is that answer, written the way Choose writes
+    it, so the question leaves the card rather than sitting beside the
+    skill as if nobody had picked. A Secondary skill cannot answer
+    "Primary skill". Clearing the skill that answered a question opens
+    it again; a replacement ticked in the same save answers it afresh
+    if it is on the list.
+
+    Granted things are on neither side of the difference, because a
+    fixed box submits nothing and reading its silence as a clearing
+    would take away the assignment of anything a modifier also grants.
     """
     offer = ticked_offer(card, computed)
     rows = _rows_on(card)
     granted = _grants_on(computed)
+    questions = _open_questions(computed)
+    lists = {id(slot): _offered_keys(slot, computed) for slot in questions}
+    answered = _answered_by(computed)
 
     # One entry per thing: two collections may both list a skill, and a
     # second sighting of a ticked one must not select it twice.
@@ -181,17 +276,26 @@ def apply_ticks(op, miniature, card, computed, ticked):
         for option in group.options:
             options.setdefault(option.key, option)
 
+    # Removals first: clearing the skill that answered a question opens
+    # it again, so a replacement ticked in the same save can answer it
+    # rather than land as a second starting skill beside a fresh Choose.
     learned, cleared = [], []
+    for key, option in options.items():
+        if key in granted or key in ticked or key not in rows:
+            continue
+        op.remove(rows[key])
+        cleared.append(option.name)
+        slot = answered.get(key)
+        if slot is not None and slot not in questions:
+            questions.append(slot)
+            lists.setdefault(id(slot), _offered_keys(slot, computed))
+
     for key, option in options.items():
         if key in granted:
             continue
-        if key in ticked:
-            if key not in rows:
-                op.learn(miniature, option.thing)
-                learned.append(option.name)
-        elif key in rows:
-            op.remove(rows[key])
-            cleared.append(option.name)
+        if key in ticked and key not in rows:
+            _answer_with(op, miniature, option.thing, questions, lists)
+            learned.append(option.name)
     return learned, cleared
 
 
@@ -353,7 +457,9 @@ def learn(request, pk):
             return redirect(here)
         try:
             with operation(gang, actor=request.user) as op:
-                learned = op.learn(miniature, picked.thing)
+                questions = _open_questions(computed)
+                lists = {id(slot): _offered_keys(slot, computed) for slot in questions}
+                learned = _answer_with(op, miniature, picked.thing, questions, lists)
         except Refusal as refusal:
             messages.error(request, str(refusal))
             return redirect(here)
