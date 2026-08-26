@@ -322,9 +322,12 @@ def run_batched(
     held, stand down, and leave the record RUNNING with no delivery
     left to finish it.
 
-    Never raises, for ``_run_recorded``'s reason: a raised error is
-    only redelivered, and there is nowhere for it to go but round
-    again.
+    The work never raises, for ``_run_recorded``'s reason: a raised
+    error is only redelivered, and there is nowhere for it to go but
+    round again. The hand-back is the one deliberate exception: an
+    enqueue that fails is allowed to raise, because the failed delivery
+    is then redelivered and the retry re-summons the continuation —
+    swallowing it would leave no delivery to finish the run.
     """
     continued = False
     with _single_flight(LOCK_KEYS[operation]) as mine:
@@ -401,6 +404,15 @@ def _work_through(backfill_id, what, items, do_one, batch_size, budget):
             )
 
     while True:
+        # Checked before the batch as well as written after it, so a
+        # cancel landing between batches stops the very next one rather
+        # than one batch later. One cheap read per batch.
+        still_running = Backfill.objects.filter(
+            pk=backfill_id, status=Backfill.Status.RUNNING
+        ).exists()
+        if not still_running:
+            stopped()
+            return False
         narrowed = items.filter(pk__gt=cursor) if cursor else items
         batch = list(narrowed.values_list("pk", flat=True)[:batch_size])
         if not batch:

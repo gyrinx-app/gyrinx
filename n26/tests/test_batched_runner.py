@@ -205,6 +205,23 @@ class TestCancel:
         assert record.status == Backfill.Status.CANCELLED
         assert len(seen) == 20
 
+    def test_a_cancel_while_handed_back_stops_the_next_delivery_at_the_claim(
+        self, record, rows
+    ):
+        """A run waiting between deliveries has nothing running to
+        interrupt; the cancel lands on the record, and the summoned
+        delivery finds it ended and settles nothing more."""
+        seen = []
+        run(record, rows, seen.append, budget=timedelta(0))
+        assert len(seen) == 10
+
+        Backfill.objects.filter(pk=record.pk).update(status=Backfill.Status.CANCELLED)
+        run(record, rows, seen.append, budget=timedelta(0))
+
+        record.refresh_from_db()
+        assert record.status == Backfill.Status.CANCELLED
+        assert len(seen) == 10
+
 
 class TestTheAttemptCount:
     """``_claim`` serves both run shapes: every recorded batch resets
