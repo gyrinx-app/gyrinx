@@ -1,37 +1,32 @@
-"""Propagation — a set change reaches everything already holding it.
+"""Built-in propagation — a built-in set change reaches everything
+already holding the set, asynchronously.
 
-An author adds a member to a set of defaults. New acquisitions come
-with it from that moment; this module is how everything acquired
-*before* the change catches up, within seconds of the commit, without
-the author doing anything.
+New acquisitions bring the change from the moment it commits; this
+module is how everything acquired before it catches up, within
+seconds, without the author doing anything.
 
-The shape is file-then-run. The authoring verb files a durable
-:class:`~n26.core.models.BuiltInPropagationTask` in its own transaction
-— a rolled-back edit files nothing — and publishes a task message after
-commit. The pass claims the row and reconciles every gang holding the
-set, one :func:`~n26.core.operations.operation` per gang, through the
-same :meth:`~n26.core.operations.Operation.reconcile_defaults` every
-acquisition uses. Because reconcile creates only what provenance says
-is missing, a pass is idempotent: run twice it grants nothing twice,
-which is what makes at-least-once delivery safe underneath.
+The authoring verb creates a
+:class:`~n26.core.models.BuiltInPropagationTask` in its own
+transaction and publishes a task message after commit. The task claims
+the row — the PENDING → RUNNING transition, validated under the row's
+lock, so of two deliveries one wins and the other stands down — and
+reconciles every gang holding the set, one
+:func:`~n26.core.operations.operation` per gang, through the same
+:meth:`~n26.core.operations.Operation.reconcile_defaults` every
+acquisition uses. That creates only what provenance says is missing,
+so a run is idempotent and at-least-once delivery is safe.
 
-Filing is append-only: every edit inserts its own row, never attaching
-to one already standing. Sharing a standing PENDING row would race — a
-pass can claim that row and read the library before the edit that
-found it commits, missing the change, while the edit's own publish
-stands down at the claim: the change is silently never applied. A row
-of its own per edit closes that, because a row's message publishes
-only after its own edit commits, so the pass that claims it always
-reads a library that includes the change that filed it. The redundant
-passes this buys are no-ops.
+Every edit creates its own row; a standing row is never reused. A
+shared row can be claimed, and the library read, before the edit that
+found it commits — the change would silently never be applied. A
+fresh row's message publishes only after its own edit commits, so the
+run that claims it always sees the change; the redundant runs this
+buys are no-ops.
 
-The claim itself is the row's PENDING → RUNNING transition, validated
-under the row's own lock — of two concurrent deliveries one wins and
-the other stands down silently, a routine outcome. Publishing is
-fire-and-forget and can lose a message, so a scheduled sweep
-re-publishes rows left PENDING, declares a pass whose worker died
-lost, and files a fresh row after a failure. Retry is always a fresh
-row: the graph is strictly forward, and an ended row is a record.
+Publishing can lose a message, so a scheduled sweep re-publishes rows
+left PENDING, marks a run whose worker died FAILED, and creates a
+fresh row after a failure — the graph is strictly forward, and an
+ended row is a record.
 """
 
 import logging

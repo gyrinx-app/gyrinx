@@ -28,6 +28,7 @@ see CLAUDE.md.
 import re
 
 from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.db.models import Max
 
 from n26.library.models import (
@@ -1044,6 +1045,9 @@ def _refuse_a_bare_pickable(thing):
         )
 
 
+# Atomic so the member and its propagation filing commit or roll back
+# together, whatever transaction the caller does or does not hold.
+@transaction.atomic
 def add_default_member(
     default_set,
     thing,

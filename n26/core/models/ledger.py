@@ -104,11 +104,8 @@ class LedgerEvent(Base):
         PURCHASED = "purchased", "Purchased"
         ADDED = "added", "Added"
         GRANTED = "granted", "Granted"
-        # A built-in that arrived after the fact: an author added it to
-        # what the thing comes with, and a background pass granted it to
-        # everything already holding the thing. Its own kind, because a
-        # reader asking "why did this appear on my card?" is owed the
-        # answer, and the plain ``granted`` cannot give it.
+        # Granted by built-in propagation (``n26.core.propagation``).
+        # Its own kind so the history can say why the item appeared.
         CAUGHT_UP = "caught_up", "Caught up"
         MOVED = "moved", "Moved"
         TALLIED = "tallied", "Tallied"

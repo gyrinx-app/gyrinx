@@ -1,26 +1,10 @@
-"""The propagation a set change files against everything already holding it.
+"""Records a change to a built-in set and tracks its async propagation.
 
-An author adds a member to a set of defaults; every carrier already
-drawing from that set should gain a copy. The write that files this
-work and the pass that applies it are separated by a message queue
-whose publish can be lost, so the work is a durable row filed in the
-author's own transaction: however the message fares, the row says what
-is not yet applied, and a scheduled sweep re-publishes anything left
-standing (:mod:`n26.core.propagation`).
-
-One row is one pass, single-shot and strictly forward: PENDING →
-RUNNING → DONE or FAILED, no backward edges. Filing is append-only —
-every edit inserts its own row, and rows are never shared or reused.
-Reuse would race: a second edit attaching to a standing PENDING row can
-find that row claimed, and its library read, before the edit commits —
-the pass misses the change, the edit's own publish stands down at the
-claim, and the change is silently never applied. A fresh row per edit
-closes that for good, because a row's message publishes only after its
-own edit commits, so the pass that claims it always reads a library
-that includes the change that filed it. A redundant pass is a no-op by
-the reconcile's idempotency. An ended row is never revived — a retry is
-a fresh row — which leaves the table an append-only record of every
-filing and how it ended.
+One row per edit, created in the edit's own transaction. Strictly
+forward: PENDING → RUNNING → DONE or FAILED; a retry is a fresh row,
+so the table is a permanent record of every run and how it ended.
+Rows are never shared or reused — why, and how the runs work, is
+:mod:`n26.core.propagation`'s story.
 """
 
 from django.db import models
