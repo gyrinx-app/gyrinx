@@ -227,6 +227,11 @@ thing twice, a line apart.
                                 {% for paragraph in section.part_help %}<p>{{ paragraph }}</p>{% endfor %}
                             </c-n26.prose>
                         {% endif %}
+                        {% if section.reach_said %}
+                            <c-ui.description>
+                                {{ section.reach_said }}
+                            </c-ui.description>
+                        {% endif %}
                         <form method="post"
                               {% if section.form.is_multipart %}enctype="multipart/form-data"{% endif %}
                               class="max-w-xl space-y-5">

@@ -32,14 +32,21 @@ The running side sits behind a feature flag; the filing does not.
 Shut loses no work: every edit still files its row, deliveries stand
 down leaving it PENDING, and the sweep — which stands down too —
 drains the whole backlog when the flag opens.
+
+The same carrier resolution also answers, without writing anything,
+how far a change would travel (:func:`reach_of` and its siblings) —
+what the authoring and ingest previews say before an author commits.
+The preview is informative only: the pass recomputes against the
+library as it stands when it runs.
 """
 
 import logging
 import traceback
+from dataclasses import dataclass
 from datetime import timedelta
 
 from django.db import transaction
-from django.db.models import OuterRef, Subquery
+from django.db.models import Count, OuterRef, Q, Subquery
 from django.tasks import task
 from django.utils import timezone
 
@@ -138,8 +145,8 @@ def _finish(propagation, status, metadata):
         )
 
 
-def _holders(default_set):
-    """The library things whose built-ins are this set."""
+def _holders(default_sets):
+    """The library things whose built-ins are one of these sets."""
     from django.apps import apps
 
     from n26.library.models.assignable import Assignable
@@ -147,34 +154,79 @@ def _holders(default_set):
     found = []
     for model in apps.get_app_config("library").get_models():
         if issubclass(model, Assignable):
-            found.extend(model.objects.filter(built_ins=default_set))
+            found.extend(model.objects.filter(built_ins__in=default_sets))
     return found
 
 
-def _carrier_ids(default_set):
+def _carriers_of(default_sets):
     """The assignments owed a pass: every use of a holder, and every
-    carrier that chose the set as an option. A removal is machinery,
-    not a use; an archived carrier is settled history."""
-    ids = set()
+    carrier that chose one of the sets as an option. A removal is
+    machinery, not a use; an archived carrier is settled history.
+
+    This one queryset is what the pass reconciles and what the reach
+    counts count, so the two can never come to disagree.
+    """
+    holds = Q(chosen_options__default_set__in=default_sets)
     by_field = {}
-    for holder in _holders(default_set):
+    for holder in _holders(default_sets):
         by_field.setdefault(Assignment.field_for(holder), []).append(holder)
     for field, holders in by_field.items():
-        ids.update(
-            Assignment.objects.filter(
-                archived=False,
-                removes=False,
-                **{f"{field}__in": holders},
-            ).values_list("pk", flat=True)
-        )
-    ids.update(
+        holds |= Q(**{f"{field}__in": holders})
+    return Assignment.objects.filter(holds, archived=False, removes=False).distinct()
+
+
+def _carrier_ids(default_set):
+    return set(_carriers_of([default_set]).values_list("pk", flat=True))
+
+
+@dataclass(frozen=True)
+class Reach:
+    """How far a change to a set's members travels: the live uses that
+    a pass would visit, and the gangs they sit in."""
+
+    uses: int
+    gangs: int
+
+
+def reach_of(default_set):
+    """The reach of a member added to this set, counted without writing
+    anything. A member being added does not exist yet, so the reach is
+    simply every current use of the set — holders' uses and option
+    selectors alike, outside archived gangs, exactly the carriers a
+    pass then visits."""
+    return _reach(_carriers_of([default_set]))
+
+
+def reach_of_all(default_sets):
+    """The combined reach of several sets, each use counted once even
+    where one carrier holds more than one of them."""
+    sets = list(default_sets)
+    if not sets:
+        return Reach(uses=0, gangs=0)
+    return _reach(_carriers_of(sets))
+
+
+def reach_of_new_built_ins(holder):
+    """The reach of the built-ins set a first built-in would found on
+    this thing. No set exists yet, so its only uses are the thing's
+    own."""
+    return _reach(
         Assignment.objects.filter(
-            chosen_options__default_set=default_set,
             archived=False,
             removes=False,
-        ).values_list("pk", flat=True)
+            **{Assignment.field_for(holder): holder},
+        )
     )
-    return ids
+
+
+def _reach(carriers):
+    # An archived gang is skipped by the pass, so its uses are outside
+    # the reach; a carrier belonging to no gang likewise.
+    counted = carriers.filter(gang_root__archived=False).aggregate(
+        uses=Count("pk", distinct=True),
+        gangs=Count("gang_root", distinct=True),
+    )
+    return Reach(**counted)
 
 
 def _reconcile_holders(default_set):
