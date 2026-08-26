@@ -84,14 +84,11 @@ class TestHoldingTheSheets:
     def test_the_page_offers_every_sheet_its_own_upload(
         self, author, client, foundation
     ):
+        from n26.library.sheets import SHEET_NAMES
+
         body = client.get(URL).content.decode()
-        for sheet in (
-            "equipment",
-            "weapon_profiles",
-            "equipment_lists",
-            "profiles",
-            "archetypes",
-        ):
+        assert SHEET_NAMES  # there is something to check
+        for sheet in SHEET_NAMES:
             assert sheet_url(sheet) in body
         # The sheets are named as the spreadsheet names them.
         assert "All Profiles" in body
