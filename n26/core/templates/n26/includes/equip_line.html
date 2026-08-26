@@ -28,6 +28,7 @@ every input in the list on the same column however many rows have one.
                               :notes="row.notes"
                               :disclosure="False"
                               row_key="{{ row.key }}"
+                              :redrawn="redrawn"
                               state="quoted: {{ row.price }}, price: {{ row.price }}">
     <c-slot name="price_control">
         {% include "n26/includes/equip_price.html" with field=row.price_field quoted=row.price label=row.name %}

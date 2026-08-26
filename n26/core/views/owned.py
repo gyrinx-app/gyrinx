@@ -471,7 +471,7 @@ def _back_to(request, assignment, gang):
         base = reverse("n26-gang", args=[gang.pk])
     where = {
         key: value
-        for key in ("list", "section")
+        for key in ("list", "section", "owned")
         if (value := request.POST.get(key, ""))
     }
     return with_query(base, **where) if where else base
@@ -507,7 +507,20 @@ def _row_behind(assignment):
 
 
 def _expanded_behind(request):
-    """Which row the screen had open, as the address it came from says."""
+    """Which row the screen had open when the act was asked for.
+
+    The click carries it, because a row is opened in the hand and the
+    address is what says so. The address the click came from is the
+    fallback: a form drawn before the reader opened anything still names
+    where they were, and without script that address is all there is.
+
+    A row redrawn without it comes back shut, which closes the row the
+    reader was working in — the copies they were looking at vanish under
+    the act they just asked for.
+    """
+    named = request.POST.get("owned", "")
+    if named:
+        return named[:200]
     came_from = urlparse(request.POST.get("return", ""))
     return parse_qs(came_from.query).get("owned", [""])[0][:200]
 

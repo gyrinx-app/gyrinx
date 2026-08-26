@@ -38,6 +38,9 @@ everything else is shrink-0, so the actions stay put and stay hittable.
   row_key — what this row is a row for, in the caller's own words. Counted
     under it, and findable by it, so a row redrawn in place replaces itself
     rather than arriving as a second row. A listing draws one row per key.
+  :redrawn — this row was drawn on its own, to stand in for the one of its
+    name already on a page nobody is rebuilding. It needs a row_key to stand
+    in for anything.
   state — extra Alpine state merged into this row's scope, as object-literal
     properties. The row's slots render inside it, so this is how price_control
     and the rows slot share anything; an x-data inside a slot would put them in
@@ -56,6 +59,7 @@ everything else is shrink-0, so the actions stay put and stay hittable.
     price_control=""
     state=""
     row_key=""
+    :redrawn="False"
     class=""
 />
 

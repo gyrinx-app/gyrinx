@@ -19,6 +19,7 @@ held, the count stands where Buy would be and opens the row onto what they have.
                                   :disclosure="False"
                                   :open="row.expanded"
                                   row_key="{{ row.key }}"
+                                  :redrawn="redrawn"
                                   state="quoted: {{ row.buy.price }}, price: {{ row.buy.price }}">
         <c-slot name="price_control">
             <span aria-hidden="true"></span>
@@ -79,6 +80,7 @@ held, the count stands where Buy would be and opens the row onto what they have.
                                   :disclosure="False"
                                   :open="row.expanded"
                                   row_key="{{ row.key }}"
+                                  :redrawn="redrawn"
                                   state="quoted: 0, price: 0">
         <c-slot name="price_control">
             <span aria-hidden="true"></span>

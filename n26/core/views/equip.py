@@ -403,7 +403,7 @@ def screen_row(
     return row, host.held_label, host
 
 
-def changed(request, gang, key, row, held_label="", host=None, *, closed=False):
+def changed(request, gang, key, row, held_label, host, *, closed=False):
     """What an act on an equip screen sends back.
 
     The row it changed and the gang's own figures, each naming the place
@@ -435,7 +435,10 @@ def changed(request, gang, key, row, held_label="", host=None, *, closed=False):
             "summary": summarise_roster(gang_roster(gang)),
             "held_label": held_label,
             "closed": closed,
-            "accessorise": accessorise_dialogs(request, host) if host else [],
+            # Required, not optional: the answer always stands in for the
+            # whole set of accessory questions, so a caller with no host to
+            # read them from would quietly take every panel off the page.
+            "accessorise": accessorise_dialogs(request, host),
         },
     )
 

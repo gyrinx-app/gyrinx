@@ -2197,6 +2197,27 @@ class TestSellingWithoutRebuildingThePage:
         assert said[0]["variant"] == "success"
         assert "Sold Autogun" in said[0]["message"]
 
+    def test_the_row_comes_back_open_where_it_was_open(
+        self, client, tester, fighter, gun_list, gang, tester_kit=None
+    ):
+        """A row is opened in the hand, so the click is what says it was
+        open. Redrawn without that, it comes back shut — and the copies the
+        reader was working in vanish under the act they just asked for."""
+        from n26.library.models import Weapon
+
+        autogun = Weapon.objects.get(name="Autogun")
+        with operation(gang, actor=tester) as op:
+            first = op.buy(fighter, thing=autogun, paid=20)
+            op.buy(fighter, thing=autogun, paid=20)
+
+        client.force_login(tester)
+        body = self.sold(
+            client, fighter, gun_list, first, owned=key_of(autogun)
+        ).content.decode()
+
+        # One copy left, and the row still standing open on it.
+        assert 'aria-expanded="true"' in body
+
     def test_a_plain_sale_still_answers_with_the_whole_page(
         self, client, tester, fighter, gun_list, owned_gun
     ):

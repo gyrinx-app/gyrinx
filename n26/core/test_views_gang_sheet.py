@@ -422,3 +422,21 @@ class TestStashActions:
             reverse("n26-gang", args=[gang.pk]) + f"?reassign={hidden.pk}"
         )
         assert response.context["dialog"] is None
+
+    def test_a_confirmation_here_asks_for_the_whole_page(
+        self, client, tester, gang, kit
+    ):
+        """Answering an act with the parts of a screen that changed only
+        works on a screen built to receive them: what comes back names the
+        places it stands in for, and this page has none of them. Told to act
+        in place, it would take the act and show nothing for it, leaving the
+        panel standing and the address somewhere else entirely."""
+        _, bolted = kit
+
+        client.force_login(tester)
+        body = client.get(
+            reverse("n26-gang", args=[gang.pk]) + f"?sell={bolted.pk}"
+        ).content.decode()
+
+        assert "Sell Telescopic sight?" in body
+        assert "hx-post" not in body

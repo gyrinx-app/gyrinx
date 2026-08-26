@@ -23,7 +23,7 @@ sell is managed from the In stash tab.
     {% endcomment %}
     <div id="n26-dialog-host">
         {% if dialog %}
-            <c-n26.owned-dialog :dialog="dialog">
+            <c-n26.owned-dialog :dialog="dialog" :acts_in_place="True">
                 {% csrf_token %}
             </c-n26.owned-dialog>
         {% endif %}

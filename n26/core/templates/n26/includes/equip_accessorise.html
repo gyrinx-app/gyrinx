@@ -11,6 +11,7 @@ server exactly as before.
 {% for panel in accessorise %}
     <c-n26.owned-dialog :dialog="panel"
                         :open="panel.open"
+                        :acts_in_place="True"
                         id="n26-accessorise-{{ panel.id }}">
         {% csrf_token %}
     </c-n26.owned-dialog>
