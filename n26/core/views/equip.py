@@ -221,7 +221,7 @@ def _overspend(request, gang, line, asked, back):
         lead=f"{line.name} — {asked} Trade Point{pluralize(asked)}.",
         heading="You don't have enough TP for this purchase",
         body=(
-            f"{line.name} costs {asked} Trade Point{pluralize(asked)}, and "
+            f"{line.name} uses {asked} Trade Point{pluralize(asked)}, and "
             f"{gang.name} has {left}."
         ),
         aside=Aside(

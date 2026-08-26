@@ -447,11 +447,11 @@ class TestTheReceipt:
         client.force_login(tester)
 
     def test_it_is_drawn_only_while_an_action_is_open(self, client, roster, gang):
-        assert "Action complete" not in client.get(page(gang)).content.decode()
+        assert "Complete action" not in client.get(page(gang)).content.decode()
 
         start(client, gang, roster["Vex"])
 
-        assert "Action complete" in client.get(page(gang)).content.decode()
+        assert "Complete action" in client.get(page(gang)).content.decode()
 
     def test_it_names_the_ranks_that_brought_the_figure(self, client, roster, gang):
         start(client, gang, roster["Vex"], roster["Sura"])
