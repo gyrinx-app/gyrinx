@@ -297,10 +297,15 @@ needed; lock contention across two live deliveries is the one path no
 test can exercise (single-connection suites can't contend) — watch the
 console during C7's first prod run. The runner's first consumer is
 `audit_reconcile` (PR #2326): a read-only per-gang `assert_reconciled`
-walk from the console — run it in prod BEFORE C7 as the runner's
-rehearsal (duplicate-delivery contention is safely pokeable because the
-work writes nothing) and as the pre-backfill health check; any drifted
-gang it names must be understood before C7 writes anything.*
+walk from the console. RUN in prod 2026-08-26: the runner is proven
+live end to end (1,683 gangs in ~20 minutes over several deliveries; a
+natural Pub/Sub duplicate hit the held lock and stood down — the one
+untestable path, executed; the console guard bounced a second click;
+three gangs founded mid-run were swept by the cursor). It found 2
+drifted gangs — entries pinned 0 whose events fold negative, a removal
+leg without its acquisition leg, on a LIVE path — filed as issue #2330.
+**C7 is gated on #2330: fix the writer, repair the two gangs, re-run
+the audit to zero failures, and only then backfill.***
 
 **C4 — Live add-propagation.** Pending row + `on_commit` enqueue from
 `add_built_in`/`add_default_member`/ingest perform, coalesced per set.
