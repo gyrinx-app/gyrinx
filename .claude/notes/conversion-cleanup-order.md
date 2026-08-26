@@ -94,9 +94,35 @@ Kept as the record of what the three operations above actually faced:
    and counts it on the page before anybody agrees to the run, and
    refuses every other word that moves.
 3. ~~The authoring menu retirement.~~ Merged.
-4. **The timeout revert** — not started. The Cloud Run request timeout
-   and the task ack deadline move together or not at all. Raised for a
-   conversion that took eighteen minutes; conversions now take seconds.
+4. ~~The timeout revert.~~ **Decided against, on measurement.** The
+   request timeout and the task ack deadline move together or not at
+   all, and `--timeout=600` in `cloudbuild.yaml` was *added* by #2219 —
+   before it, Cloud Run's 300s default applied. Reverting means both
+   back to 300.
+
+   Production says no. Slowest single run per task over 90 days, from
+   `tasks_taskexecution`:
+
+   | task | runs | slowest |
+   |---|---|---|
+   | `backfill_pins` | 522 | **495s** |
+   | `sweep_archived` | 2 | 218s |
+   | `delete_retired_kinds` | 1 | 181s |
+   | `reconcile_all_lists` | 467 | 126s |
+   | `complete_campaign_list_clone` | 37 | 46s |
+
+   `backfill_pins` is live and recurring, and one of its 250-row batches
+   has taken 495 seconds — inside 600, outside 300. A 300s ceiling would
+   have cut that run off and had Pub/Sub redeliver it.
+
+   (`modified - created` is an upper bound: it includes any time queued
+   before a worker picked the message up, which is why the retired
+   `convert_specialisation` shows 686s against a 600s deadline it never
+   breached. It does not change the conclusion — the band between 300
+   and 600 is occupied by a task that still runs.)
+
+   Reverting buys nothing: a longer request timeout costs nothing unless
+   a request hangs. Leave both at 600.
 5. ~~Squat legacies.~~ Done, and it was already done before this plan
    named it: the Ironhead Squat and Ogryn pickables and the six built-ins
    that answer them were authored on 2026-08-19. Neither is in the House
@@ -188,13 +214,24 @@ the second could not run until the first had. Both have now run.
 
 ### After the programme
 
-11. **Gangless models.** Deleting a gang leaves its models behind,
-    belonging to nobody and reachable by nothing. The design log records
-    that a miniature library — models independent of a gang — was
-    considered and dropped, so these are residue of a rejected concept
-    rather than intent, even though a test pins the behaviour. Agreed to
-    fix after wave 1: delete a gang's models with it, and rewrite that
-    test.
+11. ~~Gangless models.~~ Done. `Miniature.membership` was
+    `on_delete=SET_NULL`, so deleting a gang left models belonging to
+    nobody and reachable by nothing — every route to a model goes
+    through its gang. The design log records that a miniature library
+    (models independent of a gang) was considered and dropped, so those
+    rows were residue of a rejected concept rather than intent, even
+    though a test pinned the behaviour.
+
+    Now `CASCADE`. Deleting the membership is not how a model leaves a
+    gang — that archives it — so the cascade fires only when the
+    assignment is genuinely deleted, which in practice means the gang
+    was. The field stays nullable because `Operations.hire` writes the
+    model before attaching its membership, and a null cascades from
+    nothing.
+
+    No repair needed: production holds **zero** models with a null
+    membership and zero whose membership has no gang, across 2216
+    gangs.
 
 ## Decisions taken, and why
 

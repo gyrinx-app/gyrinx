@@ -153,8 +153,7 @@ class TestWhatTheGuardStillRefuses:
 @pytest.mark.django_db
 def test_a_superuser_can_delete_a_gang_and_everything_it_owns(client, staff, gang):
     """A gang deleted through the admin takes its assignments, its
-    ledger and its events. Its models stay, gangless, as they do
-    whenever a membership ends."""
+    ledger, its events and its models."""
     assert Assignment.objects.filter(gang_root=gang).exists()
     # An entry hangs off its assignment rather than the gang, so it goes
     # the same way: down the cascade, one step further along.
@@ -174,12 +173,10 @@ def test_a_superuser_can_delete_a_gang_and_everything_it_owns(client, staff, gan
     assert not Assignment.objects.filter(gang_root=gang.pk).exists()
     assert not LedgerEntry.objects.filter(assignment__gang_root=gang.pk).exists()
     assert not LedgerEvent.objects.filter(gang=gang.pk).exists()
-    # The models stay, and stay gangless: a membership is an assignment
-    # like any other, and a model is not deleted by the ending of one
-    # (test_miniature.py pins the same rule from the other side).
-    left = Miniature.objects.filter(pk__in=hired)
-    assert left.count() == len(hired)
-    assert all(model.gang is None for model in left)
+    # The models go too: a model with no gang is unreachable, since
+    # every route to one goes through its gang (test_miniature.py pins
+    # the same rule from the other side).
+    assert not Miniature.objects.filter(pk__in=hired).exists()
 
 
 @pytest.mark.django_db

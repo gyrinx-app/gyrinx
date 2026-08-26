@@ -116,6 +116,11 @@ underlying spec.
 - A membership assignment's `miniature_root` is set by hand in
   `Operation.hire`, not by `save()` — it is hosted on the gang but
   *about* the model. Anything else creating one must do the same.
+- **Deleting a membership assignment deletes its `Miniature`.**
+  `Miniature.membership` cascades, because a model with no gang is
+  unreachable. Removing a model from a gang archives the membership
+  instead, which is why nothing in `operations.py` deletes one; code
+  that does delete an assignment must expect the model to go with it.
 - A settings-group model registers itself on import; it must be reachable
   from `models/__init__.py` or `SETTING_GROUPS` never sees it.
 - `archived=False` is never a default filter. Readers opt in explicitly
