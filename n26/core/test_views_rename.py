@@ -1,11 +1,9 @@
-"""Renaming a fighter: the pencil on the card, the dialog the URL opens,
-and the act behind it.
+"""Renaming a fighter: the dialog the URL opens, and the act behind it.
 
 The hire form promises "you can name them later", and this is the later
-it promised. Open is a server state — the pencil is a link to
-``?rename=<pk>`` and the sheet draws the dialog only when that names one
-of the gang's own live members — so everything here works with no script
-and an open dialog is an address someone can send.
+it promised. The pencil lives on the model's own page; the sheet still
+draws the dialog when ``?rename=<pk>`` names one of the gang's own live
+members, so an address can be followed or reloaded with no script.
 """
 
 import pytest
@@ -45,13 +43,14 @@ def vex(tester, gang, make_profile, make_statline):
 
 
 class TestThePencilOnTheCard:
-    """The sheet says a name can be edited by carrying the way to do it."""
+    """A name is edited from the model's own page. The pencil next to
+    the name on the sheet is too easy to take for Edit."""
 
-    def test_every_card_offers_the_rename(self, client, tester, gang, vex):
+    def test_the_sheet_does_not_offer_the_rename(self, client, tester, gang, vex):
         client.force_login(tester)
         body = client.get(reverse("n26-gang", args=[gang.pk])).content.decode()
-        assert 'aria-label="Rename Vex"' in body
-        assert f"?rename={vex.pk}" in body
+        assert 'aria-label="Rename Vex"' not in body
+        assert f"?rename={vex.pk}" not in body
 
     def test_the_url_opens_the_dialog_with_the_name_in_it(
         self, client, tester, gang, vex

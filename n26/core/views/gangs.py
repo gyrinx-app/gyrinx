@@ -451,7 +451,7 @@ def _dismiss(request, pk, kind):
 
 @login_required
 def rename_fighter(request, pk):
-    """Rename one model: the act behind the gang sheet's dialog.
+    """Rename one model: the act behind the model's own-page dialog.
 
     No rating moves and nothing is priced, but a rename is part of the
     gang's story, so it goes through an operation and the history keeps
@@ -464,10 +464,10 @@ def rename_fighter(request, pk):
     from n26.core.views.permissions import _own_miniature_or_404
 
     miniature = _own_miniature_or_404(request, pk)
-    # Two screens carry the rename pencil — the sheet and the model's
-    # own edit page — and the act should land back on whichever asked.
-    # ``?back=edit`` is a named place, never a URL, so there is nothing
-    # here for an open redirect to ride.
+    # The model's own page carries the rename pencil; the sheet still
+    # draws the dialog when ``?rename=`` names a member. The act lands
+    # back on whichever asked. ``?back=edit`` is a named place, never a
+    # URL, so there is nothing here for an open redirect to ride.
     if request.GET.get("back") == "edit":
         back_url = reverse("n26-edit-fighter", args=[miniature.pk])
     else:

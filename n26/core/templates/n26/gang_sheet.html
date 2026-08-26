@@ -209,25 +209,7 @@ that said it twice would be spending the width the name needs.
                                   mode="{{ card_mode }}"
                                   notes_href="{% if yours %}{% url 'n26-edit-fighter' member.id %}{% endif %}"
                                   lore_href="{% if yours %}{% url 'n26-edit-fighter' member.id %}{% endif %}">
-                    {% comment %}
-                    The way to a fighter's own name: a quiet pencil on the
-                    name's line, leading to the rename dialog the URL opens
-                    below. A link, so it works with no script and an open
-                    dialog is an address someone can send.
-                    {% endcomment %}
                     {% if yours %}
-                        <c-slot name="name_action">
-                            <c-ui.button variant="ghost"
-                                         size="xs"
-                                         class="ms-1 -mt-0.5 px-1! align-middle"
-                                         href="?rename={{ member.id }}"
-                                         aria-label="Rename {{ member.name }}"
-                                         title="Rename">
-                                <span class="n26-icon-only">
-                                    <c-n26.icon name="pencil" class="size-3.5 text-ink-500 dark:text-ink-400" />
-                                </span>
-                            </c-ui.button>
-                        </c-slot>
                         <c-slot name="actions">
                             {% comment %}
                         Equip is the one you came for and the only per-model act
@@ -285,8 +267,9 @@ that said it twice would be spending the width the name needs.
     </c-n26.view.gang-sheet>
     {% comment %}
     The rename dialog, when the URL names a member. Open is a server
-    state — the pencil is a link to ?rename=<pk>, so the question works
-    with scripting off and an open dialog is a page someone can reload.
+    state — ?rename=<pk> draws the question, so an address can be
+    followed or reloaded with scripting off. The pencil that writes
+    this address lives on the model's own page.
     {% endcomment %}
     {% comment %}
     The leaving dialogs, when the URL asks about a member. One question,
