@@ -947,7 +947,14 @@ class Operation:
             )
 
     def reconcile_defaults(
-        self, carrier, kinds=None, gang=None, built_ins=True, strict=True, fresh=()
+        self,
+        carrier,
+        kinds=None,
+        gang=None,
+        built_ins=True,
+        strict=True,
+        fresh=(),
+        event_kind=None,
     ):
         """Create what the carrier's sets say is missing, and nothing else.
 
@@ -996,6 +1003,11 @@ class Operation:
         right now, judged by live copies alone: archived copies guard
         against unattended re-grants, and taking a set is an acquisition
         (``plan_defaults``). A bare reconcile passes neither.
+
+        ``event_kind`` is the history's word for each grant. Left None,
+        a grant reads as any caused assignment does; the propagation
+        pass says its grants arrived by catch-up, so a reader asking
+        why a thing appeared long after the hire gets the answer.
         """
         from n26.core.builtins import ReconcileOutcome, copies_of, plan_defaults
         from n26.core.models import CounterValue, Reason
@@ -1036,6 +1048,7 @@ class Operation:
                 materialised_for=carrier,
                 paid=0,
                 reason=Reason.DEFAULT,
+                kind=event_kind,
                 **host,
             )
             created.append(assignment)
@@ -1111,6 +1124,7 @@ class Operation:
                     materialised_for=carrier,
                     paid=0,
                     reason=Reason.DEFAULT,
+                    kind=event_kind,
                 )
             )
         return ReconcileOutcome(

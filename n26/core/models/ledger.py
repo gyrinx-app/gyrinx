@@ -104,6 +104,9 @@ class LedgerEvent(Base):
         PURCHASED = "purchased", "Purchased"
         ADDED = "added", "Added"
         GRANTED = "granted", "Granted"
+        # Granted by built-in propagation (``n26.core.propagation``).
+        # Its own kind so the history can say why the item appeared.
+        CAUGHT_UP = "caught_up", "Caught up"
         MOVED = "moved", "Moved"
         TALLIED = "tallied", "Tallied"
         AMENDED = "amended", "Amended"

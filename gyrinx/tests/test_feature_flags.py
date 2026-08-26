@@ -3,7 +3,7 @@ from django.contrib.auth.models import AnonymousUser, Group, User
 from django.http import Http404
 from django.test import RequestFactory
 
-from gyrinx.site.flags import enabled, register_flags, requires_flag
+from gyrinx.site.flags import enabled, register_flags, requires_flag, switched_on
 from gyrinx.site.models import Availability, FeatureFlag
 
 pytestmark = pytest.mark.django_db
@@ -150,6 +150,31 @@ class TestEveryone:
     def test_a_visitor_still_does_not(self, make_flag):
         make_flag(Availability.EVERYONE)
         assert enabled(FLAG, AnonymousUser()) is False
+
+
+class TestSwitchedOn:
+    """The user-free question background work asks: is the feature on
+    at all. Any availability but off counts, because a feature open to
+    even one account needs the machinery behind it running."""
+
+    def test_a_slug_with_no_row_is_off(self):
+        assert switched_on(FLAG) is False
+
+    def test_a_slug_the_code_does_not_know_raises(self):
+        with pytest.raises(ValueError, match="No such feature flag"):
+            switched_on("teleportation")
+
+    def test_off_is_off(self, make_flag):
+        make_flag(Availability.OFF)
+        assert switched_on(FLAG) is False
+
+    def test_the_allowlist_counts_as_on(self, make_flag):
+        make_flag(Availability.ALLOWLIST)
+        assert switched_on(FLAG) is True
+
+    def test_everyone_counts_as_on(self, make_flag):
+        make_flag(Availability.EVERYONE)
+        assert switched_on(FLAG) is True
 
 
 class TestTheRowItself:

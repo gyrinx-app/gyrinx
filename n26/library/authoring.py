@@ -28,6 +28,7 @@ see CLAUDE.md.
 import re
 
 from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.db.models import Max
 
 from n26.library.models import (
@@ -1044,6 +1045,9 @@ def _refuse_a_bare_pickable(thing):
         )
 
 
+# Atomic so the member and its propagation filing commit or roll back
+# together, whatever transaction the caller does or does not hold.
+@transaction.atomic
 def add_default_member(
     default_set,
     thing,
@@ -1097,6 +1101,14 @@ def add_default_member(
         # cannot say either.
         member.clean()
     member.save()
+    # Everything already holding this set is now owed the new member.
+    # The filing rides this transaction — made with the edit, rolled
+    # back with it — and a background pass applies it after commit.
+    # Every path that adds a member comes through here, so this is the
+    # one place the pass is filed.
+    from n26.core.propagation import file_propagation_task
+
+    file_propagation_task(default_set)
     return member
 
 

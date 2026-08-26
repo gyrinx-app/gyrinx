@@ -59,6 +59,26 @@ def enabled(slug, user) -> bool:
     return flag.open_to(user)
 
 
+def switched_on(slug) -> bool:
+    """Whether the named feature is on at all — the question background
+    work asks, having no account to ask about.
+
+    Any availability but off counts: a feature open to even one account
+    needs the machinery behind it running. A slug with no row is off,
+    and an unregistered one raises, exactly as ``enabled`` answers.
+    """
+    from gyrinx.site.models import Availability, FeatureFlag
+
+    if slug not in _known:
+        raise ValueError(f"No such feature flag: {slug!r}")
+
+    # Named open states only, so a word nothing can read fails shut.
+    return FeatureFlag.objects.filter(
+        slug=slug,
+        availability__in=[Availability.ALLOWLIST, Availability.EVERYONE],
+    ).exists()
+
+
 def requires_flag(slug):
     """Guard a view with a feature flag, answering 404 where it is closed.
 

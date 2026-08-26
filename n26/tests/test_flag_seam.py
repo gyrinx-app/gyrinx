@@ -14,7 +14,7 @@ from django.contrib.auth.models import Group, User
 
 from gyrinx.site.flags import enabled, known_flags
 from gyrinx.site.models import Availability, FeatureFlag
-from n26.flags import CAMPAIGNS
+from n26.flags import BUILT_IN_PROPAGATION, CAMPAIGNS
 
 pytestmark = pytest.mark.django_db
 
@@ -26,6 +26,11 @@ class TestWhatThisEditionClaims:
         """Claimed as the app starts, so a guard written against it works
         wherever it is applied."""
         assert CAMPAIGNS in known_flags()
+
+    def test_built_in_propagation_is_registered(self):
+        """The running side of propagation checks this flag; unclaimed,
+        that check would raise instead of standing down."""
+        assert BUILT_IN_PROPAGATION in known_flags()
 
     def test_the_seam_answers_for_it(self):
         """A slug with no row is off — the same answer the platform gives,

@@ -18,11 +18,21 @@ tested and moved in one place, and it is the reason the boundary rule in
 ``n26/CLAUDE.md`` names this file rather than a package.
 """
 
-from gyrinx.site.flags import enabled, register_flags, requires_flag
+from gyrinx.site.flags import enabled, register_flags, requires_flag, switched_on
 
-__all__ = ["CAMPAIGNS", "enabled", "requires_flag"]
+__all__ = [
+    "BUILT_IN_PROPAGATION",
+    "CAMPAIGNS",
+    "enabled",
+    "requires_flag",
+    "switched_on",
+]
 
 #: Running a campaign: the campaign itself, who is in it, and what it owns.
 CAMPAIGNS = "campaigns"
 
-register_flags(CAMPAIGNS)
+#: A built-in set change reaching the gangs already holding the set. Shut,
+#: edits still file their passes; nothing runs them until it opens.
+BUILT_IN_PROPAGATION = "built-in-propagation"
+
+register_flags(CAMPAIGNS, BUILT_IN_PROPAGATION)

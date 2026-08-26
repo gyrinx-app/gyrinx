@@ -34,7 +34,7 @@ The dependency direction is: `library` holds content, `core` reads it.
 Concretely:
 
 - **No app code in `n26/` imports `n23.*` or `gyrinx.*`.** n26 is a
-  parallel edition, not a layer on the old one. Eight deliberate
+  parallel edition, not a layer on the old one. Nine deliberate
   exceptions: `n26/core/views/changelog.py` reads
   `gyrinx.site.models.ChangelogEntry`, deferred inside its shared
   queryset helper; the gangs view searches with
@@ -44,7 +44,11 @@ Concretely:
   events through `gyrinx.analytics`; `n26/maintenance.py` offers this
   edition's repairs through `gyrinx.maintenance` and runs them on
   `gyrinx.tasks`; `n26/flags.py` claims this edition's gated features
-  through `gyrinx.site.flags`; and `n26/tests/` may import platform
+  through `gyrinx.site.flags`; models that need a durable status column
+  with row-locked transitions use `gyrinx.state_machine`, the pattern
+  the task framework's own records use
+  (`n26/core/models/built_in_propagation.py` and the code driving it);
+  and `n26/tests/` may import platform
   pieces to test the seam. Do not add others.
 - **`n26/flags.py` is the other single-file seam, and it works the way
   `n26/analytics.py` does.** Gating half-built work is a property of

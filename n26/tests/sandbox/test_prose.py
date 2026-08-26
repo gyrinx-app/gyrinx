@@ -1060,9 +1060,12 @@ class TestTheQueryCountStaysFlat:
 
         Most of the number is the price of assignables having no shared
         table: "what carries this modifier" and "what holds this set" are
-        each one query per kind, and there are twenty-odd kinds.
+        each one query per kind, and there are twenty-odd kinds. One
+        query is the reference scan finding the propagation tasks filed
+        against a set — a real edge into the model graph, seen by
+        discovery like any other.
         """
-        with django_assert_num_queries(68):
+        with django_assert_num_queries(69):
             prose_for(much_used)
 
 
