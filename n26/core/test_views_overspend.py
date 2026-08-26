@@ -283,3 +283,65 @@ class TestTheQuestionOnAScreenThatUpdatesInPlace:
         ).content.decode()
 
         assert reverse("n26-gang-trade-points", args=[gang.pk]) in body
+
+
+class TestALineOnAPostWithNoTradePointPrice:
+    """A post swept together by having a Trade Point price holds only
+    things that have one — but an author may add an entry to that same
+    collection by hand, and that line is browsed on the post's terms
+    with no figure behind it.
+
+    It is a line on a post, so it is bought; it names no Trade Points,
+    so it takes none. Reading the missing figure as an amount is a
+    TypeError before the purchase or the question can happen at all.
+    """
+
+    @pytest.fixture
+    def mixed_post(self, db):
+        """A swept post with one entry added by hand."""
+        from n26.library.authoring import add_entry
+        from n26.library.models import Wargear
+
+        create_wargear("Mesh armour", price=15, trade_point_price=3)
+        plain = create_wargear("Sump goggles", price=10)
+        post = create_trading_post("Trading Post", contains=[Wargear])
+        add_entry(post, plain)
+        return post
+
+    @pytest.fixture
+    def clicking_the_unpriced_line(self, mixed_post):
+        from n26.core.owned import thing_key
+        from n26.library.models import Wargear
+
+        return {"thing": thing_key(Wargear.objects.get(name="Sump goggles"))}
+
+    @pytest.fixture(autouse=True)
+    def signed_in(self, client, tester):
+        client.force_login(tester)
+
+    def test_it_can_be_bought_at_all(
+        self, client, gang, fighter, mixed_post, clicking_the_unpriced_line
+    ):
+        answer = client.post(equip_url(fighter, mixed_post), clicking_the_unpriced_line)
+
+        assert answer.status_code == 302
+        assert held(gang) == 1
+
+    def test_it_takes_no_trade_points(
+        self, client, gang, fighter, mixed_post, clicking_the_unpriced_line
+    ):
+        with operation(gang, actor=gang.owner) as op:
+            op.visit_trading_post(brought=2)
+
+        client.post(equip_url(fighter, mixed_post), clicking_the_unpriced_line)
+
+        gang.refresh_from_db()
+        assert gang.trade_points_left == 2
+
+    def test_it_is_never_asked_about(
+        self, client, gang, fighter, mixed_post, clicking_the_unpriced_line
+    ):
+        """Taking nothing cannot overspend, even with nothing to spend."""
+        answer = client.post(equip_url(fighter, mixed_post), clicking_the_unpriced_line)
+
+        assert answer.status_code == 302, "a question would be a 200"

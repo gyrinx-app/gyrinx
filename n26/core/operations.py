@@ -445,9 +445,13 @@ class Operation:
     def leave_trading_post(self):
         """Close the open visit. What it had left is lost, as the book says.
 
-        The post shuts with it: a gang with no visit open may not buy
-        from the Trading Post at all, which is why this is a state of its
-        own rather than an amount of nothing.
+        The post shuts with it. In the book a gang with no visit open
+        may not buy from the Trading Post at all; here that is said
+        rather than enforced — a purchase with no action open records
+        its Trade Points against none, once the owner has said they
+        meant it. The shut state is its own state all the same, because
+        "no visit" and "a visit that has spent everything" are different
+        things and the screens say so differently.
         """
         return self._set_trade_points(None)
 
@@ -639,7 +643,9 @@ class Operation:
         nobody paid for are simply removed. Trade Points come back the
         same way, and a refund taken on the same trip as the purchase
         puts them back in the allowance; once a new allowance is set,
-        neither the spending nor its undoing counts any more.
+        neither the spending nor its undoing counts any more — the trip
+        a refund belongs to is the trip the purchase belonged to, not
+        whenever the owner got round to handing it back.
         """
         rows, _ = refund_of(assignment)
         for target in rows:

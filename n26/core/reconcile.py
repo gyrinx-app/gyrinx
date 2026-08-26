@@ -110,6 +110,18 @@ def trade_points_spent(gang):
     settles its entry to zero and appends the returning event: reading
     the log keeps the two acts in the order they happened.
 
+    The trip an event belongs to is the trip its *purchase* belongs to,
+    not the trip its own event happened in. A refund is an event of its
+    own, written whenever the owner gets round to it, so windowing on
+    event time lets the undoing of an earlier trip's purchase land inside
+    this one — handing back kit bought last time would mint Trade Points
+    the visit never brought. Windowing on the assignment keeps a purchase
+    and everything that later happens to it on the same side of the
+    boundary, so the two either both count or neither does.
+
+    Events about no assignment are outside this by construction: the
+    boundary event itself is one, and none of them moves Trade Points.
+
     One query, boundary and all. Every screen showing what a gang has
     left asks this, and a gang's page is a fixed number of queries by
     invariant rather than by hope.
@@ -124,7 +136,7 @@ def trade_points_spent(gang):
     return (
         LedgerEvent.objects.filter(gang=gang)
         .filter(
-            created__gte=Coalesce(
+            assignment__created__gte=Coalesce(
                 Subquery(since),
                 Value(_SINCE_ALWAYS, output_field=DateTimeField()),
             )

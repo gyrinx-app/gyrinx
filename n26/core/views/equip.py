@@ -179,10 +179,17 @@ def _trade_points_asked(line, picked):
     was browsed on ride it — so a list that merely prints TP figures
     adds nothing here. Options add nothing either: a swap changes what
     the thing is built from and is paid for in credits.
+
+    No Trade Point price is nothing to pay, not nothing to sell. A post
+    swept together by having such a price holds only things that have
+    one, but an author may add an entry to that same collection by hand,
+    and that line is browsed on the post's terms with no figure behind
+    it. It is a line on a post, so it is bought; it names no Trade
+    Points, so it takes none.
     """
     asked = line.trade_points if line.charges_trade_points else 0
-    return asked + sum(
-        part.trade_points for _, part in picked if part.charges_trade_points
+    return (asked or 0) + sum(
+        part.trade_points or 0 for _, part in picked if part.charges_trade_points
     )
 
 

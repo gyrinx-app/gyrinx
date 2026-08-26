@@ -208,6 +208,43 @@ class TestEndingTheAction:
         assert gang.trade_points_spent == 0
         assert gang.trade_points_left == 4
 
+    def test_handing_back_an_earlier_trips_kit_does_not_fund_this_one(
+        self, gang, fighter, post
+    ):
+        """A refund belongs to the trip its purchase belonged to.
+
+        The refund event is written whenever the owner gets round to it,
+        which may be trips later. Measured by event time, the undoing of
+        a purchase this trip never counted would land inside it — and
+        handing back old kit would mint Trade Points the visit never
+        brought.
+        """
+        visit_trading_post(gang, brought=4)
+        bought = buy(fighter, line_for(browse(post, TRADING_POST), "Flak plate"))
+
+        visit_trading_post(gang, brought=4)
+        refund(bought)
+
+        gang.refresh_from_db()
+        assert gang.trade_points_spent == 0
+        assert gang.trade_points_left == 4
+
+    def test_a_refund_on_the_same_trip_puts_the_points_back(self, gang, fighter, post):
+        """The other side of the same rule: within one trip the purchase
+        and its undoing both count, so the allowance comes back whole."""
+        visit_trading_post(gang, brought=4)
+        bought = buy(fighter, line_for(browse(post, TRADING_POST), "Flak plate"))
+        spent = gang.trade_points_spent
+        assert spent > 0, (
+            "the fixture must charge Trade Points for this to mean anything"
+        )
+
+        refund(bought)
+
+        gang.refresh_from_db()
+        assert gang.trade_points_spent == 0
+        assert gang.trade_points_left == 4
+
     def test_setting_the_same_figure_is_a_second_trip_not_a_no_op(
         self, gang, fighter, post
     ):

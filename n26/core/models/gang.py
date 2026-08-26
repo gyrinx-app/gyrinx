@@ -128,6 +128,11 @@ class Gang(Base, Owned, Archived, Rated):
         performed the action, so this is a real state and not an
         allowance of nothing: a visit that has spent every point is
         still a visit.
+
+        It is not a gate. Nothing consults this to refuse a purchase —
+        the equip screens read it to say where the gang stands, and a
+        buy with no action open goes through once its question is
+        answered.
         """
         return self.starting_trade_points is not None
 
