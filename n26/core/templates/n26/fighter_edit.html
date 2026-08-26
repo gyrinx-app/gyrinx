@@ -61,7 +61,9 @@ is named by the page's own heading directly below.
         arithmetic one click away.
         {% endcomment %}
         <c-slot name="actions">
-            <c-n26.gang-figures :gang="gang" :summary="summary" />
+            <c-n26.gang-figures :gang="gang"
+                                :summary="summary"
+                                trade_points_href="{{ trade_points_href }}" />
         </c-slot>
         {% comment %}
         The rename pencil, as the sheet draws it — a link, so the dialog

@@ -1,0 +1,347 @@
+"""Spending Trade Points a gang has not got: the question, then the act.
+
+The third answer a click can get. A note says something and lets it
+through; a refusal stops it dead; this stops it until the reader says
+they meant it. Credits stay the only enforced resource — nothing here
+refuses, and confirming buys exactly what the first click asked for.
+
+Where nothing is updating the page, the question is a navigation: Back is
+a real answer and a reload does not lose it. Where the screen updates in
+place it is a panel delivered into that page's dialog host, because
+throwing a reader out of a list they are buying from is a worse answer
+than asking them where they stand. Both ask the same question off the
+same ``Confirmation``.
+
+What makes the second post identical to the first is that it carries the
+first one's fields, and what makes that safe is that the view re-derives
+the whole click from the listing anyway.
+"""
+
+import pytest
+from django.contrib.auth.models import User
+from django.urls import reverse
+
+from n26.core.models import Assignment, Gang
+from n26.core.operations import operation
+from n26.library.authoring import create_trading_post, create_wargear
+
+pytestmark = pytest.mark.django_db
+
+
+@pytest.fixture
+def tester(db):
+    return User.objects.create_user("player")
+
+
+@pytest.fixture
+def gang(tester, gang_type):
+    return Gang.objects.create(
+        name="The Ashen Choir",
+        owner=tester,
+        gang_type=gang_type,
+        starting_credits=1000,
+        credits=1000,
+    )
+
+
+@pytest.fixture
+def fighter(tester, gang, make_profile, make_statline):
+    profile = make_profile("Ganger", price=50)
+    make_statline(profile)
+    with operation(gang, actor=tester) as op:
+        return op.hire(profile, "Vex")
+
+
+@pytest.fixture
+def post(db):
+    """A post holding one thing, priced in credits and in Trade Points."""
+    from n26.library.models import Wargear
+
+    create_wargear("Mesh armour", price=15, trade_point_price=3)
+    return create_trading_post("Trading Post", contains=[Wargear])
+
+
+@pytest.fixture
+def buying(post):
+    """The click that buys the one thing the post lists."""
+    from n26.core.owned import thing_key
+    from n26.library.models import Wargear
+
+    return {"thing": thing_key(Wargear.objects.get(name="Mesh armour"))}
+
+
+def equip_url(fighter, post):
+    return f"{reverse('n26-equip', args=[fighter.pk])}?list={post.pk}"
+
+
+def held(gang):
+    return Assignment.objects.filter(gang_root=gang, wargear__isnull=False).count()
+
+
+class TestWhenTheVisitCovers:
+    def test_the_purchase_goes_straight_through(
+        self, client, tester, gang, fighter, post, buying
+    ):
+        with operation(gang, actor=tester) as op:
+            op.visit_trading_post(brought=5)
+
+        client.force_login(tester)
+        answer = client.post(equip_url(fighter, post), buying)
+
+        assert answer.status_code == 302
+        assert held(gang) == 1
+        gang.refresh_from_db()
+        assert gang.trade_points_left == 2
+
+
+class TestWhenItDoesNot:
+    @pytest.fixture(autouse=True)
+    def signed_in(self, client, tester):
+        client.force_login(tester)
+
+    def test_the_click_is_answered_with_a_question(
+        self, client, gang, fighter, post, buying
+    ):
+        answer = client.post(equip_url(fighter, post), buying)
+
+        assert answer.status_code == 200
+        assert b"Buy Mesh armour anyway" in answer.content
+        assert b"Not enough Trade Points" in answer.content
+
+    def test_nothing_is_bought_by_asking(self, client, gang, fighter, post, buying):
+        client.post(equip_url(fighter, post), buying)
+
+        assert held(gang) == 0
+        gang.refresh_from_db()
+        assert gang.visiting_trading_post is False
+
+    def test_the_arithmetic_is_on_the_page(self, client, gang, fighter, post, buying):
+        """A name is a weak thing to check a decision against, so the page
+        shows the figures the decision is actually made on."""
+        with operation(gang, actor=fighter.gang.owner) as op:
+            op.visit_trading_post(brought=1)
+
+        body = client.post(equip_url(fighter, post), buying).content.decode()
+
+        # The same tally the Visit Trading Post card draws, with the
+        # purchase and what it leaves added under it.
+        for label in (
+            "Available",
+            "Spent",
+            "Remaining",
+            "This purchase",
+            "Remaining after",
+        ):
+            assert label in body
+        assert "-2" in body
+        assert "You don&#x27;t have enough TP" in body or "don't have enough TP" in body
+        assert "You can buy it anyway." in body
+
+    def test_confirming_buys_it(self, client, gang, fighter, post, buying):
+        answer = client.post(equip_url(fighter, post), {**buying, "confirmed": "1"})
+
+        assert answer.status_code == 302
+        assert held(gang) == 1
+        gang.refresh_from_db()
+        # The post was shut, so the points are recorded against nothing.
+        assert gang.visiting_trading_post is False
+
+    def test_the_question_carries_the_click_forward(
+        self, client, gang, fighter, post, buying
+    ):
+        """The confirming form re-sends what was submitted, so the second
+        post is the first one with a yes attached."""
+        body = client.post(equip_url(fighter, post), buying).content.decode()
+
+        assert buying["thing"] in body
+        assert 'name="confirmed"' in body
+
+    def test_the_csrf_token_is_not_carried_forward(
+        self, client, gang, fighter, post, buying
+    ):
+        """The token belongs to the form being drawn now, and Django puts a
+        fresh one in it; re-emitting the old one would put two in the page."""
+        body = client.post(equip_url(fighter, post), buying).content.decode()
+
+        assert body.count('name="csrfmiddlewaretoken"') == 1
+
+
+class TestWhenNoPointsAreCharged:
+    def test_a_list_that_charges_none_never_asks(self, client, tester, gang, fighter):
+        """The same sort of item on an equipment list is bought for credits
+        alone, so there is nothing to overspend and nothing to confirm."""
+        from n26.core.owned import thing_key
+        from n26.library.authoring import add_entry, create_collection
+
+        armour = create_wargear("Flak plate", price=15, trade_point_price=3)
+        listed = create_collection("Escher Equipment List")
+        add_entry(listed, armour)
+        # Held by the gang, because a buying screen only offers the lists
+        # its reader can actually reach.
+        with operation(gang, actor=tester) as op:
+            op.assign(listed, gang=gang)
+
+        client.force_login(tester)
+        answer = client.post(equip_url(fighter, listed), {"thing": thing_key(armour)})
+
+        assert answer.status_code == 302
+        assert held(gang) == 1
+        gang.refresh_from_db()
+        assert gang.visiting_trading_post is False
+
+
+class TestWhatTheGangIsShown:
+    def test_the_message_names_the_points_as_well_as_the_credits(
+        self, client, tester, gang, fighter, post, buying
+    ):
+        with operation(gang, actor=tester) as op:
+            op.visit_trading_post(brought=5)
+        client.force_login(tester)
+
+        answer = client.post(equip_url(fighter, post), buying, follow=True)
+
+        told = [str(m) for m in answer.context["messages"]]
+        assert any("15¢ and 3 TP" in line for line in told)
+
+
+class TestTheQuestionOnAScreenThatUpdatesInPlace:
+    """htmx buys without reloading, so the question cannot be a new page.
+
+    The Django test client sends no ``HX-Request`` header, so every other
+    test here exercises the whole-page answer. These name the header.
+    """
+
+    HX = {"HTTP_HX_REQUEST": "true"}
+
+    @pytest.fixture(autouse=True)
+    def signed_in(self, client, tester):
+        client.force_login(tester)
+
+    def test_it_arrives_as_a_panel_for_the_dialog_host(
+        self, client, gang, fighter, post, buying
+    ):
+        answer = client.post(equip_url(fighter, post), buying, **self.HX)
+        body = answer.content.decode()
+
+        assert answer.status_code == 200
+        # Addressed to the host by id and out of band, which is what makes
+        # it replace whatever that host holds rather than land nowhere.
+        assert 'id="n26-dialog-host"' in body
+        assert 'hx-swap-oob="true"' in body
+        assert "Not enough Trade Points" in body
+
+    def test_it_asks_the_same_arithmetic_as_the_page_does(
+        self, client, gang, fighter, post, buying
+    ):
+        """One Confirmation, two transports: the figures cannot diverge."""
+        with operation(gang, actor=gang.owner) as op:
+            op.visit_trading_post(brought=1)
+
+        panel = client.post(equip_url(fighter, post), buying, **self.HX)
+        page = client.post(equip_url(fighter, post), buying)
+
+        for label in ("Available", "Spent", "Remaining", "This purchase"):
+            assert label in panel.content.decode()
+            assert label in page.content.decode()
+
+    def test_asking_buys_nothing(self, client, gang, fighter, post, buying):
+        client.post(equip_url(fighter, post), buying, **self.HX)
+
+        assert held(gang) == 0
+
+    def test_confirming_buys_it_and_updates_the_page(
+        self, client, gang, fighter, post, buying
+    ):
+        """The second post is the act: it buys, and what comes back is an
+        update for the page still standing rather than another question."""
+        answer = client.post(
+            equip_url(fighter, post), {**buying, "confirmed": "1"}, **self.HX
+        )
+
+        assert answer.status_code == 200
+        assert held(gang) == 1
+        assert "Not enough Trade Points" not in answer.content.decode()
+
+    def test_confirming_closes_the_panel_that_asked(
+        self, client, gang, fighter, post, buying
+    ):
+        """An empty host replaces the one holding the question."""
+        body = client.post(
+            equip_url(fighter, post), {**buying, "confirmed": "1"}, **self.HX
+        ).content.decode()
+
+        assert '<div id="n26-dialog-host" hx-swap-oob="true"></div>' in body
+
+    def test_the_money_it_delivers_keeps_its_way_to_the_action(
+        self, client, gang, fighter, post, buying
+    ):
+        """The update redraws the wealth strip, so the Trade Points figure
+        it delivers must still lead to the Visit Trading Post action —
+        otherwise a purchase silently costs the reader the link."""
+        body = client.post(
+            equip_url(fighter, post), {**buying, "confirmed": "1"}, **self.HX
+        ).content.decode()
+
+        assert reverse("n26-gang-trade-points", args=[gang.pk]) in body
+
+
+class TestALineOnAPostWithNoTradePointPrice:
+    """A post swept together by having a Trade Point price holds only
+    things that have one — but an author may add an entry to that same
+    collection by hand, and that line is browsed on the post's terms
+    with no figure behind it.
+
+    It is a line on a post, so it is bought; it names no Trade Points,
+    so it takes none. Reading the missing figure as an amount is a
+    TypeError before the purchase or the question can happen at all.
+    """
+
+    @pytest.fixture
+    def mixed_post(self, db):
+        """A swept post with one entry added by hand."""
+        from n26.library.authoring import add_entry
+        from n26.library.models import Wargear
+
+        create_wargear("Mesh armour", price=15, trade_point_price=3)
+        plain = create_wargear("Sump goggles", price=10)
+        post = create_trading_post("Trading Post", contains=[Wargear])
+        add_entry(post, plain)
+        return post
+
+    @pytest.fixture
+    def clicking_the_unpriced_line(self, mixed_post):
+        from n26.core.owned import thing_key
+        from n26.library.models import Wargear
+
+        return {"thing": thing_key(Wargear.objects.get(name="Sump goggles"))}
+
+    @pytest.fixture(autouse=True)
+    def signed_in(self, client, tester):
+        client.force_login(tester)
+
+    def test_it_can_be_bought_at_all(
+        self, client, gang, fighter, mixed_post, clicking_the_unpriced_line
+    ):
+        answer = client.post(equip_url(fighter, mixed_post), clicking_the_unpriced_line)
+
+        assert answer.status_code == 302
+        assert held(gang) == 1
+
+    def test_it_takes_no_trade_points(
+        self, client, gang, fighter, mixed_post, clicking_the_unpriced_line
+    ):
+        with operation(gang, actor=gang.owner) as op:
+            op.visit_trading_post(brought=2)
+
+        client.post(equip_url(fighter, mixed_post), clicking_the_unpriced_line)
+
+        gang.refresh_from_db()
+        assert gang.trade_points_left == 2
+
+    def test_it_is_never_asked_about(
+        self, client, gang, fighter, mixed_post, clicking_the_unpriced_line
+    ):
+        """Taking nothing cannot overspend, even with nothing to spend."""
+        answer = client.post(equip_url(fighter, mixed_post), clicking_the_unpriced_line)
+
+        assert answer.status_code == 302, "a question would be a 200"

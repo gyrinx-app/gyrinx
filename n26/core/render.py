@@ -615,6 +615,17 @@ class GangSheet:
     counters: list = field(default_factory=list)
     stash: list[StashLine] = field(default_factory=list)
     stash_rating: int = 0
+    #: What an open Visit Trading Post action has left, or None where
+    #: none is open — the post is shut to the gang then, which is not the
+    #: same as a visit with nothing left. Apart from the money figures
+    #: because it is not money, and it goes negative where an owner said
+    #: they meant to overspend.
+    trade_points_left: int | None = None
+    #: Whether a Visit Trading Post action is open at all. Stated rather
+    #: than inferred from the figure above, as ``credits_unlimited`` is:
+    #: a surface asking "is that a nought or an absence" of a number is a
+    #: surface that will one day get it wrong.
+    visiting_trading_post: bool = False
     #: A gang founded without a budget never spends against one, so its
     #: credits figure counts nothing. Stated rather than inferred from a
     #: zero, which is also what a gang that has spent everything has.
@@ -1684,6 +1695,8 @@ def render_gang(gang, with_effects=True, *, card=None):
         credits=gang.credits,
         credits_unlimited=gang.credits_unlimited,
         wealth=gang.wealth,
+        trade_points_left=gang.trade_points_left,
+        visiting_trading_post=gang.visiting_trading_post,
         colour=gang.colour,
         rows=gang_rows,
         rules=gang_rules,

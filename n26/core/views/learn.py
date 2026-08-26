@@ -118,6 +118,7 @@ def ticked_offer(card, computed):
     """
     from n26.core.access import learnable_for
     from n26.core.browse import (
+        EQUIPMENT_LIST,
         browse,
         narrow,
         placements_for,
@@ -135,7 +136,7 @@ def ticked_offer(card, computed):
         listed = narrow(
             with_use_notes(
                 regrouped_by_placement(
-                    browse(collection),
+                    browse(collection, EQUIPMENT_LIST),
                     placements,
                     fallback=collection.default_section(),
                     name=str(collection),
@@ -245,6 +246,7 @@ def learn(request, pk):
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.access import learnable_for
     from n26.core.browse import (
+        EQUIPMENT_LIST,
         browse,
         narrow,
         placements_for,
@@ -309,7 +311,7 @@ def learn(request, pk):
     listed = narrow(
         with_use_notes(
             regrouped_by_placement(
-                browse(chosen),
+                browse(chosen, EQUIPMENT_LIST),
                 placements,
                 fallback=chosen.default_section(),
                 name=str(chosen),

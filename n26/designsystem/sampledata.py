@@ -17,6 +17,7 @@ from n26.core.browse import (
     PricedLine,
     SectionGroup,
 )
+from n26.core.confirm import Fact
 from n26.core.hire import (
     STANDARD_OPTION_NAME,
     HireCategory,
@@ -1831,6 +1832,10 @@ def gang_sheet():
         rating=360,
         credits=1037,
         wealth=1397,
+        # Mid-trip: an allowance was taken to a post and some of it spent.
+        # Both, or the strip reads the figure as unset and draws an em dash.
+        visiting_trading_post=True,
+        trade_points_left=3,
         colour="violet",
         rows=[
             AssignableLine(name="Founded in Cycle 3"),
@@ -1914,6 +1919,21 @@ def gang_sheet_context():
     )
     return {
         "gang": sheet,
+        # Two tallies: the Visit Trading Post card's, and the one the
+        # overspend confirmation draws under it. The second carries two
+        # totals, which is what the component's per-row emphasis is for.
+        "tally_facts": (
+            Fact("Available", "4", sub="Leader, Champion × 2"),
+            Fact("Spent", "1"),
+            Fact("Remaining", "3", ruled=True, strong=True),
+        ),
+        "tally_overspend": (
+            Fact("Available", "4"),
+            Fact("Spent", "3"),
+            Fact("Remaining", "1", ruled=True, strong=True),
+            Fact("This purchase", "3"),
+            Fact("Remaining after", "-2", ruled=True, strong=True),
+        ),
         # A gang of one card is a poor test of a three-column grid, so the demo
         # repeats the sample fighter under other names. Copies rather than the same
         # object five times, because a renderer that mutated one would otherwise

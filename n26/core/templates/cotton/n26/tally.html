@@ -1,0 +1,30 @@
+{% comment %}
+<c-n26.tally> — figures that add up, label left and value right.
+
+    <c-n26.tally :facts="receipt.facts" />
+
+Drawn by the Visit Trading Post card and by the confirmation before an
+overspend, so one arithmetic cannot come to be shown two ways.
+
+Emphasis and rules are the row's own, never read off its position: a tally may
+carry more than one total, as that confirmation does.
+
+  :facts — n26.core.confirm.Fact objects: label, value, and optionally the
+    `sub` line saying where the figure came from.
+  class — extra classes on the list.
+{% endcomment %}
+<c-vars :facts="None" class="" />
+
+<dl {{ attrs }} class="flex flex-col gap-2 {{ class }}">
+    {% for fact in facts %}
+        <div class="flex items-baseline justify-between gap-4 {% if fact.ruled %}border-t border-box-border pt-2{% endif %}">
+            <dt class="{% if fact.strong %}font-semibold{% endif %} text-ink-900 dark:text-ink-100">
+                {{ fact.label }}
+                {% if fact.sub %}<span class="block text-sm font-normal text-muted">{{ fact.sub }}</span>{% endif %}
+            </dt>
+            <dd class="shrink-0 tabular-nums {% if fact.strong %}font-semibold{% endif %} text-ink-900 dark:text-ink-100">
+                {{ fact.value }}
+            </dd>
+        </div>
+    {% endfor %}
+</dl>

@@ -63,7 +63,9 @@ be read in one.
     {% endcomment %}
     <c-n26.view.fighter-hire action="{{ back }}" gang="{{ gang.name }}" :form="form">
         <c-slot name="figures">
-            <c-n26.gang-figures :gang="gang" :summary="summary" />
+            <c-n26.gang-figures :gang="gang"
+                                :summary="summary"
+                                trade_points_href="{{ trade_points_href }}" />
         </c-slot>
         <c-slot name="notice">
             {% include "n26/includes/messages.html" %}

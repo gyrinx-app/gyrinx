@@ -36,6 +36,17 @@ class Gang(Base, Owned, Archived, Rated):
         default=0,
         help_text="Cash in hand. Pinned: starting budget less everything spent.",
     )
+    starting_trade_points = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text=(
+            "What a Visit Trading Post action brought, while one is open. "
+            "Null means no visit: the post is shut, which is a different "
+            "state from a visit that has spent everything. Unlike credits "
+            "there is no pinned counterpart — what is left is this less "
+            "what the ledger records after the visit began."
+        ),
+    )
     colour = models.CharField(
         max_length=50,
         blank=True,
@@ -90,6 +101,52 @@ class Gang(Base, Owned, Archived, Rated):
         self.credits = remaining if remaining is not None else 0
         self.save(update_fields=["credits", "modified"])
         return self.credits
+
+    @property
+    def trade_points_spent(self):
+        """What has gone at the post since the allowance was last set.
+
+        Summed from the log rather than pinned, which is the whole
+        difference from credits: Trade Points belong to a trip and not
+        to the gang, so there is no standing figure to keep honest. A
+        refund inside the same trip hands its points back.
+
+        Asked of the database each time rather than cached on the
+        instance: a page's query count is an invariant here, and a cache
+        that answers the second reading for free makes the count depend
+        on how many times a page happened to ask.
+        """
+        from n26.core.reconcile import trade_points_spent
+
+        return trade_points_spent(self)
+
+    @property
+    def visiting_trading_post(self):
+        """Whether a Visit Trading Post action is open.
+
+        The rules only let a gang buy from the post where a fighter
+        performed the action, so this is a real state and not an
+        allowance of nothing: a visit that has spent every point is
+        still a visit.
+
+        It is not a gate. Nothing consults this to refuse a purchase —
+        the equip screens read it to say where the gang stands, and a
+        buy with no action open goes through once its question is
+        answered.
+        """
+        return self.starting_trade_points is not None
+
+    @property
+    def trade_points_left(self):
+        """What the open visit has left, or None where none is open.
+
+        Goes negative where an owner said they meant to overspend, which
+        is what the confirmation before such a purchase is for: Trade
+        Points inform, and only credits are refused.
+        """
+        if not self.visiting_trading_post:
+            return None
+        return self.starting_trade_points - self.trade_points_spent
 
     @property
     def credits_unlimited(self):

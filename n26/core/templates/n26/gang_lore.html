@@ -44,7 +44,9 @@ prose; a section with no picture is just its words.
                 </c-n26.flair-link>
             </c-slot>
             <c-slot name="actions">
-                <c-n26.gang-figures :gang="gang" :summary="summary" />
+                <c-n26.gang-figures :gang="gang"
+                                    :summary="summary"
+                                    trade_points_href="{{ trade_points_href }}" />
             </c-slot>
         </c-n26.page-header>
         {% comment %}

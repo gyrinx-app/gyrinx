@@ -3043,7 +3043,7 @@ def collection_page(request, pk):
     section form for the schema. Two acts, as the parts pages have them,
     so a post says which form was clicked.
     """
-    from n26.core.browse import browse
+    from n26.core.browse import EQUIPMENT_LIST, browse
     from n26.library.models import Collection
     from n26.library.models.assignable import USABLE_BY_LISTS
     from n26.library.models.collection import ENTRY_ASKS, ENTRY_ASSIGNABLE_FIELDS
@@ -3113,7 +3113,10 @@ def collection_page(request, pk):
                     messages.success(request, f"Added the {made.name} section.")
                     return redirect("authoring-detail", kind="collection", pk=pk)
 
-    view = browse(collection)
+    # An author's own preview of what they wrote, never a shopping trip:
+    # a post previewed on its buying terms would hide the Exclusive items
+    # its author is here to check.
+    view = browse(collection, EQUIPMENT_LIST)
 
     # The schema's own promise, kept on the preview: unplaced categories
     # fall into the default section, so the group of things with no home

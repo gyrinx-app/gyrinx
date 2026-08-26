@@ -1,0 +1,68 @@
+{% extends "n26/layouts/base.html" %}
+{% load navigation %}
+{% comment %}
+The page a n26.core.confirm.Confirmation draws: an act that will go ahead once
+the reader says they meant it.
+
+A page rather than a scripted prompt, as the deletion page is: Back is a real
+answer and it works with scripting off. The form carries every field of the
+submission that led here, so the second post is the first with a yes attached;
+the view re-derives the click from the listing and trusts none of it.
+{% endcomment %}
+{% block head_title %}{{ confirmation.title }}{% endblock head_title %}
+{% block nav_switcher %}
+    {% gang_switcher gang as gang_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="gang_switcher_" hotkey="f" />
+{% endblock nav_switcher %}
+{% block nav_items %}
+    {% include 'n26/_nav.html' with here='gangs' %}
+{% endblock %}
+{% block content %}
+    <c-n26.form-page action="{{ confirmation.action }}"
+                     title="{{ confirmation.title }}"
+                     lead="{{ confirmation.lead }}"
+                     submit_label="{{ confirmation.confirm_label }}"
+                     cancel_url="{{ confirmation.cancel_url }}">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item>
+                    <c-n26.user-link :user="gang.owner" tone="current" href="{% url 'n26-dashboard' %}" />
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'n26-gang' gang.pk %}">{{ gang.name }}</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Confirm
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% csrf_token %}
+        {% comment %}
+        Repeated names stay repeated: a row's ticked parts arrive as several
+        values under one name, and collapsing them would buy something other
+        than what this page describes.
+        {% endcomment %}
+        {% for name, value in confirmation.carry %}
+            <input type="hidden" name="{{ name }}" value="{{ value }}">
+        {% endfor %}
+        <input type="hidden"
+               name="{{ confirmation.confirm_field }}"
+               value="{{ confirmation.confirm_value }}">
+        {% comment %}
+        Warning rather than error: the act is allowed, and this asks whether it
+        was meant. The body is the position and the aside is the permission —
+        two lines, because they answer different questions.
+        {% endcomment %}
+        <c-ui.alert variant="warning" title="{{ confirmation.heading }}">
+            <p>{{ confirmation.body }}</p>
+            {% if confirmation.aside %}
+                <p class="mt-1">
+                    <strong>{{ confirmation.aside.lead }}</strong>
+                    {{ confirmation.aside.rest }}
+                </p>
+            {% endif %}
+        </c-ui.alert>
+        {% if confirmation.facts %}
+            {# The same tally the Visit Trading Post card draws. #}
+            <c-n26.tally :facts="confirmation.facts" class="max-w-sm" />
+        {% endif %}
+    </c-n26.form-page>
+{% endblock content %}

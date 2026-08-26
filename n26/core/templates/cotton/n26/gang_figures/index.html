@@ -9,8 +9,8 @@ against how many models the gang fields and what it has left to spend.
 
 The count is <c-n26.roster-summary>, so the figure a reader glances at is also
 the control holding the roster's own arithmetic. It is not wealth, so the money
-is fenced off by the rule <c-n26.wealth> documents for this seam — the gap here
-and the strip's own padding put the same air either side of it.
+is fenced off by the rule <c-n26.wealth> documents for this seam. The rule takes
+no padding: every cell carries its own already.
 
 The money is <c-n26.gang-figures.wealth>, which carries a fixed id: a screen
 that updates without a rebuild replaces the money by that name, and only the
@@ -20,10 +20,11 @@ money — an act on kit never changes how many models there are.
     does a rendered GangSheet.
   :summary — a n26.render.RosterSummary. The count comes off it, so nothing has
     to be told twice how many models there are.
+  trade_points_href — passed through to <c-n26.wealth>; see there.
 {% endcomment %}
-<c-vars :gang="None" :summary="None" class="" />
+<c-vars :gang="None" :summary="None" trade_points_href="" class="" />
 
 <div {{ attrs }} class="flex items-center gap-3 {{ class }}">
     <c-n26.roster-summary :summary="summary" />
-    <c-n26.gang-figures.wealth :sheet="gang" />
+    <c-n26.gang-figures.wealth :sheet="gang" trade_points_href="{{ trade_points_href }}" />
 </div>

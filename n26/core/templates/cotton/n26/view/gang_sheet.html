@@ -19,11 +19,13 @@ is drawn as the first card of the grid, ahead of `members`.
     after the primary actions rather than sorted in among them.
   stash_empty — what to say when the stash is empty.
   stash_actions — a middot link after the Stash title (e.g. Equip).
+  stash_notice — a strip above the stash's contents; see <c-n26.stash>.
 {% endcomment %}
 {# The slots are declared: an undeclared slot name is not empty when nobody #}
 {# fills it — it resolves to the caller's own variable of that name. #}
 <c-vars
     :sheet="None"
+    trade_points_href=""
     owner=""
     owner_href=""
     owner_flair_label=""
@@ -38,6 +40,7 @@ is drawn as the first card of the grid, ahead of `members`.
     members=""
     stash_empty=""
     stash_actions=""
+    stash_notice=""
     class=""
 />
 
@@ -97,7 +100,9 @@ is drawn as the first card of the grid, ahead of `members`.
         the roster count included, holding its own breakdown.
         {% endcomment %}
         <c-slot name="actions">
-            <c-n26.gang-figures :gang="sheet" :summary="sheet.summary" />
+            <c-n26.gang-figures :gang="sheet"
+                                :summary="sheet.summary"
+                                trade_points_href="{{ trade_points_href }}" />
         </c-slot>
     </c-n26.page-header>
 
@@ -129,6 +134,7 @@ is drawn as the first card of the grid, ahead of `members`.
         <c-n26.stash :lines="sheet.stash" :total="sheet.stash_rating">
             {% if stash_actions %}<c-slot name="actions">{{ stash_actions }}</c-slot>{% endif %}
             {% if stash_empty %}<c-slot name="empty">{{ stash_empty }}</c-slot>{% endif %}
+            {% if stash_notice %}<c-slot name="notice">{{ stash_notice }}</c-slot>{% endif %}
         </c-n26.stash>
         {{ members }}
     </div>

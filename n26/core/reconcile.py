@@ -6,7 +6,10 @@ cache, and each can be recomputed. These functions do the recomputing, so a
 test (or a management command) can prove the caches are honest.
 """
 
-from django.db.models import Sum
+from datetime import UTC, datetime
+
+from django.db.models import DateTimeField, Subquery, Sum, Value
+from django.db.models.functions import Coalesce
 
 from n26.core.models import Assignment, LedgerEntry
 from n26.core.models.assignment import ASSIGNABLE_FIELDS
@@ -84,6 +87,61 @@ def total_spent(gang):
         LedgerEvent.objects.filter(assignment__gang_root=gang).aggregate(
             total=Sum("credits_delta")
         )["total"]
+        or 0
+    )
+
+
+#: What "since the allowance was set" means for a gang that has never
+#: set one: since always. A gang can spend at a post without an allowance
+#: — the purchase asks first and then goes through — so those points have
+#: to count against nothing rather than not count at all.
+_SINCE_ALWAYS = datetime(1, 1, 1, tzinfo=UTC)
+
+
+def trade_points_spent(gang):
+    """Every Trade Point laid out since the allowance was last set.
+
+    The allowance-set event is the boundary a trip is measured from, so
+    what was spent on an earlier trip stops counting the moment a new
+    allowance is written — which is what makes "set it again" the way to
+    both begin a trip and end one.
+
+    Summed from the events rather than from the entries because a refund
+    settles its entry to zero and appends the returning event: reading
+    the log keeps the two acts in the order they happened.
+
+    The trip an event belongs to is the trip its *purchase* belongs to,
+    not the trip its own event happened in. A refund is an event of its
+    own, written whenever the owner gets round to it, so windowing on
+    event time lets the undoing of an earlier trip's purchase land inside
+    this one — handing back kit bought last time would mint Trade Points
+    the visit never brought. Windowing on the assignment keeps a purchase
+    and everything that later happens to it on the same side of the
+    boundary, so the two either both count or neither does.
+
+    Events about no assignment are outside this by construction: the
+    boundary event itself is one, and none of them moves Trade Points.
+
+    One query, boundary and all. Every screen showing what a gang has
+    left asks this, and a gang's page is a fixed number of queries by
+    invariant rather than by hope.
+    """
+    from n26.core.models import LedgerEvent
+
+    since = (
+        LedgerEvent.objects.filter(gang=gang, kind=LedgerEvent.Kind.TRADE_POINTS_SET)
+        .order_by("-created")
+        .values("created")[:1]
+    )
+    return (
+        LedgerEvent.objects.filter(gang=gang)
+        .filter(
+            assignment__created__gte=Coalesce(
+                Subquery(since),
+                Value(_SINCE_ALWAYS, output_field=DateTimeField()),
+            )
+        )
+        .aggregate(total=Sum("trade_points_delta"))["total"]
         or 0
     )
 

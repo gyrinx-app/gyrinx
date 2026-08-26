@@ -26,6 +26,22 @@ def _safe_redirect(request, url, fallback_url="/"):
     return HttpResponseRedirect(fallback_url)
 
 
+def trade_points_href(gang, user):
+    """Where the Trade Points figure leads, or nowhere for a reader who
+    cannot change it.
+
+    A roster opens for whoever holds its address, so the figure strip is
+    drawn for people with no business on the gang's edit screens. A
+    number they cannot act on is a number, not a link: offering the door
+    and refusing them at it is worse than never offering.
+    """
+    from django.urls import reverse
+
+    if user is None or not user.is_authenticated or gang.owner_id != user.pk:
+        return ""
+    return reverse("n26-gang-trade-points", args=[gang.pk])
+
+
 def _own_gang_or_404(request, pk):
     """The gang, if it is the viewer's to act on.
 

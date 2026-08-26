@@ -47,7 +47,21 @@ sell is managed from the In stash tab.
             </c-ui.breadcrumbs>
         </c-slot>
         <c-slot name="actions">
-            <c-n26.gang-figures :gang="gang" :summary="summary" />
+            <div class="flex flex-col items-end gap-1">
+                <c-n26.gang-figures :gang="gang"
+                                    :summary="summary"
+                                    trade_points_href="{{ trade_points_href }}" />
+                {% comment %}
+                Under the figures, and only while no action is open: with one open the
+                TP figure is a number that already leads here, and this would be asking
+                for a second of something a gang performs one of at a time.
+                {% endcomment %}
+                {% if trade_points_href and not gang.visiting_trading_post and not post_is_shut %}
+                    <c-n26.link href="{{ trade_points_href }}" class="text-sm">
+                        Track TP spend by starting an action →
+                    </c-n26.link>
+                {% endif %}
+            </div>
         </c-slot>
     </c-n26.page-header>
     <div class="mt-6 grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-[11rem_minmax(0,1fr)]">
@@ -55,14 +69,22 @@ sell is managed from the In stash tab.
         Which list is a place you can be, so the rail is links the server
         answers — beside the catalogue rather than pinned over it, matching a
         model's own screen.
+
+        The rail and what sits under it are one grid cell, so the block below
+        the lists needs no placement of its own.
         {% endcomment %}
-        <c-ui.navlist variant="sidebar" aria-label="Which list" class="self-start text-sm">
-            {% for tab in collection_tabs %}
-                <c-ui.navlist.item href="{{ tab.href }}" :current="tab.current" title="{{ tab.title }}">
-                    {{ tab.label }}
-                </c-ui.navlist.item>
-            {% endfor %}
-        </c-ui.navlist>
+        <div class="flex flex-col gap-4 self-start">
+            <c-ui.navlist variant="sidebar" aria-label="Which list" class="text-sm">
+                {% for tab in collection_tabs %}
+                    <c-ui.navlist.item href="{{ tab.href }}" :current="tab.current" title="{{ tab.title }}">
+                        {{ tab.label }}
+                    </c-ui.navlist.item>
+                {% endfor %}
+            </c-ui.navlist>
+            {% if post_is_shut %}
+                {% include "n26/includes/not_tracking_tp.html" %}
+            {% endif %}
+        </div>
         {% if catalogue %}
             {% comment %}
             A purchase submitted by htmx gets back only the elements it

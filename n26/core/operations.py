@@ -405,6 +405,75 @@ class Operation:
         )
         return gang
 
+    def visit_trading_post(self, visitors=(), brought=None):
+        """Open a Visit Trading Post action, performed by these fighters.
+
+        What they bring between them becomes what the gang has to spend;
+        two ranks bring Trade Points and the rest bring none, which is
+        not the same as not going — one fighter going is what opens the
+        post at all.
+
+        Nothing is priced and nothing moves. The event written here is
+        the boundary the spending is measured from, so opening a visit
+        also closes whatever was open before, and what that one had left
+        stops counting — which is the book's "unspent Trade Points are
+        lost", arrived at by not counting them rather than by taking
+        them away.
+
+        Each fighter's own event says they went, in the same batch, so a
+        receipt can name them and the gang's history can say what each
+        model did with their action.
+
+        ``brought`` overrides what they add up to. The operation takes
+        what it is given, the way a purchase does: a territory that adds
+        a point, or an arbitrator's own figure, is the same act with a
+        different number, and neither is something this should have to
+        know about.
+        """
+        from n26.core.trading import minted
+
+        going = [visitor for visitor in visitors if visitor.visiting]
+        gang = self._set_trade_points(minted(going) if brought is None else brought)
+        for visitor in going:
+            self.event(
+                visitor.miniature,
+                LedgerEvent.Kind.VISITED_TRADING_POST,
+                note=visitor.rank[:255],
+            )
+        return gang
+
+    def leave_trading_post(self):
+        """Close the open visit. What it had left is lost, as the book says.
+
+        The post shuts with it. In the book a gang with no visit open
+        may not buy from the Trading Post at all; here that is said
+        rather than enforced — a purchase with no action open records
+        its Trade Points against none, once the owner has said they
+        meant it. The shut state is its own state all the same, because
+        "no visit" and "a visit that has spent everything" are different
+        things and the screens say so differently.
+        """
+        return self._set_trade_points(None)
+
+    def _set_trade_points(self, amount):
+        """Write what the gang has to spend, and the boundary with it.
+
+        Written every time, even where the figure has not changed —
+        which is the one place this parts company with ``set_budget``. A
+        second visit bringing the same amount is a second visit, and a
+        guard that skipped the write would leave the first one's
+        spending counting against it.
+        """
+        gang = self.gang
+        gang.starting_trade_points = amount
+        gang.save(update_fields=["starting_trade_points", "modified"])
+        self.event(
+            None,
+            LedgerEvent.Kind.TRADE_POINTS_SET,
+            note="closed" if amount is None else str(amount),
+        )
+        return gang
+
     def edit_notes(self, miniature, notes):
         """Store the owner's notes as written, and say they changed.
 
@@ -571,9 +640,12 @@ class Operation:
         Each refunded line's entry is settled to zero with a matching
         event, so folding the events still reproduces the entry and the
         gang's recomputed credits rise by exactly what was returned. Lines
-        nobody paid for are simply removed. Trade Points are recorded as
-        returned for the ledger's sake, but TP never outlives its session,
-        so nothing is ever re-spendable.
+        nobody paid for are simply removed. Trade Points come back the
+        same way, and a refund taken on the same trip as the purchase
+        puts them back in the allowance; once a new allowance is set,
+        neither the spending nor its undoing counts any more — the trip
+        a refund belongs to is the trip the purchase belonged to, not
+        whenever the owner got round to handing it back.
         """
         rows, _ = refund_of(assignment)
         for target in rows:

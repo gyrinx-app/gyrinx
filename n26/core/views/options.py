@@ -7,7 +7,7 @@ from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils.text import slugify
 
-from n26.core.views.permissions import _own_miniature_or_404
+from n26.core.views.permissions import _own_miniature_or_404, trade_points_href
 
 
 def _option_rows(entry, chosen_pks):
@@ -122,6 +122,7 @@ def fighter_options(request, pk):
             "gang": gang,
             "role": (profile.category.name if profile and profile.category else ""),
             "summary": summarise_roster(members),
+            "trade_points_href": trade_points_href(gang, request.user),
             "groups": _option_rows(entry, chosen_pks),
             # The field scheme is the hire listing's, slugified pk and all,
             # so the parser reads this page's POST unchanged.

@@ -1676,6 +1676,21 @@ GROUPS: list[Group] = [
                 ),
             ),
             Component(
+                slug="tally",
+                tag="c-n26.tally",
+                template="n26/tally.html",
+                summary="Figures that add up, label left and value right.",
+                notes=(
+                    "A row states its own emphasis and its own rule rather "
+                    "than the component reading them off its position: a tally "
+                    "may hold more than one total, as the overspend "
+                    "confirmation does, and a component that emboldened its "
+                    "last row could not say so. Drawn by the Visit Trading "
+                    "Post card and by that confirmation, which is what stops "
+                    "the two showing one arithmetic two ways."
+                ),
+            ),
+            Component(
                 slug="wealth",
                 tag="c-n26.wealth",
                 template="n26/wealth/index.html",
@@ -1689,16 +1704,20 @@ GROUPS: list[Group] = [
                     ),
                 ),
                 notes=(
-                    "Four figures in the order they answer questions about each "
-                    "other — rating is what the gang fields, credits what is left, "
-                    "stash what the gang owns and nobody carries, wealth the three "
-                    "added up — so reading left to right is reading the sum. It "
-                    "takes the whole GangSheet rather than four numbers, since "
-                    "four positional integers in the same units are four chances "
-                    "to swap two and never find out. A definition list, not a "
-                    "table. Real tooltips here where c-n26.statline uses a title "
-                    "attribute: four cells drawn once on a page can afford what a "
-                    "cell drawn hundreds of times cannot."
+                    "Four money figures in the order they answer questions about "
+                    "each other — rating is what the gang fields, credits what is "
+                    "left, stash what the gang owns and nobody carries, wealth the "
+                    "three added up — so reading left to right is reading the sum. "
+                    "Trade Points lead, behind a rule: they are not money and not "
+                    "part of that sum, being what the gang may spend at a trading "
+                    "post until the trip ends, so they must not sit inside a run "
+                    "of figures a reader adds up. It takes the whole GangSheet "
+                    "rather than a handful of numbers, since positional integers "
+                    "in the same units are that many chances to swap two and never "
+                    "find out. A definition list, not a table. Real tooltips here "
+                    "where c-n26.statline uses a title attribute: cells drawn once "
+                    "on a page can afford what a cell drawn hundreds of times "
+                    "cannot."
                 ),
             ),
             Component(

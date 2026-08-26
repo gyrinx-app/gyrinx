@@ -1,0 +1,21 @@
+{% comment %}
+Said, never enforced: buying goes through regardless. The rules open the
+Trading Post only to a gang whose fighter performed the action, and this is
+where a reader finds that out.
+
+Under the rail rather than over the rows, because it is a fact about the list
+you are on and not about anything in it. Wants `trade_points_href`, so it draws
+nothing for a reader who could not act on it anyway.
+{% endcomment %}
+{% if trade_points_href %}
+    <div class="self-start rounded-box border border-box-border p-3">
+        <p class="text-sm font-medium text-ink-900 dark:text-ink-100">Not tracking TP</p>
+        <p class="mt-0.5 text-xs text-muted">Start a Trading Post visit to set up &amp; track TP.</p>
+        <c-ui.button size="xs"
+                     variant="primary"
+                     href="{{ trade_points_href }}"
+                     class="mt-2">
+            Set up TP visit →
+        </c-ui.button>
+    </div>
+{% endif %}

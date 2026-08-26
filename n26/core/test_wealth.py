@@ -1,4 +1,5 @@
-"""The wealth strip: four figures, and the one that can have no answer.
+"""The wealth strip: the money figures, the one that can have no answer,
+and the Trade Points that are not money at all.
 
 No database — a component is a template and a set of props, and what a gang
 with no budget shows is decided before a request exists. The strip is drawn
@@ -25,6 +26,8 @@ def gang(**overrides):
         "stash_rating": 30,
         "wealth": 650,
         "credits_unlimited": False,
+        "trade_points_left": 0,
+        "visiting_trading_post": True,
     }
     return SimpleNamespace(**(figures | overrides))
 
@@ -60,6 +63,43 @@ class TestTheFigures:
         html = strip(credits=0)
         assert "0¢" in html
         assert "Unlimited credits" not in html
+
+
+class TestTradePoints:
+    """Not money, and not part of the sum beside them: what the gang may
+    spend at a trading post until the trip ends. They lead the strip, cut
+    off from the money by a rule of their own, and carry no unit."""
+
+    def test_they_are_drawn_before_every_money_figure(self):
+        html = strip(trade_points_left=4)
+        assert html.index(">4<") < html.index("500¢")
+
+    def test_they_carry_no_currency(self):
+        html = strip(trade_points_left=4)
+        assert ">4<" in html
+        assert "4¢" not in html
+
+    def test_a_rule_separates_them_from_the_money(self):
+        assert "border-r" in strip()
+
+    def test_a_gang_that_overspent_shows_what_it_owes(self):
+        """Overspending is allowed — the purchase asks first — so the
+        figure has to be able to go below nought and say so."""
+        html = strip(trade_points_left=-2)
+        assert ">-2<" in html
+
+    def test_no_action_open_draws_a_dash_rather_than_a_nought(self):
+        """The post is shut to a gang whose fighters have not visited it,
+        which is a different state from a visit that has spent everything
+        — and a nought would read as the second."""
+        html = strip(trade_points_left=None, visiting_trading_post=False)
+        assert "No Visit Trading Post action open" in html
+        assert "&mdash;" in html or "—" in html
+
+    def test_a_visit_that_has_spent_everything_still_reads_nought(self):
+        html = strip(trade_points_left=0, visiting_trading_post=True)
+        assert ">0<" in html
+        assert "No Visit Trading Post action open" not in html
 
 
 class TestAGangWithNoBudget:

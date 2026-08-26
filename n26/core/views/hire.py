@@ -33,7 +33,7 @@ from django.shortcuts import redirect, render
 from django.utils.text import slugify
 
 from n26.core.views.equip import PRICE_CEILING
-from n26.core.views.permissions import _own_gang_or_404
+from n26.core.views.permissions import _own_gang_or_404, trade_points_href
 
 
 @dataclass(frozen=True)
@@ -629,6 +629,7 @@ def hire_fighter(request, pk):
             # roster as much as against the credits, and the count opens
             # onto the ranks it is made of.
             "summary": summarise_roster(roster(gang)),
+            "trade_points_href": trade_points_href(gang, request.user),
             # The tab strip, one tab per section. This list is also the
             # picker's whole navigation once tabs are on: a section whose
             # name is missing here can never be the active tab, and its

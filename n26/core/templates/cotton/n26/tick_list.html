@@ -33,8 +33,12 @@ the tier caption, and where a thing came from — a step smaller.
 
   :offer — a n26.render.ChoiceOffer.
   name — the input name every box submits under. One name across every group.
+  :disabled — shuts every box, for a list that cannot be answered yet rather
+    than options that cannot be picked; say why beside the list, not per
+    option. Must be a boolean the view computed: a cotton :attribute
+    evaluates an expression to nothing, and the list would draw live.
 {% endcomment %}
-<c-vars :offer="None" name="thing" class="" />
+<c-vars :offer="None" name="thing" :disabled="False" class="" />
 
 <div {{ attrs }} class="space-y-4 {{ class }}">
     {% for group in offer.groups %}
@@ -50,13 +54,13 @@ the tier caption, and where a thing came from — a step smaller.
             </legend>
             <div class="space-y-1">
                 {% for option in group.options %}
-                    <label class="flex items-start gap-2 {% if option.granted_by or option.fixed_because %}cursor-not-allowed opacity-60{% else %}cursor-pointer{% endif %}"
+                    <label class="flex items-start gap-2 {% if disabled or option.granted_by or option.fixed_because %}cursor-not-allowed opacity-60{% else %}cursor-pointer{% endif %}"
                            {% if option.granted_by %}title="From {{ option.granted_by }}"{% elif option.fixed_because %}title="{{ option.fixed_because }}"{% endif %}>
                         <input type="checkbox"
                                name="{{ name }}"
                                value="{{ option.key }}"
                                {% if option.is_current %}checked{% endif %}
-                               {% if option.granted_by or option.fixed_because %}disabled{% endif %}
+                               {% if disabled or option.granted_by or option.fixed_because %}disabled{% endif %}
                                class="mt-1 size-4 shrink-0 accent-[var(--color-accent)] focus-ring">
                         <span class="min-w-0 flex-1">
                             <span class="block text-base text-ink-900 dark:text-ink-100">{{ option.name }}</span>
