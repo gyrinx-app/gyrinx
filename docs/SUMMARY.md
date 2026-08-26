@@ -9,6 +9,7 @@
 
 ## How-To Guides
 
+- [Building an n26 Screen with Cotton, Alpine, and htmx](how-to-guides/n26-frontend-stack.md)
 - [Bootstrap Usage Guide](bootstrap-usage-guide.md)
 - [SQL Debugging Guide](sql-debugging.md)
 - [Query Debugging Utilities](query-debugging-utilities.md)
