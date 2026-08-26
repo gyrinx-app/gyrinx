@@ -595,6 +595,11 @@ and override the `owner` kwarg on the factory fixtures.
 - At the end of work, ship with the `commit-push-pr` skill — open the PR ready for
   review (not a draft) so bot reviews and the review-agent watcher kick off
   immediately. Only use `commit-push-draft` when a draft is explicitly requested.
+- **Stacked PRs are a GitHub built-in — use `gh stack`, never hand-roll one.**
+  Do not chain PRs by pointing one's base at another's branch and managing the
+  merges yourself: merging the parent with `--delete-branch` removes the child's
+  base branch, and GitHub then *closes* the child rather than retargeting it —
+  and a closed PR whose base is gone cannot be reopened.
 - Use conventional commit prefixes for commit messages and PR titles:
   - `feat:` — new feature or capability
   - `fix:` — bug fix
