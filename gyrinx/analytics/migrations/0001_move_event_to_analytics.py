@@ -17,6 +17,10 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
+        # State-only: this adopts core_event rather than making it. Naming the
+        # core migration the paired release depends on is what holds this
+        # app's chain back until the table exists — #2231.
+        ("core", "0204_move_site_models_to_platform"),
         ("contenttypes", "0002_remove_content_type_name"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]

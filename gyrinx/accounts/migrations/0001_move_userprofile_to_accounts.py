@@ -20,6 +20,10 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
+        # State-only: this adopts core_userprofile rather than making it. Naming the
+        # core migration the paired release depends on is what holds this
+        # app's chain back until the table exists — #2231.
+        ("core", "0202_migrate_stat_overrides_operation"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 

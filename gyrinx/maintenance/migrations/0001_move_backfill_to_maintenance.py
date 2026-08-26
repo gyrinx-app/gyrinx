@@ -19,6 +19,10 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
+        # State-only: this adopts core_backfill rather than making it. Naming the
+        # core migration the paired release depends on is what holds this
+        # app's chain back until the table exists — #2231.
+        ("core", "0213_document_pre_mod_advancement_flag"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
