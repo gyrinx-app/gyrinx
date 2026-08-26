@@ -8,13 +8,16 @@ anything.
 
 Wants `trade_points_href`, so it draws nothing for a reader who could not act
 on it anyway.
+
+Reads the sheet rather than the gang: what a visit has left is a ledger query,
+and the sheet has already asked.
 {% endcomment %}
 {% if trade_points_href %}
     <div class="flex flex-wrap items-center justify-between gap-2">
-        {% if gang.visiting_trading_post %}
+        {% if sheet.visiting_trading_post %}
             <span class="text-xs text-muted">
                 Trading Post visit open —
-                <span class="font-medium text-ink-900 dark:text-ink-100">{{ gang.trade_points_left }} TP</span>
+                <span class="font-medium text-ink-900 dark:text-ink-100">{{ sheet.trade_points_left }} TP</span>
                 left
             </span>
             <c-ui.button size="xs" variant="default" href="{{ trade_points_href }}">

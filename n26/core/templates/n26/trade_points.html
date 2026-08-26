@@ -8,9 +8,10 @@ it brought, what has gone, what is left, and who performed the action. Its
 button finishes the visit, which shuts the post and loses the remainder — the
 book's rule, so the button says so rather than asking again.
 
-The form beneath starts one. There is no number to type: a visit brings what
-its fighters bring, so the ticks are the whole of the question. Starting one
-while another is open replaces it, and the form says as much.
+The form beneath starts one. The ticks are the whole of the question in the
+ordinary case — a visit brings what its fighters bring — with a box beneath
+them for an owner who knows the figure and wants to say it outright. Starting
+one while another is open replaces it, and the form says as much.
 
 Plain checkboxes and no script, so the whole screen works with scripting off.
 {% endcomment %}
@@ -109,7 +110,7 @@ Plain checkboxes and no script, so the whole screen works with scripting off.
         <form method="post" action="{{ action }}">
             {% csrf_token %}
             <c-n26.form-section title="Start Visit Trading Post action"
-                                description="{% if visit_open %}Finish the action above first. A gang performs one Visit Trading Post action at a time.{% else %}Any fighter may go. A Leader brings 2 Trade Points and a Champion 1; the rest bring none, and one of them going is still what opens the post.{% endif %}">
+                                description="{% if visit_open %}Finish the action above first. A gang performs one Visit Trading Post action at a time.{% else %}A Leader brings 2 Trade Points and a Champion 1. Nobody else brings any, so the ones who do are the ones to tick; anyone in the gang may then be equipped from the post.{% endif %}">
                 {% if visitors %}
                     {% comment %}
                     Shut while an action is open: starting another would discard
@@ -162,7 +163,7 @@ Plain checkboxes and no script, so the whole screen works with scripting off.
                         {% if visit_open %}
                             <c-ui.tooltip size="sm">
                                 <span class="inline-block cursor-not-allowed">
-                                    <c-ui.button type="submit" size="sm" variant="success" disabled>
+                                    <c-ui.button type="submit" size="sm" variant="primary" disabled>
                                         Start action
                                     </c-ui.button>
                                 </span>
@@ -172,15 +173,15 @@ Plain checkboxes and no script, so the whole screen works with scripting off.
                                 </c-slot>
                             </c-ui.tooltip>
                         {% else %}
-                            <c-ui.button type="submit" size="sm" variant="success">
+                            <c-ui.button type="submit" size="sm" variant="primary">
                                 Start action
                             </c-ui.button>
                         {% endif %}
                     </div>
                 {% else %}
                     <p class="text-sm text-muted">
-                        {{ gang.name }} has nobody to send — a gang needs a fighter on
-                        its roster to perform the action.
+                        {{ gang.name }} has no Leader or Champion to send, and
+                        nobody else brings Trade Points.
                     </p>
                 {% endif %}
             </c-n26.form-section>

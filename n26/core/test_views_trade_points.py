@@ -243,8 +243,14 @@ class TestWhoIsOffered:
         assert "1 Trade Point each" in body
 
     def test_a_gang_with_nobody_says_so(self, client, tester, gang):
+        """The page names the ranks it wanted, not a bare roster.
+
+        A gang can be full of Gangers and still have nobody who brings
+        anything, so "nobody to send" would read as a lie.
+        """
         client.force_login(tester)
-        assert "has nobody to send" in client.get(page(gang)).content.decode()
+        body = client.get(page(gang)).content.decode()
+        assert "no Leader or Champion to send" in body
 
     def test_a_rank_taken_away_is_not_one_held(
         self, client, tester, roster, gang, ranks

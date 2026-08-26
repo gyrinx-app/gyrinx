@@ -810,9 +810,10 @@ def gang_trade_points(request, pk):
     writes is what the spending is measured against.
 
     The figures are not a form. A visit brings what its fighters bring,
-    so there is no number to type and nothing to keep in step with the
-    ticks — which is what lets the whole screen be two plain posts and
-    no query string at all.
+    and the box beneath the ticks is for an owner who would rather say
+    the figure outright — `brought_default` is how a typed figure is
+    told from one the page drew, there being no script here to follow
+    the ticks. The screen stays two plain posts and no query string.
 
     Two things are refused, and both are refusals a reader cannot reach
     from the page as drawn. An empty visit: the rules want at least one

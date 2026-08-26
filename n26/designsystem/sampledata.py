@@ -1833,6 +1833,8 @@ def gang_sheet():
         credits=1037,
         wealth=1397,
         # Mid-trip: an allowance was taken to a post and some of it spent.
+        # Both, or the strip reads the figure as unset and draws an em dash.
+        visiting_trading_post=True,
         trade_points_left=3,
         colour="violet",
         rows=[
