@@ -361,7 +361,19 @@ async fragment + non-JS fallback; ingest preview line ("N existing uses
 were hired from this and will not see this change" becomes "…will gain
 this within seconds" once C4 is live). Counts in SQL, bounded samples,
 no writes, no tasks.
-*Status: not started.*
+*Status: MERGED 2026-08-26 via PR
+[#2316](https://github.com/gyrinx-app/gyrinx/pull/2316). As built:
+`Reach` + `reach_of()` in `n26/core/propagation.py`, aggregating over
+the SAME `_carriers_of` queryset the C4 pass reconciles (refactored so
+preview and pass cannot disagree); flag-aware sentences ("…within
+seconds" open / "…when built-in propagation is switched on" shut /
+"Held by no gang yet…" zero) server-rendered on the authoring
+profile page, built_in_profiles, set_profiles, option_add and the
+ingest preview line. No async fragment, no migration. The removal
+preview (C6) should call `reach_of` too, per D10.
+NOTE for future chunks (maintainer, forcefully): size the process to
+the chunk — C5-sized work gets ONE agent or none, orchestrator's own
+review, no separate smoke agent.*
 
 **C6 — Explicit removal-propagation.** Author-triggered, previewed,
 per member (D2): archive provenance-matched assignments through
