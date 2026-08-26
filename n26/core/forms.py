@@ -7,6 +7,7 @@ gang types are the library's own.
 """
 
 from django import forms
+from django.core.exceptions import ValidationError
 
 from n26.core.widgets import RichText
 from n26.library.models import GangType
@@ -354,3 +355,39 @@ class CampaignForm(forms.Form):
         widget=RichText(),
         help_text="What this campaign is, and whatever the table has agreed.",
     )
+
+
+class JoinCampaignForm(forms.Form):
+    """Putting a gang into a campaign, named by its address.
+
+    An arbitrator takes the link a player sent them and pastes it in. That is
+    how a roster already travels between people here — a gang sheet opens for
+    anybody holding its address — so it asks for nothing a player has not
+    already chosen to hand over, and needs no way to search other people's
+    gangs.
+    """
+
+    gang = forms.CharField(
+        label="Gang",
+        help_text="Paste the link a player sent you, or the gang's id.",
+    )
+
+    def clean_gang(self):
+        """The gang itself, read out of whatever was pasted.
+
+        A full address, a path, or a bare id all name the same gang, and a
+        reader who pasted their address bar should not have to tidy it.
+        """
+        from n26.core.models import Gang
+
+        given = self.cleaned_data["gang"].strip().rstrip("/")
+        named = given.rpartition("/")[2]
+        try:
+            found = Gang.objects.filter(pk=named, archived=False).first()
+        except ValidationError, ValueError:
+            found = None
+        if found is None:
+            raise forms.ValidationError(
+                "No gang with that address. Check the link and try again."
+            )
+        return found

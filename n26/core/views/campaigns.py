@@ -10,7 +10,7 @@ itself say that something is there.
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
 
 from n26.core.views.permissions import _own_campaign_or_404
 from n26.flags import CAMPAIGNS, requires_flag
@@ -119,17 +119,24 @@ def campaign(request, pk):
     push everything else off the bottom.
     """
     from n26.core.history import campaign_history, campaign_history_size
+    from n26.core.models import CampaignMembership
 
     found = _own_campaign_or_404(request, pk)
     # Only the acts that will be drawn are built; how many more there are is
     # counted rather than read, so a campaign played for a year opens as
     # quickly as one set up this morning.
     recent = campaign_history(found, viewer=request.user, limit=LOG_ON_THE_PAGE)
+    playing = (
+        CampaignMembership.objects.filter(campaign=found, left__isnull=True)
+        .select_related("gang", "gang__gang_type", "gang__owner")
+        .order_by("gang__name")
+    )
     return render(
         request,
         "n26/campaign.html",
         {
             "campaign": found,
+            "playing": playing,
             "acts": list(reversed(recent)),
             "more_acts": max(campaign_history_size(found) - len(recent), 0),
         },
@@ -198,3 +205,74 @@ def archive_campaign(request, pk):
         return redirect("n26-campaigns")
 
     return render(request, "n26/archive_campaign.html", {"campaign": found})
+
+
+@requires_flag(CAMPAIGNS)
+@login_required
+def add_gang(request, pk):
+    """Put a gang into this campaign.
+
+    The arbitrator's act, not the gang owner's: a campaign is run by somebody,
+    and it is that somebody who says who is in it. Nothing about the gang
+    changes but where it plays, the gang's own history says it happened and
+    who did it, and its owner may leave at any time.
+    """
+    from n26.core.forms import JoinCampaignForm
+    from n26.core.operations import Refusal, operation
+
+    found = _own_campaign_or_404(request, pk)
+
+    if request.method == "POST":
+        form = JoinCampaignForm(request.POST)
+        if form.is_valid():
+            gang = form.cleaned_data["gang"]
+            try:
+                with operation(gang, actor=request.user) as op:
+                    op.join_campaign(found)
+            except Refusal as refused:
+                messages.error(request, str(refused))
+            else:
+                messages.success(request, f"{gang.name} joined {found.name}.")
+                return redirect("n26-campaign", pk=found.pk)
+    else:
+        form = JoinCampaignForm()
+
+    return render(
+        request,
+        "n26/add_gang_to_campaign.html",
+        {"form": form, "campaign": found},
+    )
+
+
+@requires_flag(CAMPAIGNS)
+@login_required
+def remove_gang(request, pk, gang_pk):
+    """The question at its own address, then the act.
+
+    GET asks and changes nothing; the POST from that page takes the gang out.
+    What the gang did while it was in the campaign stays in both histories —
+    leaving closes its membership rather than unwriting anything.
+    """
+    from n26.core.models import CampaignMembership
+    from n26.core.operations import operation
+
+    found = _own_campaign_or_404(request, pk)
+    membership = get_object_or_404(
+        CampaignMembership.objects.select_related("gang"),
+        campaign=found,
+        gang__pk=gang_pk,
+        left__isnull=True,
+    )
+
+    if request.method == "POST":
+        name = membership.gang.name
+        with operation(membership.gang, actor=request.user) as op:
+            op.leave_campaign()
+        messages.success(request, f"{name} left {found.name}.")
+        return redirect("n26-campaign", pk=found.pk)
+
+    return render(
+        request,
+        "n26/remove_gang_from_campaign.html",
+        {"campaign": found, "gang": membership.gang},
+    )

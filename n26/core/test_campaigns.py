@@ -272,17 +272,19 @@ class TestReadingOnlyPartOfTheLog:
                 act.set_budget(1001 + number)
         assert campaign_history_size(campaign) == 4
 
-    def test_a_limited_read_asks_for_one_page_of_events(self, campaign, arbitrator):
+    def test_every_source_is_asked_for_one_page(self, campaign, arbitrator):
         """The point of the limit: a campaign played for a year opens as
-        cheaply as one set up this morning."""
+        cheaply as one set up this morning. Each source is bounded, so
+        adding one never makes the page read the whole history again."""
         for number in range(30):
             with campaign_operation(campaign, actor=arbitrator) as act:
                 act.set_budget(1001 + number)
 
         with CaptureQueriesContext(connection) as queries:
             campaign_history(campaign, limit=5)
-        (fetch,) = [q["sql"] for q in queries.captured_queries]
-        assert "LIMIT 5" in fetch
+        fetches = [q["sql"] for q in queries.captured_queries if "SELECT" in q["sql"]]
+        assert fetches
+        assert all("LIMIT 5" in fetch for fetch in fetches), fetches
 
 
 class TestALongRename:

@@ -113,3 +113,56 @@ class CampaignEvent(Base):
 
     def __str__(self):
         return f"{self.get_kind_display()} — {self.campaign}"
+
+
+class CampaignMembership(Base):
+    """One gang's place in one campaign, for as long as it lasts.
+
+    A gang is in at most one campaign at a time, and the database holds it to
+    that: only one membership per gang may be open. Leaving closes the one it
+    has rather than deleting it, so a gang that plays a campaign, leaves, and
+    joins another still says what it did and when.
+
+    ``created`` is when the gang joined; ``left`` is when it stopped, and is
+    unset while it is still playing. A campaign never writes to a gang, so
+    this row is the whole of what being in one means.
+    """
+
+    campaign = models.ForeignKey(
+        "n26.Campaign",
+        on_delete=models.CASCADE,
+        related_name="memberships",
+    )
+    gang = models.ForeignKey(
+        "n26.Gang",
+        on_delete=models.CASCADE,
+        related_name="campaign_memberships",
+    )
+    #: When the gang stopped playing. Unset while it still is, which is what
+    #: the one-at-a-time constraint counts.
+    left = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = "campaign membership"
+        verbose_name_plural = "campaign memberships"
+        ordering = ["created"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["gang"],
+                condition=models.Q(left__isnull=True),
+                name="campaign_membership_one_open_per_gang",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["campaign", "left"], name="campaign_membership_roll_idx"
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.gang} in {self.campaign}"
+
+    @property
+    def playing(self):
+        """Whether the gang is still in the campaign."""
+        return self.left is None

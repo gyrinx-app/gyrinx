@@ -1,0 +1,49 @@
+{% extends "n26/layouts/base.html" %}
+{% comment %}
+The question asked before a gang is taken out of a campaign, at an address of
+its own. Following the link that leads here changes nothing; the POST is the
+act.
+
+The alert is warning rather than error: an error reports something that
+already went wrong, and nothing has yet.
+{% endcomment %}
+{% block head_title %}Remove {{ gang.name }} from {{ campaign.name }}{% endblock head_title %}
+{% block nav_heading %}Remove a gang{% endblock nav_heading %}
+{% block nav_items %}
+    {% include 'n26/_nav.html' with here='campaigns' %}
+{% endblock %}
+{% block content %}
+    <c-n26.form-page action="{% url 'n26-campaign-remove-gang' campaign.pk gang.pk %}"
+                     title="Remove {{ gang.name }} from {{ campaign.name }}?"
+                     submit_label="Remove gang"
+                     submit_variant="danger"
+                     cancel_url="{% url 'n26-campaign' campaign.pk %}">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item>
+                    <c-n26.user-link :user="campaign.owner"
+                                     tone="current"
+                                     href="{% url 'n26-dashboard' %}" />
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'n26-campaign' campaign.pk %}">{{ campaign.name }}</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Remove a gang
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% csrf_token %}
+        {% comment %}
+        What is true, and only what is true. The strongest thing this page can
+        say is what it does not do: a reader taking somebody else's gang out of
+        their campaign has every reason to fear it takes something with it.
+        {% endcomment %}
+        <c-ui.alert variant="warning" title="The gang keeps everything">
+            {{ gang.name }} stops playing {{ campaign.name }} and drops off this
+            campaign's roll. Nothing about the gang changes: it keeps its models,
+            its gear and its money, it stays with the player it belongs to, and
+            what it did while it was here stays in both histories. It can be
+            added again, or join another campaign.
+        </c-ui.alert>
+    </c-n26.form-page>
+{% endblock content %}

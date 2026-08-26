@@ -34,6 +34,16 @@ urlpatterns = [
         views.archive_campaign,
         name="n26-archive-campaign",
     ),
+    path(
+        "campaigns/<str:pk>/gangs/add/",
+        views.add_gang,
+        name="n26-campaign-add-gang",
+    ),
+    path(
+        "campaigns/<str:pk>/gangs/<str:gang_pk>/remove/",
+        views.remove_gang,
+        name="n26-campaign-remove-gang",
+    ),
     path("gangs/", views.gangs, name="n26-gangs"),
     path("gangs/new/", views.create_gang, name="n26-create-gang"),
     # After gangs/new/, which would otherwise resolve "new" as an id.

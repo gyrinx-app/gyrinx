@@ -1,0 +1,51 @@
+{% extends "n26/layouts/base.html" %}
+{% comment %}
+Putting a gang into a campaign, named by the link its player sent.
+
+An address rather than a picker: a gang sheet opens for anybody holding its
+address, so a player choosing to send one is already how a roster travels
+here. That makes the paste the consent, and means no screen has to offer a
+search across other people's gangs.
+{% endcomment %}
+{% block head_title %}Add a gang to {{ campaign.name }}{% endblock head_title %}
+{% block nav_heading %}Add a gang{% endblock nav_heading %}
+{% block nav_items %}
+    {% include 'n26/_nav.html' with here='campaigns' %}
+{% endblock %}
+{% block content %}
+    <c-n26.form-page action="{% url 'n26-campaign-add-gang' campaign.pk %}"
+                     title="Add a gang to {{ campaign.name }}"
+                     lead="A gang plays one campaign at a time."
+                     :form="form"
+                     submit_label="Add gang"
+                     cancel_url="{% url 'n26-campaign' campaign.pk %}">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item>
+                    <c-n26.user-link :user="campaign.owner"
+                                     tone="current"
+                                     href="{% url 'n26-dashboard' %}" />
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'n26-campaign' campaign.pk %}">{{ campaign.name }}</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Add a gang
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% csrf_token %}
+        <c-n26.form-section title="The gang">
+            <c-ui.field label="Gang *"
+                        description="Paste the link a player sent you, or the gang's id."
+                        error="x"
+                        :form="form"
+                        name="gang"
+                        for="join-gang">
+                <c-ui.input id="join-gang"
+                            name="gang"
+                            autocomplete="off"
+                            value="{{ form.gang.value|default:'' }}" />
+            </c-ui.field>
+        </c-n26.form-section>
+    </c-n26.form-page>
+{% endblock content %}

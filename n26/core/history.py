@@ -100,6 +100,10 @@ class Act:
     category: str = "kit"
     miniature_pk: str = ""
     miniature_name: str = ""
+    #: Whose act it was, where the reader holds more than one gang's. A gang's
+    #: own history leaves these empty: there is only ever the one.
+    gang_pk: str = ""
+    gang_name: str = ""
 
     @property
     def search(self):
@@ -121,7 +125,7 @@ def build(gang, viewer=None):
     from n26.core.models import Miniature
 
     events = list(
-        gang.ledger_events.select_related("miniature", "actor").order_by(
+        gang.ledger_events.select_related("miniature", "actor", "campaign").order_by(
             "created", "id"
         )
     )
@@ -523,6 +527,16 @@ def _tell(e, row, alive):
             if was:
                 return (Span(f"renamed {was} to "), Span(now, at.href)), whose
             return (Span("renamed "), at), whose
+        case Kind.JOINED_CAMPAIGN | Kind.LEFT_CAMPAIGN:
+            # The arbitrator is the actor, so the verb is theirs: a gang
+            # does not join itself, and "joined" would read as the person who
+            # did the adding joining. Which gang goes unsaid — a gang's own
+            # history is already about it, and a campaign's log says whose
+            # every act was beside the sentence.
+            where = e.campaign.name if e.campaign else "a campaign"
+            if e.kind == Kind.JOINED_CAMPAIGN:
+                return (Span(f"added the gang to {where}"),), "gang"
+            return (Span(f"took the gang out of {where}"),), "gang"
         case Kind.BUDGET_SET:
             _, _, now = e.note.rpartition(" → ")
             if now == NO_CEILING:
@@ -674,7 +688,10 @@ def campaign_history(campaign, viewer=None, limit=None):
     asked for its own newest that many, and the merge cuts again, so the
     answer is the newest across all of them however they are spread.
     """
-    dated = list(_campaign_own_acts(campaign, viewer, limit))
+    dated = [
+        *_campaign_own_acts(campaign, viewer, limit),
+        *_gang_acts_in_campaign(campaign, viewer, limit),
+    ]
     dated.sort(key=lambda row: row[0])
     if limit is not None:
         dated = dated[-limit:]
@@ -683,7 +700,35 @@ def campaign_history(campaign, viewer=None, limit=None):
 
 def campaign_history_size(campaign):
     """How many acts the history holds, without building any of them."""
-    return campaign.events.count()
+    return campaign.events.count() + campaign.gang_events.count()
+
+
+def _gang_acts_in_campaign(campaign, viewer, limit=None):
+    """What the gangs in this campaign did while they were in it.
+
+    Their own ledger events, which name the campaign because the operation
+    that wrote them read the gang's membership. One record, two readers: the
+    same act appears here and in the gang's own history, and neither is a copy
+    of the other.
+    """
+    from n26.core.models import LedgerEvent
+
+    events = LedgerEvent.objects.filter(campaign=campaign).select_related(
+        "miniature", "actor", "gang", "campaign"
+    )
+    events = (
+        events.order_by("-created", "-id")[:limit]
+        if limit is not None
+        else events.order_by("created", "id")
+    )
+    events = list(events)
+    rows = _rows_for(events)
+    for e in events:
+        act = _one_act(e, rows.get(e.assignment_id), viewer, alive=set())
+        # Whose act it was, so the campaign's log can be read gang by gang.
+        act.gang_pk = str(e.gang_id)
+        act.gang_name = e.gang.name if e.gang else ""
+        yield (e.created, str(e.pk)), act
 
 
 def _campaign_own_acts(campaign, viewer, limit=None):
