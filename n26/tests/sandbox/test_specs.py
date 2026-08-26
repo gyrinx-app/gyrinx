@@ -410,12 +410,12 @@ class TestTheFullAssembly:
         """The modifier row from the plan's table: WHO and WHAT each
         compiled from their spec, glued by the modifier verb, hung on
         the archetype — the composer's whole save() in miniature."""
-        from n26.tests.sandbox.actions import create_archetype, create_category
+        from n26.tests.sandbox.actions import create_affiliation, create_category
 
         collection, tiers = skills_and_powers
         leader = create_subtype("Outcast Leader")
         combat = create_category("Skills", "Combat")
-        brawler = create_archetype("Brawler")
+        brawler = create_affiliation("Brawler")
 
         row = authoring.modifier(
             "Brawler leader: combat primary",

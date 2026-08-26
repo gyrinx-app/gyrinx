@@ -2,7 +2,7 @@
 
 The Subjugator Patrol Officer pattern: a Specialist subtype grants a
 hidden carrier whose modifier offers the general choice of
-specialisation; one profile with that subtype built in takes the
+affiliation; one profile with that subtype built in takes the
 general carrier away again and grants a narrower one of its own, so
 its card should ask the same question over a shorter list. The plain
 profile keeps the general offer untouched.
@@ -22,13 +22,13 @@ from django.contrib.auth.models import User
 from n26.core.card import build_card, build_modifier_index
 from n26.core.effects import compute
 from n26.core.render import build_choice_offer
-from n26.library.models import Specialisation
+from n26.library.models import Affiliation
 from n26.tests.sandbox.actions import (
+    create_affiliation,
     create_collection,
     create_default_set,
     create_hidden,
     create_profile,
-    create_specialisation,
     create_subtype,
     ef_adds,
     ef_removes,
@@ -52,32 +52,30 @@ def owner(db):
 
 
 @pytest.fixture
-def specialisations(default_pack):
+def affiliations(default_pack):
     return {
-        name: create_specialisation(name)
+        name: create_affiliation(name)
         for name in ("Sniper", "Gunner", "Medic", "Armourer")
     }
 
 
 @pytest.fixture
-def general_menu(specialisations):
+def general_menu(affiliations):
     """The whole menu: all four, in one default section."""
     collection = create_collection(
-        "Specialisation Offer", entries=list(specialisations.values())
+        "Affiliation Offer", entries=list(affiliations.values())
     )
-    return section_of(collection, "Specialisations", 0, is_default=True)
+    return section_of(collection, "Affiliations", 0, is_default=True)
 
 
 @pytest.fixture
 def general_offer(general_menu):
     """The hidden carrier every Specialist is granted."""
-    hidden = create_hidden("Specialisation Offer (general)")
+    hidden = create_hidden("Affiliation Offer (general)")
     modifier(
-        "General offer: a specialisation from the whole menu",
+        "General offer: a affiliation from the whole menu",
         targets_model(),
-        offers_choice(
-            Specialisation, from_section=general_menu, label="specialisation"
-        ),
+        offers_choice(Affiliation, from_section=general_menu, label="affiliation"),
         carried_by=hidden,
     )
     return hidden
@@ -98,20 +96,20 @@ def specialist(general_offer):
 
 
 @pytest.fixture
-def narrow_menu(specialisations):
+def narrow_menu(affiliations):
     collection = create_collection(
-        "Specialisation Offer (Subjugator)", entries=[specialisations["Gunner"]]
+        "Affiliation Offer (Subjugator)", entries=[affiliations["Gunner"]]
     )
-    return section_of(collection, "Specialisations", 0, is_default=True)
+    return section_of(collection, "Affiliations", 0, is_default=True)
 
 
 @pytest.fixture
 def narrow_offer(narrow_menu):
-    hidden = create_hidden("Specialisation offer (Subjugator)")
+    hidden = create_hidden("Affiliation offer (Subjugator)")
     modifier(
-        "Subjugator offer: a specialisation from the short menu",
+        "Subjugator offer: a affiliation from the short menu",
         targets_model(),
-        offers_choice(Specialisation, from_section=narrow_menu, label="specialisation"),
+        offers_choice(Affiliation, from_section=narrow_menu, label="affiliation"),
         carried_by=hidden,
     )
     return hidden
@@ -187,7 +185,7 @@ class TestThePlainPatrolOfficer:
 
     def test_the_card_asks_one_question_over_the_whole_menu(self, officers):
         ((slot, names),) = questions_on(officers["plain"])
-        assert slot.kind_label == "Specialisation"
+        assert slot.kind_label == "Affiliation"
         assert not slot.is_resolved
         assert names == {"Sniper", "Gunner", "Medic", "Armourer"}
 
@@ -198,7 +196,7 @@ class TestTheSubjugatorPatrolOfficer:
 
     def test_the_card_asks_one_question_over_the_short_menu(self, officers):
         ((slot, names),) = questions_on(officers["subjugator"])
-        assert slot.kind_label == "Specialisation"
+        assert slot.kind_label == "Affiliation"
         assert names == {"Gunner"}
 
     def test_the_plan_shows_the_general_offer_ran_and_was_then_retracted(
@@ -209,21 +207,19 @@ class TestTheSubjugatorPatrolOfficer:
             step
             for step in plan
             if str(step.source) == "Subjugator Patrol Officer"
-            and "Specialisation Offer (general)" in step.effect
+            and "Affiliation Offer (general)" in step.effect
         )
         assert removal.outcome == "reached"
-        assert removal.took_away == ("Specialisation Offer (general)",)
+        assert removal.took_away == ("Affiliation Offer (general)",)
         general = next(
-            step
-            for step in plan
-            if str(step.source) == "Specialisation Offer (general)"
+            step for step in plan if str(step.source) == "Affiliation Offer (general)"
         )
         assert general.outcome == "retracted"
         # The narrow carrier's own offer stands.
         narrow = next(
             step
             for step in plan
-            if str(step.source) == "Specialisation offer (Subjugator)"
+            if str(step.source) == "Affiliation offer (Subjugator)"
         )
         assert narrow.outcome == "reached"
 
@@ -312,7 +308,7 @@ class TestWhetherTheQuestionCanBeSettled:
             assert line.key != ""
 
     def test_the_narrow_question_settles_from_the_screen(
-        self, gang, officers, owner, client, specialisations
+        self, gang, officers, owner, client, affiliations
     ):
         """The whole point of an address: a player can click the question
         and the pick lands."""
@@ -332,14 +328,14 @@ class TestWhetherTheQuestionCanBeSettled:
         assert "Gunner" in body and "Sniper" not in body
         response = client.post(
             line.href,
-            {"thing": f"library.specialisation:{specialisations['Gunner'].pk}"},
+            {"thing": f"library.affiliation:{affiliations['Gunner'].pk}"},
         )
 
         assert response.status_code == 302
         (settled,) = computed_for(subjugator).choices
         assert settled.chosen_name == "Gunner"
         assert (
-            Assignment.objects.get(specialisation=specialisations["Gunner"]).miniature
+            Assignment.objects.get(affiliation=affiliations["Gunner"]).miniature
             == subjugator
         )
         assert_reconciled(gang)
@@ -361,21 +357,21 @@ class TestTheSameSwapBuiltAsSlotsAndPicks:
             create_slot_type,
         )
 
-        slot_type = create_slot_type("Specialisation")
+        slot_type = create_slot_type("Affiliation")
         picks = {
             name: create_pickable(name, slot_type)
             for name in ("Sniper", "Gunner", "Medic", "Armourer")
         }
         general = create_slot(
-            "Specialisation",
+            "Affiliation",
             slot_type,
-            create_picklist("Specialisations", slot_type, members=list(picks.values())),
+            create_picklist("Affiliations", slot_type, members=list(picks.values())),
         )
         narrow = create_slot(
-            "Specialisation (Subjugator)",
+            "Affiliation (Subjugator)",
             slot_type,
             create_picklist("Subjugator options", slot_type, members=[picks["Gunner"]]),
-            label="Specialisation",
+            label="Affiliation",
         )
         subtype = create_subtype("Slotted Specialist")
         modifier(

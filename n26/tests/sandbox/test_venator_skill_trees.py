@@ -12,10 +12,10 @@ fighter's rank:
 
 The unlock is reading that table **per column**: each rank slot is one
 gang-hosted assignable carrying everything except which tree was picked
-— a gang-level choice (``TargetsGang`` + ``OffersChoice`` of a
-``SkillTree`` token) and per-rank chosen-mode placements
+— a gang-level choice (``TargetsGang`` granting a ``Slot`` over the
+trees) and per-rank chosen-mode placements
 (``PlacesCategory.the_chosen``). The tree pick contributes exactly one
-datum, the token's ``category`` home; the whole mapping is authored
+datum, the pickable's ``category`` home; the whole mapping is authored
 content, known to no code.
 """
 
@@ -26,7 +26,7 @@ from n26.core.browse import offered_by, placements_for
 from n26.core.card import build_card, build_gang_card, build_modifier_index
 from n26.core.effects import compute, compute_gang
 from n26.core.render_text import gang_to_text
-from n26.library.models import Skill, SkillTree
+from n26.library.models import Skill
 from n26.tests.sandbox.actions import (
     choose,
     create_category,
@@ -34,10 +34,14 @@ from n26.tests.sandbox.actions import (
     create_default_set,
     create_gang_type,
     create_hidden,
+    create_pickable,
+    create_picklist,
     create_profile,
     create_skill,
-    create_skill_tree,
+    create_slot,
+    create_slot_type,
     create_subtype,
+    ef_adds,
     found_gang,
     has_subtypes,
     hire_with_option,
@@ -96,12 +100,30 @@ def skills_collection(skills):
 
 
 @pytest.fixture
-def tokens(sets):
-    """One pickable token per set, homed where the set lives."""
+def tree_type(db):
+    """The game ranks four *different* trees, so the same one picked for
+    two ranks is worth a word — which is what refusing repeats means
+    here: informed, never policed."""
+    return create_slot_type("Skill Tree", allows_repeats=False)
+
+
+@pytest.fixture
+def tokens(sets, tree_type):
+    """One pickable per set, homed where the set lives.
+
+    The home is the whole of what a pick contributes: a rule placing
+    "the chosen set" reads the pickable's category to learn which set
+    the pick stands for."""
     return {
-        key: create_skill_tree(category.name, category)
+        key: create_pickable(category.name, tree_type, category=category)
         for key, category in sets.items()
     }
+
+
+@pytest.fixture
+def trees(tokens, tree_type):
+    """One list, offered by all four rank slots."""
+    return create_picklist("Skill Trees", tree_type, members=list(tokens.values()))
 
 
 @pytest.fixture
@@ -123,7 +145,7 @@ RANKS = {
 
 
 @pytest.fixture
-def venators(subtypes, skills_collection):
+def venators(subtypes, skills_collection, tree_type, trees):
     """The gang type: four rank slots, each carrying the pick and what
     the pick means per fighter rank. No code knows this table."""
     _, tiers = skills_collection
@@ -135,7 +157,14 @@ def venators(subtypes, skills_collection):
         modifier(
             f"Skill Tree {rank}: the gang picks",
             targets_gang(),
-            offers_choice(SkillTree, label=f"skill tree {rank}"),
+            ef_adds(
+                create_slot(
+                    f"Skill Tree {rank}",
+                    tree_type,
+                    trees,
+                    label=f"Skill tree {rank}",
+                )
+            ),
             carried_by=slot,
         )
         for tier, ranks in meanings:
@@ -206,9 +235,19 @@ def slot_row(gang, rank):
 
 
 def pick(gang, tokens, ranked):
-    """Choose for the rank slots: ``pick(gang, tokens, ["agility", ...])``."""
+    """Choose for the rank slots: ``pick(gang, tokens, ["agility", ...])``.
+
+    A granted slot has no assignment of its own, so the anchor is the
+    marker the grant stands on and the slot being answered is named.
+    """
+    from n26.library.models import Slot
+
     return [
-        choose(slot_row(gang, rank), tokens[key])
+        choose(
+            slot_row(gang, rank),
+            tokens[key],
+            slot=Slot.objects.get(name=f"Skill Tree {rank}"),
+        )
         for rank, key in enumerate(ranked, start=1)
     ]
 
@@ -347,7 +386,7 @@ class TestChangingYourMind:
         )
 
         remove(picks[0])
-        choose(slot_row(gang, 1), tokens["shooting"])
+        pick(gang, tokens, ["shooting"])
 
         placed = tiers_for(hunters["specialist"], skills_collection, sets)
         assert placed["shooting"] == "Primary"
@@ -359,7 +398,7 @@ class TestChangingYourMind:
         """Inform, not police: the owner may double-pick. The gang sheet
         says so, and the fighter's view takes the better tier — lowest
         section position wins, the ordering rule as everywhere."""
-        pick(gang, tokens, ["agility", "cunning", "agility"])
+        pick(gang, tokens, ["agility", "cunning", "agility", "shooting"])
 
         notes = the_gang_computed(gang).notes
         assert [note.about for note in notes] == [tokens["agility"]]
