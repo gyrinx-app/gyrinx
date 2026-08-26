@@ -104,12 +104,13 @@ steps:
       - "--memory=1Gi"
       - "--concurrency=40"
       # A cap, not a target: nothing serves slower for having a longer one.
-      # The default 300s is below what the longest background task needs — a
-      # library conversion holds a single transaction while it proves every
-      # affected gang's pages unchanged, measured at ~165s over 634 gangs on
-      # a developer machine and slower on one vCPU. Being cut off writes
+      # The default 300s is below what the longest background task needs.
+      # backfill_pins walks the estate in 250-row batches and its slowest
+      # single batch has taken ~495s; a whole-estate reconcile and the
+      # maintenance repairs sit in the same range. Being cut off writes
       # nothing, so such a task would simply never finish rather than finish
-      # badly.
+      # badly. Do not lower this without re-measuring the slowest run per
+      # task in tasks_taskexecution.
       #
       # 600s because a task arrives as a Pub/Sub push, and that is the longest
       # acknowledgement deadline Pub/Sub allows. The two must not part company:

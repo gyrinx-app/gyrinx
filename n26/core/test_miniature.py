@@ -67,9 +67,11 @@ def test_a_gang_holds_many_models(gang, owner, profile_assignable):
     ]
 
 
-def test_deleting_a_gang_removes_memberships_not_models(
-    gang, owner, profile_assignable
-):
+def test_deleting_a_gang_takes_its_models_with_it(gang, owner, profile_assignable):
+    """Every route to a model goes through its gang, so a model left
+    behind is a row nothing can show, edit or delete. A model standing
+    on its own is a feature the design considered and dropped, so the
+    gang takes its models with it."""
     mini = Miniature.objects.create(name="Yolanda", owner=owner)
     mini.membership = Assignment.objects.create(
         assignable=profile_assignable, gang=gang
@@ -77,7 +79,19 @@ def test_deleting_a_gang_removes_memberships_not_models(
     mini.save()
 
     gang.delete()
-    mini.refresh_from_db()
 
     assert Assignment.objects.count() == 0
-    assert mini.membership is None
+    assert not Miniature.objects.filter(pk=mini.pk).exists()
+
+
+def test_a_model_with_no_membership_yet_survives_a_gang_going(
+    gang, owner, profile_assignable
+):
+    """The cascade runs off the membership, so a model written before one
+    is attached — the order ``Operations.hire`` writes in — is not swept
+    up by an unrelated gang being deleted."""
+    unattached = Miniature.objects.create(name="Yolanda", owner=owner)
+
+    gang.delete()
+
+    assert Miniature.objects.filter(pk=unattached.pk).exists()

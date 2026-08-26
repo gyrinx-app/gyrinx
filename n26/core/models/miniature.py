@@ -38,12 +38,29 @@ class Miniature(Base, Owned, Rated):
     image = models.ImageField(upload_to="model-images/", blank=True, default="")
     membership = models.OneToOneField(
         "n26.Assignment",
-        on_delete=models.SET_NULL,
+        on_delete=models.CASCADE,
         null=True,
         blank=True,
         related_name="member",
         help_text="The gang-hosted assignment that brought this model in.",
     )
+    """The gang-hosted assignment that brought this model in.
+
+    ``CASCADE`` because a model with no gang is unreachable: every route
+    to one goes through its gang, so a model outliving its membership is
+    a row nothing can show, edit or delete. A model standing on its own,
+    independent of any gang, is a feature ``design/assignables.md``
+    considered and dropped, so there is no state for such a row to be
+    in.
+
+    This is not how a model leaves a gang — that archives the membership
+    (the roster reads ``membership__archived=False``) — so the cascade
+    fires only when the assignment is genuinely deleted, which in
+    practice means the gang was.
+
+    Nullable because ``Operation.hire`` writes the model before
+    attaching its membership; a null cascades from nothing.
+    """
 
     class Meta:
         verbose_name = "model"
