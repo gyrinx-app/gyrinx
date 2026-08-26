@@ -323,7 +323,6 @@ def _build_registry():
     from n26.library.models import (
         Affiliation,
         AllowsAtMost,
-        Archetype,
         Category,
         ChangesCategory,
         ChangesStat,
@@ -359,10 +358,8 @@ def _build_registry():
         Rule,
         Section,
         Skill,
-        SkillTree,
         Slot,
         SlotType,
-        Specialisation,
         Stat,
         StatlineType,
         StatlineTypeStat,
@@ -417,7 +414,7 @@ def _build_registry():
             ),
             example=(
                 "Mounted grants two skills: the fighter with the Mounted "
-                "subtype gets them. An archetype assigned to a Champion "
+                "subtype gets them. An affiliation assigned to a Champion "
                 "applies to that Champion alone."
             ),
         ),
@@ -440,9 +437,9 @@ def _build_registry():
                 "founding rule. Conditions narrow it the same way."
             ),
             example=(
-                "The leader's archetype sets the skills available to every "
-                "model except Champions: one modifier, with a condition "
-                "naming the exception."
+                "The leader's affiliation sets the skills available to "
+                "every model except Champions: one modifier, with a "
+                "condition naming the exception."
             ),
         ),
         Spec(
@@ -935,43 +932,12 @@ def _build_registry():
             },
         ),
         Spec(
-            authoring.create_specialisation,
-            {
-                "name": Text(source=(Specialisation, "name")),
-                "qualifier": Text(source=(Specialisation, "qualifier")),
-                "library_author_help": Text(
-                    source=(Specialisation, "library_author_help"), long=True
-                ),
-            },
-        ),
-        Spec(
-            authoring.create_archetype,
-            {
-                "name": Text(source=(Archetype, "name")),
-                "qualifier": Text(source=(Archetype, "qualifier")),
-                "library_author_help": Text(
-                    source=(Archetype, "library_author_help"), long=True
-                ),
-            },
-        ),
-        Spec(
             authoring.create_affiliation,
             {
                 "name": Text(source=(Affiliation, "name")),
                 "qualifier": Text(source=(Affiliation, "qualifier")),
                 "library_author_help": Text(
                     source=(Affiliation, "library_author_help"), long=True
-                ),
-            },
-        ),
-        Spec(
-            authoring.create_skill_tree,
-            {
-                "name": Text(source=(SkillTree, "name")),
-                "category": One(model=Category, source=(SkillTree, "category")),
-                "qualifier": Text(source=(SkillTree, "qualifier")),
-                "library_author_help": Text(
-                    source=(SkillTree, "library_author_help"), long=True
                 ),
             },
         ),

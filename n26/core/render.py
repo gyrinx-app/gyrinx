@@ -43,7 +43,7 @@ def _speaks_for_itself(node, asked_here):
     A pick is normally drawn as its choice's answer, so it draws no line
     of its own — but that assumes the question is asked *here*. It need
     not be: a question asked of one holder may be answered onto another
-    (the Leader is asked the gang's archetype, and the gang holds it),
+    (the Leader is asked the gang's legacy, and the gang holds it),
     and then the card holding the answer has no choice row to hang it
     under.
 
@@ -384,7 +384,7 @@ class ChoiceOffer:
     """A slot and what may be chosen for it — the pick screen, as data.
 
     One structure whatever the offer names, which is the point: a skill, an
-    archetype and an affiliation differ in the rows they list and in
+    pick and an affiliation differ in the rows they list and in
     nothing else, so one page draws all three.
 
     A choice holding several picks is settled a pick at a time —
@@ -462,7 +462,7 @@ class ModelCard:
     #: beside what the model already knows, because those are the rows a
     #: reader looks at to find out what this fighter can do — a founding
     #: pick left in the general run of slots is an obligation filed
-    #: under the same heading as their archetype. ``question_row`` says
+    #: under the same heading as their legacy. ``question_row`` says
     #: which questions qualify. A slot already chosen for is not here:
     #: the thing chosen is a skill or a power, and it sits in its row
     #: with the others.
@@ -609,7 +609,7 @@ class GangSheet:
     #: reason a model card keeps its rules apart from its kit: the sheet
     #: prints them under their own term.
     rules: list[AssignableLine] = field(default_factory=list)
-    #: Gang-level choices — a Venator's ranked skill trees.
+    #: Gang-level choices — a Venator's ranked skill sets.
     choices: list[ChoiceLine] = field(default_factory=list)
     #: Counters the gang keeps, with their standing values.
     counters: list = field(default_factory=list)
@@ -821,7 +821,7 @@ def question_row(slot):
     The label decides, and the rule is what an author would guess:
     a question labelled "Skills" or "Powers" sits in that row, beside
     what the fighter already has; a question labelled anything else —
-    "Bonecrusher Wyrd Powers", "Favoured archetype" — is its own row,
+    "Bonecrusher Wyrd Powers", "Favoured affiliation" — is its own row,
     headed by exactly what was written. Unlabelled, the kind stands in:
     its declared ``card_row``, so a skill question sits with the skills
     and a power question with the powers with nothing said here.
@@ -865,7 +865,7 @@ def build_choice_offer(slot, computed):
     have already shaped it. An unnarrowed slot has no collection and
     draws the whole kind, which is one heading-less group. Neither
     branch knows what kind of thing is being picked — that is what lets a
-    skill, an archetype and an affiliation share a screen.
+    skill, a pick and an affiliation share a screen.
 
     Where the slot type takes one pickable once, the ones this holder
     has already spent elsewhere are marked. Marked, not withheld: the

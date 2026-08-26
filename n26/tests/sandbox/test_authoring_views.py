@@ -906,7 +906,6 @@ class TestFamilies:
         """The grouping as agreed, pinned so it changes deliberately."""
         from n26.library.models import (
             Affiliation,
-            Archetype,
             Category,
             Collection,
             Counter,
@@ -919,7 +918,6 @@ class TestFamilies:
             Rule,
             Section,
             Skill,
-            SkillTree,
             Slot,
             SlotType,
             Subtype,
@@ -937,9 +935,7 @@ class TestFamilies:
             Family.GANG: [
                 GangType,
                 Profile,
-                Archetype,
                 Affiliation,
-                SkillTree,
                 Collection,
             ],
             # A slot type and its three parts: they only mean
@@ -961,11 +957,10 @@ class TestHelpRendersOnTheForm:
 
 
 class TestTheCarriers:
-    """Hidden, specialisation, archetype, affiliation, skill tree: the
-    page makes the thing, the composer arms it later. Their verbs take
-    an ``effects``/``grants_skill`` shortcut the sandbox suites use;
-    the form deliberately doesn't, so there is one way to build a
-    modifier and it is the composer."""
+    """Hidden and affiliation: the page makes the thing, the composer
+    arms it later. Their verbs take an ``effects`` shortcut the sandbox
+    suites use; the form deliberately doesn't, so there is one way to
+    build a modifier and it is the composer."""
 
     def test_a_hidden_carrier(self, author, client, default_pack):
         from n26.library.models import Hidden
@@ -981,39 +976,11 @@ class TestTheCarriers:
         assert made.library_author_help.startswith("Rides the option set")
         assert not made.modifiers.exists()  # armed by the composer, later
 
-    def test_the_chosen_carriers(self, author, client, default_pack):
-        from n26.library.models import Affiliation, Archetype
+    def test_the_chosen_carrier(self, author, client, default_pack):
+        from n26.library.models import Affiliation
 
-        client.post("/n26/authoring/archetype/new/", {"name": "Brawler"})
         client.post("/n26/authoring/affiliation/new/", {"name": "Clan House"})
-        assert Archetype.objects.filter(name="Brawler").exists()
         assert Affiliation.objects.filter(name="Clan House").exists()
-
-    def test_a_specialisation(self, author, client, default_pack):
-        from n26.library.models import Specialisation
-
-        client.post("/n26/authoring/specialisation/new/", {"name": "Medicate"})
-        assert Specialisation.objects.filter(name="Medicate").exists()
-
-    def test_a_skill_tree_needs_the_set_it_stands_for(
-        self, author, client, default_pack
-    ):
-        from n26.library.authoring import create_category
-        from n26.library.models import SkillTree
-
-        agility = create_category("Skills", "Agility")
-        response = client.post(
-            "/n26/authoring/skill-tree/new/",
-            {"name": "Agility", "category": str(agility.pk)},
-        )
-        assert response.status_code == 302
-        assert SkillTree.objects.get(name="Agility").category == agility
-
-        # The token is meaningless without its home, so the form insists.
-        response = client.post("/n26/authoring/skill-tree/new/", {"name": "Nowhere"})
-        assert response.status_code == 200
-        assert "required" in response.content.decode()
-        assert not SkillTree.objects.filter(name="Nowhere").exists()
 
 
 @pytest.fixture
@@ -1137,32 +1104,16 @@ class TestASlotTypeReadsAsAKind:
     def page(self, client, slot_type):
         return client.get(f"/n26/authoring/slot-type/{slot_type.pk}/").content.decode()
 
-    def test_the_index_offers_none_of_the_retired_kinds(
+    def test_the_menu_has_no_page_for_a_deleted_kind(
         self, author, client, default_pack
     ):
-        """What an archetype, a skill tree and a specialisation said is
-        said by slots and picks. The menu stops inviting another one."""
-        from n26.library.views import RETIRED_KINDS
-
+        """Archetype, Skill Tree and Specialisation were models; what
+        they said is said by slots and picks, and the models are gone.
+        Nothing on the menu still points at one."""
         body = client.get("/n26/authoring/").content.decode()
 
-        for kind in RETIRED_KINDS:
-            assert f"/n26/authoring/{kind}/new/" not in body, kind
-
-    def test_a_retired_kinds_page_still_opens(self, author, client, default_pack):
-        """The rows are still there — answers a gang took back point at
-        them — so they stay reachable and editable. Only the invitation
-        to make another one goes."""
-        from n26.tests.sandbox.actions import create_specialisation
-
-        held = create_specialisation("Sniper")
-
-        listing = client.get("/n26/authoring/specialisation/")
-        page = client.get(f"/n26/authoring/specialisation/{held.pk}/")
-
-        assert listing.status_code == 200
-        assert page.status_code == 200
-        assert "Sniper" in page.content.decode()
+        for kind in ("archetype", "skill-tree", "specialisation"):
+            assert f"/n26/authoring/{kind}/" not in body, kind
 
     def test_the_index_groups_the_choice_kinds_together(
         self, author, client, default_pack
@@ -2870,15 +2821,6 @@ class TestListingsSayWhatARowIs:
         row = body.split("Juggernaut", 1)[1].split("</tr>", 1)[0]
         assert "Inherent" in row
         assert "rolled on" not in row
-
-    def test_a_skill_tree_says_which_set_it_stands_for(
-        self, author, client, default_pack
-    ):
-        from n26.library.authoring import create_category, create_skill_tree
-
-        create_skill_tree("Agility", create_category("Skills", "Agility"))
-        body = client.get("/n26/authoring/skill-tree/").content.decode()
-        assert "stands for Agility" in body
 
     def test_a_priced_thing_shows_its_price(self, author, client, default_pack):
         from n26.library.authoring import create_wargear

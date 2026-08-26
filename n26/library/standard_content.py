@@ -166,25 +166,6 @@ SKILL_SETS = {
 #: Brutes grants Juggernaut.
 INHERENT_SKILLS = ["Hit & Run", "Inspiring", "Juggernaut"]
 
-#: The eight fields a Specialist chooses between, and the skill each
-#: grants — the core rules' Specialist table, as ``(specialisation,
-#: skill)``.
-#:
-#: Nothing plants these: the Specialist's question is a slot now, and its
-#: answers are pickables. The table remains because the sheets still read
-#: it — an import naming one of these by hand is told the row is not
-#: there to resolve against, rather than quietly inventing it.
-SPECIALISATIONS = [
-    ("Heavy", "Bulging Biceps"),
-    ("Gunner", "Hip-shooting"),
-    ("Gunslinger", "Gunfighter"),
-    ("Scout", "Clamber"),
-    ("Sniper", "Precision Shot"),
-    ("Brawler", "Berserker"),
-    ("Medic", "Medicate"),
-    ("Tech", "Munitioneer"),
-]
-
 #: Where the sets sit in the taxonomy — the heading above them.
 SKILLS_SECTION = "Skills"
 INHERENT_SET = "Inherent"

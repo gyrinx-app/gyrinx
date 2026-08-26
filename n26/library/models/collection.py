@@ -59,13 +59,11 @@ ENTRY_ASSIGNABLE_FIELDS = (
     "weapon_accessory",
     "subtype",
     "skill",
-    "specialisation",
     "profile",
     "power",
-    # Chosen carriers (archetypes, affiliations) are listable too: a
-    # pack collects its archetypes so a slot's offer can be narrowed to
-    # exactly that list.
-    "archetype",
+    # A chosen carrier is listable too: a pack collects its
+    # affiliations so a slot's offer can be narrowed to exactly that
+    # list.
     "affiliation",
 )
 
@@ -592,13 +590,6 @@ class CollectionEntry(NamesAnAssignable, Content, UsableBy):
         blank=True,
         related_name="+",
     )
-    specialisation = models.ForeignKey(
-        "library.Specialisation",
-        on_delete=models.PROTECT,
-        null=True,
-        blank=True,
-        related_name="+",
-    )
     profile = models.ForeignKey(
         "library.Profile",
         on_delete=models.PROTECT,
@@ -608,13 +599,6 @@ class CollectionEntry(NamesAnAssignable, Content, UsableBy):
     )
     power = models.ForeignKey(
         "library.Power",
-        on_delete=models.PROTECT,
-        null=True,
-        blank=True,
-        related_name="+",
-    )
-    archetype = models.ForeignKey(
-        "library.Archetype",
         on_delete=models.PROTECT,
         null=True,
         blank=True,
@@ -676,17 +660,6 @@ class CollectionEntry(NamesAnAssignable, Content, UsableBy):
             '"Forge-born" in a Goliath list\'s "Heavy rock saw '
             '(Forge-born only)", where other gangs list the same saw '
             "plainly. Blank offers it to everyone."
-        ),
-    )
-    usable_by_specialisations = models.ManyToManyField(
-        "library.Specialisation",
-        blank=True,
-        related_name="+",
-        verbose_name="Offered to specialisations",
-        help_text=(
-            "This list offers it to these specialisations only — the "
-            '"Gunner" in "(Gunner specialist only)", the field a '
-            "Specialist chose. Blank offers it to everyone."
         ),
     )
     position = models.PositiveIntegerField(default=0)

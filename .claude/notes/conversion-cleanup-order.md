@@ -27,6 +27,24 @@ nothing anywhere names one — no assignment, no menu entry, no offer.
 | A superuser may delete player data in the admin | merged |
 | A doubled click no longer answers a question twice | merged |
 | The authoring menu no longer offers the retired kinds | merged |
+| The foundations page stops planting specialisations | merged (#2306) |
+| The sandbox suites move onto slots and picks | merged (#2307) |
+| The Archetypes ingest sheet and specialist-only restriction | PR #2310 |
+| The three models, their columns and their tables | PR — see below |
+
+**Wave 5, stage 4** drops the shape the kinds used to fill:
+`Archetype`, `SkillTree` and `Specialisation`, three `Assignment`
+columns, two `CollectionEntry` columns, six `usable_by_specialisations`
+tables, three `_modifiers` tables, and their entries in every parallel
+registry. Rehearsed on a fork of the content mirror — which still held
+the 26 orphan rows — with every other library count identical
+afterwards and eleven authoring pages rendering 200. Production holds
+none of those rows, so its migration is pure schema.
+
+Two things stay on purpose: the eight conversion slugs registered in
+`n26/maintenance.py` with `view=None`, which name past `Backfill` rows,
+and the `SlotType` rows called Archetype, Skill Tree and Specialisation
+— those are the *new* system, and are what made the deletion safe.
 
 Three things were kept on purpose and are named on the deletion's own
 page: the two markers profiles are built with, and the marker a live

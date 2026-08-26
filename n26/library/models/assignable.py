@@ -314,18 +314,6 @@ class UsableBy(models.Model):
             "list prints goes on that list's entry instead."
         ),
     )
-    usable_by_specialisations = models.ManyToManyField(
-        "library.Specialisation",
-        blank=True,
-        related_name="+",
-        help_text=(
-            'The "Gunner" in "(Gunner specialist only)" — the field a '
-            "Specialist chose, which is a possession like a subtype rather "
-            "than a kind of fighter. This holds wherever the item is "
-            "listed; a restriction only one list prints goes on that "
-            "list's entry instead."
-        ),
-    )
 
     class Meta:
         abstract = True
@@ -333,10 +321,10 @@ class UsableBy(models.Model):
     def usable_by_selector(self):
         """Who may use this, in the selector vocabulary.
 
-        The stored shape stays this mixin's own dialect — four tailored
-        M2Ms — and compiles here to the one grammar: being an allowed
-        *entry* is an ``Exactly`` (the fighter matchable's thing is their
-        profile); having an allowed type, subtype or specialisation is a
+        The stored shape stays this mixin's own dialect — three
+        tailored M2Ms — and compiles here to the one grammar: being an
+        allowed *entry* is an ``Exactly`` (the fighter matchable's thing
+        is their profile); having an allowed type or subtype is a
         ``Has``. Empty is ``Anything()``, the default-open rule.
 
         Prefetch-aware: reads the lists with ``.all()``, so a browse that
@@ -347,7 +335,6 @@ class UsableBy(models.Model):
         possessed = [
             *self.usable_by_profile_types.all(),
             *self.usable_by_subtypes.all(),
-            *self.usable_by_specialisations.all(),
         ]
         entries = list(self.usable_by_profiles.all())
         if not possessed and not entries:
@@ -365,16 +352,15 @@ class UsableBy(models.Model):
     def usable_by_words(self):
         """Who is allowed, as a phrase — empty where anyone is.
 
-        The one place the four lists are read out for a reader, so a note
-        on a listing's line, a mark on a card and a row on an authoring
-        page name them the same way and in the same order. Prefetch-aware,
-        like the selector.
+        The one place the three lists are read out for a reader, so a
+        note on a listing's line, a mark on a card and a row on an
+        authoring page name them the same way and in the same order.
+        Prefetch-aware, like the selector.
         """
         allowed = [
             *self.usable_by_profiles.all(),
             *self.usable_by_profile_types.all(),
             *self.usable_by_subtypes.all(),
-            *self.usable_by_specialisations.all(),
         ]
         return " or ".join(str(item) for item in allowed)
 
@@ -382,7 +368,7 @@ class UsableBy(models.Model):
 #: The lists ``usable_by_selector`` reads, derived from the mixin's own
 #: fields: a listing that prefetches these for every kind carrying the
 #: mixin marks usability without a query per line, and stays complete
-#: if the mixin ever grows a fifth list.
+#: if the mixin ever grows a fourth list.
 USABLE_BY_LISTS = tuple(field.name for field in UsableBy._meta.local_many_to_many)
 
 
@@ -897,31 +883,6 @@ class LastingEffect(Content, Assignable):
         ]
 
 
-class Specialisation(Content, Assignable):
-    """The field a Specialist picks, which grants them its skill.
-
-    The granting is an ordinary *gives* riding it, computed like any
-    other — being pickable is the only new thing about it. The
-    offers-a-choice modifiers that hand it out say "bearer", so it
-    reaches the one model that picked it."""
-
-    family = Family.MODEL
-
-    class Meta:
-        verbose_name = "specialisation"
-        verbose_name_plural = "specialisations"
-        ordering = ["name"]
-        constraints = [
-            models.UniqueConstraint(
-                "pack",
-                Lower("name"),
-                Lower("qualifier"),
-                name="specialisation_unique_per_pack",
-            ),
-            exclusive_has_no_trade_points("specialisation"),
-        ]
-
-
 class Skill(Content, Assignable, UsableBy):
     """A skill a fighter has selected, homed in the set it comes from.
 
@@ -986,46 +947,12 @@ class Rule(Content, Assignable):
         ]
 
 
-class Archetype(Content, Assignable):
-    """A way of leading the gang, chosen once; its whole meaning rides as
-    modifiers.
-
-    The Outcast shape (design/outcasts.md): the gang — or a Champion,
-    individually — chooses one of several archetypes, and everything an
-    archetype *means* rides it as ordinary modifiers: fixed skill-set
-    placements per rank, a granted subtype, a powers family. Where a
-    chosen ``SkillTree`` contributes one datum (its home), a chosen
-    archetype knows its whole payload, so no indirection is involved.
-    Its own kind so the card says "Archetype:".
-
-    Reach follows the host the choice lands on: the whole gang for the
-    Outcast shape, one model for a Champion's personal pick.
-    """
-
-    family = Family.GANG
-    # Chosen, never acquired: nothing would materialise items built in.
-    takes_built_ins = False
-
-    class Meta:
-        verbose_name = "archetype"
-        verbose_name_plural = "archetypes"
-        ordering = ["name"]
-        constraints = [
-            models.UniqueConstraint(
-                "pack",
-                Lower("name"),
-                Lower("qualifier"),
-                name="archetype_unique_per_pack",
-            ),
-            exclusive_has_no_trade_points("archetype"),
-        ]
-
-
 class Affiliation(Content, Assignable):
     """Who the gang sides with, chosen once when the gang is created.
 
-    The same chosen-carrier shape as ``Archetype``, its own kind for the
-    same reason. An affiliation's payload is typically *access* —
+    A chosen carrier: the whole of what it means rides it as ordinary
+    modifiers, and it is its own kind so the card says "Affiliation:".
+    An affiliation's payload is typically *access* —
     equipment lists opened to some ranks, so its gives are scoped while
     the affiliation itself rides gang-wide — and an affiliation may
     itself offer a further choice (Clan House's "choose one of the six
@@ -1049,47 +976,6 @@ class Affiliation(Content, Assignable):
                 name="affiliation_unique_per_pack",
             ),
             exclusive_has_no_trade_points("affiliation"),
-        ]
-
-
-class SkillTree(Content, Assignable):
-    """A skill set you can pick — "Agility" as a thing a gang chooses.
-
-    Most gangs never need one. Their skill sets are fixed by the book,
-    and a fixed set is just a ``Category``: Agility is a place in the
-    catalogue that skills live in.
-
-    Venators are different. The gang picks four sets and ranks them, so
-    "we chose Agility" is a fact about *that gang*, which has to be
-    written down somewhere. Facts a gang owns are assignments, and an
-    assignment can only point at an assignable — a category is not one.
-    This kind fills that gap: a small pickable thing that means "the
-    Agility set". Choose it, and the gang holds it; the rule that says
-    "your first pick counts as Primary" then looks at the ``category``
-    on the thing they picked.
-
-    So there can be two rows called Agility: the category, which is the
-    set itself, and one of these, which is the way a gang says it chose
-    that set. Everything else — which skills are in it, where it sits
-    for a fighter — belongs to the category.
-    """
-
-    family = Family.GANG
-    # Chosen, never acquired: nothing would materialise items built in.
-    takes_built_ins = False
-
-    class Meta:
-        verbose_name = "skill tree"
-        verbose_name_plural = "skill trees"
-        ordering = ["name"]
-        constraints = [
-            models.UniqueConstraint(
-                "pack",
-                Lower("name"),
-                Lower("qualifier"),
-                name="skill_tree_unique_per_pack",
-            ),
-            exclusive_has_no_trade_points("skill_tree"),
         ]
 
 

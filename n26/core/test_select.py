@@ -9,7 +9,7 @@ printed, in-memory targets can carry computed assignables.
 import pytest
 
 from n26.core import select
-from n26.library.models import Skill, Specialisation, Trait, Weapon, WeaponProfile
+from n26.library.models import Affiliation, Skill, Trait, Weapon, WeaponProfile
 
 pytestmark = pytest.mark.django_db
 
@@ -81,10 +81,10 @@ class TestHas:
 
 class TestOfKindAndExactly:
     def test_of_kind_matches_and_lists(self, db):
-        sharp = Specialisation.objects.create(name="Sharpshooter")
-        Specialisation.objects.create(name="Medicae")
+        sharp = Affiliation.objects.create(name="Sharpshooter")
+        Affiliation.objects.create(name="Medicae")
 
-        kind = select.OfKind(Specialisation)
+        kind = select.OfKind(Affiliation)
         assert kind.matches(select.matchable(sharp))
         assert not kind.matches(select.matchable(Trait.objects.create(name="Melee")))
         assert sorted(s.name for s in kind.choosables()) == [
@@ -93,13 +93,13 @@ class TestOfKindAndExactly:
         ]
 
     def test_exactly_is_one_thing(self, db):
-        sharp = Specialisation.objects.create(name="Sharpshooter")
-        medic = Specialisation.objects.create(name="Medicae")
+        sharp = Affiliation.objects.create(name="Sharpshooter")
+        medic = Affiliation.objects.create(name="Medicae")
 
         one = select.Exactly(sharp)
         assert one.matches(select.matchable(sharp))
         assert not one.matches(select.matchable(medic))
-        assert list(Specialisation.objects.filter(one.as_q(Specialisation))) == [sharp]
+        assert list(Affiliation.objects.filter(one.as_q(Affiliation))) == [sharp]
 
 
 class TestLineOf:
@@ -167,5 +167,5 @@ class TestCombinators:
 class TestReadableness:
     def test_selectors_describe_themselves(self, melee):
         assert str(select.Has(melee)) == "has Melee"
-        assert str(select.OfKind(Specialisation)) == "any specialisation"
+        assert str(select.OfKind(Affiliation)) == "any affiliation"
         assert str(select.Not(select.Has(melee))) == "not (has Melee)"

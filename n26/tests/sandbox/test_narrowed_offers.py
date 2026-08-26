@@ -243,7 +243,6 @@ class TestWhatAnEntryOfThisCollectionAsks:
             "usable_by_profile_types",
             "usable_by_subtypes",
             "usable_by_profiles",
-            "usable_by_specialisations",
         )
 
     def test_a_menu_asks_for_nothing_but_the_item(self, db):
