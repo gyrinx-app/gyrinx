@@ -15,13 +15,19 @@ read, and the pin needed to express that contradicts the recorded
 history of any database that already ran it — so a repair runs after a
 deploy instead, on a schema that is fully migrated by construction.
 
-A run is one transaction, and deliberately all-or-nothing: interrupted
-by a killed request or a lost connection it rolls back whole, so it is a
-no-op that can simply be run again rather than a half-repaired library.
-Delivery is at-least-once, so two guards stand between that promise and
-a second copy running alongside the first: a lock only one run can hold,
-and a cap on how many times an attempt may be started before the record
-gives up and says so.
+Runs come in two shapes, and each states its own promise. A small
+repair (``_run_recorded``) is one transaction, deliberately
+all-or-nothing: interrupted, it rolls back whole and can simply be run
+again. Work too large for one transaction (``run_batched``) commits row
+by row instead, writes how far it got onto the record, and continues
+from there after any interruption — which trades the clean rollback for
+a requirement that each row's work be idempotent. Delivery is
+at-least-once, so two guards stand between either promise and a second
+copy running alongside the first: a lock only one run can hold, and a
+cap on how many attempts may start without recording any progress
+before the record gives up and says so. A batched run resets that count
+with every batch it records, so a long run's many deliveries are never
+mistaken for a stuck one.
 
 A repair that has been run and cannot recur keeps its slug registered
 with no view. It leaves the menu, and the record of the run still reads
@@ -31,7 +37,7 @@ as a name rather than a bare slug.
 import logging
 import traceback
 from contextlib import contextmanager
-from datetime import date
+from datetime import date, timedelta
 
 from django.contrib import messages
 from django.db import connection, models, transaction
@@ -39,6 +45,7 @@ from django.http import HttpResponseRedirect
 from django.shortcuts import render
 from django.tasks import task
 from django.urls import reverse
+from django.utils import timezone
 
 from gyrinx.maintenance.models import Backfill
 from gyrinx.maintenance.registry import MaintenanceOperation, register_operation
@@ -51,13 +58,15 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "Operation",
     "delete_nameless_gang_type",
+    "run_batched",
     "task_routes",
 ]
 
-#: How many times a run may be started before the record gives up. A
-#: run that exhausts the request budget leaves nothing behind and is
-#: redelivered, so without a cap a run too large to finish would repeat
-#: for ever, each attempt paying the whole cost again.
+#: How many times a run may start without recording any progress before
+#: the record gives up. A one-transaction run that dies leaves nothing
+#: behind and is redelivered; a batched run resets the count every time
+#: it records a batch. Either way, without the cap a run that always
+#: dies would repeat for ever, each attempt paying its cost again.
 MAX_ATTEMPTS = 2
 
 #: The locks a run holds for as long as it is working — one per
@@ -199,9 +208,10 @@ def _claim(backfill_id):
         backfill.save()
         if attempts > MAX_ATTEMPTS:
             return False, (
-                f"started {attempts} times without finishing — each attempt "
-                "left nothing behind. The repair needs longer than one "
-                "request allows; raise the limit before running it again."
+                f"started {attempts} times without getting anywhere — each "
+                "attempt died before recording an ending or any progress. "
+                "Look at what kills the attempt (its deadline, its size) "
+                "before running again."
             )
         return True, ""
 
@@ -254,6 +264,191 @@ def _run_recorded(backfill_id, operation, what, work, refusals):
             status=Backfill.Status.DONE,
             summary_patch={"report": list(report)},
         )
+
+
+#: How long one batched attempt may work before handing the rest back
+#: to the queue. The invariant a consumer's route must satisfy: this
+#: budget plus the time one batch takes must fit inside the route's
+#: acknowledgement deadline, or the queue redelivers an attempt that is
+#: still working. The default fits the framework's default deadline
+#: with a minute to spare for the batch in flight.
+BATCH_BUDGET = timedelta(minutes=4)
+
+#: How many rows a batched run settles between progress writes. Small
+#: enough that a crash replays little; large enough that the record is
+#: not written per row.
+BATCH_SIZE = 50
+
+
+def run_batched(
+    backfill_id,
+    *,
+    operation,
+    what,
+    items,
+    do_one,
+    again,
+    batch_size=BATCH_SIZE,
+    budget=BATCH_BUDGET,
+):
+    """Work through ``items`` one at a time, each on its own commit,
+    remembering how far it got.
+
+    ``_run_recorded`` holds a whole run inside one transaction; this is
+    the shape for work too large for that. ``items`` is a queryset with
+    a unique primary key — ordered here, because the cursor is only
+    sound over a total order — and it must be stable: a queryset that
+    stops matching rows as they are settled moves the finish line while
+    the cursor chases it. ``do_one(pk)`` settles one row completely,
+    committing its own writes and leaving nothing behind when it fails.
+    It must be idempotent: a crashed attempt replays at most one batch,
+    and a rerun is a fresh record that walks every row again, settling
+    only what the earlier run missed.
+
+    Progress lands on the record after every batch — how many rows are
+    settled, of how many, the failures so far, and the cursor the next
+    attempt continues from. That write doubles as the cancel check: an
+    operator's CANCELLED is an ending, endings are final, so the
+    refused write is the signal to stop, and the rows already settled
+    stay settled. It also starts the attempt count over, which is what
+    lets ``_claim`` serve both run shapes: only an attempt that dies
+    before recording any progress counts towards giving up.
+
+    A failing row is written down and stepped past; one that settles on
+    a later walk is struck off. The ending is DONE only when nothing
+    failed. Past ``budget`` the attempt records the cursor and hands
+    the rest to a fresh delivery — enqueued only after the lock is
+    released, so the delivery it summons can never find the lock still
+    held, stand down, and leave the record RUNNING with no delivery
+    left to finish it.
+
+    The work never raises, for ``_run_recorded``'s reason: a raised
+    error is only redelivered, and there is nowhere for it to go but
+    round again. The hand-back is the one deliberate exception: an
+    enqueue that fails is allowed to raise, because the failed delivery
+    is then redelivered and the retry re-summons the continuation —
+    swallowing it would leave no delivery to finish the run.
+    """
+    continued = False
+    with _single_flight(LOCK_KEYS[operation]) as mine:
+        if not mine:
+            logger.info("%s already running; this copy stands down", what)
+            return
+        may_start, why_not = _claim(backfill_id)
+        if not may_start:
+            logger.info("%s not started: %s", what, why_not)
+            _write(
+                backfill_id,
+                status=Backfill.Status.FAILED,
+                error=f"Not started: {why_not}",
+            )
+            return
+        try:
+            continued = _work_through(
+                backfill_id, what, items, do_one, batch_size, budget
+            )
+        except Exception as broke:  # noqa: BLE001 — the ending must be recorded
+            logger.exception("%s broke", what)
+            _write(
+                backfill_id,
+                status=Backfill.Status.FAILED,
+                error=f"{broke}\n\n{traceback.format_exc()}",
+            )
+    if continued:
+        again()
+
+
+def _work_through(backfill_id, what, items, do_one, batch_size, budget):
+    """One attempt's walk. True means a fresh delivery must continue."""
+    started = timezone.now()
+    backfill = Backfill.objects.get(pk=backfill_id)
+    cursor = backfill.summary.get("cursor", "")
+    settled = int(backfill.summary.get("done", 0))
+    failures = dict(backfill.summary.get("failures", {}))
+    # Counted once, on the first attempt: the finish line must not move
+    # while the cursor chases it.
+    total = backfill.summary.get("total")
+    if total is None:
+        total = items.count()
+
+    items = items.order_by("pk")
+
+    def record(position):
+        # Resetting the attempt count is what marks this attempt as
+        # having got somewhere — see the docstring above.
+        return _write(
+            backfill_id,
+            summary_patch={
+                "done": settled,
+                "total": total,
+                "cursor": str(position),
+                "failures": failures,
+                "attempts": 0,
+            },
+        )
+
+    def stopped():
+        still = (
+            Backfill.objects.filter(pk=backfill_id)
+            .values_list("status", flat=True)
+            .first()
+        )
+        if still is None:
+            logger.warning(
+                "%s: the record is gone mid-run; stopping with the work half-applied",
+                what,
+            )
+        else:
+            logger.info(
+                "%s ended by the operator (%s); stopping where it stands", what, still
+            )
+
+    while True:
+        # Checked before the batch as well as written after it, so a
+        # cancel landing between batches stops the very next one rather
+        # than one batch later. One cheap read per batch.
+        still_running = Backfill.objects.filter(
+            pk=backfill_id, status=Backfill.Status.RUNNING
+        ).exists()
+        if not still_running:
+            stopped()
+            return False
+        narrowed = items.filter(pk__gt=cursor) if cursor else items
+        batch = list(narrowed.values_list("pk", flat=True)[:batch_size])
+        if not batch:
+            break
+        for pk in batch:
+            try:
+                do_one(pk)
+            except Exception as broke:  # noqa: BLE001 — one row never starves the rest
+                logger.exception("%s could not settle %s", what, pk)
+                failures[str(pk)] = str(broke)
+            else:
+                settled += 1
+                failures.pop(str(pk), None)
+        cursor = str(batch[-1])
+        if not record(cursor):
+            stopped()
+            return False
+        # Hand back only while something remains — a spent budget on
+        # the final batch ends the run rather than summoning a
+        # delivery with nothing to do.
+        if timezone.now() - started > budget and items.filter(pk__gt=cursor).exists():
+            return True
+
+    if failures:
+        _write(
+            backfill_id,
+            status=Backfill.Status.FAILED,
+            error=(
+                f"{len(failures)} of {total} could not be settled; the "
+                "rest are done. A rerun walks everything again and "
+                "settles only what failed."
+            ),
+        )
+    else:
+        _write(backfill_id, status=Backfill.Status.DONE)
+    return False
 
 
 def _who_asked(backfill_id):
