@@ -5,11 +5,16 @@ through; a refusal stops it dead; this stops it until the reader says
 they meant it. Credits stay the only enforced resource — nothing here
 refuses, and confirming buys exactly what the first click asked for.
 
-The page is a navigation rather than a prompt, so Back is a real answer
-and a reload does not lose it. What makes the second post identical to
-the first is that it carries the first one's fields, and what makes that
-safe is that the view re-derives the whole click from the listing
-anyway.
+Where nothing is updating the page, the question is a navigation: Back is
+a real answer and a reload does not lose it. Where the screen updates in
+place it is a panel delivered into that page's dialog host, because
+throwing a reader out of a list they are buying from is a worse answer
+than asking them where they stand. Both ask the same question off the
+same ``Confirmation``.
+
+What makes the second post identical to the first is that it carries the
+first one's fields, and what makes that safe is that the view re-derives
+the whole click from the listing anyway.
 """
 
 import pytest
@@ -197,3 +202,84 @@ class TestWhatTheGangIsShown:
 
         told = [str(m) for m in answer.context["messages"]]
         assert any("15¢ and 3 TP" in line for line in told)
+
+
+class TestTheQuestionOnAScreenThatUpdatesInPlace:
+    """htmx buys without reloading, so the question cannot be a new page.
+
+    The Django test client sends no ``HX-Request`` header, so every other
+    test here exercises the whole-page answer. These name the header.
+    """
+
+    HX = {"HTTP_HX_REQUEST": "true"}
+
+    @pytest.fixture(autouse=True)
+    def signed_in(self, client, tester):
+        client.force_login(tester)
+
+    def test_it_arrives_as_a_panel_for_the_dialog_host(
+        self, client, gang, fighter, post, buying
+    ):
+        answer = client.post(equip_url(fighter, post), buying, **self.HX)
+        body = answer.content.decode()
+
+        assert answer.status_code == 200
+        # Addressed to the host by id and out of band, which is what makes
+        # it replace whatever that host holds rather than land nowhere.
+        assert 'id="n26-dialog-host"' in body
+        assert 'hx-swap-oob="true"' in body
+        assert "Not enough Trade Points" in body
+
+    def test_it_asks_the_same_arithmetic_as_the_page_does(
+        self, client, gang, fighter, post, buying
+    ):
+        """One Confirmation, two transports: the figures cannot diverge."""
+        with operation(gang, actor=gang.owner) as op:
+            op.visit_trading_post(brought=1)
+
+        panel = client.post(equip_url(fighter, post), buying, **self.HX)
+        page = client.post(equip_url(fighter, post), buying)
+
+        for label in ("Available", "Spent", "Remaining", "This purchase"):
+            assert label in panel.content.decode()
+            assert label in page.content.decode()
+
+    def test_asking_buys_nothing(self, client, gang, fighter, post, buying):
+        client.post(equip_url(fighter, post), buying, **self.HX)
+
+        assert held(gang) == 0
+
+    def test_confirming_buys_it_and_updates_the_page(
+        self, client, gang, fighter, post, buying
+    ):
+        """The second post is the act: it buys, and what comes back is an
+        update for the page still standing rather than another question."""
+        answer = client.post(
+            equip_url(fighter, post), {**buying, "confirmed": "1"}, **self.HX
+        )
+
+        assert answer.status_code == 200
+        assert held(gang) == 1
+        assert "Not enough Trade Points" not in answer.content.decode()
+
+    def test_confirming_closes_the_panel_that_asked(
+        self, client, gang, fighter, post, buying
+    ):
+        """An empty host replaces the one holding the question."""
+        body = client.post(
+            equip_url(fighter, post), {**buying, "confirmed": "1"}, **self.HX
+        ).content.decode()
+
+        assert '<div id="n26-dialog-host" hx-swap-oob="true"></div>' in body
+
+    def test_the_money_it_delivers_keeps_its_way_to_the_action(
+        self, client, gang, fighter, post, buying
+    ):
+        """The update redraws the wealth strip, so the Trade Points figure
+        it delivers must still lead to the Visit Trading Post action —
+        otherwise a purchase silently costs the reader the link."""
+        body = client.post(
+            equip_url(fighter, post), {**buying, "confirmed": "1"}, **self.HX
+        ).content.decode()
+
+        assert reverse("n26-gang-trade-points", args=[gang.pk]) in body

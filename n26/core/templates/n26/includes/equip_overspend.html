@@ -1,0 +1,53 @@
+{% comment %}
+The overspend question as a panel, for an equip screen updating in place.
+
+Rendered by n26.core.views.equip.render_confirmation, never included by a
+page. It carries the dialog host's id and hx-swap-oob, so it replaces
+whatever that host holds — which is how a panel opens.
+
+The same `confirmation` the whole-page n26/confirm.html draws, asked in the
+place a screen that is not being rebuilt can ask it. The figures are the
+component both use, so the two cannot come to disagree about the arithmetic.
+
+`redrawn` tells the panel it arrived on its own: dismissing puts the address
+back rather than navigating away from a page that never reloaded.
+{% endcomment %}
+<div id="n26-dialog-host" hx-swap-oob="true">
+    <c-n26.dialog title="{{ confirmation.title }}"
+                  lead="{{ confirmation.lead }}"
+                  action="{{ confirmation.action }}"
+                  cancel_url="{{ confirmation.cancel_url }}"
+                  submit_label="{{ confirmation.confirm_label }}"
+                  :htmx="True"
+                  :redrawn="True">
+        {% csrf_token %}
+        {% comment %}
+        Everything the first submission said, said again — the line, its
+        picked parts and every typed price. Without them the confirming
+        post would buy something other than what the panel describes.
+        {% endcomment %}
+        {% for name, value in confirmation.carry %}
+            <input type="hidden" name="{{ name }}" value="{{ value }}">
+        {% endfor %}
+        <input type="hidden"
+               name="{{ confirmation.confirm_field }}"
+               value="{{ confirmation.confirm_value }}">
+        {% comment %}
+        The same two blocks the whole page draws, in the same components:
+        warning rather than error, because the act is allowed and this only
+        asks whether it was meant.
+        {% endcomment %}
+        <c-ui.alert variant="warning" title="{{ confirmation.heading }}">
+            <p>{{ confirmation.body }}</p>
+            {% if confirmation.aside %}
+                <p class="mt-1">
+                    <strong>{{ confirmation.aside.lead }}</strong>
+                    {{ confirmation.aside.rest }}
+                </p>
+            {% endif %}
+        </c-ui.alert>
+        {% if confirmation.facts %}
+            <c-n26.tally :facts="confirmation.facts" />
+        {% endif %}
+    </c-n26.dialog>
+</div>

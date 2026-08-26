@@ -26,6 +26,7 @@ from django.http import Http404
 from django.shortcuts import redirect, render
 from django.template.defaultfilters import pluralize
 
+from n26.core.confirm import CONFIRM_FIELD, Confirmation
 from n26.core.listing import choice_field as _choice_field
 from n26.core.listing import parts_field as _parts_field
 from n26.core.listing import price_field as _price_field
@@ -196,13 +197,7 @@ def _overspend(request, gang, line, asked, back):
     them is the arithmetic, since the allowance is not on the screen
     they clicked from and "you are short" is not a figure.
     """
-    from n26.core.confirm import (
-        CONFIRM_FIELD,
-        Aside,
-        Confirmation,
-        Fact,
-        carried,
-    )
+    from n26.core.confirm import Aside, Fact, carried
 
     if not asked or request.POST.get(CONFIRM_FIELD):
         return None
@@ -533,7 +528,27 @@ def render_update(
     return with_toasts(request, response)
 
 
-def _buy_clicked(request, gang, holder, view, *, into, collection, event=None):
+def carried_confirmation(request):
+    """Whether this submission came back from a confirmation panel."""
+    return bool(request.POST.get(CONFIRM_FIELD))
+
+
+def render_confirmation(request, confirmation):
+    """A question, delivered into the dialog host of a page still standing.
+
+    The whole-page answer is ``n26/confirm.html``; this is the same
+    question for a screen updating in place, so a reader with scripting
+    is not thrown out of the list they were buying from.
+    """
+    response = render(
+        request,
+        "n26/includes/equip_overspend.html",
+        {"confirmation": confirmation},
+    )
+    return with_toasts(request, response)
+
+
+def _buy_clicked(request, gang, holder, view, *, into, collection, at="", event=None):
     """One click on a Buy button, read and charged, whoever holds the thing.
 
     ``holder`` is what the purchase lands on — a fighter, or the gang's
@@ -546,11 +561,15 @@ def _buy_clicked(request, gang, holder, view, *, into, collection, event=None):
     is the list the click came from, for the event. ``event`` carries
     whatever else that screen knows about the purchase.
 
-    Returns the clicked line's key where the purchase went through and
-    ``None`` where it was refused. The refusal's reason is queued as a
-    message either way; how the caller responds — a redirect, or a
-    partial update — is the caller's business, so nothing here knows
-    about transport.
+    ``at`` is the page the click came from: where a question the reader
+    cancels puts them back.
+
+    Three outcomes, and none of them is a response. The clicked line's
+    key where the purchase went through; ``None`` where it was refused,
+    its reason queued as a message; and a :class:`Confirmation` where it
+    needs saying twice. How the caller answers each — a redirect, a
+    partial update, a panel — is the caller's business, so nothing here
+    knows about transport.
     """
     from n26.analytics import EventVerb, N26Noun, record
     from n26.core.operations import Refusal, operation
@@ -582,13 +601,9 @@ def _buy_clicked(request, gang, holder, view, *, into, collection, event=None):
     # rather than by a rule: an overspend of Trade Points is allowed,
     # and only doing it without meaning to is not.
     asked = _trade_points_asked(line, picked)
-    confirmation = _overspend(request, gang, line, asked, back)
+    confirmation = _overspend(request, gang, line, asked, at)
     if confirmation is not None:
-        return render(
-            request,
-            "n26/confirm.html",
-            {"gang": gang, "confirmation": confirmation},
-        )
+        return confirmation
     try:
         with operation(gang, actor=request.user) as op:
             # The picked sets go to the operation, which materialises
@@ -760,8 +775,19 @@ def equip(request, pk):
             view,
             into=miniature.name,
             collection=chosen.name,
+            at=here(chosen),
             event={"miniature_id": str(miniature.pk)},
         )
+        if isinstance(key, Confirmation):
+            # Asked as a whole page where there is no script to update
+            # one, and as a panel over the list where there is.
+            if not hx:
+                return render(
+                    request,
+                    "n26/confirm.html",
+                    {"gang": gang, "confirmation": key},
+                )
+            return render_confirmation(request, key)
         if not hx:
             # Without JavaScript a purchase lands back on the page it was
             # made from: kitting out is a run of purchases, and the
@@ -779,6 +805,9 @@ def equip(request, pk):
             list_param=wanted,
             expanded_key=expanded_key,
             at=here(chosen),
+            # A purchase confirmed from the panel closes it on the way
+            # out; one made straight from a row never opened one.
+            closed=carried_confirmation(request),
         )
 
     # What this fighter is already carrying, keyed the way the rows are, so
@@ -1025,7 +1054,16 @@ def equip_gang(request, pk):
             view,
             into="the stash",
             collection=ALL_LABEL if everything else chosen.name,
+            at=here,
         )
+        if isinstance(key, Confirmation):
+            if not hx:
+                return render(
+                    request,
+                    "n26/confirm.html",
+                    {"gang": gang, "confirmation": key},
+                )
+            return render_confirmation(request, key)
         if not hx:
             return redirect(here)
         if key is None:
@@ -1037,6 +1075,7 @@ def equip_gang(request, pk):
             list_param=wanted,
             expanded_key=expanded_key,
             at=here,
+            closed=carried_confirmation(request),
         )
 
     host = screen.host(here)
