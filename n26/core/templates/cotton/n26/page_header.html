@@ -83,15 +83,13 @@ works on a string and on slot content alike.
 
             Body size, quiet from its colour rather than from shrinking: the
             lead is usually the sentence saying what the page is for, and small
-            text is for what a reader is meant to scan past.
-
-            whitespace-nowrap with the type's badge: a 1em mark after a short
-            word still wraps under it if the drawing is left to the svg default
-            size, and the type then reads as a heading of its own.
+            text is for what a reader is meant to scan past. The type's badge
+            keeps itself on the words; nowrap on this line would clip a real
+            sentence on a phone.
             {% endcomment %}
-            {% if lead.strip %}<p class="flex items-center whitespace-nowrap text-muted">{{ lead }}</p>{% endif %}
+            {% if lead.strip %}<p class="flex items-center text-muted">{{ lead }}</p>{% endif %}
         </div>
 
-        {% if actions %}<div class="flex w-full shrink-0 flex-wrap items-center gap-2 sm:w-auto">{{ actions }}</div>{% endif %}
+        {% if actions.strip %}<div class="flex w-full shrink-0 flex-wrap items-center gap-2 sm:w-auto">{{ actions }}</div>{% endif %}
     </div>
 </div>

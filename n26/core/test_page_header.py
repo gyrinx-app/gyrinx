@@ -57,7 +57,24 @@ class TestTheTitleKeepsTheRowOnAPhone:
         )
 
         assert html.index("Ozostium") < html.index("Outcast") < html.index("1000¢")
-        assert "flex flex-col" in html
+        assert (
+            "flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-start "
+            "sm:justify-between sm:gap-x-4"
+        ) in html
+        assert '<p class="flex items-center text-muted">' in html
+
+    def test_whitespace_alone_does_not_draw_an_actions_row(self):
+        """A slot written across several lines is still whitespace, and
+        Django treats that as true. The row is w-full below sm, so an
+        empty one is a blank band under the title."""
+        html = render(
+            '<c-n26.page-header title="Hello, player">'
+            '<c-slot name="actions">\n  \n</c-slot>'
+            "</c-n26.page-header>"
+        )
+
+        assert "Hello, player" in html
+        assert "w-full shrink-0" not in html
 
 
 class TestTheTitleKeepsItsControl:
