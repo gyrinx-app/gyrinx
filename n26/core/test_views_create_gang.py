@@ -27,7 +27,7 @@ ICON = (
 #: What <c-n26.flair-link> wraps a badge in. Counting these counts the badges
 #: actually drawn, which is the only way to tell "no artwork" from "an empty
 #: box where the artwork would go".
-_FLAIR_WRAPPER = 'class="ml-[0.25em] inline-block'
+_FLAIR_WRAPPER = 'class="ml-[0.25em] n26-icon-inline'
 
 
 def _is_checked(body, pk):

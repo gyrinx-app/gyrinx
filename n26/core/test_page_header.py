@@ -73,7 +73,7 @@ class TestTheTitleKeepsItsControl:
         )
 
         group = html[html.index("<h1") - 80 : html.index("</h1>") + 80]
-        assert "flex items-center gap-2" in html
+        assert "flex flex-nowrap items-start gap-2" in html
         assert "flex-wrap items-center gap-2" not in html
         assert 'class="min-w-0 text-2xl' in group
         assert "shrink-0" in html
@@ -91,6 +91,7 @@ class TestTheTypeKeepsItsMark:
             "</c-n26.flair-link>"
         )
 
-        assert "inline-flex items-center" in html
-        assert "shrink-0" in html
+        assert "inline-flex items-center whitespace-nowrap" in html
+        assert "n26-icon-inline" in html
+        assert "[--n26-icon-size:1em]" in html
         assert html.index("Outcast") < html.index("<svg")

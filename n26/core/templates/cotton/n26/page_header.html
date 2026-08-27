@@ -64,10 +64,12 @@ works on a string and on slot content alike.
             {% if trailing.strip %}
                 {% comment %}
                 No wrap: the h1 is a block, so wrapping this row always drops
-                the control under the name, on a line of its own. min-w-0 lets
-                the heading take the squeeze and wrap inside itself instead.
+                the control under the name, on a line of its own. items-start
+                keeps the chevron on the first line of a wrapping name rather
+                than vertically centred between the two. min-w-0 lets the
+                heading take the squeeze and wrap inside itself instead.
                 {% endcomment %}
-                <div class="flex items-center gap-2">
+                <div class="flex flex-nowrap items-start gap-2">
                     <h1 class="min-w-0 text-2xl font-semibold text-ink-900 dark:text-ink-100 sm:text-3xl">{{ leading.strip|safe }}{{ title }}</h1>
                     <div class="shrink-0">{{ trailing }}</div>
                 </div>
@@ -82,8 +84,12 @@ works on a string and on slot content alike.
             Body size, quiet from its colour rather than from shrinking: the
             lead is usually the sentence saying what the page is for, and small
             text is for what a reader is meant to scan past.
+
+            whitespace-nowrap with the type's badge: a 1em mark after a short
+            word still wraps under it if the drawing is left to the svg default
+            size, and the type then reads as a heading of its own.
             {% endcomment %}
-            {% if lead.strip %}<p class="flex items-center text-muted">{{ lead }}</p>{% endif %}
+            {% if lead.strip %}<p class="flex items-center whitespace-nowrap text-muted">{{ lead }}</p>{% endif %}
         </div>
 
         {% if actions %}<div class="flex w-full shrink-0 flex-wrap items-center gap-2 sm:w-auto">{{ actions }}</div>{% endif %}

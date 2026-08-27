@@ -31,7 +31,7 @@ GUILDER = badge_by_slug("guilder")
 # The wrapper <c-n26.flair-link> puts round a badge. Nothing else in the
 # edition emits it, so its absence is the claim that no empty span was
 # drawn where a badge would have gone.
-FLAIR_WRAPPER = 'class="ml-[0.25em] inline-block'
+FLAIR_WRAPPER = 'class="ml-[0.25em] n26-icon-inline'
 
 
 @pytest.fixture
@@ -170,7 +170,8 @@ class TestTheHomePageGreeting:
         heading = body[body.index("Hello,") :]
         heading = heading[: heading.index("</h1>")]
         assert FLAIR_WRAPPER in heading
-        assert "size-[1em]" in heading
+        assert "n26-icon-inline" in heading
+        assert "[--n26-icon-size:1em]" in heading
 
     def test_a_reader_entitled_to_nothing_is_greeted_by_name_alone(
         self, tester, client, default_pack
