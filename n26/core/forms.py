@@ -333,8 +333,10 @@ class CampaignForm(forms.Form):
 
     ``budget`` is the starting credit limit a gang may spend to join.
     Blank is not zero: it means no limit, which is how a campaign runs
-    where the table has not agreed one. The field opens at 1000, the
-    usual starting figure; clearing it lands as ``budget=None``.
+    where the table has not agreed one. On set-up, with no ``initial``,
+    the field opens at 1000, the usual starting figure. Edit supplies
+    the stored value, so an unlimited campaign stays blank. Clearing
+    it lands as ``budget=None``.
     """
 
     name = forms.CharField(

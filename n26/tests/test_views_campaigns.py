@@ -287,6 +287,18 @@ class TestEditing:
         assert 'id="campaign-budget"' in response.content.decode()
         assert 'value="1000"' not in response.content.decode()
 
+    def test_a_zero_budget_stays_zero_on_the_edit_form(
+        self, client, arbitrator, open_to_everyone
+    ):
+        """Nought is a figure, not an absence: `default` would draw the
+        box empty and a save would clear the limit."""
+        campaign = Campaign.objects.create(
+            name="Broke House", owner=arbitrator, budget=0
+        )
+        response = client.get(f"/n26/campaigns/{campaign.pk}/edit/")
+        assert response.context["form"]["budget"].value() == 0
+        assert 'value="0"' in response.content.decode()
+
 
 class TestArchiving:
     def test_the_question_page_changes_nothing(

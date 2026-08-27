@@ -2,10 +2,12 @@
 The answers a campaign is made of, shared by the set-up and edit screens so
 the two cannot drift into asking different questions.
 
-The budget is the one worth reading twice. It opens at 1000, the usual
-starting figure. Blank is not zero — it means the campaign sets no starting
-credit limit, and gangs enter at whatever they are worth. A reader who
-clears the field gets a campaign that refuses nobody.
+The budget is the one worth reading twice. Blank is not zero — it means
+the campaign sets no starting credit limit, and gangs enter at whatever
+they are worth. A reader who clears the field gets a campaign that
+refuses nobody. The 1000 default lives on the unbound form, so it is
+only for set-up; edit supplies the stored value, including blank. The
+box uses default_if_none so a stored 0 still draws as 0.
 
 Unlike a gang's budget, this one has no floor: a campaign holds no money and
 owns nothing, so there is no sum it has to cover.
@@ -34,7 +36,7 @@ owns nothing, so there is no sum it has to cover.
                     inputmode="numeric"
                     placeholder="No limit"
                     right_addon="¢"
-                    value="{{ form.budget.value|default:'' }}" />
+                    value="{{ form.budget.value|default_if_none:'' }}" />
     </c-ui.field>
 </c-n26.form-section>
 {% comment %}
