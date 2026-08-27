@@ -105,6 +105,10 @@ class Operation(models.TextChoices):
         "n26_convert_archetype",
         "n26: the Outcast archetypes become picks",
     )
+    CONVERT_OUTCAST_AFFILIATION = (
+        "n26_convert_outcast_affiliation",
+        "n26: the Outcast affiliations become picks",
+    )
     SWEEP_ARCHIVED = (
         "n26_sweep_archived",
         "n26: the answers already taken back become picks",
@@ -135,6 +139,7 @@ class Operation(models.TextChoices):
 LOCK_KEYS = {
     Operation.DELETE_NAMELESS_GANG_TYPE: 826_020_606,
     Operation.AUDIT_RECONCILE: 826_020_607,
+    Operation.CONVERT_OUTCAST_AFFILIATION: 826_020_608,
 }
 
 
@@ -456,6 +461,123 @@ def _work_through(backfill_id, what, items, do_one, batch_size, budget):
     return False
 
 
+def _plan(system):
+    from n26.library.conversion import SYSTEMS
+
+    return SYSTEMS[system]()
+
+
+def _run_conversion(backfill_id, operation, system, **said_by_whoever_enqueued_it):
+    """Run one conversion, once, and write down the outcome.
+
+    Takes whatever else it is handed and ignores it. Delivery outlives a
+    deploy, so a message can arrive naming arguments the version that
+    enqueued it had and this one does not — and a task that refuses its
+    own message is retried for ever, there being nowhere for it to go.
+    """
+    from n26.library.conversion import ConversionRefused, apply
+
+    _run_recorded(
+        backfill_id,
+        operation,
+        f"{system.replace('_', ' ').capitalize()} conversion",
+        lambda: apply(_plan(system)),
+        ConversionRefused,
+    )
+
+
+@task
+def convert_outcast_affiliation(backfill_id, **said_by_whoever_enqueued_it):
+    """The Outcast Affiliation conversion, as a task."""
+    _run_conversion(
+        backfill_id,
+        Operation.CONVERT_OUTCAST_AFFILIATION,
+        "outcast_affiliation",
+        **said_by_whoever_enqueued_it,
+    )
+
+
+def _proof_words(plan):
+    """What a conversion's page says about its own proof."""
+    # Same fallback as Plan.preview — a plan may omit `reaches`.
+    reaches = plan.reaches or len(plan.holder_ids) or len(plan.gang_ids)
+    holders = len(plan.holder_ids) or reaches
+    return {
+        "reach_words": (
+            f"It reaches {reaches} gang"
+            f"{'' if reaches == 1 else 's'}, locks them, and proves "
+            f"{len(plan.gang_ids)} of them read the same before committing — "
+            "a spread wide enough to hold every shape the system comes in. "
+            f"Every reached gang is then reconciled ({holders} of them); "
+            "a mismatch unwinds the whole write."
+        ),
+        "confirm_words": (
+            f"Convert {reaches} gang(s)? It writes nothing unless every "
+            "page it proves reads the same, and every reached gang still "
+            "reconciles."
+        ),
+        "button_words": "Apply conversion",
+        "leaves_behind": "",
+    }
+
+
+def _conversion_view(request, operation, system, task_fn):
+    """Preview a conversion (GET), or record a run and enqueue it (POST)."""
+    address = reverse(f"admin:maintenance_{operation.value}")
+    if request.method == "POST":
+        running = running_guard(operation)
+        if running is not None:
+            messages.warning(request, "That conversion is already running.")
+            return HttpResponseRedirect(
+                reverse("admin:maintenance_backfill_detail", args=[running.id])
+            )
+        plan = _plan(system)
+        if plan.nothing_here:
+            messages.info(request, "There is nothing to convert.")
+            return HttpResponseRedirect(address)
+        if not plan.ok:
+            messages.error(
+                request, "The conversion refuses: " + "; ".join(plan.problems)
+            )
+            return HttpResponseRedirect(address)
+        backfill = Backfill.objects.create(
+            operation=operation,
+            triggered_by=request.user,
+            status=Backfill.Status.RUNNING,
+            summary={"preview": list(plan.preview()), "attempts": 0},
+        )
+        task_fn.enqueue(backfill_id=str(backfill.id))
+        messages.success(
+            request, "The conversion is running. This page shows what it did."
+        )
+        return HttpResponseRedirect(
+            reverse("admin:maintenance_backfill_detail", args=[backfill.id])
+        )
+
+    plan = _plan(system)
+    context = page_context(
+        request,
+        operation.label,
+        plan=plan,
+        preview=list(plan.preview()),
+        reaches=plan.reaches,
+        proven=len(plan.gang_ids),
+        apply_url=address,
+        recent=Backfill.objects.filter(operation=operation)[:10],
+        **_proof_words(plan),
+    )
+    return render(request, "admin/maintenance/n26/convert.html", context)
+
+
+def convert_outcast_affiliation_view(request):
+    return _conversion_view(
+        request,
+        Operation.CONVERT_OUTCAST_AFFILIATION,
+        "outcast_affiliation",
+        convert_outcast_affiliation,
+    )
+
+
 def _who_asked(backfill_id):
     """The operator a run acts as, for the history it writes.
 
@@ -658,6 +780,26 @@ register_operation(
 
 register_operation(
     MaintenanceOperation(
+        operation=Operation.CONVERT_OUTCAST_AFFILIATION.value,
+        name=Operation.CONVERT_OUTCAST_AFFILIATION.label,
+        added=date(2026, 8, 27),
+        description=(
+            "Move the Outcast affiliations onto slots and picks: the Hidden "
+            "built into the gang type grants an Affiliation slot instead of "
+            "offering a choice, Clan House grants a chained Clan House slot, "
+            "and every stored choice — live and archived — is re-said as a "
+            "pick. What an affiliation does travels with it untouched. "
+            "Proves a spread of gangs' pages read the same and every reached "
+            "gang still reconciles, or writes nothing."
+        ),
+        view=convert_outcast_affiliation_view,
+        detail_template="admin/maintenance/n26/_convert_detail.html",
+    )
+)
+
+
+register_operation(
+    MaintenanceOperation(
         operation=Operation.DELETE_NAMELESS_GANG_TYPE.value,
         name=Operation.DELETE_NAMELESS_GANG_TYPE.label,
         added=date(2026, 8, 21),
@@ -692,6 +834,7 @@ register_operation(
 #: schedules, so dev and tests invoke the sweep function directly.
 task_routes = [
     TaskRoute(delete_nameless_gang_type, ack_deadline=600, min_retry_delay=60),
+    TaskRoute(convert_outcast_affiliation, ack_deadline=600, min_retry_delay=60),
     TaskRoute(propagate_built_ins, ack_deadline=600),
     TaskRoute(sweep_built_in_propagations, schedule="*/5 * * * *"),
     TaskRoute(audit_reconcile),

@@ -26,7 +26,7 @@ from django.urls import reverse
 from n26.core.owned import thing_key
 from n26.core.reconcile import assert_reconciled
 from n26.core.render import render_gang
-from n26.library.models import Affiliation
+from n26.library.models import Affiliation, Pickable
 from n26.tests.sandbox.actions import (
     adds,
     create_affiliation,
@@ -153,6 +153,9 @@ def outcasts(affiliations):
     gang_type = create_gang_type("Outcasts")
     gang_type.built_ins = create_default_set("Outcast built-ins", members=[slot])
     gang_type.save()
+    from n26.library.conversion import apply, plan_outcast_affiliation
+
+    apply(plan_outcast_affiliation())
     return gang_type
 
 
@@ -195,15 +198,30 @@ def picker_url(gang, kind_label):
     return reverse("n26-choose", args=[gang.pk, slot_line(gang, kind_label).key])
 
 
+def as_pickable(chosen, kind_label="Affiliation"):
+    """The conversion re-says affiliations as pickables; the fixture still
+    hands the old row, so the picker is given the pickable of that name
+    on the slot type that question uses."""
+    if isinstance(chosen, Pickable):
+        return chosen
+    slot_type = "Clan House" if kind_label == "Clan house" else kind_label
+    return Pickable.objects.get(name=chosen.name, slot_type__name=slot_type)
+
+
 def pick(client, gang, kind_label, affiliation):
-    return client.post(picker_url(gang, kind_label), {"thing": thing_key(affiliation)})
+    return client.post(
+        picker_url(gang, kind_label),
+        {"thing": thing_key(as_pickable(affiliation, kind_label))},
+    )
 
 
 def top_level_rows(gang):
     return [
         a
         for a in gang.assignments.filter(archived=False)
-        if isinstance(a.assignable, Affiliation)
+        if isinstance(a.assignable, Pickable)
+        and a.chosen_for_slot_id
+        and a.chosen_for_slot.name == "Affiliation"
     ]
 
 
@@ -238,7 +256,7 @@ class TestAnAnswerArrivingTwice:
 
         top, _ = affiliations
         url = picker_url(gang, "Affiliation")
-        payload = {"thing": thing_key(top["Clanless"])}
+        payload = {"thing": thing_key(as_pickable(top["Clanless"]))}
         both_have_read = threading.Barrier(2, timeout=30)
         guard = threading.Lock()
         has_read = set()

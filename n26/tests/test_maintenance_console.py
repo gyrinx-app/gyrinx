@@ -22,7 +22,11 @@ from gyrinx.maintenance.registry import (
     resolve_operation,
 )
 from n26.core.reconcile import assert_reconciled
-from n26.maintenance import Operation, delete_nameless_gang_type_view
+from n26.maintenance import (
+    Operation,
+    convert_outcast_affiliation_view,
+    delete_nameless_gang_type_view,
+)
 
 pytestmark = pytest.mark.django_db
 
@@ -203,3 +207,102 @@ class TestTheNamelessGangTypeRetirement:
         assert GangType.objects.filter(name="").exists()
         assert Gang.objects.get(pk=nameless_world.pk).gang_type.name == ""
         assert_reconciled(Gang.objects.get(pk=nameless_world.pk))
+
+
+class TestTheOutcastAffiliationConversion:
+    """The repair still on offer: the Outcast affiliations become picks."""
+
+    def test_the_operation_is_registered_and_named(self):
+        registered = {op.operation for op in operations()}
+
+        assert Operation.CONVERT_OUTCAST_AFFILIATION.value in registered
+        found = resolve_operation(Operation.CONVERT_OUTCAST_AFFILIATION.value)
+        assert found.name == Operation.CONVERT_OUTCAST_AFFILIATION.label
+        assert found.view is convert_outcast_affiliation_view
+
+    def test_proof_words_count_holders_when_the_plan_omits_reaches(self):
+        """The confirm dialog must not say “0 gangs” just because a
+        future conversion leaves ``Plan.reaches`` at its default."""
+        from n26.library.conversion.base import Plan
+        from n26.maintenance import _proof_words
+
+        words = _proof_words(
+            Plan(
+                system="outcast_affiliation",
+                holder_ids=(1, 2, 3),
+                gang_ids=(1,),
+            )
+        )
+
+        assert "It reaches 3 gangs" in words["reach_words"]
+        assert "Convert 3 gang(s)" in words["confirm_words"]
+        assert "0 gang" not in words["reach_words"]
+        assert "0 gang" not in words["confirm_words"]
+
+    def test_only_a_superuser_may_reach_it(self, client, staffer):
+        client.force_login(staffer)
+
+        response = client.get(
+            reverse("admin:maintenance_n26_convert_outcast_affiliation")
+        )
+
+        assert response.status_code in (302, 403)
+
+    def test_its_page_shows_nothing_to_convert_when_the_system_is_absent(
+        self, client, superuser, default_pack
+    ):
+        client.force_login(superuser)
+
+        response = client.get(
+            reverse("admin:maintenance_n26_convert_outcast_affiliation")
+        )
+
+        page = response.content.decode()
+        assert response.status_code == 200
+        assert "Nothing to convert" in page
+        assert not Backfill.objects.exists()
+
+    def test_its_page_shows_the_plan_and_writes_nothing(
+        self, client, superuser, default_pack, person_type, owner
+    ):
+        from n26.tests.sandbox.test_conversion_affiliation import (
+            build_prod_shape,
+            build_world,
+        )
+
+        build_world(build_prod_shape(person_type), owner)
+        client.force_login(superuser)
+
+        response = client.get(
+            reverse("admin:maintenance_n26_convert_outcast_affiliation")
+        )
+
+        page = response.content.decode()
+        assert response.status_code == 200
+        assert "create slot type “Affiliation”" in page
+        assert not Backfill.objects.exists()
+
+    def test_applying_records_what_it_converted(
+        self, client, superuser, default_pack, person_type, owner
+    ):
+        from n26.library.models import Pickable, Slot
+        from n26.tests.sandbox.test_conversion_affiliation import (
+            build_prod_shape,
+            build_world,
+        )
+
+        build_world(build_prod_shape(person_type), owner)
+        client.force_login(superuser)
+
+        response = client.post(
+            reverse("admin:maintenance_n26_convert_outcast_affiliation")
+        )
+
+        assert response.status_code == 302
+        run = Backfill.objects.get(operation=Operation.CONVERT_OUTCAST_AFFILIATION)
+        assert run.status == Backfill.Status.DONE
+        assert any("applied" in line for line in run.summary["report"])
+        assert Slot.objects.filter(name="Affiliation").exists()
+        assert Pickable.objects.filter(
+            name="Clanless Outcast", slot_type__name="Affiliation"
+        ).exists()
