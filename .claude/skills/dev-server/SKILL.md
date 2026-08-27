@@ -2,7 +2,8 @@
 description: |
   Knowledge about starting, stopping, and connecting to the Gyrinx dev server. Load this skill when
   you need to start the dev server, tell Claude in Chrome where to point, check if the server is
-  running, or read dev server logs. Also useful when debugging port conflicts or server startup issues.
+  running, or read dev server logs. Also useful when debugging port conflicts or server startup issues,
+  and when an agent needs to log in to the local app for browser testing.
 ---
 
 # Dev Server
@@ -138,3 +139,77 @@ echo "http://localhost:$(worktree_port)"
 
 The CSRF_TRUSTED_ORIGINS in `settings_dev.py` dynamically includes the worktree port, so
 form submissions work correctly on any port.
+
+## Logging in for browser testing
+
+Do **not** submit `/accounts/login/` from an agent session. The form always includes
+reCAPTCHA v3 (`gyrinx.account_forms.LoginForm`). Computer-use cannot complete that
+challenge, empty `RECAPTCHA_*` keys in `.env` do not skip it, and pytest only passes
+because tests mock `django_recaptcha.fields.ReCaptchaField.validate`. Two more traps
+sit behind a successful POST: `ACCOUNT_EMAIL_VERIFICATION = "mandatory"`, and
+`manage ensuresuperuser` does not create a verified allauth `EmailAddress`.
+`/admin/login/` redirects into the same allauth form.
+
+Cloud Agent `.cursor/install.sh` runs `setupenv` but not `ensuresuperuser`, so there
+may be no users in the database. Do not guess `tom` / `admin` / the password in `.env`.
+
+Mint a session cookie instead. From the repo root with the venv active (the same
+path `scripts/screenshot.py` uses):
+
+```bash
+python <<'PY'
+import os, django
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "gyrinx.settings_dev")
+django.setup()
+from django.conf import settings
+from django.contrib.auth import get_user_model
+from django.test import Client
+from allauth.account.models import EmailAddress
+
+User = get_user_model()
+username = os.environ.get("AGENT_LOGIN_AS", "agent")
+email = f"{username}@localhost"
+u, created = User.objects.get_or_create(
+    username=username,
+    defaults={"email": email, "is_staff": True, "is_superuser": True},
+)
+if created:
+    u.set_password("password")
+u.is_staff = True
+u.is_superuser = True
+if not u.email:
+    u.email = email
+u.save()
+EmailAddress.objects.get_or_create(
+    user=u, email=u.email, defaults={"verified": True, "primary": True},
+)
+client = Client()
+client.force_login(u)
+cookie = client.cookies[settings.SESSION_COOKIE_NAME]
+print(f"{settings.SESSION_COOKIE_NAME}={cookie.value}")
+print(f"user={u.username}")
+PY
+```
+
+`settings_dev.py` names the cookie `gyrinx_sessionid_<DJANGO_PORT>` (and the CSRF
+cookie `gyrinx_csrftoken_<port>`) so worktrees on different ports do not overwrite
+each other. Setting a cookie called `sessionid` does nothing.
+
+**curl** (replace the name and value with what the snippet printed):
+
+```bash
+curl -sS -D - -o /dev/null -b 'gyrinx_sessionid_8000=…' http://localhost:8000/n26/design/ | head
+```
+
+A staff session returns `200` on `/n26/design/`; anonymous is `302` to `/accounts/login/`.
+
+**Browser / computer-use:**
+
+1. Open any page on `http://localhost:<port>/` first, so the cookie is set on the
+   right origin.
+2. In the DevTools console: `document.cookie = "<name>=<value>; path=/";`
+3. Navigate to the page under test. Confirm the nav shows the username.
+
+n26's gallery (`/n26/design/…`) and authoring screens are `staff_member_required`.
+The snippet sets `is_staff`. To inspect gangs owned by an existing user, rerun it
+with `AGENT_LOGIN_AS=<their username>` — `force_login` does not need their password.

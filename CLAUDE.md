@@ -170,13 +170,85 @@ Skills are loaded automatically by agents that need them. They can also be refer
   (implement / acknowledge / decline), plan changes, and implement approved fixes. Invoke with
   `/pr-feedback [PR number or URL]`. Uses the `pr-comments` fetch script for data.
 - **dev-server** — Knowledge about starting/stopping the dev server, reading ports, telling Claude in Chrome
-  where to point, log file locations
+  where to point, log file locations, **and how to mint a session cookie for the browser**. Do not POST
+  `/accounts/login/` from an agent session; reCAPTCHA and mandatory email verification block it.
 - **worktree-db** — Knowledge about per-worktree database isolation: forking, resetting, migrating, cleanup,
   template workflow, pgAdmin access
 
 ## Browser automation
 
 Only use ONE of Chrome DevTools MCP or Claude in Chrome MCP in a session — they cannot work together. Prefer Claude in Chrome for browser testing.
+
+### Logging in locally
+
+The allauth form at `/accounts/login/` is not a reliable way in for an agent.
+`LoginForm` always carries reCAPTCHA v3 (`gyrinx/account_forms.py`); computer-use
+and curl cannot complete it, and tests only pass because they mock
+`django_recaptcha.fields.ReCaptchaField.validate`. Email verification is
+`mandatory`, and `manage ensuresuperuser` does not create a verified
+`EmailAddress`. `/admin/login/` redirects into the same form.
+
+Cloud Agent install (`.cursor/install.sh`) runs `setupenv` but not
+`ensuresuperuser`, so the database may have no users at all. Do not guess
+usernames (`tom`, `admin`) or passwords from `.env`.
+
+Mint a session instead. From the repo root, with the venv active:
+
+```bash
+python <<'PY'
+import os, django
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "gyrinx.settings_dev")
+django.setup()
+from django.conf import settings
+from django.contrib.auth import get_user_model
+from django.test import Client
+from allauth.account.models import EmailAddress
+
+User = get_user_model()
+username = os.environ.get("AGENT_LOGIN_AS", "agent")
+email = f"{username}@localhost"
+u, created = User.objects.get_or_create(
+    username=username,
+    defaults={"email": email, "is_staff": True, "is_superuser": True},
+)
+if created:
+    u.set_password("password")
+u.is_staff = True
+u.is_superuser = True
+if not u.email:
+    u.email = email
+u.save()
+EmailAddress.objects.get_or_create(
+    user=u, email=u.email, defaults={"verified": True, "primary": True},
+)
+client = Client()
+client.force_login(u)
+cookie = client.cookies[settings.SESSION_COOKIE_NAME]
+print(f"{settings.SESSION_COOKIE_NAME}={cookie.value}")
+print(f"user={u.username}")
+PY
+```
+
+The cookie name is `gyrinx_sessionid_<DJANGO_PORT>` (see `settings_dev.py`), not
+`sessionid`. Setting the default name is a silent no-op.
+
+**curl:** `curl -b "$COOKIE" http://localhost:8000/n26/`
+
+**Browser / computer-use:** open any `http://localhost:<port>/` page so the
+origin is right, then in the console:
+
+```js
+document.cookie = "gyrinx_sessionid_8000=<value>; path=/";
+```
+
+Use the name the snippet printed. Navigate to the page under test. n26's gallery
+(`/n26/design/`) and authoring screens are `staff_member_required`; the snippet
+sets `is_staff`. To use an existing account that already owns gangs, run the
+same snippet with `AGENT_LOGIN_AS=<username>` — `force_login` does not need
+their password.
+
+This is the same cookie `scripts/screenshot.py` mints. The full SOP lives in
+`.claude/skills/dev-server/SKILL.md`.
 
 ## Long sessions
 
@@ -217,6 +289,8 @@ titles, which should freely name model classes, functions and flags.
 2. **Start the dev server** (`./scripts/dev.sh`) near the start of any coding session —
    don't wait to be asked. Share the URL (per-worktree port, printed in the startup
    banner) so changes can be tested in the browser as they land.
+   If the page needs a signed-in user, **mint a session cookie** — do not submit
+   `/accounts/login/`. See **Logging in locally** below, or load the `dev-server` skill.
 3. **Label the issue (Claude Code on the Web only):** If working on a GitHub issue in a Claude Code for Web session
    (`CLAUDE_CODE_REMOTE=true`), label it so the team knows it's being handled:
    `gh issue edit <NUMBER> --add-label claude-code-web`
