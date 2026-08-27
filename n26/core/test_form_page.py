@@ -41,9 +41,9 @@ class TestTheHeadingIsAPageHeading:
 
         assert 'href="/others/"' in html
         # Beside the title rather than after the whole heading: same row,
-        # which is the wrap-together group page-header draws for it.
+        # which is the group page-header draws for it.
         assert html.index("Doug") < html.index('href="/others/"')
-        assert "flex flex-wrap items-center gap-2" in html
+        assert "flex flex-nowrap items-start gap-2" in html
 
     def test_slot_markup_survives_the_forwarding(self):
         """Handed on as a slot, not written into an attribute — an attribute
@@ -91,7 +91,7 @@ class TestNothingArrivesUninvited:
 
         assert "Doug" in html
         assert "<a" not in html
-        assert "flex flex-wrap items-center gap-2" not in html
+        assert "flex flex-nowrap items-start gap-2" not in html
 
     def test_a_variable_of_the_same_name_in_the_page_is_not_a_slot(self):
         """The undeclared-slot trap. A page holding `trailing` for its own

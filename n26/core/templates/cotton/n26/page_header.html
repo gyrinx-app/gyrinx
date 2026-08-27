@@ -24,7 +24,7 @@ works on a string and on slot content alike.
   trailing — a control after the title, on its line but outside the h1, where it
     would otherwise be read out as part of the name. A switcher to the page's
     siblings is the case it exists for.
-  actions — controls for the page as a whole. They wrap under the title on a
+  actions — controls for the page as a whole. They sit under the title on a
     narrow screen rather than squeezing it.
 {% endcomment %}
 {# The slots are declared: an undeclared slot name is not empty when nobody #}
@@ -43,14 +43,18 @@ works on a string and on slot content alike.
 <div class="flex flex-col gap-1 {{ class }}">
     {% if breadcrumb %}<div class="mb-1">{{ breadcrumb }}</div>{% endif %}
 
-    <div class="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+    <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-x-4">
         {% comment %}
-        flex-1, so the words take the slack and what sits at the far end stays
-        there. Sized to their own content instead, a lead of any length is
-        wider than the room left over and pushes the actions onto a line of
-        their own, where "the far end" means the left.
+        A column on a phone, so the title and its lead keep the first rows and
+        the actions sit under them. Wrapping with min-w-0 lets the heading
+        shrink beside a wide strip — a gang's figures — and the name then
+        reads as a second block under the numbers. sm:flex-1 from there, so
+        the words take the slack and what sits at the far end stays there.
+        Sized to their own content instead, a lead of any length is wider than
+        the room left over and pushes the actions onto a line of their own,
+        where "the far end" means the left.
         {% endcomment %}
-        <div class="min-w-0 flex-1">
+        <div class="min-w-0 w-full sm:w-auto sm:flex-1">
             {% comment %}
             leading.strip, and hard against the title: a slot written across
             several lines arrives wrapped in newlines, which collapse into a
@@ -58,9 +62,16 @@ works on a string and on slot content alike.
             back the marking .strip drops, so markup in the slot survives.
             {% endcomment %}
             {% if trailing.strip %}
-                <div class="flex flex-wrap items-center gap-2">
-                    <h1 class="text-2xl font-semibold text-ink-900 dark:text-ink-100 sm:text-3xl">{{ leading.strip|safe }}{{ title }}</h1>
-                    <div>{{ trailing }}</div>
+                {% comment %}
+                No wrap: the h1 is a block, so wrapping this row always drops
+                the control under the name, on a line of its own. items-start
+                keeps the chevron on the first line of a wrapping name rather
+                than vertically centred between the two. min-w-0 lets the
+                heading take the squeeze and wrap inside itself instead.
+                {% endcomment %}
+                <div class="flex flex-nowrap items-start gap-2">
+                    <h1 class="min-w-0 text-2xl font-semibold text-ink-900 dark:text-ink-100 sm:text-3xl">{{ leading.strip|safe }}{{ title }}</h1>
+                    <div class="shrink-0">{{ trailing }}</div>
                 </div>
             {% else %}
                 <h1 class="text-2xl font-semibold text-ink-900 dark:text-ink-100 sm:text-3xl">{{ leading.strip|safe }}{{ title }}</h1>
@@ -72,11 +83,13 @@ works on a string and on slot content alike.
 
             Body size, quiet from its colour rather than from shrinking: the
             lead is usually the sentence saying what the page is for, and small
-            text is for what a reader is meant to scan past.
+            text is for what a reader is meant to scan past. The type's badge
+            keeps itself on the words; nowrap on this line would clip a real
+            sentence on a phone.
             {% endcomment %}
-            {% if lead.strip %}<p class="text-muted">{{ lead }}</p>{% endif %}
+            {% if lead.strip %}<p class="flex items-center text-muted">{{ lead }}</p>{% endif %}
         </div>
 
-        {% if actions %}<div class="flex shrink-0 flex-wrap items-center gap-2">{{ actions }}</div>{% endif %}
+        {% if actions.strip %}<div class="flex w-full shrink-0 flex-wrap items-center gap-2 sm:w-auto">{{ actions }}</div>{% endif %}
     </div>
 </div>
