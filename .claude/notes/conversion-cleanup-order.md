@@ -8,7 +8,7 @@ picked up cold.
 
 **Late addition (2026-08-27):** Affiliation was not in this programme.
 Three systems remain on that kind (Outcast + Clan House, Variants,
-Chaos God). They move next, batched, as
+Chaos God). They move next, one flip per system, as
 [`affiliation-conversion-plan.md`](affiliation-conversion-plan.md).
 The "all converted" claim below is true of the three retired kinds
 only.

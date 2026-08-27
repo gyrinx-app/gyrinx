@@ -2,8 +2,8 @@
 
 An evaluation, not a plan to run. Measured from production on
 2026-08-27, read-only. The other four chosen kinds have already moved;
-Affiliation is what is left. The how — batched runner, the window,
-each system's apply — is
+Affiliation is what is left. The how — one flip per system, then a
+batched check — is
 [`affiliation-conversion-plan.md`](affiliation-conversion-plan.md).
 
 **It should move.** Not as one slot type named Affiliation covering
@@ -206,8 +206,8 @@ not both a Helot Cult and a corrupted house.
    either. Paths taught this — the capture check caught `min_picks=1`
    on the first rehearsal.
 5. **A corruption suppresses house rules and opens its own lists.**
-   The modifiers are shared onto the pickable (not moved, until
-   cleanup). Shared modifiers (Brutes/Pets removal, the rules-stripping
+   The modifiers move with the pickable in the same transaction as the
+   rewrite. Shared modifiers (Brutes/Pets removal, the rules-stripping
    hidden) stay shared.
 6. **Chaos Corrupted is what asks the god question.** Helot Cult asks
    it independently via its own hidden. Two grants of one slot type,
@@ -221,7 +221,7 @@ not both a Helot Cult and a corrupted house.
 # System 1
 create slot type "Affiliation", refusing repeats
 create pickables Clanless, Clan House, Mutant, Aranthian
-  (share their modifiers; Clan House's offer becomes a grant of the house slot)
+  (move their modifiers; Clan House's offer becomes a grant of the house slot)
 create picklist "Affiliations"
 create slot "Affiliation", landing on the gang, 1..1
 on hidden "Affiliation": replace the offer with a grant of that slot
@@ -247,7 +247,7 @@ rewrite 57 god picks
 # System 2 — last
 create slot type "Variant", refusing repeats
 create pickables Chaos Corrupted, Genestealer Cult Corrupted, Malstrain Corrupted
-  (not None; share modifiers, including Chaos Corrupted's Chaos God grant)
+  (not None; move modifiers, including Chaos Corrupted's Chaos God grant)
 create picklist "Variants"
 create slot "Variant", landing on the gang, 0..1
 on the seven gang types: replace "Offer Variants" with a grant of that slot
@@ -298,28 +298,25 @@ God) refuse them.
 
 **The four Leader-style copies.** There aren't any.
 
-**Runner.** Do not resurrect the deleted one-transaction engine.
-Library swap uses `_run_recorded` (spread, refuse-and-unwind). Player
-rewrite uses `run_batched` (one gang per `do_one`, frozen pk list).
-Modifiers are **shared** onto pickables until cleanup, not moved —
-the window between swap and rewrite would otherwise strip payload.
-The dual-read shim that covers that window is specified in the plan.
+**Runner.** One write per system: create, move modifiers, swap, rewrite
+every pick, in one transaction, with the reached gangs locked. Prove a
+spread in that transaction and unwind on a diff. `run_batched` walks
+every reached gang afterwards and reconciles — it does not drip the
+switch. No dual-read, no per-gang flag, no dormant slots.
 
 ## Engine work
 
-Nothing new in the player engine except the temporary dual-read shim
-specified in the conversion plan (`_fill_slot_choices`, query-free,
-deleted at cleanup). `_choose_for_slot` already routes a pick to the
-gang when the slot says so; chained grants already retract through
-cause; optional slots already offer a None row; `has_pickable`
+Nothing new in the player engine. `_choose_for_slot` already routes a
+pick to the gang when the slot says so; chained grants already retract
+through cause; optional slots already offer a None row; `has_pickable`
 already exists (and is the condition Affiliation never had — today
 nothing can say "models whose gang picked Malstrain" except by hanging
 the behaviour on Malstrain itself).
 
-The runner is not a resurrection of `n26.library.conversion`. Library
-swap is `_run_recorded`; player rewrite is `run_batched` with a
-prologue. Capture (`n26.core.capture.gang_state`) is still here. The
-plan/apply step helpers are new and small.
+Put back a small `n26.library.conversion` — frozen plan, typed steps,
+one apply — not the 7,000-line module #2287 deleted. Console operations
+call it through `_run_recorded`, then enqueue `run_batched` for the
+reconcile walk. Capture (`n26.core.capture.gang_state`) is still here.
 
 Authoring already refuses a bare pickable built in. Recipes and
 `concepts.md` still teach Affiliation as the way to author a gang-level
@@ -349,13 +346,13 @@ Per system, the suite that already exists is the shape to follow:
 - `test_gang_books.py` builds Chaos corruption as an Affiliation. It
   follows system 2.
 
-Then the standing rule, now split across the two phases: the library
-prologue captures a spread and unwinds on any difference; the batched
-walk captures **every** reached gang and refuses that gang on a diff
-(None equals unanswered Variant under a conversion-local comparator;
-Aranthian is not an exception). Every touched gang reconciles. History
-is pinned per system with a same-words test, plus a declared-rewording
-test for Variant, Chaos God, and Clan House.
+Then the standing rule: the write captures a spread and unwinds on any
+difference (None equals unanswered Variant under a conversion-local
+comparator; Aranthian is not an exception). Every reached gang
+reconciles in that transaction, and again on a batched walk after it
+commits. On a fork, every reached gang's pages are diffed from outside
+the run. History is pinned per system with a same-words test, plus a
+declared-rewording test for Variant, Chaos God, and Clan House.
 
 Volume, so the sample can be sized:
 
@@ -377,24 +374,23 @@ every None.
 
 The conversion plan is the authority on the apply. Short form:
 
-1. **Machinery, no system** — dual-read shim, batched prologue,
-   small step helpers. No Affiliation row is rewritten.
+1. **Machinery, no system** — small conversion module, apply helper,
+   spread capture, batched reconcile. No Affiliation row is rewritten.
 2. **Outcast Affiliation + Clan House.** Independent of the others,
    sandbox already green, no None, no shared-across-types offer. The
    chain is the thing to prove. 101 picks rewritten.
 3. **Chaos God, both doors**, before Variants. Empty pickables,
    `min_picks=0` on Helots *and* on the Chaos Corrupted grant (the
    inner offer never nagged either).
-4. **Variants**, which shares the already-swapped Chaos God grant
-   onto the Chaos Corrupted pickable. The "None" clearing is this
-   system's declared ledger change. Shared modifier on seven gang
-   types; `SwapSharedCarrier` with `reach=gang_alone`.
+4. **Variants**, which moves the already-swapped Chaos God grant onto
+   the Chaos Corrupted pickable. The "None" clearing is this system's
+   declared ledger change. Shared modifier on seven gang types;
+   `SwapSharedCarrier` with `reach=gang_alone`.
 5. **Cleanup, later, separate.** Empty the 18 kind rows, the four
    menus, the two fossil offers, the Variant hidden. Drop Affiliation
    from `OFFERABLE_KINDS`, `LEAF_KINDS`, `ENTRY_ASSIGNABLE_FIELDS`,
-   recipes, concepts. Delete the shim. Then drop the model and the
-   Assignment column, the way #2314 dropped
-   Archetype/SkillTree/Specialisation.
+   recipes, concepts. Then drop the model and the Assignment column,
+   the way #2314 dropped Archetype/SkillTree/Specialisation.
 
 Do not convert all three in one operation. One PR and deploy per
 system, same as last time.
@@ -416,5 +412,5 @@ for new gang-level choices, stop here: the three systems can stay, the
 column can stay, and slots are for new domains only. That is a coherent
 position. It is also how we got Gang Legacy stored as Archetype.
 
-The recommendation is the split, system 1 first, batched. See
+The recommendation is the split, system 1 first, one flip each. See
 [`affiliation-conversion-plan.md`](affiliation-conversion-plan.md).
