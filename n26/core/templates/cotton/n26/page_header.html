@@ -62,9 +62,14 @@ works on a string and on slot content alike.
             back the marking .strip drops, so markup in the slot survives.
             {% endcomment %}
             {% if trailing.strip %}
-                <div class="flex flex-wrap items-center gap-2">
-                    <h1 class="text-2xl font-semibold text-ink-900 dark:text-ink-100 sm:text-3xl">{{ leading.strip|safe }}{{ title }}</h1>
-                    <div>{{ trailing }}</div>
+                {% comment %}
+                No wrap: the h1 is a block, so wrapping this row always drops
+                the control under the name, on a line of its own. min-w-0 lets
+                the heading take the squeeze and wrap inside itself instead.
+                {% endcomment %}
+                <div class="flex items-center gap-2">
+                    <h1 class="min-w-0 text-2xl font-semibold text-ink-900 dark:text-ink-100 sm:text-3xl">{{ leading.strip|safe }}{{ title }}</h1>
+                    <div class="shrink-0">{{ trailing }}</div>
                 </div>
             {% else %}
                 <h1 class="text-2xl font-semibold text-ink-900 dark:text-ink-100 sm:text-3xl">{{ leading.strip|safe }}{{ title }}</h1>
@@ -78,7 +83,7 @@ works on a string and on slot content alike.
             lead is usually the sentence saying what the page is for, and small
             text is for what a reader is meant to scan past.
             {% endcomment %}
-            {% if lead.strip %}<p class="text-muted">{{ lead }}</p>{% endif %}
+            {% if lead.strip %}<p class="flex items-center text-muted">{{ lead }}</p>{% endif %}
         </div>
 
         {% if actions %}<div class="flex w-full shrink-0 flex-wrap items-center gap-2 sm:w-auto">{{ actions }}</div>{% endif %}

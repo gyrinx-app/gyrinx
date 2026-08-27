@@ -58,3 +58,39 @@ class TestTheTitleKeepsTheRowOnAPhone:
 
         assert html.index("Ozostium") < html.index("Outcast") < html.index("1000¢")
         assert "flex flex-col" in html
+
+
+class TestTheTitleKeepsItsControl:
+    """A switcher after the name stays on the name's line. flex-wrap plus a
+    block h1 put it on a line of its own under the heading, which then
+    read as part of the type underneath."""
+
+    def test_the_control_does_not_wrap_under_the_heading(self):
+        html = render(
+            '<c-n26.page-header title="Ozostium\'s War Host">'
+            '<c-slot name="trailing"><button type="button">Switch</button></c-slot>'
+            "</c-n26.page-header>"
+        )
+
+        group = html[html.index("<h1") - 80 : html.index("</h1>") + 80]
+        assert "flex items-center gap-2" in html
+        assert "flex-wrap items-center gap-2" not in html
+        assert 'class="min-w-0 text-2xl' in group
+        assert "shrink-0" in html
+        assert html.index("Ozostium") < html.index("Switch")
+
+
+class TestTheTypeKeepsItsMark:
+    """The badge sits after the type on the same line. An inline-block after
+    a short word still wraps under it when the drawing is larger than the
+    line — which is how a gang type's icon ended up on a row of its own."""
+
+    def test_the_badge_is_held_on_the_text_s_line(self):
+        html = render(
+            '<c-n26.flair-link text="Outcast"><svg viewBox="0 0 24 24"></svg>'
+            "</c-n26.flair-link>"
+        )
+
+        assert "inline-flex items-center" in html
+        assert "shrink-0" in html
+        assert html.index("Outcast") < html.index("<svg")
