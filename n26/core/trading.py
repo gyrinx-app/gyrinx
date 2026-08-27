@@ -1,4 +1,4 @@
-"""The Visit Trading Post action — who performs it, and what it brings.
+"""The Visit Trading Post action — who performs it, and what it adds.
 
 A gang's Trade Points are not a standing figure. They arrive when a
 fighter performs the action, are spent at the post, and what is left is
@@ -9,9 +9,9 @@ measured from (``n26.core.reconcile.trade_points_spent``). There is no
 visit table: what a visit *is* is the events one act wrote, which is
 already how the ledger describes everything else.
 
-Two ranks bring Trade Points, and only they are offered: picking a
-fighter who brings none is a choice with no consequence, and the form
-asks one question rather than listing a roster to say no to most of it.
+        Two ranks add Trade Points, and only they are offered: picking a
+        fighter who adds none is a choice with no consequence, and the form
+        asks one question rather than listing a roster to say no to most of it.
 Equipping is the other half and has no such limit — anything the gang
 bought is handed to whoever it is for.
 
@@ -22,14 +22,14 @@ promoted into the rank counts and one who has lost it does not.
 
 from dataclasses import dataclass
 
-#: What each rank brings to a post, by the subtype's own name. The book
-#: names two; every other model brings nothing and may still go.
+#: What each rank adds to a post, by the subtype's own name. The book
+#: names two; every other model adds nothing and may still go.
 TRADE_POINTS_FOR_RANK = {"Leader": 2, "Champion": 1}
 
 
 @dataclass(frozen=True)
 class Visitor:
-    """One model who could perform the action, and what they would bring."""
+    """One model who could perform the action, and what they would add."""
 
     miniature: object
     rank: str
@@ -47,20 +47,21 @@ def brings(rank):
 
 
 def visitors(gang, going=None):
-    """The fighters who could bring Trade Points, in rank order then by name.
+    """The fighters who could add Trade Points, in rank order then by name.
 
     ``going`` is the set of model ids the owner has ticked; ``None``
     opens with all of them ticked, which is what a post-cycle almost
-    always wants.
+    always wants. The form itself starts with none ticked, and passes
+    an empty set.
 
-    A model holding both ranks brings the better of the two: the same
+    A model holding both ranks adds the better of the two: the same
     fighter cannot perform the action twice.
 
     Two queries — the roster, then the ranks anybody holds. Removals are
     read with them: an assignment with ``removes`` set is machinery
     rather than a line, so anything reading assignments straight from
     the database has to cancel the pair itself, or a Leader an owner
-    took away goes on bringing two points.
+    took away goes on adding two points.
     """
     from n26.core.models import Assignment
     from n26.core.render import roster
@@ -94,7 +95,7 @@ def visitors(gang, going=None):
 
 
 def minted(going):
-    """What a set of visitors brings between them."""
+    """What a set of visitors adds between them."""
     return sum(visitor.trade_points for visitor in going if visitor.visiting)
 
 
@@ -104,7 +105,7 @@ def as_offer(going, label="Who is visiting"):
     ``ChoiceOffer`` is the shape the edition already ticks lists in, and
     ``<c-n26.tick-list>`` draws it with plain checkboxes and no script.
     The headings are the ranks, which is what a heading is for here: what
-    a model brings follows from the rank they are filed under, so the
+    a model adds follows from the rank they are filed under, so the
     figure is said once per group rather than once per model.
 
     The better rank leads.
@@ -164,7 +165,7 @@ class Contributor:
 class Receipt:
     """An open Visit Trading Post action, as the figures it is read by.
 
-    Built for the screen rather than stored: what a visit brought is the
+    Built for the screen rather than stored: what a visit added is the
     amount on the gang, what it has spent is the ledger's answer, and who
     went is the events the opening act wrote. Nothing here is a second
     copy of any of them.
@@ -177,7 +178,7 @@ class Receipt:
 
     @property
     def facts(self):
-        """The visit as a tally: what it brought, what has gone, what is
+        """The visit as a tally: what it added, what has gone, what is
         left. Drawn by ``<c-n26.tally>``, which the overspend
         confirmation draws too — one arithmetic, one shape."""
         from n26.core.confirm import Fact

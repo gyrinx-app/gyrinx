@@ -1,7 +1,7 @@
 """The Visit Trading Post action: the open one, and starting another.
 
 Two posts and no query string. Starting names the fighters who perform
-the action and takes what they bring; finishing shuts the post and loses
+the action and takes what they add; finishing shuts the post and loses
 whatever is left, which is the book's rule rather than this screen's
 idea. What the page must get right is that neither is a GET — following
 a link must not open or close an action — and that the receipt is read
@@ -45,7 +45,7 @@ def ranks(db):
 
 @pytest.fixture
 def roster(tester, gang, ranks, make_profile, make_statline):
-    """A Leader, a Champion and a Ganger, who brings nothing but may go."""
+    """A Leader, a Champion and a Ganger, who adds nothing but may go."""
     made = {}
     for name, rank in [("Vex", "Leader"), ("Sura", "Champion"), ("Nix", None)]:
         profile = make_profile(f"{name} entry", price=50)
@@ -63,16 +63,13 @@ def page(gang):
     return reverse("n26-gang-trade-points", args=[gang.pk])
 
 
-def start(client, gang, *models, brought=None, opened=None):
+def start(client, gang, *models, brought=None):
     """Perform the action, as the form posts it.
 
-    ``opened`` is the figure the box was drawn with; ``brought`` is what
-    was typed over it. Left alone by a caller, neither is sent — which is
-    a form submitted with the box untouched and empty of overrides.
+    ``brought`` is a figure typed in the box. Left alone, the box is not
+    sent — an empty override, so the ticks decide.
     """
     data = {"visiting": [str(m.pk) for m in models]}
-    if opened is not None:
-        data["brought_default"] = str(opened)
     if brought is not None:
         data["brought"] = str(brought)
     return client.post(page(gang), data)
@@ -216,10 +213,10 @@ class TestTheStashCard:
 
 
 class TestWhoIsOffered:
-    def test_only_the_ranks_that_bring_something_are_offered(
+    def test_only_the_ranks_that_add_something_are_offered(
         self, client, tester, roster, gang
     ):
-        """Picking a fighter who brings nothing is a choice with no
+        """Picking a fighter who adds nothing is a choice with no
         consequence, so the form asks one question rather than listing a
         roster to say no to most of it."""
         client.force_login(tester)
@@ -229,35 +226,51 @@ class TestWhoIsOffered:
         )
         assert set(boxes) == {str(roster["Vex"].pk), str(roster["Sura"].pk)}
 
-    def test_they_open_ticked(self, client, tester, roster, gang):
+    def test_they_open_unticked(self, client, tester, roster, gang):
         client.force_login(tester)
         body = client.get(page(gang)).content.decode()
         for name in ("Vex", "Sura"):
             box = body[body.index(f'value="{roster[name].pk}"') :][:200]
-            assert "checked" in box
+            assert "checked" not in box
 
-    def test_each_rank_says_what_it_brings(self, client, tester, roster, gang):
+    def test_each_rank_says_what_it_adds(self, client, tester, roster, gang):
         client.force_login(tester)
         body = client.get(page(gang)).content.decode()
         assert "2 Trade Points each" in body
         assert "1 Trade Point each" in body
 
+    def test_the_start_form_says_how_it_adds_up(self, client, tester, roster, gang):
+        """The ticks start clear, the box empty, and the running total
+        follows them — or a typed figure, which shuts the ticks."""
+        client.force_login(tester)
+        body = client.get(page(gang)).content.decode()
+        assert "Visit Trading Post (post-cycle action)" in body
+        assert "A Leader adds 2 Trade Points and a Champion 1." in body
+        assert "Nobody else" not in body
+        assert "Start TP visit" in body
+        assert "Start action" not in body
+        assert "Selected fighters add" in body
+        assert 'x-text="added"' in body
+        assert 'x-model="override"' in body
+        assert ':disabled="overridden || locked"' in body
+
     def test_a_gang_with_nobody_says_so(self, client, tester, gang):
         """The page names the ranks it wanted, not a bare roster.
 
-        A gang can be full of Gangers and still have nobody who brings
+        A gang can be full of Gangers and still have nobody who adds
         anything, so "nobody to send" would read as a lie.
         """
         client.force_login(tester)
         body = client.get(page(gang)).content.decode()
         assert "no Leader or Champion to send" in body
+        assert "nobody else adds Trade Points" in body
 
     def test_a_rank_taken_away_is_not_one_held(
         self, client, tester, roster, gang, ranks
     ):
         """A removal is machinery, not a line: reading the assignments
         straight from the database has to cancel the pair itself, or a
-        Leader the owner took away goes on bringing two points."""
+        Leader the owner took away goes on adding two points."""
         with operation(gang, actor=tester) as op:
             op.assign(ranks["Leader"], miniature=roster["Vex"], removes=True)
 
@@ -273,7 +286,7 @@ class TestStartingTheAction:
     def signed_in(self, client, tester):
         client.force_login(tester)
 
-    def test_it_takes_what_the_visitors_bring(self, client, roster, gang):
+    def test_it_takes_what_the_visitors_add(self, client, roster, gang):
         start(client, gang, roster["Vex"], roster["Sura"])
 
         gang.refresh_from_db()
@@ -281,7 +294,7 @@ class TestStartingTheAction:
         assert gang.starting_trade_points == 3
         assert gang.trade_points_left == 3
 
-    def test_a_fighter_who_brings_nothing_is_not_a_visitor(self, client, roster, gang):
+    def test_a_fighter_who_adds_nothing_is_not_a_visitor(self, client, roster, gang):
         """They are not offered, so a post naming one names nobody the
         form could have named — and a visit nobody performed is not one."""
         answer = client.post(
@@ -294,8 +307,7 @@ class TestStartingTheAction:
         assert any("at least one fighter" in line for line in told)
 
     def test_sending_nobody_is_refused(self, client, roster, gang):
-        """The rules want a fighter to perform the action; a visit nobody
-        performed is not one."""
+        """Neither ticks nor a typed amount: there is nothing to start."""
         answer = client.post(page(gang), {}, follow=True)
 
         gang.refresh_from_db()
@@ -349,58 +361,73 @@ class TestStartingTheAction:
         assert answer.status_code == 302
         assert answer["Location"] == page(gang)
 
+    def test_it_says_what_the_fighters_added(self, client, roster, gang):
+        answer = client.post(
+            page(gang), {"visiting": [str(roster["Vex"].pk)]}, follow=True
+        )
+
+        told = [str(m) for m in answer.context["messages"]]
+        assert any("adding 2 Trade Points" in line for line in told)
+        assert not any("bringing" in line for line in told)
+
 
 class TestATypedFigure:
-    """The box opens on what the ticked fighters bring. Left alone the
-    ticks decide; changed, the typed figure wins — a territory that adds
-    a point, or an arbitrator's own number."""
+    """The box opens empty. Left empty the ticks decide; filled, the typed
+    figure wins — a territory that adds a point, or an arbitrator's own
+    number — and the ticks shut, because the number is then the box's."""
 
     @pytest.fixture(autouse=True)
     def signed_in(self, client, tester):
         client.force_login(tester)
 
-    def test_the_box_opens_on_what_the_ticked_fighters_bring(
-        self, client, roster, gang
-    ):
+    def test_the_box_opens_empty(self, client, roster, gang):
         body = client.get(page(gang)).content.decode()
-        # A Leader and a Champion open ticked, so three.
-        assert 'name="brought_default" value="3"' in body
-        assert 'value="3"' in body
+        assert "brought_default" not in body
+        tag = re.search(r'<input[^>]*name="brought"[^>]*>', body).group()
+        assert "value=" not in tag
 
     def test_left_alone_the_ticks_decide(self, client, roster, gang):
-        """Re-ticking without touching the box does what a reader expects,
-        which no client-side arithmetic could promise with scripting off."""
-        start(client, gang, roster["Vex"], opened=3, brought=3)
+        start(client, gang, roster["Vex"])
 
         gang.refresh_from_db()
         assert gang.starting_trade_points == 2
 
     def test_a_typed_figure_wins(self, client, roster, gang):
-        start(client, gang, roster["Vex"], opened=3, brought=7)
+        start(client, gang, roster["Vex"], brought=7)
 
         gang.refresh_from_db()
         assert gang.starting_trade_points == 7
 
     def test_a_typed_nought_wins_too(self, client, roster, gang):
         """Nought is a figure somebody meant, not an empty box."""
-        start(client, gang, roster["Vex"], roster["Sura"], opened=3, brought=0)
+        start(client, gang, roster["Vex"], roster["Sura"], brought=0)
 
         gang.refresh_from_db()
         assert gang.visiting_trading_post is True
         assert gang.starting_trade_points == 0
 
     def test_an_empty_box_falls_back_to_the_ticks(self, client, roster, gang):
-        start(client, gang, roster["Vex"], opened=3, brought="")
+        start(client, gang, roster["Vex"], brought="")
 
         gang.refresh_from_db()
         assert gang.starting_trade_points == 2
+
+    def test_a_typed_figure_needs_nobody_ticked(self, client, roster, gang):
+        """The box replaces the ticks: a number there is the amount, and
+        who went is not asked."""
+        answer = client.post(page(gang), {"brought": "4"}, follow=True)
+
+        gang.refresh_from_db()
+        assert gang.visiting_trading_post is True
+        assert gang.starting_trade_points == 4
+        told = [str(m) for m in answer.context["messages"]]
+        assert any("adding 4 Trade Points" in line for line in told)
 
     def test_a_figure_that_is_not_a_whole_number_is_refused(self, client, roster, gang):
         answer = client.post(
             page(gang),
             {
                 "visiting": [str(roster["Vex"].pk)],
-                "brought_default": "3",
                 "brought": "-4",
             },
             follow=True,
@@ -416,7 +443,6 @@ class TestATypedFigure:
             page(gang),
             {
                 "visiting": [str(roster["Vex"].pk)],
-                "brought_default": "3",
                 "brought": "100000",
             },
             follow=True,
@@ -459,14 +485,21 @@ class TestTheReceipt:
 
         assert "Complete action" in client.get(page(gang)).content.decode()
 
-    def test_it_names_the_ranks_that_brought_the_figure(self, client, roster, gang):
+    def test_it_warns_that_unused_points_will_be_discarded(self, client, roster, gang):
+        start(client, gang, roster["Vex"])
+
+        body = client.get(page(gang)).content.decode()
+        assert "Click when you have finished at the Trading Post." in body
+        assert "Any unused TP will be discarded." in body
+
+    def test_it_names_the_ranks_that_added_the_figure(self, client, roster, gang):
         start(client, gang, roster["Vex"], roster["Sura"])
 
         body = client.get(page(gang)).content.decode()
         assert "Leader, Champion" in body
 
     def test_it_offers_every_fighter_to_equip(self, client, roster, gang):
-        """What a visit brought is the gang's, and it is spent on whoever
+        """What a visit added is the gang's, and it is spent on whoever
         it was for — including the fighters who did not go."""
         start(client, gang, roster["Vex"])
 
@@ -475,7 +508,7 @@ class TestTheReceipt:
         for name in ("Vex", "Sura", "Nix"):
             assert name in body
 
-    def test_each_fighter_gets_a_way_to_spend_what_they_brought(
+    def test_each_fighter_gets_a_way_to_spend_what_they_added(
         self, client, roster, gang
     ):
         """Having sent a fighter to the post, the next thing an owner
@@ -566,13 +599,13 @@ class TestFinishingTheAction:
         assert gang.starting_trade_points is None
         assert gang.trade_points_left is None
 
-    def test_it_says_what_went_with_it(self, client, roster, gang):
+    def test_it_says_unspent_points_were_discarded(self, client, roster, gang):
         start(client, gang, roster["Vex"])
 
         answer = client.post(page(gang), {"act": "finish"}, follow=True)
 
         told = [str(m) for m in answer.context["messages"]]
-        assert any("2 unspent went with it" in line for line in told)
+        assert any("2 unspent Trade Points were discarded" in line for line in told)
 
     def test_finishing_a_shut_post_changes_nothing(self, client, roster, gang):
         answer = client.post(page(gang), {"act": "finish"})
@@ -595,7 +628,7 @@ class TestFinishingTheAction:
 
         assert "left the Trading Post" in body
         assert body.index("left the Trading Post") < body.index(
-            "Start Visit Trading Post action"
+            "Visit Trading Post (post-cycle action)"
         )
         assert body.index("What to edit") < body.index("left the Trading Post")
 

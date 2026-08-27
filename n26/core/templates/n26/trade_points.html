@@ -4,16 +4,20 @@
 The Visit Trading Post action — the one open, and starting another.
 
 Two posts, no query string. The card is the open visit, read as a receipt: what
-it brought, what has gone, what is left, and who performed the action. Its
+it added, what has gone, what is left, and who performed the action. Its
 button finishes the visit, which shuts the post and loses the remainder — the
 book's rule, so the button says so rather than asking again.
 
-The form beneath starts one. The ticks are the whole of the question in the
-ordinary case — a visit brings what its fighters bring — with a box beneath
-them for an owner who knows the figure and wants to say it outright. Starting
-one while another is open replaces it, and the form says as much.
+The form beneath starts one. The ticks are the usual way to name a figure — a
+visit adds what its fighters add — with a box beneath them for an owner who
+knows the number and wants to say it outright. A figure in that box shuts the
+ticks: the number is then the box's, not a sum. Starting one while another is
+open replaces it, and the form says as much.
 
-Plain checkboxes and no script, so the whole screen works with scripting off.
+The running total and the shutting of the ticks are Alpine, reading state
+already on the page. Without scripting the ticks stay live, the box stays
+empty unless someone types, and the server still takes a typed figure over
+the ticks.
 {% endcomment %}
 {% block head_title %}Trade Points — {{ gang.name }}{% endblock head_title %}
 {% block nav_switcher %}
@@ -63,8 +67,8 @@ Plain checkboxes and no script, so the whole screen works with scripting off.
                     <c-n26.tally :facts="receipt.facts" />
                     {% comment %}
                     Every fighter, not only those who performed the action:
-                    what a visit brought is the gang's, and it is spent on
-                    whoever it was for. Which ranks brought it is the line
+                    what a visit added is the gang's, and it is spent on
+                    whoever it was for. Which ranks added it is the line
                     under Available.
                     {% endcomment %}
                     {% if roster %}
@@ -101,30 +105,37 @@ Plain checkboxes and no script, so the whole screen works with scripting off.
                                     Complete action
                                 </span>
                             </c-ui.button>
-                            <p class="text-sm text-muted">Click when you have finished at the Trading Post.</p>
+                            <p class="text-sm text-muted">
+                                Click when you have finished at the Trading Post.
+                                Any unused TP will be discarded.
+                            </p>
                         </div>
                     </form>
                 </div>
             </c-ui.card>
         {% endif %}
-        <form method="post" action="{{ action }}">
+        <form method="post"
+              action="{{ action }}"
+              x-data="{ override: '', tick: 0, locked: {{ visit_open|yesno:'true,false' }}, points: {{ points_json }}, get overridden() { return String(this.override).trim() !== ''; }, selected() { this.tick; let n = 0; for (const box of $el.querySelectorAll('input[name=visiting]:checked')) { n += this.points[box.value] || 0; } return n; }, get added() { if (this.overridden) { const n = parseInt(this.override, 10); return Number.isFinite(n) ? n : 0; } return this.selected(); } }"
+              @change="tick++"
+              @input="tick++">
             {% csrf_token %}
-            <c-n26.form-section title="Start Visit Trading Post action"
-                                description="{% if visit_open %}Finish the action above first. A gang performs one Visit Trading Post action at a time.{% else %}A Leader brings 2 Trade Points and a Champion 1. Nobody else brings any, so the ones who do are the ones to tick; anyone in the gang may then be equipped from the post.{% endif %}">
+            <c-n26.form-section title="Visit Trading Post (post-cycle action)"
+                                description="{% if visit_open %}Finish the action above first. A gang performs one Visit Trading Post action at a time.{% else %}A Leader adds 2 Trade Points and a Champion 1.{% endif %}">
                 {% if visitors %}
                     {% comment %}
                     Shut while an action is open: starting another would discard
                     what the one above has left. The reason is said once in the
                     section description rather than under every fighter.
+
+                    A figure in the box is the whole of the amount, so the
+                    ticks shut then — a native fieldset, so every box inside
+                    is disabled together and submits nothing. locked is the
+                    open action, already computed; overridden is typed here.
                     {% endcomment %}
-                    <c-n26.tick-list :offer="offer" name="visiting" :disabled="visit_open" />
-                    {% comment %}
-                    `brought_default` is the figure the box was drawn with.
-                    Without it the server could not tell a figure somebody
-                    typed from one the page happened to draw, the box being
-                    unable to follow the ticks with no script here.
-                    {% endcomment %}
-                    <input type="hidden" name="brought_default" value="{{ suggestion }}">
+                    <fieldset class="min-w-0 border-0 p-0" :disabled="overridden || locked">
+                        <c-n26.tick-list :offer="offer" name="visiting" :disabled="visit_open" />
+                    </fieldset>
                     {% comment %}
                     No `class` on the input: c-ui.input does not declare one, so
                     it would arrive through {{ attrs }} as a second class
@@ -140,7 +151,7 @@ Plain checkboxes and no script, so the whole screen works with scripting off.
                                         min="0"
                                         max="999"
                                         inputmode="numeric"
-                                        value="{{ suggestion }}"
+                                        x-model="override"
                                         disabled />
                         {% else %}
                             <c-ui.input id="brought"
@@ -149,7 +160,7 @@ Plain checkboxes and no script, so the whole screen works with scripting off.
                                         min="0"
                                         max="999"
                                         inputmode="numeric"
-                                        value="{{ suggestion }}" />
+                                        x-model="override" />
                         {% endif %}
                     </c-ui.field>
                     {% comment %}
@@ -159,12 +170,12 @@ Plain checkboxes and no script, so the whole screen works with scripting off.
                     looking shut. The shut one is wrapped because a disabled
                     button emits no mouse events for a tooltip to use.
                     {% endcomment %}
-                    <div>
+                    <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
                         {% if visit_open %}
                             <c-ui.tooltip size="sm">
                                 <span class="inline-block cursor-not-allowed">
                                     <c-ui.button type="submit" size="sm" variant="primary" disabled>
-                                        Start action
+                                        Start TP visit
                                     </c-ui.button>
                                 </span>
                                 <c-slot name="content">
@@ -174,14 +185,20 @@ Plain checkboxes and no script, so the whole screen works with scripting off.
                             </c-ui.tooltip>
                         {% else %}
                             <c-ui.button type="submit" size="sm" variant="primary">
-                                Start action
+                                Start TP visit
                             </c-ui.button>
                         {% endif %}
+                        <p class="text-sm text-muted">
+                            Selected fighters add
+                            <span class="font-medium tabular-nums text-ink-900 dark:text-ink-100"
+                                  x-text="added">0</span>
+                            TP
+                        </p>
                     </div>
                 {% else %}
                     <p class="text-sm text-muted">
                         {{ gang.name }} has no Leader or Champion to send, and
-                        nobody else brings Trade Points.
+                        nobody else adds Trade Points.
                     </p>
                 {% endif %}
             </c-n26.form-section>

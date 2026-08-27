@@ -408,8 +408,8 @@ class Operation:
     def visit_trading_post(self, visitors=(), brought=None):
         """Open a Visit Trading Post action, performed by these fighters.
 
-        What they bring between them becomes what the gang has to spend;
-        two ranks bring Trade Points and the rest bring none, which is
+        What they add between them becomes what the gang has to spend;
+        two ranks add Trade Points and the rest add none, which is
         not the same as not going — one fighter going is what opens the
         post at all.
 
@@ -460,7 +460,7 @@ class Operation:
 
         Written every time, even where the figure has not changed —
         which is the one place this parts company with ``set_budget``. A
-        second visit bringing the same amount is a second visit, and a
+        second visit adding the same amount is a second visit, and a
         guard that skipped the write would leave the first one's
         spending counting against it.
         """
