@@ -69,8 +69,8 @@ prose; a section with no picture is just its words.
                 </c-n26.prose>
             {% elif yours %}
                 <p class="text-muted">
-                    Nothing written yet — the gang's lore is written on
-                    <c-n26.link href="{% url 'n26-edit-gang' gang.pk %}?tab=notes">its edit page</c-n26.link>.
+                    No gang-wide Lore yet. Add it via
+                    <c-n26.link href="{% url 'n26-edit-gang' gang.pk %}?tab=notes">the edit page</c-n26.link>.
                 </p>
             {% endif %}
             {% if yours and gang.lore %}
