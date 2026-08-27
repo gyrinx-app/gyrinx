@@ -73,6 +73,24 @@ class TestTheEditAffordance:
         assert reverse("n26-edit-gang", args=[gang.pk]) + "?tab=notes" in body
         assert reverse("n26-edit-fighter", args=[vex.pk]) in body
 
+    def test_empty_gang_lore_names_the_gap_as_gang_wide(
+        self, client, tester, gang, make_profile, make_statline
+    ):
+        """A gang with no lore of its own can still show a model's
+        story. The empty line must name that gap, not read as if
+        nothing is written at all."""
+        profile = make_profile("Ganger", price=0)
+        make_statline(profile)
+        with operation(gang, actor=tester) as op:
+            vex = op.hire(profile, "Vex")
+            op.edit_lore(vex, "<p>Nobody knows where Vex came from.</p>")
+        client.force_login(tester)
+        body = client.get(lore_url(gang)).content.decode()
+        assert "No gang-wide Lore yet" in body
+        assert "Nobody knows where Vex came from" in body
+        assert reverse("n26-edit-gang", args=[gang.pk]) + "?tab=notes" in body
+        assert "Nothing written yet" not in body
+
     def test_a_reader_gets_none(self, client, gang, roster):
         vex, _ = roster
         body = client.get(lore_url(gang)).content.decode()
