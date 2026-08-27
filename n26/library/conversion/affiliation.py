@@ -46,9 +46,6 @@ AFFILIATION_SLOT = "Affiliation"
 HOUSE_TYPE = "Clan House"
 HOUSE_PLURAL = "Clan Houses"
 HOUSE_SLOT = "Clan House"
-#: What the card already calls the house question — the offer's label
-#: after ``capfirst``, which a slot name of "Clan House" would not match.
-HOUSE_SLOT_LABEL = "Clan house"
 OFFER_LABEL = "affiliation"
 HOUSE_OFFER_LABEL = "clan house"
 PROVEN = 15
@@ -319,6 +316,15 @@ def plan_outcast_affiliation():
             for row in rows
         ]
 
+    # What the card calls each question today, taken from the offer that
+    # asks it rather than guessed. A slot's ``choice_label`` lands where
+    # an offer's ``kind_label`` did, so carrying the offer's own wording
+    # across is the only way it survives whatever the authors typed: a
+    # label is stored as written apart from its first letter, and to the
+    # proof "Clan House" and "Clan house" are different words.
+    top_label = offer.offers_choice.kind_label
+    house_label = house_offer.offers_choice.kind_label
+
     steps = [
         CreateSlotType(
             name=AFFILIATION_TYPE,
@@ -335,7 +341,7 @@ def plan_outcast_affiliation():
             name=AFFILIATION_SLOT,
             slot_type=AFFILIATION_TYPE,
             picklist=top_picklist,
-            label=AFFILIATION_SLOT,
+            label=top_label,
             assigned_to="gang",
             min_picks=0,
             max_picks=1,
@@ -351,7 +357,7 @@ def plan_outcast_affiliation():
             name=HOUSE_SLOT,
             slot_type=HOUSE_TYPE,
             picklist=house_picklist,
-            label=HOUSE_SLOT_LABEL,
+            label=house_label,
             assigned_to="gang",
             min_picks=0,
             max_picks=1,

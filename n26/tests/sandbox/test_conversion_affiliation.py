@@ -114,14 +114,14 @@ def build_prod_shape(person_type):
     modifier(
         "Clan House: choose one of the six Houses",
         targets_gang(),
-        offers_choice(Affiliation, from_section=house_section, label="clan house"),
+        offers_choice(Affiliation, from_section=house_section, label="Clan House"),
         carried_by=top["Clan House"],
     )
     # Fossils: unattached offers the conversion must not swap.
     modifier(
         "a whole-kind Affiliation offer",
         targets_gang(),
-        offers_choice(Affiliation, label="affiliation"),
+        offers_choice(Affiliation, label="Affiliation"),
     )
     modifier(
         "Corruption",
@@ -140,7 +140,7 @@ def build_prod_shape(person_type):
     modifier(
         "Outcasts: the Leader chooses an Affiliation",
         targets_gang(),
-        offers_choice(Affiliation, from_section=menu, label="affiliation"),
+        offers_choice(Affiliation, from_section=menu, label="Affiliation"),
         carried_by=hidden,
     )
     gang_type = create_gang_type("Outcasts", starting_credits=2000)
@@ -306,6 +306,30 @@ class TestTheApply:
         assert pick.chosen_for_slot == Slot.objects.get(name="Clan House")
         assert pick.affiliation_id is None
 
+    def test_each_slot_is_labelled_the_way_the_offer_already_was(self, world):
+        """The card's own words, carried across rather than guessed.
+
+        A label is stored as the author typed it (only its first letter
+        is forced up), so a conversion that hardcodes the wording gets
+        "Clan house" where production says "Clan House" — and every
+        housed gang's card changes a word, which the proof rejects after
+        doing all the work. Production's own casing is the fixture's, so
+        this fails the moment the label stops being derived.
+        """
+        _, _, hidden = world
+        offer = next(
+            m
+            for m in hidden.modifiers.all()
+            if getattr(m, "offers_choice", None) is not None
+        )
+        said = offer.offers_choice.kind_label
+
+        apply(plan_outcast_affiliation())
+
+        assert said == "Affiliation"
+        assert Slot.objects.get(name="Affiliation").choice_label == said
+        assert Slot.objects.get(name="Clan House").choice_label == "Clan House"
+
     def test_the_archived_answer_is_rewritten_too(self, world):
         gangs, _, _ = world
 
@@ -381,7 +405,7 @@ class TestTheBehaviourThatMustSurvive:
             Pickable.objects.get(name="Clan House Outcast"),
             slot=affiliation,
         )
-        assert ("Clan house", "") in gang_state(gang)["choices"]
+        assert ("Clan House", "") in gang_state(gang)["choices"]
 
         choose(
             Assignment.objects.get(
@@ -390,7 +414,7 @@ class TestTheBehaviourThatMustSurvive:
             Pickable.objects.get(name="House Escher"),
             slot=house,
         )
-        assert ("Clan house", "House Escher") in gang_state(gang)["choices"]
+        assert ("Clan House", "House Escher") in gang_state(gang)["choices"]
 
         remove(standing())
         choose(
@@ -398,7 +422,7 @@ class TestTheBehaviourThatMustSurvive:
             Pickable.objects.get(name="Mutant Outcast"),
             slot=affiliation,
         )
-        assert all(label != "Clan house" for label, _ in gang_state(gang)["choices"])
+        assert all(label != "Clan House" for label, _ in gang_state(gang)["choices"])
         assert_reconciled(gang)
         assert_reconciled(gang)
 
