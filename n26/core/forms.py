@@ -203,11 +203,12 @@ class PictureForm(forms.Form):
         return to_shape(upload, self.ratio) if upload else upload
 
 
-class GangStoryForm(forms.Form):
-    """The gang edit page's written tab: notes and lore together.
+class GangNotesForm(forms.Form):
+    """The gang edit page's notes box. One field, one save.
 
-    Both optional, because an emptied box is a real answer — it clears
-    the field. Stored as written, sanitised at render.
+    Optional, because an emptied box is a real answer — it clears the
+    notes. Stored as written, sanitised at render. Lore is a form of
+    its own, so saving one cannot throw the other away.
     """
 
     notes = forms.CharField(
@@ -216,6 +217,11 @@ class GangStoryForm(forms.Form):
         label="Notes",
         help_text="Printed with the gang sheet. Anyone reading the gang can see them.",
     )
+
+
+class GangLoreForm(forms.Form):
+    """The gang edit page's lore box. One field, the notes box's shape."""
+
     lore = forms.CharField(
         required=False,
         widget=RichText(),

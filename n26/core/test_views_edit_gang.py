@@ -220,20 +220,20 @@ def png_upload(name="banner.png"):
 
 
 class TestNotesLoreAndPicture:
-    """The gang's own written fields and picture, saved with the rest of
-    the form and recorded as acts on the gang itself."""
+    """The gang's own written fields and picture. Notes and lore each
+    save as their own act, so one cannot throw the other away."""
 
     def test_notes_and_lore_save_and_are_recorded(self, client, tester, gang):
         client.force_login(tester)
-        response = client.post(
-            edit_url(gang),
-            {
-                "act": "story",
-                "notes": "<p>Meet at the sump gate.</p>",
-                "lore": "<p>Founded on a debt.</p>",
-            },
+        notes = client.post(
+            edit_url(gang), {"act": "notes", "notes": "<p>Meet at the sump gate.</p>"}
         )
-        assert response.status_code == 302
+        lore = client.post(
+            edit_url(gang), {"act": "lore", "lore": "<p>Founded on a debt.</p>"}
+        )
+        assert notes.status_code == 302
+        assert notes.url == edit_url(gang) + "?tab=notes"
+        assert lore.url == edit_url(gang) + "?tab=notes"
         gang.refresh_from_db()
         assert gang.notes == "<p>Meet at the sump gate.</p>"
         assert gang.lore == "<p>Founded on a debt.</p>"
@@ -241,9 +241,20 @@ class TestNotesLoreAndPicture:
         assert recorded.filter(kind=LedgerEvent.Kind.NOTED).count() == 1
         assert recorded.filter(kind=LedgerEvent.Kind.LORE_EDITED).count() == 1
 
+    def test_saving_notes_leaves_the_lore_alone(self, client, tester, gang):
+        gang.lore = "<p>Founded on a debt.</p>"
+        gang.save(update_fields=["lore"])
+        client.force_login(tester)
+        client.post(
+            edit_url(gang), {"act": "notes", "notes": "<p>Meet at the sump gate.</p>"}
+        )
+        gang.refresh_from_db()
+        assert gang.notes == "<p>Meet at the sump gate.</p>"
+        assert gang.lore == "<p>Founded on a debt.</p>"
+
     def test_an_unchanged_field_writes_no_event(self, client, tester, gang):
         client.force_login(tester)
-        words = {"act": "story", "notes": "<p>same</p>", "lore": ""}
+        words = {"act": "notes", "notes": "<p>same</p>"}
         client.post(edit_url(gang), words)
         client.post(edit_url(gang), words)
         assert (
@@ -254,12 +265,10 @@ class TestNotesLoreAndPicture:
     def test_the_history_says_what_happened_in_gang_words(self, client, tester, gang):
         client.force_login(tester)
         client.post(
-            edit_url(gang),
-            {
-                "act": "story",
-                "notes": "<p>Meet at the sump gate.</p>",
-                "lore": "<p>Founded on a debt.</p>",
-            },
+            edit_url(gang), {"act": "notes", "notes": "<p>Meet at the sump gate.</p>"}
+        )
+        client.post(
+            edit_url(gang), {"act": "lore", "lore": "<p>Founded on a debt.</p>"}
         )
         body = client.get(reverse("n26-gang-history", args=[gang.pk])).content.decode()
         assert (
@@ -288,6 +297,46 @@ class TestNotesLoreAndPicture:
         # The tab strip on both, saying which is current.
         assert "?tab=notes" in general
         assert 'aria-current="page"' in notes_tab
+        # Each box is its own form, posting in place.
+        assert "Save notes" in notes_tab
+        assert "Save lore" in notes_tab
+        assert "Save notes and lore" not in notes_tab
+        assert notes_tab.count('hx-swap="none"') == 2
+        assert "hx-post" not in general
+
+    def test_saving_notes_answers_with_a_toast_and_not_a_page(
+        self, client, tester, gang
+    ):
+        import json
+
+        client.force_login(tester)
+        response = client.post(
+            edit_url(gang),
+            {"act": "notes", "notes": "<p>Meet at the sump gate.</p>"},
+            headers={"HX-Request": "true"},
+        )
+        assert response.status_code == 204
+        said = json.loads(response["HX-Trigger"])["n26-toasts"]
+        assert said[0]["message"] == "Notes saved."
+        gang.refresh_from_db()
+        assert gang.notes == "<p>Meet at the sump gate.</p>"
+
+    def test_saving_lore_answers_with_a_toast_and_not_a_page(
+        self, client, tester, gang
+    ):
+        import json
+
+        client.force_login(tester)
+        response = client.post(
+            edit_url(gang),
+            {"act": "lore", "lore": "<p>Founded on a debt.</p>"},
+            headers={"HX-Request": "true"},
+        )
+        assert response.status_code == 204
+        said = json.loads(response["HX-Trigger"])["n26-toasts"]
+        assert said[0]["message"] == "Lore saved."
+        gang.refresh_from_db()
+        assert gang.lore == "<p>Founded on a debt.</p>"
 
     def test_the_picture_is_stored_removed_and_otherwise_left_be(
         self, client, tester, gang, own_storage

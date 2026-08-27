@@ -20,20 +20,24 @@ The pattern, end to end:
   :func:`with_toasts` drains them into the ``HX-Trigger`` response header as
   one ``n26-toasts`` event; the client shows them as toasts
   (``n26/core/static/n26/htmx_support.js``). A response that changes nothing
-  on the page is :func:`no_update` — a 204 carrying only that header.
+  on the page is :func:`no_update` — a 204 carrying only that header. That is
+  also the answer when the page must keep a live editor: swapping the box
+  out would rebuild TinyMCE and throw away whatever is typed in the other
+  one. :func:`stay_or_redirect` is that 204, or a redirect without htmx.
 - The URL stays the authority on UI state. A response that opens or closes a
   panel sets ``HX-Replace-Url`` to the address that renders that state, so a
   reload draws the same screen and links keep working.
 
-The equip screens are the pattern's first use — ``n26.core.views.equip``
-builds their update responses; this module holds only the parts any screen
-would need.
+The equip screens were the pattern's first use — ``n26.core.views.equip``
+builds their update responses; notes and lore saves use :func:`no_update`
+so the editors stay. This module holds only the parts any screen would need.
 """
 
 import json
 
 from django.contrib.messages import get_messages
 from django.http import HttpResponse
+from django.shortcuts import redirect
 
 #: How long a toast stays before it dismisses itself. An error toast is
 #: given no timeout at all: the reason a click did nothing is worth more
@@ -77,6 +81,21 @@ def no_update(request):
     """A response that changes nothing on the page.
 
     204, plus any queued messages as toasts — the one channel a refusal
-    still has into a page that is not re-rendered.
+    still has into a page that is not re-rendered, and the answer a
+    successful save uses when the page must keep a live editor.
     """
     return with_toasts(request, HttpResponse(status=204))
+
+
+def stay_or_redirect(request, to):
+    """Finish an act: leave the page as drawn, or go ``to`` without htmx.
+
+    The notes and lore boxes keep a live TinyMCE editor. Rebuilding the
+    page would throw away whatever is typed in the other box, so a save
+    that htmx sent answers with :func:`no_update` — the confirmation is
+    a toast, the editors stay. Without JavaScript the same act is a
+    redirect, as every other form on the site is.
+    """
+    if is_htmx(request):
+        return no_update(request)
+    return redirect(to)

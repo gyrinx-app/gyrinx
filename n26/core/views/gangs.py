@@ -606,11 +606,16 @@ def edit_gang(request, pk):
     operation so ``settle`` recomputes the credits from the ledger —
     the budget less everything actually spent — and refuses a budget
     the spending history cannot fit, unwinding the whole change.
+
+    Notes and lore each have their own form and save. htmx leaves the
+    page as drawn so typing in one box survives saving the other; a
+    full submit lands back on this tab.
     """
     from n26.analytics import EventVerb, N26Noun, record
-    from n26.core.forms import EditGangForm, GangStoryForm, PictureForm
+    from n26.core.forms import EditGangForm, GangLoreForm, GangNotesForm, PictureForm
     from n26.core.images import LANDSCAPE, MAX_PX
     from n26.core.operations import NotEnoughCredits, operation
+    from n26.core.views.htmx import stay_or_redirect
 
     gang = _own_gang_or_404(request, pk)
     at = reverse("n26-edit-gang", args=[gang.pk])
@@ -649,15 +654,22 @@ def edit_gang(request, pk):
             for wrong in form.errors.get("image", []):
                 messages.error(request, wrong)
         return redirect(f"{at}?tab=notes")
-    elif request.method == "POST" and request.POST.get("act") == "story":
-        form = GangStoryForm(request.POST)
+    elif request.method == "POST" and request.POST.get("act") == "notes":
+        form = GangNotesForm(request.POST)
         if form.is_valid():
             with operation(gang, actor=request.user) as op:
                 op.edit_gang_notes(form.cleaned_data["notes"])
+            record(request, N26Noun.GANG, EventVerb.UPDATE, gang, notes=True)
+            messages.success(request, "Notes saved.")
+        return stay_or_redirect(request, f"{at}?tab=notes")
+    elif request.method == "POST" and request.POST.get("act") == "lore":
+        form = GangLoreForm(request.POST)
+        if form.is_valid():
+            with operation(gang, actor=request.user) as op:
                 op.edit_gang_lore(form.cleaned_data["lore"])
-            record(request, N26Noun.GANG, EventVerb.UPDATE, gang, story=True)
-            messages.success(request, f"Saved {gang.name}.")
-            return redirect("n26-gang", pk=gang.pk)
+            record(request, N26Noun.GANG, EventVerb.UPDATE, gang, lore=True)
+            messages.success(request, "Lore saved.")
+        return stay_or_redirect(request, f"{at}?tab=notes")
     elif request.method == "POST" and not request.POST.get("act"):
         form = EditGangForm(gang, request.POST)
         if form.is_valid():
@@ -694,7 +706,7 @@ def edit_gang(request, pk):
                 messages.success(request, f"Saved {gang.name}.")
                 return redirect("n26-gang", pk=gang.pk)
     elif tab == "notes":
-        form = GangStoryForm(initial={"notes": gang.notes, "lore": gang.lore})
+        form = None
     else:
         form = EditGangForm(
             gang,
@@ -706,9 +718,10 @@ def edit_gang(request, pk):
         )
 
     # A failed save re-renders on the tab its form lives on, whatever
-    # the address said.
+    # the address said. Notes and lore each redirect (or stay, under
+    # htmx) and never reach here.
     if request.method == "POST":
-        tab = "notes" if request.POST.get("act") == "story" else "general"
+        tab = "general"
 
     return render(
         request,
@@ -716,6 +729,8 @@ def edit_gang(request, pk):
         {
             "gang": gang,
             "form": form,
+            "notes_form": GangNotesForm(initial={"notes": gang.notes}),
+            "lore_form": GangLoreForm(initial={"lore": gang.lore}),
             "wealth": gang.wealth,
             "tab": tab,
             # The crop spec the picture box stamps onto the browser's

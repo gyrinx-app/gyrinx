@@ -3,12 +3,14 @@
 {% load static %}
 {% comment %}
 Editing a standing gang, in two tabs the URL picks (?tab=notes): General —
-the create form's shape over a gang that exists — and Notes and Lore, the
-written fields with the picture beneath them. Each tab is one render and
-one form; a tab is a link, so the choice survives a reload and works with
-no script. The one difference of substance from the create form: the type
-is a fact rather than a question, because it fixed who could be hired and
-what the founding brought, and those rows exist.
+the create form's shape over a gang that exists — and Notes and Lore, each
+its own form so one save cannot throw the other box's words away. htmx
+saves without rebuilding the page; TinyMCE stays, because swapping the
+editor out would throw its undo history away. A tab is a link, so the
+choice survives a reload and works with no script. The one difference of
+substance from the create form: the type is a fact rather than a
+question, because it fixed who could be hired and what the founding
+brought, and those rows exist.
 {% endcomment %}
 {% block head_title %}Edit {{ gang.name }}{% endblock head_title %}
 {% comment %}
@@ -22,7 +24,7 @@ reads the config after that listener has run.
           href="{% static 'designsystem/vendor/cropper.min.css' %}">
     <script defer src="{% static 'designsystem/vendor/cropper.min.js' %}"></script>
     <script defer src="{% static 'n26/imagecrop.js' %}"></script>
-    {{ form.media }}
+    {% if tab == "notes" %}{{ notes_form.media }}{% else %}{{ form.media }}{% endif %}
 {% endblock extra_head %}
 {% block nav_switcher %}
     {% gang_switcher gang as gang_switcher_ %}
@@ -32,41 +34,103 @@ reads the config after that listener has run.
     {% include 'n26/_nav.html' with here='gangs' %}
 {% endblock %}
 {% block content %}
-    <c-n26.form-page action="{% url 'n26-edit-gang' gang.pk %}"
-                     :form="form"
-                     title="Edit {{ gang.name }}"
-                     lead="{% if tab == 'notes' %}What the gang says about itself.{% else %}Required fields are marked with an asterisk (*).{% endif %}"
-                     submit_label="{% if tab == 'notes' %}Save notes and lore{% else %}Save changes{% endif %}"
-                     cancel_url="{% url 'n26-gang' gang.pk %}">
-        <c-slot name="breadcrumb">
-            <c-ui.breadcrumbs>
-                <c-ui.breadcrumbs.item>
-                    <c-n26.user-link :user="gang.owner" tone="current" href="{% url 'n26-dashboard' %}" />
-                </c-ui.breadcrumbs.item>
-                <c-ui.breadcrumbs.item href="{% url 'n26-gang' gang.pk %}">{{ gang.name }}</c-ui.breadcrumbs.item>
-                <c-ui.breadcrumbs.item :current="True">
-                    Edit
-                </c-ui.breadcrumbs.item>
-            </c-ui.breadcrumbs>
-        </c-slot>
-        {% csrf_token %}
-        <c-n26.tab-links label="What to edit" :tabs="edit_tabs" />
-        {% if tab == "notes" %}
-            <input type="hidden" name="act" value="story">
-            <c-n26.form-section title="Notes and Lore">
-                {% comment %}
-                The editor wraps itself in the field — label, description and
-                errors ride the component, and a second wrapper would draw the
-                frame twice.
-                {% endcomment %}
-                <c-n26.rich-text :field="form.notes"
-                                 label="Notes"
-                                 description="{{ form.notes.help_text }}" />
-                <c-n26.rich-text :field="form.lore"
-                                 label="Lore"
-                                 description="{{ form.lore.help_text }}" />
+    {% url 'n26-edit-gang' gang.pk as edit_url %}
+    {% if tab == "notes" %}
+        {% comment %}
+        Two forms, not one wrapping page: a form inside a form is not
+        markup, and each box has to post without the other. The column
+        matches form-page's cap so the tab still reads as the same page.
+        {% endcomment %}
+        <div class="max-w-3xl space-y-8">
+            <c-n26.page-header title="Edit {{ gang.name }}" lead="What the gang says about itself.">
+                <c-slot name="breadcrumb">
+                    <c-ui.breadcrumbs>
+                        <c-ui.breadcrumbs.item>
+                            <c-n26.user-link :user="gang.owner" tone="current" href="{% url 'n26-dashboard' %}" />
+                        </c-ui.breadcrumbs.item>
+                        <c-ui.breadcrumbs.item href="{% url 'n26-gang' gang.pk %}">{{ gang.name }}</c-ui.breadcrumbs.item>
+                        <c-ui.breadcrumbs.item :current="True">
+                            Edit
+                        </c-ui.breadcrumbs.item>
+                    </c-ui.breadcrumbs>
+                </c-slot>
+            </c-n26.page-header>
+            <c-n26.tab-links label="What to edit" :tabs="edit_tabs" />
+            <form method="post"
+                  action="{{ edit_url }}"
+                  hx-post="{{ edit_url }}"
+                  hx-swap="none">
+                {% csrf_token %}
+                <input type="hidden" name="act" value="notes">
+                <c-n26.form-section title="Notes">
+                    {% comment %}
+                    The editor wraps itself in the field — label, description
+                    and errors ride the component, and a second wrapper would
+                    draw the frame twice.
+                    {% endcomment %}
+                    <c-n26.rich-text :field="notes_form.notes"
+                                     label="Notes"
+                                     description="{{ notes_form.notes.help_text }}" />
+                    <div class="flex justify-end">
+                        <c-ui.button type="submit" variant="success" size="sm">
+                            Save notes
+                        </c-ui.button>
+                    </div>
+                </c-n26.form-section>
+            </form>
+            <form method="post"
+                  action="{{ edit_url }}"
+                  hx-post="{{ edit_url }}"
+                  hx-swap="none">
+                {% csrf_token %}
+                <input type="hidden" name="act" value="lore">
+                <c-n26.form-section title="Lore">
+                    <c-n26.rich-text :field="lore_form.lore"
+                                     label="Lore"
+                                     description="{{ lore_form.lore.help_text }}" />
+                    <div class="flex justify-end">
+                        <c-ui.button type="submit" variant="success" size="sm">
+                            Save lore
+                        </c-ui.button>
+                    </div>
+                </c-n26.form-section>
+            </form>
+            {% comment %}
+            The picture is its own act — a form inside a form is not markup.
+            {% endcomment %}
+            <c-n26.form-section title="Picture">
+                <c-n26.picture-box action="{{ edit_url }}"
+                                   id="gang-image"
+                                   crop="{{ picture_shape }}"
+                                   max="{{ picture_max }}"
+                                   image_url="{{ picture_url }}"
+                                   alt="A picture of {{ gang.name }}"
+                                   img_class="w-full max-w-md">
+                    Shown on the lore page and against the gang. Picking a
+                    file opens the crop, and using it saves.
+                </c-n26.picture-box>
             </c-n26.form-section>
-        {% else %}
+        </div>
+    {% else %}
+        <c-n26.form-page action="{{ edit_url }}"
+                         :form="form"
+                         title="Edit {{ gang.name }}"
+                         lead="Required fields are marked with an asterisk (*)."
+                         submit_label="Save changes"
+                         cancel_url="{% url 'n26-gang' gang.pk %}">
+            <c-slot name="breadcrumb">
+                <c-ui.breadcrumbs>
+                    <c-ui.breadcrumbs.item>
+                        <c-n26.user-link :user="gang.owner" tone="current" href="{% url 'n26-dashboard' %}" />
+                    </c-ui.breadcrumbs.item>
+                    <c-ui.breadcrumbs.item href="{% url 'n26-gang' gang.pk %}">{{ gang.name }}</c-ui.breadcrumbs.item>
+                    <c-ui.breadcrumbs.item :current="True">
+                        Edit
+                    </c-ui.breadcrumbs.item>
+                </c-ui.breadcrumbs>
+            </c-slot>
+            {% csrf_token %}
+            <c-n26.tab-links label="What to edit" :tabs="edit_tabs" />
             <c-n26.form-section title="General">
                 <c-ui.field label="Gang name *"
                             error="x"
@@ -115,27 +179,6 @@ reads the config after that listener has run.
                                      label="Colour"
                                      description="Shown against the gang wherever it is listed." />
             </c-n26.form-section>
-        {% endif %}
-    </c-n26.form-page>
-    {% if tab == "notes" %}
-        {% comment %}
-        The picture is its own act, outside the form above — a form inside
-        a form is not markup. The column matches the form's cap so the
-        section reads as part of the same page.
-        {% endcomment %}
-        <div class="mt-8 max-w-3xl">
-            <c-n26.form-section title="Picture">
-                <c-n26.picture-box action="{% url 'n26-edit-gang' gang.pk %}"
-                                   id="gang-image"
-                                   crop="{{ picture_shape }}"
-                                   max="{{ picture_max }}"
-                                   image_url="{{ picture_url }}"
-                                   alt="A picture of {{ gang.name }}"
-                                   img_class="w-full max-w-md">
-                    Shown on the lore page and against the gang. Picking a
-                    file opens the crop, and using it saves.
-                </c-n26.picture-box>
-            </c-n26.form-section>
-        </div>
+        </c-n26.form-page>
     {% endif %}
 {% endblock content %}

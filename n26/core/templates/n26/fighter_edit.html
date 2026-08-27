@@ -88,7 +88,16 @@ is named by the page's own heading directly below.
         controls on the card beside it all start one.
         {% endcomment %}
         <c-slot name="notes">
-            <form method="post" action="{{ edit_url }}">
+            {% comment %}
+            htmx saves without rebuilding the page, so lore typed in the
+            other box survives this submit. TinyMCE stays: swapping the
+            editor out would throw its undo history away. Without
+            JavaScript this is an ordinary POST.
+            {% endcomment %}
+            <form method="post"
+                  action="{{ edit_url }}"
+                  hx-post="{{ edit_url }}"
+                  hx-swap="none">
                 {% csrf_token %}
                 <input type="hidden" name="act" value="notes">
                 <p class="mb-2 text-sm text-muted">
@@ -117,7 +126,10 @@ is named by the page's own heading directly below.
             </c-n26.picture-box>
         </c-slot>
         <c-slot name="lore">
-            <form method="post" action="{{ edit_url }}">
+            <form method="post"
+                  action="{{ edit_url }}"
+                  hx-post="{{ edit_url }}"
+                  hx-swap="none">
                 {% csrf_token %}
                 <input type="hidden" name="act" value="lore">
                 <p class="mb-2 text-sm text-muted">
