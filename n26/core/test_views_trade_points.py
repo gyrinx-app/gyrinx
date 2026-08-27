@@ -112,6 +112,11 @@ class TestTheWayIn:
         client.force_login(tester)
         body = client.get(reverse("n26-edit-gang", args=[gang.pk])).content.decode()
         assert page(gang) in body
+        # Same heading as the other edit tabs, with no lead restating
+        # what the tab already says.
+        here = client.get(page(gang)).content.decode()
+        assert "may spend at the Trading Post" not in here
+        assert "Required fields are marked" not in here
 
     def test_somebody_elses_gang_is_not_theirs_to_visit(self, client, gang):
         client.force_login(User.objects.create_user("stranger"))

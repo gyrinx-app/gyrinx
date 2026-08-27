@@ -42,7 +42,7 @@ reads the config after that listener has run.
         matches form-page's cap so the tab still reads as the same page.
         {% endcomment %}
         <div class="max-w-3xl space-y-8">
-            <c-n26.page-header title="Edit {{ gang.name }}" lead="What the gang says about itself.">
+            <c-n26.page-header title="Edit {{ gang.name }}">
                 <c-slot name="breadcrumb">
                     <c-ui.breadcrumbs>
                         <c-ui.breadcrumbs.item>
@@ -115,7 +115,6 @@ reads the config after that listener has run.
         <c-n26.form-page action="{{ edit_url }}"
                          :form="form"
                          title="Edit {{ gang.name }}"
-                         lead="Required fields are marked with an asterisk (*)."
                          submit_label="Save changes"
                          cancel_url="{% url 'n26-gang' gang.pk %}">
             <c-slot name="breadcrumb">
@@ -132,7 +131,7 @@ reads the config after that listener has run.
             {% csrf_token %}
             <c-n26.tab-links label="What to edit" :tabs="edit_tabs" />
             <c-n26.form-section title="General">
-                <c-ui.field label="Gang name *"
+                <c-ui.field label="Gang name (required)"
                             error="x"
                             :form="form"
                             name="name"

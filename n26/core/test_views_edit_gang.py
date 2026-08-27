@@ -70,6 +70,12 @@ class TestThePage:
         # The type is a fact, not a field: stated, never offered.
         assert "Fixed at founding." in body
         assert 'name="gang_type"' not in body
+        # The heading is just the name of the act. Help about required
+        # fields, or about what a tab is for, would sit above the strip
+        # and change as the reader moved — the tab already says that.
+        assert "Required fields are marked" not in body
+        assert "Gang name (required)" in body
+        assert "Gang name *" not in body
 
     def test_a_stranger_gets_a_404(self, client, gang):
         client.force_login(User.objects.create_user("someone-else"))
@@ -294,6 +300,8 @@ class TestNotesLoreAndPicture:
         notes_tab = client.get(edit_url(gang) + "?tab=notes").content.decode()
         assert "Meet at the sump gate" not in general
         assert "Meet at the sump gate" in notes_tab
+        assert "What the gang says about itself." not in notes_tab
+        assert "Required fields are marked" not in notes_tab
         # The tab strip on both, saying which is current.
         assert "?tab=notes" in general
         assert 'aria-current="page"' in notes_tab
