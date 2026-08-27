@@ -8,7 +8,8 @@ import pytest
 from django.contrib.auth.models import Group, User
 
 from gyrinx.site.models import Availability, FeatureFlag
-from n26.core.models import Campaign
+from n26.core.models import Campaign, CampaignEvent
+from n26.core.views.campaigns import LOG_ON_THE_PAGE
 from n26.flags import CAMPAIGNS
 
 pytestmark = pytest.mark.django_db
@@ -286,3 +287,96 @@ class TestArchiving:
     def test_a_deleted_campaign_stops_opening(self, client, campaign, open_to_everyone):
         client.post(f"/n26/campaigns/{campaign.pk}/archive/")
         assert client.get(f"/n26/campaigns/{campaign.pk}/").status_code == 404
+
+
+class TestTheLogOnTheCampaignsPage:
+    """What the arbitrator changed, read back off the page they changed it
+    on. Rendered markup rather than a status code: a section that draws
+    nothing still answers 200."""
+
+    def page(self, client, campaign):
+        return client.get(f"/n26/campaigns/{campaign.pk}/").content.decode()
+
+    def test_a_fresh_campaign_says_its_log_is_empty(
+        self, client, arbitrator, open_to_everyone
+    ):
+        made = Campaign.objects.create(name="Quiet Start", owner=arbitrator)
+        drawn = self.page(client, made)
+        assert "Log" in drawn
+        assert "Nothing yet." in drawn
+
+    def test_setting_one_up_writes_its_first_line(
+        self, client, arbitrator, open_to_everyone
+    ):
+        client.post(
+            "/n26/campaigns/new/",
+            {"name": "Dust Falls", "budget": "1000", "summary": ""},
+        )
+        made = Campaign.objects.get(name="Dust Falls")
+        assert [event.kind for event in made.events.all()] == [
+            CampaignEvent.Kind.CREATED
+        ]
+        assert "set the campaign up" in self.page(client, made)
+
+    def test_editing_writes_what_changed_and_the_page_says_it(
+        self, client, campaign, open_to_everyone
+    ):
+        client.post(
+            f"/n26/campaigns/{campaign.pk}/edit/",
+            {"name": "Dust Falls II", "budget": "1200", "summary": ""},
+        )
+        drawn = self.page(client, campaign)
+        assert "renamed the campaign Dust Falls to Dust Falls II" in drawn
+        assert "set the gang budget to 1200¢" in drawn
+
+    def test_saving_an_untouched_form_writes_nothing(
+        self, client, campaign, open_to_everyone
+    ):
+        """A form submits every box it holds. Only what moved is an act."""
+        client.post(
+            f"/n26/campaigns/{campaign.pk}/edit/",
+            {"name": campaign.name, "budget": "1000", "summary": campaign.summary},
+        )
+        assert not campaign.events.exists()
+
+    def test_the_arbitrator_reads_their_own_acts_as_their_own(
+        self, client, campaign, open_to_everyone
+    ):
+        client.post(
+            f"/n26/campaigns/{campaign.pk}/edit/",
+            {"name": "Dust Falls II", "budget": "1000", "summary": ""},
+        )
+        assert "You" in self.page(client, campaign)
+
+    def test_only_the_most_recent_acts_are_drawn(
+        self, client, campaign, open_to_everyone
+    ):
+        """The page is a campaign, not its history."""
+        for number in range(1, 15):
+            client.post(
+                f"/n26/campaigns/{campaign.pk}/edit/",
+                {"name": f"Dust Falls {number}", "budget": "1000", "summary": ""},
+            )
+        drawn = self.page(client, campaign)
+        assert drawn.count("renamed the campaign") == LOG_ON_THE_PAGE
+        assert "and 4 earlier acts" in drawn
+
+    def test_the_newest_act_is_drawn_first(self, client, campaign, open_to_everyone):
+        client.post(
+            f"/n26/campaigns/{campaign.pk}/edit/",
+            {"name": "Dust Falls II", "budget": "1000", "summary": ""},
+        )
+        client.post(
+            f"/n26/campaigns/{campaign.pk}/edit/",
+            {"name": "Dust Falls II", "budget": "1500", "summary": ""},
+        )
+        drawn = self.page(client, campaign)
+        assert drawn.index("set the gang budget") < drawn.index("renamed the campaign")
+
+    def test_archiving_is_recorded_even_though_the_page_shuts(
+        self, client, campaign, open_to_everyone
+    ):
+        client.post(f"/n26/campaigns/{campaign.pk}/archive/")
+        assert [event.kind for event in campaign.events.all()] == [
+            CampaignEvent.Kind.ARCHIVED
+        ]

@@ -49,3 +49,67 @@ class Campaign(Base, Owned, Archived):
 
     def __str__(self):
         return self.name
+
+
+class CampaignEvent(Base):
+    """One append-only record of a change to the campaign, with who made it.
+
+    The campaign's own acts and no others: set up, renamed, its budget
+    changed, its summary edited, archived. What happens to a *gang* in a
+    campaign belongs to that gang's ledger instead, so one question decides
+    where anything is written — did a gang change? Nothing is recorded twice,
+    and the campaign's log is read from both.
+
+    No sentence is stored. What a reader sees is built when the page is drawn,
+    from the kind and the note, so the wording stays something we can change
+    and the log stays something that can be filtered by what happened rather
+    than by what it happened to say.
+    """
+
+    #: Long enough for a rename, which holds two campaign names and the mark
+    #: between them. Nothing here is ever rewritten, so a note cut short stays
+    #: cut short, and a reader is left with half a name for good.
+    NOTE_LENGTH = 512
+
+    class Kind(models.TextChoices):
+        CREATED = "created", "Set up"
+        RENAMED = "renamed", "Renamed"
+        BUDGET_SET = "budget_set", "Budget set"
+        SUMMARY_EDITED = "summary_edited", "Summary edited"
+        ARCHIVED = "archived", "Archived"
+
+    campaign = models.ForeignKey(
+        "n26.Campaign",
+        on_delete=models.CASCADE,
+        related_name="events",
+    )
+    kind = models.CharField(max_length=20, choices=Kind)
+    #: Who did this. Kept when the account goes, because the campaign's log is
+    #: a record of what happened to it rather than of who is still here.
+    actor = models.ForeignKey(
+        "auth.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    #: What changed, where the kind alone cannot say it: "1000 → 1200" for a
+    #: budget, the two names for a rename. Figures are stored bare and given
+    #: their mark when the page is drawn. Never the summary's own words — the
+    #: log is a list of acts, not a copy of the arbitrator's prose.
+    note = models.CharField(max_length=NOTE_LENGTH, blank=True)
+    #: One mark per act, shared by every event that act wrote. Events sharing
+    #: a mark were written together — three fields changed on one submit — so
+    #: what was one act stays recognisable as one.
+    batch = models.UUIDField(null=True, blank=True, editable=False)
+
+    class Meta:
+        verbose_name = "campaign event"
+        verbose_name_plural = "campaign events"
+        ordering = ["created"]
+        indexes = [
+            models.Index(fields=["campaign", "created"], name="campaign_event_log_idx"),
+        ]
+
+    def __str__(self):
+        return f"{self.get_kind_display()} — {self.campaign}"
