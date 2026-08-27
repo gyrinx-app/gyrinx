@@ -1,9 +1,17 @@
 # Finishing the conversions — the plan, and where it has got to
 
-n26's hand-built choice systems have all been moved onto slots and
-picks. This is the tidying that follows: what is left, the order it can
-be done in, and the decisions already taken. Written to be picked up
-cold.
+n26's hand-built choice systems on Archetype, SkillTree and
+Specialisation have all been moved onto slots and picks. This is the
+tidying that follows those five conversions: what is left, the order
+it can be done in, and the decisions already taken. Written to be
+picked up cold.
+
+**Late addition (2026-08-27):** Affiliation was not in this programme.
+Three systems remain on that kind (Outcast + Clan House, Variants,
+Chaos God). They move next, batched, as
+[`affiliation-conversion-plan.md`](affiliation-conversion-plan.md).
+The "all converted" claim below is true of the three retired kinds
+only.
 
 **Nothing here names a player, a gang or an assignment id.** The counts
 are shapes; every operation finds its own rows by query. The repository
