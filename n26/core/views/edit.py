@@ -228,9 +228,10 @@ def edit_fighter(request, pk):
     one goes through an operation: notes and characteristics price
     nothing and move no rating, but they are part of the gang's story,
     so each writes a journal event and the history can say what the
-    owner did. What the notes editor produced is stored as written and
-    sanitised on the way out, so a tightened allowlist reaches old
-    notes too.
+    owner did. Notes and lore each save on their own, and htmx leaves
+    the page as drawn so typing in one box survives saving the other.
+    What the notes editor produced is stored as written and sanitised
+    on the way out, so a tightened allowlist reaches old notes too.
 
     The subtypes and rules box edits what the model *is*: ticking adds
     in the owner's name, clearing stores a removal whatever route the
@@ -257,6 +258,7 @@ def edit_fighter(request, pk):
     from n26.core.render import render_gang, roster, summarise_roster
     from n26.core.views.choose import link_slots
     from n26.core.views.gangs import _fighter_named
+    from n26.core.views.htmx import stay_or_redirect
     from n26.core.views.learn import apply_ticks, link_skills, ticked_offer
 
     miniature = _own_miniature_or_404(request, pk)
@@ -391,7 +393,9 @@ def edit_fighter(request, pk):
                 op.edit_lore(miniature, form.cleaned_data["lore"])
             record(request, N26Noun.MODEL, EventVerb.UPDATE, miniature, lore=True)
             messages.success(request, "Lore saved.")
-        return redirect("n26-edit-fighter", pk=miniature.pk)
+        return stay_or_redirect(
+            request, reverse("n26-edit-fighter", args=[miniature.pk])
+        )
     elif request.method == "POST" and request.POST.get("act") == "notes":
         form = FighterNotesForm(request.POST)
         if form.is_valid():
@@ -399,7 +403,9 @@ def edit_fighter(request, pk):
                 op.edit_notes(miniature, form.cleaned_data["notes"])
             record(request, N26Noun.MODEL, EventVerb.UPDATE, miniature, notes=True)
             messages.success(request, "Notes saved.")
-        return redirect("n26-edit-fighter", pk=miniature.pk)
+        return stay_or_redirect(
+            request, reverse("n26-edit-fighter", args=[miniature.pk])
+        )
     elif request.method == "POST" and request.POST.get("act") == "picture":
         form = PictureForm(request.POST, request.FILES, ratio=PORTRAIT)
         if form.is_valid():

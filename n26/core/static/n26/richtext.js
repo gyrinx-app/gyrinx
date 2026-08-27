@@ -78,6 +78,21 @@
         });
     });
 
+    /* htmx serialises the textarea, not TinyMCE's iframe. A native submit
+     * copies the live content back because TinyMCE binds the form; htmx
+     * intercepts that event and would otherwise post whatever was in the
+     * box when the page loaded. Capture so this runs before htmx reads
+     * the fields. Saving one box must not send the other: triggerSave
+     * writes every editor to its textarea, and only this form is posted.
+     */
+    document.addEventListener(
+        "submit",
+        function () {
+            if (window.tinymce) window.tinymce.triggerSave();
+        },
+        true,
+    );
+
     /* The edit / render toggle.
      *
      * Preview reads the editor's *live* content rather than the saved value, so it

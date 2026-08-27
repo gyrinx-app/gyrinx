@@ -184,6 +184,78 @@ class TestSavingLore:
         assert vex.lore == ""
 
 
+class TestSavingWithoutRebuildingThePage:
+    """Notes and lore sit on the same screen. Rebuilding it when one
+    saves throws away whatever is typed in the other box, so htmx
+    answers with nothing to draw and a toast — TinyMCE stays put."""
+
+    def asked(self, client, vex, **data):
+        return client.post(edit_url(vex), data, headers={"HX-Request": "true"})
+
+    def test_saving_notes_answers_with_a_toast_and_not_a_page(
+        self, client, tester, gang, vex
+    ):
+        import json
+
+        client.force_login(tester)
+        response = self.asked(
+            client, vex, act="notes", notes="<p>Owes Kaine a favour.</p>"
+        )
+        assert response.status_code == 204
+        assert "<html" not in response.content.decode()
+        said = json.loads(response["HX-Trigger"])["n26-toasts"]
+        assert said[0]["variant"] == "success"
+        assert said[0]["message"] == "Notes saved."
+        vex.refresh_from_db()
+        assert vex.notes == "<p>Owes Kaine a favour.</p>"
+
+    def test_saving_lore_leaves_the_notes_alone(self, client, tester, gang, vex):
+        vex.notes = "<p>Owes Kaine a favour.</p>"
+        vex.save(update_fields=["notes"])
+        client.force_login(tester)
+        self.asked(client, vex, act="lore", lore="<p>Third dome, third life.</p>")
+        vex.refresh_from_db()
+        assert vex.lore == "<p>Third dome, third life.</p>"
+        assert vex.notes == "<p>Owes Kaine a favour.</p>"
+
+    def test_saving_notes_leaves_the_lore_alone(self, client, tester, gang, vex):
+        vex.lore = "<p>Third dome, third life.</p>"
+        vex.save(update_fields=["lore"])
+        client.force_login(tester)
+        self.asked(client, vex, act="notes", notes="<p>Owes Kaine a favour.</p>")
+        vex.refresh_from_db()
+        assert vex.notes == "<p>Owes Kaine a favour.</p>"
+        assert vex.lore == "<p>Third dome, third life.</p>"
+
+    def test_the_boxes_post_in_place(self, client, tester, gang, vex):
+        """Each box is its own form, posting to this page, swapping
+        nothing — so the other editor is not rebuilt."""
+        client.force_login(tester)
+        body = client.get(edit_url(vex)).content.decode()
+        assert body.count('hx-swap="none"') == 2
+        assert f'hx-post="{edit_url(vex)}"' in body
+        assert 'name="act" value="notes"' in body
+        assert 'name="act" value="lore"' in body
+        # Skills and the rest still rebuild the page: they are ticks, not
+        # a live editor sitting next to another one.
+        assert "Save notes" in body
+        assert "Save lore" in body
+
+    def test_the_editor_copies_live_content_before_htmx_reads_the_form(self):
+        """TinyMCE keeps what you type in an iframe. htmx serialises the
+        textarea, so without copying first a save would store whatever
+        was in the box when the page loaded."""
+        from pathlib import Path
+
+        import n26.core
+
+        js = (
+            Path(n26.core.__file__).parent / "static" / "n26" / "richtext.js"
+        ).read_text()
+        assert "tinymce.triggerSave()" in js
+        assert 'addEventListener(\n        "submit"' in js
+
+
 class TestThePicture:
     """The picture is an act of its own: a file replaces, the remove
     button clears, and the notes never ride along."""
