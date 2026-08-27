@@ -378,6 +378,9 @@ def outcasts(subtypes, skills_collection, affiliations, affiliation_lists):
         requires_companions(subtypes["champion"], 3, subtypes["scum"]),
         carried_by=gang_type,
     )
+    from n26.library.conversion import apply, plan_outcast_affiliation
+
+    apply(plan_outcast_affiliation())
     return gang_type
 
 
@@ -519,7 +522,7 @@ class TestFoundingOffersTheChoices:
 
         gang_computed = the_gang_computed(gang)
         affiliations = offered_by(gang_computed.choice("Affiliation"), gang_computed)
-        assert {line.name for line in affiliations.all_lines()} == {
+        assert {line.name for line in affiliations} == {
             "Clanless Outcast",
             "Clan House Outcast",
             "Mutant Outcast",
@@ -531,6 +534,29 @@ def _slot_named(name):
     from n26.library.models import Slot
 
     return Slot.objects.get(name=name)
+
+
+def _pickable_named(name):
+    from n26.library.models import Pickable
+
+    return Pickable.objects.get(name=name)
+
+
+def pick_affiliation(gang, token):
+    return choose(
+        gang_slot(gang, "Affiliation"),
+        _pickable_named(token.name),
+        slot=_slot_named("Affiliation"),
+    )
+
+
+def pick_house(gang, token):
+    anchor = next(
+        row
+        for row in gang.assignments.filter(archived=False)
+        if row.assignable.name == "Clan House Outcast"
+    )
+    return choose(anchor, _pickable_named(token.name), slot=_slot_named("Clan House"))
 
 
 def leader_anchor(crew):
@@ -737,17 +763,12 @@ class TestAffiliationChains:
         computed = the_gang_computed(gang)
         assert computed.choice("Clan house") is None  # not until it's chosen
 
-        choose(gang_slot(gang, "Affiliation"), tokens["clan_house"])
+        pick_affiliation(gang, tokens["clan_house"])
         computed = the_gang_computed(gang)
         slot = computed.choice("Clan house")
         assert slot is not None and not slot.is_resolved
 
-        anchor = next(
-            row
-            for row in gang.assignments.all()
-            if row.assignable.name == "Clan House Outcast"
-        )
-        choose(anchor, house_tokens["Escher"])
+        pick_house(gang, house_tokens["Escher"])
         assert (
             the_gang_computed(gang).choice("Clan house").chosen_name == "House Escher"
         )
@@ -756,13 +777,8 @@ class TestAffiliationChains:
         self, gang, crew, affiliations
     ):
         tokens, house_tokens = affiliations
-        choose(gang_slot(gang, "Affiliation"), tokens["clan_house"])
-        anchor = next(
-            row
-            for row in gang.assignments.all()
-            if row.assignable.name == "Clan House Outcast"
-        )
-        choose(anchor, house_tokens["Escher"])
+        pick_affiliation(gang, tokens["clan_house"])
+        pick_house(gang, house_tokens["Escher"])
 
         for rank, expected in [("leader", True), ("champion", True), ("scum", False)]:
             computed = fighter_computed(crew[rank])
@@ -773,7 +789,7 @@ class TestAffiliationChains:
 
     def test_mutants_open_the_mutation_list_to_all(self, gang, crew, affiliations):
         tokens, _ = affiliations
-        choose(gang_slot(gang, "Affiliation"), tokens["mutant"])
+        pick_affiliation(gang, tokens["mutant"])
 
         for member in crew.values():
             computed = fighter_computed(member)
@@ -801,15 +817,13 @@ class TestTheSheet:
     ):
         tokens, house_tokens = affiliations
         pick_archetype(crew, archetypes["Wyrd"])
-        choose(gang_slot(gang, "Affiliation"), tokens["clan_house"])
-        anchor = next(
-            row
-            for row in gang.assignments.all()
-            if row.assignable.name == "Clan House Outcast"
+        pick_affiliation(gang, tokens["clan_house"])
+        pick_house(gang, house_tokens["Goliath"])
+        choose(
+            crew["champion"].assignments.get(profile__isnull=False),
+            archetypes["Survivor"],
+            slot=_slot_named("Champion archetype"),
         )
-        choose(anchor, house_tokens["Goliath"])
-        anchor = crew["champion"].assignments.get(profile__isnull=False)
-        choose(anchor, archetypes["Survivor"], slot=_slot_named("Champion archetype"))
 
         text = gang_to_text(gang)
         print("\n" + text)
