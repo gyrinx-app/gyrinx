@@ -303,4 +303,6 @@ class TestTheOutcastAffiliationConversion:
         assert run.status == Backfill.Status.DONE
         assert any("applied" in line for line in run.summary["report"])
         assert Slot.objects.filter(name="Affiliation").exists()
-        assert Pickable.objects.filter(name="Clanless Outcast").exists()
+        assert Pickable.objects.filter(
+            name="Clanless Outcast", slot_type__name="Affiliation"
+        ).exists()

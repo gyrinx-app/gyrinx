@@ -536,16 +536,16 @@ def _slot_named(name):
     return Slot.objects.get(name=name)
 
 
-def _pickable_named(name):
+def _pickable_named(name, slot_type):
     from n26.library.models import Pickable
 
-    return Pickable.objects.get(name=name)
+    return Pickable.objects.get(name=name, slot_type__name=slot_type)
 
 
 def pick_affiliation(gang, token):
     return choose(
         gang_slot(gang, "Affiliation"),
-        _pickable_named(token.name),
+        _pickable_named(token.name, "Affiliation"),
         slot=_slot_named("Affiliation"),
     )
 
@@ -556,7 +556,11 @@ def pick_house(gang, token):
         for row in gang.assignments.filter(archived=False)
         if row.assignable.name == "Clan House Outcast"
     )
-    return choose(anchor, _pickable_named(token.name), slot=_slot_named("Clan House"))
+    return choose(
+        anchor,
+        _pickable_named(token.name, "Clan House"),
+        slot=_slot_named("Clan House"),
+    )
 
 
 def leader_anchor(crew):

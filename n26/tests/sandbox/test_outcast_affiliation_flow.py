@@ -198,17 +198,20 @@ def picker_url(gang, kind_label):
     return reverse("n26-choose", args=[gang.pk, slot_line(gang, kind_label).key])
 
 
-def as_pickable(chosen):
+def as_pickable(chosen, kind_label="Affiliation"):
     """The conversion re-says affiliations as pickables; the fixture still
-    hands the old row, so the picker is given the pickable of that name."""
+    hands the old row, so the picker is given the pickable of that name
+    on the slot type that question uses."""
     if isinstance(chosen, Pickable):
         return chosen
-    return Pickable.objects.get(name=chosen.name)
+    slot_type = "Clan House" if kind_label == "Clan house" else kind_label
+    return Pickable.objects.get(name=chosen.name, slot_type__name=slot_type)
 
 
 def pick(client, gang, kind_label, affiliation):
     return client.post(
-        picker_url(gang, kind_label), {"thing": thing_key(as_pickable(affiliation))}
+        picker_url(gang, kind_label),
+        {"thing": thing_key(as_pickable(affiliation, kind_label))},
     )
 
 
