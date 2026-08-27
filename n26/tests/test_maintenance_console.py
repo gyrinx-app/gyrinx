@@ -220,6 +220,25 @@ class TestTheOutcastAffiliationConversion:
         assert found.name == Operation.CONVERT_OUTCAST_AFFILIATION.label
         assert found.view is convert_outcast_affiliation_view
 
+    def test_proof_words_count_holders_when_the_plan_omits_reaches(self):
+        """The confirm dialog must not say “0 gangs” just because a
+        future conversion leaves ``Plan.reaches`` at its default."""
+        from n26.library.conversion.base import Plan
+        from n26.maintenance import _proof_words
+
+        words = _proof_words(
+            Plan(
+                system="outcast_affiliation",
+                holder_ids=(1, 2, 3),
+                gang_ids=(1,),
+            )
+        )
+
+        assert "It reaches 3 gangs" in words["reach_words"]
+        assert "Convert 3 gang(s)" in words["confirm_words"]
+        assert "0 gang" not in words["reach_words"]
+        assert "0 gang" not in words["confirm_words"]
+
     def test_only_a_superuser_may_reach_it(self, client, staffer):
         client.force_login(staffer)
 

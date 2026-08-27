@@ -499,18 +499,20 @@ def convert_outcast_affiliation(backfill_id, **said_by_whoever_enqueued_it):
 
 def _proof_words(plan):
     """What a conversion's page says about its own proof."""
-    holders = len(plan.holder_ids) or plan.reaches
+    # Same fallback as Plan.preview — a plan may omit `reaches`.
+    reaches = plan.reaches or len(plan.holder_ids) or len(plan.gang_ids)
+    holders = len(plan.holder_ids) or reaches
     return {
         "reach_words": (
-            f"It reaches {plan.reaches} gang"
-            f"{'' if plan.reaches == 1 else 's'}, locks them, and proves "
+            f"It reaches {reaches} gang"
+            f"{'' if reaches == 1 else 's'}, locks them, and proves "
             f"{len(plan.gang_ids)} of them read the same before committing — "
             "a spread wide enough to hold every shape the system comes in. "
             f"Every reached gang is then reconciled ({holders} of them); "
             "a mismatch unwinds the whole write."
         ),
         "confirm_words": (
-            f"Convert {plan.reaches} gang(s)? It writes nothing unless every "
+            f"Convert {reaches} gang(s)? It writes nothing unless every "
             "page it proves reads the same, and every reached gang still "
             "reconciles."
         ),
