@@ -202,11 +202,21 @@ class TestSettingOneUp:
         assert response.status_code == 302
         assert response["Location"] == f"/n26/campaigns/{made.pk}/"
 
-    def test_a_blank_budget_means_no_ceiling_rather_than_zero(
+    def test_the_form_opens_with_a_thousand_credit_budget(
         self, client, arbitrator, open_to_everyone
     ):
-        """The one answer worth checking: blank is not a default and is not
-        a zero, and a campaign that read it as zero would refuse everybody."""
+        response = client.get("/n26/campaigns/new/")
+        assert response.context["form"]["budget"].value() == 1000
+        body = response.content.decode()
+        assert 'value="1000"' in body
+        assert "Leave blank for no starting credit limit." in body
+
+    def test_a_blank_budget_means_no_limit_rather_than_zero(
+        self, client, arbitrator, open_to_everyone
+    ):
+        """Blank is not a zero, and a campaign that read it as zero would
+        refuse everybody. Clearing the default is how a table that has
+        not agreed a limit says so."""
         client.post("/n26/campaigns/new/", {"name": "Open House", "budget": ""})
         assert Campaign.objects.get(name="Open House").budget is None
 
@@ -254,7 +264,7 @@ class TestEditing:
         campaign.refresh_from_db()
         assert (campaign.name, campaign.budget) == ("Dust Falls Reborn", 1500)
 
-    def test_clearing_the_budget_removes_the_ceiling(
+    def test_clearing_the_budget_removes_the_limit(
         self, client, campaign, open_to_everyone
     ):
         client.post(
@@ -263,6 +273,19 @@ class TestEditing:
         )
         campaign.refresh_from_db()
         assert campaign.budget is None
+
+    def test_an_unlimited_campaign_stays_blank_on_the_edit_form(
+        self, client, arbitrator, open_to_everyone
+    ):
+        """The 1000 default is for a campaign being set up. Filling it in
+        on edit would make a campaign that had no limit look as if it did."""
+        campaign = Campaign.objects.create(
+            name="Open House", owner=arbitrator, budget=None
+        )
+        response = client.get(f"/n26/campaigns/{campaign.pk}/edit/")
+        assert response.context["form"]["budget"].value() is None
+        assert 'id="campaign-budget"' in response.content.decode()
+        assert 'value="1000"' not in response.content.decode()
 
 
 class TestArchiving:

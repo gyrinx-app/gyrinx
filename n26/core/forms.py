@@ -331,10 +331,10 @@ class RenameFighterForm(forms.Form):
 class CampaignForm(forms.Form):
     """Setting a campaign up, and editing one afterwards.
 
-    ``budget`` reads the way the gang create form's does: blank is not zero
-    and is not a default, it means no ceiling — which is how a campaign runs
-    where the table has not agreed one. So it is ``required=False`` with no
-    ``initial``, and blank lands as ``budget=None``.
+    ``budget`` is the starting credit limit a gang may spend to join.
+    Blank is not zero: it means no limit, which is how a campaign runs
+    where the table has not agreed one. The field opens at 1000, the
+    usual starting figure; clearing it lands as ``budget=None``.
     """
 
     name = forms.CharField(
@@ -345,8 +345,9 @@ class CampaignForm(forms.Form):
     budget = forms.IntegerField(
         required=False,
         min_value=0,
+        initial=1000,
         label="Gang budget",
-        help_text="What a gang may spend to join. Leave blank for no ceiling.",
+        help_text="Leave blank for no starting credit limit.",
     )
     summary = forms.CharField(
         required=False,
