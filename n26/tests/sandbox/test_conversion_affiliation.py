@@ -200,6 +200,8 @@ def build_world(prod_shape, owner):
         )
     )
     choose(hidden_line(gangs["rechosen"]), top["Mutant"])
+    for gang in gangs.values():
+        assert_reconciled(gang)
     return gangs, fighters, hidden
 
 
@@ -246,6 +248,20 @@ class TestThePlan:
         # house, mutant) plus the rechosen gang's live Mutant and its
         # archived Clanless.
         assert said.count("rewrite pick") >= 7
+
+    def test_an_archived_gang_is_rewritten_but_not_held(self, world):
+        """Archived gangs still have their picks moved, but a stale
+        archived gang must not lock or refuse the whole conversion."""
+        gangs, _, _ = world
+        gone = gangs["clanless"]
+        gone.archive()
+
+        plan = plan_outcast_affiliation()
+
+        assert gone.pk not in plan.holder_ids
+        apply(plan)
+        pick = Assignment.objects.get(gang=gone, pickable__isnull=False, archived=False)
+        assert pick.pickable.name == "Clanless Outcast"
 
     def test_nothing_here_when_the_system_is_absent(self, default_pack):
         plan = plan_outcast_affiliation()

@@ -431,7 +431,9 @@ def plan_outcast_affiliation():
         system=SYSTEM,
         steps=tuple(steps),
         gang_ids=tuple(proven),
-        holder_ids=tuple(sorted(holders, key=str)),
-        reaches=len(holders),
+        # Live gangs only: archived ones still have their picks rewritten,
+        # but a stale archived gang must not lock or refuse the write.
+        holder_ids=tuple(sorted(live_holders, key=str)),
+        reaches=len(live_holders),
         left_alone=len(spares),
     )
