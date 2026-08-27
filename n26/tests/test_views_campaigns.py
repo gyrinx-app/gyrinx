@@ -8,9 +8,10 @@ import pytest
 from django.contrib.auth.models import Group, User
 
 from gyrinx.site.models import Availability, FeatureFlag
-from n26.core.models import Campaign, CampaignEvent
+from n26.core.models import Campaign, CampaignEvent, CampaignMembership
 from n26.core.views.campaigns import LOG_ON_THE_PAGE
 from n26.flags import CAMPAIGNS
+from n26.tests.sandbox.actions import found_gang
 
 pytestmark = pytest.mark.django_db
 
@@ -380,3 +381,129 @@ class TestTheLogOnTheCampaignsPage:
         assert [event.kind for event in campaign.events.all()] == [
             CampaignEvent.Kind.ARCHIVED
         ]
+
+
+class TestTheRollOfGangs:
+    """Who is playing, added by the link a player sent."""
+
+    @pytest.fixture
+    def gang(self, gang_type):
+        player = User.objects.create_user("player")
+        return found_gang("The Ashen Choir", gang_type, owner=player)
+
+    def page(self, client, campaign):
+        return client.get(f"/n26/campaigns/{campaign.pk}/").content.decode()
+
+    def test_a_campaign_with_nobody_in_it_says_so(
+        self, client, campaign, open_to_everyone
+    ):
+        drawn = self.page(client, campaign)
+        assert "Gangs" in drawn
+        assert "No gangs yet." in drawn
+
+    def test_a_gang_is_added_by_its_id(self, client, campaign, gang, open_to_everyone):
+        response = client.post(
+            f"/n26/campaigns/{campaign.pk}/gangs/add/", {"gang": str(gang.pk)}
+        )
+        assert response.status_code == 302
+        assert CampaignMembership.objects.filter(
+            campaign=campaign, gang=gang, left__isnull=True
+        ).exists()
+
+    def test_a_gang_is_added_by_the_link_a_player_sent(
+        self, client, campaign, gang, open_to_everyone
+    ):
+        """A pasted address names the same gang as a bare id — a reader who
+        pasted their address bar should not have to tidy it."""
+        client.post(
+            f"/n26/campaigns/{campaign.pk}/gangs/add/",
+            {"gang": f"http://example.test/n26/gangs/{gang.pk}/"},
+        )
+        assert CampaignMembership.objects.filter(campaign=campaign, gang=gang).exists()
+
+    def test_the_roll_draws_the_gang(self, client, campaign, gang, open_to_everyone):
+        client.post(f"/n26/campaigns/{campaign.pk}/gangs/add/", {"gang": str(gang.pk)})
+        assert "The Ashen Choir" in self.page(client, campaign)
+
+    def test_the_log_says_the_gang_joined(
+        self, client, campaign, gang, open_to_everyone
+    ):
+        client.post(f"/n26/campaigns/{campaign.pk}/gangs/add/", {"gang": str(gang.pk)})
+        assert "added the gang to Dust Falls" in self.page(client, campaign)
+
+    def test_an_address_naming_nothing_is_refused_in_words(
+        self, client, campaign, open_to_everyone
+    ):
+        response = client.post(
+            f"/n26/campaigns/{campaign.pk}/gangs/add/", {"gang": "not-a-gang"}
+        )
+        assert response.status_code == 200
+        assert "No gang with that address" in response.content.decode()
+        assert not CampaignMembership.objects.exists()
+
+    def test_a_gang_already_playing_elsewhere_is_refused_in_words(
+        self, client, campaign, gang, arbitrator, open_to_everyone
+    ):
+        elsewhere = Campaign.objects.create(name="Sump City", owner=arbitrator)
+        client.post(f"/n26/campaigns/{elsewhere.pk}/gangs/add/", {"gang": str(gang.pk)})
+
+        response = client.post(
+            f"/n26/campaigns/{campaign.pk}/gangs/add/",
+            {"gang": str(gang.pk)},
+            follow=True,
+        )
+        assert "already playing Sump City" in response.content.decode()
+        assert CampaignMembership.objects.filter(gang=gang).count() == 1
+
+    def test_the_question_page_removes_nothing(
+        self, client, campaign, gang, open_to_everyone
+    ):
+        client.post(f"/n26/campaigns/{campaign.pk}/gangs/add/", {"gang": str(gang.pk)})
+        address = f"/n26/campaigns/{campaign.pk}/gangs/{gang.pk}/remove/"
+        assert client.get(address).status_code == 200
+        assert CampaignMembership.objects.get(gang=gang).playing
+
+    def test_the_post_takes_the_gang_out(
+        self, client, campaign, gang, open_to_everyone
+    ):
+        client.post(f"/n26/campaigns/{campaign.pk}/gangs/add/", {"gang": str(gang.pk)})
+        client.post(f"/n26/campaigns/{campaign.pk}/gangs/{gang.pk}/remove/")
+
+        membership = CampaignMembership.objects.get(gang=gang)
+        assert not membership.playing
+        drawn = self.page(client, campaign)
+        assert "No gangs yet." in drawn
+        assert "took the gang out of Dust Falls" in drawn
+
+    def test_removing_a_gang_that_is_not_playing_answers_404(
+        self, client, campaign, gang, open_to_everyone
+    ):
+        assert (
+            client.post(
+                f"/n26/campaigns/{campaign.pk}/gangs/{gang.pk}/remove/"
+            ).status_code
+            == 404
+        )
+
+    def test_somebody_elses_campaign_takes_no_gangs(
+        self, client, gang, open_to_everyone
+    ):
+        theirs = Campaign.objects.create(
+            name="Not Yours", owner=User.objects.create_user("someone-else")
+        )
+        assert (
+            client.post(
+                f"/n26/campaigns/{theirs.pk}/gangs/add/", {"gang": str(gang.pk)}
+            ).status_code
+            == 404
+        )
+        assert not CampaignMembership.objects.exists()
+
+    def test_the_gang_routes_are_shut_when_the_feature_is(
+        self, client, campaign, gang, shut
+    ):
+        for address in (
+            f"/n26/campaigns/{campaign.pk}/gangs/add/",
+            f"/n26/campaigns/{campaign.pk}/gangs/{gang.pk}/remove/",
+        ):
+            assert client.get(address).status_code == 404, address

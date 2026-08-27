@@ -6,10 +6,10 @@ One campaign, as its arbitrator sees it.
 The standing facts sit in <c-n26.detail-list>, the same way a gang sheet
 carries its own — each a small fact that is also something to change.
 
-Two sections, in the order a reader wants them: the summary says what this
-campaign is, and the log says what has been done to it since. The log reads
-newest first and stops after the most recent few, because this is a
-campaign's page rather than its history.
+Three sections, in the order a reader wants them: the summary says what this
+campaign is, the roll says who is playing it, and the log says what has been
+done since. The log reads newest first and stops after the most recent few,
+because this is a campaign's page rather than its history.
 {% endcomment %}
 {% block head_title %}{{ campaign.name }}{% endblock head_title %}
 {% block nav_heading %}{{ campaign.name }}{% endblock nav_heading %}
@@ -90,6 +90,37 @@ campaign's page rather than its history.
             </c-n26.prose>
         {% endif %}
         {% comment %}
+        Every gang playing, and the way to add another. A gang's name leads to
+        its own sheet, which opens for anybody holding the address — the roll
+        is a list of links, not a claim on anybody's roster.
+        {% endcomment %}
+        <section class="flex flex-col gap-2">
+            <div class="flex items-center justify-between gap-3">
+                <h2 class="text-sm font-medium text-muted">Gangs</h2>
+                <c-ui.button size="sm"
+                             variant="primary"
+                             href="{% url 'n26-campaign-add-gang' campaign.pk %}">
+                    Add gang
+                </c-ui.button>
+            </div>
+            {% if playing %}
+                <ul class="flex flex-col">
+                    {% for membership in playing %}
+                        <li class="flex items-center gap-3 border-b border-box-border/50 py-2 last:border-b-0">
+                            <div class="min-w-0 flex-1">
+                                <c-n26.link href="{% url 'n26-gang' membership.gang.pk %}">{{ membership.gang.name }}</c-n26.link>
+                                <span class="text-sm text-muted">{{ membership.gang.gang_type }}</span>
+                            </div>
+                            <span class="shrink-0 text-sm tabular-nums text-muted">{{ membership.gang.rating }}¢</span>
+                            <c-n26.link href="{% url 'n26-campaign-remove-gang' campaign.pk membership.gang.pk %}">Remove</c-n26.link>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="text-sm text-muted">No gangs yet.</p>
+            {% endif %}
+        </section>
+        {% comment %}
         Cut to the most recent acts, with a count of what is not drawn: a
         campaign played for a year would otherwise push its own facts off
         the bottom of the page.
@@ -105,10 +136,13 @@ campaign's page rather than its history.
                                   class="w-24 shrink-0 pt-px text-right text-sm tabular-nums whitespace-nowrap text-muted">
                                 {{ act.when|date:"j M H:i" }}
                             </time>
-                            <p class="min-w-0 flex-1 text-base">
-                                {% if act.actor %}<span class="font-medium">{{ act.actor }}</span>{% endif %}
-                                {% for span in act.spans %}{% if span.href %}<c-n26.link href="{{ span.href }}" tone="current">{{ span.text }}</c-n26.link>{% else %}{{ span.text }}{% endif %}{% endfor %}
-                            </p>
+                            <div class="min-w-0 flex-1">
+                                <p class="text-base">
+                                    {% if act.actor %}<span class="font-medium">{{ act.actor }}</span>{% endif %}
+                                    {% for span in act.spans %}{% if span.href %}<c-n26.link href="{{ span.href }}" tone="current">{{ span.text }}</c-n26.link>{% else %}{{ span.text }}{% endif %}{% endfor %}
+                                </p>
+                                {% if act.gang_name %}<p class="text-sm text-muted">{{ act.gang_name }}</p>{% endif %}
+                            </div>
                         </li>
                     {% endfor %}
                 </ol>

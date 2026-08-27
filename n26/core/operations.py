@@ -161,6 +161,23 @@ class NotEnoughCredits(Refusal):
         )
 
 
+class AlreadyInACampaign(Refusal):
+    """A gang plays one campaign at a time.
+
+    Not a rule of the game so much as of the record: two open memberships
+    would leave every event the gang wrote unable to say which campaign it
+    belonged to, and the campaign logs reading each other's acts.
+    """
+
+    def __init__(self, gang, campaign):
+        self.gang = gang
+        self.campaign = campaign
+        super().__init__(
+            f"{gang.name} is already playing {campaign.name}. "
+            "A gang plays one campaign at a time — leave that one first."
+        )
+
+
 class NotOnOffer(Refusal):
     """The thing picked cannot settle the choice that was offered.
 
@@ -185,6 +202,11 @@ class NotOnOffer(Refusal):
         )
 
 
+#: Stands for "this operation has not looked yet", so that a gang playing no
+#: campaign is asked about once rather than on every event it writes.
+_UNASKED = object()
+
+
 class Operation:
     """Collects what it touched, so the boundary knows what to repin."""
 
@@ -200,6 +222,7 @@ class Operation:
         self.batch = uuid4()
         self._miniatures = {}
         self._effect_depth = 0
+        self._campaign = _UNASKED
 
     def touched(self, miniature):
         if miniature is not None:
@@ -330,6 +353,12 @@ class Operation:
         pinned to its gang, so a gang's whole history is one query, in
         order: this operation's gang, or — opened without one — the
         gang at the top of the assignment's own chain.
+
+        Where the gang is playing a campaign, the event names it too.
+        That is read here rather than passed in, so no caller has to
+        remember, and a campaign's log holds everything its gangs did
+        while they were in it rather than only the acts somebody thought
+        to mark.
         """
         assignment = about if isinstance(about, Assignment) else None
         gang = self.gang
@@ -342,11 +371,91 @@ class Operation:
             assignment=assignment,
             miniature=about if isinstance(about, Miniature) else None,
             gang=gang,
+            campaign=self._campaign_of(gang),
             kind=kind,
             batch=self.batch,
             actor=self.actor,
             **deltas,
         )
+
+    def _campaign_of(self, gang):
+        """The campaign this gang is playing, asked once per operation.
+
+        A gang joining is itself an event, and it is written after the
+        membership, so the answer is looked up when it is first needed
+        rather than when the operation opened.
+        """
+        from n26.core.models import CampaignMembership
+
+        if gang is None:
+            return None
+        if self._campaign is _UNASKED:
+            membership = (
+                CampaignMembership.objects.filter(gang=gang, left__isnull=True)
+                .select_related("campaign")
+                .first()
+            )
+            self._campaign = membership.campaign if membership else None
+        return self._campaign
+
+    def join_campaign(self, campaign):
+        """Put this operation's gang into a campaign, and say so in its history.
+
+        A gang plays one campaign at a time, so joining a second while still in
+        the first is refused rather than quietly recorded — the database holds
+        the same line, and a player owed an explanation is better served by the
+        sentence than by a constraint error.
+
+        Nothing about the gang changes but where it plays. The event is the
+        gang's own, and names the campaign, so it reads in both histories from
+        one record.
+        """
+        from n26.core.models import CampaignMembership
+
+        gang = self.gang
+        open_now = CampaignMembership.objects.filter(
+            gang=gang, left__isnull=True
+        ).select_related("campaign")
+        already = open_now.first()
+        if already is not None:
+            if already.campaign_id == campaign.pk:
+                return already
+            raise AlreadyInACampaign(gang, already.campaign)
+
+        membership = CampaignMembership.objects.create(campaign=campaign, gang=gang)
+        # Set before the event is written, so the event that records the
+        # joining names the campaign it joined.
+        self._campaign = campaign
+        self.event(None, LedgerEvent.Kind.JOINED_CAMPAIGN)
+        return membership
+
+    def leave_campaign(self):
+        """Take this operation's gang out of whatever campaign it is playing.
+
+        Leaving closes the membership rather than deleting it: what a gang did
+        while it was in a campaign stays true, and the campaign's log keeps
+        reading. A gang playing nothing leaves nothing, and records nothing.
+        """
+        from n26.core.models import CampaignMembership
+
+        membership = (
+            CampaignMembership.objects.filter(gang=self.gang, left__isnull=True)
+            .select_related("campaign")
+            .first()
+        )
+        if membership is None:
+            return None
+
+        # Settled before the membership closes: what this operation is asked
+        # about the gang's campaign is answered by looking for an open
+        # membership, and in a moment there will not be one — so the event
+        # that records the leaving would not be able to name what was left.
+        self._campaign = membership.campaign
+        membership.left = _now()
+        membership.save(update_fields=["left", "modified"])
+        self.event(None, LedgerEvent.Kind.LEFT_CAMPAIGN)
+        self._campaign = None
+        return membership
 
     def rename(self, miniature, name):
         """Give one model a new name, and say so in the history.

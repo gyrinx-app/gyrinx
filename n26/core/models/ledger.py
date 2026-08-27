@@ -152,6 +152,12 @@ class LedgerEvent(Base):
         # that is what they brought rather than what they are now.
         VISITED_TRADING_POST = "visited_post", "Visited the trading post"
 
+        # Where the gang plays. Its own acts, because a gang joining or
+        # leaving is something that happened to the gang — the campaign it
+        # names reads them too, which is how one record serves both.
+        JOINED_CAMPAIGN = "joined_campaign", "Joined a campaign"
+        LEFT_CAMPAIGN = "left_campaign", "Left a campaign"
+
     assignment = models.ForeignKey(
         "n26.Assignment",
         on_delete=models.CASCADE,
@@ -175,6 +181,18 @@ class LedgerEvent(Base):
     #: per event to ask it.
     gang = models.ForeignKey(
         "n26.Gang", on_delete=models.CASCADE, related_name="ledger_events"
+    )
+    #: The campaign the gang was playing when this happened, where it was
+    #: playing one. Written from the gang's own membership rather than by any
+    #: caller, so nothing has to remember to say it, and a campaign's log is
+    #: one indexed read of what its gangs did while they were in it. Set to
+    #: nothing if the campaign goes: the act still happened to the gang.
+    campaign = models.ForeignKey(
+        "n26.Campaign",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="gang_events",
     )
     kind = models.CharField(max_length=20, choices=Kind)
     #: One mark per operation, shared by every event it wrote. Events
@@ -205,6 +223,10 @@ class LedgerEvent(Base):
                 | models.Q(miniature__isnull=True),
                 name="ledger_event_about_at_most_one",
             ),
+        ]
+        indexes = [
+            # What a campaign's gangs did while they were in it, in order.
+            models.Index(fields=["campaign", "created"], name="ledger_event_camp_idx"),
         ]
 
     def __str__(self):
