@@ -211,7 +211,9 @@ class TestSettingOneUp:
         assert response.context["form"]["budget"].value() == 1000
         body = response.content.decode()
         assert 'value="1000"' in body
-        assert "Leave blank for no starting credit limit." in body
+        # The field still says what clearing it does, which is the one thing
+        # a reader cannot see from a box that already holds a figure.
+        assert "Blank sets none." in body
 
     def test_a_blank_budget_means_no_limit_rather_than_zero(
         self, client, arbitrator, open_to_everyone
