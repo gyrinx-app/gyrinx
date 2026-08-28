@@ -5,8 +5,8 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("library", "0070_remove_lasting_effect"),
-        ("n26", "0034_a_gang_plays_one_campaign_at_a_time"),
+        ("library", "0070_drop_lasting_effect_columns"),
+        ("n26", "0035_clear_lasting_effect_assignments"),
     ]
 
     operations = [

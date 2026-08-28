@@ -187,9 +187,7 @@ class TestSelectionRules:
         with pytest.raises(IntegrityError), transaction.atomic():
             create_assignment_set(yolanda, "riding KIT", [])
 
-    def test_everything_that_is_not_equipment_rides_every_card(
-        self, yolanda, kits=None
-    ):
+    def test_everything_that_is_not_equipment_rides_every_card(self, yolanda):
         assign(create_skill("Nerves of Steel"), miniature=yolanda)
         equipment = equipment_of(yolanda)
         knife_only = create_assignment_set(
