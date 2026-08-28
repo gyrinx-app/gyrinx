@@ -277,17 +277,25 @@ class CreateSlot:
     assigned_to: str = "bearer"
     min_picks: int = 1
     max_picks: int = 1
+    #: Author-facing only. Two slots of one type that share a printed
+    #: name (two doors, one question) need distinct qualifiers so the
+    #: unique constraint holds.
+    qualifier: str = ""
+    #: How later steps name this slot in ``made.slots``. Empty uses
+    #: ``name``. Two same-named slots need distinct keys.
+    key: str = ""
 
     def say(self):
+        told = f", told apart as “{self.qualifier}”" if self.qualifier else ""
         return (
             f"create slot “{self.name}” drawing on “{self.picklist}”, "
-            f"pick landing on the {self.assigned_to}"
+            f"pick landing on the {self.assigned_to}{told}"
         )
 
     def perform(self, made):
         from n26.library.authoring import create_slot
 
-        made.slots[self.name] = create_slot(
+        made.slots[self.key or self.name] = create_slot(
             self.name,
             made.slot_types[self.slot_type],
             made.picklists[self.picklist],
@@ -295,6 +303,7 @@ class CreateSlot:
             assigned_to=self.assigned_to,
             min_picks=self.min_picks,
             max_picks=self.max_picks,
+            qualifier=self.qualifier,
         )
 
 

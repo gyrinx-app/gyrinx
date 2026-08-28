@@ -23,7 +23,9 @@ from gyrinx.maintenance.registry import (
 )
 from n26.core.reconcile import assert_reconciled
 from n26.maintenance import (
+    LOCK_KEYS,
     Operation,
+    convert_chaos_god_view,
     convert_outcast_affiliation_view,
     delete_nameless_gang_type_view,
 )
@@ -305,4 +307,88 @@ class TestTheOutcastAffiliationConversion:
         assert Slot.objects.filter(name="Affiliation").exists()
         assert Pickable.objects.filter(
             name="Clanless Outcast", slot_type__name="Affiliation"
+        ).exists()
+
+
+class TestTheChaosGodConversion:
+    """The repair still on offer: the Chaos Gods become picks."""
+
+    def test_its_lock_is_not_shared(self):
+        keys = list(LOCK_KEYS.values())
+        assert len(keys) == len(set(keys))
+        assert (
+            LOCK_KEYS[Operation.CONVERT_CHAOS_GOD]
+            != LOCK_KEYS[Operation.REPAIR_DOUBLED_REFUNDS]
+        )
+
+    def test_the_operation_is_registered_and_named(self):
+        registered = {op.operation for op in operations()}
+
+        assert Operation.CONVERT_CHAOS_GOD.value in registered
+        found = resolve_operation(Operation.CONVERT_CHAOS_GOD.value)
+        assert found.name == Operation.CONVERT_CHAOS_GOD.label
+        assert found.view is convert_chaos_god_view
+
+    def test_it_is_not_retired(self):
+        assert Operation.CONVERT_CHAOS_GOD not in TestARepairThatHasBeenRun.RETIRED
+        assert resolve_operation(Operation.CONVERT_CHAOS_GOD.value).view is not None
+
+    def test_only_a_superuser_may_reach_it(self, client, staffer):
+        client.force_login(staffer)
+
+        response = client.get(reverse("admin:maintenance_n26_convert_chaos_god"))
+
+        assert response.status_code in (302, 403)
+
+    def test_its_page_shows_nothing_to_convert_when_the_system_is_absent(
+        self, client, superuser, default_pack
+    ):
+        client.force_login(superuser)
+
+        response = client.get(reverse("admin:maintenance_n26_convert_chaos_god"))
+
+        page = response.content.decode()
+        assert response.status_code == 200
+        assert "Nothing to convert" in page
+        assert not Backfill.objects.exists()
+
+    def test_its_page_shows_the_plan_and_writes_nothing(
+        self, client, superuser, default_pack, owner
+    ):
+        from n26.tests.sandbox.test_conversion_chaos_god import (
+            build_prod_shape,
+            build_world,
+        )
+
+        build_world(build_prod_shape(), owner)
+        client.force_login(superuser)
+
+        response = client.get(reverse("admin:maintenance_n26_convert_chaos_god"))
+
+        page = response.content.decode()
+        assert response.status_code == 200
+        assert "create slot type “Chaos God”" in page
+        assert not Backfill.objects.exists()
+
+    def test_applying_records_what_it_converted(
+        self, client, superuser, default_pack, owner
+    ):
+        from n26.library.models import Pickable, Slot
+        from n26.tests.sandbox.test_conversion_chaos_god import (
+            build_prod_shape,
+            build_world,
+        )
+
+        build_world(build_prod_shape(), owner)
+        client.force_login(superuser)
+
+        response = client.post(reverse("admin:maintenance_n26_convert_chaos_god"))
+
+        assert response.status_code == 302
+        run = Backfill.objects.get(operation=Operation.CONVERT_CHAOS_GOD)
+        assert run.status == Backfill.Status.DONE
+        assert any("applied" in line for line in run.summary["report"])
+        assert Slot.objects.filter(name="Chaos God").count() == 2
+        assert Pickable.objects.filter(
+            name="Blood God", slot_type__name="Chaos God"
         ).exists()
