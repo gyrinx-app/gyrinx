@@ -1,0 +1,139 @@
+{% extends "n26/layouts/base.html" %}
+{% load navigation %}
+{% comment %}
+Who is in the campaign, and how to ask somebody else.
+
+Those already asked sit above the search, because the question a reader
+arrives with is usually "who have I got" rather than "who else is there".
+
+The search reaches the server, since the accounts it looks through are not on
+the page — so it is a real GET form and not <c-n26.search-bar>'s :live, which
+narrows what is already drawn. htmx makes the same request as you type and
+swaps the results in; with no scripting the Search button does the same thing
+a moment later, and either way the address carries the query.
+
+Which person the message box is being written for rides the address too, so
+the dialog is a state the server draws: a reload lands back on the same
+question and Back closes it.
+{% endcomment %}
+{% block head_title %}Participants of {{ campaign.name }}{% endblock head_title %}
+{% block nav_switcher %}
+    {% campaign_switcher campaign as campaign_switcher_ %}
+    <c-n26.quick-switcher.of :switcher="campaign_switcher_" hotkey="f" />
+{% endblock nav_switcher %}
+{% block nav_items %}
+    {% include 'n26/_nav.html' with here='campaigns' %}
+{% endblock %}
+{% block content %}
+    <div class="mx-auto flex w-full max-w-2xl flex-col gap-6">
+        <c-n26.page-header title="Participants">
+            <c-slot name="breadcrumb">
+                <c-ui.breadcrumbs>
+                    <c-ui.breadcrumbs.item>
+                        <c-n26.user-link :user="campaign.owner"
+                                         tone="current"
+                                         href="{% url 'n26-dashboard' %}" />
+                    </c-ui.breadcrumbs.item>
+                    <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
+                    <c-ui.breadcrumbs.item href="{% url 'n26-campaign' campaign.pk %}">{{ campaign.name }}</c-ui.breadcrumbs.item>
+                    <c-ui.breadcrumbs.item :current="True">
+                        Participants
+                    </c-ui.breadcrumbs.item>
+                </c-ui.breadcrumbs>
+            </c-slot>
+        </c-n26.page-header>
+        <section class="flex flex-col gap-2">
+            <h2 class="text-sm font-medium text-muted">In this campaign</h2>
+            {% if participants %}
+                <ul class="flex flex-col">
+                    {% for participant in participants %}
+                        <li class="flex items-center gap-3 border-b border-box-border/50 py-2 last:border-b-0">
+                            <span class="min-w-0 flex-1 text-base">{{ participant.user.username }}</span>
+                            {% if participant.state == 'accepted' %}
+                                <c-ui.badge color="green" size="sm">
+                                    Accepted
+                                </c-ui.badge>
+                            {% elif participant.state == 'declined' %}
+                                <c-ui.badge color="ink" size="sm">
+                                    Declined
+                                </c-ui.badge>
+                            {% else %}
+                                <c-ui.badge color="orange" size="sm">
+                                    Invited
+                                </c-ui.badge>
+                            {% endif %}
+                            <c-n26.link href="{% url 'n26-campaign-remove-participant' campaign.pk participant.user.pk %}">Remove</c-n26.link>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="text-sm text-muted">Nobody yet.</p>
+            {% endif %}
+        </section>
+        <section class="flex flex-col gap-3">
+            <h2 class="text-sm font-medium text-muted">Invite somebody</h2>
+            {% comment %}
+            The htmx lives on the wrapper rather than the bar, because the bar
+            renders the form itself and a second one inside it would be
+            dropped by the browser.
+            {% endcomment %}
+            <div hx-get="{% url 'n26-campaign-add-participant' campaign.pk %}"
+                 hx-trigger="input changed delay:300ms from:find input"
+                 hx-include="find input"
+                 hx-target="#people-found"
+                 hx-select="#people-found"
+                 hx-swap="outerHTML"
+                 hx-push-url="true">
+                <c-n26.search-bar action="{% url 'n26-campaign-add-participant' campaign.pk %}"
+                                  name="q"
+                                  value="{{ query }}"
+                                  placeholder="Search by username" />
+            </div>
+            <div id="people-found" class="flex flex-col">
+                {% for person in people %}
+                    <div class="flex items-center gap-3 border-b border-box-border/50 py-2 last:border-b-0">
+                        <span class="min-w-0 flex-1 text-base">{{ person.username }}</span>
+                        {% if person.pk in asked_already %}
+                            <span class="text-sm text-muted">Already asked</span>
+                        {% else %}
+                            {% comment %}
+                            A link, not a button: it opens the message box by
+                            going to the address that draws it.
+                            {% endcomment %}
+                            <c-ui.button size="sm"
+                                         variant="primary"
+                                         href="?q={{ query|urlencode }}&amp;invite={{ person.pk }}">
+                                Invite
+                            </c-ui.button>
+                        {% endif %}
+                    </div>
+                {% empty %}
+                    {% if query %}
+                        <p class="py-2 text-sm text-muted">Nobody by that name.</p>
+                    {% else %}
+                        <p class="py-2 text-sm text-muted">Type a username to find somebody.</p>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        </section>
+    </div>
+    {% comment %}
+    The panel renders its own form, so the slot carries only the token and the
+    question's own fields. Dismissing goes to the address without the name.
+    {% endcomment %}
+    {% if asking %}
+        <c-n26.dialog title="Invite {{ asking.username }}"
+                      action="{% url 'n26-campaign-add-participant' campaign.pk %}"
+                      cancel_url="?q={{ query|urlencode }}"
+                      submit_label="Send invitation">
+            <c-slot name="lead">
+                They are told, and can accept or decline.
+            </c-slot>
+            {% csrf_token %}
+            <input type="hidden" name="user" value="{{ asking.pk }}">
+            <c-ui.field label="Message" error="x" name="message" for="invite-message">
+                <c-ui.textarea id="invite-message" name="message" rows="3" />
+            </c-ui.field>
+        </c-n26.dialog>
+    {% endif %}
+{% endblock content %}

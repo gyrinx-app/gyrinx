@@ -34,7 +34,7 @@ The dependency direction is: `library` holds content, `core` reads it.
 Concretely:
 
 - **No app code in `n26/` imports `n23.*` or `gyrinx.*`.** n26 is a
-  parallel edition, not a layer on the old one. Nine deliberate
+  parallel edition, not a layer on the old one. Ten deliberate
   exceptions: `n26/core/views/changelog.py` reads
   `gyrinx.site.models.ChangelogEntry`, deferred inside its shared
   queryset helper; the gangs view searches with
@@ -59,6 +59,13 @@ Concretely:
   (`n26/core/apps.py`), and the platform never names them. The whole
   dependency is one file; nothing else in `n26/` imports
   `gyrinx.site.flags`.
+- **`n26/notifications.py` is a single-file seam of the same shape.** An
+  inbox is the site's, not an edition's: a person has one, and reads it in
+  one place whichever game filled it. A second store here would give them
+  two, and neither would be the whole of what they were told. What crosses
+  is one call — the words are ours, because an edition knows what happened
+  and how to say it, and the delivery is the platform's. Nothing else in
+  `n26/` imports `gyrinx.site.models`.
 - **`n26/analytics.py` is the third platform module n26 may call, and
   the only file allowed to.** Activity tracking is the site's: one
   events table, one log stream, one dashboard, and every question asked

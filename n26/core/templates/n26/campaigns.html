@@ -22,6 +22,11 @@ campaigns is where someone goes when they want one more.
     {% include 'n26/_nav.html' with here='campaigns' %}
 {% endblock %}
 {% block content %}
+    {% comment %}
+    Above the reader's own campaigns, because a question waiting is what they
+    came back for. The include is shared with the home page's tab.
+    {% endcomment %}
+    {% include 'n26/includes/campaign_invitations.html' with back=request.get_full_path %}
     <div class="flex flex-col gap-8">
         <c-n26.page-header title="Campaigns">
             <c-slot name="actions">

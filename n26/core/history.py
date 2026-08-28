@@ -705,7 +705,7 @@ def campaign_history_size(campaign):
 
 def _campaign_own_acts(campaign, viewer, limit=None):
     """What the arbitrator changed about the campaign itself, one act each."""
-    events = campaign.events.select_related("actor", "battle")
+    events = campaign.events.select_related("actor", "battle", "about_user")
     # Newest first while the database is doing the cutting, so a limit takes
     # the recent end; the caller sorts the merged result back into order.
     events = (
@@ -807,6 +807,25 @@ def _tell_campaign(e):
             return (Span("edited the campaign's summary"),), "campaign"
         case kinds.ARCHIVED:
             return (Span("archived the campaign"),), "campaign"
+        case (
+            kinds.INVITED
+            | kinds.INVITE_ACCEPTED
+            | kinds.INVITE_DECLINED
+            | kinds.PARTICIPANT_REMOVED
+        ):
+            # An answer is the invited person's own act, so the actor's name
+            # already leads the sentence and naming them again would say it
+            # twice. Asking and removing are the arbitrator's, and there the
+            # sentence has to say who it was about.
+            who = e.about_user.username if e.about_user_id else "somebody"
+            match e.kind:
+                case kinds.INVITED:
+                    return (Span(f"invited {who}"),), "campaign"
+                case kinds.INVITE_ACCEPTED:
+                    return (Span("accepted the invitation"),), "campaign"
+                case kinds.INVITE_DECLINED:
+                    return (Span("declined the invitation"),), "campaign"
+            return (Span(f"removed {who} from the campaign"),), "campaign"
         case kinds.BATTLE_RECORDED:
             when = e.battle.date if e.battle else None
             if when:

@@ -19,6 +19,10 @@ from n26.flags import CAMPAIGNS, requires_flag
 #: and its controls — shorter than a gang's, so a page holds more of them.
 CAMPAIGNS_PER_PAGE = 25
 
+#: How many accounts a search for somebody to invite offers at once. Enough
+#: to find the person, few enough that the page is not a directory.
+PEOPLE_FOUND = 10
+
 #: How many battles the campaign's page lists, newest first. A campaign
 #: played for a year has more than a page wants; the rest wait for a screen
 #: of their own.
@@ -57,6 +61,7 @@ def campaigns(request):
         request,
         "n26/campaigns.html",
         {
+            "invitations": invitations_for(request.user),
             "campaigns": page.object_list,
             "query": query,
             # How many rows this page carries, for a reader with no script:
@@ -142,6 +147,7 @@ def campaign(request, pk):
         "n26/campaign.html",
         {
             "campaign": found,
+            "participants": _participants(found),
             "playing": playing,
             "battles": battles,
             "acts": list(reversed(recent)),
@@ -342,4 +348,166 @@ def remove_battle(request, pk, battle_pk):
         request,
         "n26/remove_battle.html",
         {"campaign": found, "battle": battle},
+    )
+
+
+def invitations_for(user):
+    """The campaigns this reader has been asked into and not yet answered.
+
+    Drawn on the campaigns list and the home page's campaigns tab, because an
+    invitation nobody sees is an invitation nobody answers.
+    """
+    from n26.core.models import CampaignParticipant
+
+    if not user.is_authenticated:
+        return CampaignParticipant.objects.none()
+    return (
+        CampaignParticipant.objects.filter(
+            user=user,
+            state=CampaignParticipant.State.INVITED,
+            campaign__archived=False,
+        )
+        .select_related("campaign", "campaign__owner", "invited_by")
+        .order_by("campaign__name")
+    )
+
+
+def _participants(campaign):
+    """Everybody asked into this campaign, and what they said."""
+    from n26.core.models import CampaignParticipant
+
+    return (
+        CampaignParticipant.objects.filter(campaign=campaign)
+        .select_related("user")
+        .order_by("user__username")
+    )
+
+
+@requires_flag(CAMPAIGNS)
+@login_required
+def add_participant(request, pk):
+    """Find somebody by name, and ask them into the campaign.
+
+    The search is an ordinary ``?q=`` form, so the page works typed and
+    submitted with no scripting; htmx makes the same request as you type and
+    swaps the results in. Which person is being asked rides the address too,
+    so the message dialog is a state the server draws rather than something
+    the browser opens: a reload lands back on the same question.
+    """
+    from django.contrib.auth.models import User
+
+    from n26.core.campaigns import campaign_operation
+
+    found = _own_campaign_or_404(request, pk)
+    query = request.GET.get("q", "").strip()
+
+    if request.method == "POST":
+        asked = User.objects.filter(pk=request.POST.get("user", "")).first()
+        if asked is None:
+            messages.error(request, "That account no longer exists.")
+        else:
+            with campaign_operation(found, actor=request.user) as act:
+                act.invite(asked, message=request.POST.get("message", "").strip())
+            messages.success(request, f"Invited {asked.username}.")
+        return redirect("n26-campaign-add-participant", pk=found.pk)
+
+    # Already asked, so the search offers them as asked rather than again.
+    asked_already = set(_participants(found).values_list("user_id", flat=True))
+    people = []
+    if query:
+        people = list(
+            User.objects.filter(username__icontains=query, is_active=True)
+            .exclude(pk=found.owner_id)
+            .order_by("username")[:PEOPLE_FOUND]
+        )
+
+    # Which person the message box is being written for, from the address.
+    asking = None
+    wanted = request.GET.get("invite", "")
+    if wanted:
+        asking = User.objects.filter(pk=wanted, is_active=True).first()
+
+    return render(
+        request,
+        "n26/add_participant.html",
+        {
+            "campaign": found,
+            "participants": _participants(found),
+            "query": query,
+            "people": people,
+            "asked_already": asked_already,
+            "asking": asking,
+        },
+    )
+
+
+@requires_flag(CAMPAIGNS)
+@login_required
+def remove_participant(request, pk, user_pk):
+    """The question at its own address, then the act."""
+    from n26.core.campaigns import campaign_operation
+    from n26.core.models import CampaignParticipant
+
+    found = _own_campaign_or_404(request, pk)
+    participant = get_object_or_404(
+        CampaignParticipant.objects.select_related("user"),
+        campaign=found,
+        user__pk=user_pk,
+    )
+
+    if request.method == "POST":
+        name = participant.user.username
+        with campaign_operation(found, actor=request.user) as act:
+            act.remove_participant(participant)
+        messages.success(request, f"Removed {name}.")
+        return redirect("n26-campaign-add-participant", pk=found.pk)
+
+    return render(
+        request,
+        "n26/remove_participant.html",
+        {"campaign": found, "participant": participant},
+    )
+
+
+@requires_flag(CAMPAIGNS)
+@login_required
+def answer_invitation(request, pk):
+    """Accept or decline an invitation, as the person who was asked.
+
+    Not owner-scoped, and deliberately: the one page in this feature acted on
+    by somebody who does not own the campaign. What stands in for ownership
+    is the invitation itself — no invitation, no answer, and the address says
+    nothing about a campaign the reader was never asked into.
+    """
+    from django.urls import reverse
+
+    from n26.core.campaigns import campaign_operation
+    from n26.core.models import Campaign, CampaignParticipant
+    from n26.core.views.permissions import _safe_redirect
+
+    if request.method != "POST":
+        return redirect("n26-campaigns")
+
+    participant = get_object_or_404(
+        CampaignParticipant.objects.select_related("campaign"),
+        campaign__pk=pk,
+        user=request.user,
+        state=CampaignParticipant.State.INVITED,
+    )
+    campaign = Campaign.objects.get(pk=participant.campaign_id)
+    accepted = request.POST.get("answer") == "accept"
+
+    with campaign_operation(campaign, actor=request.user) as act:
+        act.answer_invitation(request.user, accepted)
+
+    messages.success(
+        request,
+        f"You joined {campaign.name}."
+        if accepted
+        else f"You declined {campaign.name}.",
+    )
+    # Answered from the campaigns list or the home page, and a reader should
+    # land back where they were rather than somewhere this view chose.
+    return _safe_redirect(
+        request, request.POST.get("next", ""), fallback_url=reverse("n26-campaigns")
     )
