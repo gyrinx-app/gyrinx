@@ -215,30 +215,62 @@ class TestAGangWithNoBudget:
 
 
 class TestTheSameRefundArrivingTwice:
-    """A refund is one act however many times the click reaches the server.
+    """A removal is one act however many times the click reaches the server.
 
-    Two requests for the same refund each load the line — with its ledger
+    Two requests for the same act each load the line — with its ledger
     entry beside it — before either holds the gang's line. The second
-    waits its turn and then acts on what it loaded, which still says the
-    thing is on the roster and paid for, so it hands the money back
-    again: the entry folds to minus what it was worth while its pins say
-    zero, and the gang is paid twice for one refund.
+    waits its turn holding a copy that still says the thing is on the
+    roster and paid for. Were the act to trust that copy it would hand
+    the money back again: the entry would fold to minus what it was worth
+    while its pins say zero, and the gang would be paid twice for one
+    refund. Instead the second arrival finds the thing gone and does
+    nothing.
     """
 
-    def test_a_second_refund_of_the_same_line_returns_nothing(self, gang, vex):
+    @pytest.fixture
+    def loaded_twice(self, vex):
         from n26.core.models import Assignment
-        from n26.tests.sandbox.actions import refund
 
         gun = give_weapon(
             vex, create_weapon("Autogun", price=GUN_PRICE), paid=GUN_PRICE
         )
         as_loaded = Assignment.objects.select_related("ledger_entry")
-        first = as_loaded.get(pk=gun.pk)
-        second = as_loaded.get(pk=gun.pk)
+        return as_loaded.get(pk=gun.pk), as_loaded.get(pk=gun.pk)
 
+    def test_a_second_refund_of_the_same_line_returns_nothing(self, gang, loaded_twice):
+        from n26.core.models import LedgerEvent
+        from n26.tests.sandbox.actions import refund
+
+        first, second = loaded_twice
         refund(first)
         refund(second)
 
         gang.refresh_from_db()
         assert_reconciled(gang)
         assert gang.credits == 1000 - HIRE_PRICE
+        assert first.ledger_events.filter(kind=LedgerEvent.Kind.REFUNDED).count() == 1
+
+    def test_a_second_sale_of_the_same_line_pays_nothing(self, gang, loaded_twice):
+        from n26.core.models import LedgerEvent
+        from n26.tests.sandbox.actions import sell
+
+        first, second = loaded_twice
+        proceeds = sell(first)
+        assert sell(second) == 0
+
+        gang.refresh_from_db()
+        assert_reconciled(gang)
+        assert gang.credits == 1000 - HIRE_PRICE - GUN_PRICE + proceeds
+        assert first.ledger_events.filter(kind=LedgerEvent.Kind.SOLD).count() == 1
+
+    def test_a_second_removal_of_the_same_line_writes_nothing(self, gang, loaded_twice):
+        from n26.core.models import LedgerEvent
+        from n26.tests.sandbox.actions import remove
+
+        first, second = loaded_twice
+        remove(first)
+        remove(second)
+
+        gang.refresh_from_db()
+        assert_reconciled(gang)
+        assert first.ledger_events.filter(kind=LedgerEvent.Kind.REMOVED).count() == 1

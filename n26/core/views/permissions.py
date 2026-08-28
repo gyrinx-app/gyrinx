@@ -115,8 +115,11 @@ def _own_assignment_or_404(request, pk):
     hangs off — so a weapon on a fighter, a sight on that weapon and a
     crate in the stash are all reached the same way, and none of them by
     somebody else. Archived assignments are out: a thing already sold is not
-    something to sell again, and a second click of a stale button must
-    find nothing rather than charge the gang twice.
+    something to sell again. That is a courtesy to a stale button, not
+    what keeps the gang from being charged twice — this runs before the
+    operation holds the gang's line, so two clicks can both pass it. The
+    operation reads the row again under the lock and stands down if it
+    has gone (``n26.core.operations._under_the_lock``).
     """
     from n26.core.models import Assignment
 
