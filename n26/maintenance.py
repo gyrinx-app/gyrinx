@@ -114,6 +114,10 @@ class Operation(models.TextChoices):
         "n26_convert_chaos_god",
         "n26: the Chaos Gods become picks",
     )
+    CONVERT_VARIANT = (
+        "n26_convert_variant",
+        "n26: the Variants become picks",
+    )
     SWEEP_ARCHIVED = (
         "n26_sweep_archived",
         "n26: the answers already taken back become picks",
@@ -151,6 +155,7 @@ LOCK_KEYS = {
     Operation.CONVERT_OUTCAST_AFFILIATION: 826_020_608,
     Operation.REPAIR_DOUBLED_REFUNDS: 826_020_609,
     Operation.CONVERT_CHAOS_GOD: 826_020_610,
+    Operation.CONVERT_VARIANT: 826_020_611,
 }
 
 
@@ -519,6 +524,17 @@ def convert_chaos_god(backfill_id, **said_by_whoever_enqueued_it):
     )
 
 
+@task
+def convert_variant(backfill_id, **said_by_whoever_enqueued_it):
+    """The Variant conversion, as a task."""
+    _run_conversion(
+        backfill_id,
+        Operation.CONVERT_VARIANT,
+        "variant",
+        **said_by_whoever_enqueued_it,
+    )
+
+
 def _proof_words(plan):
     """What a conversion's page says about its own proof."""
     # Same fallback as Plan.preview — a plan may omit `reaches`.
@@ -606,6 +622,15 @@ def convert_chaos_god_view(request):
         Operation.CONVERT_CHAOS_GOD,
         "chaos_god",
         convert_chaos_god,
+    )
+
+
+def convert_variant_view(request):
+    return _conversion_view(
+        request,
+        Operation.CONVERT_VARIANT,
+        "variant",
+        convert_variant,
     )
 
 
@@ -907,6 +932,26 @@ register_operation(
 
 register_operation(
     MaintenanceOperation(
+        operation=Operation.CONVERT_VARIANT.value,
+        name=Operation.CONVERT_VARIANT.label,
+        added=date(2026, 8, 28),
+        description=(
+            "Move the Variants onto slots and picks: the shared offer on the "
+            "house gang types becomes a grant of an optional Variant slot, "
+            "the three corruptions become pickables (Chaos Corrupted keeps "
+            "its Chaos God grant), every stored corruption pick is re-said "
+            "as a pick, and every stored None is archived so the question "
+            "reads unanswered. Proves a spread of gangs' pages read the "
+            "same and every reached gang still reconciles, or writes nothing."
+        ),
+        view=convert_variant_view,
+        detail_template="admin/maintenance/n26/_convert_detail.html",
+    )
+)
+
+
+register_operation(
+    MaintenanceOperation(
         operation=Operation.DELETE_NAMELESS_GANG_TYPE.value,
         name=Operation.DELETE_NAMELESS_GANG_TYPE.label,
         added=date(2026, 8, 21),
@@ -960,6 +1005,7 @@ task_routes = [
     TaskRoute(delete_nameless_gang_type, ack_deadline=600, min_retry_delay=60),
     TaskRoute(convert_outcast_affiliation, ack_deadline=600, min_retry_delay=60),
     TaskRoute(convert_chaos_god, ack_deadline=600, min_retry_delay=60),
+    TaskRoute(convert_variant, ack_deadline=600, min_retry_delay=60),
     TaskRoute(propagate_built_ins, ack_deadline=600),
     TaskRoute(sweep_built_in_propagations, schedule="*/5 * * * *"),
     TaskRoute(audit_reconcile),

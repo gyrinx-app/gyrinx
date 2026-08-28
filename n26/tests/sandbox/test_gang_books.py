@@ -38,9 +38,13 @@ from n26.library.authoring import (
     create_gang_type,
     create_hidden,
     create_option_group,
+    create_pickable,
+    create_picklist,
     create_power,
     create_profile,
     create_rule,
+    create_slot,
+    create_slot_type,
     create_subtype,
     create_wargear,
     ef_adds,
@@ -58,7 +62,7 @@ from n26.library.authoring import (
     targets_gang,
     targets_model,
 )
-from n26.library.models import Affiliation, Power
+from n26.library.models import Power
 from n26.tests.sandbox.actions import (
     assign,
     buy,
@@ -123,12 +127,47 @@ def chaos_powers(default_pack):
 
 
 @pytest.fixture
-def escher(ranks, default_pack):
+def corruption_choice(default_pack):
+    """A Variant slot whose Chaos Corrupted pickable grants the Chaos
+    God slot — the shape the conversion leaves standing."""
+    variant_type = create_slot_type("Variant", allows_repeats=False)
+    god_type = create_slot_type(
+        "Chaos God", plural_name="Chaos Gods", allows_repeats=False
+    )
+    gods = {
+        name: create_pickable(f"Dedicated: the {name}", god_type)
+        for name in ("Blood God", "Plague Lord", "Dark Prince", "Architect of Fate")
+    }
+    god_slot = create_slot(
+        "Chaos God",
+        god_type,
+        create_picklist("Chaos Gods", god_type, members=list(gods.values())),
+        label="Dedication",
+        assigned_to="gang",
+        min_picks=0,
+        max_picks=1,
+    )
+    corrupted = create_pickable("Chaos Corrupted", variant_type)
+    variant_slot = create_slot(
+        "Variant",
+        variant_type,
+        create_picklist("Variants", variant_type, members=[corrupted]),
+        label="Corruption",
+        assigned_to="gang",
+        min_picks=0,
+        max_picks=1,
+    )
+    return variant_slot, god_slot, corrupted, gods
+
+
+@pytest.fixture
+def escher(ranks, default_pack, corruption_choice):
     """A slim House Escher: its rule, and the founding corruption slot.
 
     The charter Hidden is the gang type's anchor row — founding assigns
     it, so gang-level questions have an assignment to hang picks off.
     """
+    variant_slot, _, _, _ = corruption_choice
     nimble = create_rule("Nimble")
     charter = create_hidden(
         "House Escher charter",
@@ -137,7 +176,7 @@ def escher(ranks, default_pack):
             # "During Gang Creation a player can decide that their gang
             # has been corrupted" — an open question on the gang's own
             # card, chosen for or simply left.
-            (targets_gang(), ef_offers_choice(Affiliation, label="corruption")),
+            (targets_gang(), ef_adds(variant_slot)),
         ],
     )
     gang_type = create_gang_type("Escher")
@@ -147,19 +186,13 @@ def escher(ranks, default_pack):
 
 
 @pytest.fixture
-def chaos_corruption(escher, ranks, chaos_powers, skills_catalogue):
+def chaos_corruption(escher, ranks, chaos_powers, skills_catalogue, corruption_choice):
     """Everything 'Embracing the Chaos Gods' means, hanging off one pick."""
     _, nimble, _ = escher
+    _, god_slot, corruption, gods = corruption_choice
     family, powers = chaos_powers
     _, tiers = skills_catalogue
     wyrd = create_subtype("Wyrd")
-
-    # The Dark Gods are chosen carriers of their own — the dedication is
-    # a chained choice, and each god's battle favour is names-only.
-    gods = {
-        name: create_affiliation(f"Dedicated: the {name}")
-        for name in ("Blood God", "Plague Lord", "Dark Prince", "Architect of Fate")
-    }
 
     # "The Leader can be upgraded to become a Wyrd for +35 credits" — a
     # priced purchasable carrier. Its power pick falls out of the
@@ -184,28 +217,26 @@ def chaos_corruption(escher, ranks, chaos_powers, skills_catalogue):
         "Chaos Corruption Options", entries=[(ascension, {}), (familiar, {})]
     )
 
-    corruption = create_affiliation(
-        "Chaos Corrupted",
-        effects=[
-            # "Members of the gang do not benefit from any of the gang's
-            # special rules" — computed removal; removes always win.
-            (targets_every_model(), ef_removes(nimble)),
-            # The Post-cycle rituals, printed on who may perform them.
-            (
-                targets_every_model(has_subtypes(ranks["leader"])),
-                ef_adds(create_rule("Lead Ritual", annotation="Leader only")),
-            ),
-            (
-                targets_every_model(),
-                ef_adds(create_rule("Ritual Focus", annotation="max one Fighter")),
-            ),
-            # "The gang must select one of the Chaos gods" — what is
-            # chosen asks its own follow-up. Chained by construction.
-            (targets_gang(), ef_offers_choice(Affiliation, label="dedication")),
-            # The corruption-only equipment list, opened for everyone.
-            (targets_every_model(), ef_adds(options)),
-        ],
-    )
+    for scope, effect in [
+        # "Members of the gang do not benefit from any of the gang's
+        # special rules" — computed removal; removes always win.
+        (targets_every_model(), ef_removes(nimble)),
+        # The Post-cycle rituals, printed on who may perform them.
+        (
+            targets_every_model(has_subtypes(ranks["leader"])),
+            ef_adds(create_rule("Lead Ritual", annotation="Leader only")),
+        ),
+        (
+            targets_every_model(),
+            ef_adds(create_rule("Ritual Focus", annotation="max one Fighter")),
+        ),
+        # "The gang must select one of the Chaos gods" — the pick
+        # grants the follow-up, retracted when Variant is un-chosen.
+        (targets_gang(), ef_adds(god_slot)),
+        # The corruption-only equipment list, opened for everyone.
+        (targets_every_model(), ef_adds(options)),
+    ]:
+        modifier(f"Chaos Corrupted: {effect}", scope, effect, attach_to=corruption)
     return corruption, gods, options, powers
 
 
@@ -264,6 +295,8 @@ def ganger_profile(fighter_type, escher, ranks):
 
 class TestChaosCorruption:
     def corrupted_gang(self, escher, chaos_corruption):
+        from n26.library.models import Slot
+
         gang_type, _, charter = escher
         corruption, gods, _, _ = chaos_corruption
         gang = found_gang(
@@ -273,8 +306,8 @@ class TestChaosCorruption:
             budget=1000,
         )
         anchor = Assignment.objects.get(gang=gang, hidden=charter)
-        corrupted = choose(anchor, corruption)
-        choose(corrupted, gods["Blood God"])
+        corrupted = choose(anchor, corruption, slot=Slot.objects.get(name="Variant"))
+        choose(corrupted, gods["Blood God"], slot=Slot.objects.get(name="Chaos God"))
         return gang
 
     def test_the_founding_pick_suppresses_the_house_rules(

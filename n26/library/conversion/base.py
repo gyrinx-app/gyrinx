@@ -454,6 +454,28 @@ class SwapSharedCarrier:
 
 
 @dataclass(frozen=True)
+class ArchivePick:
+    """A stored pick archived in place — the declared ledger change for
+    a printed “None” that an optional slot already says with nothing
+    chosen. Already-archived picks stay archived; this does not revive
+    them. No money, no event: the conversion exception."""
+
+    assignment_id: object
+    gang: str
+    name: str = "None"
+
+    def say(self):
+        return f"archive pick {self.assignment_id} ({self.gang}) — “{self.name}”"
+
+    def perform(self, made):
+        from n26.core.models import Assignment
+
+        pick = Assignment.objects.get(pk=self.assignment_id)
+        if not pick.archived:
+            pick.archive()
+
+
+@dataclass(frozen=True)
 class RewritePick:
     """One stored choice, re-said as a pick: the old kind's column moves
     to ``pickable``, the anchor it already hangs from (``caused_by``)
@@ -532,6 +554,11 @@ class Plan:
     #: True when the system simply is not here — nothing to convert and
     #: nothing wrong: the apply is a clean no-op.
     nothing_here: bool = False
+    #: Choice pairs this conversion treats as unanswered after the write.
+    #: Archiving a printed “None” leaves the same question with nothing
+    #: settled; capture otherwise sees the stored name become "". Each
+    #: pair is ``(kind_label, chosen)``.
+    unanswered_as: tuple = ()
 
     @property
     def ok(self):
@@ -655,6 +682,30 @@ def _one_snapshot():
             )
 
 
+def _canonicalize_unanswered(state, pairs):
+    """Rewrite captured choices so listed ``(kind, chosen)`` pairs read
+    as unanswered. A conversion that archives a printed None in favour
+    of an optional slot uses this rather than weakening ``differences``
+    for every caller."""
+    if not pairs:
+        return state
+    equivalent = set(pairs)
+
+    def choices(rows):
+        return sorted(
+            (kind, "") if (kind, chosen) in equivalent else (kind, chosen)
+            for kind, chosen in rows
+        )
+
+    rewritten = dict(state)
+    rewritten["choices"] = choices(state["choices"])
+    rewritten["models"] = {
+        model_id: {**model, "choices": choices(model["choices"])}
+        for model_id, model in state.get("models", {}).items()
+    }
+    return rewritten
+
+
 def _perform(plan, report):
     from n26.core.capture import differences, gang_state
     from n26.core.models import Gang
@@ -684,7 +735,16 @@ def _perform(plan, report):
             str(gang.pk): gang_state(gang)
             for gang in Gang.objects.filter(pk__in=plan.gang_ids)
         }
-        changed = differences(before, after)
+        changed = differences(
+            {
+                key: _canonicalize_unanswered(state, plan.unanswered_as)
+                for key, state in before.items()
+            },
+            {
+                key: _canonicalize_unanswered(state, plan.unanswered_as)
+                for key, state in after.items()
+            },
+        )
         if changed:
             raise ConversionRefused(
                 f"[{plan.system}] refused — the pages would change:\n  "
