@@ -44,6 +44,16 @@ urlpatterns = [
         views.remove_gang,
         name="n26-campaign-remove-gang",
     ),
+    path(
+        "campaigns/<str:pk>/battles/new/",
+        views.add_battle,
+        name="n26-campaign-add-battle",
+    ),
+    path(
+        "campaigns/<str:pk>/battles/<str:battle_pk>/remove/",
+        views.remove_battle,
+        name="n26-campaign-remove-battle",
+    ),
     path("gangs/", views.gangs, name="n26-gangs"),
     path("gangs/new/", views.create_gang, name="n26-create-gang"),
     # After gangs/new/, which would otherwise resolve "new" as an id.

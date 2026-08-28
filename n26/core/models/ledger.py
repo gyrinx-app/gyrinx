@@ -194,6 +194,17 @@ class LedgerEvent(Base):
         blank=True,
         related_name="gang_events",
     )
+    #: The battle this happened in, where it happened in one. Set only by
+    #: something recording a battle's outcome; the ordinary run of buying and
+    #: hiring between fights names none. Set to nothing if the battle goes:
+    #: the act still happened to the gang.
+    battle = models.ForeignKey(
+        "n26.Battle",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="gang_events",
+    )
     kind = models.CharField(max_length=20, choices=Kind)
     #: One mark per operation, shared by every event it wrote. Events
     #: sharing a mark were one act — a hire and everything it brought, a

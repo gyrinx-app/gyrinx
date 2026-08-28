@@ -1,0 +1,44 @@
+{% extends "n26/layouts/base.html" %}
+{% comment %}
+The question asked before a battle is taken off a campaign, at an address of
+its own. Following the link that leads here changes nothing; the POST is the
+act.
+{% endcomment %}
+{% block head_title %}Remove the battle of {{ battle.date }}{% endblock head_title %}
+{% block nav_heading %}Remove a battle{% endblock nav_heading %}
+{% block nav_items %}
+    {% include 'n26/_nav.html' with here='campaigns' %}
+{% endblock %}
+{% block content %}
+    <c-n26.form-page action="{% url 'n26-campaign-remove-battle' campaign.pk battle.pk %}"
+                     title="Remove the battle of {{ battle.date|date:'j F Y' }}?"
+                     submit_label="Remove battle"
+                     submit_variant="danger"
+                     cancel_url="{% url 'n26-campaign' campaign.pk %}">
+        <c-slot name="breadcrumb">
+            <c-ui.breadcrumbs>
+                <c-ui.breadcrumbs.item>
+                    <c-n26.user-link :user="campaign.owner"
+                                     tone="current"
+                                     href="{% url 'n26-dashboard' %}" />
+                </c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'n26-campaigns' %}">Campaigns</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item href="{% url 'n26-campaign' campaign.pk %}">{{ campaign.name }}</c-ui.breadcrumbs.item>
+                <c-ui.breadcrumbs.item :current="True">
+                    Remove a battle
+                </c-ui.breadcrumbs.item>
+            </c-ui.breadcrumbs>
+        </c-slot>
+        {% csrf_token %}
+        {% comment %}
+        For a battle written down in error. It says what survives, because the
+        gangs' own records are the part a reader would fear losing.
+        {% endcomment %}
+        <c-ui.alert variant="warning" title="The gangs keep their records">
+            This takes the battle off {{ campaign.name }}. What each gang did keeps
+            its own record and simply stops naming a battle — nothing a gang gained
+            or lost is undone. The campaign's log keeps the line saying the battle
+            happened, and gains one saying it was removed.
+        </c-ui.alert>
+    </c-n26.form-page>
+{% endblock content %}

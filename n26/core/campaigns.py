@@ -50,12 +50,13 @@ class CampaignOperation:
         #: was written together stays recognisable as one submit.
         self.batch = uuid4()
 
-    def event(self, kind, note=""):
+    def event(self, kind, note="", battle=None):
         """Append to the log. Nothing already written is ever altered."""
         return CampaignEvent.objects.create(
             campaign=self.campaign,
             kind=kind,
             actor=self.actor,
+            battle=battle,
             note=note[: CampaignEvent.NOTE_LENGTH],
             batch=self.batch,
         )
@@ -115,6 +116,30 @@ class CampaignOperation:
         campaign.save(update_fields=["summary", "modified"])
         self.event(CampaignEvent.Kind.SUMMARY_EDITED)
         return campaign
+
+    def record_battle(self, date, gangs=()):
+        """Write down a battle that was fought, and who was in it.
+
+        Recording one changes no gang: it says a thing happened, and what it
+        did to anybody is written against that gang afterwards. So this is the
+        campaign's own act, and only the campaign's log carries it.
+        """
+        from n26.core.models import Battle
+
+        battle = Battle.objects.create(campaign=self.campaign, date=date)
+        battle.gangs.set(gangs)
+        self.event(CampaignEvent.Kind.BATTLE_RECORDED, battle=battle)
+        return battle
+
+    def remove_battle(self, battle):
+        """Take a battle off the campaign, for one written down in error.
+
+        What the gangs did in it keeps its own records; those simply stop
+        naming a battle. The log says the battle was removed rather than
+        losing the line that said it happened, because both are true.
+        """
+        self.event(CampaignEvent.Kind.BATTLE_REMOVED, note=str(battle.date))
+        battle.delete()
 
     def archive(self):
         """Take the campaign off the arbitrator's list, and say so.

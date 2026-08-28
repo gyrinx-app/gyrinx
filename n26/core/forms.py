@@ -393,3 +393,31 @@ class JoinCampaignForm(forms.Form):
                 "No gang with that address. Check the link and try again."
             )
         return found
+
+
+class BattleForm(forms.Form):
+    """Writing down a battle that was fought: when, and who was in it.
+
+    The gangs offered are the campaign's own, so the form cannot record a
+    battle between gangs that were never in it. Nobody has to be named — a
+    battle written down before the players are settled is still a date worth
+    keeping.
+    """
+
+    date = forms.DateField(
+        label="Date",
+        widget=forms.DateInput(attrs={"type": "date"}),
+        help_text="When it was fought, not when you wrote it down.",
+    )
+    gangs = forms.ModelMultipleChoiceField(
+        queryset=None,
+        required=False,
+        label="Who fought",
+        widget=forms.CheckboxSelectMultiple,
+    )
+
+    def __init__(self, *args, playing=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Handed in rather than looked up, because a form has no campaign of
+        # its own and a queryset built here would offer every gang there is.
+        self.fields["gangs"].queryset = playing

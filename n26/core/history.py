@@ -705,7 +705,7 @@ def campaign_history_size(campaign):
 
 def _campaign_own_acts(campaign, viewer, limit=None):
     """What the arbitrator changed about the campaign itself, one act each."""
-    events = campaign.events.select_related("actor")
+    events = campaign.events.select_related("actor", "battle")
     # Newest first while the database is doing the cutting, so a limit takes
     # the recent end; the caller sorts the merged result back into order.
     events = (
@@ -811,4 +811,13 @@ def _tell_campaign(e):
             return (Span("edited the campaign's summary"),), "campaign"
         case kinds.ARCHIVED:
             return (Span("archived the campaign"),), "campaign"
+        case kinds.BATTLE_RECORDED:
+            when = e.battle.date if e.battle else None
+            if when:
+                return (Span(f"recorded a battle fought on {when:%-d %B}"),), "campaign"
+            return (Span("recorded a battle"),), "campaign"
+        case kinds.BATTLE_REMOVED:
+            if e.note:
+                return (Span(f"removed the battle of {e.note}"),), "campaign"
+            return (Span("removed a battle"),), "campaign"
     return (Span("changed the campaign"),), "campaign"
