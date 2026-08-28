@@ -7,11 +7,18 @@ confirmation inside the form, above the list it was clicked in — overrides tha
 block to nothing and includes this where it wants them instead. Iterating the
 storage is what marks it read, so including this twice on one page would draw
 the same message twice; there is only ever one place per page.
+
+Each alert states its level in `data-message`. A page fetched in the background
+is read for what the server said rather than drawn — the crop dialog
+(n26/imagecrop.js) shows a refusal where the reader is standing instead of
+letting it land on a page nobody sees — and that attribute is the hook it reads.
+Styling is not: the variant below is a mapping and would tell a reader nothing.
 {% endcomment %}
 {% if messages %}
     <div class="mb-4 flex flex-col gap-2">
         {% for message in messages %}
-            <c-ui.alert variant="{% if message.level_tag == 'success' %}success{% elif message.level_tag == 'warning' %}warning{% elif message.level_tag == 'error' %}error{% else %}info{% endif %}"
+            <c-ui.alert data-message="{{ message.level_tag }}"
+                        variant="{% if message.level_tag == 'success' %}success{% elif message.level_tag == 'warning' %}warning{% elif message.level_tag == 'error' %}error{% else %}info{% endif %}"
                         dismissible="1">{{ message }}</c-ui.alert>
         {% endfor %}
     </div>

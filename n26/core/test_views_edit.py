@@ -315,6 +315,61 @@ class TestThePicture:
         # Refused with a reason on the page, never a server error.
         assert response.status_code == 200
 
+    def test_a_refusal_says_which_level_it_is(
+        self, client, tester, gang, vex, own_storage
+    ):
+        """The crop dialog saves in the background and shows a refusal
+        where the reader is standing, so it has to tell a refusal from a
+        save by reading the page it fetched. Every alert states its level
+        (n26/includes/messages.html); without that the dialog draws an
+        empty box and the reason is lost with the page nobody sees."""
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        client.force_login(tester)
+        body = client.post(
+            edit_url(vex),
+            {
+                "act": "picture",
+                "image": SimpleUploadedFile(
+                    "story.txt", b"not a picture", content_type="text/plain"
+                ),
+            },
+            follow=True,
+        ).content.decode()
+
+        assert 'data-message="error"' in body
+        # And the reason is inside that alert, which is what gets read out.
+        reason = body.split('data-message="error"', 1)[1]
+        assert "valid image" in reason
+
+    def test_a_save_that_landed_says_so_the_same_way(
+        self, client, tester, gang, vex, own_storage
+    ):
+        """A background save leaves nothing on screen to say it worked, so
+        the dialog reads the same alerts and repeats the success as a
+        toast."""
+        client.force_login(tester)
+        body = client.post(
+            edit_url(vex),
+            {"act": "picture", "image": png_upload()},
+            follow=True,
+        ).content.decode()
+
+        assert 'data-message="success"' in body
+        assert "Picture saved." in body
+
+    def test_the_dialog_carries_the_place_a_refusal_is_drawn(
+        self, client, tester, gang, vex
+    ):
+        """Drawn empty and hidden by the component, filled by the script.
+        Missing, a refused save would leave the dialog open saying
+        nothing."""
+        client.force_login(tester)
+        body = client.get(edit_url(vex)).content.decode()
+
+        assert "data-crop-error" in body
+        assert "data-crop-error-text" in body
+
     def test_the_crop_dialog_is_told_the_servers_own_shape(
         self, client, tester, gang, vex
     ):
