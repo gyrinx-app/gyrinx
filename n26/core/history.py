@@ -557,7 +557,7 @@ def _tell(e, row, alive):
             return (Span("visited the trading post"),), "money"
         case Kind.VISITED_TRADING_POST:
             # The rank they went as rides the note, so the line says what
-            # they brought rather than what they happen to be now.
+            # they added rather than what they happen to be now.
             went_as = f" as {e.note}" if e.note else ""
             return (
                 Span("sent "),

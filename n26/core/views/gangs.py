@@ -1,5 +1,7 @@
 """Where a player lands, what they own, and founding one more."""
 
+import json
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
@@ -753,21 +755,14 @@ TRADE_POINT_CEILING = 999
 def _brought(data, ticked):
     """What the visit is worth: the ticks, or a figure typed over them.
 
-    The box opens showing what the ticked fighters bring, and the form
-    submits that opening figure alongside it. Left alone, the two match
-    and the ticks decide — so re-ticking without touching the box does
-    what a reader expects, which no amount of client-side arithmetic
-    could promise them with scripting off.
-
-    Changed, the typed figure wins. A territory that adds a point and an
-    arbitrator's own number are the same act with a different total, and
-    the operation takes what it is given.
+    The box opens empty. Left empty, the ticks decide. A figure typed
+    there is the amount, even nought — nought is a number somebody
+    meant, not an empty box.
 
     Raises ValueError on a figure that is not a whole number in range.
     """
     typed = (data.get("brought") or "").strip()
-    opened = (data.get("brought_default") or "").strip()
-    if not typed or typed == opened:
+    if not typed:
         return ticked
     if not typed.isdigit() or int(typed) > TRADE_POINT_CEILING:
         raise ValueError(typed)
@@ -819,24 +814,23 @@ def gang_trade_points(request, pk):
     """The Visit Trading Post action: the one open, and starting another.
 
     One act per post. Starting names the fighters who perform it and
-    takes what they bring between them; finishing shuts the post and
+    takes what they add between them; finishing shuts the post and
     loses whatever is left, which is the book's own rule rather than
     this screen's idea. Both go through an operation, and the event each
     writes is what the spending is measured against.
 
-    The figures are not a form. A visit brings what its fighters bring,
-    and the box beneath the ticks is for an owner who would rather say
-    the figure outright — `brought_default` is how a typed figure is
-    told from one the page drew, there being no script here to follow
-    the ticks. The screen stays two plain posts and no query string.
+    The figures are not a form. A visit adds what its fighters add, and
+    the box beneath the ticks is for an owner who would rather say the
+    figure outright. Empty, the ticks decide; a number there is the
+    amount. The screen stays two plain posts and no query string.
 
     Two things are refused, and both are refusals a reader cannot reach
-    from the page as drawn. An empty visit: the rules want at least one
-    fighter to perform the action, and a visit nobody performed is not
-    one. And a second visit while one is open: the form is shut then, so
-    a start arriving anyway is a stale page rather than an intention.
+    from the page as drawn. An empty visit: with neither a ticked
+    fighter nor a typed amount there is nothing to start. And a second
+    visit while one is open: the form is shut then, so a start arriving
+    anyway is a stale page rather than an intention.
 
-    Spending past what a visit brought is not among them — the purchase
+    Spending past what a visit added is not among them — the purchase
     asks whether that was meant, and then does it.
     """
     from n26.analytics import EventVerb, N26Noun, record
@@ -853,7 +847,12 @@ def gang_trade_points(request, pk):
             with operation(gang, actor=request.user) as op:
                 op.leave_trading_post()
             record(request, N26Noun.GANG, EventVerb.UPDATE, gang, trade_points=None)
-            lost = f" {left} unspent went with it." if left > 0 else ""
+            if left == 1:
+                lost = " 1 unspent Trade Point was discarded."
+            elif left > 0:
+                lost = f" {left} unspent Trade Points were discarded."
+            else:
+                lost = ""
             messages.success(request, f"{gang.name} left the Trading Post.{lost}")
         return redirect(at)
 
@@ -872,11 +871,12 @@ def gang_trade_points(request, pk):
         # roster, so a tampered form simply sends nobody.
         going = visitors(gang, set(request.POST.getlist("visiting")))
         performing = [visitor for visitor in going if visitor.visiting]
-        if not performing:
+        typed = (request.POST.get("brought") or "").strip()
+        if not performing and not typed:
             messages.error(
                 request,
-                "Pick at least one fighter to visit the trading post — "
-                "somebody has to perform the action.",
+                "Pick at least one fighter to visit the trading post, or "
+                "enter a Trade Point amount.",
             )
             return redirect(at)
         try:
@@ -890,15 +890,20 @@ def gang_trade_points(request, pk):
         with operation(gang, actor=request.user) as op:
             op.visit_trading_post(going, brought=brought)
         record(request, N26Noun.GANG, EventVerb.UPDATE, gang, trade_points=brought)
+        if performing:
+            who = (
+                f"{len(performing)} fighter{'' if len(performing) == 1 else 's'} "
+                f"visited the Trading Post, adding "
+            )
+        else:
+            who = f"{gang.name} visited the Trading Post, adding "
         messages.success(
             request,
-            f"{len(performing)} fighter{'' if len(performing) == 1 else 's'} "
-            f"visited the Trading Post, bringing "
-            f"{brought} Trade Point{'' if brought == 1 else 's'}.",
+            f"{who}{brought} Trade Point{'' if brought == 1 else 's'}.",
         )
         return redirect(at)
 
-    offered = visitors(gang)
+    offered = visitors(gang, going=set())
     return render(
         request,
         "n26/trade_points.html",
@@ -907,7 +912,7 @@ def gang_trade_points(request, pk):
             "action": at,
             # Each fighter on the receipt gets a way to their own equip
             # screen, opened on the post itself: having sent them there,
-            # spending what they brought is the next thing an owner
+            # spending what they added is the next thing an owner
             # wants. Empty where the library has no post, which leaves
             # the buttons off rather than sending anybody nowhere.
             "post": _the_trading_post(),
@@ -915,17 +920,19 @@ def gang_trade_points(request, pk):
             # drawn from this and the form below it either way, so the
             # page reads the same whichever state it is in.
             "receipt": receipt_for(gang),
-            # What the ticked fighters bring, as the box opens. Left at
-            # this the ticks decide, so changing who goes without
-            # touching the box does what a reader expects.
-            "suggestion": minted(offered),
+            # What each offered fighter adds, keyed by the box value, so
+            # the running total can follow the ticks without a second
+            # copy of who is on the list.
+            "points_json": json.dumps(
+                {visitor.key: visitor.trade_points for visitor in offered}
+            ),
             # Whether an action is open, as a plain boolean: the start form
             # reads it to shut itself, and a cotton :attribute takes a
             # variable rather than an expression.
             "visit_open": gang.visiting_trading_post,
             "visitors": offered,
             # Every fighter, not only those who performed the action:
-            # what a visit brought is the gang's, and it is spent on
+            # what a visit added is the gang's, and it is spent on
             # whoever it was for. Who went is the ranks on the receipt.
             "roster": roster(gang),
             "offer": as_offer(offered),

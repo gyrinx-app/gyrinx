@@ -141,15 +141,15 @@ class LedgerEvent(Base):
         # A Visit Trading Post action opening or closing. Like the budget
         # it moves nothing of its own, and unlike it the event is the
         # boundary the spending is measured from: what a visit has left
-        # is what it brought less every Trade Point the log records after
+        # is what it added less every Trade Point the log records after
         # it, so writing one both opens a visit and closes the one before.
         TRADE_POINTS_SET = "trade_points_set", "Trade Points set"
-        # One fighter performing that action. The Trade Points they bring
+        # One fighter performing that action. The Trade Points they add
         # are the gang's, counted once on the event above, so this
         # carries none of its own — it says who went, which is what
         # answers "has this model already used their action" and what a
         # receipt names. The note holds the rank they went as, since
-        # that is what they brought rather than what they are now.
+        # that is what they added rather than what they are now.
         VISITED_TRADING_POST = "visited_post", "Visited the trading post"
 
         # Where the gang plays. Its own acts, because a gang joining or
