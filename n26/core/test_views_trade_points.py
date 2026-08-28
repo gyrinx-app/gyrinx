@@ -241,7 +241,9 @@ class TestWhoIsOffered:
 
     def test_the_start_form_says_how_it_adds_up(self, client, tester, roster, gang):
         """The ticks start clear, the box empty, and the running total
-        follows them — or a typed figure, which shuts the ticks."""
+        follows them. A typed figure shuts the ticks and drops that
+        help — the box is then the amount, so "selected fighters" would
+        be a lie."""
         client.force_login(tester)
         body = client.get(page(gang)).content.decode()
         assert "Visit Trading Post (post-cycle action)" in body
@@ -251,6 +253,7 @@ class TestWhoIsOffered:
         assert "Start action" not in body
         assert "Selected fighters add" in body
         assert 'x-text="added"' in body
+        assert 'x-show="!overridden"' in body
         assert 'x-model="override"' in body
         assert ':disabled="overridden || locked"' in body
 

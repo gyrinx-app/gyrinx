@@ -15,9 +15,10 @@ ticks: the number is then the box's, not a sum. Starting one while another is
 open replaces it, and the form says as much.
 
 The running total and the shutting of the ticks are Alpine, reading state
-already on the page. Without scripting the ticks stay live, the box stays
-empty unless someone types, and the server still takes a typed figure over
-the ticks.
+already on the page. A figure in the box drops the total: that help is
+the ticks', and the box is then the amount. Without scripting the ticks
+stay live, the box stays empty unless someone types, and the server still
+takes a typed figure over the ticks.
 {% endcomment %}
 {% block head_title %}Trade Points — {{ gang.name }}{% endblock head_title %}
 {% block nav_switcher %}
@@ -116,7 +117,7 @@ the ticks.
         {% endif %}
         <form method="post"
               action="{{ action }}"
-              x-data="{ override: '', tick: 0, locked: {{ visit_open|yesno:'true,false' }}, points: {{ points_json }}, get overridden() { return String(this.override).trim() !== ''; }, selected() { this.tick; let n = 0; for (const box of $el.querySelectorAll('input[name=visiting]:checked')) { n += this.points[box.value] || 0; } return n; }, get added() { if (this.overridden) { const n = parseInt(this.override, 10); return Number.isFinite(n) ? n : 0; } return this.selected(); } }"
+              x-data="{ override: '', tick: 0, locked: {{ visit_open|yesno:'true,false' }}, points: {{ points_json }}, get overridden() { return String(this.override).trim() !== ''; }, selected() { this.tick; let n = 0; for (const box of $el.querySelectorAll('input[name=visiting]:checked')) { n += this.points[box.value] || 0; } return n; }, get added() { return this.selected(); } }"
               @change="tick++"
               @input="tick++">
             {% csrf_token %}
@@ -188,7 +189,12 @@ the ticks.
                                 Start TP visit
                             </c-ui.button>
                         {% endif %}
-                        <p class="text-sm text-muted">
+                        {% comment %}
+                        The running total is the ticks' figure. A number in
+                        the box is already the amount, so repeating it as
+                        "Selected fighters add N" would be a lie.
+                        {% endcomment %}
+                        <p class="text-sm text-muted" x-show="!overridden">
                             Selected fighters add
                             <span class="font-medium tabular-nums text-ink-900 dark:text-ink-100"
                                   x-text="added">0</span>
