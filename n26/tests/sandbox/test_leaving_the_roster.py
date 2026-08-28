@@ -212,3 +212,33 @@ class TestAGangWithNoBudget:
         assert unbudgeted.credits == credits_before
         assert unbudgeted.rating == 0
         assert_reconciled(unbudgeted)
+
+
+class TestTheSameRefundArrivingTwice:
+    """A refund is one act however many times the click reaches the server.
+
+    Two requests for the same refund each load the line — with its ledger
+    entry beside it — before either holds the gang's line. The second
+    waits its turn and then acts on what it loaded, which still says the
+    thing is on the roster and paid for, so it hands the money back
+    again: the entry folds to minus what it was worth while its pins say
+    zero, and the gang is paid twice for one refund.
+    """
+
+    def test_a_second_refund_of_the_same_line_returns_nothing(self, gang, vex):
+        from n26.core.models import Assignment
+        from n26.tests.sandbox.actions import refund
+
+        gun = give_weapon(
+            vex, create_weapon("Autogun", price=GUN_PRICE), paid=GUN_PRICE
+        )
+        as_loaded = Assignment.objects.select_related("ledger_entry")
+        first = as_loaded.get(pk=gun.pk)
+        second = as_loaded.get(pk=gun.pk)
+
+        refund(first)
+        refund(second)
+
+        gang.refresh_from_db()
+        assert_reconciled(gang)
+        assert gang.credits == 1000 - HIRE_PRICE
