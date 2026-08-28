@@ -601,6 +601,9 @@ def sell_assignment(request, pk):
     except Refusal as refusal:
         messages.error(request, str(refusal))
         return _unchanged(request, back)
+    if proceeds is None:
+        messages.info(request, f"{name} had already gone.")
+        return _unchanged(request, back)
 
     record(
         request,
@@ -881,9 +884,12 @@ def remove_assignment(request, pk):
 
     try:
         with operation(gang, actor=request.user) as op:
-            op.remove(assignment)
+            removed = op.remove(assignment)
     except Refusal as refusal:
         messages.error(request, str(refusal))
+        return _unchanged(request, back)
+    if removed is None:
+        messages.info(request, f"{name} had already gone.")
         return _unchanged(request, back)
 
     record(
@@ -927,9 +933,12 @@ def refund_assignment(request, pk):
 
     try:
         with operation(gang, actor=request.user) as op:
-            op.refund(assignment)
+            refunded = op.refund(assignment)
     except Refusal as refusal:
         messages.error(request, str(refusal))
+        return _unchanged(request, back)
+    if refunded is None:
+        messages.info(request, f"{name} had already gone.")
         return _unchanged(request, back)
 
     record(

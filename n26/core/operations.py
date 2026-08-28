@@ -727,7 +727,12 @@ class Operation:
         record of having owned the thing survives. Its rating stops counting
         because rating sums skip archived assignments; the entry keeps
         saying what the thing was worth.
+
+        Already gone means nothing to do: see :func:`_under_the_lock`.
         """
+        assignment = _under_the_lock(assignment)
+        if assignment.archived:
+            return None
         for target in [assignment, *subtree(assignment)]:
             if target.archived:
                 continue
@@ -755,7 +760,12 @@ class Operation:
         neither the spending nor its undoing counts any more — the trip
         a refund belongs to is the trip the purchase belonged to, not
         whenever the owner got round to handing it back.
+
+        Already gone means nothing comes back: see :func:`_under_the_lock`.
         """
+        assignment = _under_the_lock(assignment)
+        if assignment.archived:
+            return None
         rows, _ = refund_of(assignment)
         for target in rows:
             self.touched(target.miniature_root)
@@ -815,8 +825,12 @@ class Operation:
         events therefore still reproduces the entry, which is the invariant
         ``n26.reconcile`` exists to check.
 
-        Returns what the gang was paid.
+        Returns what the gang was paid, or None for something already
+        gone: see :func:`_under_the_lock`.
         """
+        assignment = _under_the_lock(assignment)
+        if assignment.archived:
+            return None
         rows, _, proceeds = sale_of(assignment)
         for target in rows:
             self.touched(target.miniature_root)
@@ -1752,6 +1766,26 @@ def _now():
     from django.utils import timezone
 
     return timezone.now()
+
+
+def _under_the_lock(assignment):
+    """The root of a removal, read again now that the gang's line is held.
+
+    A caller loads what it means to remove, refund or sell before the
+    operation begins, and so before :func:`_hold` — two clicks of the same
+    button each load a live, paid-for line, and the second waits its turn
+    holding a copy that still says so. Acting on that copy would archive
+    a thing already archived and hand its money back a second time, with
+    the entry settled to zero twice while its events fold to minus what
+    it was worth. So the act reads the row afresh, entry beside it, and
+    every removal treats an already-archived root as done: nothing
+    written, and None returned so a caller can say so rather than report
+    an act that did not happen. The rows beneath it are always read
+    fresh, so they need no such care.
+    """
+    from n26.core.models import Assignment
+
+    return Assignment.objects.select_related("ledger_entry").get(pk=assignment.pk)
 
 
 def subtree(assignment):
