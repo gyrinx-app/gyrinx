@@ -105,7 +105,12 @@ GROUPS: list[Group] = [
                     'attrs }} is emitted first, your own type="submit" still wins. '
                     "The success variant is a local override of the kit's template, "
                     "so app.css must list .bg-green-700 alongside the other solid "
-                    "fills for the shadow rule to reach it."
+                    "fills for the shadow rule to reach it. A button that submits, "
+                    "fetches over htmx or navigates goes busy on click — spinner, "
+                    "hidden label, no second click — until the work ends; that comes "
+                    "from n26/core/static/n26/busy.js and the [data-busy] rules in "
+                    'app.css, and data-busy="off" on the button or its form opts a '
+                    "control out."
                 ),
             ),
             Component(

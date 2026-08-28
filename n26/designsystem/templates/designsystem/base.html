@@ -180,6 +180,12 @@ document.addEventListener('alpine:init', () => {
     }));
 });
         </script>
+        {% comment %}
+        The busy state a control takes on while its click is being served. The
+        app loads this from its own shell; the gallery loads it so the button
+        page demonstrates the real behaviour rather than a picture of it.
+        {% endcomment %}
+        <script defer src="{% static 'n26/busy.js' %}"></script>
         <script defer src="{% static 'django_cotton_ui/cotton-ui.min.js' %}"></script>
         <script defer src="{% static 'designsystem/vendor/alpine-collapse.min.js' %}"></script>
         <script defer src="{% static 'designsystem/vendor/alpine-focus.min.js' %}"></script>

@@ -1,0 +1,28 @@
+{# title: Busy #}
+{# note: Click either of the first two: a button that submits a form, fetches over htmx or navigates goes busy until the work ends — spinner, hidden label, and no second click. Nothing is declared for it at the call site; busy.js finds the control through the event and app.css draws it. The third is the escape hatch, data-busy="off", for a control that must stay clickable. The row below writes the state out by hand, which is all it takes: the spinner is drawn in the button's own text colour and sized from its own text, so every variant and size has one without being told. #}
+{# layout: col #}
+<form method="get" action="" class="flex items-center gap-3">
+    <c-ui.button type="submit" variant="primary">
+        Submit this form
+    </c-ui.button>
+    <c-ui.button href="?">
+        Follow this link
+    </c-ui.button>
+    <c-ui.button type="submit" variant="subtle" data-busy="off">
+        Submit, never busy
+    </c-ui.button>
+</form>
+<div class="flex items-center gap-3">
+    <c-ui.button variant="primary" data-busy="on">
+        Working
+    </c-ui.button>
+    <c-ui.button data-busy="on">
+        Working
+    </c-ui.button>
+    <c-ui.button variant="danger" size="xs" data-busy="on">
+        Working
+    </c-ui.button>
+    <c-ui.button variant="success" size="lg" data-busy="on">
+        Working
+    </c-ui.button>
+</div>
