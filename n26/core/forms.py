@@ -407,7 +407,6 @@ class BattleForm(forms.Form):
     date = forms.DateField(
         label="Date",
         widget=forms.DateInput(attrs={"type": "date"}),
-        help_text="When it was fought, not when you wrote it down.",
     )
     gangs = forms.ModelMultipleChoiceField(
         queryset=None,

@@ -13,7 +13,6 @@ against that gang, so this screen asks for nothing about the fighting.
 {% block content %}
     <c-n26.form-page action="{% url 'n26-campaign-add-battle' campaign.pk %}"
                      title="Record a battle in {{ campaign.name }}"
-                     lead="What it did to each gang is recorded on that gang."
                      :form="form"
                      submit_label="Record battle"
                      cancel_url="{% url 'n26-campaign' campaign.pk %}">
@@ -33,12 +32,7 @@ against that gang, so this screen asks for nothing about the fighting.
         </c-slot>
         {% csrf_token %}
         <c-n26.form-section title="The battle">
-            <c-ui.field label="Date *"
-                        description="When it was fought, not when you wrote it down."
-                        error="x"
-                        :form="form"
-                        name="date"
-                        for="battle-date">
+            <c-ui.field label="Date *" error="x" :form="form" name="date" for="battle-date">
                 <c-ui.input id="battle-date"
                             name="date"
                             type="date"
@@ -51,7 +45,6 @@ against that gang, so this screen asks for nothing about the fighting.
             from accent, never from a border class.
             {% endcomment %}
             <c-ui.field label="Who fought"
-                        description="Leave empty if the players are not settled yet."
                         error="x"
                         :form="form"
                         name="gangs"
@@ -70,7 +63,7 @@ against that gang, so this screen asks for nothing about the fighting.
                         {% endfor %}
                     </div>
                 {% else %}
-                    <p class="text-sm text-muted">No gangs in this campaign yet — record the date and add them later.</p>
+                    <p class="text-sm text-muted">No gangs in this campaign yet.</p>
                 {% endif %}
             </c-ui.field>
         </c-n26.form-section>
