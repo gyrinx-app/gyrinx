@@ -319,10 +319,9 @@ SPENT its phantom 190 credits, so dropping its legs would breach the
 `credits >= 0` constraint and the single transaction unwound. PR #2344
 (merged 2026-08-28) makes `apply` per-gang: an overspent gang is
 skipped and reported — maintainer's ruling: skip, decide by hand —
-and the rest repair. **C7 is gated on: re-run the repair (expect 3
-repaired, 1 skipped), re-run the audit (expect only the skipped gang
-if it is ever unarchived — the audit walks unarchived gangs only),
-then backfill.***
+and the rest repair. Repair RUN 2026-08-28: 3 repaired, 1 skipped (archived, overspent,
+left for a human). Audit RE-RUN 2026-08-28: **1,726 of 1,726 clean,
+zero failures.** The gate is open: **C7 is next.***
 
 **C4 — Live add-propagation.** Pending row + `on_commit` enqueue from
 `add_built_in`/`add_default_member`/ingest perform, coalesced per set.
