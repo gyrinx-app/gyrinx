@@ -30,6 +30,7 @@ from n26.tests.sandbox.actions import (
     hire,
     refund,
     remove,
+    sell,
 )
 
 pytestmark = pytest.mark.django_db
@@ -95,10 +96,22 @@ class TestFindingTheSurplus:
     """The plan names each gang, how many legs go, and what its credits
     lose — and nothing at all when no line carries a second leg."""
 
-    def test_a_clean_estate_has_nothing_to_drop(self, gang, vex):
+    @pytest.fixture
+    def played(self, gang, vex, default_pack):
+        """A gang with a real history: one refund, one sale and one plain
+        removal, each on its own line and each written once."""
+        refund(give_weapon(vex, create_weapon("Autogun", price=30), paid=30))
+        sell(give_weapon(vex, create_weapon("Shotgun", price=40), paid=40))
+        remove(give_weapon(vex, create_weapon("Knife", price=0), paid=0))
+        gang.refresh_from_db()
+        assert_reconciled(gang)
+        return gang
+
+    def test_a_gang_with_real_history_has_nothing_to_drop(self, played):
         plan = find()
 
         assert plan.nothing_here
+        assert plan.event_ids == ()
         assert "nothing to drop" in plan.preview()[0]
 
     def test_the_plan_names_the_gang_its_legs_and_its_credits(self, doubled):
@@ -170,7 +183,7 @@ class TestDroppingTheSurplus:
 
         assert find().nothing_here
 
-    def test_a_clean_estate_applies_to_nothing(self, gang, vex):
+    def test_a_gang_with_real_history_applies_to_nothing(self, gang, vex):
         report = apply(find())
 
         assert "nothing to drop" in report[0]

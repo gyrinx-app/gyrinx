@@ -24,7 +24,7 @@ unwinds whole.
 from dataclasses import dataclass
 
 from django.db import transaction
-from django.db.models import Count
+from django.db.models import Count, Q
 
 
 class Refused(Exception):
@@ -104,13 +104,19 @@ def _surplus_events():
             batch__in=batches, kind=LedgerEvent.Kind.REMOVED
         ).order_by("created", "id")
         for event in repeats:
+            # "Earlier" in the same total order the surplus legs above
+            # were ranked by: created, then id. Two legs written in the
+            # same instant still have one first, so an exact tie names
+            # one of them and never both.
             earlier = (
                 LedgerEvent.objects.filter(
                     assignment_id=event.assignment_id,
                     kind=LedgerEvent.Kind.REMOVED,
                 )
-                .exclude(pk=event.pk)
-                .filter(created__lte=event.created)
+                .filter(
+                    Q(created__lt=event.created)
+                    | Q(created=event.created, id__lt=event.id)
+                )
                 .exists()
             )
             if earlier:
