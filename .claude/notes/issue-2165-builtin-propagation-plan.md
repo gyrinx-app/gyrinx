@@ -304,8 +304,19 @@ untestable path, executed; the console guard bounced a second click;
 three gangs founded mid-run were swept by the cursor). It found 2
 drifted gangs — entries pinned 0 whose events fold negative, a removal
 leg without its acquisition leg, on a LIVE path — filed as issue #2330.
-**C7 is gated on #2330: fix the writer, repair the two gangs, re-run
-the audit to zero failures, and only then backfill.***
+#2330 diagnosed 2026-08-28: a double-submitted refund/sale — the view
+loads the assignment before `operation()` takes the gang lock, so the
+second click refunds a stale copy again. Fix MERGED (PR #2340:
+`_under_the_lock` re-reads the root inside the lock; an archived root
+is a no-op returning None; the views say "had already gone"). Repair
+MERGED (PR #2341: console operation `n26_repair_doubled_refunds` —
+SQL-detects >1 REFUNDED/SOLD leg per assignment, deletes the surplus
+legs and repeated REMOVED lines in their batches, repins, requires
+`check_gang` clean or unwinds; prod preview: 4 gangs, 17 events, 455
+credits never owed — two of them ARCHIVED gangs the audit skips, so
+the audit should probably walk archived gangs too). **C7 is gated on:
+run the repair in the prod console, re-run the audit to zero failures,
+then backfill.***
 
 **C4 — Live add-propagation.** Pending row + `on_commit` enqueue from
 `add_built_in`/`add_default_member`/ingest perform, coalesced per set.
