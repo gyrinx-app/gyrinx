@@ -7,9 +7,10 @@
  * the difference between a page that looks broken and one that is plainly
  * working, and it is what stops a second click buying a second of something.
  *
- * Nothing here calls preventDefault: every form still submits and every link
+ * A first click is never cancelled: every form still submits and every link
  * still navigates exactly as it would with this file missing, so a failure to
- * load costs the affordance and nothing else.
+ * load costs the affordance and nothing else. The one thing cancelled is a
+ * second activation of a control already busy.
  *
  * The state is one attribute, `data-busy="on"`, written here and drawn by the
  * design library's stylesheet (n26/designsystem/assets/app.css) — this file
@@ -101,6 +102,34 @@
             "[data-busy-applied], [data-busy-disabled]",
         ).forEach(release);
     }
+
+    /*
+     * A second go at a control that is already working.
+     *
+     * A busy button is disabled, which is refusal enough — but a link cannot
+     * be disabled, and the stylesheet's `pointer-events: none` turns away a
+     * mouse and nothing else: Enter on a focused link still activates it. So
+     * the click is stopped here, for every busy control, whatever raised it.
+     *
+     * In the capture phase, and stopping the event where it is caught, because
+     * this is the only place ahead of the handlers that act on the click:
+     * htmx listens on the control itself, and by the time an event has reached
+     * the document on the way back up, the request has already gone.
+     */
+    document.addEventListener(
+        "click",
+        function (event) {
+            var target = event.target;
+            /* Every click on the page passes through here, including ones
+             * raised on nodes that are not elements, which have nothing to
+             * ask. */
+            if (!target || !target.closest) return;
+            if (!target.closest('[data-busy="on"]')) return;
+            event.preventDefault();
+            event.stopPropagation();
+        },
+        true,
+    );
 
     /*
      * A form that posts.
@@ -205,10 +234,12 @@
         "htmx:abort",
     ].forEach(function (name) {
         document.addEventListener(name, function (event) {
-            var element = (event.detail && event.detail.elt) || document.body;
-            releaseWithin(
-                (element.closest && element.closest("form")) || element,
-            );
+            /* Only what this request made busy. A form releases the controls
+             * inside it, because its submit disabled all of them; anything
+             * else releases itself alone. Two links in one form can have
+             * requests in flight at once, and the first to settle must not
+             * hand back the other one. */
+            releaseWithin((event.detail && event.detail.elt) || document.body);
         });
     });
 
