@@ -1637,7 +1637,7 @@ GROUPS: list[Group] = [
                     Part(
                         "c-n26.record-table.campaign-row",
                         "n26/record_table/campaign_row.html",
-                        "One campaign: name, the budget a gang joins at, and Edit.",
+                        "One campaign: its name, and Edit.",
                     ),
                 ),
                 notes=(
