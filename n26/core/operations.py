@@ -732,7 +732,7 @@ class Operation:
         """
         assignment = _under_the_lock(assignment)
         if assignment.archived:
-            return assignment
+            return None
         for target in [assignment, *subtree(assignment)]:
             if target.archived:
                 continue
@@ -765,7 +765,7 @@ class Operation:
         """
         assignment = _under_the_lock(assignment)
         if assignment.archived:
-            return assignment
+            return None
         rows, _ = refund_of(assignment)
         for target in rows:
             self.touched(target.miniature_root)
@@ -825,12 +825,12 @@ class Operation:
         events therefore still reproduces the entry, which is the invariant
         ``n26.reconcile`` exists to check.
 
-        Returns what the gang was paid — nothing, for something already
+        Returns what the gang was paid, or None for something already
         gone: see :func:`_under_the_lock`.
         """
         assignment = _under_the_lock(assignment)
         if assignment.archived:
-            return 0
+            return None
         rows, _, proceeds = sale_of(assignment)
         for target in rows:
             self.touched(target.miniature_root)
@@ -1778,9 +1778,10 @@ def _under_the_lock(assignment):
     a thing already archived and hand its money back a second time, with
     the entry settled to zero twice while its events fold to minus what
     it was worth. So the act reads the row afresh, entry beside it, and
-    every removal treats an already-archived root as done: nothing to
-    write, nothing to return. The rows beneath it are always read fresh,
-    so they need no such care.
+    every removal treats an already-archived root as done: nothing
+    written, and None returned so a caller can say so rather than report
+    an act that did not happen. The rows beneath it are always read
+    fresh, so they need no such care.
     """
     from n26.core.models import Assignment
 

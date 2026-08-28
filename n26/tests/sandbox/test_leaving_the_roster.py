@@ -243,7 +243,7 @@ class TestTheSameRefundArrivingTwice:
 
         first, second = loaded_twice
         refund(first)
-        refund(second)
+        assert refund(second) is None
 
         gang.refresh_from_db()
         assert_reconciled(gang)
@@ -256,7 +256,7 @@ class TestTheSameRefundArrivingTwice:
 
         first, second = loaded_twice
         proceeds = sell(first)
-        assert sell(second) == 0
+        assert sell(second) is None
 
         gang.refresh_from_db()
         assert_reconciled(gang)
@@ -269,7 +269,7 @@ class TestTheSameRefundArrivingTwice:
 
         first, second = loaded_twice
         remove(first)
-        remove(second)
+        assert remove(second) is None
 
         gang.refresh_from_db()
         assert_reconciled(gang)
