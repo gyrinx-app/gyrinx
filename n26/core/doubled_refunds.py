@@ -41,6 +41,10 @@ class Doubled:
     gangs: tuple = ()
     problems: tuple = ()
     nothing_here: bool = False
+    #: Gangs that spent the credits they were never owed: dropping their
+    #: surplus legs would leave their credits below zero, which the books
+    #: never allow, so the repair leaves them as they stand and says so.
+    overspent: tuple = ()
 
     @property
     def ok(self):
@@ -55,11 +59,17 @@ class Doubled:
             return ["nothing to drop — no line carries a second refund or sale"]
         lines = []
         for gang_id, ids, credits in self.gangs:
-            lines.append(
+            line = (
                 f"gang {gang_id}: drop {len(ids)} surplus "
                 f"event{'' if len(ids) == 1 else 's'}; "
                 f"its credits fall by {credits}"
             )
+            if gang_id in self.overspent:
+                line += (
+                    " — WOULD BE SKIPPED: it spent what it was never owed, "
+                    "and its credits cannot fall below zero; decide by hand"
+                )
+            lines.append(line)
         total = len(self.event_ids)
         over = sum(credits for _, _, credits in self.gangs)
         lines.append(
@@ -146,52 +156,85 @@ def find():
         (gang_id, tuple(ids), credits)
         for gang_id, (ids, credits) in sorted(by_gang.items(), key=lambda kv: kv[0])
     )
-    return Doubled(gangs=gangs, problems=tuple(problems))
+    return Doubled(gangs=gangs, problems=tuple(problems), overspent=_overspent(by_gang))
+
+
+def _overspent(by_gang):
+    """The gangs whose pinned credits are less than the surplus they hold
+    — a gang with no budget has no floor to fall through."""
+    from n26.core.models import Gang
+
+    short = []
+    for gang_id, credits, budget in Gang.objects.filter(pk__in=by_gang).values_list(
+        "pk", "credits", "starting_credits"
+    ):
+        if budget is not None and credits - by_gang[gang_id][1] < 0:
+            short.append(gang_id)
+    return tuple(sorted(short))
 
 
 def apply(doubled):
-    """Drop exactly what the plan names, and prove each gang's books whole.
+    """Drop what the plan names, gang by gang, and prove each gang's books
+    whole.
 
-    One transaction: a gang whose books still disagree after its surplus
-    legs are gone unwinds the whole run, with the disagreement in words.
+    Each gang is its own transaction: one that cannot be made whole is
+    left exactly as it stood and reported, and the rest are repaired.
+    The one way a gang cannot be made whole is having spent the credits
+    it was never owed — dropping the surplus would leave its credits
+    below zero, which the books never allow — and what to do about that
+    is a decision, not a repair.
     """
-    from n26.core.models import Gang, LedgerEvent
-    from n26.core.reconcile import check_gang, repin_everything
-
     if doubled.problems:
         raise Refused("not repaired: " + "; ".join(doubled.problems))
     if doubled.nothing_here:
         return list(doubled.preview())
 
     report = list(doubled.preview())
-    gang_ids = [gang_id for gang_id, _, _ in doubled.gangs]
-    with transaction.atomic():
-        # The gangs first, so nothing lands on their books while their
-        # legs are being dropped; then the plan again, because it was
-        # read before this transaction opened.
-        list(Gang.objects.select_for_update().filter(pk__in=gang_ids).order_by("pk"))
-        now = find()
-        if now.problems or set(now.gangs) != set(doubled.gangs):
-            raise Refused(
-                "not repaired: the books have changed since the plan was "
-                "read — read it again"
-            )
-        deleted, _ = LedgerEvent.objects.filter(pk__in=doubled.event_ids).delete()
-        if deleted != len(doubled.event_ids):
-            raise Refused(
-                f"not repaired: {len(doubled.event_ids)} legs named, {deleted} found"
-            )
-        for gang_id in gang_ids:
-            gang = Gang.objects.get(pk=gang_id)
-            repin_everything(gang)
-            gang.refresh_from_db()
-            problems = check_gang(gang)
-            if problems:
-                raise Refused(
-                    f"refused — gang {gang_id} still does not reconcile "
-                    "with its surplus legs gone: " + "; ".join(problems)
-                )
-
-    report.append("dropped events " + ", ".join(str(pk) for pk in doubled.event_ids))
-    report.append("repaired; every affected gang reconciles")
+    for gang_id, ids, _ in doubled.gangs:
+        report.append(_repair_one(gang_id, ids))
     return report
+
+
+def _repair_one(gang_id, ids):
+    """One gang's repair, committed or rolled back on its own. Returns
+    the line the report carries for it."""
+    from n26.core.models import Gang, LedgerEvent
+    from n26.core.reconcile import check_gang, repin_everything
+
+    with transaction.atomic():
+        # The gang first, so nothing lands on its books while its legs
+        # are being dropped; then the plan again, because it was read
+        # before this transaction opened.
+        gang = Gang.objects.select_for_update().get(pk=gang_id)
+        standing = {g: legs for g, legs, _ in find().gangs}
+        if standing.get(gang_id) != ids:
+            return (
+                f"gang {gang_id}: skipped — its books changed since the plan "
+                "was read; read it again"
+            )
+        deleted, _ = LedgerEvent.objects.filter(pk__in=ids).delete()
+        if deleted != len(ids):
+            transaction.set_rollback(True)
+            return f"gang {gang_id}: skipped — {len(ids)} legs named, {deleted} found"
+        expected = gang.recompute_credits()
+        if expected is not None and expected < 0:
+            transaction.set_rollback(True)
+            return (
+                f"gang {gang_id}: skipped — dropping its surplus legs would "
+                f"leave it {-expected} credits overspent; it spent what it was "
+                "never owed, and what to do about that is a decision, not a "
+                "repair"
+            )
+        repin_everything(gang)
+        gang.refresh_from_db()
+        problems = check_gang(gang)
+        if problems:
+            transaction.set_rollback(True)
+            return (
+                f"gang {gang_id}: skipped — still does not reconcile with its "
+                "surplus legs gone: " + "; ".join(problems)
+            )
+    return (
+        f"gang {gang_id}: dropped {len(ids)} event{'' if len(ids) == 1 else 's'}; "
+        f"credits now {gang.credits}"
+    )

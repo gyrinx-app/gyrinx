@@ -175,8 +175,7 @@ class TestDroppingTheSurplus:
             ).count()
             == 1
         )
-        assert report[-1].startswith("repaired")
-        assert any(line.startswith("dropped events") for line in report)
+        assert report[-1].startswith(f"gang {doubled.pk}: dropped 2 events")
 
     def test_a_second_run_finds_nothing(self, doubled):
         apply(find())
@@ -187,6 +186,64 @@ class TestDroppingTheSurplus:
         report = apply(find())
 
         assert "nothing to drop" in report[0]
+
+
+BIG_PRICE = 960
+
+
+@pytest.fixture
+def spent(doubled, vex, default_pack):
+    """The doubled gang has since spent the credits it was never owed:
+    a purchase that leaves fewer credits than the surplus handed back."""
+    give_weapon(vex, create_weapon("Cannon", price=BIG_PRICE), paid=BIG_PRICE)
+    doubled.refresh_from_db()
+    assert doubled.credits < GUN_PRICE
+    return doubled
+
+
+class TestAGangThatSpentWhatItWasNeverOwed:
+    """Dropping its surplus legs would push its credits below zero, and
+    the books never allow that — so the repair leaves the gang exactly
+    as it stands and says why, which is a decision for a person."""
+
+    def test_the_plan_says_it_would_be_skipped(self, spent):
+        plan = find()
+        assert spent.pk in plan.overspent
+        assert any("WOULD BE SKIPPED" in line for line in plan.preview())
+
+    def test_apply_skips_it_and_changes_nothing(self, spent):
+        events_before = LedgerEvent.objects.filter(gang=spent).count()
+        credits_before = spent.credits
+
+        report = apply(find())
+
+        spent.refresh_from_db()
+        assert any("skipped" in line and "overspent" in line for line in report)
+        assert LedgerEvent.objects.filter(gang=spent).count() == events_before
+        assert spent.credits == credits_before
+        assert check_gang(spent)
+
+    def test_the_other_gangs_are_still_repaired(
+        self, spent, gang_type, owner, make_profile, make_statline, default_pack
+    ):
+        other = found_gang("The Solvent", gang_type, owner=owner, budget=1000)
+        profile = make_profile("Ganger of the Solvent", price=HIRE_PRICE)
+        make_statline(profile)
+        other_vex = hire(other, profile, "Ash", paid=HIRE_PRICE)
+        gun = give_weapon(
+            other_vex, create_weapon("Lasgun", price=GUN_PRICE), paid=GUN_PRICE
+        )
+        refund(gun)
+        _written_again(gun.ledger_events.get(kind=LedgerEvent.Kind.REFUNDED))
+        other.repin_credits()
+
+        report = apply(find())
+
+        other.refresh_from_db()
+        assert_reconciled(other)
+        assert other.credits == 1000 - HIRE_PRICE
+        assert any(line.startswith(f"gang {other.pk}: dropped") for line in report)
+        assert any(line.startswith(f"gang {spent.pk}: skipped") for line in report)
 
 
 class TestTheConsole:
